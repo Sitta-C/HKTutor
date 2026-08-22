@@ -32,4 +32,19 @@ Summary: 4 tests, 0 passed, 4 failed, exit status 1.
 
 ## Commit
 
-`59f86e4` (amended after updating this report with the final commit hash).
+`839f961ea3e63becf9e97d34e1eee71b634c0b9b`
+
+## Fix Report
+
+### Files changed
+
+- `tests/workspace-structure.test.mjs` — require exact `pnpm@11.19.0` and reject Docker tooling plus `bee-queue` and `amqplib` dependencies, retaining the original prohibited infrastructure checks.
+- `.superpowers/sdd/2026-08-22-s1-t01-monorepo-bootstrap/task-1-report.md` — appended this fix report.
+
+### Verification
+
+Command: `node --test tests/workspace-structure.test.mjs`
+
+Exit status: `1`
+
+Observed output: 4 tests failed, 0 passed. Failures remain RED solely because the workspace files are absent: `package.json`, `apps/web/package.json`, and `packages/tsconfig/base.json` each report `ENOENT: no such file or directory`. No assertion failure was reached.

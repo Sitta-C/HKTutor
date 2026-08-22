@@ -8,7 +8,7 @@ test("defines the approved pnpm workspace", async () => {
   const root = await readJson("package.json");
   const workspace = await fs.readFile("pnpm-workspace.yaml", "utf8");
   assert.equal(root.private, true);
-  assert.match(root.packageManager, /^pnpm@11\./);
+  assert.equal(root.packageManager, "pnpm@11.19.0");
   assert.match(workspace, /apps\/\*/);
   assert.match(workspace, /packages\/\*/);
   for (const script of ["dev", "build", "test", "lint", "check"]) {
@@ -42,7 +42,7 @@ test("does not pull later-sprint infrastructure into S1-T01", async () => {
     readJson("apps/web/package.json"),
     readJson("apps/api/package.json"),
   ]);
-  const forbidden = /redis|bullmq|socket\.io|prisma|supabase/i;
+  const forbidden = /redis|bullmq|bee-queue|amqplib|socket\.io|prisma|supabase|docker/i;
   for (const manifest of manifests) {
     const names = Object.keys({
       ...manifest.dependencies,
