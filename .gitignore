@@ -1,0 +1,16 @@
+.DS_Store
+.superpowers/
+
+node_modules/
+.pnpm-store/
+.next/
+dist/
+coverage/
+
+.env
+.env.*
+!.env.example
+
+# Planning source contains team member names and student IDs.
+HKTutor_overview.xlsx
+
