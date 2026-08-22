@@ -27,6 +27,24 @@ test("defines buildable web and API packages", async () => {
   assert.equal(api.devDependencies["@hktutor/tsconfig"], "workspace:*");
 });
 
+test("reserves web port 3000 while allowing PORT to select the API port", async () => {
+  const web = await readJson("apps/web/package.json");
+  const api = await readJson("apps/api/package.json");
+  const apiBootstrap = await fs.readFile("apps/api/src/main.ts", "utf8");
+
+  assert.match(web.scripts.dev, /next dev --port 3000/);
+  assert.doesNotMatch(api.scripts.dev, /PORT\s*=/);
+  assert.match(apiBootstrap, /process\.env\.PORT \?\? 3001/);
+});
+
+test("keeps API lint read-only and fails on warnings", async () => {
+  const api = await readJson("apps/api/package.json");
+
+  assert.doesNotMatch(api.scripts.lint, /--fix/);
+  assert.match(api.scripts.lint, /--max-warnings=0/);
+  assert.match(api.scripts["lint:fix"], /--fix/);
+});
+
 test("extends the shared strict TypeScript baseline", async () => {
   const shared = await readJson("packages/tsconfig/base.json");
   const web = await readJson("apps/web/tsconfig.json");

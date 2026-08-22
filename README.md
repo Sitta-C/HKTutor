@@ -42,7 +42,17 @@ pnpm check
 - Web: [http://localhost:3000](http://localhost:3000)
 - API: [http://localhost:3001](http://localhost:3001)
 
-The URL assignment is an architectural reservation for the concurrent development command. Runtime port enforcement and smoke verification are deferred to the next task.
+The web development server always uses port `3000`. The API defaults to `3001` and may be moved without affecting the web server by setting `PORT` on the root command:
+
+```sh
+PORT=3002 pnpm dev
+```
+
+`pnpm lint` is read-only and treats warnings as failures. To apply API lint fixes intentionally, run:
+
+```sh
+pnpm --filter @hktutor/api lint:fix
+```
 
 To operate on one package, use pnpm filters:
 
@@ -64,4 +74,4 @@ Do not run per-package installs or add nested lockfiles. Dependencies belong in 
 
 ## Deferred work
 
-This initial workspace intentionally excludes later-sprint infrastructure and product features, including Redis, queues/brokers, Socket.IO, Prisma, Supabase, Docker, and application-specific implementation. The following task performs full workspace checks and verification-driven runtime repairs, including the local development port behavior.
+This initial workspace intentionally excludes later-sprint infrastructure and product features, including Redis, queues/brokers, Socket.IO, Prisma, Supabase, Docker, and application-specific implementation.
