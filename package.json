@@ -1,0 +1,14 @@
+{
+  "name": "hktutor",
+  "private": true,
+  "packageManager": "pnpm@11.19.0",
+  "engines": { "node": "24.19.0" },
+  "scripts": {
+    "dev": "pnpm --parallel --filter @hktutor/web --filter @hktutor/api dev",
+    "build": "pnpm -r --if-present build",
+    "test": "pnpm -r --if-present test",
+    "lint": "pnpm -r --if-present lint",
+    "verify:workspace": "node --test tests/workspace-structure.test.mjs",
+    "check": "pnpm verify:workspace && pnpm lint && pnpm test && pnpm build"
+  }
+}
