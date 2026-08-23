@@ -2,13 +2,21 @@
   "name": "hktutor",
   "private": true,
   "packageManager": "pnpm@11.19.0",
-  "engines": { "node": "24.19.0" },
+  "engines": {
+    "node": "24.19.0"
+  },
   "scripts": {
     "dev": "pnpm --parallel --filter @hktutor/web --filter @hktutor/api dev",
     "build": "pnpm -r --if-present build",
     "test": "pnpm -r --if-present test",
     "lint": "pnpm -r --if-present lint",
-    "verify:workspace": "node --test tests/workspace-structure.test.mjs",
-    "check": "pnpm verify:workspace && pnpm lint && pnpm test && pnpm build"
+    "lint:fix": "pnpm -r --if-present lint:fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "verify:workspace": "node --test tests/*.test.mjs",
+    "check": "pnpm verify:workspace && pnpm format:check && pnpm lint && pnpm test && pnpm build"
+  },
+  "devDependencies": {
+    "prettier": "^3.9.6"
   }
 }

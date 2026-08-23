@@ -24,9 +24,11 @@
 ### Task 1: Repository Contract Test
 
 **Files:**
+
 - Create: `tests/workspace-structure.test.mjs`
 
 **Interfaces:**
+
 - Consumes: the approved repository design.
 - Produces: `node --test tests/workspace-structure.test.mjs`, the executable S1-T01 repository contract.
 
@@ -35,49 +37,49 @@
 Create a Node test that reads the root and workspace package manifests, asserts the expected package names and build scripts, verifies both app TypeScript configs extend `@hktutor/tsconfig/base.json`, and rejects Redis, queue, Socket.IO, Prisma, Supabase, and Docker dependencies from S1-T01.
 
 ```javascript
-import assert from "node:assert/strict";
-import fs from "node:fs/promises";
-import test from "node:test";
+import assert from 'node:assert/strict';
+import fs from 'node:fs/promises';
+import test from 'node:test';
 
-const readJson = async (path) => JSON.parse(await fs.readFile(path, "utf8"));
+const readJson = async (path) => JSON.parse(await fs.readFile(path, 'utf8'));
 
-test("defines the approved pnpm workspace", async () => {
-  const root = await readJson("package.json");
-  const workspace = await fs.readFile("pnpm-workspace.yaml", "utf8");
+test('defines the approved pnpm workspace', async () => {
+  const root = await readJson('package.json');
+  const workspace = await fs.readFile('pnpm-workspace.yaml', 'utf8');
   assert.equal(root.private, true);
   assert.match(root.packageManager, /^pnpm@11\./);
   assert.match(workspace, /apps\/\*/);
   assert.match(workspace, /packages\/\*/);
-  for (const script of ["dev", "build", "test", "lint", "check"]) {
-    assert.equal(typeof root.scripts[script], "string");
+  for (const script of ['dev', 'build', 'test', 'lint', 'check']) {
+    assert.equal(typeof root.scripts[script], 'string');
   }
 });
 
-test("defines buildable web and API packages", async () => {
-  const web = await readJson("apps/web/package.json");
-  const api = await readJson("apps/api/package.json");
-  assert.equal(web.name, "@hktutor/web");
-  assert.equal(api.name, "@hktutor/api");
-  assert.equal(typeof web.scripts.build, "string");
-  assert.equal(typeof api.scripts.build, "string");
-  assert.equal(web.devDependencies["@hktutor/tsconfig"], "workspace:*");
-  assert.equal(api.devDependencies["@hktutor/tsconfig"], "workspace:*");
+test('defines buildable web and API packages', async () => {
+  const web = await readJson('apps/web/package.json');
+  const api = await readJson('apps/api/package.json');
+  assert.equal(web.name, '@hktutor/web');
+  assert.equal(api.name, '@hktutor/api');
+  assert.equal(typeof web.scripts.build, 'string');
+  assert.equal(typeof api.scripts.build, 'string');
+  assert.equal(web.devDependencies['@hktutor/tsconfig'], 'workspace:*');
+  assert.equal(api.devDependencies['@hktutor/tsconfig'], 'workspace:*');
 });
 
-test("extends the shared strict TypeScript baseline", async () => {
-  const shared = await readJson("packages/tsconfig/base.json");
-  const web = await readJson("apps/web/tsconfig.json");
-  const api = await readJson("apps/api/tsconfig.json");
+test('extends the shared strict TypeScript baseline', async () => {
+  const shared = await readJson('packages/tsconfig/base.json');
+  const web = await readJson('apps/web/tsconfig.json');
+  const api = await readJson('apps/api/tsconfig.json');
   assert.equal(shared.compilerOptions.strict, true);
-  assert.equal(web.extends, "@hktutor/tsconfig/base.json");
-  assert.equal(api.extends, "@hktutor/tsconfig/base.json");
+  assert.equal(web.extends, '@hktutor/tsconfig/base.json');
+  assert.equal(api.extends, '@hktutor/tsconfig/base.json');
 });
 
-test("does not pull later-sprint infrastructure into S1-T01", async () => {
+test('does not pull later-sprint infrastructure into S1-T01', async () => {
   const manifests = await Promise.all([
-    readJson("package.json"),
-    readJson("apps/web/package.json"),
-    readJson("apps/api/package.json"),
+    readJson('package.json'),
+    readJson('apps/web/package.json'),
+    readJson('apps/api/package.json'),
   ]);
   const forbidden = /redis|bullmq|socket\.io|prisma|supabase/i;
   for (const manifest of manifests) {
@@ -85,7 +87,10 @@ test("does not pull later-sprint infrastructure into S1-T01", async () => {
       ...manifest.dependencies,
       ...manifest.devDependencies,
     });
-    assert.equal(names.some((name) => forbidden.test(name)), false);
+    assert.equal(
+      names.some((name) => forbidden.test(name)),
+      false,
+    );
   }
 });
 ```
@@ -99,6 +104,7 @@ Expected: FAIL because root `package.json` and the workspaces do not exist.
 ### Task 2: Framework Scaffolds and Workspace Configuration
 
 **Files:**
+
 - Create: `apps/web/**`
 - Create: `apps/api/**`
 - Create: `packages/tsconfig/package.json`
@@ -110,6 +116,7 @@ Expected: FAIL because root `package.json` and the workspaces do not exist.
 - Create: `.gitignore`
 
 **Interfaces:**
+
 - Consumes: the repository contract from Task 1.
 - Produces: workspace packages named `@hktutor/web`, `@hktutor/api`, and `@hktutor/tsconfig` plus root `dev`, `build`, `test`, `lint`, `verify:workspace`, and `check` commands.
 
@@ -145,8 +152,8 @@ Create the root manifest with pnpm workspace scripts, pin Node/pnpm versions, an
 
 ```yaml
 packages:
-  - "apps/*"
-  - "packages/*"
+  - 'apps/*'
+  - 'packages/*'
 ```
 
 ```json
@@ -174,11 +181,13 @@ Expected: PASS.
 ### Task 3: Reproducible Install and Developer Documentation
 
 **Files:**
+
 - Create: `pnpm-lock.yaml`
 - Create: `README.md`
 - Modify: framework manifests only if pnpm reports incompatible or duplicate workspace metadata.
 
 **Interfaces:**
+
 - Consumes: all workspace manifests from Task 2.
 - Produces: a single committed lockfile and documented clean setup commands.
 
@@ -201,9 +210,11 @@ Document Node/pnpm prerequisites, `pnpm install --frozen-lockfile`, root command
 ### Task 4: Full S1-T01 Verification
 
 **Files:**
+
 - Modify: only files required to fix failures exposed by verification.
 
 **Interfaces:**
+
 - Consumes: the complete workspace.
 - Produces: evidence that both apps build and the API tests pass.
 

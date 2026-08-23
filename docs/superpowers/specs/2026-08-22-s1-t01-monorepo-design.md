@@ -60,4 +60,3 @@ The repository contract test fails with a precise missing-file or invalid-config
 ## Git and Collaboration
 
 The repository uses `main` as its initial branch and `https://github.com/Sitta-C/HKTutor.git` as its logical `origin`. All ten team members may modify both apps. Review responsibility is assigned per task rather than enforced through repository access restrictions.
-

@@ -33,6 +33,7 @@ pnpm dev
 pnpm build
 pnpm test
 pnpm lint
+pnpm format:check
 pnpm verify:workspace
 pnpm check
 ```
@@ -48,11 +49,17 @@ The web development server always uses port `3000`. The API defaults to `3001` a
 PORT=3002 pnpm dev
 ```
 
-`pnpm lint` is read-only and treats warnings as failures. To apply API lint fixes intentionally, run:
+`pnpm lint` is read-only and treats warnings as failures. Formatting is also checked without
+modifying files. Apply either operation intentionally with:
 
 ```sh
-pnpm --filter @hktutor/api lint:fix
+pnpm lint:fix
+pnpm format
 ```
+
+The shared ESLint presets enforce import grouping, type-only imports, promise safety, and the
+boundary between web and API source. Both apps use `@/*` for imports rooted in their own `src`
+directory; neither app may use it to import source from the other app.
 
 To operate on one package, use pnpm filters:
 
@@ -67,6 +74,7 @@ pnpm --filter @hktutor/api test
 
 - `apps/web` — Next.js web client (`@hktutor/web`)
 - `apps/api` — NestJS API service (`@hktutor/api`)
+- `packages/eslint-config` — shared ESLint presets (`@hktutor/eslint-config`)
 - `packages/tsconfig` — shared strict TypeScript baseline (`@hktutor/tsconfig`)
 - Root `package.json`, `pnpm-workspace.yaml`, and `pnpm-lock.yaml` — the sole workspace and dependency-install authority
 
