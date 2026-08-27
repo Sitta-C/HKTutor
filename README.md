@@ -6,6 +6,7 @@ HKTutor is a pnpm monorepo containing the web client, API service, and shared Ty
 
 - Node.js `24.19.0` (see [`.node-version`](.node-version))
 - pnpm `11.19.0` (the version recorded in the root `packageManager` field)
+- Docker Desktop or Docker Engine with the Docker Compose plugin
 
 Enable Corepack if pnpm is not already available:
 
@@ -70,6 +71,42 @@ pnpm --filter @hktutor/api dev
 pnpm --filter @hktutor/api test
 ```
 
+## Docker Compose
+
+Build and start the production Web and API containers from the repository root:
+
+```sh
+docker compose up --build --detach --wait
+```
+
+The published endpoints are:
+
+- Web: [http://localhost:3000](http://localhost:3000)
+- API: [http://localhost:3001](http://localhost:3001)
+
+Inspect container health or logs with:
+
+```sh
+docker compose ps
+docker compose logs --follow web api
+```
+
+If the default host ports are already in use, override them without changing the ports inside the
+containers:
+
+```sh
+WEB_PORT=3100 API_PORT=3101 docker compose up --build --detach --wait
+```
+
+Stop and remove the containers and project network with:
+
+```sh
+docker compose down
+```
+
+Compose intentionally contains only `web` and `api`. PostgreSQL and file storage are managed by
+Supabase in the later database tasks; no database container or persistent volume belongs here.
+
 ## Repository boundaries
 
 - `apps/web` — Next.js web client (`@hktutor/web`)
@@ -82,4 +119,6 @@ Do not run per-package installs or add nested lockfiles. Dependencies belong in 
 
 ## Deferred work
 
-This initial workspace intentionally excludes later-sprint infrastructure and product features, including Redis, queues/brokers, Socket.IO, Prisma, Supabase, Docker, and application-specific implementation.
+This initial workspace intentionally excludes later-sprint infrastructure and product features,
+including Redis, queues/brokers, Socket.IO, Prisma, Supabase integration, and application-specific
+implementation. Docker packaging for the Web and API services is included.
