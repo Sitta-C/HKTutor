@@ -39,6 +39,29 @@ pnpm verify:workspace
 pnpm check
 ```
 
+## Supabase environment (S1-T03)
+
+The team uses one shared Supabase project for development and the final demonstration. The
+committed [`.env.example`](.env.example) contains placeholders only; actual credentials belong in
+the ignored root `.env` file.
+
+For a fresh clone, create the local file before adding credentials:
+
+```sh
+cp .env.example .env
+```
+
+Replace every bracketed placeholder in `.env` with values from the Supabase project:
+
+- `DATABASE_URL` — the Supavisor session-mode PostgreSQL connection string on port `5432`, reserved
+  for the Prisma connection and migrations in S1-T04
+- `SUPABASE_URL` — the project API URL
+- `SUPABASE_SECRET_KEY` — a server-side `sb_secret_...` key for later NestJS Storage/API work
+
+The secret key bypasses Row Level Security. It must stay in the NestJS/API environment and must
+never use a `NEXT_PUBLIC_*` name or be exposed to the browser. Do not commit `.env`, paste secrets
+into documentation, or run a migration as part of S1-T03.
+
 `pnpm dev` starts both application packages concurrently. The intended local URLs are:
 
 - Web: [http://localhost:3000](http://localhost:3000)
@@ -119,6 +142,7 @@ Do not run per-package installs or add nested lockfiles. Dependencies belong in 
 
 ## Deferred work
 
-This initial workspace intentionally excludes later-sprint infrastructure and product features,
-including Redis, queues/brokers, Socket.IO, Prisma, Supabase integration, and application-specific
-implementation. Docker packaging for the Web and API services is included.
+This workspace still excludes later-sprint infrastructure and product features, including Redis,
+queues/brokers, Socket.IO, Prisma schema/migrations, runtime Supabase integration, and
+application-specific implementation. S1-T03 adds only the safe Supabase environment template;
+Docker packaging for the Web and API services remains included.
