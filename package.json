@@ -19,7 +19,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "verify:workspace": "node --test tests/*.test.mjs",
-    "check": "pnpm verify:workspace && pnpm format:check && pnpm lint && pnpm test && pnpm build"
+    "check": "pnpm db:generate && pnpm verify:workspace && pnpm format:check && pnpm lint && pnpm test && pnpm build"
   },
   "devDependencies": {
     "prettier": "^3.9.6"
