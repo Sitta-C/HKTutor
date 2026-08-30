@@ -30,5 +30,11 @@ pnpm db:seed
 Only the designated migration owner creates migrations. Never reset the shared development/demo
 database.
 
+S1-T07 requires `SEED_ADMIN_EMAIL` and `SEED_ADMIN_PASSWORD` in the ignored root `.env` when
+running `pnpm db:seed`. The seed creates one active administrator with an Argon2id password hash,
+preserves an existing administrator on repeated runs, and refuses to promote an existing
+student/tutor account. Review the S1-T07 migration before running `pnpm db:migrate:deploy` against
+the shared database.
+
 Pull requests and pushes to `main` run the root `pnpm check` command in GitHub Actions. CI does not
 receive shared-database credentials.

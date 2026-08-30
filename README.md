@@ -117,6 +117,33 @@ The database-aware API check is available at
 [http://localhost:3001/api/health](http://localhost:3001/api/health). A healthy response has the
 body `{ "database": "connected" }`.
 
+## User and administrator seed foundation (S1-T07)
+
+S1-T07 adds the `User` model required by later authentication and authorization tasks. Email uses
+PostgreSQL `citext` with a unique index, roles are limited to student, tutor, and admin, and account
+status is limited to active, suspended, and deleted. Consent fields remain nullable until the
+registration transaction is implemented in S1-T12. Authentication sessions, JWT endpoints, and
+guards remain deferred to S1-T08 and S1-T13.
+
+The administrator seed reads `SEED_ADMIN_EMAIL` and `SEED_ADMIN_PASSWORD` only from the ignored
+local `.env`. It normalizes the email, stores an Argon2id password hash, and never logs the password
+or hash. Re-running the seed preserves an existing administrator's credentials. If the configured
+email already belongs to a student or tutor, the seed fails instead of elevating that account.
+
+The migration owner must obtain review of the new migration before changing the shared database.
+After review, apply and verify it in this order:
+
+```sh
+pnpm db:migrate:status
+pnpm db:migrate:deploy
+pnpm db:seed
+pnpm db:seed
+pnpm db:migrate:status
+```
+
+Running the seed twice is the idempotency check. Never commit seed credentials or use
+`prisma migrate reset` against the shared project.
+
 `pnpm dev` starts both application packages concurrently. The intended local URLs are:
 
 - Web: [http://localhost:3000](http://localhost:3000)
