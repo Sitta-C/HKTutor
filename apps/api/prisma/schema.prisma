@@ -6,3 +6,28 @@ generator client {
 datasource db {
   provider = "postgresql"
 }
+
+enum Role {
+  STUDENT @map("student")
+  TUTOR   @map("tutor")
+  ADMIN   @map("admin")
+}
+
+enum AccountStatus {
+  ACTIVE    @map("active")
+  SUSPENDED @map("suspended")
+  DELETED   @map("deleted")
+}
+
+model User {
+  id                String        @id @default(uuid()) @db.Uuid
+  email             String        @unique @db.Citext
+  passwordHash      String
+  role              Role
+  accountStatus     AccountStatus @default(ACTIVE)
+  consentAcceptedAt DateTime?     @db.Timestamptz(3)
+  policyVersion     String?
+  createdAt         DateTime      @default(now()) @db.Timestamptz(3)
+  updatedAt         DateTime      @updatedAt @db.Timestamptz(3)
+  deletedAt         DateTime?     @db.Timestamptz(3)
+}
