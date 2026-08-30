@@ -8,6 +8,11 @@
   "scripts": {
     "dev": "pnpm --parallel --filter @hktutor/web --filter @hktutor/api dev",
     "build": "pnpm -r --if-present build",
+    "db:generate": "pnpm --filter @hktutor/api db:generate",
+    "db:validate": "pnpm --filter @hktutor/api db:validate",
+    "db:migrate:deploy": "pnpm --filter @hktutor/api db:migrate:deploy",
+    "db:migrate:status": "pnpm --filter @hktutor/api db:migrate:status",
+    "db:seed": "pnpm --filter @hktutor/api db:seed",
     "test": "pnpm -r --if-present test",
     "lint": "pnpm -r --if-present lint",
     "lint:fix": "pnpm -r --if-present lint:fix",

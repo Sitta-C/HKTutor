@@ -5,6 +5,7 @@ FROM node:24.19.0-bookworm-slim AS base
 ENV PNPM_HOME=/pnpm
 ENV PATH=$PNPM_HOME:$PATH
 
+RUN apt-get update -y && apt-get install -y --no-install-recommends openssl && rm -rf /var/lib/apt/lists/*
 RUN corepack enable && corepack prepare pnpm@11.19.0 --activate
 
 WORKDIR /workspace
@@ -25,13 +26,14 @@ FROM dependencies AS build
 COPY apps/api apps/api
 COPY packages packages
 
+RUN pnpm --filter @hktutor/api db:generate
 RUN pnpm --filter @hktutor/api build
 
 RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
   pnpm --filter @hktutor/api deploy --prod --legacy /production/api && \
   cp -R apps/api/dist /production/api/dist
 
-FROM node:24.19.0-bookworm-slim AS runtime
+FROM base AS runtime
 
 ENV NODE_ENV=production
 ENV PORT=3001

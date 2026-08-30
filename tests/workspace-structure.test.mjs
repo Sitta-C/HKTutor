@@ -62,20 +62,30 @@ test('extends the shared strict TypeScript baseline', async () => {
   assert.equal(api.extends, '@hktutor/tsconfig/base.json');
 });
 
-test('does not pull later-sprint infrastructure into S1-T01', async () => {
-  const manifests = await Promise.all([
-    readJson('package.json'),
-    readJson('apps/web/package.json'),
-    readJson('apps/api/package.json'),
-  ]);
-  const forbidden = /redis|bullmq|bee-queue|amqplib|socket\.io|prisma|supabase|docker/i;
-  for (const manifest of manifests) {
+test('keeps later-sprint infrastructure out while allowing Prisma only in the API', async () => {
+  const root = await readJson('package.json');
+  const web = await readJson('apps/web/package.json');
+  const api = await readJson('apps/api/package.json');
+  const forbidden = /redis|bullmq|bee-queue|amqplib|socket\.io|@supabase\/supabase-js|docker/i;
+  for (const manifest of [root, web, api]) {
     const names = Object.keys({
       ...manifest.dependencies,
       ...manifest.devDependencies,
     });
     assert.equal(
       names.some((name) => forbidden.test(name)),
+      false,
+    );
+  }
+
+  const prismaPackage = /^(?:@prisma\/|prisma$)/;
+  for (const manifest of [root, web]) {
+    const names = Object.keys({
+      ...manifest.dependencies,
+      ...manifest.devDependencies,
+    });
+    assert.equal(
+      names.some((name) => prismaPackage.test(name)),
       false,
     );
   }

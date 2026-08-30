@@ -8,6 +8,11 @@ const composeConfig = () =>
   spawnSync('docker', ['compose', 'config', '--format', 'json'], {
     cwd: process.cwd(),
     encoding: 'utf8',
+    env: {
+      ...process.env,
+      DATABASE_URL:
+        'postgresql://postgres.project-ref:password@example.test:5432/postgres?sslmode=require',
+    },
   });
 
 const publishedPorts = (service) =>
@@ -26,11 +31,27 @@ test('defines web and API services with health checks and no local data service'
   assert.ok(config.services.web.healthcheck, 'web health check is required');
   assert.ok(config.services.api.healthcheck, 'API health check is required');
   assert.equal(config.services.web.depends_on.api.condition, 'service_healthy');
+  assert.equal(
+    config.services.api.environment.DATABASE_URL,
+    'postgresql://postgres.project-ref:password@example.test:5432/postgres?sslmode=require',
+  );
+  assert.match(config.services.api.healthcheck.test.join(' '), /\/api\/health/);
   assert.equal(config.services.api.build.dockerfile, 'apps/api/Dockerfile');
   assert.equal(config.services.web.build.dockerfile, 'apps/web/Dockerfile');
   assert.deepEqual(config.services.api.volumes ?? [], []);
   assert.deepEqual(config.services.web.volumes ?? [], []);
   assert.deepEqual(config.volumes ?? {}, {});
+});
+
+test('the API image generates Prisma Client without copying environment files', async () => {
+  const dockerfile = await fs.readFile('apps/api/Dockerfile', 'utf8');
+  const dockerignore = await fs.readFile('.dockerignore', 'utf8');
+
+  assert.match(dockerfile, /pnpm --filter @hktutor\/api db:generate/);
+  assert.match(dockerfile, /apt-get install[^\n]*openssl/);
+  assert.match(dockerfile, /FROM base AS runtime/);
+  assert.match(dockerignore, /^\.env$/m);
+  assert.match(dockerignore, /^\.env\.\*$/m);
 });
 
 test('every Compose build resolves to an existing Dockerfile', async () => {

@@ -26,7 +26,7 @@ test('provides only safe server-side Supabase placeholders', async () => {
   ]);
   assert.equal(
     template.DATABASE_URL,
-    'postgresql://prisma.[PROJECT_REF]:[DB_PASSWORD]@[DB_REGION].pooler.supabase.com:5432/postgres?sslmode=require',
+    'postgresql://postgres.[PROJECT_REF]:[DB_PASSWORD]@[DB_REGION].pooler.supabase.com:5432/postgres?sslmode=require',
   );
   assert.equal(template.SUPABASE_URL, 'https://[PROJECT_REF].supabase.co');
   assert.equal(template.SUPABASE_SECRET_KEY, 'sb_secret_[REPLACE_ME]');

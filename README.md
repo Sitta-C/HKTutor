@@ -39,7 +39,7 @@ pnpm verify:workspace
 pnpm check
 ```
 
-## Supabase environment (S1-T03)
+## Supabase environment
 
 The team uses one shared Supabase project for development and the final demonstration. The
 committed [`.env.example`](.env.example) contains placeholders only; actual credentials belong in
@@ -53,14 +53,52 @@ cp .env.example .env
 
 Replace every bracketed placeholder in `.env` with values from the Supabase project:
 
-- `DATABASE_URL` — the Supavisor session-mode PostgreSQL connection string on port `5432`, reserved
-  for the Prisma connection and migrations in S1-T04
+- `DATABASE_URL` — the Supavisor session-mode PostgreSQL connection string on port `5432`, used by
+  the NestJS Prisma client and migration commands
 - `SUPABASE_URL` — the project API URL
 - `SUPABASE_SECRET_KEY` — a server-side `sb_secret_...` key for later NestJS Storage/API work
 
 The secret key bypasses Row Level Security. It must stay in the NestJS/API environment and must
-never use a `NEXT_PUBLIC_*` name or be exposed to the browser. Do not commit `.env`, paste secrets
-into documentation, or run a migration as part of S1-T03.
+never use a `NEXT_PUBLIC_*` name or be exposed to the browser. Do not commit `.env` or paste
+secrets into documentation, issues, or chat.
+
+## Prisma and shared database workflow (S1-T04)
+
+S1-T04 establishes only the database foundation. Its first migration enables PostgreSQL `citext`
+and `btree_gist`; user, tutor, listing, availability, booking, review, and other domain tables
+belong to their later sprint tasks.
+
+Generate and validate Prisma locally without connecting to the database:
+
+```sh
+pnpm db:generate
+pnpm db:validate
+```
+
+The team must nominate one migration owner. Only that person creates and commits new migration
+directories. Once a migration is reviewed and committed, teammates and deployment jobs apply it
+in this order:
+
+```sh
+pnpm db:migrate:status
+pnpm db:migrate:deploy
+pnpm db:seed
+```
+
+The seed command is idempotent and may be run repeatedly. In S1-T04 it only proves database
+connectivity and does not insert domain records. Never run `prisma migrate reset` against the
+shared development/demo project. If Prisma reports drift, an unexpected migration history, or a
+reset requirement, stop and coordinate with the migration owner instead of forcing a reset.
+
+For `sslmode=require`, the API adapter explicitly opts into libpq-compatible TLS semantics because
+the Supabase pooler certificate chain is not trusted by Node.js by default. This keeps the
+connection encrypted but does not verify the certificate or hostname. A production deployment
+with stronger identity verification should install the Supabase CA certificate and use
+`sslmode=verify-full`.
+
+The database-aware API check is available at
+[http://localhost:3001/api/health](http://localhost:3001/api/health). A healthy response has the
+body `{ "database": "connected" }`.
 
 `pnpm dev` starts both application packages concurrently. The intended local URLs are:
 
@@ -128,7 +166,8 @@ docker compose down
 ```
 
 Compose intentionally contains only `web` and `api`. PostgreSQL and file storage are managed by
-Supabase in the later database tasks; no database container or persistent volume belongs here.
+the shared Supabase project; no database container or persistent volume belongs here. Compose
+requires `DATABASE_URL` from the ignored root `.env` and passes it only to the API container.
 
 ## Repository boundaries
 
@@ -143,6 +182,6 @@ Do not run per-package installs or add nested lockfiles. Dependencies belong in 
 ## Deferred work
 
 This workspace still excludes later-sprint infrastructure and product features, including Redis,
-queues/brokers, Socket.IO, Prisma schema/migrations, runtime Supabase integration, and
-application-specific implementation. S1-T03 adds only the safe Supabase environment template;
-Docker packaging for the Web and API services remains included.
+queues/brokers, Socket.IO, Supabase JavaScript client integration, domain database models, and
+application-specific implementation. S1-T04 includes only the Prisma/Supabase PostgreSQL
+foundation and database health check.

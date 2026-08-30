@@ -6,6 +6,7 @@ services:
       context: .
       dockerfile: apps/api/Dockerfile
     environment:
+      DATABASE_URL: '${DATABASE_URL:?DATABASE_URL is required}'
       NODE_ENV: production
       PORT: 3001
     ports:
@@ -16,7 +17,7 @@ services:
         - node
         - -e
         - >-
-          fetch('http://127.0.0.1:3001/').then((response) => {
+          fetch('http://127.0.0.1:3001/api/health').then((response) => {
             if (!response.ok) process.exit(1)
           }).catch(() => process.exit(1))
       interval: 5s
