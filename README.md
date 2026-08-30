@@ -39,6 +39,23 @@ pnpm verify:workspace
 pnpm check
 ```
 
+## API contract and CI (S1-T05)
+
+With the API running, the interactive Swagger UI and its machine-readable OpenAPI document are
+available at:
+
+- Swagger UI: [http://localhost:3001/api/docs](http://localhost:3001/api/docs)
+- OpenAPI JSON: [http://localhost:3001/api/docs-json](http://localhost:3001/api/docs-json)
+
+The API applies one global validation policy. DTO-backed inputs are transformed to their declared
+types, properties without validation decorators are rejected, and malformed requests return HTTP
+400 validation details instead of reaching a controller with invalid data. Each feature module is
+responsible for documenting its own parameters, success response, and expected error responses.
+
+GitHub Actions runs `pnpm install --frozen-lockfile` followed by `pnpm check` for pull requests and
+pushes to `main`. The workflow intentionally receives no database or Supabase credentials; unit
+tests and the build must remain safe to run without a live shared database.
+
 ## Supabase environment
 
 The team uses one shared Supabase project for development and the final demonstration. The
@@ -183,5 +200,5 @@ Do not run per-package installs or add nested lockfiles. Dependencies belong in 
 
 This workspace still excludes later-sprint infrastructure and product features, including Redis,
 queues/brokers, Socket.IO, Supabase JavaScript client integration, domain database models, and
-application-specific implementation. S1-T04 includes only the Prisma/Supabase PostgreSQL
-foundation and database health check.
+application-specific implementation. S1-T04 includes the Prisma/Supabase PostgreSQL foundation
+and database health check; S1-T05 adds only the shared Swagger, validation, and CI foundation.
