@@ -29,3 +29,11 @@ test('CI runs the complete workspace check with the pinned toolchain', async () 
   assert.match(workflow, /pnpm check/);
   assert.doesNotMatch(workflow, /DATABASE_URL|SUPABASE_(?:SECRET|SERVICE_ROLE)_KEY/);
 });
+
+test('workspace check generates Prisma Client before linting', async () => {
+  const workspace = await readJson('package.json');
+  const checkSteps = workspace.scripts.check.split(' && ');
+
+  assert.equal(checkSteps[0], 'pnpm db:generate');
+  assert.ok(checkSteps.indexOf('pnpm db:generate') < checkSteps.indexOf('pnpm lint'));
+});
