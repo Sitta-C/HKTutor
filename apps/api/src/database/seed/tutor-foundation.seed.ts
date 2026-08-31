@@ -1,9 +1,5 @@
 import type { SeedTransactionClient } from '@/database/seed/seed-client';
-import {
-  AccountStatus,
-  Role,
-  TutorVerificationStatus,
-} from '@/generated/prisma/client';
+import { AccountStatus, Role, TutorVerificationStatus } from '@/generated/prisma/client';
 
 const SEEDED_TUTOR_PROFILE = {
   displayName: 'Anan',

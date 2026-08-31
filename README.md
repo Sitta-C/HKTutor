@@ -74,6 +74,10 @@ Replace every bracketed placeholder in `.env` with values from the Supabase proj
   the NestJS Prisma client and migration commands
 - `SUPABASE_URL` — the project API URL
 - `SUPABASE_SECRET_KEY` — a server-side `sb_secret_...` key for later NestJS Storage/API work
+- `SEED_ADMIN_EMAIL` and `SEED_ADMIN_PASSWORD` — credentials used only to seed the active
+  administrator introduced in S1-T07
+- `SEED_TUTOR_EMAIL` and `SEED_TUTOR_PASSWORD` — credentials used only to seed the verified tutor
+  foundation introduced in S1-T14
 
 The secret key bypasses Row Level Security. It must stay in the NestJS/API environment and must
 never use a `NEXT_PUBLIC_*` name or be exposed to the browser. Do not commit `.env` or paste
@@ -143,6 +147,36 @@ pnpm db:migrate:status
 
 Running the seed twice is the idempotency check. Never commit seed credentials or use
 `prisma migrate reset` against the shared project.
+
+## Tutor profile and listing foundation (S1-T14)
+
+S1-T14 adds tutor profiles, subjects, grade levels, and teaching listings. The database enforces
+non-negative experience and review counts, ratings from 1 through 5 when present, positive listing
+prices, bounded non-blank descriptions, and a publication timestamp for published listings.
+Foreign keys use restrictive deletes so application workflows cannot silently remove referenced
+domain data. The cross-row rule that only a verified tutor may publish is intentionally owned by
+the S1-T15 application transaction rather than a database trigger.
+
+The seed requires all four administrator and tutor credential variables in the ignored root
+`.env`. It inserts the canonical Mathematics subject, Grade 10 grade level, and one active verified
+tutor profile. Re-running it preserves both users' password hashes. It fails if either configured
+email already belongs to a different role, and it never inserts teaching listings or synthetic
+ratings; those fixtures belong to S1-T20.
+
+After the S1-T14 pull request is reviewed and merged, the migration owner may apply the shared
+database checkpoint in this order:
+
+```sh
+pnpm db:migrate:status
+pnpm db:migrate:deploy
+pnpm db:seed
+pnpm db:seed
+pnpm db:migrate:status
+```
+
+The second seed run verifies idempotency. Stop if the migration status reports drift or an
+unexpected history. Never reset the shared Supabase database, and do not deploy or seed it without
+the team's explicit checkpoint approval.
 
 `pnpm dev` starts both application packages concurrently. The intended local URLs are:
 
@@ -226,6 +260,7 @@ Do not run per-package installs or add nested lockfiles. Dependencies belong in 
 ## Deferred work
 
 This workspace still excludes later-sprint infrastructure and product features, including Redis,
-queues/brokers, Socket.IO, Supabase JavaScript client integration, domain database models, and
-application-specific implementation. S1-T04 includes the Prisma/Supabase PostgreSQL foundation
-and database health check; S1-T05 adds only the shared Swagger, validation, and CI foundation.
+queues/brokers, Socket.IO, Supabase JavaScript client integration, availability, bookings,
+reviews, published search fixtures, and application-specific tutor workflows. S1-T04 includes the
+Prisma/Supabase PostgreSQL foundation and database health check; S1-T14 adds only the tutor profile
+and teaching-listing persistence foundation plus catalog and verified-tutor seed data.

@@ -1,8 +1,5 @@
 import { runSeed } from '@/database/seed';
-import type {
-  SeedDatabaseClient,
-  SeedTransactionClient,
-} from '@/database/seed/seed-client';
+import type { SeedDatabaseClient, SeedTransactionClient } from '@/database/seed/seed-client';
 import { Role } from '@/generated/prisma/client';
 
 function createSeedClient() {
@@ -19,9 +16,8 @@ function createSeedClient() {
       upsert: jest.fn().mockResolvedValue({ userId: 'tutor-user-id' }),
     },
   } as unknown as SeedTransactionClient;
-  const transaction = jest.fn(
-    async (operation: (client: SeedTransactionClient) => Promise<void>) =>
-      operation(transactionClient),
+  const transaction = jest.fn(async (operation: (client: SeedTransactionClient) => Promise<void>) =>
+    operation(transactionClient),
   );
 
   return {
