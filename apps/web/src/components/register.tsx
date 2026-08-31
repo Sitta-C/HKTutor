@@ -28,7 +28,7 @@ export default function Register() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-white px-4 py-8">
+    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-student to-tutor px-4 py-8">
       <div className="w-full max-w-[480px]">
         {/* Register Card */}
         <form
@@ -111,22 +111,16 @@ export default function Register() {
               Select Role
             </span>
             <div className="inline-flex rounded-full border border-gray-300 bg-white p-1 select-none shadow-xs">
-              <label
-                onClick={() => setRole('tutor')}
-                className={`relative flex min-h-[44px] items-center justify-center gap-2 rounded-full px-5 sm:px-6 py-2.5 text-sm font-medium transition-all cursor-pointer select-none touch-manipulation active:scale-[0.98] ${
+              <button
+                type="button"
+                onPointerDown={() => setRole('student')}
+                onClick={() => setRole('student')}
+                className={`relative flex min-h-[44px] items-center justify-center gap-2 rounded-full px-5 sm:px-6 py-2.5 text-sm font-medium transition-colors cursor-pointer select-none touch-manipulation ${
                   role === 'student'
-                    ? 'bg-[#2b2b2b] text-white shadow-sm'
+                    ? 'bg-student text-white shadow-sm'
                     : 'bg-transparent text-gray-700 hover:text-gray-900'
                 }`}
               >
-                <input
-                  type="radio"
-                  name="role"
-                  value="student"
-                  checked={role === 'student'}
-                  onChange={() => setRole('student')}
-                  className="sr-only"
-                />
                 {role === 'student' && (
                   <svg
                     className="h-4 w-4 pointer-events-none shrink-0"
@@ -143,24 +137,18 @@ export default function Register() {
                   </svg>
                 )}
                 Student
-              </label>
+              </button>
 
-              <label
-                onClick={() => setRole('student')}
-                className={`relative flex min-h-[44px] items-center justify-center gap-2 rounded-full px-5 sm:px-6 py-2.5 text-sm font-medium transition-all cursor-pointer select-none touch-manipulation active:scale-[0.98] ${
+              <button
+                type="button"
+                onPointerDown={() => setRole('tutor')}
+                onClick={() => setRole('tutor')}
+                className={`relative flex min-h-[44px] items-center justify-center gap-2 rounded-full px-5 sm:px-6 py-2.5 text-sm font-medium transition-colors cursor-pointer select-none touch-manipulation ${
                   role === 'tutor'
-                    ? 'bg-[#2b2b2b] text-white shadow-sm'
+                    ? 'bg-tutor text-white shadow-sm'
                     : 'bg-transparent text-gray-700 hover:text-gray-900'
                 }`}
               >
-                <input
-                  type="radio"
-                  name="role"
-                  value="tutor"
-                  checked={role === 'tutor'}
-                  onChange={() => setRole('tutor')}
-                  className="sr-only"
-                />
                 {role === 'tutor' && (
                   <svg
                     className="h-4 w-4 pointer-events-none shrink-0"
@@ -177,11 +165,11 @@ export default function Register() {
                   </svg>
                 )}
                 Tutor
-              </label>
+              </button>
             </div>
           </div>
 
-          {/* Policy Agreement Checkbox TODO: consent UI and notice */}
+          {/* Policy Agreement Checkbox */}
           <div className="mb-7 flex items-center justify-center">
             <label className="flex items-center gap-2.5 cursor-pointer select-none py-1">
               <input
@@ -189,9 +177,32 @@ export default function Register() {
                 type="checkbox"
                 checked={acceptedPolicy}
                 onChange={(e) => setAcceptedPolicy(e.target.checked)}
-                className="h-4 w-4 rounded border-gray-300 accent-[#2b2b2b] cursor-pointer"
+                className="sr-only"
                 required
               />
+              <div
+                className={`flex h-[18px] w-[18px] items-center justify-center rounded transition-all ${
+                  acceptedPolicy
+                    ? 'bg-gradient-to-br from-student to-tutor text-white shadow-xs'
+                    : 'border border-gray-300 bg-white hover:border-gray-400'
+                }`}
+              >
+                {acceptedPolicy && (
+                  <svg
+                    className="h-3 w-3 pointer-events-none"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth={3}
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M5 13l4 4L19 7"
+                    />
+                  </svg>
+                )}
+              </div>
               <span className="cursor-pointer text-sm text-gray-800 select-none">
                 I accept the policy
               </span>

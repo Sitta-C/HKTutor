@@ -14,7 +14,7 @@ export const metadata: Metadata = {
   },
   description: 'HKTutor Platform',
   icons: {
-    icon: '/favicon.ico',
+    icon: '/favicon.ico', // TODO: might have to change for actual logo
   },
 };
 
