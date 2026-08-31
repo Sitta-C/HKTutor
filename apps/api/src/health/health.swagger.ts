@@ -1,7 +1,7 @@
 import { applyDecorators } from '@nestjs/common';
 import { ApiOkResponse, ApiOperation, ApiServiceUnavailableResponse } from '@nestjs/swagger';
 
-export function ApiHealthCheck(): MethodDecorator {
+export function GetHealthDoc(): MethodDecorator {
   return applyDecorators(
     ApiOperation({ summary: 'Check database connectivity' }),
     ApiOkResponse({
