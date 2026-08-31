@@ -49,8 +49,14 @@ test('adds a forward-only tutor profile and listing migration with database cons
   assert.match(sql, /CREATE TABLE "Subject"/i);
   assert.match(sql, /CREATE TABLE "GradeLevel"/i);
   assert.match(sql, /CREATE TABLE "TeachingListing"/i);
-  assert.match(sql, /"code"\s+extensions\.CITEXT\s+NOT NULL/i);
-  assert.match(sql, /"name"\s+extensions\.CITEXT\s+NOT NULL/i);
+  assert.match(
+    sql,
+    /CREATE TABLE "Subject"[\s\S]*?"code"\s+extensions\.CITEXT\s+NOT NULL[\s\S]*?"name"\s+extensions\.CITEXT\s+NOT NULL/i,
+  );
+  assert.match(
+    sql,
+    /CREATE TABLE "GradeLevel"[\s\S]*?"code"\s+extensions\.CITEXT\s+NOT NULL[\s\S]*?"name"\s+extensions\.CITEXT\s+NOT NULL/i,
+  );
   assert.match(sql, /TutorProfile_experienceYears_check/i);
   assert.match(sql, /TutorProfile_ratingAverage_check/i);
   assert.match(sql, /TutorProfile_reviewCount_check/i);
@@ -58,8 +64,15 @@ test('adds a forward-only tutor profile and listing migration with database cons
   assert.match(sql, /TeachingListing_pricePerHour_check/i);
   assert.match(sql, /TeachingListing_description_length_check/i);
   assert.match(sql, /TeachingListing_publishedAt_check/i);
-  assert.match(sql, /TeachingListing_search_idx/i);
-  assert.match(sql, /ON DELETE RESTRICT ON UPDATE CASCADE/i);
+  assert.match(
+    sql,
+    /"TeachingListing_search_idx"\s+ON\s+"TeachingListing"\s*\(\s*"publicationStatus",\s*"subjectId",\s*"gradeLevelId",\s*"pricePerHour"\s*\)/i,
+  );
+  assert.equal(
+    [...sql.matchAll(/ON DELETE RESTRICT ON UPDATE CASCADE/gi)].length,
+    4,
+    'all four domain foreign keys must use restrictive deletes and cascading updates',
+  );
   assert.doesNotMatch(sql, /DROP\s+(TABLE|TYPE|COLUMN)/i);
   assert.doesNotMatch(sql, /CREATE TABLE "(AvailabilitySlot|Booking|Review)"/i);
 });

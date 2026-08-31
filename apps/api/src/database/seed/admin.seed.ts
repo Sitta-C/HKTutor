@@ -1,5 +1,6 @@
-import type { SeedTransactionClient } from '@/database/seed/seed-client';
 import { AccountStatus, Role } from '@/generated/prisma/client';
+
+import type { SeedTransactionClient } from '@/database/seed/seed-client';
 
 export async function seedAdministrator(
   client: SeedTransactionClient,

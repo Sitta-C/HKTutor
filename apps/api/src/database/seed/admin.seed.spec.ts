@@ -1,6 +1,7 @@
 import { seedAdministrator } from '@/database/seed/admin.seed';
-import type { SeedTransactionClient } from '@/database/seed/seed-client';
 import { AccountStatus, Role } from '@/generated/prisma/client';
+
+import type { SeedTransactionClient } from '@/database/seed/seed-client';
 
 describe('seedAdministrator', () => {
   it('creates an active administrator without changing existing credentials', async () => {

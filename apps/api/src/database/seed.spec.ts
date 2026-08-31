@@ -1,11 +1,13 @@
 import { runSeed } from '@/database/seed';
-import type { SeedDatabaseClient, SeedTransactionClient } from '@/database/seed/seed-client';
 import { Role } from '@/generated/prisma/client';
+
+import type { SeedDatabaseClient, SeedTransactionClient } from '@/database/seed/seed-client';
+import type { Prisma } from '@/generated/prisma/client';
 
 function createSeedClient() {
   const query = jest.fn().mockResolvedValue([{ connected: 1 }]);
   const userUpsert = jest
-    .fn()
+    .fn<Promise<{ id?: string; role: Role }>, [Prisma.UserUpsertArgs]>()
     .mockResolvedValueOnce({ role: Role.ADMIN })
     .mockResolvedValueOnce({ id: 'tutor-user-id', role: Role.TUTOR });
   const transactionClient = {
@@ -52,6 +54,7 @@ describe('runSeed', () => {
     await runSeed(client);
 
     expect(query).toHaveBeenCalledWith('SELECT 1 AS connected');
+    expect(query).toHaveBeenCalledTimes(1);
     expect(query.mock.invocationCallOrder[0]).toBeLessThan(transaction.mock.invocationCallOrder[0]);
     expect(transaction).toHaveBeenCalledTimes(1);
   });

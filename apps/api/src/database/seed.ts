@@ -1,9 +1,10 @@
 import { argon2id, hash } from 'argon2';
 
 import { seedAdministrator } from '@/database/seed/admin.seed';
-import type { SeedDatabaseClient } from '@/database/seed/seed-client';
 import { readSeedEnvironment } from '@/database/seed/seed-environment';
 import { seedTutorFoundation } from '@/database/seed/tutor-foundation.seed';
+
+import type { SeedDatabaseClient } from '@/database/seed/seed-client';
 
 async function hashSeedPassword(password: string): Promise<string> {
   return hash(password, {

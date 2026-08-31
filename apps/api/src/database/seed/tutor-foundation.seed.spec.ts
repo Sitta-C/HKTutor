@@ -1,6 +1,7 @@
-import type { SeedTransactionClient } from '@/database/seed/seed-client';
 import { seedTutorFoundation } from '@/database/seed/tutor-foundation.seed';
 import { AccountStatus, Role, TutorVerificationStatus } from '@/generated/prisma/client';
+
+import type { SeedTransactionClient } from '@/database/seed/seed-client';
 
 function createClient(role: Role = Role.TUTOR) {
   const subjectUpsert = jest.fn().mockResolvedValue({ id: 'subject-id' });
