@@ -58,6 +58,19 @@ model TutorProfile {
   updatedAt          DateTime                @updatedAt @db.Timestamptz(3)
   user                User                    @relation(fields: [userId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   listings            TeachingListing[]
+  availabilitySlots   AvailabilitySlot[]
+}
+
+model AvailabilitySlot {
+  id             String       @id @default(uuid()) @db.Uuid
+  tutorProfileId String       @db.Uuid
+  startAtUtc     DateTime     @db.Timestamptz(3)
+  endAtUtc       DateTime     @db.Timestamptz(3)
+  createdAt      DateTime     @default(now()) @db.Timestamptz(3)
+  deletedAt      DateTime?    @db.Timestamptz(3)
+  tutorProfile   TutorProfile @relation(fields: [tutorProfileId], references: [userId], onDelete: Restrict, onUpdate: Cascade)
+
+  @@index([tutorProfileId, startAtUtc], map: "AvailabilitySlot_tutorProfileId_startAtUtc_idx")
 }
 
 model Subject {
