@@ -187,8 +187,9 @@ so adjacent slots such as `18:00-19:00` and `19:00-20:00` are permitted. The fut
 belongs to S1-T18; protection against deleting a booked slot is completed with S1-T23.
 
 S1-T17 has no seed and no stored availability state. After pulling or merging this migration, run
-`pnpm db:generate` so the generated Prisma client matches the schema. Shared deployment is only
-the following `status -> deploy -> status` sequence after explicit checkpoint approval:
+`pnpm db:generate` so the generated Prisma client matches the schema. After the PR is reviewed and
+merged, and deployment is separately approved, shared deployment is only the following
+`status -> deploy -> status` sequence. Stop if status reports drift or unexpected migration history.
 
 ```sh
 pnpm db:migrate:status
