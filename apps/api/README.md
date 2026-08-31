@@ -46,5 +46,24 @@ Only after the S1-T14 migration has been reviewed, merged, and explicitly approv
 checkpoint should the migration owner run status, deploy, seed twice, and status again. Never use
 `prisma migrate reset` against the shared project.
 
+### Availability slot foundation (S1-T17)
+
+Availability slots belong to `TutorProfile` and store `startAtUtc`/`endAtUtc` as `TIMESTAMPTZ(3)`.
+The database checks `startAtUtc < endAtUtc` and uses a partial GiST exclusion for overlaps only
+when `deletedAt` is null; its `[)` range permits adjacent slots. The future-only rule is deferred
+to S1-T18, and booked-slot deletion protection is completed with S1-T23. S1-T17 has no seed and
+no stored availability state. After pulling or merging, run `pnpm db:generate` to match the
+generated client to the schema. After the PR is reviewed and merged, and deployment is separately
+approved, shared deployment is only (see the root README for drift and unexpected-history stop
+conditions):
+
+```sh
+pnpm db:migrate:status
+pnpm db:migrate:deploy
+pnpm db:migrate:status
+```
+
+`pnpm db:seed` is intentionally absent from the S1-T17 checkpoint.
+
 Pull requests and pushes to `main` run the root `pnpm check` command in GitHub Actions. CI does not
 receive shared-database credentials.
