@@ -1,6 +1,6 @@
 # S1-T17 Availability Slot Foundation Design
 
-**Status:** Design approved in chat on 2026-08-31; written spec awaiting user review.
+**Status:** Written spec approved by the user on 2026-08-31.
 
 ## Goal
 
