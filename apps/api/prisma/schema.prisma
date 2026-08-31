@@ -19,6 +19,18 @@ enum AccountStatus {
   DELETED   @map("deleted")
 }
 
+enum TutorVerificationStatus {
+  PENDING  @map("pending")
+  VERIFIED @map("verified")
+  REJECTED @map("rejected")
+}
+
+enum ListingPublicationStatus {
+  DRAFT     @map("draft")
+  PUBLISHED @map("published")
+  ARCHIVED  @map("archived")
+}
+
 model User {
   id                String        @id @default(uuid()) @db.Uuid
   email             String        @unique @db.Citext
@@ -30,4 +42,61 @@ model User {
   createdAt         DateTime      @default(now()) @db.Timestamptz(3)
   updatedAt         DateTime      @updatedAt @db.Timestamptz(3)
   deletedAt         DateTime?     @db.Timestamptz(3)
+  tutorProfile      TutorProfile?
+}
+
+model TutorProfile {
+  userId             String                  @id @db.Uuid
+  displayName        String
+  bio                String
+  experienceYears    Int
+  verificationStatus TutorVerificationStatus @default(PENDING)
+  ratingAverage      Decimal?                @db.Decimal(3, 2)
+  reviewCount        Int                     @default(0)
+  ratingUpdatedAt    DateTime?               @db.Timestamptz(3)
+  createdAt          DateTime                @default(now()) @db.Timestamptz(3)
+  updatedAt          DateTime                @updatedAt @db.Timestamptz(3)
+  user                User                    @relation(fields: [userId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  listings            TeachingListing[]
+}
+
+model Subject {
+  id        String            @id @default(uuid()) @db.Uuid
+  code      String            @unique @db.Citext
+  name      String            @unique @db.Citext
+  active    Boolean           @default(true)
+  createdAt DateTime          @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime          @updatedAt @db.Timestamptz(3)
+  listings  TeachingListing[]
+}
+
+model GradeLevel {
+  id        String            @id @default(uuid()) @db.Uuid
+  code      String            @unique @db.Citext
+  name      String            @unique @db.Citext
+  sortOrder Int
+  active    Boolean           @default(true)
+  createdAt DateTime          @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime          @updatedAt @db.Timestamptz(3)
+  listings  TeachingListing[]
+}
+
+model TeachingListing {
+  id                String                   @id @default(uuid()) @db.Uuid
+  tutorProfileId    String                   @db.Uuid
+  subjectId         String                   @db.Uuid
+  gradeLevelId      String                   @db.Uuid
+  pricePerHour      Decimal                  @db.Decimal(10, 2)
+  description       String
+  publicationStatus ListingPublicationStatus @default(DRAFT)
+  publishedAt       DateTime?                @db.Timestamptz(3)
+  createdAt         DateTime                 @default(now()) @db.Timestamptz(3)
+  updatedAt         DateTime                 @updatedAt @db.Timestamptz(3)
+  deletedAt         DateTime?                @db.Timestamptz(3)
+  tutorProfile      TutorProfile             @relation(fields: [tutorProfileId], references: [userId], onDelete: Restrict, onUpdate: Cascade)
+  subject            Subject                  @relation(fields: [subjectId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  gradeLevel         GradeLevel               @relation(fields: [gradeLevelId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@index([tutorProfileId], map: "TeachingListing_tutorProfileId_idx")
+  @@index([publicationStatus, subjectId, gradeLevelId, pricePerHour], map: "TeachingListing_search_idx")
 }
