@@ -36,5 +36,15 @@ preserves an existing administrator on repeated runs, and refuses to promote an 
 student/tutor account. Review the S1-T07 migration before running `pnpm db:migrate:deploy` against
 the shared database.
 
+S1-T14 additionally requires `SEED_TUTOR_EMAIL` and `SEED_TUTOR_PASSWORD`. The same atomic,
+idempotent seed inserts Mathematics, Grade 10, and one active verified tutor profile while
+preserving existing administrator and tutor credentials. It refuses role conflicts and does not
+insert teaching listings or ratings. The migration adds tutor profiles, subjects, grade levels,
+and teaching listings; publication authorization remains an S1-T15 application rule.
+
+Only after the S1-T14 migration has been reviewed, merged, and explicitly approved for the shared
+checkpoint should the migration owner run status, deploy, seed twice, and status again. Never use
+`prisma migrate reset` against the shared project.
+
 Pull requests and pushes to `main` run the root `pnpm check` command in GitHub Actions. CI does not
 receive shared-database credentials.

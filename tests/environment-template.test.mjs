@@ -23,6 +23,8 @@ test('provides only safe server-side Supabase placeholders', async () => {
     'DATABASE_URL',
     'SEED_ADMIN_EMAIL',
     'SEED_ADMIN_PASSWORD',
+    'SEED_TUTOR_EMAIL',
+    'SEED_TUTOR_PASSWORD',
     'SUPABASE_SECRET_KEY',
     'SUPABASE_URL',
   ]);
@@ -34,6 +36,8 @@ test('provides only safe server-side Supabase placeholders', async () => {
   assert.equal(template.SUPABASE_SECRET_KEY, 'sb_secret_[REPLACE_ME]');
   assert.equal(template.SEED_ADMIN_EMAIL, '[ADMIN_EMAIL]');
   assert.equal(template.SEED_ADMIN_PASSWORD, '[ADMIN_PASSWORD]');
+  assert.equal(template.SEED_TUTOR_EMAIL, '[TUTOR_EMAIL]');
+  assert.equal(template.SEED_TUTOR_PASSWORD, '[TUTOR_PASSWORD]');
   assert.equal(
     Object.keys(template).some((name) => name.startsWith('NEXT_PUBLIC_')),
     false,

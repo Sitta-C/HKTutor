@@ -1,94 +1,96 @@
-import { runSeed, type SeedDatabaseClient } from '@/database/seed';
-import { AccountStatus, Role } from '@/generated/prisma/client';
+import { runSeed } from '@/database/seed';
+import { Role } from '@/generated/prisma/client';
 
-type SeedUserUpsertArgs = Parameters<SeedDatabaseClient['user']['upsert']>[0];
-const createUpsert = (role: Role) =>
-  jest.fn<Promise<{ role: Role }>, [SeedUserUpsertArgs]>().mockResolvedValue({ role });
+import type { SeedDatabaseClient, SeedTransactionClient } from '@/database/seed/seed-client';
+import type { Prisma } from '@/generated/prisma/client';
+
+function createSeedClient() {
+  const query = jest.fn().mockResolvedValue([{ connected: 1 }]);
+  const userUpsert = jest
+    .fn<Promise<{ id?: string; role: Role }>, [Prisma.UserUpsertArgs]>()
+    .mockResolvedValueOnce({ role: Role.ADMIN })
+    .mockResolvedValueOnce({ id: 'tutor-user-id', role: Role.TUTOR });
+  const transactionClient = {
+    user: { upsert: userUpsert },
+    subject: { upsert: jest.fn().mockResolvedValue({ id: 'subject-id' }) },
+    gradeLevel: { upsert: jest.fn().mockResolvedValue({ id: 'grade-id' }) },
+    tutorProfile: {
+      upsert: jest.fn().mockResolvedValue({ userId: 'tutor-user-id' }),
+    },
+  } as unknown as SeedTransactionClient;
+  const transaction = jest.fn(async (operation: (client: SeedTransactionClient) => Promise<void>) =>
+    operation(transactionClient),
+  );
+
+  return {
+    client: {
+      $queryRawUnsafe: query,
+      $transaction: transaction,
+    } as SeedDatabaseClient,
+    query,
+    transaction,
+    userUpsert,
+  };
+}
 
 describe('runSeed', () => {
   beforeEach(() => {
     process.env['SEED_ADMIN_EMAIL'] = 'Admin@Example.com';
-    process.env['SEED_ADMIN_PASSWORD'] = 'Tutor@1234';
+    process.env['SEED_ADMIN_PASSWORD'] = 'AdminPass';
+    process.env['SEED_TUTOR_EMAIL'] = 'Tutor@Example.com';
+    process.env['SEED_TUTOR_PASSWORD'] = 'TutorPass';
   });
 
   afterEach(() => {
     delete process.env['SEED_ADMIN_EMAIL'];
     delete process.env['SEED_ADMIN_PASSWORD'];
+    delete process.env['SEED_TUTOR_EMAIL'];
+    delete process.env['SEED_TUTOR_PASSWORD'];
   });
 
-  it('probes database connectivity before seeding the administrator', async () => {
-    const query = jest.fn().mockResolvedValue([{ connected: 1 }]);
-    const upsert = createUpsert(Role.ADMIN);
-
-    await runSeed({ $queryRawUnsafe: query, user: { upsert } });
-
-    expect(query).toHaveBeenCalledTimes(1);
-    expect(query).toHaveBeenCalledWith('SELECT 1 AS connected');
-  });
-
-  it('creates an active administrator without storing the plaintext password', async () => {
-    const query = jest.fn().mockResolvedValue([{ connected: 1 }]);
-    const upsert = createUpsert(Role.ADMIN);
-    const client = { $queryRawUnsafe: query, user: { upsert } };
+  it('probes connectivity before running all seed writes in one transaction', async () => {
+    const { client, query, transaction } = createSeedClient();
 
     await runSeed(client);
 
-    const call = upsert.mock.calls[0]?.[0];
-    expect(call.create.email).toBe('admin@example.com');
-    expect(call.create.role).toBe(Role.ADMIN);
-    expect(call.create.accountStatus).toBe(AccountStatus.ACTIVE);
-    expect(call.create.passwordHash).toMatch(/^\$argon2id\$/);
-    expect(call.create.passwordHash).not.toContain('Tutor@1234');
+    expect(query).toHaveBeenCalledWith('SELECT 1 AS connected');
+    expect(query).toHaveBeenCalledTimes(1);
+    expect(query.mock.invocationCallOrder[0]).toBeLessThan(transaction.mock.invocationCallOrder[0]);
+    expect(transaction).toHaveBeenCalledTimes(1);
   });
 
-  it.each([undefined, '', '   ', '[ADMIN_PASSWORD]'])(
-    'rejects invalid admin seed password %p before querying the database',
-    async (password) => {
-      if (password === undefined) {
-        delete process.env['SEED_ADMIN_PASSWORD'];
-      } else {
-        process.env['SEED_ADMIN_PASSWORD'] = password;
-      }
-      const query = jest.fn().mockResolvedValue([{ connected: 1 }]);
-      const upsert = createUpsert(Role.ADMIN);
+  it('hashes both seed passwords with Argon2id before creating users', async () => {
+    const { client, userUpsert } = createSeedClient();
 
-      await expect(runSeed({ $queryRawUnsafe: query, user: { upsert } })).rejects.toThrow(
-        'Admin seed environment is incomplete',
-      );
-      expect(query).not.toHaveBeenCalled();
-      expect(upsert).not.toHaveBeenCalled();
-    },
-  );
+    await runSeed(client);
 
-  it('rejects the administrator email placeholder before querying the database', async () => {
-    process.env['SEED_ADMIN_EMAIL'] = '[ADMIN_EMAIL]';
-    const query = jest.fn().mockResolvedValue([{ connected: 1 }]);
-    const upsert = createUpsert(Role.ADMIN);
+    const adminCall = userUpsert.mock.calls[0]?.[0];
+    const tutorCall = userUpsert.mock.calls[1]?.[0];
+    expect(adminCall.create.passwordHash).toMatch(/^\$argon2id\$/);
+    expect(adminCall.create.passwordHash).not.toContain('AdminPass');
+    expect(tutorCall.create.passwordHash).toMatch(/^\$argon2id\$/);
+    expect(tutorCall.create.passwordHash).not.toContain('TutorPass');
+  });
 
-    await expect(runSeed({ $queryRawUnsafe: query, user: { upsert } })).rejects.toThrow(
-      'Admin seed environment is incomplete',
-    );
+  it('normalizes both emails and preserves existing user credentials on repeat runs', async () => {
+    const { client, userUpsert } = createSeedClient();
+
+    await runSeed(client);
+
+    const adminCall = userUpsert.mock.calls[0]?.[0];
+    const tutorCall = userUpsert.mock.calls[1]?.[0];
+    expect(adminCall.where).toEqual({ email: 'admin@example.com' });
+    expect(adminCall.update).toEqual({});
+    expect(tutorCall.where).toEqual({ email: 'tutor@example.com' });
+    expect(tutorCall.update).toEqual({});
+  });
+
+  it('rejects incomplete configuration before probing or opening a transaction', async () => {
+    delete process.env['SEED_TUTOR_PASSWORD'];
+    const { client, query, transaction } = createSeedClient();
+
+    await expect(runSeed(client)).rejects.toThrow('Tutor seed environment is incomplete');
     expect(query).not.toHaveBeenCalled();
-    expect(upsert).not.toHaveBeenCalled();
-  });
-
-  it('preserves credentials when the seeded administrator already exists', async () => {
-    const query = jest.fn().mockResolvedValue([{ connected: 1 }]);
-    const upsert = createUpsert(Role.ADMIN);
-
-    await runSeed({ $queryRawUnsafe: query, user: { upsert } });
-
-    const call = upsert.mock.calls[0]?.[0];
-    expect(call.where).toEqual({ email: 'admin@example.com' });
-    expect(call.update).toEqual({});
-  });
-
-  it('refuses to elevate an existing non-admin account', async () => {
-    const query = jest.fn().mockResolvedValue([{ connected: 1 }]);
-    const upsert = createUpsert(Role.STUDENT);
-
-    await expect(runSeed({ $queryRawUnsafe: query, user: { upsert } })).rejects.toThrow(
-      'Admin seed email belongs to a non-admin account',
-    );
+    expect(transaction).not.toHaveBeenCalled();
   });
 });

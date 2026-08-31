@@ -1,60 +1,32 @@
 import { argon2id, hash } from 'argon2';
 
-import { AccountStatus, Role } from '@/generated/prisma/client';
+import { seedAdministrator } from '@/database/seed/admin.seed';
+import { readSeedEnvironment } from '@/database/seed/seed-environment';
+import { seedTutorFoundation } from '@/database/seed/tutor-foundation.seed';
 
-interface SeedUserDelegate {
-  upsert(args: {
-    create: {
-      accountStatus: AccountStatus;
-      email: string;
-      passwordHash: string;
-      role: Role;
-    };
-    select: { role: true };
-    update: Record<string, never>;
-    where: { email: string };
-  }): Promise<{ role: Role }>;
-}
+import type { SeedDatabaseClient } from '@/database/seed/seed-client';
 
-export interface SeedDatabaseClient {
-  $queryRawUnsafe<T = unknown>(query: string): Promise<T>;
-  user: SeedUserDelegate;
-}
-
-export async function runSeed(client: SeedDatabaseClient): Promise<void> {
-  const email = process.env['SEED_ADMIN_EMAIL']?.trim().toLowerCase() ?? '';
-  const password = process.env['SEED_ADMIN_PASSWORD'] ?? '';
-
-  if (
-    !email ||
-    email === '[admin_email]' ||
-    password.trim() === '' ||
-    password === '[ADMIN_PASSWORD]'
-  ) {
-    throw new Error('Admin seed environment is incomplete');
-  }
-
-  await client.$queryRawUnsafe('SELECT 1 AS connected');
-
-  const passwordHash = await hash(password, {
+async function hashSeedPassword(password: string): Promise<string> {
+  return hash(password, {
     type: argon2id,
     memoryCost: 19_456,
     timeCost: 2,
     parallelism: 1,
   });
-  const admin = await client.user.upsert({
-    where: { email },
-    update: {},
-    create: {
-      email,
-      passwordHash,
-      role: Role.ADMIN,
-      accountStatus: AccountStatus.ACTIVE,
-    },
-    select: { role: true },
-  });
-
-  if (admin.role !== Role.ADMIN) {
-    throw new Error('Admin seed email belongs to a non-admin account');
-  }
 }
+
+export async function runSeed(client: SeedDatabaseClient): Promise<void> {
+  const config = readSeedEnvironment(process.env);
+
+  await client.$queryRawUnsafe('SELECT 1 AS connected');
+
+  const adminPasswordHash = await hashSeedPassword(config.adminPassword);
+  const tutorPasswordHash = await hashSeedPassword(config.tutorPassword);
+
+  await client.$transaction(async (transaction) => {
+    await seedAdministrator(transaction, config.adminEmail, adminPasswordHash);
+    await seedTutorFoundation(transaction, config.tutorEmail, tutorPasswordHash);
+  });
+}
+
+export type { SeedDatabaseClient } from '@/database/seed/seed-client';
