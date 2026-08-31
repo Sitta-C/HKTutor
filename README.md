@@ -178,6 +178,24 @@ The second seed run verifies idempotency. Stop if the migration status reports d
 unexpected history. Never reset the shared Supabase database, and do not deploy or seed it without
 the team's explicit checkpoint approval.
 
+## Availability slot foundation (S1-T17)
+
+Availability slots belong to `TutorProfile`. Each slot stores `startAtUtc` and `endAtUtc` as
+`TIMESTAMPTZ(3)`. The database checks that `startAtUtc < endAtUtc`, and a partial GiST exclusion
+constraint rejects overlapping slots only when `deletedAt` is null. The range is half-open (`[)`),
+so adjacent slots such as `18:00-19:00` and `19:00-20:00` are permitted. The future-only rule
+belongs to S1-T18; protection against deleting a booked slot is completed with S1-T23.
+
+S1-T17 has no seed and no stored availability state. After pulling or merging this migration, run
+`pnpm db:generate` so the generated Prisma client matches the schema. Shared deployment is only
+the following `status -> deploy -> status` sequence after explicit checkpoint approval:
+
+```sh
+pnpm db:migrate:status
+pnpm db:migrate:deploy
+pnpm db:migrate:status
+```
+
 `pnpm dev` starts both application packages concurrently. The intended local URLs are:
 
 - Web: [http://localhost:3000](http://localhost:3000)
