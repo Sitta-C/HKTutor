@@ -9,17 +9,23 @@ const SEEDED_TUTOR_PROFILE = {
   verificationStatus: TutorVerificationStatus.VERIFIED,
 } as const;
 
+export interface TutorFoundationSeedResult {
+  tutorUserId: string;
+  mathematicsSubjectId: string;
+  grade10Id: string;
+}
+
 export async function seedTutorFoundation(
   client: SeedTransactionClient,
   email: string,
   passwordHash: string,
-): Promise<void> {
-  await client.subject.upsert({
+): Promise<TutorFoundationSeedResult> {
+  const mathematics = await client.subject.upsert({
     where: { code: 'mathematics' },
     update: { name: 'Mathematics', active: true },
     create: { code: 'mathematics', name: 'Mathematics', active: true },
   });
-  await client.gradeLevel.upsert({
+  const grade10 = await client.gradeLevel.upsert({
     where: { code: 'grade-10' },
     update: { name: 'Grade 10', sortOrder: 10, active: true },
     create: { code: 'grade-10', name: 'Grade 10', sortOrder: 10, active: true },
@@ -52,4 +58,10 @@ export async function seedTutorFoundation(
       ratingUpdatedAt: null,
     },
   });
+
+  return {
+    tutorUserId: tutor.id,
+    mathematicsSubjectId: mathematics.id,
+    grade10Id: grade10.id,
+  };
 }

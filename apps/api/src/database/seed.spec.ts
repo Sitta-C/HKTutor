@@ -8,14 +8,33 @@ function createSeedClient() {
   const query = jest.fn().mockResolvedValue([{ connected: 1 }]);
   const userUpsert = jest
     .fn<Promise<{ id?: string; role: Role }>, [Prisma.UserUpsertArgs]>()
-    .mockResolvedValueOnce({ role: Role.ADMIN })
-    .mockResolvedValueOnce({ id: 'tutor-user-id', role: Role.TUTOR });
+    .mockImplementation((args) => {
+      const email = args.where.email;
+
+      if (email === 'admin@example.com') {
+        return Promise.resolve({ role: Role.ADMIN });
+      }
+
+      if (email === 'tutor@example.com') {
+        return Promise.resolve({ id: 'tutor-user-id', role: Role.TUTOR });
+      }
+
+      return Promise.resolve({
+        id: args.create.id,
+        role: Role.TUTOR,
+      });
+    });
+  const teachingListingUpsert = jest.fn().mockResolvedValue({ id: 'listing-id' });
   const transactionClient = {
     user: { upsert: userUpsert },
     subject: { upsert: jest.fn().mockResolvedValue({ id: 'subject-id' }) },
     gradeLevel: { upsert: jest.fn().mockResolvedValue({ id: 'grade-id' }) },
     tutorProfile: {
+      update: jest.fn().mockResolvedValue({ userId: 'tutor-user-id' }),
       upsert: jest.fn().mockResolvedValue({ userId: 'tutor-user-id' }),
+    },
+    teachingListing: {
+      upsert: teachingListingUpsert,
     },
   } as unknown as SeedTransactionClient;
   const transaction = jest.fn(async (operation: (client: SeedTransactionClient) => Promise<void>) =>
@@ -29,6 +48,7 @@ function createSeedClient() {
     } as SeedDatabaseClient,
     query,
     transaction,
+    teachingListingUpsert,
     userUpsert,
   };
 }
@@ -70,6 +90,28 @@ describe('runSeed', () => {
     expect(adminCall.create.passwordHash).not.toContain('AdminPass');
     expect(tutorCall.create.passwordHash).toMatch(/^\$argon2id\$/);
     expect(tutorCall.create.passwordHash).not.toContain('TutorPass');
+  });
+
+  it('adds the four non-loginable tutor fixtures and six stable listings in the same transaction', async () => {
+    const { client, teachingListingUpsert, userUpsert } = createSeedClient();
+
+    await runSeed(client);
+
+    expect(userUpsert.mock.calls.map(([args]) => args.where.email)).toEqual([
+      'admin@example.com',
+      'tutor@example.com',
+      'mali@s1t20.hktutor.invalid',
+      'kiet@s1t20.hktutor.invalid',
+      'niran@s1t20.hktutor.invalid',
+      'pim@s1t20.hktutor.invalid',
+    ]);
+    expect(userUpsert.mock.calls.slice(2).map(([args]) => args.create.id)).toEqual([
+      '20000000-0000-4000-8000-000000000001',
+      '20000000-0000-4000-8000-000000000002',
+      '20000000-0000-4000-8000-000000000003',
+      '20000000-0000-4000-8000-000000000004',
+    ]);
+    expect(teachingListingUpsert).toHaveBeenCalledTimes(6);
   });
 
   it('normalizes both emails and preserves existing user credentials on repeat runs', async () => {

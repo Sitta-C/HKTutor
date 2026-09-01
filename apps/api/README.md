@@ -38,13 +38,31 @@ the shared database.
 
 S1-T14 additionally requires `SEED_TUTOR_EMAIL` and `SEED_TUTOR_PASSWORD`. The same atomic,
 idempotent seed inserts Mathematics, Grade 10, and one active verified tutor profile while
-preserving existing administrator and tutor credentials. It refuses role conflicts and does not
-insert teaching listings or ratings. The migration adds tutor profiles, subjects, grade levels,
-and teaching listings; publication authorization remains an S1-T15 application rule.
+preserving existing administrator and tutor credentials. The migration adds tutor profiles,
+subjects, grade levels, and teaching listings; publication authorization remains an S1-T15
+application rule.
 
 Only after the S1-T14 migration has been reviewed, merged, and explicitly approved for the shared
 checkpoint should the migration owner run status, deploy, seed twice, and status again. Never use
 `prisma migrate reset` against the shared project.
+
+### Tutor search fixtures (S1-T20)
+
+S1-T20 adds deterministic teaching-listing and seeded-rating fixtures to the same transaction. It
+uses the configured tutor plus four non-loginable `hktutor.invalid` tutor accounts to cover exact
+Mathematics/Grade 10 matches, THB 350 and THB 500 budget cases, Physics mismatch, Grade 11 mismatch,
+and one cheaper draft listing. Synthetic plaintext credentials are random and discarded; user
+upserts never replace existing password hashes. Fixed UUIDs prove that reserved fixture emails are
+seed-owned; a same-role email collision with any other UUID aborts the transaction so no search
+fixture profile or listing changes are committed.
+
+The S1-T21 contract is Mathematics/Grade 10 at a THB 500 maximum returning Anan, Mali, and Kiet;
+below THB 350 it returns no published result. Physics, Grade 11, and draft fixtures must remain
+excluded from that result set.
+
+S1-T20 requires no new environment variables and has no migration. After merge and separate shared
+checkpoint approval, run `status -> seed -> seed -> status`, then verify redacted fixture counts and
+states. Do not run migrate deploy for this task.
 
 ### Availability slot foundation (S1-T17)
 
