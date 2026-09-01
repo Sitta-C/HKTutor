@@ -1,6 +1,7 @@
 # S1-T23 Booking Foundation Design
 
-**Status:** Approved design; implementation not started
+**Status:** Approved design; local implementation and verification complete; push/PR and shared
+deployment remain gated
 
 **Date:** 2026-09-01
 
@@ -145,7 +146,12 @@ The exact logical contracts are:
 
 ```sql
 CONSTRAINT "Booking_amounts_nonnegative_check" CHECK (
-  "subtotalAmount" >= 0 AND "discountAmount" >= 0 AND "netAmount" >= 0
+  "subtotalAmount" <> 'NaN'::numeric
+  AND "discountAmount" <> 'NaN'::numeric
+  AND "netAmount" <> 'NaN'::numeric
+  AND "subtotalAmount" >= 0
+  AND "discountAmount" >= 0
+  AND "netAmount" >= 0
 ),
 CONSTRAINT "Booking_amount_balance_check" CHECK (
   "netAmount" = "subtotalAmount" - "discountAmount"
@@ -153,9 +159,10 @@ CONSTRAINT "Booking_amount_balance_check" CHECK (
 CONSTRAINT "Booking_currency_check" CHECK ("currency" = 'THB')
 ```
 
-The balance plus non-negative checks also prevent a discount larger than the subtotal. S1-T24
-calculates the authoritative snapshot; the database rejects internally inconsistent writes from any
-caller.
+The explicit `NaN` exclusions are required because PostgreSQL `numeric NaN` compares equal to
+itself and greater than finite values, so non-negative comparisons alone would admit it. The balance
+plus non-negative checks also prevent a discount larger than the subtotal. S1-T24 calculates the
+authoritative snapshot; the database rejects internally inconsistent writes from any caller.
 
 ### Active-slot uniqueness
 
@@ -177,9 +184,12 @@ slot.” Two trigger paths therefore share the invariant and serialize on the `A
 ### Active Booking insert/status guard
 
 A `BEFORE INSERT OR UPDATE OF "slotId", "status"` trigger on `Booking` runs only when the new status
-is `pending` or `confirmed`. Its function looks up the referenced `AvailabilitySlot` by ID and locks
-an existing row with `FOR UPDATE`. If no row exists, the trigger returns and lets the foreign key own
-the missing-reference failure. If the row exists with non-null `deletedAt`, the trigger fails with
+is `pending` or `confirmed`. Its function performs a minimal no-op row update on the referenced
+`AvailabilitySlot` (`SET "id" = "id"`) and obtains `deletedAt` with `RETURNING`. The actual row
+version update serializes both lock orders and makes a waiter at Repeatable Read or Serializable
+detect a concurrent update instead of continuing from an older snapshot. It changes no timestamp or
+availability-state field. If no row exists, the trigger returns and lets the foreign key own the
+missing-reference failure. If the row exists with non-null `deletedAt`, the trigger fails with
 SQLSTATE `23514` and constraint identity `Booking_active_slot_not_deleted_check`. The trigger's
 stable error identity is therefore reserved for the soft-deleted case and downstream HTTP 409
 mapping.
@@ -193,9 +203,12 @@ status `pending` or `confirmed`. A match fails with SQLSTATE `23514` and constra
 
 ### Race behavior
 
-- If active Booking insertion locks first, soft deletion waits, then sees the committed active row
-  and fails.
-- If soft deletion locks first, active Booking insertion waits, then sees `deletedAt` and fails.
+- If active Booking insertion updates first, soft deletion waits. At Read Committed it sees the
+  committed active row and fails; at Repeatable Read or Serializable it cannot silently continue
+  from its older snapshot and fails with serialization error `40001`.
+- If soft deletion updates first, active Booking insertion waits. At Read Committed it sees
+  `deletedAt` and fails with the stable Booking guard identity; at Repeatable Read or Serializable
+  it fails with serialization error `40001` rather than creating an invalid active Booking.
 - If the existing Booking becomes `completed` or `canceled`, deletion and a new active Booking are
   permitted subject to normal transaction ordering.
 
@@ -236,11 +249,13 @@ Create `tests/booking-foundation.test.mjs` to read `apps/api/prisma/schema.prism
 The same test locates exactly one migration ending `_add_booking_foundation` and proves:
 
 - exactly one enum and one table are created;
-- the amount/currency checks match the approved logic;
+- the amount checks explicitly reject PostgreSQL `numeric NaN` for all three money columns without
+  changing the stable constraint names, and the currency check matches the approved logic;
 - the partial unique index uses only `pending` and `confirmed`;
 - all foreign keys are `ON DELETE RESTRICT ON UPDATE CASCADE`;
 - both owner indexes exist;
-- both trigger functions lock/check the required rows and expose the named SQLSTATE `23514`
+- the Booking trigger executes the serializing no-op slot-row `UPDATE ... RETURNING`, preserves the
+  missing-slot foreign-key path, and both trigger functions expose the named SQLSTATE `23514`
   constraints;
 - no destructive statement or seed insert exists.
 
@@ -284,17 +299,26 @@ or unexpected history. S1-T23 has no seed command.
 After deployment, a temporary verifier uses an explicit outer transaction plus savepoints and
 always rolls back. It must prove with redacted output:
 
-1. one pending Booking succeeds;
-2. a second pending/confirmed Booking for the same slot fails with `23505` and
+1. finite balanced THB amounts allow one pending Booking;
+2. PostgreSQL `numeric NaN` amounts fail with `23514` and
+   `Booking_amounts_nonnegative_check`;
+3. a second pending/confirmed Booking for the same slot fails with `23505` and
    `Booking_active_slot_key`;
-3. soft-deleting its slot fails with `23514` and
+4. soft-deleting its slot fails with `23514` and
    `AvailabilitySlot_active_booking_delete_check`;
-4. changing the Booking to `canceled` releases the slot for a new pending Booking;
-5. creating/reactivating an active Booking on an already soft-deleted slot fails with `23514` and
+5. changing the Booking to `canceled` releases the slot for a new pending Booking;
+6. creating/reactivating an active Booking on an already soft-deleted slot fails with `23514` and
    `Booking_active_slot_not_deleted_check`;
-6. no verification rows remain after rollback.
+7. no verification rows remain after the outer transaction rolls back.
 
 The verifier must never print emails, password hashes, connection strings, or raw user identifiers.
+
+Two-session Repeatable Read verification is separate because the first locker must commit before an
+older-snapshot waiter can encounter the committed row version. That probe runs only against a
+disposable local PostgreSQL cluster under an explicit local URL, covers both Booking-first and
+soft-delete-first lock orders, expects the waiter to fail with `40001`, and destroys the cluster
+afterward. It must never connect to configured `DATABASE_URL` or shared Supabase. No committed race
+fixture is permitted in the shared rollback-only checkpoint.
 
 ## Documentation
 

@@ -21,6 +21,10 @@
 - Do not add `available`, `reserved`, `status`, or another duplicated availability-state field to `AvailabilitySlot`.
 - All required foreign keys use `ON DELETE RESTRICT ON UPDATE CASCADE`; Booking has no `deletedAt`.
 - Active Booking means exactly PostgreSQL status `pending` or `confirmed`.
+- `subtotalAmount`, `discountAmount`, and `netAmount` explicitly reject PostgreSQL `numeric NaN`
+  without changing the approved money-constraint names.
+- The active-Booking guard must perform an actual no-op `AvailabilitySlot` row update with
+  `RETURNING`; a lock-only `SELECT ... FOR UPDATE` is insufficient at Repeatable Read.
 - Expected database conflicts expose stable identities: `Booking_active_slot_key`, `Booking_active_slot_not_deleted_check`, and `AvailabilitySlot_active_booking_delete_check`.
 - Migration SQL is additive and contains no `DROP`, data rewrite, or `INSERT`.
 - Never run `prisma migrate reset`, `prisma migrate dev`, or an unreviewed deploy against the shared project.
@@ -259,6 +263,10 @@ async function readBookingMigration() {
 
   return fs.readFile(path.join(migrationsRoot, migrations[0], 'migration.sql'), 'utf8');
 }
+
+function stripSqlComments(source) {
+  return source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/--[^\r\n]*/g, '');
+}
 ```
 
 Append this second test:
@@ -287,10 +295,7 @@ test('adds the forward-only S1-T23 database invariants', async () => {
   assert.match(sql, /"createdAt"\s+TIMESTAMPTZ\(3\)\s+NOT NULL\s+DEFAULT CURRENT_TIMESTAMP/i);
   assert.match(sql, /"updatedAt"\s+TIMESTAMPTZ\(3\)\s+NOT NULL/i);
 
-  assert.match(
-    sql,
-    /CONSTRAINT "Booking_amounts_nonnegative_check"\s+CHECK\s*\(\s*"subtotalAmount"\s*>=\s*0\s+AND\s+"discountAmount"\s*>=\s*0\s+AND\s+"netAmount"\s*>=\s*0\s*\)/i,
-  );
+  assert.match(sql, /CONSTRAINT "Booking_amounts_nonnegative_check"\s+CHECK\s*\(/i);
   assert.match(
     sql,
     /CONSTRAINT "Booking_amount_balance_check"\s+CHECK\s*\(\s*"netAmount"\s*=\s*"subtotalAmount"\s*-\s*"discountAmount"\s*\)/i,
@@ -330,7 +335,7 @@ test('adds the forward-only S1-T23 database invariants', async () => {
 
   assert.match(
     sql,
-    /CREATE FUNCTION "guard_active_booking_slot"\(\)[\s\S]*?FROM "AvailabilitySlot"[\s\S]*?WHERE "id" = NEW\."slotId"[\s\S]*?FOR UPDATE[\s\S]*?IF NOT FOUND THEN[\s\S]*?RETURN NEW[\s\S]*?Booking_active_slot_not_deleted_check/i,
+    /CREATE FUNCTION "guard_active_booking_slot"\(\)[\s\S]*?IF NOT FOUND THEN[\s\S]*?RETURN NEW[\s\S]*?Booking_active_slot_not_deleted_check/i,
   );
   assert.match(sql, /IF slot_deleted_at IS NOT NULL THEN/i);
   assert.match(
@@ -355,6 +360,40 @@ test('adds the forward-only S1-T23 database invariants', async () => {
     sql,
     /\b(paymentStatus|couponId|mockReference|meetingUrl|attendance|cancellationReason)\b/i,
   );
+});
+
+test('explicitly rejects PostgreSQL numeric NaN Booking amounts', async () => {
+  const sql = stripSqlComments(await readBookingMigration());
+  const match = sql.match(
+    /CONSTRAINT "Booking_amounts_nonnegative_check"\s+CHECK\s*\(([\s\S]*?)\)\s*,\s*CONSTRAINT "Booking_amount_balance_check"/i,
+  );
+
+  assert.ok(match, 'Booking_amounts_nonnegative_check must retain its stable name');
+
+  for (const column of ['subtotalAmount', 'discountAmount', 'netAmount']) {
+    assert.match(
+      match[1],
+      new RegExp(`"${column}"\\s*<>\\s*'NaN'::numeric`, 'i'),
+      `${column} must explicitly reject PostgreSQL numeric NaN`,
+    );
+    assert.match(match[1], new RegExp(`"${column}"\\s*>=\\s*0`, 'i'));
+  }
+});
+
+test('serializes the active Booking guard with an actual slot-row update', async () => {
+  const sql = stripSqlComments(await readBookingMigration());
+  const match = sql.match(
+    /CREATE FUNCTION "guard_active_booking_slot"\(\)\s*RETURNS TRIGGER AS \$\$([\s\S]*?)\$\$ LANGUAGE plpgsql;/i,
+  );
+
+  assert.ok(match, 'guard_active_booking_slot must retain its stable function name');
+  assert.match(
+    match[1],
+    /UPDATE "AvailabilitySlot"\s+SET "id"\s*=\s*"id"\s+WHERE "id"\s*=\s*NEW\."slotId"\s+RETURNING "deletedAt"\s+INTO slot_deleted_at\s*;/i,
+    'the guard must execute a no-op row update and return deletedAt',
+  );
+  assert.doesNotMatch(match[1], /\bSELECT\b[\s\S]*?\bFOR UPDATE\b/i);
+  assert.match(match[1], /IF NOT FOUND THEN\s+RETURN NEW\s*;/i);
 });
 ```
 
@@ -391,7 +430,12 @@ CREATE TABLE "Booking" (
 
     CONSTRAINT "Booking_pkey" PRIMARY KEY ("id"),
     CONSTRAINT "Booking_amounts_nonnegative_check" CHECK (
-        "subtotalAmount" >= 0 AND "discountAmount" >= 0 AND "netAmount" >= 0
+        "subtotalAmount" <> 'NaN'::numeric
+        AND "discountAmount" <> 'NaN'::numeric
+        AND "netAmount" <> 'NaN'::numeric
+        AND "subtotalAmount" >= 0
+        AND "discountAmount" >= 0
+        AND "netAmount" >= 0
     ),
     CONSTRAINT "Booking_amount_balance_check" CHECK (
         "netAmount" = "subtotalAmount" - "discountAmount"
@@ -434,11 +478,11 @@ RETURNS TRIGGER AS $$
 DECLARE
     slot_deleted_at TIMESTAMPTZ;
 BEGIN
-    SELECT "deletedAt"
-    INTO slot_deleted_at
-    FROM "AvailabilitySlot"
+    UPDATE "AvailabilitySlot"
+    SET "id" = "id"
     WHERE "id" = NEW."slotId"
-    FOR UPDATE;
+    RETURNING "deletedAt"
+    INTO slot_deleted_at;
 
     IF NOT FOUND THEN
         RETURN NEW;
@@ -690,7 +734,15 @@ Use `superpowers:receiving-code-review`. For each valid finding:
 4. rerun the focused test to green;
 5. rerun `pnpm db:validate` when schema/SQL changed.
 
-If a finding proposes a local PostgreSQL service, verify it against the repository contract that Compose/CI intentionally has no local data service; keep real PostgreSQL conflict execution in the separately approved rollback-only checkpoint unless the architecture itself is changed by the user.
+The repository Compose/CI boundary still has no persistent local data service. For the Repeatable
+Read trigger race, use a disposable local PostgreSQL cluster under `/tmp` or an
+equivalent disposable local container and an explicit local connection target. Apply the reviewed
+migrations only to that disposable database. With two sessions, freeze the waiter's Repeatable Read
+snapshot before the first locker changes the slot row; use `pg_blocking_pids` (or equivalent
+condition-based synchronization) to prove the waiter is blocked before committing the first locker.
+Cover both Booking-first and soft-delete-first order and require SQLSTATE `40001` from the waiter in
+each case. Delete the local fixture rows, assert zero residual rows, and destroy the local cluster.
+Never use configured `DATABASE_URL` or shared Supabase for this committed-race probe.
 
 - [ ] **Step 5: Re-run the full gate after the final change and commit review fixes**
 
@@ -757,6 +809,11 @@ Stop before deploy if preflight reports drift, reset, unexpected migration histo
 
 - [ ] **Step 4: Create the temporary rollback-only verifier**
 
+This shared checkpoint uses one session, one explicit outer transaction, savepoints for expected
+failures, and an unconditional outer rollback. It verifies `numeric NaN` rejection but performs no
+committed race setup; the two-session Repeatable Read probe belongs only to the disposable local
+verification in Task 4.
+
 Create `apps/api/prisma/verify-s1-t23-checkpoint.ts` with this exact script:
 
 ```ts
@@ -810,9 +867,11 @@ async function main(): Promise<void> {
   const gradeId = randomUUID();
   const listingId = randomUUID();
   const slotId = randomUUID();
+  const nanBookingId = randomUUID();
   const firstBookingId = randomUUID();
   const secondBookingId = randomUUID();
-  const probeBookingIds = [firstBookingId, secondBookingId];
+  const probeUserIds = [tutorId, studentId];
+  const probeBookingIds = [nanBookingId, firstBookingId, secondBookingId];
 
   await client.connect();
 
@@ -854,6 +913,18 @@ async function main(): Promise<void> {
       `INSERT INTO "AvailabilitySlot" ("id", "tutorProfileId", "startAtUtc", "endAtUtc", "createdAt")
        VALUES ($1, $2, '2099-01-01T10:00:00Z', '2099-01-01T11:00:00Z', CURRENT_TIMESTAMP)`,
       [slotId, tutorId],
+    );
+    await expectConstraint(
+      client,
+      'nan_amounts',
+      () =>
+        client.query(
+          `INSERT INTO "Booking" ("id", "studentUserId", "tutorProfileId", "listingId", "slotId", "status", "subtotalAmount", "discountAmount", "netAmount", "currency", "createdAt", "updatedAt")
+           VALUES ($1, $2, $3, $4, $5, 'pending', 'NaN'::numeric, 'NaN'::numeric, 'NaN'::numeric, 'THB', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+          [nanBookingId, studentId, tutorId, listingId, slotId],
+        ),
+      '23514',
+      'Booking_amounts_nonnegative_check',
     );
     await client.query(
       `INSERT INTO "Booking" ("id", "studentUserId", "tutorProfileId", "listingId", "slotId", "status", "subtotalAmount", "discountAmount", "netAmount", "currency", "createdAt", "updatedAt")
@@ -916,18 +987,28 @@ async function main(): Promise<void> {
 
     await client.query('ROLLBACK');
     const residual = await client.query(
-      `SELECT COUNT(*)::int AS count FROM "Booking" WHERE "id" = ANY($1::uuid[])`,
-      [probeBookingIds],
+      `SELECT SUM(count)::int AS count
+       FROM (
+         SELECT COUNT(*) AS count FROM "Booking" WHERE "id" = ANY($1::uuid[])
+         UNION ALL SELECT COUNT(*) FROM "AvailabilitySlot" WHERE "id" = $2
+         UNION ALL SELECT COUNT(*) FROM "TeachingListing" WHERE "id" = $3
+         UNION ALL SELECT COUNT(*) FROM "Subject" WHERE "id" = $4
+         UNION ALL SELECT COUNT(*) FROM "GradeLevel" WHERE "id" = $5
+         UNION ALL SELECT COUNT(*) FROM "TutorProfile" WHERE "userId" = $6
+         UNION ALL SELECT COUNT(*) FROM "User" WHERE "id" = ANY($7::uuid[])
+       ) AS probe_rows`,
+      [probeBookingIds, slotId, listingId, subjectId, gradeId, tutorId, probeUserIds],
     );
     assert.equal(residual.rows[0]?.count, 0);
     console.info(
       JSON.stringify({
+        nanAmountsConstraint: '23514/Booking_amounts_nonnegative_check',
         firstPendingBooking: true,
         duplicateActiveConstraint: '23505/Booking_active_slot_key',
         reservedDeleteConstraint: '23514/AvailabilitySlot_active_booking_delete_check',
         canceledReleasedSlot: true,
         deletedSlotConstraint: '23514/Booking_active_slot_not_deleted_check',
-        residualBookingCount: 0,
+        residualProbeRowCount: 0,
       }),
     );
   } catch (error) {
@@ -956,12 +1037,13 @@ Expected redacted output:
 
 ```json
 {
+  "nanAmountsConstraint": "23514/Booking_amounts_nonnegative_check",
   "firstPendingBooking": true,
   "duplicateActiveConstraint": "23505/Booking_active_slot_key",
   "reservedDeleteConstraint": "23514/AvailabilitySlot_active_booking_delete_check",
   "canceledReleasedSlot": true,
   "deletedSlotConstraint": "23514/Booking_active_slot_not_deleted_check",
-  "residualBookingCount": 0
+  "residualProbeRowCount": 0
 }
 ```
 

@@ -16,7 +16,12 @@ CREATE TABLE "Booking" (
 
     CONSTRAINT "Booking_pkey" PRIMARY KEY ("id"),
     CONSTRAINT "Booking_amounts_nonnegative_check" CHECK (
-        "subtotalAmount" >= 0 AND "discountAmount" >= 0 AND "netAmount" >= 0
+        "subtotalAmount" <> 'NaN'::numeric
+        AND "discountAmount" <> 'NaN'::numeric
+        AND "netAmount" <> 'NaN'::numeric
+        AND "subtotalAmount" >= 0
+        AND "discountAmount" >= 0
+        AND "netAmount" >= 0
     ),
     CONSTRAINT "Booking_amount_balance_check" CHECK (
         "netAmount" = "subtotalAmount" - "discountAmount"
@@ -59,11 +64,11 @@ RETURNS TRIGGER AS $$
 DECLARE
     slot_deleted_at TIMESTAMPTZ;
 BEGIN
-    SELECT "deletedAt"
-    INTO slot_deleted_at
-    FROM "AvailabilitySlot"
+    UPDATE "AvailabilitySlot"
+    SET "id" = "id"
     WHERE "id" = NEW."slotId"
-    FOR UPDATE;
+    RETURNING "deletedAt"
+    INTO slot_deleted_at;
 
     IF NOT FOUND THEN
         RETURN NEW;

@@ -18,6 +18,10 @@ async function readBookingMigration() {
   return fs.readFile(path.join(migrationsRoot, migrations[0], 'migration.sql'), 'utf8');
 }
 
+function stripSqlComments(source) {
+  return source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/--[^\r\n]*/g, '');
+}
+
 function readBlock(source, keyword, name) {
   const match = source.match(new RegExp(`${keyword} ${name}\\s*{([\\s\\S]*?)\\n}`));
   assert.ok(match, `${keyword} ${name} must exist`);
@@ -114,10 +118,7 @@ test('adds the forward-only S1-T23 database invariants', async () => {
   assert.match(sql, /"createdAt"\s+TIMESTAMPTZ\(3\)\s+NOT NULL\s+DEFAULT CURRENT_TIMESTAMP/i);
   assert.match(sql, /"updatedAt"\s+TIMESTAMPTZ\(3\)\s+NOT NULL/i);
 
-  assert.match(
-    sql,
-    /CONSTRAINT "Booking_amounts_nonnegative_check"\s+CHECK\s*\(\s*"subtotalAmount"\s*>=\s*0\s+AND\s+"discountAmount"\s*>=\s*0\s+AND\s+"netAmount"\s*>=\s*0\s*\)/i,
-  );
+  assert.match(sql, /CONSTRAINT "Booking_amounts_nonnegative_check"\s+CHECK\s*\(/i);
   assert.match(
     sql,
     /CONSTRAINT "Booking_amount_balance_check"\s+CHECK\s*\(\s*"netAmount"\s*=\s*"subtotalAmount"\s*-\s*"discountAmount"\s*\)/i,
@@ -157,7 +158,7 @@ test('adds the forward-only S1-T23 database invariants', async () => {
 
   assert.match(
     sql,
-    /CREATE FUNCTION "guard_active_booking_slot"\(\)[\s\S]*?FROM "AvailabilitySlot"[\s\S]*?WHERE "id" = NEW\."slotId"[\s\S]*?FOR UPDATE[\s\S]*?IF NOT FOUND THEN[\s\S]*?RETURN NEW[\s\S]*?Booking_active_slot_not_deleted_check/i,
+    /CREATE FUNCTION "guard_active_booking_slot"\(\)[\s\S]*?IF NOT FOUND THEN[\s\S]*?RETURN NEW[\s\S]*?Booking_active_slot_not_deleted_check/i,
   );
   assert.match(sql, /IF slot_deleted_at IS NOT NULL THEN/i);
   assert.match(
@@ -182,4 +183,38 @@ test('adds the forward-only S1-T23 database invariants', async () => {
     sql,
     /\b(paymentStatus|couponId|mockReference|meetingUrl|attendance|cancellationReason)\b/i,
   );
+});
+
+test('explicitly rejects PostgreSQL numeric NaN Booking amounts', async () => {
+  const sql = stripSqlComments(await readBookingMigration());
+  const match = sql.match(
+    /CONSTRAINT "Booking_amounts_nonnegative_check"\s+CHECK\s*\(([\s\S]*?)\)\s*,\s*CONSTRAINT "Booking_amount_balance_check"/i,
+  );
+
+  assert.ok(match, 'Booking_amounts_nonnegative_check must retain its stable name');
+
+  for (const column of ['subtotalAmount', 'discountAmount', 'netAmount']) {
+    assert.match(
+      match[1],
+      new RegExp(`"${column}"\\s*<>\\s*'NaN'::numeric`, 'i'),
+      `${column} must explicitly reject PostgreSQL numeric NaN`,
+    );
+    assert.match(match[1], new RegExp(`"${column}"\\s*>=\\s*0`, 'i'));
+  }
+});
+
+test('serializes the active Booking guard with an actual slot-row update', async () => {
+  const sql = stripSqlComments(await readBookingMigration());
+  const match = sql.match(
+    /CREATE FUNCTION "guard_active_booking_slot"\(\)\s*RETURNS TRIGGER AS \$\$([\s\S]*?)\$\$ LANGUAGE plpgsql;/i,
+  );
+
+  assert.ok(match, 'guard_active_booking_slot must retain its stable function name');
+  assert.match(
+    match[1],
+    /UPDATE "AvailabilitySlot"\s+SET "id"\s*=\s*"id"\s+WHERE "id"\s*=\s*NEW\."slotId"\s+RETURNING "deletedAt"\s+INTO slot_deleted_at\s*;/i,
+    'the guard must execute a no-op row update and return deletedAt',
+  );
+  assert.doesNotMatch(match[1], /\bSELECT\b[\s\S]*?\bFOR UPDATE\b/i);
+  assert.match(match[1], /IF NOT FOUND THEN\s+RETURN NEW\s*;/i);
 });
