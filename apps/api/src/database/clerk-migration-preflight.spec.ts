@@ -172,6 +172,23 @@ it('constructs a balanced legacy aggregate with the migration consent predicate'
   expect(aggregateQuery).not.toContain('::citext');
 });
 
+it('detects every reserved synthetic identity collision unless it is an exact tutor tuple', async () => {
+  const client = queryClient(legacyCatalog, [aggregateSnapshot()]);
+
+  await readClerkMigrationSnapshot(client);
+
+  const aggregateQuery = client.queries[1];
+  expect(aggregateQuery).toContain(
+    'u.id IN (SELECT id FROM known_synthetic_tutors) OR u.email IN (SELECT email FROM known_synthetic_tutors)',
+  );
+  expect(aggregateQuery).toContain(
+    "NOT (u.role = 'tutor' AND EXISTS (SELECT 1 FROM known_synthetic_tutors k WHERE k.id = u.id AND k.email = u.email))",
+  );
+  expect(aggregateQuery).toContain(
+    'COUNT(*) FILTER (WHERE u.role = \'tutor\' AND EXISTS (SELECT 1 FROM known_synthetic_tutors k WHERE k.id = u.id AND k.email = u.email)) AS "knownSyntheticTutorCount"',
+  );
+});
+
 it('returns already-migrated without querying legacy columns for the Clerk catalog', async () => {
   const client = queryClient(clerkCatalog);
 
