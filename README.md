@@ -280,6 +280,30 @@ pnpm --filter @hktutor/api dev
 pnpm --filter @hktutor/api test
 ```
 
+## Privacy notice and onboarding consent (S1-T11)
+
+`apps/web/src/lib/privacy-notice.ts` is the single source of truth for the privacy notice text,
+its version string, and the consent payload shape. The current version is `2026-08-01`, matching
+the `policyVersion` value in the US11-2 acceptance criteria.
+
+- The full notice renders at [http://localhost:3000/privacy](http://localhost:3000/privacy) as a
+  server component; it names Clerk as the identity and authentication processor, records that
+  HKTutor stores no password, hash, JWT secret, or refresh token, and describes Supabase as the
+  database and private-storage processor.
+- `apps/web/src/components/privacy-consent.tsx` is the reusable consent control. Consent starts
+  unaccepted, states the version being accepted, and links to the notice in a new tab.
+- Registration blocks submission and shows `CONSENT_REQUIRED_MESSAGE` while consent is unaccepted,
+  so no onboarding request is issued without it.
+- `buildOnboardingConsent(accepted)` returns `{ consent, policyVersion }`. S1-T12 consumes it and
+  persists `consentAcceptedAt` and `policyVersion` inside the Local User onboarding transaction;
+  S1-T11 itself adds no API route, database change, or environment variable.
+
+Whenever the notice wording changes in a way that affects what is collected or why, raise
+`PRIVACY_POLICY_VERSION` so stored consent stays attributable to the wording that was accepted.
+
+`tests/privacy-consent-foundation.test.mjs` holds the repository-level contract for the version
+string, the required disclosure topics, the consent control, and the registration guard.
+
 ## Docker Compose
 
 Build and start the production Web and API containers from the repository root:
@@ -331,6 +355,8 @@ Do not run per-package installs or add nested lockfiles. Dependencies belong in 
 
 This workspace still excludes later-sprint infrastructure and product features, including Redis,
 queues/brokers, Socket.IO, Supabase JavaScript client integration, availability, bookings,
-reviews and application-specific tutor workflows. S1-T04 includes the
+reviews and application-specific tutor workflows. S1-T11 adds only the privacy notice and its
+onboarding consent control; consent persistence, Clerk token verification, and the onboarding
+endpoint belong to S1-T08 and S1-T12. S1-T04 includes the
 Prisma/Supabase PostgreSQL foundation and database health check; S1-T14 adds only the tutor profile
 and teaching-listing persistence foundation plus catalog and verified-tutor seed data.
