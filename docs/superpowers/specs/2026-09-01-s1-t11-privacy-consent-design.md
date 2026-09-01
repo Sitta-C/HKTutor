@@ -86,6 +86,23 @@ S1-T11 excludes:
 - Manual: `/privacy` renders every section; registration with the box unchecked shows the consent
   error and issues no request; checking it clears the error and allows submission.
 
+## Integration with PR #10
+
+PR #10 ("feat: add privacy checkbox") merged into `main` after this branch was cut. It rewrote the
+registration screen around `AuthShell` and `@/lib/i18n` and added its own consent checkbox, which
+starts unaccepted but has no notice to read, no version, and no submission guard. This branch was
+merged with `main` and resolved by keeping that new screen and layering S1-T11 on top of it:
+
+- the placeholder checkbox is replaced by `PrivacyConsent`, so the control links to the notice and
+  names the version being accepted;
+- the `register.policy` string is replaced by `policyBefore`, `policyLink`, `policyAfter`, and
+  `policyRequired` in both `en` and `th`, keeping the consent line translated and the version
+  interpolated;
+- the submission guard reports through `copy.register.policyRequired`.
+
+The Thai strings were written for this merge and should be checked by a native speaker before the
+demonstration. The notice body remains English only.
+
 ## Follow-up owned elsewhere
 
 - S1-T12 persists `{ consent, policyVersion }` transactionally and rejects `consent=false` with 400.

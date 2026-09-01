@@ -291,9 +291,15 @@ the `policyVersion` value in the US11-2 acceptance criteria.
   HKTutor stores no password, hash, JWT secret, or refresh token, and describes Supabase as the
   database and private-storage processor.
 - `apps/web/src/components/privacy-consent.tsx` is the reusable consent control. Consent starts
-  unaccepted, states the version being accepted, and links to the notice in a new tab.
-- Registration blocks submission and shows `CONSENT_REQUIRED_MESSAGE` while consent is unaccepted,
-  so no onboarding request is issued without it.
+  unaccepted, states the version being accepted, and links to the notice in a new tab. Its short
+  consent line is translated through `@/lib/i18n` (`register.policyBefore`, `policyLink`,
+  `policyAfter`, `policyRequired`); `policyAfter` interpolates `{version}` from
+  `PRIVACY_POLICY_VERSION`, so both languages state the version actually being accepted.
+- Registration blocks submission and shows `copy.register.policyRequired` while consent is
+  unaccepted, so no onboarding request is issued without it. `CONSENT_REQUIRED_MESSAGE` remains the
+  untranslated default for non-UI callers.
+- The notice body itself is English only. Translating it is follow-up work and must ship with its
+  own version bump so each language maps to one accepted wording.
 - `buildOnboardingConsent(accepted)` returns `{ consent, policyVersion }`. S1-T12 consumes it and
   persists `consentAcceptedAt` and `policyVersion` inside the Local User onboarding transaction;
   S1-T11 itself adds no API route, database change, or environment variable.

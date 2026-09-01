@@ -6,6 +6,10 @@
  * it, and S1-T12 persists `policyVersion` from `PRIVACY_POLICY_VERSION` inside the Local User
  * onboarding transaction. Update `PRIVACY_POLICY_VERSION` whenever the notice text changes so
  * stored consent stays attributable to the wording the user actually accepted.
+ *
+ * The notice body is English only. The short consent line rendered beside the registration
+ * checkbox is translated through `@/lib/i18n`; translating the full notice is follow-up work that
+ * must ship with its own version bump so each language is attributable to one accepted wording.
  */
 
 export const PRIVACY_POLICY_VERSION = '2026-08-01';

@@ -12,31 +12,33 @@ export const metadata: Metadata = {
 
 export default function PrivacyNoticePage() {
   return (
-    <main className="mx-auto w-full max-w-3xl px-4 py-10 sm:px-6 sm:py-14">
-      <header className="mb-8 border-b border-gray-200 pb-6">
-        <h1 className="text-2xl font-semibold text-gray-900 sm:text-3xl">{PRIVACY_NOTICE.title}</h1>
-        <p className="mt-2 text-sm text-gray-600">
+    <main className="mx-auto w-full max-w-3xl px-5 py-12 text-[#171714] sm:px-8 sm:py-16">
+      <header className="mb-9 border-b border-[#e2dfd8] pb-7">
+        <p className="mb-3 text-[0.68rem] font-bold tracking-[0.24em] text-[#d18b43] uppercase">
+          HKTutor
+        </p>
+        <h1 className="text-[2rem] font-bold tracking-[-0.045em] sm:text-[2.25rem]">
+          {PRIVACY_NOTICE.title}
+        </h1>
+        <p className="mt-3 text-sm text-[#77736b]">
           Version {PRIVACY_NOTICE.version} · Effective {PRIVACY_NOTICE.effectiveDate}
         </p>
-        <p className="mt-4 text-sm leading-6 text-gray-800">{PRIVACY_NOTICE.summary}</p>
+        <p className="mt-5 text-[1.02rem] leading-7 text-[#5e5a52]">{PRIVACY_NOTICE.summary}</p>
       </header>
 
-      <div className="space-y-8">
+      <div className="space-y-9">
         {PRIVACY_NOTICE.sections.map((section) => (
           <section key={section.heading} aria-labelledby={sectionId(section.heading)}>
-            <h2
-              id={sectionId(section.heading)}
-              className="text-base font-semibold text-gray-900 sm:text-lg"
-            >
+            <h2 id={sectionId(section.heading)} className="text-lg font-bold tracking-[-0.02em]">
               {section.heading}
             </h2>
             {section.paragraphs.map((paragraph) => (
-              <p key={paragraph} className="mt-3 text-sm leading-6 text-gray-800">
+              <p key={paragraph} className="mt-3 leading-7 text-[#5e5a52]">
                 {paragraph}
               </p>
             ))}
             {section.bullets.length > 0 && (
-              <ul className="mt-3 list-disc space-y-2 pl-5 text-sm leading-6 text-gray-800">
+              <ul className="mt-3 list-disc space-y-2 pl-5 leading-7 text-[#5e5a52]">
                 {section.bullets.map((bullet) => (
                   <li key={bullet}>{bullet}</li>
                 ))}
@@ -46,10 +48,10 @@ export default function PrivacyNoticePage() {
         ))}
       </div>
 
-      <footer className="mt-10 border-t border-gray-200 pt-6">
+      <footer className="mt-12 border-t border-[#e2dfd8] pt-7">
         <Link
           href="/register"
-          className="text-sm font-medium text-tutor underline underline-offset-4 hover:text-gray-900"
+          className="font-bold underline decoration-[#d18b43] underline-offset-4 hover:text-[#d88835]"
         >
           Back to registration
         </Link>

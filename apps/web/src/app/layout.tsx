@@ -1,13 +1,8 @@
-import { Inter } from 'next/font/google';
+import { LanguageProvider } from '@/lib/i18n';
 
 import './globals.css';
 
 import type { Metadata, Viewport } from 'next';
-
-const inter = Inter({
-  subsets: ['latin'],
-  display: 'swap',
-});
 
 export const metadata: Metadata = {
   title: {
@@ -28,10 +23,10 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={inter.className}>
+    <html lang="en">
       <body className="min-h-screen bg-white text-gray-900 antialiased">
         {/* TODO: Toasters and auth provider */}
-        {children}
+        <LanguageProvider>{children}</LanguageProvider>
       </body>
     </html>
   );

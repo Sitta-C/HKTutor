@@ -6,6 +6,7 @@ const noticeModulePath = 'apps/web/src/lib/privacy-notice.ts';
 const noticePagePath = 'apps/web/src/app/privacy/page.tsx';
 const consentComponentPath = 'apps/web/src/components/privacy-consent.tsx';
 const registerComponentPath = 'apps/web/src/components/register.tsx';
+const i18nPath = 'apps/web/src/lib/i18n.tsx';
 
 const read = (path) => fs.readFile(path, 'utf8');
 
@@ -97,30 +98,61 @@ test('requires an explicit consent decision in the onboarding control', async ()
   assert.match(consent, /checked=\{accepted\}/);
   assert.match(consent, /href=\{PRIVACY_NOTICE_PATH\}/);
   assert.match(consent, /rel="noopener noreferrer"/);
-  assert.match(consent, /version \{PRIVACY_POLICY_VERSION\}/);
-  assert.match(consent, /processing of my sign-in details by\s*\n?\s*Clerk/);
+  assert.match(
+    consent,
+    /copy\.register\.policyAfter\.replace\('\{version\}', PRIVACY_POLICY_VERSION\)/,
+  );
   assert.match(consent, /role="alert"/);
   assert.match(consent, /aria-invalid=/);
-  assert.match(consent, /className="peer sr-only"/);
-  assert.match(consent, /peer-focus-visible:ring-2/);
   assert.doesNotMatch(consent, /checked=\{true\}/);
+});
+
+test('translates the consent line in both languages', async () => {
+  const i18n = await read(i18nPath);
+  const keys = ['policyBefore', 'policyLink', 'policyAfter', 'policyRequired'];
+
+  for (const key of keys) {
+    assert.equal(
+      [...i18n.matchAll(new RegExp(`\\b${key}:`, 'g'))].length,
+      2,
+      `${key} must be defined for both en and th`,
+    );
+  }
+
+  assert.equal(
+    [...i18n.matchAll(/\{version\}/g)].length,
+    2,
+    'both languages must interpolate the accepted policy version',
+  );
+  assert.equal(
+    [...i18n.matchAll(/Clerk/g)].length,
+    2,
+    'both languages must name Clerk in the consent line',
+  );
+  assert.doesNotMatch(i18n, /^\s*policy:/m, 'the pre-S1-T11 placeholder copy is replaced');
 });
 
 test('blocks registration submission until the notice is accepted', async () => {
   const register = await read(registerComponentPath);
 
   assert.match(register, /import PrivacyConsent from '@\/components\/privacy-consent';/);
-  assert.match(register, /import \{ CONSENT_REQUIRED_MESSAGE \} from '@\/lib\/privacy-notice';/);
-  assert.match(register, /TODO\(S1-T12\)[\s\S]*?buildOnboardingConsent\(acceptedPolicy\)/);
-  assert.match(register, /useState\(false\);[\s\S]*?consentError/);
-  assert.doesNotMatch(register, /useState\(true\)/, 'consent must never start pre-accepted');
+  assert.match(register, /const \[acceptedPolicy, setAcceptedPolicy\] = useState\(false\);/);
   assert.match(
     register,
-    /if \(!acceptedPolicy\) \{\s*setConsentError\(CONSENT_REQUIRED_MESSAGE\);\s*return;\s*\}/,
+    /const \[consentError, setConsentError\] = useState<string \| null>\(null\);/,
+  );
+  assert.match(
+    register,
+    /if \(!acceptedPolicy\) \{\s*setConsentError\(copy\.register\.policyRequired\);\s*return;\s*\}/,
   );
   assert.match(register, /<PrivacyConsent/);
   assert.match(register, /error=\{consentError\}/);
-  assert.doesNotMatch(register, /I accept the policy/, 'the placeholder consent copy is replaced');
+  assert.match(register, /TODO\(S1-T12\)[\s\S]*?buildOnboardingConsent\(acceptedPolicy\)/);
+  assert.doesNotMatch(
+    register,
+    /copy\.register\.policy\}/,
+    'the placeholder consent copy is replaced',
+  );
 });
 
 test('adds no environment variable or secret surface for the notice', async () => {
