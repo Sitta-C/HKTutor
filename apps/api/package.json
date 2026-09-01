@@ -12,6 +12,7 @@
     "db:validate": "prisma validate",
     "db:migrate:deploy": "prisma migrate deploy",
     "db:migrate:status": "prisma migrate status",
+    "db:preflight:s1-t07-clerk": "tsx prisma/preflight-s1-t07-clerk.ts",
     "db:seed": "prisma db seed",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
     "start": "nest start",

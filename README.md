@@ -97,8 +97,9 @@ pnpm db:validate
 ```
 
 The team must nominate one migration owner. Only that person creates and commits new migration
-directories. Once a migration is reviewed and committed, teammates and deployment jobs apply it
-in this order:
+directories. This is the S1-T04-only shared-database workflow; whenever S1-T07 is pending, use the
+reviewed S1-T07 checkpoint below instead. Once the S1-T04 migration is reviewed and committed,
+teammates and deployment jobs apply it in this order:
 
 ```sh
 pnpm db:migrate:status
@@ -134,11 +135,98 @@ The administrator seed reads `SEED_ADMIN_CLERK_USER_ID` and `SEED_ADMIN_EMAIL` f
 local `.env`. It upserts by Clerk identity, refreshes the cached primary email, and refuses to
 elevate an existing student or tutor. Public onboarding must never create an administrator.
 
-This schema-only S1-T07 change intentionally has no migration. Do not run `pnpm db:migrate:deploy`
-or `pnpm db:seed` for this schema against the shared project until the migration owner supplies,
-reviews, and merges a follow-up migration from the historical email/password table. Local
-`pnpm db:generate` and `pnpm db:validate` remain safe. Never use `prisma migrate reset` against the
-shared project.
+The reviewed S1-T07 migration replaces the historical email/password `User` table with the
+Clerk-backed shape. It has been rehearsed against the accepted historical states; this pull request
+did not touch shared Supabase. Shared deployment still needs a separate, explicit approval from the
+team and must be performed by the migration owner.
+
+From the repository root, after that approval, use this exact sequence:
+
+```sh
+pnpm db:migrate:status
+pnpm db:preflight:s1-t07-clerk
+pnpm db:migrate:deploy
+pnpm db:seed
+pnpm db:seed
+pnpm db:migrate:status
+```
+
+The first status result must show
+`20260901160000_migrate_user_identity_to_clerk` as the **only** pending migration. If any other
+migration is pending, stop and require its own review and explicit deployment approval; do not let
+`pnpm db:migrate:deploy` apply it as part of this checkpoint. After preflight authorizes continuing,
+make and verify a backup checkpoint before `pnpm db:migrate:deploy`. The CLI can successfully report
+`already-migrated`, but that is not authorization to deploy or reseed. Only `empty`,
+`s1-t14-seed`, or `s1-t20-seed` authorize continuing; `already-migrated`, any other result, command
+failure, drift, or unexpected migration history stops deployment. Do not reset or force cleanup:
+preserve the state and coordinate with the migration owner.
+
+The migration purges and reseeds identity/demo rows in `Booking`, `AvailabilitySlot`,
+`TeachingListing`, `TutorProfile`, and `User`; it preserves `Subject` and `GradeLevel`. The current
+seed requires the test/deployment Clerk mappings in the ignored root `.env`, and the second,
+idempotent seed run verifies that rerunning it is safe. Never print or log a secret, a Clerk identity
+mapping, or a connection-string value.
+
+After the second seed and final `pnpm db:migrate:status` report success and an up-to-date schema,
+run these redacted checks from the repository root. They print only aggregate counts and catalog
+booleans; they do not select identities, cached emails, secrets, or the connection-string value.
+This requires `psql` 18 or a compatible PostgreSQL client. Inspect and trust the ignored root
+`.env` before running the block: it is sourced only inside a temporary subshell so its exported
+secrets do not remain in the operator's shell afterward.
+
+```sh
+(
+  command -v psql >/dev/null 2>&1 || {
+    printf '%s\n' 'S1-T07 verification requires psql 18 or a compatible PostgreSQL client.' >&2
+    exit 1
+  }
+  if [ ! -r ./.env ]; then
+    printf '%s\n' 'S1-T07 verification requires the trusted ignored root .env file.' >&2
+    exit 1
+  fi
+  unset DATABASE_URL
+  set -a; . ./.env; set +a
+  if [ -z "${DATABASE_URL:-}" ]; then
+    printf '%s\n' 'S1-T07 verification stopped: DATABASE_URL is unset.' >&2
+    exit 1
+  fi
+
+  PGDATABASE="$DATABASE_URL" psql -X -v ON_ERROR_STOP=1 -P pager=off <<'SQL'
+SELECT
+  (SELECT COUNT(*) FROM "User") AS users,
+  (SELECT COUNT(*) FROM "User" WHERE "role" = 'admin') AS admins,
+  (SELECT COUNT(*) FROM "User" WHERE "role" = 'tutor') AS tutors,
+  (SELECT COUNT(*) FROM "User" WHERE "role" = 'student') AS students,
+  (SELECT COUNT(*) FROM "TutorProfile") AS tutor_profiles,
+  (SELECT COUNT(*) FROM "Subject") AS subjects,
+  (SELECT COUNT(*) FROM "GradeLevel") AS grade_levels,
+  (SELECT COUNT(*) FROM "TeachingListing") AS teaching_listings,
+  (SELECT COUNT(*) FROM "TeachingListing" WHERE "publicationStatus" = 'published') AS published_listings,
+  (SELECT COUNT(*) FROM "TeachingListing" WHERE "publicationStatus" = 'draft') AS draft_listings,
+  (SELECT COUNT(*) FROM "AvailabilitySlot") AS availability_slots,
+  (SELECT COUNT(*) FROM "Booking") AS bookings,
+  (SELECT COUNT(*) FROM "ClerkWebhookEvent") AS webhook_events;
+
+SELECT
+  to_regclass('"User_clerkUserId_key"') IS NOT NULL AS user_clerk_id_index,
+  to_regclass('"User_active_primaryEmail_key"') IS NOT NULL AS user_active_email_index,
+  to_regclass('"ClerkWebhookEvent"') IS NOT NULL AS webhook_table,
+  to_regclass('"ClerkWebhookEvent_clerkUserId_idx"') IS NOT NULL AS webhook_clerk_user_index,
+  COALESCE((
+    SELECT array_agg(enum_value.enumlabel::text ORDER BY enum_value.enumsortorder) = ARRAY['processed', 'failed']::text[]
+    FROM pg_type AS enum_type
+    JOIN pg_enum AS enum_value ON enum_value.enumtypid = enum_type.oid
+    JOIN pg_namespace AS enum_schema ON enum_schema.oid = enum_type.typnamespace
+    WHERE enum_schema.nspname = current_schema()
+      AND enum_type.typname = 'ClerkWebhookStatus'
+  ), false) AS webhook_status_enum_exact;
+SQL
+)
+```
+
+The aggregate row must be exactly `6, 1, 5, 0, 5, 2, 2, 6, 5, 1, 0, 0, 0` in the displayed
+column order, and every catalog boolean must be `t`. Any difference stops the checkpoint for
+investigation without reset or forced cleanup.
 
 ## Tutor profile and listing foundation (S1-T14)
 
@@ -156,20 +244,20 @@ fails if either Clerk identity already belongs to a different role. The S1-T14 s
 not insert teaching listings or synthetic ratings; S1-T20 adds those fixtures in a separate seed
 unit.
 
-After the S1-T14 pull request is reviewed and merged, the migration owner may apply the shared
-database checkpoint in this order:
+After an S1-T14 pull request is reviewed and merged, any shared checkpoint must still follow the
+reviewed S1-T07 sequence above, including preflight and the backup checkpoint:
 
 ```sh
 pnpm db:migrate:status
+pnpm db:preflight:s1-t07-clerk
 pnpm db:migrate:deploy
 pnpm db:seed
 pnpm db:seed
 pnpm db:migrate:status
 ```
 
-The second seed run verifies idempotency. Stop if the migration status reports drift or an
-unexpected history. Never reset the shared Supabase database, and do not deploy or seed it without
-the team's explicit checkpoint approval.
+The second seed run verifies idempotency. Never reset the shared Supabase database, and do not
+deploy or seed it without the team's explicit checkpoint approval.
 
 ## Tutor search fixtures (S1-T20)
 
