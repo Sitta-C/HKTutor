@@ -161,7 +161,7 @@ The seed requires all four administrator and tutor credential variables in the i
 `.env`. It inserts the canonical Mathematics subject, Grade 10 grade level, and one active verified
 tutor profile. Re-running it preserves both users' password hashes. It fails if either configured
 email already belongs to a different role, and it never inserts teaching listings or synthetic
-ratings; those fixtures belong to S1-T20.
+ratings; S1-T20 adds those fixtures in a separate seed unit.
 
 After the S1-T14 pull request is reviewed and merged, the migration owner may apply the shared
 database checkpoint in this order:
@@ -177,6 +177,33 @@ pnpm db:migrate:status
 The second seed run verifies idempotency. Stop if the migration status reports drift or an
 unexpected history. Never reset the shared Supabase database, and do not deploy or seed it without
 the team's explicit checkpoint approval.
+
+## Tutor search fixtures (S1-T20)
+
+S1-T20 extends the existing atomic seed without adding a migration or new environment variables.
+The configured tutor becomes the published Mathematics/Grade 10 exact-match fixture. Four
+non-loginable tutor accounts under the reserved `hktutor.invalid` domain cover lowest price, the
+inclusive THB 500 budget boundary, Physics subject mismatch, and Grade 11 mismatch. Their plaintext
+credentials are random and discarded; repeated runs preserve all existing user password hashes.
+
+The fixture set contains five published listings plus one draft listing. Published prices and
+ratings are deterministic: Anan 400/4.8, Mali 350/4.4, Kiet 500/4.0, Niran 400/4.7, and Pim
+450/4.6. The draft listing is cheaper than every published listing so S1-T21 can prove publication
+filtering. Ratings are a Sprint 1-2 query cache; Review becomes canonical in Sprint 3.
+
+S1-T20 changes seed data only. After review and merge, obtain explicit approval before changing the
+shared project, then run:
+
+```sh
+pnpm db:migrate:status
+pnpm db:seed
+pnpm db:seed
+pnpm db:migrate:status
+```
+
+The second seed run verifies idempotency. Verify only redacted counts, roles, publication states,
+prices, and ratings; never print fixture emails or password hashes. Do not run
+`pnpm db:migrate:deploy` for S1-T20 because it has no migration.
 
 ## Availability slot foundation (S1-T17)
 

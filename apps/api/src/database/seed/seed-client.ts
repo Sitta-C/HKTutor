@@ -2,7 +2,7 @@ import type { Prisma } from '@/generated/prisma/client';
 
 export type SeedTransactionClient = Pick<
   Prisma.TransactionClient,
-  'user' | 'subject' | 'gradeLevel' | 'tutorProfile'
+  'user' | 'subject' | 'gradeLevel' | 'tutorProfile' | 'teachingListing'
 >;
 
 export interface SeedDatabaseClient {

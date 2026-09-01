@@ -27,7 +27,7 @@ describe('seedTutorFoundation', () => {
   it('upserts canonical Mathematics and Grade 10 catalog rows', async () => {
     const { client, gradeLevelUpsert, subjectUpsert } = createClient();
 
-    await seedTutorFoundation(client, 'tutor@example.com', '$argon2id$tutor-hash');
+    const result = await seedTutorFoundation(client, 'tutor@example.com', '$argon2id$tutor-hash');
 
     expect(subjectUpsert).toHaveBeenCalledWith({
       where: { code: 'mathematics' },
@@ -38,6 +38,11 @@ describe('seedTutorFoundation', () => {
       where: { code: 'grade-10' },
       update: { name: 'Grade 10', sortOrder: 10, active: true },
       create: { code: 'grade-10', name: 'Grade 10', sortOrder: 10, active: true },
+    });
+    expect(result).toEqual({
+      tutorUserId: 'tutor-user-id',
+      mathematicsSubjectId: 'subject-id',
+      grade10Id: 'grade-id',
     });
   });
 
