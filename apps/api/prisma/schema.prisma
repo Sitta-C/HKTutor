@@ -31,6 +31,13 @@ enum ListingPublicationStatus {
   ARCHIVED  @map("archived")
 }
 
+enum BookingStatus {
+  PENDING   @map("pending")
+  CONFIRMED @map("confirmed")
+  COMPLETED @map("completed")
+  CANCELED  @map("canceled")
+}
+
 model User {
   id                String        @id @default(uuid()) @db.Uuid
   email             String        @unique @db.Citext
@@ -43,6 +50,7 @@ model User {
   updatedAt         DateTime      @updatedAt @db.Timestamptz(3)
   deletedAt         DateTime?     @db.Timestamptz(3)
   tutorProfile      TutorProfile?
+  studentBookings   Booking[]     @relation("BookingStudent")
 }
 
 model TutorProfile {
@@ -59,6 +67,7 @@ model TutorProfile {
   user                User                    @relation(fields: [userId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   listings            TeachingListing[]
   availabilitySlots   AvailabilitySlot[]
+  bookings            Booking[]
 }
 
 model AvailabilitySlot {
@@ -69,6 +78,7 @@ model AvailabilitySlot {
   createdAt      DateTime     @default(now()) @db.Timestamptz(3)
   deletedAt      DateTime?    @db.Timestamptz(3)
   tutorProfile   TutorProfile @relation(fields: [tutorProfileId], references: [userId], onDelete: Restrict, onUpdate: Cascade)
+  bookings       Booking[]
 
   @@index([tutorProfileId, startAtUtc], map: "AvailabilitySlot_tutorProfileId_startAtUtc_idx")
 }
@@ -109,7 +119,30 @@ model TeachingListing {
   tutorProfile      TutorProfile             @relation(fields: [tutorProfileId], references: [userId], onDelete: Restrict, onUpdate: Cascade)
   subject            Subject                  @relation(fields: [subjectId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   gradeLevel         GradeLevel               @relation(fields: [gradeLevelId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  bookings            Booking[]
 
   @@index([tutorProfileId], map: "TeachingListing_tutorProfileId_idx")
   @@index([publicationStatus, subjectId, gradeLevelId, pricePerHour], map: "TeachingListing_search_idx")
+}
+
+model Booking {
+  id             String           @id @default(uuid()) @db.Uuid
+  studentUserId  String           @db.Uuid
+  tutorProfileId String           @db.Uuid
+  listingId      String           @db.Uuid
+  slotId         String           @db.Uuid
+  status         BookingStatus    @default(PENDING)
+  subtotalAmount Decimal          @db.Decimal(10, 2)
+  discountAmount Decimal          @default(0) @db.Decimal(10, 2)
+  netAmount      Decimal          @db.Decimal(10, 2)
+  currency       String           @default("THB") @db.Char(3)
+  createdAt      DateTime         @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime         @updatedAt @db.Timestamptz(3)
+  student        User             @relation("BookingStudent", fields: [studentUserId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  tutorProfile   TutorProfile     @relation(fields: [tutorProfileId], references: [userId], onDelete: Restrict, onUpdate: Cascade)
+  listing        TeachingListing  @relation(fields: [listingId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  slot           AvailabilitySlot @relation(fields: [slotId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@index([studentUserId, status, createdAt], map: "Booking_studentUserId_status_createdAt_idx")
+  @@index([tutorProfileId, status, createdAt], map: "Booking_tutorProfileId_status_createdAt_idx")
 }
