@@ -10,9 +10,12 @@
     "lint:fix": "eslint --fix --max-warnings=0"
   },
   "dependencies": {
+    "@tailwindcss/postcss": "^4.3.3",
     "next": "16.3.2",
+    "postcss": "^8.5.26",
     "react": "19.2.8",
-    "react-dom": "19.2.8"
+    "react-dom": "19.2.8",
+    "tailwindcss": "^4.3.3"
   },
   "devDependencies": {
     "@hktutor/eslint-config": "workspace:*",
