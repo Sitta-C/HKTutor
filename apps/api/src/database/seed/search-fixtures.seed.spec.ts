@@ -40,7 +40,7 @@ function createClient(
   const userUpsert = jest
     .fn<Promise<{ id: string; role: Role }>, [Prisma.UserUpsertArgs]>()
     .mockImplementation((args) => {
-      const clerkUserId = String((args.where as unknown as { clerkUserId?: string }).clerkUserId);
+      const clerkUserId = String(args.where.clerkUserId);
 
       return Promise.resolve({
         id: userIdsByClerkId[clerkUserId] ?? 'unexpected-user-id',
@@ -99,11 +99,12 @@ describe('seedTutorSearchFixtures', () => {
       update: { name: 'Grade 11', sortOrder: 11, active: true },
       create: { code: 'grade-11', name: 'Grade 11', sortOrder: 11, active: true },
     });
-    expect(
-      userUpsert.mock.calls.map(
-        ([args]) => (args.where as unknown as { clerkUserId?: string }).clerkUserId,
-      ),
-    ).toEqual(['user_s1t20_mali', 'user_s1t20_kiet', 'user_s1t20_niran', 'user_s1t20_pim']);
+    expect(userUpsert.mock.calls.map(([args]) => args.where.clerkUserId)).toEqual([
+      'user_s1t20_mali',
+      'user_s1t20_kiet',
+      'user_s1t20_niran',
+      'user_s1t20_pim',
+    ]);
     expect(userUpsert.mock.calls.map(([args]) => args.create.primaryEmail)).toEqual([
       'mali@s1t20.hktutor.invalid',
       'kiet@s1t20.hktutor.invalid',

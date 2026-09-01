@@ -30,17 +30,19 @@ pnpm db:seed
 Only the designated migration owner creates migrations. Never reset the shared development/demo
 database.
 
-S1-T07 requires `SEED_ADMIN_EMAIL` and `SEED_ADMIN_PASSWORD` in the ignored root `.env` when
-running `pnpm db:seed`. The seed creates one active administrator with an Argon2id password hash,
-preserves an existing administrator on repeated runs, and refuses to promote an existing
-student/tutor account. Review the S1-T07 migration before running `pnpm db:migrate:deploy` against
-the shared database.
+S1-T07 maps a pre-provisioned Clerk administrator through `SEED_ADMIN_CLERK_USER_ID` and
+`SEED_ADMIN_EMAIL` in the ignored root `.env`. The seed upserts by Clerk identity, refreshes the
+cached primary email, and refuses to promote an existing student/tutor account. The application
+does not store local passwords or sessions.
 
-S1-T14 additionally requires `SEED_TUTOR_EMAIL` and `SEED_TUTOR_PASSWORD`. The same atomic,
-idempotent seed inserts Mathematics, Grade 10, and one active verified tutor profile while
-preserving existing administrator and tutor credentials. The migration adds tutor profiles,
-subjects, grade levels, and teaching listings; publication authorization remains an S1-T15
-application rule.
+This S1-T07 change is schema-only and intentionally has no migration. Do not run
+`pnpm db:migrate:deploy` or `pnpm db:seed` for this schema against the shared database until the
+migration owner supplies and reviews a follow-up migration from the historical User table.
+
+S1-T14 additionally requires `SEED_TUTOR_CLERK_USER_ID` and `SEED_TUTOR_EMAIL`. The same atomic,
+idempotent seed inserts Mathematics, Grade 10, and one active verified tutor profile while syncing
+cached emails by Clerk identity. The migration adds tutor profiles, subjects, grade levels, and
+teaching listings; publication authorization remains an S1-T15 application rule.
 
 Only after the S1-T14 migration has been reviewed, merged, and explicitly approved for the shared
 checkpoint should the migration owner run status, deploy, seed twice, and status again. Never use
@@ -49,12 +51,11 @@ checkpoint should the migration owner run status, deploy, seed twice, and status
 ### Tutor search fixtures (S1-T20)
 
 S1-T20 adds deterministic teaching-listing and seeded-rating fixtures to the same transaction. It
-uses the configured tutor plus four non-loginable `hktutor.invalid` tutor accounts to cover exact
+uses the configured tutor plus four non-loginable local `hktutor.invalid` tutor fixtures to cover exact
 Mathematics/Grade 10 matches, THB 350 and THB 500 budget cases, Physics mismatch, Grade 11 mismatch,
-and one cheaper draft listing. Synthetic plaintext credentials are random and discarded; user
-upserts never replace existing password hashes. Fixed UUIDs prove that reserved fixture emails are
-seed-owned; a same-role email collision with any other UUID aborts the transaction so no search
-fixture profile or listing changes are committed.
+and one cheaper draft listing. Synthetic fixtures use deterministic placeholder Clerk user IDs and
+fixed UUIDs without creating Clerk accounts or credentials. A fixture Clerk user ID resolving to
+any other UUID aborts the transaction so no search fixture profile or listing changes are committed.
 
 The S1-T21 contract is Mathematics/Grade 10 at a THB 500 maximum returning Anan, Mali, and Kiet;
 below THB 350 it returns no published result. Physics, Grade 11, and draft fixtures must remain

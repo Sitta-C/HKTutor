@@ -9,7 +9,7 @@ function createSeedClient() {
   const userUpsert = jest
     .fn<Promise<{ id?: string; role: Role }>, [Prisma.UserUpsertArgs]>()
     .mockImplementation((args) => {
-      const clerkUserId = (args.where as unknown as { clerkUserId?: string }).clerkUserId;
+      const clerkUserId = args.where.clerkUserId;
 
       if (clerkUserId === 'user_admin') {
         return Promise.resolve({ role: Role.ADMIN });
@@ -103,11 +103,7 @@ describe('runSeed', () => {
 
     await runSeed(client);
 
-    expect(
-      userUpsert.mock.calls.map(
-        ([args]) => (args.where as unknown as { clerkUserId?: string }).clerkUserId,
-      ),
-    ).toEqual([
+    expect(userUpsert.mock.calls.map(([args]) => args.where.clerkUserId)).toEqual([
       'user_admin',
       'user_tutor',
       'user_s1t20_mali',
