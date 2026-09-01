@@ -170,9 +170,28 @@ mapping, or a connection-string value.
 After the second seed and final `pnpm db:migrate:status` report success and an up-to-date schema,
 run these redacted checks from the repository root. They print only aggregate counts and catalog
 booleans; they do not select identities, cached emails, secrets, or the connection-string value.
+This requires `psql` 18 or a compatible PostgreSQL client. Inspect and trust the ignored root
+`.env` before running the block: it is sourced only inside a temporary subshell so its exported
+secrets do not remain in the operator's shell afterward.
 
 ```sh
-psql "$DATABASE_URL" -X -v ON_ERROR_STOP=1 -P pager=off <<'SQL'
+(
+  command -v psql >/dev/null 2>&1 || {
+    printf '%s\n' 'S1-T07 verification requires psql 18 or a compatible PostgreSQL client.' >&2
+    exit 1
+  }
+  if [ ! -r ./.env ]; then
+    printf '%s\n' 'S1-T07 verification requires the trusted ignored root .env file.' >&2
+    exit 1
+  fi
+  unset DATABASE_URL
+  set -a; . ./.env; set +a
+  if [ -z "${DATABASE_URL:-}" ]; then
+    printf '%s\n' 'S1-T07 verification stopped: DATABASE_URL is unset.' >&2
+    exit 1
+  fi
+
+  PGDATABASE="$DATABASE_URL" psql -X -v ON_ERROR_STOP=1 -P pager=off <<'SQL'
 SELECT
   (SELECT COUNT(*) FROM "User") AS users,
   (SELECT COUNT(*) FROM "User" WHERE "role" = 'admin') AS admins,
@@ -202,6 +221,7 @@ SELECT
       AND enum_type.typname = 'ClerkWebhookStatus'
   ), false) AS webhook_status_enum_exact;
 SQL
+)
 ```
 
 The aggregate row must be exactly `6, 1, 5, 0, 5, 2, 2, 6, 5, 1, 0, 0, 0` in the displayed
