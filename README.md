@@ -151,18 +151,62 @@ pnpm db:seed
 pnpm db:migrate:status
 ```
 
-After preflight authorizes continuing, make and verify a backup checkpoint before
-`pnpm db:migrate:deploy`. The CLI can successfully report `already-migrated`, but that is not
-authorization to deploy or reseed. Only `empty`, `s1-t14-seed`, or `s1-t20-seed` authorize
-continuing; `already-migrated`, any other result, command failure, drift, or unexpected migration
-history stops deployment. Do not reset or force cleanup: preserve the state and coordinate with the
-migration owner.
+The first status result must show
+`20260901160000_migrate_user_identity_to_clerk` as the **only** pending migration. If any other
+migration is pending, stop and require its own review and explicit deployment approval; do not let
+`pnpm db:migrate:deploy` apply it as part of this checkpoint. After preflight authorizes continuing,
+make and verify a backup checkpoint before `pnpm db:migrate:deploy`. The CLI can successfully report
+`already-migrated`, but that is not authorization to deploy or reseed. Only `empty`,
+`s1-t14-seed`, or `s1-t20-seed` authorize continuing; `already-migrated`, any other result, command
+failure, drift, or unexpected migration history stops deployment. Do not reset or force cleanup:
+preserve the state and coordinate with the migration owner.
 
 The migration purges and reseeds identity/demo rows in `Booking`, `AvailabilitySlot`,
 `TeachingListing`, `TutorProfile`, and `User`; it preserves `Subject` and `GradeLevel`. The current
 seed requires the test/deployment Clerk mappings in the ignored root `.env`, and the second,
 idempotent seed run verifies that rerunning it is safe. Never print or log a secret, a Clerk identity
 mapping, or a connection-string value.
+
+After the second seed and final `pnpm db:migrate:status` report success and an up-to-date schema,
+run these redacted checks from the repository root. They print only aggregate counts and catalog
+booleans; they do not select identities, cached emails, secrets, or the connection-string value.
+
+```sh
+psql "$DATABASE_URL" -X -v ON_ERROR_STOP=1 -P pager=off <<'SQL'
+SELECT
+  (SELECT COUNT(*) FROM "User") AS users,
+  (SELECT COUNT(*) FROM "User" WHERE "role" = 'admin') AS admins,
+  (SELECT COUNT(*) FROM "User" WHERE "role" = 'tutor') AS tutors,
+  (SELECT COUNT(*) FROM "User" WHERE "role" = 'student') AS students,
+  (SELECT COUNT(*) FROM "TutorProfile") AS tutor_profiles,
+  (SELECT COUNT(*) FROM "Subject") AS subjects,
+  (SELECT COUNT(*) FROM "GradeLevel") AS grade_levels,
+  (SELECT COUNT(*) FROM "TeachingListing") AS teaching_listings,
+  (SELECT COUNT(*) FROM "TeachingListing" WHERE "publicationStatus" = 'published') AS published_listings,
+  (SELECT COUNT(*) FROM "TeachingListing" WHERE "publicationStatus" = 'draft') AS draft_listings,
+  (SELECT COUNT(*) FROM "AvailabilitySlot") AS availability_slots,
+  (SELECT COUNT(*) FROM "Booking") AS bookings,
+  (SELECT COUNT(*) FROM "ClerkWebhookEvent") AS webhook_events;
+
+SELECT
+  to_regclass('"User_clerkUserId_key"') IS NOT NULL AS user_clerk_id_index,
+  to_regclass('"User_active_primaryEmail_key"') IS NOT NULL AS user_active_email_index,
+  to_regclass('"ClerkWebhookEvent"') IS NOT NULL AS webhook_table,
+  to_regclass('"ClerkWebhookEvent_clerkUserId_idx"') IS NOT NULL AS webhook_clerk_user_index,
+  COALESCE((
+    SELECT array_agg(enum_value.enumlabel::text ORDER BY enum_value.enumsortorder) = ARRAY['processed', 'failed']::text[]
+    FROM pg_type AS enum_type
+    JOIN pg_enum AS enum_value ON enum_value.enumtypid = enum_type.oid
+    JOIN pg_namespace AS enum_schema ON enum_schema.oid = enum_type.typnamespace
+    WHERE enum_schema.nspname = current_schema()
+      AND enum_type.typname = 'ClerkWebhookStatus'
+  ), false) AS webhook_status_enum_exact;
+SQL
+```
+
+The aggregate row must be exactly `6, 1, 5, 0, 5, 2, 2, 6, 5, 1, 0, 0, 0` in the displayed
+column order, and every catalog boolean must be `t`. Any difference stops the checkpoint for
+investigation without reset or forced cleanup.
 
 ## Tutor profile and listing foundation (S1-T14)
 

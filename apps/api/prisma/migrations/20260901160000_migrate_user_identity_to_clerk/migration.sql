@@ -90,8 +90,9 @@ BEGIN
     SELECT COUNT(*)
     INTO invalid_profile_count
     FROM "TutorProfile" AS profile
-    JOIN "User" AS owner ON owner."id" = profile."userId"
-    WHERE owner."role" <> 'tutor';
+    LEFT JOIN "User" AS owner ON owner."id" = profile."userId"
+    WHERE owner."id" IS NULL
+       OR owner."role" <> 'tutor';
 
     SELECT COUNT(*)
     INTO listing_count
@@ -111,21 +112,31 @@ BEGIN
 
     SELECT COUNT(*)
     INTO invalid_listing_relation_count
-    FROM "TeachingListing"
-    WHERE
-      ("id" IN (
+    FROM "TeachingListing" AS listing
+    LEFT JOIN "TutorProfile" AS profile ON profile."userId" = listing."tutorProfileId"
+    LEFT JOIN "User" AS owner ON owner."id" = profile."userId"
+    WHERE profile."userId" IS NULL
+      OR owner."id" IS NULL
+      OR owner."role" <> 'tutor'
+      OR (listing."id" IN (
         '10000000-0000-4000-8000-000000000001'::uuid,
         '10000000-0000-4000-8000-000000000006'::uuid
-      ) AND "tutorProfileId" IN (
+      ) AND listing."tutorProfileId" IN (
         '20000000-0000-4000-8000-000000000001'::uuid,
         '20000000-0000-4000-8000-000000000002'::uuid,
         '20000000-0000-4000-8000-000000000003'::uuid,
         '20000000-0000-4000-8000-000000000004'::uuid
       ))
-      OR ("id" = '10000000-0000-4000-8000-000000000002'::uuid AND "tutorProfileId" <> '20000000-0000-4000-8000-000000000001'::uuid)
-      OR ("id" = '10000000-0000-4000-8000-000000000003'::uuid AND "tutorProfileId" <> '20000000-0000-4000-8000-000000000002'::uuid)
-      OR ("id" = '10000000-0000-4000-8000-000000000004'::uuid AND "tutorProfileId" <> '20000000-0000-4000-8000-000000000003'::uuid)
-      OR ("id" = '10000000-0000-4000-8000-000000000005'::uuid AND "tutorProfileId" <> '20000000-0000-4000-8000-000000000004'::uuid);
+      OR (listing."id" = '10000000-0000-4000-8000-000000000002'::uuid AND listing."tutorProfileId" <> '20000000-0000-4000-8000-000000000001'::uuid)
+      OR (listing."id" = '10000000-0000-4000-8000-000000000003'::uuid AND listing."tutorProfileId" <> '20000000-0000-4000-8000-000000000002'::uuid)
+      OR (listing."id" = '10000000-0000-4000-8000-000000000004'::uuid AND listing."tutorProfileId" <> '20000000-0000-4000-8000-000000000003'::uuid)
+      OR (listing."id" = '10000000-0000-4000-8000-000000000005'::uuid AND listing."tutorProfileId" <> '20000000-0000-4000-8000-000000000004'::uuid)
+      OR (listing."id" = '10000000-0000-4000-8000-000000000006'::uuid
+          AND listing."tutorProfileId" <> (
+            SELECT "tutorProfileId"
+            FROM "TeachingListing"
+            WHERE "id" = '10000000-0000-4000-8000-000000000001'::uuid
+          ));
 
     IF invalid_synthetic_tutor_count <> 0
        OR invalid_profile_count <> 0
