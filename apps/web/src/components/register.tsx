@@ -17,7 +17,7 @@ export default function Register() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [passwordError, setPasswordError] = useState('');
   const [role, setRole] = useState<Role>('student');
-  const [acceptedPolicy, setAcceptedPolicy] = useState(true);
+  const [acceptedPolicy, setAcceptedPolicy] = useState(false);
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);
   const [isConfirmPasswordVisible, setIsConfirmPasswordVisible] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
