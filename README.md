@@ -97,8 +97,9 @@ pnpm db:validate
 ```
 
 The team must nominate one migration owner. Only that person creates and commits new migration
-directories. Once a migration is reviewed and committed, teammates and deployment jobs apply it
-in this order:
+directories. This is the S1-T04-only shared-database workflow; whenever S1-T07 is pending, use the
+reviewed S1-T07 checkpoint below instead. Once the S1-T04 migration is reviewed and committed,
+teammates and deployment jobs apply it in this order:
 
 ```sh
 pnpm db:migrate:status
@@ -150,10 +151,12 @@ pnpm db:seed
 pnpm db:migrate:status
 ```
 
-After preflight accepts a recognized state, make and verify a backup checkpoint before
-`pnpm db:migrate:deploy`. Preflight may accept only `empty`, `s1-t14-seed`, or `s1-t20-seed`; any
-other result, command failure, drift, or unexpected migration history stops deployment. Do not reset
-or force cleanup: preserve the state and coordinate with the migration owner.
+After preflight authorizes continuing, make and verify a backup checkpoint before
+`pnpm db:migrate:deploy`. The CLI can successfully report `already-migrated`, but that is not
+authorization to deploy or reseed. Only `empty`, `s1-t14-seed`, or `s1-t20-seed` authorize
+continuing; `already-migrated`, any other result, command failure, drift, or unexpected migration
+history stops deployment. Do not reset or force cleanup: preserve the state and coordinate with the
+migration owner.
 
 The migration purges and reseeds identity/demo rows in `Booking`, `AvailabilitySlot`,
 `TeachingListing`, `TutorProfile`, and `User`; it preserves `Subject` and `GradeLevel`. The current

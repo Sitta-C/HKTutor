@@ -53,10 +53,11 @@ pnpm db:seed
 pnpm db:migrate:status
 ```
 
-Once preflight accepts a recognized state, make and verify a backup checkpoint before deploy.
-Preflight accepts only `empty`, `s1-t14-seed`, or `s1-t20-seed`. Any other result, command failure,
-drift, or unexpected migration history stops deployment without reset or forced cleanup; preserve the
-state and coordinate with the migration owner.
+Once preflight authorizes continuing, make and verify a backup checkpoint before deploy. The CLI can
+successfully report `already-migrated`, but that is not authorization to deploy or reseed. Only
+`empty`, `s1-t14-seed`, or `s1-t20-seed` authorize continuing; `already-migrated`, any other result,
+command failure, drift, or unexpected migration history stops deployment without reset or forced
+cleanup; preserve the state and coordinate with the migration owner.
 
 The migration purges and reseeds identity/demo rows in `Booking`, `AvailabilitySlot`,
 `TeachingListing`, `TutorProfile`, and `User`, while preserving `Subject` and `GradeLevel`. The
