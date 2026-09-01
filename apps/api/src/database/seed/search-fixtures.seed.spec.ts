@@ -8,7 +8,6 @@ interface SearchFixturesModule {
   seedTutorSearchFixtures: (
     client: SeedTransactionClient,
     foundation: TutorFoundationSeedResult,
-    fixturePasswordHash: string,
   ) => Promise<void>;
 }
 
@@ -32,20 +31,20 @@ function createClient(
   const gradeLevelUpsert = jest
     .fn<Promise<{ id: string }>, [Prisma.GradeLevelUpsertArgs]>()
     .mockResolvedValue({ id: 'grade-11-id' });
-  const userIdsByEmail: Record<string, string> = {
-    'mali@s1t20.hktutor.invalid': maliUserId,
-    'kiet@s1t20.hktutor.invalid': '20000000-0000-4000-8000-000000000002',
-    'niran@s1t20.hktutor.invalid': '20000000-0000-4000-8000-000000000003',
-    'pim@s1t20.hktutor.invalid': '20000000-0000-4000-8000-000000000004',
+  const userIdsByClerkId: Record<string, string> = {
+    user_s1t20_mali: maliUserId,
+    user_s1t20_kiet: '20000000-0000-4000-8000-000000000002',
+    user_s1t20_niran: '20000000-0000-4000-8000-000000000003',
+    user_s1t20_pim: '20000000-0000-4000-8000-000000000004',
   };
   const userUpsert = jest
     .fn<Promise<{ id: string; role: Role }>, [Prisma.UserUpsertArgs]>()
     .mockImplementation((args) => {
-      const email = String(args.where.email);
+      const clerkUserId = String((args.where as unknown as { clerkUserId?: string }).clerkUserId);
 
       return Promise.resolve({
-        id: userIdsByEmail[email] ?? 'unexpected-user-id',
-        role: email === 'mali@s1t20.hktutor.invalid' ? role : Role.TUTOR,
+        id: userIdsByClerkId[clerkUserId] ?? 'unexpected-user-id',
+        role: clerkUserId === 'user_s1t20_mali' ? role : Role.TUTOR,
       });
     });
   const tutorProfileUpdate = jest
@@ -88,7 +87,7 @@ describe('seedTutorSearchFixtures', () => {
     } = createClient();
     const { seedTutorSearchFixtures } = loadSearchFixturesModule();
 
-    await seedTutorSearchFixtures(client, foundation, '$argon2id$fixture-hash');
+    await seedTutorSearchFixtures(client, foundation);
 
     expect(subjectUpsert).toHaveBeenCalledWith({
       where: { code: 'physics' },
@@ -100,7 +99,12 @@ describe('seedTutorSearchFixtures', () => {
       update: { name: 'Grade 11', sortOrder: 11, active: true },
       create: { code: 'grade-11', name: 'Grade 11', sortOrder: 11, active: true },
     });
-    expect(userUpsert.mock.calls.map(([args]) => args.where.email)).toEqual([
+    expect(
+      userUpsert.mock.calls.map(
+        ([args]) => (args.where as unknown as { clerkUserId?: string }).clerkUserId,
+      ),
+    ).toEqual(['user_s1t20_mali', 'user_s1t20_kiet', 'user_s1t20_niran', 'user_s1t20_pim']);
+    expect(userUpsert.mock.calls.map(([args]) => args.create.primaryEmail)).toEqual([
       'mali@s1t20.hktutor.invalid',
       'kiet@s1t20.hktutor.invalid',
       'niran@s1t20.hktutor.invalid',
@@ -112,9 +116,12 @@ describe('seedTutorSearchFixtures', () => {
       '20000000-0000-4000-8000-000000000003',
       '20000000-0000-4000-8000-000000000004',
     ]);
-    expect(userUpsert.mock.calls.every(([args]) => Object.keys(args.update).length === 0)).toBe(
-      true,
-    );
+    expect(userUpsert.mock.calls.map(([args]) => args.update)).toEqual([
+      { primaryEmail: 'mali@s1t20.hktutor.invalid' },
+      { primaryEmail: 'kiet@s1t20.hktutor.invalid' },
+      { primaryEmail: 'niran@s1t20.hktutor.invalid' },
+      { primaryEmail: 'pim@s1t20.hktutor.invalid' },
+    ]);
     expect(tutorProfileUpdate).toHaveBeenCalledWith({
       where: { userId: 'anan-id' },
       data: {
@@ -225,9 +232,9 @@ describe('seedTutorSearchFixtures', () => {
     const { client, teachingListingUpsert, tutorProfileUpsert } = createClient(Role.STUDENT);
     const { seedTutorSearchFixtures } = loadSearchFixturesModule();
 
-    await expect(
-      seedTutorSearchFixtures(client, foundation, '$argon2id$fixture-hash'),
-    ).rejects.toThrow('Search fixture email belongs to a non-tutor account');
+    await expect(seedTutorSearchFixtures(client, foundation)).rejects.toThrow(
+      'Search fixture Clerk user ID belongs to a non-tutor account',
+    );
     expect(tutorProfileUpsert).not.toHaveBeenCalled();
     expect(teachingListingUpsert).not.toHaveBeenCalled();
   });
@@ -239,9 +246,9 @@ describe('seedTutorSearchFixtures', () => {
     );
     const { seedTutorSearchFixtures } = loadSearchFixturesModule();
 
-    await expect(
-      seedTutorSearchFixtures(client, foundation, '$argon2id$fixture-hash'),
-    ).rejects.toThrow('Search fixture email is not owned by the seed');
+    await expect(seedTutorSearchFixtures(client, foundation)).rejects.toThrow(
+      'Search fixture Clerk user ID is not owned by the seed',
+    );
     expect(tutorProfileUpsert).not.toHaveBeenCalled();
     expect(teachingListingUpsert).not.toHaveBeenCalled();
   });
@@ -250,11 +257,11 @@ describe('seedTutorSearchFixtures', () => {
     const { client, teachingListingUpsert } = createClient();
     const { seedTutorSearchFixtures } = loadSearchFixturesModule();
 
-    await seedTutorSearchFixtures(client, foundation, '$argon2id$fixture-hash');
+    await seedTutorSearchFixtures(client, foundation);
     const firstRunIds = teachingListingUpsert.mock.calls.map(([args]) => args.where.id);
 
     teachingListingUpsert.mockClear();
-    await seedTutorSearchFixtures(client, foundation, '$argon2id$fixture-hash');
+    await seedTutorSearchFixtures(client, foundation);
     const secondRunIds = teachingListingUpsert.mock.calls.map(([args]) => args.where.id);
 
     expect(secondRunIds).toEqual(firstRunIds);

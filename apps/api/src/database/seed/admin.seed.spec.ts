@@ -4,18 +4,18 @@ import { AccountStatus, Role } from '@/generated/prisma/client';
 import type { SeedTransactionClient } from '@/database/seed/seed-client';
 
 describe('seedAdministrator', () => {
-  it('creates an active administrator without changing existing credentials', async () => {
+  it('creates an active administrator mapped to an existing Clerk identity', async () => {
     const upsert = jest.fn().mockResolvedValue({ role: Role.ADMIN });
     const client = { user: { upsert } } as unknown as SeedTransactionClient;
 
-    await seedAdministrator(client, 'admin@example.com', '$argon2id$admin-hash');
+    await seedAdministrator(client, 'user_admin', 'admin@example.com');
 
     expect(upsert).toHaveBeenCalledWith({
-      where: { email: 'admin@example.com' },
-      update: {},
+      where: { clerkUserId: 'user_admin' },
+      update: { primaryEmail: 'admin@example.com' },
       create: {
-        email: 'admin@example.com',
-        passwordHash: '$argon2id$admin-hash',
+        clerkUserId: 'user_admin',
+        primaryEmail: 'admin@example.com',
         role: Role.ADMIN,
         accountStatus: AccountStatus.ACTIVE,
       },
@@ -28,8 +28,8 @@ describe('seedAdministrator', () => {
       user: { upsert: jest.fn().mockResolvedValue({ role: Role.TUTOR }) },
     } as unknown as SeedTransactionClient;
 
-    await expect(
-      seedAdministrator(client, 'admin@example.com', '$argon2id$admin-hash'),
-    ).rejects.toThrow('Admin seed email belongs to a non-admin account');
+    await expect(seedAdministrator(client, 'user_admin', 'admin@example.com')).rejects.toThrow(
+      'Admin seed Clerk user ID belongs to a non-admin account',
+    );
   });
 });

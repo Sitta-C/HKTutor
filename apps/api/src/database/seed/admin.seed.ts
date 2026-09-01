@@ -4,15 +4,15 @@ import type { SeedTransactionClient } from '@/database/seed/seed-client';
 
 export async function seedAdministrator(
   client: SeedTransactionClient,
-  email: string,
-  passwordHash: string,
+  clerkUserId: string,
+  primaryEmail: string,
 ): Promise<void> {
   const admin = await client.user.upsert({
-    where: { email },
-    update: {},
+    where: { clerkUserId },
+    update: { primaryEmail },
     create: {
-      email,
-      passwordHash,
+      clerkUserId,
+      primaryEmail,
       role: Role.ADMIN,
       accountStatus: AccountStatus.ACTIVE,
     },
@@ -20,6 +20,6 @@ export async function seedAdministrator(
   });
 
   if (admin.role !== Role.ADMIN) {
-    throw new Error('Admin seed email belongs to a non-admin account');
+    throw new Error('Admin seed Clerk user ID belongs to a non-admin account');
   }
 }
