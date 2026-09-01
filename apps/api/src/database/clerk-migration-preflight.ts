@@ -110,10 +110,10 @@ const CATALOG_QUERY = `
 const LEGACY_AGGREGATE_QUERY = `
   WITH known_synthetic_tutors(id, email) AS (
     VALUES
-      ('20000000-0000-4000-8000-000000000001'::uuid, 'mali@s1t20.hktutor.invalid'::citext),
-      ('20000000-0000-4000-8000-000000000002'::uuid, 'kiet@s1t20.hktutor.invalid'::citext),
-      ('20000000-0000-4000-8000-000000000003'::uuid, 'niran@s1t20.hktutor.invalid'::citext),
-      ('20000000-0000-4000-8000-000000000004'::uuid, 'pim@s1t20.hktutor.invalid'::citext)
+      ('20000000-0000-4000-8000-000000000001'::uuid, 'mali@s1t20.hktutor.invalid'::extensions.citext),
+      ('20000000-0000-4000-8000-000000000002'::uuid, 'kiet@s1t20.hktutor.invalid'::extensions.citext),
+      ('20000000-0000-4000-8000-000000000003'::uuid, 'niran@s1t20.hktutor.invalid'::extensions.citext),
+      ('20000000-0000-4000-8000-000000000004'::uuid, 'pim@s1t20.hktutor.invalid'::extensions.citext)
   ), known_listings(id, tutor_profile_id) AS (
     VALUES
       ('10000000-0000-4000-8000-000000000001'::uuid, NULL::uuid),
@@ -130,14 +130,14 @@ const LEGACY_AGGREGATE_QUERY = `
     COUNT(*) FILTER (WHERE u.role = 'student') AS "studentUserCount",
     COUNT(*) FILTER (WHERE u."accountStatus" <> 'active') AS "nonActiveUserCount",
     COUNT(*) FILTER (WHERE u."deletedAt" IS NOT NULL) AS "deletedUserCount",
-    COUNT(*) FILTER (WHERE u."consentAcceptedAt" IS NOT NULL) AS "consentedUserCount",
+    COUNT(*) FILTER (WHERE u."consentAcceptedAt" IS NOT NULL OR u."policyVersion" IS NOT NULL) AS "consentedUserCount",
     COUNT(*) FILTER (WHERE EXISTS (SELECT 1 FROM known_synthetic_tutors k WHERE k.id = u.id AND k.email = u.email)) AS "knownSyntheticTutorCount",
     COUNT(*) FILTER (WHERE u.role = 'tutor' AND u.email IN (SELECT email FROM known_synthetic_tutors) AND NOT EXISTS (SELECT 1 FROM known_synthetic_tutors k WHERE k.id = u.id AND k.email = u.email)) AS "invalidSyntheticTutorCount",
     (SELECT COUNT(*) FROM "TutorProfile") AS "tutorProfileCount",
     (SELECT COUNT(*) FROM "TutorProfile" p LEFT JOIN "User" profile_user ON profile_user.id = p."userId" WHERE profile_user.role <> 'tutor' OR profile_user.id IS NULL) AS "invalidTutorProfileCount",
     (SELECT COUNT(*) FROM "TeachingListing") AS "teachingListingCount",
     (SELECT COUNT(*) FROM "TeachingListing" l WHERE l.id IN (SELECT id FROM known_listings)) AS "knownTeachingListingCount",
-    (SELECT COUNT(*) FROM "TeachingListing" l LEFT JOIN known_listings k ON k.id = l.id LEFT JOIN "User" listing_user ON listing_user.id = l."tutorProfileId" WHERE k.id IS NOT NULL AND ((k.tutor_profile_id IS NOT NULL AND l."tutorProfileId" <> k.tutor_profile_id) OR (k.tutor_profile_id IS NULL AND (listing_user.id IS NULL OR listing_user.role <> 'tutor' OR listing_user.id IN (SELECT id FROM known_synthetic_tutors) OR (l.id = '10000000-0000-4000-8000-000000000006'::uuid AND l."tutorProfileId" <> (SELECT "tutorProfileId" FROM "TeachingListing" WHERE id = '10000000-0000-4000-8000-000000000001'::uuid))))) AS "invalidTeachingListingRelationCount",
+    (SELECT COUNT(*) FROM "TeachingListing" l LEFT JOIN known_listings k ON k.id = l.id LEFT JOIN "User" listing_user ON listing_user.id = l."tutorProfileId" WHERE k.id IS NOT NULL AND ((k.tutor_profile_id IS NOT NULL AND l."tutorProfileId" <> k.tutor_profile_id) OR (k.tutor_profile_id IS NULL AND (listing_user.id IS NULL OR listing_user.role <> 'tutor' OR listing_user.id IN (SELECT id FROM known_synthetic_tutors) OR (l.id = '10000000-0000-4000-8000-000000000006'::uuid AND l."tutorProfileId" <> (SELECT "tutorProfileId" FROM "TeachingListing" WHERE id = '10000000-0000-4000-8000-000000000001'::uuid)))))) AS "invalidTeachingListingRelationCount",
     (SELECT COUNT(*) FROM "AvailabilitySlot") AS "availabilitySlotCount",
     (SELECT COUNT(*) FROM "Booking") AS "bookingCount"
   FROM "User" u

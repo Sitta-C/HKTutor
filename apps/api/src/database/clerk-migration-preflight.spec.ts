@@ -156,6 +156,22 @@ it('reads the legacy snapshot through the static aggregate query', async () => {
   expect(aggregateQuery).not.toMatch(/\b(?:email|passwordHash|clerkUserId|primaryEmail)\s+AS\s+/i);
 });
 
+it('constructs a balanced legacy aggregate with the migration consent predicate', async () => {
+  const client = queryClient(legacyCatalog, [aggregateSnapshot()]);
+
+  await readClerkMigrationSnapshot(client);
+
+  const aggregateQuery = client.queries[1];
+  expect((aggregateQuery.match(/\(/g) ?? []).length).toBe(
+    (aggregateQuery.match(/\)/g) ?? []).length,
+  );
+  expect(aggregateQuery).toContain(
+    'u."consentAcceptedAt" IS NOT NULL OR u."policyVersion" IS NOT NULL',
+  );
+  expect(aggregateQuery).toContain('::extensions.citext');
+  expect(aggregateQuery).not.toContain('::citext');
+});
+
 it('returns already-migrated without querying legacy columns for the Clerk catalog', async () => {
   const client = queryClient(clerkCatalog);
 
