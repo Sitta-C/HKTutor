@@ -27,7 +27,7 @@ describe('seedTutorFoundation', () => {
   it('upserts canonical Mathematics and Grade 10 catalog rows', async () => {
     const { client, gradeLevelUpsert, subjectUpsert } = createClient();
 
-    const result = await seedTutorFoundation(client, 'tutor@example.com', '$argon2id$tutor-hash');
+    const result = await seedTutorFoundation(client, 'user_tutor', 'tutor@example.com');
 
     expect(subjectUpsert).toHaveBeenCalledWith({
       where: { code: 'mathematics' },
@@ -46,17 +46,17 @@ describe('seedTutorFoundation', () => {
     });
   });
 
-  it('creates an active tutor and verified profile without overwriting credentials on repeat runs', async () => {
+  it('creates an active tutor mapped to Clerk and a verified profile', async () => {
     const { client, tutorProfileUpsert, userUpsert } = createClient();
 
-    await seedTutorFoundation(client, 'tutor@example.com', '$argon2id$tutor-hash');
+    await seedTutorFoundation(client, 'user_tutor', 'tutor@example.com');
 
     expect(userUpsert).toHaveBeenCalledWith({
-      where: { email: 'tutor@example.com' },
-      update: {},
+      where: { clerkUserId: 'user_tutor' },
+      update: { primaryEmail: 'tutor@example.com' },
       create: {
-        email: 'tutor@example.com',
-        passwordHash: '$argon2id$tutor-hash',
+        clerkUserId: 'user_tutor',
+        primaryEmail: 'tutor@example.com',
         role: Role.TUTOR,
         accountStatus: AccountStatus.ACTIVE,
       },
@@ -83,9 +83,9 @@ describe('seedTutorFoundation', () => {
     async (role) => {
       const { client, tutorProfileUpsert } = createClient(role);
 
-      await expect(
-        seedTutorFoundation(client, 'tutor@example.com', '$argon2id$tutor-hash'),
-      ).rejects.toThrow('Tutor seed email belongs to a non-tutor account');
+      await expect(seedTutorFoundation(client, 'user_tutor', 'tutor@example.com')).rejects.toThrow(
+        'Tutor seed Clerk user ID belongs to a non-tutor account',
+      );
       expect(tutorProfileUpsert).not.toHaveBeenCalled();
     },
   );

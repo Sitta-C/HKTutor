@@ -14,6 +14,7 @@ const SYNTHETIC_TUTORS = [
   {
     key: 'mali',
     userId: '20000000-0000-4000-8000-000000000001',
+    clerkUserId: 'user_s1t20_mali',
     email: 'mali@s1t20.hktutor.invalid',
     displayName: 'Mali',
     bio: 'Mathematics tutor fixture for lowest-price search cases.',
@@ -24,6 +25,7 @@ const SYNTHETIC_TUTORS = [
   {
     key: 'kiet',
     userId: '20000000-0000-4000-8000-000000000002',
+    clerkUserId: 'user_s1t20_kiet',
     email: 'kiet@s1t20.hktutor.invalid',
     displayName: 'Kiet',
     bio: 'Mathematics tutor fixture for inclusive budget boundary cases.',
@@ -34,6 +36,7 @@ const SYNTHETIC_TUTORS = [
   {
     key: 'niran',
     userId: '20000000-0000-4000-8000-000000000003',
+    clerkUserId: 'user_s1t20_niran',
     email: 'niran@s1t20.hktutor.invalid',
     displayName: 'Niran',
     bio: 'Physics tutor fixture for subject mismatch search cases.',
@@ -44,6 +47,7 @@ const SYNTHETIC_TUTORS = [
   {
     key: 'pim',
     userId: '20000000-0000-4000-8000-000000000004',
+    clerkUserId: 'user_s1t20_pim',
     email: 'pim@s1t20.hktutor.invalid',
     displayName: 'Pim',
     bio: 'Grade 11 mathematics tutor fixture for grade mismatch cases.',
@@ -78,7 +82,6 @@ function listingFixture(
 export async function seedTutorSearchFixtures(
   client: SeedTransactionClient,
   foundation: TutorFoundationSeedResult,
-  fixturePasswordHash: string,
 ): Promise<void> {
   const physics = await client.subject.upsert({
     where: { code: 'physics' },
@@ -105,12 +108,12 @@ export async function seedTutorSearchFixtures(
 
   for (const fixture of SYNTHETIC_TUTORS) {
     const tutor = await client.user.upsert({
-      where: { email: fixture.email },
-      update: {},
+      where: { clerkUserId: fixture.clerkUserId },
+      update: { primaryEmail: fixture.email },
       create: {
         id: fixture.userId,
-        email: fixture.email,
-        passwordHash: fixturePasswordHash,
+        clerkUserId: fixture.clerkUserId,
+        primaryEmail: fixture.email,
         role: Role.TUTOR,
         accountStatus: AccountStatus.ACTIVE,
       },
@@ -118,11 +121,11 @@ export async function seedTutorSearchFixtures(
     });
 
     if (tutor.role !== Role.TUTOR) {
-      throw new Error('Search fixture email belongs to a non-tutor account');
+      throw new Error('Search fixture Clerk user ID belongs to a non-tutor account');
     }
 
     if (tutor.id !== fixture.userId) {
-      throw new Error('Search fixture email is not owned by the seed');
+      throw new Error('Search fixture Clerk user ID is not owned by the seed');
     }
 
     tutorIds.set(fixture.key, tutor.id);
