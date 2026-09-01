@@ -52,7 +52,13 @@ S1-T20 adds deterministic teaching-listing and seeded-rating fixtures to the sam
 uses the configured tutor plus four non-loginable `hktutor.invalid` tutor accounts to cover exact
 Mathematics/Grade 10 matches, THB 350 and THB 500 budget cases, Physics mismatch, Grade 11 mismatch,
 and one cheaper draft listing. Synthetic plaintext credentials are random and discarded; user
-upserts never replace existing password hashes.
+upserts never replace existing password hashes. Fixed UUIDs prove that reserved fixture emails are
+seed-owned; a same-role email collision with any other UUID aborts the transaction so no search
+fixture profile or listing changes are committed.
+
+The S1-T21 contract is Mathematics/Grade 10 at a THB 500 maximum returning Anan, Mali, and Kiet;
+below THB 350 it returns no published result. Physics, Grade 11, and draft fixtures must remain
+excluded from that result set.
 
 S1-T20 requires no new environment variables and has no migration. After merge and separate shared
 checkpoint approval, run `status -> seed -> seed -> status`, then verify redacted fixture counts and

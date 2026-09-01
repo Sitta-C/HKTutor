@@ -13,6 +13,7 @@ const SEEDED_AT = new Date('2026-09-01T00:00:00.000Z');
 const SYNTHETIC_TUTORS = [
   {
     key: 'mali',
+    userId: '20000000-0000-4000-8000-000000000001',
     email: 'mali@s1t20.hktutor.invalid',
     displayName: 'Mali',
     bio: 'Mathematics tutor fixture for lowest-price search cases.',
@@ -22,6 +23,7 @@ const SYNTHETIC_TUTORS = [
   },
   {
     key: 'kiet',
+    userId: '20000000-0000-4000-8000-000000000002',
     email: 'kiet@s1t20.hktutor.invalid',
     displayName: 'Kiet',
     bio: 'Mathematics tutor fixture for inclusive budget boundary cases.',
@@ -31,6 +33,7 @@ const SYNTHETIC_TUTORS = [
   },
   {
     key: 'niran',
+    userId: '20000000-0000-4000-8000-000000000003',
     email: 'niran@s1t20.hktutor.invalid',
     displayName: 'Niran',
     bio: 'Physics tutor fixture for subject mismatch search cases.',
@@ -40,6 +43,7 @@ const SYNTHETIC_TUTORS = [
   },
   {
     key: 'pim',
+    userId: '20000000-0000-4000-8000-000000000004',
     email: 'pim@s1t20.hktutor.invalid',
     displayName: 'Pim',
     bio: 'Grade 11 mathematics tutor fixture for grade mismatch cases.',
@@ -104,6 +108,7 @@ export async function seedTutorSearchFixtures(
       where: { email: fixture.email },
       update: {},
       create: {
+        id: fixture.userId,
         email: fixture.email,
         passwordHash: fixturePasswordHash,
         role: Role.TUTOR,
@@ -114,6 +119,10 @@ export async function seedTutorSearchFixtures(
 
     if (tutor.role !== Role.TUTOR) {
       throw new Error('Search fixture email belongs to a non-tutor account');
+    }
+
+    if (tutor.id !== fixture.userId) {
+      throw new Error('Search fixture email is not owned by the seed');
     }
 
     tutorIds.set(fixture.key, tutor.id);

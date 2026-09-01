@@ -20,7 +20,7 @@ function createSeedClient() {
       }
 
       return Promise.resolve({
-        id: `fixture-${String(email).split('@')[0]}`,
+        id: args.create.id,
         role: Role.TUTOR,
       });
     });
@@ -104,6 +104,12 @@ describe('runSeed', () => {
       'kiet@s1t20.hktutor.invalid',
       'niran@s1t20.hktutor.invalid',
       'pim@s1t20.hktutor.invalid',
+    ]);
+    expect(userUpsert.mock.calls.slice(2).map(([args]) => args.create.id)).toEqual([
+      '20000000-0000-4000-8000-000000000001',
+      '20000000-0000-4000-8000-000000000002',
+      '20000000-0000-4000-8000-000000000003',
+      '20000000-0000-4000-8000-000000000004',
     ]);
     expect(teachingListingUpsert).toHaveBeenCalledTimes(6);
   });
