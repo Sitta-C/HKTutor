@@ -1,18 +1,19 @@
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { Test } from '@nestjs/testing';
 
-import { AppModule } from '@/app.module';
 import { PrismaService } from '@/database/prisma.service';
 
-import type { INestApplication } from '@nestjs/common';
+import type { INestApplication, Type } from '@nestjs/common';
 import type { OpenAPIObject } from '@nestjs/swagger';
 
 describe('TutorsController OpenAPI contract', () => {
-  let app: INestApplication;
+  const previousDatabaseUrl = process.env['DATABASE_URL'];
+  let app: INestApplication | undefined;
   let document: OpenAPIObject;
 
   beforeAll(async () => {
     process.env['DATABASE_URL'] = 'postgresql://user:password@example.test:5432/hktutor';
+    const { AppModule } = jest.requireActual<{ AppModule: Type<unknown> }>('@/app.module');
 
     const moduleFixture = await Test.createTestingModule({ imports: [AppModule] })
       .overrideProvider(PrismaService)
@@ -28,7 +29,13 @@ describe('TutorsController OpenAPI contract', () => {
   });
 
   afterAll(async () => {
-    await app.close();
+    await app?.close();
+
+    if (previousDatabaseUrl === undefined) {
+      delete process.env['DATABASE_URL'];
+    } else {
+      process.env['DATABASE_URL'] = previousDatabaseUrl;
+    }
   });
 
   it('publishes the tutor search contract', () => {
