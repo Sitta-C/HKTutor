@@ -37,7 +37,7 @@ test('defines the S1-T14 tutor profile and listing foundation', async () => {
     /model TeachingListing\s*{[\s\S]*pricePerHour\s+Decimal\s+@db\.Decimal\(10,\s*2\)/,
   );
   assert.match(schema, /tutorProfile\s+TutorProfile\?/);
-  assert.doesNotMatch(schema, /model (Booking|Review)\s*{/);
+  assert.doesNotMatch(schema, /model Review\s*{/);
 });
 
 test('adds a forward-only tutor profile and listing migration with database constraints', async () => {

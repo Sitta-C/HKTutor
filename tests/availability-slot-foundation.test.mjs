@@ -46,7 +46,6 @@ test('defines the S1-T17 availability slot schema boundary', async () => {
   );
   assert.doesNotMatch(slot, /\bupdatedAt\b/);
   assert.doesNotMatch(slot, /\b(status|state|available|reserved)\b/i);
-  assert.doesNotMatch(schema, /model Booking\s*{/);
 });
 
 test('adds the forward-only S1-T17 database invariants', async () => {

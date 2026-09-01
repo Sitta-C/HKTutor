@@ -218,7 +218,7 @@ Availability slots belong to `TutorProfile`. Each slot stores `startAtUtc` and `
 `TIMESTAMPTZ(3)`. The database checks that `startAtUtc < endAtUtc`, and a partial GiST exclusion
 constraint rejects overlapping slots only when `deletedAt` is null. The range is half-open (`[)`),
 so adjacent slots such as `18:00-19:00` and `19:00-20:00` are permitted. The future-only rule
-belongs to S1-T18; protection against deleting a booked slot is completed with S1-T23.
+belongs to S1-T18; S1-T23 adds the database guards; S1-T18 maps them into the deletion API transaction.
 
 S1-T17 has no seed and no stored availability state. After pulling or merging this migration, run
 `pnpm db:generate` so the generated Prisma client matches the schema. After the PR is reviewed and
@@ -230,6 +230,23 @@ pnpm db:migrate:status
 pnpm db:migrate:deploy
 pnpm db:migrate:status
 ```
+
+## Booking foundation (S1-T23)
+
+S1-T23 adds the Sprint 1 `Booking` persistence boundary without adding an API, UI, or seed. A
+Booking snapshots student, tutor profile, listing, slot, THB subtotal/discount/net amounts, and one
+of `pending`, `confirmed`, `completed`, or `canceled`. Booking history is retained; restrictive
+foreign keys prevent destructive cascades.
+
+Slot availability remains derived rather than stored. PostgreSQL permits only one `pending` or
+`confirmed` Booking per slot through `Booking_active_slot_key`; completed/canceled history releases
+the slot. Row-locking guards reject an active Booking on a soft-deleted slot and reject soft-deleting
+a slot with an active Booking. S1-T18/S1-T24 map the named database conflicts to HTTP 409 and own the
+application validation/transaction behavior.
+
+After review and merge, obtain separate approval before changing shared Supabase. The migration
+checkpoint is `status -> deploy -> status`, followed by a redacted conflict probe inside a transaction
+that always rolls back. S1-T23 has no seed step; never run `prisma migrate reset`.
 
 `pnpm dev` starts both application packages concurrently. The intended local URLs are:
 
