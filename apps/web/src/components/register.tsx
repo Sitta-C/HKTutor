@@ -1,7 +1,8 @@
 'use client';
 
-import { FormEvent, useState } from 'react';
+import { useState } from 'react';
 
+import type { FormEvent } from 'react';
 type Role = 'student' | 'tutor';
 
 export default function Register() {
@@ -21,9 +22,9 @@ export default function Register() {
     }
     setPasswordError('');
     setIsLoading(true);
-    
+
     // TODO: Register Logic, duplicate email, weak password, etc.
-    
+
     setIsLoading(false);
   };
 
@@ -37,10 +38,7 @@ export default function Register() {
         >
           {/* Email Field */}
           <div className="mb-4">
-            <label
-              htmlFor="email"
-              className="mb-2 block text-sm font-normal text-gray-800"
-            >
+            <label htmlFor="email" className="mb-2 block text-sm font-normal text-gray-800">
               Email
             </label>
             <input
@@ -56,10 +54,7 @@ export default function Register() {
 
           {/* Password Field */}
           <div className="mb-4">
-            <label
-              htmlFor="password"
-              className="mb-2 block text-sm font-normal text-gray-800"
-            >
+            <label htmlFor="password" className="mb-2 block text-sm font-normal text-gray-800">
               Password
             </label>
             <input
@@ -100,16 +95,12 @@ export default function Register() {
               }`}
               required
             />
-            {passwordError && (
-              <p className="mt-1.5 text-xs text-red-500">{passwordError}</p>
-            )}
+            {passwordError && <p className="mt-1.5 text-xs text-red-500">{passwordError}</p>}
           </div>
 
           {/* Select Role Toggle */}
           <div className="mb-7 flex flex-wrap items-center justify-between gap-3 py-1">
-            <span className="text-sm font-normal text-gray-800 select-none">
-              Select Role
-            </span>
+            <span className="text-sm font-normal text-gray-800 select-none">Select Role</span>
             <div className="inline-flex rounded-full border border-gray-300 bg-white p-1 select-none shadow-xs">
               <button
                 type="button"
@@ -129,11 +120,7 @@ export default function Register() {
                     stroke="currentColor"
                     strokeWidth={2.5}
                   >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M5 13l4 4L19 7"
-                    />
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                   </svg>
                 )}
                 Student
@@ -157,11 +144,7 @@ export default function Register() {
                     stroke="currentColor"
                     strokeWidth={2.5}
                   >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M5 13l4 4L19 7"
-                    />
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                   </svg>
                 )}
                 Tutor
@@ -195,11 +178,7 @@ export default function Register() {
                     stroke="currentColor"
                     strokeWidth={3}
                   >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M5 13l4 4L19 7"
-                    />
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                   </svg>
                 )}
               </div>
@@ -224,4 +203,3 @@ export default function Register() {
     </div>
   );
 }
-
