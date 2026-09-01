@@ -74,10 +74,10 @@ Replace every bracketed placeholder in `.env` with values from the Supabase proj
   the NestJS Prisma client and migration commands
 - `SUPABASE_URL` — the project API URL
 - `SUPABASE_SECRET_KEY` — a server-side `sb_secret_...` key for later NestJS Storage/API work
-- `SEED_ADMIN_EMAIL` and `SEED_ADMIN_PASSWORD` — credentials used only to seed the active
-  administrator introduced in S1-T07
-- `SEED_TUTOR_EMAIL` and `SEED_TUTOR_PASSWORD` — credentials used only to seed the verified tutor
-  foundation introduced in S1-T14
+- `SEED_ADMIN_CLERK_USER_ID` and `SEED_ADMIN_EMAIL` — map a pre-provisioned Clerk identity to the
+  active local administrator introduced in S1-T07
+- `SEED_TUTOR_CLERK_USER_ID` and `SEED_TUTOR_EMAIL` — map a pre-provisioned Clerk identity to the
+  verified tutor foundation introduced in S1-T14
 
 The secret key bypasses Row Level Security. It must stay in the NestJS/API environment and must
 never use a `NEXT_PUBLIC_*` name or be exposed to the browser. Do not commit `.env` or paste
@@ -123,30 +123,22 @@ body `{ "database": "connected" }`.
 
 ## User and administrator seed foundation (S1-T07)
 
-S1-T07 adds the `User` model required by later authentication and authorization tasks. Email uses
-PostgreSQL `citext` with a unique index, roles are limited to student, tutor, and admin, and account
-status is limited to active, suspended, and deleted. Consent fields remain nullable until the
-registration transaction is implemented in S1-T12. Authentication sessions, JWT endpoints, and
-guards remain deferred to S1-T08 and S1-T13.
+S1-T07 defines the Clerk-backed local `User` model required by later authentication and
+authorization tasks. The local UUID remains the domain primary key, `clerkUserId` is the unique
+external identity, and nullable CITEXT `primaryEmail` is only a synchronized cache. Roles are
+limited to student, tutor, and admin; account status is limited to active, suspended, and deleted.
+Consent fields remain nullable until the onboarding transaction is implemented in S1-T12. Clerk
+owns credentials and sessions; the application stores no password hash or refresh token.
 
-The administrator seed reads `SEED_ADMIN_EMAIL` and `SEED_ADMIN_PASSWORD` only from the ignored
-local `.env`. It normalizes the email, stores an Argon2id password hash, and never logs the password
-or hash. Re-running the seed preserves an existing administrator's credentials. If the configured
-email already belongs to a student or tutor, the seed fails instead of elevating that account.
+The administrator seed reads `SEED_ADMIN_CLERK_USER_ID` and `SEED_ADMIN_EMAIL` from the ignored
+local `.env`. It upserts by Clerk identity, refreshes the cached primary email, and refuses to
+elevate an existing student or tutor. Public onboarding must never create an administrator.
 
-The migration owner must obtain review of the new migration before changing the shared database.
-After review, apply and verify it in this order:
-
-```sh
-pnpm db:migrate:status
-pnpm db:migrate:deploy
-pnpm db:seed
-pnpm db:seed
-pnpm db:migrate:status
-```
-
-Running the seed twice is the idempotency check. Never commit seed credentials or use
-`prisma migrate reset` against the shared project.
+This schema-only S1-T07 change intentionally has no migration. Do not run `pnpm db:migrate:deploy`
+or `pnpm db:seed` for this schema against the shared project until the migration owner supplies,
+reviews, and merges a follow-up migration from the historical email/password table. Local
+`pnpm db:generate` and `pnpm db:validate` remain safe. Never use `prisma migrate reset` against the
+shared project.
 
 ## Tutor profile and listing foundation (S1-T14)
 
@@ -157,11 +149,12 @@ Foreign keys use restrictive deletes so application workflows cannot silently re
 domain data. The cross-row rule that only a verified tutor may publish is intentionally owned by
 the S1-T15 application transaction rather than a database trigger.
 
-The seed requires all four administrator and tutor credential variables in the ignored root
+The seed requires the administrator and tutor Clerk user ID/email mappings in the ignored root
 `.env`. It inserts the canonical Mathematics subject, Grade 10 grade level, and one active verified
-tutor profile. Re-running it preserves both users' password hashes. It fails if either configured
-email already belongs to a different role. The S1-T14 seed unit itself does not insert teaching
-listings or synthetic ratings; S1-T20 adds those fixtures in a separate seed unit.
+tutor profile. Re-running it refreshes the cached emails without changing either local role. It
+fails if either Clerk identity already belongs to a different role. The S1-T14 seed unit itself does
+not insert teaching listings or synthetic ratings; S1-T20 adds those fixtures in a separate seed
+unit.
 
 After the S1-T14 pull request is reviewed and merged, the migration owner may apply the shared
 database checkpoint in this order:
@@ -182,11 +175,11 @@ the team's explicit checkpoint approval.
 
 S1-T20 extends the existing atomic seed without adding a migration or new environment variables.
 The configured tutor becomes the published Mathematics/Grade 10 exact-match fixture. Four
-non-loginable tutor accounts under the reserved `hktutor.invalid` domain cover lowest price, the
-inclusive THB 500 budget boundary, Physics subject mismatch, and Grade 11 mismatch. Their plaintext
-credentials are random and discarded; repeated runs preserve all existing user password hashes.
-Each synthetic tutor also has a fixed seed-owned UUID. The seed fails closed if a reserved fixture
-email already belongs to any other UUID, even when that account has the tutor role.
+non-loginable local tutor fixtures under the reserved `hktutor.invalid` domain cover lowest price,
+the inclusive THB 500 budget boundary, Physics subject mismatch, and Grade 11 mismatch. Each uses a
+deterministic placeholder Clerk user ID and a fixed seed-owned UUID; no Clerk account or credential
+is created. The seed fails closed if a reserved fixture Clerk user ID resolves to any other UUID,
+even when that account has the tutor role.
 
 The fixture set contains five published listings plus one draft listing. Published prices and
 ratings are deterministic: Anan 400/4.8, Mali 350/4.4, Kiet 500/4.0, Niran 400/4.7, and Pim
@@ -209,7 +202,7 @@ pnpm db:migrate:status
 ```
 
 The second seed run verifies idempotency. Verify only redacted counts, roles, publication states,
-prices, and ratings; never print fixture emails or password hashes. Do not run
+prices, and ratings; never print fixture Clerk IDs or cached emails. Do not run
 `pnpm db:migrate:deploy` for S1-T20 because it has no migration.
 
 ## Availability slot foundation (S1-T17)

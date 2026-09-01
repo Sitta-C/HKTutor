@@ -9,13 +9,13 @@ function createSeedClient() {
   const userUpsert = jest
     .fn<Promise<{ id?: string; role: Role }>, [Prisma.UserUpsertArgs]>()
     .mockImplementation((args) => {
-      const email = args.where.email;
+      const clerkUserId = args.where.clerkUserId;
 
-      if (email === 'admin@example.com') {
+      if (clerkUserId === 'user_admin') {
         return Promise.resolve({ role: Role.ADMIN });
       }
 
-      if (email === 'tutor@example.com') {
+      if (clerkUserId === 'user_tutor') {
         return Promise.resolve({ id: 'tutor-user-id', role: Role.TUTOR });
       }
 
@@ -55,17 +55,17 @@ function createSeedClient() {
 
 describe('runSeed', () => {
   beforeEach(() => {
+    process.env['SEED_ADMIN_CLERK_USER_ID'] = 'user_admin';
     process.env['SEED_ADMIN_EMAIL'] = 'Admin@Example.com';
-    process.env['SEED_ADMIN_PASSWORD'] = 'AdminPass';
+    process.env['SEED_TUTOR_CLERK_USER_ID'] = 'user_tutor';
     process.env['SEED_TUTOR_EMAIL'] = 'Tutor@Example.com';
-    process.env['SEED_TUTOR_PASSWORD'] = 'TutorPass';
   });
 
   afterEach(() => {
+    delete process.env['SEED_ADMIN_CLERK_USER_ID'];
     delete process.env['SEED_ADMIN_EMAIL'];
-    delete process.env['SEED_ADMIN_PASSWORD'];
+    delete process.env['SEED_TUTOR_CLERK_USER_ID'];
     delete process.env['SEED_TUTOR_EMAIL'];
-    delete process.env['SEED_TUTOR_PASSWORD'];
   });
 
   it('probes connectivity before running all seed writes in one transaction', async () => {
@@ -79,17 +79,23 @@ describe('runSeed', () => {
     expect(transaction).toHaveBeenCalledTimes(1);
   });
 
-  it('hashes both seed passwords with Argon2id before creating users', async () => {
+  it('maps seeded users to Clerk identities without storing local credentials', async () => {
     const { client, userUpsert } = createSeedClient();
 
     await runSeed(client);
 
     const adminCall = userUpsert.mock.calls[0]?.[0];
     const tutorCall = userUpsert.mock.calls[1]?.[0];
-    expect(adminCall.create.passwordHash).toMatch(/^\$argon2id\$/);
-    expect(adminCall.create.passwordHash).not.toContain('AdminPass');
-    expect(tutorCall.create.passwordHash).toMatch(/^\$argon2id\$/);
-    expect(tutorCall.create.passwordHash).not.toContain('TutorPass');
+    expect(adminCall.create).toMatchObject({
+      clerkUserId: 'user_admin',
+      primaryEmail: 'admin@example.com',
+    });
+    expect(tutorCall.create).toMatchObject({
+      clerkUserId: 'user_tutor',
+      primaryEmail: 'tutor@example.com',
+    });
+    expect(adminCall.create).not.toHaveProperty('passwordHash');
+    expect(tutorCall.create).not.toHaveProperty('passwordHash');
   });
 
   it('adds the four non-loginable tutor fixtures and six stable listings in the same transaction', async () => {
@@ -97,13 +103,13 @@ describe('runSeed', () => {
 
     await runSeed(client);
 
-    expect(userUpsert.mock.calls.map(([args]) => args.where.email)).toEqual([
-      'admin@example.com',
-      'tutor@example.com',
-      'mali@s1t20.hktutor.invalid',
-      'kiet@s1t20.hktutor.invalid',
-      'niran@s1t20.hktutor.invalid',
-      'pim@s1t20.hktutor.invalid',
+    expect(userUpsert.mock.calls.map(([args]) => args.where.clerkUserId)).toEqual([
+      'user_admin',
+      'user_tutor',
+      'user_s1t20_mali',
+      'user_s1t20_kiet',
+      'user_s1t20_niran',
+      'user_s1t20_pim',
     ]);
     expect(userUpsert.mock.calls.slice(2).map(([args]) => args.create.id)).toEqual([
       '20000000-0000-4000-8000-000000000001',
@@ -114,21 +120,21 @@ describe('runSeed', () => {
     expect(teachingListingUpsert).toHaveBeenCalledTimes(6);
   });
 
-  it('normalizes both emails and preserves existing user credentials on repeat runs', async () => {
+  it('normalizes cached emails and updates them by Clerk identity on repeat runs', async () => {
     const { client, userUpsert } = createSeedClient();
 
     await runSeed(client);
 
     const adminCall = userUpsert.mock.calls[0]?.[0];
     const tutorCall = userUpsert.mock.calls[1]?.[0];
-    expect(adminCall.where).toEqual({ email: 'admin@example.com' });
-    expect(adminCall.update).toEqual({});
-    expect(tutorCall.where).toEqual({ email: 'tutor@example.com' });
-    expect(tutorCall.update).toEqual({});
+    expect(adminCall.where).toEqual({ clerkUserId: 'user_admin' });
+    expect(adminCall.update).toEqual({ primaryEmail: 'admin@example.com' });
+    expect(tutorCall.where).toEqual({ clerkUserId: 'user_tutor' });
+    expect(tutorCall.update).toEqual({ primaryEmail: 'tutor@example.com' });
   });
 
   it('rejects incomplete configuration before probing or opening a transaction', async () => {
-    delete process.env['SEED_TUTOR_PASSWORD'];
+    delete process.env['SEED_TUTOR_CLERK_USER_ID'];
     const { client, query, transaction } = createSeedClient();
 
     await expect(runSeed(client)).rejects.toThrow('Tutor seed environment is incomplete');

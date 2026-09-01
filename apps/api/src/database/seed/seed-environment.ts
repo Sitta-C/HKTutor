@@ -1,48 +1,48 @@
 export interface SeedEnvironment {
+  adminClerkUserId: string;
   adminEmail: string;
-  adminPassword: string;
+  tutorClerkUserId: string;
   tutorEmail: string;
-  tutorPassword: string;
+}
+
+function readRequiredValue(value: string | undefined, errorMessage: string): string {
+  const normalized = value?.trim() ?? '';
+
+  if (!normalized || /^\[.*\]$/.test(normalized)) {
+    throw new Error(errorMessage);
+  }
+
+  return normalized;
 }
 
 function readEmail(value: string | undefined, errorMessage: string): string {
-  const email = value?.trim().toLowerCase() ?? '';
-
-  if (!email || /^\[.*\]$/.test(email)) {
-    throw new Error(errorMessage);
-  }
-
-  return email;
-}
-
-function readPassword(value: string | undefined, errorMessage: string): string {
-  if (!value || value.trim() === '' || /^\[.*\]$/.test(value.trim())) {
-    throw new Error(errorMessage);
-  }
-
-  return value;
+  return readRequiredValue(value, errorMessage).toLowerCase();
 }
 
 export function readSeedEnvironment(env: NodeJS.ProcessEnv): SeedEnvironment {
-  const adminEmail = readEmail(env['SEED_ADMIN_EMAIL'], 'Admin seed environment is incomplete');
-  const adminPassword = readPassword(
-    env['SEED_ADMIN_PASSWORD'],
+  const adminClerkUserId = readRequiredValue(
+    env['SEED_ADMIN_CLERK_USER_ID'],
     'Admin seed environment is incomplete',
   );
-  const tutorEmail = readEmail(env['SEED_TUTOR_EMAIL'], 'Tutor seed environment is incomplete');
-  const tutorPassword = readPassword(
-    env['SEED_TUTOR_PASSWORD'],
+  const adminEmail = readEmail(env['SEED_ADMIN_EMAIL'], 'Admin seed environment is incomplete');
+  const tutorClerkUserId = readRequiredValue(
+    env['SEED_TUTOR_CLERK_USER_ID'],
     'Tutor seed environment is incomplete',
   );
+  const tutorEmail = readEmail(env['SEED_TUTOR_EMAIL'], 'Tutor seed environment is incomplete');
 
   if (adminEmail === tutorEmail) {
     throw new Error('Admin and tutor seed emails must be different');
   }
 
+  if (adminClerkUserId === tutorClerkUserId) {
+    throw new Error('Admin and tutor Clerk user IDs must be different');
+  }
+
   return {
+    adminClerkUserId,
     adminEmail,
-    adminPassword,
+    tutorClerkUserId,
     tutorEmail,
-    tutorPassword,
   };
 }

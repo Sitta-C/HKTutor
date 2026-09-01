@@ -17,8 +17,8 @@ export interface TutorFoundationSeedResult {
 
 export async function seedTutorFoundation(
   client: SeedTransactionClient,
-  email: string,
-  passwordHash: string,
+  clerkUserId: string,
+  primaryEmail: string,
 ): Promise<TutorFoundationSeedResult> {
   const mathematics = await client.subject.upsert({
     where: { code: 'mathematics' },
@@ -32,11 +32,11 @@ export async function seedTutorFoundation(
   });
 
   const tutor = await client.user.upsert({
-    where: { email },
-    update: {},
+    where: { clerkUserId },
+    update: { primaryEmail },
     create: {
-      email,
-      passwordHash,
+      clerkUserId,
+      primaryEmail,
       role: Role.TUTOR,
       accountStatus: AccountStatus.ACTIVE,
     },
@@ -44,7 +44,7 @@ export async function seedTutorFoundation(
   });
 
   if (tutor.role !== Role.TUTOR) {
-    throw new Error('Tutor seed email belongs to a non-tutor account');
+    throw new Error('Tutor seed Clerk user ID belongs to a non-tutor account');
   }
 
   await client.tutorProfile.upsert({

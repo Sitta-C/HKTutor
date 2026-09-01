@@ -17,21 +17,29 @@ async function readUserRoleMigration() {
   return fs.readFile(path.join(migrationsRoot, migrations[0], 'migration.sql'), 'utf8');
 }
 
-test('defines the Sprint 1 user identity model', async () => {
+test('defines the Clerk-backed Sprint 1 user identity model', async () => {
   const schema = await fs.readFile('apps/api/prisma/schema.prisma', 'utf8');
 
   assert.match(schema, /enum Role\s*{[\s\S]*STUDENT[\s\S]*TUTOR[\s\S]*ADMIN[\s\S]*}/);
   assert.match(schema, /enum AccountStatus\s*{[\s\S]*ACTIVE[\s\S]*SUSPENDED[\s\S]*DELETED[\s\S]*}/);
-  assert.match(schema, /model User\s*{[\s\S]*email\s+String\s+@unique\s+@db\.Citext/);
-  assert.match(schema, /passwordHash\s+String/);
+  assert.match(schema, /enum ClerkWebhookStatus\s*{[\s\S]*PROCESSED[\s\S]*FAILED[\s\S]*}/);
+  assert.match(schema, /model User\s*{[\s\S]*clerkUserId\s+String\s+@unique/);
+  assert.match(schema, /primaryEmail\s+String\?\s+@db\.Citext/);
+  assert.doesNotMatch(schema, /passwordHash\s+String/);
   assert.match(schema, /role\s+Role/);
   assert.match(schema, /accountStatus\s+AccountStatus\s+@default\(ACTIVE\)/);
   assert.match(schema, /consentAcceptedAt\s+DateTime\?/);
   assert.match(schema, /policyVersion\s+String\?/);
   assert.match(schema, /deletedAt\s+DateTime\?/);
+  assert.match(schema, /model ClerkWebhookEvent\s*{[\s\S]*eventId\s+String\s+@id/);
+  assert.match(schema, /model ClerkWebhookEvent\s*{[\s\S]*status\s+ClerkWebhookStatus/);
+  assert.match(schema, /model ClerkWebhookEvent\s*{[\s\S]*clerkUserId\s+String/);
+  assert.match(schema, /model ClerkWebhookEvent\s*{[\s\S]*processedAt\s+DateTime/);
+  assert.match(schema, /model ClerkWebhookEvent\s*{[\s\S]*payloadHash\s+String\?/);
+  assert.match(schema, /@@index\(\[clerkUserId\]/);
 });
 
-test('adds a forward-only migration with case-insensitive unique email', async () => {
+test('retains the historical forward-only user-role migration', async () => {
   const sql = await readUserRoleMigration();
 
   assert.match(sql, /CREATE TYPE "Role" AS ENUM \('student', 'tutor', 'admin'\)/i);
