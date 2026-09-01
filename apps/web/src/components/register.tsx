@@ -2,7 +2,11 @@
 
 import { useState } from 'react';
 
+import PrivacyConsent from '@/components/privacy-consent';
+import { CONSENT_REQUIRED_MESSAGE } from '@/lib/privacy-notice';
+
 import type { FormEvent } from 'react';
+
 type Role = 'student' | 'tutor';
 
 export default function Register() {
@@ -11,8 +15,16 @@ export default function Register() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [passwordError, setPasswordError] = useState('');
   const [role, setRole] = useState<Role>('student');
-  const [acceptedPolicy, setAcceptedPolicy] = useState(true);
+  const [acceptedPolicy, setAcceptedPolicy] = useState(false);
+  const [consentError, setConsentError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+
+  const handleConsentChange = (accepted: boolean) => {
+    setAcceptedPolicy(accepted);
+    if (accepted) {
+      setConsentError(null);
+    }
+  };
 
   const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -21,7 +33,18 @@ export default function Register() {
       return;
     }
     setPasswordError('');
+
+    // S1-T11: consent is a precondition of onboarding, so nothing is submitted without it.
+    if (!acceptedPolicy) {
+      setConsentError(CONSENT_REQUIRED_MESSAGE);
+      return;
+    }
+    setConsentError(null);
     setIsLoading(true);
+
+    // TODO(S1-T12): POST the onboarding transaction with
+    // { role, ...buildOnboardingConsent(acceptedPolicy) } from '@/lib/privacy-notice', so the
+    // Local User row stores consentAcceptedAt and policyVersion together with the allowed role.
 
     // TODO: Register Logic, duplicate email, weak password, etc.
 
@@ -152,41 +175,12 @@ export default function Register() {
             </div>
           </div>
 
-          {/* Policy Agreement Checkbox */}
-          <div className="mb-7 flex items-center justify-center">
-            <label className="flex items-center gap-2.5 cursor-pointer select-none py-1">
-              <input
-                id="policy"
-                type="checkbox"
-                checked={acceptedPolicy}
-                onChange={(e) => setAcceptedPolicy(e.target.checked)}
-                className="sr-only"
-                required
-              />
-              <div
-                className={`flex h-[18px] w-[18px] items-center justify-center rounded transition-all ${
-                  acceptedPolicy
-                    ? 'bg-gradient-to-br from-student to-tutor text-white shadow-xs'
-                    : 'border border-gray-300 bg-white hover:border-gray-400'
-                }`}
-              >
-                {acceptedPolicy && (
-                  <svg
-                    className="h-3 w-3 pointer-events-none"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                    strokeWidth={3}
-                  >
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                  </svg>
-                )}
-              </div>
-              <span className="cursor-pointer text-sm text-gray-800 select-none">
-                I accept the policy
-              </span>
-            </label>
-          </div>
+          {/* Policy Agreement (S1-T11) */}
+          <PrivacyConsent
+            accepted={acceptedPolicy}
+            onAcceptedChange={handleConsentChange}
+            error={consentError}
+          />
 
           {/* Submit Button */}
           <div>

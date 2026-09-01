@@ -101,6 +101,8 @@ test('requires an explicit consent decision in the onboarding control', async ()
   assert.match(consent, /processing of my sign-in details by\s*\n?\s*Clerk/);
   assert.match(consent, /role="alert"/);
   assert.match(consent, /aria-invalid=/);
+  assert.match(consent, /className="peer sr-only"/);
+  assert.match(consent, /peer-focus-visible:ring-2/);
   assert.doesNotMatch(consent, /checked=\{true\}/);
 });
 
@@ -108,10 +110,8 @@ test('blocks registration submission until the notice is accepted', async () => 
   const register = await read(registerComponentPath);
 
   assert.match(register, /import PrivacyConsent from '@\/components\/privacy-consent';/);
-  assert.match(
-    register,
-    /import \{ buildOnboardingConsent, CONSENT_REQUIRED_MESSAGE \} from '@\/lib\/privacy-notice';/,
-  );
+  assert.match(register, /import \{ CONSENT_REQUIRED_MESSAGE \} from '@\/lib\/privacy-notice';/);
+  assert.match(register, /TODO\(S1-T12\)[\s\S]*?buildOnboardingConsent\(acceptedPolicy\)/);
   assert.match(register, /useState\(false\);[\s\S]*?consentError/);
   assert.doesNotMatch(register, /useState\(true\)/, 'consent must never start pre-accepted');
   assert.match(
