@@ -23,21 +23,46 @@ Prisma commands are exposed from the repository root:
 pnpm db:generate
 pnpm db:validate
 pnpm db:migrate:status
+pnpm db:preflight:s1-t07-clerk
 pnpm db:migrate:deploy
 pnpm db:seed
 ```
 
-Only the designated migration owner creates migrations. Never reset the shared development/demo
-database.
+These root commands delegate to this API package; do not copy the root workspace command sequence
+into an `apps/api` shell. Only the designated migration owner creates migrations. Never reset the
+shared development/demo database.
 
 S1-T07 maps a pre-provisioned Clerk administrator through `SEED_ADMIN_CLERK_USER_ID` and
 `SEED_ADMIN_EMAIL` in the ignored root `.env`. The seed upserts by Clerk identity, refreshes the
 cached primary email, and refuses to promote an existing student/tutor account. The application
 does not store local passwords or sessions.
 
-This S1-T07 change is schema-only and intentionally has no migration. Do not run
-`pnpm db:migrate:deploy` or `pnpm db:seed` for this schema against the shared database until the
-migration owner supplies and reviews a follow-up migration from the historical User table.
+The reviewed S1-T07 migration replaces the historical email/password `User` table with the
+Clerk-backed shape. It was rehearsed against accepted historical states, but this pull request did
+not touch shared Supabase. A shared deployment still requires separate, explicit team approval and
+the migration owner.
+
+From the repository root, and only after approval, run this exact sequence:
+
+```sh
+pnpm db:migrate:status
+pnpm db:preflight:s1-t07-clerk
+pnpm db:migrate:deploy
+pnpm db:seed
+pnpm db:seed
+pnpm db:migrate:status
+```
+
+Once preflight accepts a recognized state, make and verify a backup checkpoint before deploy.
+Preflight accepts only `empty`, `s1-t14-seed`, or `s1-t20-seed`. Any other result, command failure,
+drift, or unexpected migration history stops deployment without reset or forced cleanup; preserve the
+state and coordinate with the migration owner.
+
+The migration purges and reseeds identity/demo rows in `Booking`, `AvailabilitySlot`,
+`TeachingListing`, `TutorProfile`, and `User`, while preserving `Subject` and `GradeLevel`. The
+current seed requires test/deployment Clerk mappings from the ignored root `.env`; running it twice
+is the idempotency verification. Never print or log secrets, Clerk identity mappings, or
+connection-string values.
 
 S1-T14 additionally requires `SEED_TUTOR_CLERK_USER_ID` and `SEED_TUTOR_EMAIL`. The same atomic,
 idempotent seed inserts Mathematics, Grade 10, and one active verified tutor profile while syncing
@@ -45,8 +70,8 @@ cached emails by Clerk identity. The migration adds tutor profiles, subjects, gr
 teaching listings; publication authorization remains an S1-T15 application rule.
 
 Only after the S1-T14 migration has been reviewed, merged, and explicitly approved for the shared
-checkpoint should the migration owner run status, deploy, seed twice, and status again. Never use
-`prisma migrate reset` against the shared project.
+checkpoint should the migration owner use the reviewed S1-T07 sequence above, including preflight
+and the backup checkpoint. Never use `prisma migrate reset` against the shared project.
 
 ### Tutor search fixtures (S1-T20)
 

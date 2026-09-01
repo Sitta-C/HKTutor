@@ -134,11 +134,32 @@ The administrator seed reads `SEED_ADMIN_CLERK_USER_ID` and `SEED_ADMIN_EMAIL` f
 local `.env`. It upserts by Clerk identity, refreshes the cached primary email, and refuses to
 elevate an existing student or tutor. Public onboarding must never create an administrator.
 
-This schema-only S1-T07 change intentionally has no migration. Do not run `pnpm db:migrate:deploy`
-or `pnpm db:seed` for this schema against the shared project until the migration owner supplies,
-reviews, and merges a follow-up migration from the historical email/password table. Local
-`pnpm db:generate` and `pnpm db:validate` remain safe. Never use `prisma migrate reset` against the
-shared project.
+The reviewed S1-T07 migration replaces the historical email/password `User` table with the
+Clerk-backed shape. It has been rehearsed against the accepted historical states; this pull request
+did not touch shared Supabase. Shared deployment still needs a separate, explicit approval from the
+team and must be performed by the migration owner.
+
+From the repository root, after that approval, use this exact sequence:
+
+```sh
+pnpm db:migrate:status
+pnpm db:preflight:s1-t07-clerk
+pnpm db:migrate:deploy
+pnpm db:seed
+pnpm db:seed
+pnpm db:migrate:status
+```
+
+After preflight accepts a recognized state, make and verify a backup checkpoint before
+`pnpm db:migrate:deploy`. Preflight may accept only `empty`, `s1-t14-seed`, or `s1-t20-seed`; any
+other result, command failure, drift, or unexpected migration history stops deployment. Do not reset
+or force cleanup: preserve the state and coordinate with the migration owner.
+
+The migration purges and reseeds identity/demo rows in `Booking`, `AvailabilitySlot`,
+`TeachingListing`, `TutorProfile`, and `User`; it preserves `Subject` and `GradeLevel`. The current
+seed requires the test/deployment Clerk mappings in the ignored root `.env`, and the second,
+idempotent seed run verifies that rerunning it is safe. Never print or log a secret, a Clerk identity
+mapping, or a connection-string value.
 
 ## Tutor profile and listing foundation (S1-T14)
 
@@ -156,20 +177,20 @@ fails if either Clerk identity already belongs to a different role. The S1-T14 s
 not insert teaching listings or synthetic ratings; S1-T20 adds those fixtures in a separate seed
 unit.
 
-After the S1-T14 pull request is reviewed and merged, the migration owner may apply the shared
-database checkpoint in this order:
+After an S1-T14 pull request is reviewed and merged, any shared checkpoint must still follow the
+reviewed S1-T07 sequence above, including preflight and the backup checkpoint:
 
 ```sh
 pnpm db:migrate:status
+pnpm db:preflight:s1-t07-clerk
 pnpm db:migrate:deploy
 pnpm db:seed
 pnpm db:seed
 pnpm db:migrate:status
 ```
 
-The second seed run verifies idempotency. Stop if the migration status reports drift or an
-unexpected history. Never reset the shared Supabase database, and do not deploy or seed it without
-the team's explicit checkpoint approval.
+The second seed run verifies idempotency. Never reset the shared Supabase database, and do not
+deploy or seed it without the team's explicit checkpoint approval.
 
 ## Tutor search fixtures (S1-T20)
 
