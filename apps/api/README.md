@@ -69,7 +69,7 @@ states. Do not run migrate deploy for this task.
 Availability slots belong to `TutorProfile` and store `startAtUtc`/`endAtUtc` as `TIMESTAMPTZ(3)`.
 The database checks `startAtUtc < endAtUtc` and uses a partial GiST exclusion for overlaps only
 when `deletedAt` is null; its `[)` range permits adjacent slots. The future-only rule is deferred
-to S1-T18, and booked-slot deletion protection is completed with S1-T23. S1-T17 has no seed and
+to S1-T18, and S1-T23 adds the database guards; S1-T18 maps them into the deletion API transaction. S1-T17 has no seed and
 no stored availability state. After pulling or merging, run `pnpm db:generate` to match the
 generated client to the schema. After the PR is reviewed and merged, and deployment is separately
 approved, shared deployment is only (see the root README for drift and unexpected-history stop
@@ -82,6 +82,21 @@ pnpm db:migrate:status
 ```
 
 `pnpm db:seed` is intentionally absent from the S1-T17 checkpoint.
+
+### Booking foundation (S1-T23)
+
+`Booking` stores the Sprint 1 ownership/reservation and THB price snapshot needed by S1-T24. Active
+status means only `pending` or `confirmed`; `Booking_active_slot_key` prevents concurrent active
+duplicates while completed/canceled rows retain history without reserving the slot.
+
+The database exposes `Booking_active_slot_not_deleted_check` and
+`AvailabilitySlot_active_booking_delete_check` for the two slot soft-delete conflicts. S1-T18/S1-T24
+must still lock/read the slot in their domain transactions and map these named conflicts to HTTP 409.
+Roles, future time, own-tutor rejection, listing publication, and listing/slot tutor equality remain
+application rules. This task adds no endpoint or seed.
+
+Shared deployment remains separately approved: run `status -> deploy -> status`, then a
+rollback-only redacted conflict probe. Do not seed or reset for S1-T23.
 
 Pull requests and pushes to `main` run the root `pnpm check` command in GitHub Actions. CI does not
 receive shared-database credentials.
