@@ -1,8 +1,8 @@
-@import "tailwindcss";
+@import 'tailwindcss';
 
 @theme {
-  --color-student: #1CD5B0;
-  --color-tutor: #0E8EEA;
+  --color-student: #1cd5b0;
+  --color-tutor: #0e8eea;
 }
 
 :root {
@@ -43,4 +43,3 @@ body {
     color-scheme: dark;
   }
 }
-
