@@ -1,4 +1,4 @@
-import { Controller, Get, Query } from '@nestjs/common';
+import { Controller, Get, Param, Query } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 
 import {} from '@/users/users.dto';
@@ -9,10 +9,9 @@ import {UsersService} from '@/users/users.service';
 export class UsersController {
     constructor(private readonly usersService: UsersService) {}
 
-    @Get()
+    @Get('auth/:id')
     //   @GetTutorsDoc()
-
-    async getCleckUserID(@Query() userID: string): Promise<string | null> {
-        return this.usersService.getCleckUserID(userID);
+    async getCleckUserID(@Param('id') id: string): Promise<string | null> {
+        return this.usersService.getCleckUserID(id);
     }
 }
