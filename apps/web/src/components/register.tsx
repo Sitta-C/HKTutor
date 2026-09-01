@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useState } from 'react';
 
 import AuthShell, { AuthSocialButtons, EyeIcon } from '@/components/auth-shell';
+import PrivacyConsent from '@/components/privacy-consent';
 import { useLanguage } from '@/lib/i18n';
 
 import type { FormEvent } from 'react';
@@ -18,9 +19,17 @@ export default function Register() {
   const [passwordError, setPasswordError] = useState('');
   const [role, setRole] = useState<Role>('student');
   const [acceptedPolicy, setAcceptedPolicy] = useState(false);
+  const [consentError, setConsentError] = useState<string | null>(null);
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);
   const [isConfirmPasswordVisible, setIsConfirmPasswordVisible] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+
+  const handleConsentChange = (accepted: boolean) => {
+    setAcceptedPolicy(accepted);
+    if (accepted) {
+      setConsentError(null);
+    }
+  };
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -29,7 +38,18 @@ export default function Register() {
       return;
     }
     setPasswordError('');
+
+    // S1-T11: consent is a precondition of onboarding, so nothing is submitted without it.
+    if (!acceptedPolicy) {
+      setConsentError(copy.register.policyRequired);
+      return;
+    }
+    setConsentError(null);
     setIsLoading(true);
+
+    // TODO(S1-T12): POST the onboarding transaction with
+    // { role, ...buildOnboardingConsent(acceptedPolicy) } from '@/lib/privacy-notice', so the
+    // Local User row stores consentAcceptedAt and policyVersion together with the allowed role.
 
     // TODO: Register Logic, duplicate email, weak password, etc.
 
@@ -177,17 +197,11 @@ export default function Register() {
                 </div>
               </div>
 
-              <label className="flex cursor-pointer items-start gap-3 text-sm leading-6 text-[#5e5a52]">
-                <input
-                  id="policy"
-                  type="checkbox"
-                  checked={acceptedPolicy}
-                  onChange={(event) => setAcceptedPolicy(event.target.checked)}
-                  className="mt-1 h-4 w-4 shrink-0 accent-[#171714]"
-                  required
-                />
-                <span>{copy.register.policy}</span>
-              </label>
+              <PrivacyConsent
+                accepted={acceptedPolicy}
+                onAcceptedChange={handleConsentChange}
+                error={consentError}
+              />
             </div>
 
             <button
