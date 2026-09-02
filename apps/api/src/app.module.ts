@@ -5,6 +5,7 @@ import { ThrottlerModule } from '@nestjs/throttler';
 import { AppController } from '@/app.controller';
 import { AppService } from '@/app.service';
 import { AuthModule } from '@/auth/auth.module';
+import { BookingsModule } from '@/bookings/bookings.module';
 import { validateAuthEnvironment } from '@/config/auth.config';
 import { validateDatabaseEnvironment } from '@/config/database.config';
 import { DatabaseModule } from '@/database/database.module';
@@ -23,6 +24,7 @@ import { TutorsModule } from '@/tutors/tutors.module';
     }),
     ThrottlerModule.forRoot([{ limit: 100, ttl: 60_000 }]),
     DatabaseModule,
+    BookingsModule,
     HealthModule,
     AuthModule,
     ProfilesModule,
