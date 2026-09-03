@@ -16,14 +16,18 @@
     "db:seed": "pnpm --filter @hktutor/api db:seed",
     "db:verify:sprint1": "pnpm --filter @hktutor/api db:verify:sprint1",
     "test": "pnpm -r --if-present test",
-    "lint": "pnpm -r --if-present lint",
-    "lint:fix": "pnpm -r --if-present lint:fix",
+    "lint": "pnpm lint:root && pnpm -r --if-present lint",
+    "lint:fix": "pnpm lint:root:fix && pnpm -r --if-present lint:fix",
+    "lint:root": "eslint . --max-warnings=0",
+    "lint:root:fix": "eslint . --fix --max-warnings=0",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "verify:workspace": "node --test tests/*.test.mjs",
     "check": "pnpm db:generate && pnpm verify:workspace && pnpm format:check && pnpm lint && pnpm test && pnpm build"
   },
   "devDependencies": {
+    "@hktutor/eslint-config": "workspace:*",
+    "eslint": "^9.39.5",
     "prettier": "^3.9.6"
   }
 }

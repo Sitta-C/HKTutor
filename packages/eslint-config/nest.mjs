@@ -5,18 +5,35 @@ import globals from 'globals';
 import tseslint from 'typescript-eslint';
 
 import {
+  absoluteAppImportRules,
   commonRules,
   createCrossAppBoundaryRule,
   createTypeScriptResolverSettings,
+  javascriptRules,
 } from './base.mjs';
 
 export const createNestConfig = ({ tsconfigRootDir }) =>
   tseslint.config(
     {
-      ignores: ['dist/**', 'coverage/**', 'eslint.config.mjs'],
+      ignores: ['dist/**', 'coverage/**', 'src/generated/**'],
     },
     eslint.configs.recommended,
     ...tseslint.configs.recommendedTypeChecked,
+    {
+      ...tseslint.configs.disableTypeChecked,
+      files: ['**/*.{js,mjs,cjs}'],
+      languageOptions: {
+        ...tseslint.configs.disableTypeChecked.languageOptions,
+        globals: globals.node,
+      },
+      plugins: {
+        import: importPlugin,
+      },
+      rules: {
+        ...tseslint.configs.disableTypeChecked.rules,
+        ...javascriptRules,
+      },
+    },
     {
       files: ['**/*.ts'],
       languageOptions: {
@@ -34,6 +51,7 @@ export const createNestConfig = ({ tsconfigRootDir }) =>
         import: importPlugin,
       },
       rules: {
+        ...absoluteAppImportRules,
         ...commonRules,
         '@typescript-eslint/no-explicit-any': 'error',
         '@typescript-eslint/no-floating-promises': 'error',
