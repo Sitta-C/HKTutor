@@ -329,6 +329,41 @@ After review and merge, obtain separate approval before changing shared Supabase
 checkpoint is `status -> deploy -> status`, followed by a redacted conflict probe inside a transaction
 that always rolls back. S1-T23 has no seed step; never run `prisma migrate reset`.
 
+## Sprint 1 database contract verification
+
+The final Sprint 1 alignment keeps cached primary email unique for every non-deleted Local User,
+including suspended accounts. Soft deletion releases the email for reuse. It also prevents a partial
+consent state: `consentAcceptedAt` and a non-blank `policyVersion` must either be stored together or
+both remain null for separately provisioned/demo users. These database invariants do not authorize
+public onboarding or replace the S1-T12 application transaction.
+
+Use `db:verify:sprint1` only against a disposable local PostgreSQL database whose name starts with
+`hktutor-` or `hktutor_`. The command refuses remote hosts and also requires an explicit disposable
+database flag. It verifies the deterministic seed shape, case-insensitive catalogs, check and
+exclusion constraints, restrictive foreign keys, slot-release behavior, and a two-connection booking
+race. Transactional probes roll back; the concurrency fixture is removed before exit.
+
+For a fresh disposable database, use this sequence after starting PostgreSQL locally:
+
+```sh
+export DATABASE_URL='postgresql://postgres@127.0.0.1:5432/hktutor-sprint1-contract'
+export HKTUTOR_ALLOW_DISPOSABLE_DB_VERIFY=1
+export SEED_ADMIN_CLERK_USER_ID='user_local_contract_admin'
+export SEED_ADMIN_EMAIL='admin@local.hktutor.invalid'
+export SEED_TUTOR_CLERK_USER_ID='user_local_contract_tutor'
+export SEED_TUTOR_EMAIL='tutor@local.hktutor.invalid'
+
+pnpm db:migrate:deploy
+pnpm db:seed
+pnpm db:seed
+pnpm db:verify:sprint1
+pnpm db:migrate:status
+```
+
+The second seed run is the idempotency check. Destroy the disposable database after verification.
+This sequence is not a shared-Supabase deployment runbook: shared migration or seed remains a
+separate approval checkpoint, and `prisma migrate reset` remains prohibited there.
+
 `pnpm dev` starts both application packages concurrently. The intended local URLs are:
 
 - Web: [http://localhost:3000](http://localhost:3000)
