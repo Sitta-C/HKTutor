@@ -11,14 +11,7 @@ export const createTypeScriptResolverSettings = (tsconfigRootDir) => ({
   },
 });
 
-export const commonRules = {
-  '@typescript-eslint/consistent-type-imports': [
-    'error',
-    {
-      fixStyle: 'separate-type-imports',
-      prefer: 'type-imports',
-    },
-  ],
+export const javascriptRules = {
   curly: ['error', 'all'],
   eqeqeq: ['error', 'always'],
   'import/no-duplicates': 'error',
@@ -40,6 +33,31 @@ export const commonRules = {
       ],
       pathGroupsExcludedImportTypes: ['builtin', 'type'],
       warnOnUnassignedImports: true,
+    },
+  ],
+};
+
+export const commonRules = {
+  ...javascriptRules,
+  '@typescript-eslint/consistent-type-imports': [
+    'error',
+    {
+      fixStyle: 'separate-type-imports',
+      prefer: 'type-imports',
+    },
+  ],
+};
+
+export const absoluteAppImportRules = {
+  'no-restricted-imports': [
+    'error',
+    {
+      patterns: [
+        {
+          message: 'Use the @/ alias for application-internal imports.',
+          regex: '^\\.\\.?/(?!.*\\.css$)',
+        },
+      ],
     },
   ],
 };

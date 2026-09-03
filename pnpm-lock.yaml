@@ -8,6 +8,12 @@ importers:
 
   .:
     devDependencies:
+      '@hktutor/eslint-config':
+        specifier: workspace:*
+        version: link:packages/eslint-config
+      eslint:
+        specifier: ^9.39.5
+        version: 9.39.5(jiti@2.7.0)(supports-color@8.1.1)
       prettier:
         specifier: ^3.9.6
         version: 3.9.6
