@@ -14,6 +14,7 @@
     "db:migrate:status": "prisma migrate status",
     "db:preflight:s1-t07-clerk": "tsx prisma/preflight-s1-t07-clerk.ts",
     "db:seed": "prisma db seed",
+    "db:verify:sprint1": "node scripts/verify-sprint1-database.mjs",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
     "start": "nest start",
     "dev": "nest start --watch",

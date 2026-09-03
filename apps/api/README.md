@@ -190,5 +190,18 @@ application rules. This task adds no endpoint or seed.
 Shared deployment remains separately approved: run `status -> deploy -> status`, then a
 rollback-only redacted conflict probe. Do not seed or reset for S1-T23.
 
+### Sprint 1 database contract verification
+
+The final database-only alignment reserves a cached primary email across active and suspended Local
+Users until soft deletion and requires consent time plus a non-blank policy version to be stored as a
+pair. Application authorization and the S1-T12 onboarding transaction remain outside this migration.
+
+After applying every migration and running the seed twice on a fresh disposable local PostgreSQL
+database, run `pnpm db:verify:sprint1` from the repository root. The command requires
+`HKTUTOR_ALLOW_DISPOSABLE_DB_VERIFY=1`, accepts only localhost, and requires the database name to
+start with `hktutor-` or `hktutor_`. It verifies the final seed counts and Sprint 1 PostgreSQL
+constraints, including an actual concurrent booking conflict. See the root README for the complete
+environment and command sequence. Never point this command at shared Supabase.
+
 Pull requests and pushes to `main` run the root `pnpm check` command in GitHub Actions. CI does not
 receive shared-database credentials.

@@ -26,6 +26,7 @@ test('exposes database commands from the API and workspace root', async () => {
     'db:migrate:deploy',
     'db:migrate:status',
     'db:seed',
+    'db:verify:sprint1',
   ];
 
   for (const command of commands) {
