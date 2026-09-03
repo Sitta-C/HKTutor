@@ -7,7 +7,11 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import type { ClerkClient } from '@clerk/backend';
-import { Request } from 'express';
+import { Request as ExpressRequest } from 'express';
+
+interface AuthenticatedRequest extends ExpressRequest {
+  auth?: any;
+}
 
 @Injectable()
 export class ClerkAuthGuard implements CanActivate {
@@ -16,29 +20,47 @@ export class ClerkAuthGuard implements CanActivate {
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
-    const request = context.switchToHttp().getRequest();
-    const token = this.extractTokenFromHeader(request);
-
-    // console.log(this.clerkClient.sessions.getToken("user_3Io8Nz2zdL3A6rE9WP3G2NQtCBB"))
+    const token = this.extractTokenFromHeader(context.switchToHttp().getRequest());
 
     if (!token) {
         throw new UnauthorizedException('Missing authentication token');
     }
 
-    try {
-        const { isAuthenticated } = await this.clerkClient.authenticateRequest(request, {})
+    const request = context.switchToHttp().getRequest<AuthenticatedRequest>();
 
+    const protocol = request.protocol || 'http';
+    const host = request.get('host') || 'localhost';
+    const path = request.originalUrl || request.url || '/';
+    
+    const fullUrl = `${protocol}://${host}${path}`;
+
+    const headers = new Headers();
+      Object.entries(request.headers).forEach(([key, value]) => {
+        if (value) {
+          headers.append(key, Array.isArray(value) ? value.join(', ') : value);
+        }
+      });
+
+      const webRequest = new Request(fullUrl, {
+        method: request.method,
+        headers: headers,
+      });
+
+    try {
+        const { isAuthenticated, headers} = await this.clerkClient.authenticateRequest(webRequest)
+     
         if(!isAuthenticated) {
             throw new UnauthorizedException('Missing authentication token');
         }
 
       return true;
     } catch (error) {
-      throw new UnauthorizedException('Authentication failed');
+        // console.log(error)
+        throw new UnauthorizedException('Authentication failed');
     }
   }
 
-  private extractTokenFromHeader(request: Request): string | undefined {
+  private extractTokenFromHeader(request: ExpressRequest): string | undefined {
     const [type, token] = request.headers.authorization?.split(' ') ?? [];
     return type === 'Bearer' ? token : undefined;
   }

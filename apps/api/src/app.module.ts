@@ -8,6 +8,7 @@ import { DatabaseModule } from '@/database/database.module';
 import { HealthModule } from '@/health/health.module';
 import { TutorsModule } from '@/tutors/tutors.module';
 import { AuthModule } from './auth/auth.module';
+import { TestModule } from '@/testAPI/test.module'
 
 @Module({
   imports: [
@@ -21,6 +22,7 @@ import { AuthModule } from './auth/auth.module';
     HealthModule,
     TutorsModule,
     AuthModule,
+    TestModule,
   ],
   controllers: [AppController],
   providers: [AppService],

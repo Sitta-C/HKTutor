@@ -12,7 +12,10 @@ import { ClerkAuthGuard } from './auth.guard';
         if(!process.env['CLERK_SECRET_KEY']){
             throw new Error('Secret key missing');
         }
-        return createClerkClient({ secretKey: process.env['CLERK_SECRET_KEY'] });
+        if(!process.env['CLERK_PUBLISHABLE_KEY']){
+            throw new Error('Public key missing');
+        }
+        return createClerkClient({ secretKey: process.env['CLERK_SECRET_KEY'], publishableKey: process.env['CLERK_PUBLISHABLE_KEY'] });
       },
     },
     ClerkAuthGuard,
