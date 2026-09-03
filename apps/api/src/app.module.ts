@@ -7,6 +7,7 @@ import { validateDatabaseEnvironment } from '@/config/database.config';
 import { DatabaseModule } from '@/database/database.module';
 import { HealthModule } from '@/health/health.module';
 import { TutorsModule } from '@/tutors/tutors.module';
+import { AuthModule } from './auth/auth.module';
 
 @Module({
   imports: [
@@ -19,6 +20,7 @@ import { TutorsModule } from '@/tutors/tutors.module';
     DatabaseModule,
     HealthModule,
     TutorsModule,
+    AuthModule,
   ],
   controllers: [AppController],
   providers: [AppService],

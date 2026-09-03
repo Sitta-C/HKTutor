@@ -1,4 +1,4 @@
-// src/auth/auth.guard.ts
+// src/clerk/clerk-auth.guard.ts
 import {
   CanActivate,
   ExecutionContext,
@@ -6,43 +6,42 @@ import {
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
-import { CLERK_CLIENT } from './clerk-client.provider';
+import type { ClerkClient } from '@clerk/backend';
+import { Request } from 'express';
 
 @Injectable()
 export class ClerkAuthGuard implements CanActivate {
   constructor(
-    @Inject(CLERK_CLIENT) private readonly clerkClient: any,
+    @Inject('CLERK_CLIENT') private readonly clerkClient: ClerkClient,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest();
-    const authHeader = request.headers.authorization;
+    const token = this.extractTokenFromHeader(request);
 
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      throw new UnauthorizedException('Missing or invalid Authorization header');
+    // console.log(this.clerkClient.sessions.getToken("user_3Io8Nz2zdL3A6rE9WP3G2NQtCBB"))
+
+    if (!token) {
+        throw new UnauthorizedException('Missing authentication token');
     }
 
-    const token = authHeader.split(' ')[1];
-
     try {
-      // Verify the JWT token using Clerk's token verification system
-      const requestState = await this.clerkClient.authenticateRequest({
-        request: {
-          headers: new Headers({
-            authorization: `Bearer ${token}`,
-          }),
-        },
-      });
+        const { isAuthenticated } = await this.clerkClient.authenticateRequest(request, {})
 
-      if (!requestState.isSignedIn) {
-        throw new UnauthorizedException('Token is invalid or expired');
-      }
+        if(!isAuthenticated) {
+            throw new UnauthorizedException('Missing authentication token');
+        }
 
-      // Attach the auth state to the request for use in controllers
-      request.auth = requestState.toAuth();
       return true;
     } catch (error) {
       throw new UnauthorizedException('Authentication failed');
     }
   }
+
+  private extractTokenFromHeader(request: Request): string | undefined {
+    const [type, token] = request.headers.authorization?.split(' ') ?? [];
+    return type === 'Bearer' ? token : undefined;
+  }
 }
+
+
