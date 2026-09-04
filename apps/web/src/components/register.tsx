@@ -1,11 +1,14 @@
 'use client';
 
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useState } from 'react';
+import { useSignUp, useAuth } from '@clerk/nextjs';
 
 import AuthShell, { AuthSocialButtons, EyeIcon } from '@/components/auth-shell';
 import PrivacyConsent from '@/components/privacy-consent';
 import { useLanguage } from '@/lib/i18n';
+import { buildOnboardingConsent } from '@/lib/privacy-notice';
 
 import type { FormEvent } from 'react';
 
@@ -13,6 +16,10 @@ type Role = 'student' | 'tutor';
 
 export default function Register() {
   const { copy } = useLanguage();
+  const { signUp, setActive, isLoaded } = useSignUp();
+  const { getToken } = useAuth();
+  const router = useRouter();
+
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -23,6 +30,7 @@ export default function Register() {
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);
   const [isConfirmPasswordVisible, setIsConfirmPasswordVisible] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const handleConsentChange = (accepted: boolean) => {
     setAcceptedPolicy(accepted);
@@ -31,29 +39,65 @@ export default function Register() {
     }
   };
 
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (!isLoaded) return;
+
     if (password !== confirmPassword) {
       setPasswordError(copy.register.passwordMismatch);
       return;
     }
     setPasswordError('');
 
-    // S1-T11: consent is a precondition of onboarding, so nothing is submitted without it.
+    // TODO: Weak Password check
     if (!acceptedPolicy) {
       setConsentError(copy.register.policyRequired);
       return;
     }
     setConsentError(null);
+    setErrorMessage(null);
     setIsLoading(true);
 
-    // TODO(S1-T12): POST the onboarding transaction with
-    // { role, ...buildOnboardingConsent(acceptedPolicy) } from '@/lib/privacy-notice', so the
-    // Local User row stores consentAcceptedAt and policyVersion together with the allowed role.
+    // sign up with Clerk and get a token
+    try {
+      // 1. Create Clerk user with role stored in unsafeMetadata
+      const result = await signUp.create({
+        emailAddress: email,
+        password,
+        unsafeMetadata: { role },
+      });
 
-    // TODO: Register Logic, duplicate email, weak password, etc.
+      if (result.status === 'complete') {
 
-    setIsLoading(false);
+        // TODO: Email Verification, right now the session is 2. created immediately without checking
+        await setActive({ session: result.createdSessionId });
+
+        // 3. Obtain authorization token
+        const token = await getToken();
+
+        // 4. send to backend auth guard
+        await fetch('/api/src/auth', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            role,
+            ...buildOnboardingConsent(acceptedPolicy),
+          }),
+        });
+
+        router.push('/dashboard');
+      } else {
+        // Handle pending verification states (e.g. email OTP)
+        console.warn('Additional verification required:', result);
+      }
+    } catch (err: any) {
+      setErrorMessage(err.errors?.[0]?.longMessage || 'Registration failed');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -73,6 +117,12 @@ export default function Register() {
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-3.5">
+            {errorMessage && (
+              <p className="rounded-lg bg-red-50 p-3 text-xs text-[#c04f40]" role="alert">
+                {errorMessage}
+              </p>
+            )}
+
             <div>
               <label htmlFor="email" className="sr-only">
                 {copy.register.emailLabel}
@@ -133,7 +183,7 @@ export default function Register() {
                   setConfirmPassword(event.target.value);
                   if (passwordError) setPasswordError('');
                 }}
-                className={`h-[3.65rem] w-full rounded-xl border bg-white px-5 pr-14 text-[0.98rem] text-[#171714] outline-none transition-colors placeholder:text-[#77736b] hover:border-[#c6c0b5] focus:ring-2 focus:ring-[#171714]/10 ${
+                className={`h-[3.65rem] w-full rounded-xl border bg-[#faf9f6] px-5 pr-14 text-[0.98rem] text-[#171714] outline-none transition-colors placeholder:text-[#77736b] hover:border-[#c6c0b5] focus:ring-2 focus:ring-[#171714]/10 ${
                   passwordError
                     ? 'border-[#d96452] focus:border-[#d96452]'
                     : 'border-[#e2dfd8] focus:border-[#171714]'
@@ -206,7 +256,7 @@ export default function Register() {
 
             <button
               type="submit"
-              disabled={isLoading}
+              disabled={isLoading || !isLoaded}
               className="mt-2 flex h-[3.65rem] w-full items-center justify-center rounded-xl bg-[#ffc57d] px-5 text-base font-bold text-[#171714] shadow-[0_8px_18px_rgba(206,145,64,0.14)] transition-all hover:-translate-y-0.5 hover:bg-[#ffbd6c] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#171714]/30 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {isLoading ? copy.register.loading : copy.register.submit}
