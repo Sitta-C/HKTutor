@@ -5,7 +5,7 @@ const apiBaseUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
-import { useSignUp, useAuth, useClerk } from '@clerk/nextjs';
+import { useSignUp, useAuth, useClerk, SignUp } from '@clerk/nextjs';
 
 import AuthShell, { AuthSocialButtons, EyeIcon } from '@/components/auth-shell';
 import PrivacyConsent from '@/components/privacy-consent';
@@ -34,6 +34,7 @@ export default function Register() {
   const [isConfirmPasswordVisible, setIsConfirmPasswordVisible] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [ code ] = useState('');
 
   const handleConsentChange = (accepted: boolean) => {
     setAcceptedPolicy(accepted);
@@ -81,6 +82,8 @@ export default function Register() {
       console.log('verification email sent')
       setIsLoading(false);
 
+      
+
     } catch (err: any) {
       console.error('Registration Error:', err);
       setErrorMessage(err.errors?.[0]?.longMessage || err.message || 'Registration failed');
@@ -88,6 +91,34 @@ export default function Register() {
       setIsLoading(false);
     }
   };
+
+  const handleVerification = async () => {
+    await signUp.verifications.verifyEmailCode({code});
+
+    if (signUp.status === 'complete') {
+      await signUp.finalize({
+        navigate: ({ session, decorateUrl }) => {
+          if (session?.currentTask) {
+            console.log(session?.currentTask);
+            return;
+          }
+
+          const url = decorateUrl('/');
+          if (url.startsWith('http')) {
+            window.location.href = url;
+          }
+          else {
+            router.push(url);
+          }
+        }
+      })
+    }
+    // sign-up fails
+    else {
+      console.error("sign-up fail: ", signUp)
+    }
+  }
+  
 
   return (
     <AuthShell page="register">
@@ -255,6 +286,20 @@ export default function Register() {
             >
               {isLoading ? copy.register.loading : copy.register.submit}
             </button>
+
+            {/* OTP verification */}
+            <div>
+              <label htmlFor='code' className='sr-only'>
+                
+              </label>
+              <input
+              id='code'
+              hidden
+              value={code}
+              onKeyDown={(e) => { if (e.key === "Enter") handleVerification();}}
+              className="h-[3.65rem] w-full rounded-xl border border-[#e2dfd8] bg-white px-5 text-[0.98rem] text-[#171714] outline-none transition-colors placeholder:text-[#77736b] hover:border-[#c6c0b5] focus:border-[#171714] focus:ring-2 focus:ring-[#171714]/10"
+              />
+            </div>
           </form>
 
           <div className="my-7 flex items-center gap-3 text-sm text-[#77736b]">
