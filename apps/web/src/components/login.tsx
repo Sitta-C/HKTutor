@@ -1,7 +1,9 @@
 'use client';
 
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useState } from 'react';
+import { useSignIn, useAuth } from '@clerk/nextjs';
 
 import AuthShell, { AuthSocialButtons, EyeIcon } from '@/components/auth-shell';
 import { useLanguage } from '@/lib/i18n';
@@ -10,18 +12,54 @@ import type { FormEvent } from 'react';
 
 export default function Login() {
   const { copy } = useLanguage();
+  const { signIn, setActive, isLoaded } = useSignIn();
+  const { getToken } = useAuth();
+  const router = useRouter();
+
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (!isLoaded) return;
+
     setIsLoading(true);
+    setErrorMessage(null);
+    
+    // sign in and acquire token
+    try {
+      // 1. Authenticate credentials with Clerk
+      const result = await signIn.create({
+        identifier: email,
+        password,
+      });
+      
 
-    // TODO: login logic
+      if (result.status === 'complete') {
+        // 2. Set the active session in browser
+        await setActive({ session: result.createdSessionId });
 
-    setIsLoading(false);
+        // 3. Acquire a token
+        const token = await getToken();
+        console.log('Clerk JWT Token:', token);
+
+        // 4. Call backend
+        await fetch('/api/src/auth', {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+
+        router.push('/dashboard');
+      } else {
+        console.warn('Additional verification steps required:', result);
+      }
+    } catch (err: any) {
+      setErrorMessage(err.errors?.[0]?.longMessage || 'Failed to sign in');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -41,6 +79,12 @@ export default function Login() {
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
+            {errorMessage && (
+              <p className="rounded-lg bg-red-50 p-3 text-xs text-[#c04f40]" role="alert">
+                {errorMessage}
+              </p>
+            )}
+
             <div>
               <label htmlFor="email" className="sr-only">
                 {copy.login.emailLabel}
@@ -86,7 +130,7 @@ export default function Login() {
 
             <button
               type="submit"
-              disabled={isLoading}
+              disabled={isLoading || !isLoaded}
               className="mt-2 flex h-[3.9rem] w-full items-center justify-center rounded-xl bg-[#ffc57d] px-5 text-base font-bold text-[#171714] shadow-[0_8px_18px_rgba(206,145,64,0.14)] transition-all hover:-translate-y-0.5 hover:bg-[#ffbd6c] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#171714]/30 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {isLoading ? copy.login.loading : copy.login.submit}
