@@ -9,7 +9,6 @@ export class TestController {
   @Get()
   async getToken(): Promise<string> {
     const token = await this.testService.getTestToken();
-    console.log(token);
     return token;
   }
 }
