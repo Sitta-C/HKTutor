@@ -1,9 +1,11 @@
 'use client';
 
+const apiBaseUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001';
+
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
-import { useSignUp, useAuth } from '@clerk/nextjs';
+import { useSignUp, useAuth, useClerk } from '@clerk/nextjs';
 
 import AuthShell, { AuthSocialButtons, EyeIcon } from '@/components/auth-shell';
 import PrivacyConsent from '@/components/privacy-consent';
@@ -16,7 +18,8 @@ type Role = 'student' | 'tutor';
 
 export default function Register() {
   const { copy } = useLanguage();
-  const { signUp, setActive, isLoaded } = useSignUp();
+  const { signUp, fetchStatus, errors } = useSignUp();
+  const { setActive } = useClerk();
   const { getToken } = useAuth();
   const router = useRouter();
 
@@ -41,7 +44,8 @@ export default function Register() {
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!isLoaded) return;
+
+    console.log('Form submit triggered. fetchStatus:', fetchStatus);
 
     if (password !== confirmPassword) {
       setPasswordError(copy.register.passwordMismatch);
@@ -49,52 +53,37 @@ export default function Register() {
     }
     setPasswordError('');
 
-    // TODO: Weak Password check
+    // TODO: Weak Password check (or just let Clerk do it)
     if (!acceptedPolicy) {
       setConsentError(copy.register.policyRequired);
       return;
     }
     setConsentError(null);
     setErrorMessage(null);
+    
+    // authentication with Clerk
     setIsLoading(true);
-
-    // sign up with Clerk and get a token
     try {
-      // 1. Create Clerk user with role stored in unsafeMetadata
-      const result = await signUp.create({
+      // Create user in Clerk with with password
+      const { error } = await signUp.password({
         emailAddress: email,
         password,
-        unsafeMetadata: { role },
       });
 
-      if (result.status === 'complete') {
-
-        // TODO: Email Verification, right now the session is 2. created immediately without checking
-        await setActive({ session: result.createdSessionId });
-
-        // 3. Obtain authorization token
-        const token = await getToken();
-
-        // 4. send to backend auth guard
-        await fetch('/api/src/auth', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            role,
-            ...buildOnboardingConsent(acceptedPolicy),
-          }),
-        });
-
-        router.push('/dashboard');
-      } else {
-        // Handle pending verification states (e.g. email OTP)
-        console.warn('Additional verification required:', result);
+      if (error) {
+        setErrorMessage(error.longMessage || error.message || 'Registration failed');
+        setIsLoading(false);
+        return;
       }
+
+      // email verification
+      await signUp.verifications.sendEmailCode();
+      console.log('verification email sent')
+      setIsLoading(false);
+
     } catch (err: any) {
-      setErrorMessage(err.errors?.[0]?.longMessage || 'Registration failed');
+      console.error('Registration Error:', err);
+      setErrorMessage(err.errors?.[0]?.longMessage || err.message || 'Registration failed');
     } finally {
       setIsLoading(false);
     }
@@ -254,9 +243,14 @@ export default function Register() {
               />
             </div>
 
+            {/* Clerk's CAPTCHA widget */}
+            <div className="my-3 flex justify-center min-h-[65px]">
+              <div id="clerk-captcha"></div>
+            </div>
+
             <button
               type="submit"
-              disabled={isLoading || !isLoaded}
+              disabled={isLoading /* || !(fetchStatus === 'fetching') */}
               className="mt-2 flex h-[3.65rem] w-full items-center justify-center rounded-xl bg-[#ffc57d] px-5 text-base font-bold text-[#171714] shadow-[0_8px_18px_rgba(206,145,64,0.14)] transition-all hover:-translate-y-0.5 hover:bg-[#ffbd6c] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#171714]/30 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {isLoading ? copy.register.loading : copy.register.submit}
