@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
-import { useSignIn, useAuth } from '@clerk/nextjs';
+import { useSignIn, useAuth, useClerk } from '@clerk/nextjs';
 
 import AuthShell, { AuthSocialButtons, EyeIcon } from '@/components/auth-shell';
 import { useLanguage } from '@/lib/i18n';
@@ -12,8 +12,9 @@ import type { FormEvent } from 'react';
 
 export default function Login() {
   const { copy } = useLanguage();
-  const { signIn, setActive, isLoaded } = useSignIn();
-  const { getToken } = useAuth();
+  const { signIn, fetchStatus } = useSignIn();
+  const { setActive } = useClerk();
+  const { getToken, isLoaded } = useAuth();
   const router = useRouter();
 
   const [email, setEmail] = useState('');
@@ -29,31 +30,39 @@ export default function Login() {
     setIsLoading(true);
     setErrorMessage(null);
     
-    // sign in and acquire token
+    // sign in
     try {
-      // 1. Authenticate credentials with Clerk
-      const result = await signIn.create({
-        identifier: email,
-        password,
-      });
-      
+      const { error } = await signIn.password({
+        emailAddress: email,
+        password
+      })
 
-      if (result.status === 'complete') {
-        // 2. Set the active session in browser
-        await setActive({ session: result.createdSessionId });
+      if (error) {
+        console.error(JSON.stringify(error, null, 2));
+        return;
+      }
 
-        // 3. Acquire a token
-        const token = await getToken();
-        console.log('Clerk JWT Token:', token);
+      if (signIn.status === 'complete') {
+        await signIn.finalize({
+          navigate: ({ session, decorateUrl }) => {
 
-        // 4. Call backend
-        await fetch('/api/src/auth', {
-          headers: { Authorization: `Bearer ${token}` }
-        });
+            if (session?.currentTask) {
+              console.log(session?.currentTask);
+              return;
+            }
 
-        router.push('/dashboard');
-      } else {
-        console.warn('Additional verification steps required:', result);
+            const url = decorateUrl('/');
+            if (url.startsWith('http')) {
+              window.location.href = url;
+            } 
+            else {
+              router.push(url);
+            }
+          }
+        })
+      }
+      else {
+        console.error('Login is not complete (might need something else or fail): ', signIn)
       }
     } catch (err: any) {
       setErrorMessage(err.errors?.[0]?.longMessage || 'Failed to sign in');

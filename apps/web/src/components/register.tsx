@@ -108,7 +108,7 @@ export default function Register() {
             window.location.href = url;
           }
           else {
-            router.push(url);
+            router.push(url); 
           }
         }
       })
@@ -294,7 +294,7 @@ export default function Register() {
               </label>
               <input
               id='code'
-              hidden
+              
               value={code}
               onKeyDown={(e) => { if (e.key === "Enter") handleVerification();}}
               className="h-[3.65rem] w-full rounded-xl border border-[#e2dfd8] bg-white px-5 text-[0.98rem] text-[#171714] outline-none transition-colors placeholder:text-[#77736b] hover:border-[#c6c0b5] focus:border-[#171714] focus:ring-2 focus:ring-[#171714]/10"
