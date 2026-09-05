@@ -33,8 +33,7 @@ export default function Login() {
 
     setIsLoading(true);
     setErrorMessage(null);
-    
-    
+  
     // sign in
     try {
       if (isSignedIn) {

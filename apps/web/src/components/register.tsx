@@ -1,9 +1,9 @@
 'use client';
 
-import { useSignUp } from '@clerk/nextjs';
+import { useClerk, useSignUp, useUser } from '@clerk/nextjs';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import AuthShell, { AuthSocialButtons, EyeIcon } from '@/components/auth-shell';
 import PrivacyConsent from '@/components/privacy-consent';
@@ -29,6 +29,8 @@ export default function Register() {
   const { copy } = useLanguage();
   const { signUp } = useSignUp();
   const router = useRouter();
+  const { isSignedIn, isLoaded } = useUser();
+  const { signOut } = useClerk();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -41,6 +43,15 @@ export default function Register() {
   const [isConfirmPasswordVisible, setIsConfirmPasswordVisible] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (isLoaded && isSignedIn) {
+      signOut().then(() => {
+        window.location.reload();
+      });
+    }
+  }, [isLoaded, isSignedIn]);
+
 
   const handleConsentChange = (accepted: boolean) => {
     setAcceptedPolicy(accepted);
@@ -65,6 +76,14 @@ export default function Register() {
     }
     setConsentError(null);
     setErrorMessage(null);
+
+     // force sign out before sign up
+    if (isSignedIn) {
+      // Stale session on this client — clear it and retry once
+      await signOut();
+      window.location.reload();
+      return;
+    }
 
     // authentication with Clerk
     setIsLoading(true);
