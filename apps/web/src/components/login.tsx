@@ -12,9 +12,10 @@ import type { FormEvent } from 'react';
 
 export default function Login() {
   const { copy } = useLanguage();
+  const { signOut } = useClerk();
   const { signIn, fetchStatus } = useSignIn();
   const { setActive } = useClerk();
-  const { getToken, isLoaded } = useAuth();
+  const { getToken, isLoaded, isSignedIn } = useAuth();
   const router = useRouter();
 
   const [email, setEmail] = useState('');
@@ -27,18 +28,36 @@ export default function Login() {
     event.preventDefault();
     if (!isLoaded) return;
 
+    console.log('isLoaded:', isLoaded, 'isSignedIn:', isSignedIn);
+
     setIsLoading(true);
     setErrorMessage(null);
     
+    
     // sign in
     try {
+      if (isSignedIn) {
+        console.log('already sign in');
+        router.push(`/dashboard`);
+        return;
+      }
+
       const { error } = await signIn.password({
         emailAddress: email,
         password
       })
 
+      // force sign out (temporal fix)
+      if (error?.errors?.[0]?.code === 'session_exists') {
+        // Stale session on this client — clear it and retry once
+        await signOut();
+        window.location.reload();
+        return;
+      }
+
       if (error) {
         console.error(JSON.stringify(error, null, 2));
+        setErrorMessage(error.errors?.[0]?.longMessage || error.errors?.[0]?.message || 'Failed to sign in');
         return;
       }
 
@@ -51,11 +70,12 @@ export default function Login() {
               return;
             }
 
-            const url = decorateUrl('/');
+            const url = decorateUrl('/dashboard');
             if (url.startsWith('http')) {
               window.location.href = url;
             } 
             else {
+              console.log("go to dashboard now");
               router.push(url);
             }
           }

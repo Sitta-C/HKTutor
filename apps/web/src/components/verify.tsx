@@ -54,7 +54,7 @@ export default function Verify() {
       await signUp.finalize({
         navigate: ({ session, decorateUrl }) => {
           if (session?.currentTask) return;
-          const url = decorateUrl('/');
+          const url = decorateUrl('/dashboard');
           if (url.startsWith('http')) window.location.replace(url);
           else router.replace(url);
         }
