@@ -60,9 +60,6 @@ export default function Verify() {
         }
       });
 
-      
-      window.location.href = '/';
-
     } catch (error: unknown) {
       setErrorMessage(getErrorMessage(error, 'Verification failed'));
     } finally {
