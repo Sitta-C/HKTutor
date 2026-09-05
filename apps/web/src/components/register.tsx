@@ -83,6 +83,8 @@ export default function Register() {
 
       // email verification
       const verifyResult = await signUp.verifications.sendEmailCode();
+
+      // verification fail
       if (verifyResult && 'error' in verifyResult && verifyResult.error) {
         setErrorMessage(
           verifyResult.error.longMessage ||
@@ -92,8 +94,10 @@ export default function Register() {
         setIsLoading(false);
         return;
       }
-
+      
+      // send user to verification page
       router.push(`/register/verifypage?email=${encodeURIComponent(email)}`);
+      
     } catch (err: unknown) {
       console.error('Registration Error:', err);
       setErrorMessage(getErrorMessage(err, 'Registration failed'));
