@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
-import { useSignIn, useAuth, useClerk } from '@clerk/nextjs';
+import { useSignIn, useAuth, useClerk, useUser } from '@clerk/nextjs';
 
 import AuthShell, { AuthSocialButtons, EyeIcon } from '@/components/auth-shell';
 import { useLanguage } from '@/lib/i18n';
@@ -15,7 +15,8 @@ export default function Login() {
   const { signOut } = useClerk();
   const { signIn, fetchStatus } = useSignIn();
   const { setActive } = useClerk();
-  const { getToken, isLoaded, isSignedIn } = useAuth();
+  const { getToken, isLoaded } = useAuth();
+  const { isSignedIn } = useUser();
   const router = useRouter();
 
   const [email, setEmail] = useState('');
@@ -47,14 +48,6 @@ export default function Login() {
         password
       })
 
-      // force sign out (temporal fix)
-      if (error?.errors?.[0]?.code === 'session_exists') {
-        // Stale session on this client — clear it and retry once
-        await signOut();
-        window.location.reload();
-        return;
-      }
-
       if (error) {
         console.error(JSON.stringify(error, null, 2));
         setErrorMessage(error.errors?.[0]?.longMessage || error.errors?.[0]?.message || 'Failed to sign in');
@@ -80,6 +73,25 @@ export default function Login() {
             }
           }
         })
+      }
+      else if (signIn.status === 'needs_client_trust') {
+        // device trust (not enabled) should not fall here either
+        // Clerk will sent email to notice user about the sign-in of the device instead of OTP
+
+        console.error('needs client trust')
+        const emailCodeFactor = signIn.supportedSecondFactors.find(
+          (factor) => factor.strategy === 'email_code',
+        )
+
+        if (emailCodeFactor) {
+          await signIn.mfa.sendEmailCode()
+        }
+
+        // TODO: verify UI if need device trust
+      }
+      else if (signIn.status === 'needs_second_factor') {
+        // MFA verification (not implement) should not fall here either
+        console.error('needs 2FA');
       }
       else {
         console.error('Login is not complete (might need something else or fail): ', signIn)
