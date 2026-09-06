@@ -12,7 +12,7 @@ const lintSource = ({ filename, source, workspace }) => {
       cwd: process.cwd(),
       encoding: 'utf8',
       input: source,
-      shell: true
+      shell: true,
     },
   );
 

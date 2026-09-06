@@ -8,6 +8,7 @@ import { useEffect, useState } from 'react';
 import AuthShell, { AuthSocialButtons, EyeIcon } from '@/components/auth-shell';
 import PrivacyConsent from '@/components/privacy-consent';
 import { useLanguage } from '@/lib/i18n';
+import { buildOnboardingConsent } from '@/lib/privacy-notice';
 
 import type { FormEvent } from 'react';
 
@@ -75,6 +76,10 @@ export default function Register() {
     }
     setConsentError(null);
     setErrorMessage(null);
+
+    // TODO(S1-T12): send this consent record to the backend when the account is created.
+    const consent = buildOnboardingConsent(acceptedPolicy);
+    void consent; // remove once S1-T12 wires this into the signup payload
 
     // force sign out before sign up
     if (isSignedIn) {
