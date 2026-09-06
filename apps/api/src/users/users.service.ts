@@ -5,20 +5,20 @@ import {} from '@/users/users.dto';
 
 @Injectable()
 export class UsersService {
-    constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) {}
 
-    async getCleckUserID(userID: string): Promise<string | null> {
-        const user = await this.prisma.user.findFirst({
-            select: {
-                clerkUserId: true
-            },
-            where: {
-                deletedAt: null
-            }
-        });
+  async getCleckUserID(userID: string): Promise<string | null> {
+    const user = await this.prisma.user.findFirst({
+      select: {
+        clerkUserId: true,
+      },
+      where: {
+        deletedAt: null,
+      },
+    });
 
-        if(!user) return null;
+    if (!user) return null;
 
-        return user.clerkUserId;
-    }
+    return user.clerkUserId;
+  }
 }

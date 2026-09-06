@@ -6,9 +6,10 @@ import { AppService } from '@/app.service';
 import { validateDatabaseEnvironment } from '@/config/database.config';
 import { DatabaseModule } from '@/database/database.module';
 import { HealthModule } from '@/health/health.module';
+import { TestModule } from '@/testAPI/test.module';
 import { TutorsModule } from '@/tutors/tutors.module';
+
 import { AuthModule } from './auth/auth.module';
-import { TestModule } from '@/testAPI/test.module'
 
 @Module({
   imports: [

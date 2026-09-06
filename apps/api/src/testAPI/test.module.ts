@@ -1,8 +1,9 @@
 // src/auth/auth.module.ts
-import { Module, Global} from '@nestjs/common';
 import { createClerkClient } from '@clerk/backend';
-import { TestService } from './test.service';
+import { Module, Global } from '@nestjs/common';
+
 import { TestController } from './test.controller';
+import { TestService } from './test.service';
 
 @Global()
 @Module({
@@ -11,8 +12,8 @@ import { TestController } from './test.controller';
     {
       provide: 'CLERK_CLIENT',
       useFactory: () => {
-        if(!process.env['CLERK_SECRET_KEY']){
-            throw new Error('Secret key missing');
+        if (!process.env['CLERK_SECRET_KEY']) {
+          throw new Error('Secret key missing');
         }
         return createClerkClient({ secretKey: process.env['CLERK_SECRET_KEY'] });
       },
@@ -22,4 +23,3 @@ import { TestController } from './test.controller';
   exports: ['CLERK_CLIENT', TestService],
 })
 export class TestModule {}
-

@@ -20,8 +20,6 @@ export async function fetchWithAuth(
 ): Promise<Response> {
   const token = await getToken();
 
-  console.log(token);
-
   if (!token) {
     throw new AuthTokenError();
   }

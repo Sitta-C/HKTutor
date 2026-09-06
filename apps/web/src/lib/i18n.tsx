@@ -137,7 +137,8 @@ const translations = {
       passwordMismatch: 'Passwords do not match',
       otpEyebrow: 'Verify your email',
       otpTitle: 'Enter verification code',
-      otpSubtitle: 'We sent a verification code to {email}. Enter the code below to finish signing up.',
+      otpSubtitle:
+        'We sent a verification code to {email}. Enter the code below to finish signing up.',
       otpLabel: 'Verification code',
       otpPlaceholder: 'Enter verification code',
       otpSubmit: 'Verify email',
@@ -241,7 +242,8 @@ const translations = {
       passwordMismatch: 'รหัสผ่านไม่ตรงกัน',
       otpEyebrow: 'ยืนยันอีเมลของคุณ',
       otpTitle: 'กรอกรหัสยืนยัน',
-      otpSubtitle: 'เราได้ส่งรหัสยืนยันไปยัง {email} กรุณากรอกรหัสด้านล่างเพื่อเสร็จสิ้นการสมัครสมาชิก',
+      otpSubtitle:
+        'เราได้ส่งรหัสยืนยันไปยัง {email} กรุณากรอกรหัสด้านล่างเพื่อเสร็จสิ้นการสมัครสมาชิก',
       otpLabel: 'รหัสยืนยัน',
       otpPlaceholder: 'กรอกรหัสยืนยัน',
       otpSubmit: 'ยืนยันอีเมล',

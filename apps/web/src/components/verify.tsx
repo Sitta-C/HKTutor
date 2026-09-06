@@ -42,24 +42,21 @@ export default function Verify() {
     setResendSuccess(false);
 
     try {
-      
       const result = await signUp.verifications.verifyEmailCode({ code: code.trim() });
-      
+
       if (result && 'error' in result && result.error) {
         setErrorMessage(result.error.longMessage || result.error.message || 'Verification failed');
         return;
       }
 
-      
       await signUp.finalize({
         navigate: ({ session, decorateUrl }) => {
           if (session?.currentTask) return;
           const url = decorateUrl('/dashboard');
           if (url.startsWith('http')) window.location.replace(url);
           else router.replace(url);
-        }
+        },
       });
-
     } catch (error: unknown) {
       setErrorMessage(getErrorMessage(error, 'Verification failed'));
     } finally {
@@ -107,10 +104,20 @@ export default function Verify() {
           </div>
 
           <form onSubmit={handleVerification} className="space-y-4">
-            {errorMessage && <p className="rounded-lg bg-red-50 p-3 text-xs text-[#c04f40]" role="alert">{errorMessage}</p>}
-            {resendSuccess && <p className="rounded-lg bg-emerald-50 p-3 text-xs text-[#2e7d32]" role="status">{copy.register.otpResent}</p>}
+            {errorMessage && (
+              <p className="rounded-lg bg-red-50 p-3 text-xs text-[#c04f40]" role="alert">
+                {errorMessage}
+              </p>
+            )}
+            {resendSuccess && (
+              <p className="rounded-lg bg-emerald-50 p-3 text-xs text-[#2e7d32]" role="status">
+                {copy.register.otpResent}
+              </p>
+            )}
             <div>
-              <label htmlFor="code" className="sr-only">{copy.register.otpLabel}</label>
+              <label htmlFor="code" className="sr-only">
+                {copy.register.otpLabel}
+              </label>
               <input
                 id="code"
                 name="code"
@@ -128,7 +135,11 @@ export default function Verify() {
                 autoFocus
               />
             </div>
-            <button type="submit" disabled={!signUp || isLoading || !code.trim()} className="mt-2 flex h-[3.65rem] w-full items-center justify-center rounded-xl bg-[#ffc57d] px-5 text-base font-bold text-[#171714] shadow-[0_8px_18px_rgba(206,145,64,0.14)] transition-all hover:-translate-y-0.5 hover:bg-[#ffbd6c] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#171714]/30 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60">
+            <button
+              type="submit"
+              disabled={!signUp || isLoading || !code.trim()}
+              className="mt-2 flex h-[3.65rem] w-full items-center justify-center rounded-xl bg-[#ffc57d] px-5 text-base font-bold text-[#171714] shadow-[0_8px_18px_rgba(206,145,64,0.14)] transition-all hover:-translate-y-0.5 hover:bg-[#ffbd6c] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#171714]/30 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+            >
               {isLoading ? copy.register.otpLoading : copy.register.otpSubmit}
             </button>
           </form>
@@ -136,11 +147,20 @@ export default function Verify() {
           <div className="mt-6 flex flex-col items-center justify-center gap-3 text-sm text-[#5e5a52]">
             <div className="flex items-center gap-1.5">
               <span>{copy.register.otpResendPrompt}</span>
-              <button type="button" disabled={!signUp || isResending} onClick={handleResendCode} className="font-bold text-[#171714] underline decoration-[#d18b43] underline-offset-4 hover:text-[#d88835] disabled:cursor-not-allowed disabled:opacity-60">
+              <button
+                type="button"
+                disabled={!signUp || isResending}
+                onClick={handleResendCode}
+                className="font-bold text-[#171714] underline decoration-[#d18b43] underline-offset-4 hover:text-[#d88835] disabled:cursor-not-allowed disabled:opacity-60"
+              >
                 {isResending ? copy.register.otpResending : copy.register.otpResend}
               </button>
             </div>
-            <button type="button" onClick={() => router.push('/register')} className="text-xs text-[#77736b] transition-colors hover:text-[#171714] hover:underline">
+            <button
+              type="button"
+              onClick={() => router.push('/register')}
+              className="text-xs text-[#77736b] transition-colors hover:text-[#171714] hover:underline"
+            >
               ← {copy.register.otpBack}
             </button>
           </div>

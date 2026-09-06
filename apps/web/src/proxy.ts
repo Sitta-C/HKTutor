@@ -1,15 +1,12 @@
-import { clerkMiddleware } from '@clerk/nextjs/server'
+import { clerkMiddleware } from '@clerk/nextjs/server';
 import { NextResponse } from 'next/server';
-
 
 export default clerkMiddleware(async (auth, req) => {
   const { userId } = await auth();
   if (userId && req.nextUrl.pathname === '/login') {
     return NextResponse.redirect(new URL('/dashboard', req.url));
   }
-})
-
-
+});
 
 export const config = {
   matcher: [
@@ -20,4 +17,4 @@ export const config = {
     // Always run for Clerk-specific frontend API routes
     '/__clerk/(.*)',
   ],
-}
+};

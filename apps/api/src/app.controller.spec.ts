@@ -11,7 +11,10 @@ describe('AppController', () => {
   beforeEach(async () => {
     const app: TestingModule = await Test.createTestingModule({
       controllers: [AppController],
-      providers: [AppService],
+      providers: [
+        AppService,
+        { provide: 'CLERK_CLIENT', useValue: {} }, // or a mock client
+      ],
     }).compile();
 
     appController = app.get<AppController>(AppController);

@@ -1,9 +1,10 @@
 'use client';
 
+import { useSignIn, useAuth, useUser } from '@clerk/nextjs';
+import { isClerkAPIResponseError } from '@clerk/nextjs/errors';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
-import { useSignIn, useAuth, useClerk, useUser } from '@clerk/nextjs';
 
 import AuthShell, { AuthSocialButtons, EyeIcon } from '@/components/auth-shell';
 import { useLanguage } from '@/lib/i18n';
@@ -12,10 +13,8 @@ import type { FormEvent } from 'react';
 
 export default function Login() {
   const { copy } = useLanguage();
-  const { signOut } = useClerk();
-  const { signIn, fetchStatus } = useSignIn();
-  const { setActive } = useClerk();
-  const { getToken, isLoaded } = useAuth();
+  const { signIn } = useSignIn();
+  const { isLoaded } = useAuth();
   const { isSignedIn } = useUser();
   const router = useRouter();
 
@@ -29,75 +28,70 @@ export default function Login() {
     event.preventDefault();
     if (!isLoaded) return;
 
-    console.log('isLoaded:', isLoaded, 'isSignedIn:', isSignedIn);
-
     setIsLoading(true);
     setErrorMessage(null);
-  
+
     // sign in
     try {
       if (isSignedIn) {
-        console.log('already sign in');
         router.push(`/dashboard`);
         return;
       }
 
       const { error } = await signIn.password({
         emailAddress: email,
-        password
-      })
+        password,
+      });
 
       if (error) {
         console.error(JSON.stringify(error, null, 2));
-        setErrorMessage(error.errors?.[0]?.longMessage || error.errors?.[0]?.message || 'Failed to sign in');
+        setErrorMessage(
+          error.errors?.[0]?.longMessage || error.errors?.[0]?.message || 'Failed to sign in',
+        );
         return;
       }
 
       if (signIn.status === 'complete') {
         await signIn.finalize({
           navigate: ({ session, decorateUrl }) => {
-
             if (session?.currentTask) {
-              console.log(session?.currentTask);
               return;
             }
 
             const url = decorateUrl('/dashboard');
             if (url.startsWith('http')) {
               window.location.href = url;
-            } 
-            else {
-              console.log("go to dashboard now");
+            } else {
               router.push(url);
             }
-          }
-        })
-      }
-      else if (signIn.status === 'needs_client_trust') {
+          },
+        });
+      } else if (signIn.status === 'needs_client_trust') {
         // device trust (not enabled) should not fall here either
         // Clerk will sent email to notice user about the sign-in of the device instead of OTP
 
-        console.error('needs client trust')
+        console.error('needs client trust');
         const emailCodeFactor = signIn.supportedSecondFactors.find(
           (factor) => factor.strategy === 'email_code',
-        )
+        );
 
         if (emailCodeFactor) {
-          await signIn.mfa.sendEmailCode()
+          await signIn.mfa.sendEmailCode();
         }
 
         // TODO: verify UI if need device trust
-      }
-      else if (signIn.status === 'needs_second_factor') {
+      } else if (signIn.status === 'needs_second_factor') {
         // MFA verification (not implement) should not fall here either
         console.error('needs 2FA');
+      } else {
+        console.error('Login is not complete (might need something else or fail): ', signIn);
       }
-      else {
-        console.error('Login is not complete (might need something else or fail): ', signIn)
+    } catch (err: unknown) {
+      if (isClerkAPIResponseError(err)) {
+        setErrorMessage(err.errors?.[0]?.longMessage || 'Failed to sign in');
+      } else {
+        setErrorMessage('Failed to sign in');
       }
-    } catch (err: any) {
-      setErrorMessage(err.errors?.[0]?.longMessage || 'Failed to sign in');
-    } finally {
       setIsLoading(false);
     }
   };
