@@ -1,3 +1,5 @@
+import { ClerkProvider } from '@clerk/nextjs';
+
 import { LanguageProvider } from '@/lib/i18n';
 
 import './globals.css';
@@ -23,11 +25,13 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
-      <body className="min-h-screen bg-white text-gray-900 antialiased">
-        {/* TODO: Toasters and auth provider */}
-        <LanguageProvider>{children}</LanguageProvider>
-      </body>
-    </html>
+    <ClerkProvider>
+      <html lang="en">
+        <body className="min-h-screen bg-white text-gray-900 antialiased">
+          {/* TODO: Toasters and auth provider */}
+          <LanguageProvider>{children}</LanguageProvider>
+        </body>
+      </html>
+    </ClerkProvider>
   );
 }

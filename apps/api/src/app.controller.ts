@@ -1,8 +1,10 @@
-import { Controller, Get } from '@nestjs/common';
+import { Controller, Get, UseGuards } from '@nestjs/common';
 
 import { AppService } from '@/app.service';
+import { ClerkAuthGuard } from '@/auth/auth.guard';
 
 @Controller()
+@UseGuards(ClerkAuthGuard)
 export class AppController {
   constructor(private readonly appService: AppService) {}
 

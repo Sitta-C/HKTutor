@@ -1,0 +1,14 @@
+import { Controller, Get } from '@nestjs/common';
+
+import { TestService } from '@/testAPI/test.service';
+
+@Controller('api/test')
+export class TestController {
+  constructor(private readonly testService: TestService) {}
+
+  @Get()
+  async getToken(): Promise<string> {
+    const token = await this.testService.getTestToken();
+    return token;
+  }
+}
