@@ -2,8 +2,8 @@
 import { createClerkClient } from '@clerk/backend';
 import { Module, Global } from '@nestjs/common';
 
-import { TestController } from './test.controller';
-import { TestService } from './test.service';
+import { TestController } from '@/testAPI/test.controller';
+import { TestService } from '@/testAPI/test.service';
 
 @Global()
 @Module({

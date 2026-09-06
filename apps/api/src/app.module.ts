@@ -9,7 +9,7 @@ import { HealthModule } from '@/health/health.module';
 import { TestModule } from '@/testAPI/test.module';
 import { TutorsModule } from '@/tutors/tutors.module';
 
-import { AuthModule } from './auth/auth.module';
+import { AuthModule } from '@/auth/auth.module';
 
 @Module({
   imports: [

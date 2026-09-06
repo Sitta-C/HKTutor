@@ -2,7 +2,7 @@
 import { createClerkClient } from '@clerk/backend';
 import { Module, Global } from '@nestjs/common';
 
-import { ClerkAuthGuard } from './auth.guard';
+import { ClerkAuthGuard } from '@/auth/auth.guard';
 
 @Global()
 @Module({
