@@ -20,6 +20,8 @@ test('provides only safe server-side Supabase placeholders', async () => {
   const template = parseEnvironment(await fs.readFile('.env.example', 'utf8'));
 
   assert.deepEqual(Object.keys(template).sort(), [
+    'CLERK_PUBLISHABLE_KEY',
+    'CLERK_SECRET_KEY',
     'DATABASE_URL',
     'SEED_ADMIN_CLERK_USER_ID',
     'SEED_ADMIN_EMAIL',
@@ -38,6 +40,8 @@ test('provides only safe server-side Supabase placeholders', async () => {
   assert.equal(template.SEED_ADMIN_EMAIL, '[ADMIN_EMAIL]');
   assert.equal(template.SEED_TUTOR_CLERK_USER_ID, '[TUTOR_CLERK_USER_ID]');
   assert.equal(template.SEED_TUTOR_EMAIL, '[TUTOR_EMAIL]');
+  assert.equal(template.CLERK_SECRET_KEY, '[CLERK_SECRET_KEY]');
+  assert.equal(template.CLERK_PUBLISHABLE_KEY, '[CLERK_PUBLISHABLE_KEY]');
   assert.equal(
     Object.keys(template).some((name) => name.startsWith('NEXT_PUBLIC_')),
     false,
