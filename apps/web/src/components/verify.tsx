@@ -2,7 +2,7 @@
 
 import { useSignUp } from '@clerk/nextjs';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useState } from 'react';
+import { Suspense, useState } from 'react';
 
 import AuthShell from '@/components/auth-shell';
 import { useLanguage } from '@/lib/i18n';
@@ -21,7 +21,7 @@ function getErrorMessage(error: unknown, fallback: string) {
   return fallback;
 }
 
-export default function Verify() {
+function VerifyForm() {
   const { copy } = useLanguage();
   const { signUp } = useSignUp();
   const router = useRouter();
@@ -167,5 +167,13 @@ export default function Verify() {
         </div>
       </section>
     </AuthShell>
+  );
+}
+
+export default function Verify() {
+  return (
+    <Suspense fallback={null}>
+      <VerifyForm />
+    </Suspense>
   );
 }

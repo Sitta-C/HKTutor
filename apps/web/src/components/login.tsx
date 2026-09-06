@@ -45,9 +45,7 @@ export default function Login() {
 
       if (error) {
         console.error(JSON.stringify(error, null, 2));
-        setErrorMessage(
-          error.errors?.[0]?.longMessage || error.errors?.[0]?.message || 'Failed to sign in',
-        );
+        setErrorMessage(error.message || 'Failed to sign in');
         return;
       }
 
