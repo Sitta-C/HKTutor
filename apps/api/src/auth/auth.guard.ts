@@ -53,8 +53,8 @@ export class ClerkAuthGuard implements CanActivate {
       }
 
       return true;
-    } catch {
-      return false;
+    } catch (error) {
+      throw new UnauthorizedException(`Authentication failed: ${error}`);
     }
   }
 
