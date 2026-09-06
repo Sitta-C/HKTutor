@@ -1,13 +1,13 @@
 import { PrismaPg } from '@prisma/adapter-pg';
 import { config as loadEnvironment } from 'dotenv';
 
-import { validateDatabaseEnvironment } from '../src/config/database.config';
-import { normalizeDatabaseUrlForPg } from '../src/config/database-url';
+import { normalizeDatabaseUrlForPg } from '@/config/database-url';
+import { validateDatabaseEnvironment } from '@/config/database.config';
 import {
   formatClerkMigrationPreflightResult,
   runClerkMigrationPreflight,
-} from '../src/database/clerk-migration-preflight';
-import { PrismaClient } from '../src/generated/prisma/client';
+} from '@/database/clerk-migration-preflight';
+import { PrismaClient } from '@/generated/prisma/client';
 
 loadEnvironment({ path: '../../.env', quiet: true });
 loadEnvironment({ quiet: true });

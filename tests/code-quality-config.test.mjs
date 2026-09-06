@@ -38,6 +38,34 @@ void join;
   assert.match(result.output, /import\/order/);
 });
 
+test('requires the API alias for application-internal imports', () => {
+  const result = lintSource({
+    filename: 'src/main.ts',
+    source: `import { AppModule } from './app.module';
+
+void AppModule;
+`,
+    workspace: '@hktutor/api',
+  });
+
+  assert.notEqual(result.status, 0, result.output);
+  assert.match(result.output, /no-restricted-imports/);
+});
+
+test('requires the web alias for application-internal imports', () => {
+  const result = lintSource({
+    filename: 'src/app/page.tsx',
+    source: `import { Login } from '../../components/login';
+
+void Login;
+`,
+    workspace: '@hktutor/web',
+  });
+
+  assert.notEqual(result.status, 0, result.output);
+  assert.match(result.output, /no-restricted-imports/);
+});
+
 test('prevents the web app from importing API source', () => {
   const result = lintSource({
     filename: 'src/app/page.tsx',

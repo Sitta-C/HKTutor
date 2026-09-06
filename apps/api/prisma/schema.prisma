@@ -50,6 +50,7 @@ model User {
   primaryEmail      String?       @db.Citext
   role              Role
   accountStatus     AccountStatus @default(ACTIVE)
+  /// Consent time and policy version are nullable together for provisioned/demo users; a migration-managed check prevents a partial consent state.
   consentAcceptedAt DateTime?     @db.Timestamptz(3)
   policyVersion     String?
   createdAt         DateTime      @default(now()) @db.Timestamptz(3)

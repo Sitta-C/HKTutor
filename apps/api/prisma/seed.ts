@@ -1,10 +1,10 @@
 import { PrismaPg } from '@prisma/adapter-pg';
 import { config as loadEnvironment } from 'dotenv';
 
-import { normalizeDatabaseUrlForPg } from '../src/config/database-url';
-import { validateDatabaseEnvironment } from '../src/config/database.config';
-import { runSeed } from '../src/database/seed';
-import { PrismaClient } from '../src/generated/prisma/client';
+import { normalizeDatabaseUrlForPg } from '@/config/database-url';
+import { validateDatabaseEnvironment } from '@/config/database.config';
+import { runSeed } from '@/database/seed';
+import { PrismaClient } from '@/generated/prisma/client';
 
 loadEnvironment({ path: '../../.env', quiet: true });
 loadEnvironment({ quiet: true });
