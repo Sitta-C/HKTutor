@@ -1,5 +1,4 @@
-import { TestingToken } from '@clerk/backend';
-import { Controller, Get, Query } from '@nestjs/common';
+import { Controller, Get } from '@nestjs/common';
 
 import { TestService } from '@/testAPI/test.service';
 

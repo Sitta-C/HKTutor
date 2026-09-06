@@ -11,7 +11,7 @@ import { Request as ExpressRequest } from 'express';
 import type { ClerkClient } from '@clerk/backend';
 
 interface AuthenticatedRequest extends ExpressRequest {
-  auth?: any;
+  auth?: string;
 }
 
 @Injectable()
@@ -46,7 +46,7 @@ export class ClerkAuthGuard implements CanActivate {
     });
 
     try {
-      const { isAuthenticated, headers } = await this.clerkClient.authenticateRequest(webRequest);
+      const { isAuthenticated } = await this.clerkClient.authenticateRequest(webRequest);
 
       if (!isAuthenticated) {
         throw new UnauthorizedException('Missing authentication token');
@@ -55,7 +55,7 @@ export class ClerkAuthGuard implements CanActivate {
       return true;
     } catch (error) {
       // console.log(error)
-      throw new UnauthorizedException('Authentication failed');
+      throw new UnauthorizedException(`Authentication failed: ${error}`);
     }
   }
 

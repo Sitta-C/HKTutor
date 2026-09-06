@@ -1,6 +1,6 @@
 import { Injectable, Inject } from '@nestjs/common';
 
-import type { ClerkClient, TestingToken } from '@clerk/backend';
+import type { ClerkClient } from '@clerk/backend';
 
 @Injectable()
 export class TestService {

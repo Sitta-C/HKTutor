@@ -13,6 +13,7 @@ export class UsersService {
         clerkUserId: true,
       },
       where: {
+        id: userID,
         deletedAt: null,
       },
     });
