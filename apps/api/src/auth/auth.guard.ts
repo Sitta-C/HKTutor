@@ -54,7 +54,8 @@ export class ClerkAuthGuard implements CanActivate {
 
       return true;
     } catch (error) {
-      throw new UnauthorizedException(`Authentication failed: ${error}`);
+      const message = error instanceof Error ? error.message : String(error);
+      throw new UnauthorizedException(`Authentication failed: ${message}`);
     }
   }
 
