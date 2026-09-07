@@ -8,11 +8,12 @@ import {
   UnauthorizedException,
   UseGuards,
 } from '@nestjs/common';
-import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { ApiTags } from '@nestjs/swagger';
 
 import { ClerkAuthGuard } from '@/auth/auth.guard';
 import { OnboardingConsentDto } from '@/users/users.dto';
 import { UsersService } from '@/users/users.service';
+import { PostOnboardingDoc } from '@/users/users.swagger';
 
 import type { AuthenticatedRequest } from '@/auth/auth.guard';
 import type { OnboardingConsentResult } from '@/users/users.service';
@@ -30,10 +31,7 @@ export class UsersController {
 
   @Post('onboarding')
   @UseGuards(ClerkAuthGuard)
-  @ApiOperation({ summary: 'Accept the privacy notice and complete onboarding' })
-  @ApiResponse({ status: 201, description: 'Onboarding consent persisted' })
-  @ApiResponse({ status: 400, description: 'Consent was declined or the payload is invalid' })
-  @ApiResponse({ status: 409, description: 'Account already onboarded with a different role' })
+  @PostOnboardingDoc()
   async completeOnboarding(
     @Req() request: AuthenticatedRequest,
     @Body() dto: OnboardingConsentDto,
