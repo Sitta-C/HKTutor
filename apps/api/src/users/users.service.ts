@@ -68,9 +68,10 @@ export class UsersService {
           };
         }
 
+        const consentAcceptedAt = new Date();
         const updated = await tx.user.update({
           data: {
-            consentAcceptedAt: new Date(),
+            consentAcceptedAt,
             policyVersion: dto.policyVersion,
             role,
           },
@@ -78,24 +79,25 @@ export class UsersService {
         });
 
         return {
-          consentAcceptedAt: updated.consentAcceptedAt,
+          consentAcceptedAt: updated.consentAcceptedAt ?? consentAcceptedAt,
           created: false,
           policyVersion: dto.policyVersion,
           role: updated.role,
         };
       }
 
+      const consentAcceptedAt = new Date();
       const created = await tx.user.create({
         data: {
           clerkUserId,
-          consentAcceptedAt: new Date(),
+          consentAcceptedAt,
           policyVersion: dto.policyVersion,
           role,
         },
       });
 
       return {
-        consentAcceptedAt: created.consentAcceptedAt,
+        consentAcceptedAt: created.consentAcceptedAt ?? consentAcceptedAt,
         created: true,
         policyVersion: dto.policyVersion,
         role: created.role,
