@@ -132,14 +132,12 @@ export class UsersService {
             role,
           },
         })
-        .then(
-          (row): { created: true } & OnboardingConsentResult => ({
-            consentAcceptedAt: row.consentAcceptedAt ?? consentAcceptedAt,
-            created: true,
-            policyVersion: row.policyVersion ?? dto.policyVersion,
-            role: row.role,
-          }),
-        )
+        .then((row): { created: true } & OnboardingConsentResult => ({
+          consentAcceptedAt: row.consentAcceptedAt ?? consentAcceptedAt,
+          created: true,
+          policyVersion: row.policyVersion ?? dto.policyVersion,
+          role: row.role,
+        }))
         .catch(async (error: unknown): Promise<OnboardingConsentResult> => {
           if (
             typeof error === 'object' &&

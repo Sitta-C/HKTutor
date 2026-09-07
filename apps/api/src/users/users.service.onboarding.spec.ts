@@ -50,9 +50,7 @@ describe('UsersService.completeOnboarding', () => {
     });
 
     expect(txMock.user.create).toHaveBeenCalledTimes(1);
-    const [createCall] = txMock.user.create.mock.calls[0] as [
-      { data: Record<string, unknown> },
-    ];
+    const [createCall] = txMock.user.create.mock.calls[0] as [{ data: Record<string, unknown> }];
     expect(createCall.data).toMatchObject({
       clerkUserId: 'clerk_new',
       policyVersion: '2026-08-01',
@@ -138,8 +136,10 @@ describe('UsersService.completeOnboarding', () => {
     ).resolves.toMatchObject({ created: false, role: Role.STUDENT });
 
     expect(txMock.user.update).toHaveBeenCalledTimes(1);
-    const updateCall = txMock.user.update.mock.calls[0]?.[0];
-    expect(updateCall.data).not.toHaveProperty('role');
+    const updateCalls = txMock.user.update.mock.calls as unknown as Array<
+      [{ data: Record<string, unknown> }]
+    >;
+    expect(updateCalls[0]?.[0].data).not.toHaveProperty('role');
     expect(txMock.user.create).not.toHaveBeenCalled();
     expect(prisma.$transaction).toHaveBeenCalledTimes(1);
   });
@@ -147,16 +147,14 @@ describe('UsersService.completeOnboarding', () => {
   it('treats a concurrent duplicate create as an idempotent retry of the winner', async () => {
     const { prisma, txMock } = buildPrisma();
     const acceptedAt = new Date('2026-08-01T12:00:00Z');
-    txMock.user.findUnique
-      .mockResolvedValueOnce(null)
-      .mockResolvedValueOnce({
-        clerkUserId: 'clerk_race',
-        consentAcceptedAt: acceptedAt,
-        deletedAt: null,
-        id: 'user-7',
-        policyVersion: '2026-08-01',
-        role: Role.STUDENT,
-      });
+    txMock.user.findUnique.mockResolvedValueOnce(null).mockResolvedValueOnce({
+      clerkUserId: 'clerk_race',
+      consentAcceptedAt: acceptedAt,
+      deletedAt: null,
+      id: 'user-7',
+      policyVersion: '2026-08-01',
+      role: Role.STUDENT,
+    });
     txMock.user.create.mockRejectedValue({ code: 'P2002' });
     const service = new UsersService(prisma as unknown as PrismaService);
 
