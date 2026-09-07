@@ -468,10 +468,12 @@ requires `DATABASE_URL` from the ignored root `.env` and passes it only to the A
 `POST /api/users/onboarding` completes Local User onboarding inside one database transaction. The
 request must carry a verified Clerk session (Bearer token); the guard resolves the Clerk user id
 and the handler rejects the request without it. The JSON body is `{ consent, policyVersion, role }`
-where `consent` is a boolean, `policyVersion` matches `YYYY-MM-DD` (the web client sends
-`PRIVACY_POLICY_VERSION` from `apps/web/src/lib/privacy-notice.ts` via
-`buildOnboardingConsent(accepted)`), and `role` is limited to `student` or `tutor` — public
-onboarding never creates an administrator.
+where `consent` is a boolean, `policyVersion` must appear in the server-owned
+`SUPPORTED_POLICY_VERSIONS` allowlist in `apps/api/src/users/users.dto.ts` (a `YYYY-MM-DD` shape
+check is kept as defense in depth; the web client sends `PRIVACY_POLICY_VERSION` from
+`apps/web/src/lib/privacy-notice.ts` via `buildOnboardingConsent(accepted)` — the two constants are
+bumped together), and `role` is limited to `student` or `tutor` — public onboarding never creates
+an administrator.
 
 The transaction reads the user by Clerk identity and then applies the first matching rule:
 
@@ -484,8 +486,19 @@ The transaction reads the user by Clerk identity and then applies the first matc
 - The row is already consented with a different role, or is soft-deleted — HTTP 409.
 
 Declined consent is rejected with HTTP 400 before any transaction opens. A concurrent duplicate
-signup that loses the `clerkUserId` unique race is re-read inside the same transaction and returns
-the winner's state instead of an error.
+signup that loses the `clerkUserId` unique race is recovered through a SECOND, fresh transaction:
+PostgreSQL aborts the first transaction after the P2002 violation, so re-reading through it is not
+possible. The second transaction re-reads the committed winner and applies the same rules —
+returning the winner's stored state when it is already consented, backfilling only the consent
+fields when it was provisioned without consent, or rejecting with HTTP 409 when its role differs.
+
+The registration flow persists `{ ...buildOnboardingConsent(acceptedPolicy), role }` under the
+`hktutor:onboarding` sessionStorage key before the verification step. After the code is verified
+and `signUp.finalize()` activates the Clerk session, `verify.tsx` posts the stored payload to
+`POST /api/users/onboarding` via `fetchWithAuth` and only navigates to `/dashboard` once the call
+succeeds. A failed call keeps the payload, shows a retry-able error, and leaves the user on the
+verification page; a missing or corrupt payload is cleared and the verified user proceeds to the
+dashboard without being trapped.
 
 `apps/api/src/users/users.dto.spec.ts`,
 `apps/api/src/users/users.service.onboarding.spec.ts`, and
