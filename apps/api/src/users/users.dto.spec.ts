@@ -28,7 +28,7 @@ describe('OnboardingConsentDto', () => {
     const errors = await validate(dto);
 
     expect(errors).toHaveLength(1);
-    expect(errors[0].property).toBe('role');
+    expect(errors[0]?.property).toBe('role');
   });
 
   it('rejects a policyVersion that is not a YYYY-MM-DD date', async () => {
@@ -38,7 +38,7 @@ describe('OnboardingConsentDto', () => {
     const errors = await validate(dto);
 
     expect(errors).toHaveLength(1);
-    expect(errors[0].property).toBe('policyVersion');
+    expect(errors[0]?.property).toBe('policyVersion');
   });
 
   it('treats a declined consent as shape-valid (business rejection is the service\u2019s job)', async () => {

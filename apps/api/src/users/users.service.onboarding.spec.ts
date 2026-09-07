@@ -58,7 +58,7 @@ describe('UsersService.completeOnboarding', () => {
       policyVersion: '2026-08-01',
       role: Role.STUDENT,
     });
-    expect(createCall.data.consentAcceptedAt).toBeInstanceOf(Date);
+    expect(createCall.data['consentAcceptedAt']).toBeInstanceOf(Date);
     expect(prisma.$transaction).toHaveBeenCalledTimes(1);
   });
 
@@ -85,7 +85,31 @@ describe('UsersService.completeOnboarding', () => {
     });
   });
 
-  it('updates an existing user without consent and reports created:false', async () => {
+  it('conflicts when a provisioned user without consent onboards with a different role', async () => {
+    const { prisma, txMock } = buildPrisma();
+    txMock.user.findUnique.mockResolvedValue({
+      clerkUserId: 'clerk_existing',
+      consentAcceptedAt: null,
+      deletedAt: null,
+      id: 'user-3',
+      policyVersion: null,
+      role: Role.STUDENT,
+    });
+    const service = new UsersService(prisma as unknown as PrismaService);
+
+    await expect(
+      service.completeOnboarding('clerk_existing', {
+        consent: true,
+        policyVersion: '2026-08-01',
+        role: 'tutor',
+      }),
+    ).rejects.toBeInstanceOf(ConflictException);
+
+    expect(txMock.user.update).not.toHaveBeenCalled();
+    expect(txMock.user.create).not.toHaveBeenCalled();
+  });
+
+  it('updates only consent fields when a provisioned user onboards with the matching role', async () => {
     const { prisma, txMock } = buildPrisma();
     txMock.user.findUnique.mockResolvedValue({
       clerkUserId: 'clerk_existing',
@@ -101,7 +125,7 @@ describe('UsersService.completeOnboarding', () => {
       consentAcceptedAt: acceptedAt,
       id: 'user-3',
       policyVersion: '2026-08-01',
-      role: Role.TUTOR,
+      role: Role.STUDENT,
     });
     const service = new UsersService(prisma as unknown as PrismaService);
 
@@ -109,12 +133,46 @@ describe('UsersService.completeOnboarding', () => {
       service.completeOnboarding('clerk_existing', {
         consent: true,
         policyVersion: '2026-08-01',
-        role: 'tutor',
+        role: 'student',
       }),
-    ).resolves.toMatchObject({ created: false, role: Role.TUTOR });
+    ).resolves.toMatchObject({ created: false, role: Role.STUDENT });
 
     expect(txMock.user.update).toHaveBeenCalledTimes(1);
+    const updateCall = txMock.user.update.mock.calls[0]?.[0];
+    expect(updateCall.data).not.toHaveProperty('role');
     expect(txMock.user.create).not.toHaveBeenCalled();
+    expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+  });
+
+  it('treats a concurrent duplicate create as an idempotent retry of the winner', async () => {
+    const { prisma, txMock } = buildPrisma();
+    const acceptedAt = new Date('2026-08-01T12:00:00Z');
+    txMock.user.findUnique
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({
+        clerkUserId: 'clerk_race',
+        consentAcceptedAt: acceptedAt,
+        deletedAt: null,
+        id: 'user-7',
+        policyVersion: '2026-08-01',
+        role: Role.STUDENT,
+      });
+    txMock.user.create.mockRejectedValue({ code: 'P2002' });
+    const service = new UsersService(prisma as unknown as PrismaService);
+
+    await expect(
+      service.completeOnboarding('clerk_race', {
+        consent: true,
+        policyVersion: '2026-08-01',
+        role: 'student',
+      }),
+    ).resolves.toMatchObject({
+      consentAcceptedAt: acceptedAt,
+      created: false,
+      role: Role.STUDENT,
+    });
+
+    expect(txMock.user.create).toHaveBeenCalledTimes(1);
     expect(prisma.$transaction).toHaveBeenCalledTimes(1);
   });
 

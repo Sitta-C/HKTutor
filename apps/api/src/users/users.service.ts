@@ -47,12 +47,41 @@ export class UsersService {
 
     const role = ONBOARDING_ROLE_MAP[dto.role];
 
-    return this.prisma.$transaction(async (tx) => {
-      const existing = await tx.user.findUnique({ where: { clerkUserId } });
-
-      if (existing?.deletedAt) {
+    const readExisting = (user: {
+      clerkUserId: string;
+      consentAcceptedAt: Date | null;
+      deletedAt: Date | null;
+      id: string;
+      policyVersion: string | null;
+      role: Role;
+    }): OnboardingConsentResult => {
+      if (user.deletedAt) {
         throw new ConflictException('This account can no longer be onboarded');
       }
+
+      if (user.role !== role) {
+        throw new ConflictException('This account already exists with a different role');
+      }
+
+      if (user.consentAcceptedAt && user.policyVersion) {
+        return {
+          consentAcceptedAt: user.consentAcceptedAt,
+          created: false,
+          policyVersion: user.policyVersion,
+          role: user.role,
+        };
+      }
+
+      return {
+        consentAcceptedAt: user.consentAcceptedAt ?? new Date(),
+        created: false,
+        policyVersion: user.policyVersion ?? '',
+        role: user.role,
+      };
+    };
+
+    return this.prisma.$transaction(async (tx) => {
+      const existing = await tx.user.findUnique({ where: { clerkUserId } });
 
       if (existing) {
         if (existing.consentAcceptedAt && existing.policyVersion) {
@@ -68,40 +97,70 @@ export class UsersService {
           };
         }
 
+        if (existing.deletedAt) {
+          throw new ConflictException('This account can no longer be onboarded');
+        }
+
+        if (existing.role !== role) {
+          throw new ConflictException('This account already exists with a different role');
+        }
+
         const consentAcceptedAt = new Date();
-        const updated = await tx.user.update({
+        await tx.user.update({
           data: {
             consentAcceptedAt,
             policyVersion: dto.policyVersion,
-            role,
           },
           where: { id: existing.id },
         });
 
         return {
-          consentAcceptedAt: updated.consentAcceptedAt ?? consentAcceptedAt,
+          consentAcceptedAt,
           created: false,
           policyVersion: dto.policyVersion,
-          role: updated.role,
+          role: existing.role,
         };
       }
 
       const consentAcceptedAt = new Date();
-      const created = await tx.user.create({
-        data: {
-          clerkUserId,
-          consentAcceptedAt,
-          policyVersion: dto.policyVersion,
-          role,
-        },
-      });
+      const created = await tx.user
+        .create({
+          data: {
+            clerkUserId,
+            consentAcceptedAt,
+            policyVersion: dto.policyVersion,
+            role,
+          },
+        })
+        .then(
+          (row): { created: true } & OnboardingConsentResult => ({
+            consentAcceptedAt: row.consentAcceptedAt ?? consentAcceptedAt,
+            created: true,
+            policyVersion: row.policyVersion ?? dto.policyVersion,
+            role: row.role,
+          }),
+        )
+        .catch(async (error: unknown): Promise<OnboardingConsentResult> => {
+          if (
+            typeof error === 'object' &&
+            error !== null &&
+            'code' in error &&
+            (error as { code?: unknown }).code === 'P2002'
+          ) {
+            // Concurrent duplicate onboarding: the winner's row is committed by
+            // another transaction, so re-read inside this transaction and treat
+            // this request as a retry of that outcome.
+            const winner = await tx.user.findUnique({ where: { clerkUserId } });
 
-      return {
-        consentAcceptedAt: created.consentAcceptedAt ?? consentAcceptedAt,
-        created: true,
-        policyVersion: dto.policyVersion,
-        role: created.role,
-      };
+            if (winner) {
+              return readExisting(winner);
+            }
+          }
+
+          throw error;
+        });
+
+      return created;
     });
   }
 }
