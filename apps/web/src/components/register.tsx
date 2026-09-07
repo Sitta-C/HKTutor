@@ -77,10 +77,6 @@ export default function Register() {
     setConsentError(null);
     setErrorMessage(null);
 
-    // TODO(S1-T12): send this consent record to the backend when the account is created.
-    const consent = buildOnboardingConsent(acceptedPolicy);
-    void consent; // remove once S1-T12 wires this into the signup payload
-
     // force sign out before sign up
     if (isSignedIn) {
       // Stale session on this client — clear it and retry once
@@ -117,6 +113,11 @@ export default function Register() {
         setIsLoading(false);
         return;
       }
+
+      // persist the onboarding consent for the verification step, which posts
+      // it to the backend once the Clerk session is active
+      const onboardingPayload = { ...buildOnboardingConsent(acceptedPolicy), role };
+      sessionStorage.setItem('hktutor:onboarding', JSON.stringify(onboardingPayload));
 
       // send user to verification page
       router.push(`/register/verifypage?email=${encodeURIComponent(email)}`);

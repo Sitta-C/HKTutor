@@ -147,7 +147,9 @@ test('blocks registration submission until the notice is accepted', async () => 
   );
   assert.match(register, /<PrivacyConsent/);
   assert.match(register, /error=\{consentError\}/);
-  assert.match(register, /TODO\(S1-T12\)[\s\S]*?buildOnboardingConsent\(acceptedPolicy\)/);
+  assert.match(register, /buildOnboardingConsent\(acceptedPolicy\)/);
+  assert.doesNotMatch(register, /void consent/);
+  assert.match(register, /sessionStorage\.setItem\('hktutor:onboarding'/);
   assert.doesNotMatch(
     register,
     /copy\.register\.policy\}/,

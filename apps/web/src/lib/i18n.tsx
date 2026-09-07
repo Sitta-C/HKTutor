@@ -148,6 +148,9 @@ const translations = {
       otpResending: 'Resending...',
       otpResent: 'Verification code resent!',
       otpBack: 'Change email',
+      onboardingPending: 'Setting up your account...',
+      onboardingFailed:
+        'We could not finish setting up your account. Please re-enter the code to try again.',
     },
     aboutMe: {
       eyebrow: 'About HKTutor',
@@ -253,6 +256,8 @@ const translations = {
       otpResending: 'กำลังส่งรหัสอีกครั้ง...',
       otpResent: 'ส่งรหัสยืนยันใหม่แล้ว!',
       otpBack: 'เปลี่ยนอีเมล',
+      onboardingPending: 'กำลังตั้งค่าบัญชีของคุณ...',
+      onboardingFailed: 'ไม่สามารถตั้งค่าบัญชีของคุณได้ กรุณากรอกรหัสอีกครั้งเพื่อลองใหม่',
     },
     aboutMe: {
       eyebrow: 'เกี่ยวกับ HKTutor',

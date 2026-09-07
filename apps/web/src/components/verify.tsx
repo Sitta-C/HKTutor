@@ -1,13 +1,46 @@
 'use client';
 
-import { useSignUp } from '@clerk/nextjs';
+import { useAuth, useSignUp } from '@clerk/nextjs';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useState } from 'react';
 
+import { fetchWithAuth } from '@/api/Token';
 import AuthShell from '@/components/auth-shell';
 import { useLanguage } from '@/lib/i18n';
 
 import type { FormEvent } from 'react';
+
+const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
+
+type OnboardingPayload = {
+  consent: boolean;
+  policyVersion: string;
+  role: 'student' | 'tutor';
+};
+
+function readOnboardingPayload(): OnboardingPayload | null {
+  try {
+    const raw = sessionStorage.getItem('hktutor:onboarding');
+    if (!raw) return null;
+
+    const payload = JSON.parse(raw) as Partial<OnboardingPayload> | null;
+    if (
+      payload?.consent !== true ||
+      typeof payload.policyVersion !== 'string' ||
+      (payload.role !== 'student' && payload.role !== 'tutor')
+    ) {
+      return null;
+    }
+
+    return {
+      consent: payload.consent,
+      policyVersion: payload.policyVersion,
+      role: payload.role,
+    };
+  } catch {
+    return null;
+  }
+}
 
 function getErrorMessage(error: unknown, fallback: string) {
   if (error instanceof Error) return error.message || fallback;
@@ -24,11 +57,13 @@ function getErrorMessage(error: unknown, fallback: string) {
 function VerifyForm() {
   const { copy } = useLanguage();
   const { signUp } = useSignUp();
+  const { getToken } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
   const email = searchParams.get('email') ?? '';
   const [code, setCode] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isOnboarding, setIsOnboarding] = useState(false);
   const [isResending, setIsResending] = useState(false);
   const [resendSuccess, setResendSuccess] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -50,13 +85,42 @@ function VerifyForm() {
       }
 
       await signUp.finalize({
-        navigate: ({ session, decorateUrl }) => {
+        navigate: ({ session }) => {
           if (session?.currentTask) return;
-          const url = decorateUrl('/dashboard');
-          if (url.startsWith('http')) window.location.replace(url);
-          else router.replace(url);
         },
       });
+
+      setIsOnboarding(true);
+      try {
+        const payload = readOnboardingPayload();
+
+        if (!payload) {
+          // Never trap a verified user: drop a missing or corrupt payload and move on.
+          sessionStorage.removeItem('hktutor:onboarding');
+          router.replace('/dashboard');
+          return;
+        }
+
+        const response = await fetchWithAuth(getToken, `${backendUrl}/api/users/onboarding`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+
+        if (!response.ok) {
+          setErrorMessage(copy.register.onboardingFailed);
+          return;
+        }
+
+        // Only clear the payload after the onboarding call succeeded, so a
+        // failure leaves the user on this page able to retry the code.
+        sessionStorage.removeItem('hktutor:onboarding');
+        router.replace('/dashboard');
+      } catch {
+        setErrorMessage(copy.register.onboardingFailed);
+      } finally {
+        setIsOnboarding(false);
+      }
     } catch (error: unknown) {
       setErrorMessage(getErrorMessage(error, 'Verification failed'));
     } finally {
@@ -137,10 +201,14 @@ function VerifyForm() {
             </div>
             <button
               type="submit"
-              disabled={!signUp || isLoading || !code.trim()}
+              disabled={!signUp || isLoading || isOnboarding || !code.trim()}
               className="mt-2 flex h-[3.65rem] w-full items-center justify-center rounded-xl bg-[#ffc57d] px-5 text-base font-bold text-[#171714] shadow-[0_8px_18px_rgba(206,145,64,0.14)] transition-all hover:-translate-y-0.5 hover:bg-[#ffbd6c] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#171714]/30 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {isLoading ? copy.register.otpLoading : copy.register.otpSubmit}
+              {isOnboarding
+                ? copy.register.onboardingPending
+                : isLoading
+                  ? copy.register.otpLoading
+                  : copy.register.otpSubmit}
             </button>
           </form>
 
