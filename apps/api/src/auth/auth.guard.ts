@@ -10,7 +10,7 @@ import { Request as ExpressRequest } from 'express';
 
 import type { ClerkClient } from '@clerk/backend';
 
-interface AuthenticatedRequest extends ExpressRequest {
+export interface AuthenticatedRequest extends ExpressRequest {
   auth?: { userId: string };
 }
 
