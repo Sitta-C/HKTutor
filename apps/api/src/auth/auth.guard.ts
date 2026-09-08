@@ -10,8 +10,8 @@ import { Request as ExpressRequest } from 'express';
 
 import type { ClerkClient } from '@clerk/backend';
 
-interface AuthenticatedRequest extends ExpressRequest {
-  auth?: string;
+export interface AuthenticatedRequest extends ExpressRequest {
+  auth?: { userId: string };
 }
 
 @Injectable()
@@ -46,11 +46,13 @@ export class ClerkAuthGuard implements CanActivate {
     });
 
     try {
-      const { isAuthenticated } = await this.clerkClient.authenticateRequest(webRequest);
+      const authState = await this.clerkClient.authenticateRequest(webRequest);
 
-      if (!isAuthenticated) {
+      if (!authState.isAuthenticated) {
         throw new UnauthorizedException('Missing authentication token');
       }
+
+      request.auth = { userId: authState.toAuth().userId };
 
       return true;
     } catch (error) {
