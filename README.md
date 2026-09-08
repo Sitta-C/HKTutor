@@ -461,7 +461,9 @@ docker compose down
 
 Compose intentionally contains only `web` and `api`. PostgreSQL and file storage are managed by
 the shared Supabase project; no database container or persistent volume belongs here. Compose
-requires `DATABASE_URL` from the ignored root `.env` and passes it only to the API container.
+requires `DATABASE_URL` from the ignored root `.env` and passes it only to the API container;
+the web build receives `NEXT_PUBLIC_BACKEND_URL` as a build argument (see the S1-T12 section
+below).
 
 ## Onboarding consent transaction (S1-T12)
 
@@ -492,18 +494,35 @@ possible. The second transaction re-reads the committed winner and applies the s
 returning the winner's stored state when it is already consented, backfilling only the consent
 fields when it was provisioned without consent, or rejecting with HTTP 409 when its role differs.
 
+The web client calls the API at the base URL from `NEXT_PUBLIC_BACKEND_URL`. In production that
+value is part of the tracked build rather than runtime browser configuration: it is declared in
+`.env.example` as the template's only `NEXT_PUBLIC_` variable (default
+`http://localhost:3001`), forwarded as a Compose build argument for the `web` service, and
+declared as `ARG`/`ENV` in `apps/web/Dockerfile` before `next build`, so the URL is baked into
+the client bundle.
+
 The registration flow persists `{ ...buildOnboardingConsent(acceptedPolicy), role }` under the
 `hktutor:onboarding` sessionStorage key before the verification step. After the code is verified
 and `signUp.finalize()` activates the Clerk session, `verify.tsx` posts the stored payload to
-`POST /api/users/onboarding` via `fetchWithAuth` and only navigates to `/dashboard` once the call
-succeeds. A failed call keeps the payload, shows a retry-able error, and leaves the user on the
-verification page; a missing or corrupt payload is cleared and the verified user proceeds to the
-dashboard without being trapped.
+`POST /api/users/onboarding` through the dependency-free `submitOnboarding` helper
+(`apps/web/src/lib/onboarding.ts`) and only navigates to `/dashboard` once the call succeeds.
+
+Onboarding failures stay retryable without re-running Clerk verification. A POST failure (HTTP
+error or network error) keeps the stored payload and renders a dedicated "Try again" button that
+re-runs ONLY the onboarding POST through the active Clerk session — it never calls
+`verifyEmailCode` or `signUp.finalize()` again, so even a page reload that destroys the
+in-memory `signUp` resource cannot strand the user. A missing or corrupt stored payload routes
+the verified user to `/register/onboarding`, a recovery step
+(`apps/web/src/components/onboarding-retry.tsx`) that recollects the explicit privacy consent and
+role and posts the same endpoint through the same helper; it reaches `/dashboard` only after the
+API succeeds. A `finalize()` error surfaces as an onboarding failure message and leaves the
+verification code step retryable.
 
 `apps/api/src/users/users.dto.spec.ts`,
-`apps/api/src/users/users.service.onboarding.spec.ts`, and
-`tests/onboarding-consent-transaction.test.mjs` hold the unit and repository-level contracts for
-this behavior.
+`apps/api/src/users/users.service.onboarding.spec.ts`,
+`tests/onboarding-consent-transaction.test.mjs`, and
+`tests/onboarding-retry-flow.test.mjs` hold the unit, repository-level, and behavioral contracts
+for this behavior.
 
 ## Repository boundaries
 
