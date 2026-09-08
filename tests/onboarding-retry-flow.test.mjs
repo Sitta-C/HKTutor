@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict';
-import { createRequire } from 'node:module';
 import fs from 'node:fs/promises';
+import { createRequire } from 'node:module';
 import os from 'node:os';
 import path from 'node:path';
-import { pathToFileURL } from 'node:url';
 import test from 'node:test';
+import { pathToFileURL } from 'node:url';
 
 const requireFromWeb = createRequire(path.resolve('apps/web/package.json'));
 const ts = requireFromWeb('typescript');
