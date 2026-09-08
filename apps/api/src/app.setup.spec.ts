@@ -6,7 +6,8 @@ import { IsNumber, Min } from 'class-validator';
 import request from 'supertest';
 
 import { configureApplication } from '@/app.setup';
-import { CLERK_BEARER_AUTH } from '@/auth/auth.swagger';
+import { REFRESH_COOKIE_NAME } from '@/auth/auth.constants';
+import { JWT_BEARER_AUTH, REFRESH_COOKIE_AUTH } from '@/auth/auth.swagger';
 
 import type { INestApplication } from '@nestjs/common';
 import type { OpenAPIObject } from '@nestjs/swagger';
@@ -99,10 +100,15 @@ describe('configureApplication', () => {
       title: 'HKTutor API',
       version: '1.0.0',
     });
-    expect(document.components?.securitySchemes?.[CLERK_BEARER_AUTH]).toMatchObject({
+    expect(document.components?.securitySchemes?.[JWT_BEARER_AUTH]).toMatchObject({
       bearerFormat: 'JWT',
       scheme: 'bearer',
       type: 'http',
+    });
+    expect(document.components?.securitySchemes?.[REFRESH_COOKIE_AUTH]).toMatchObject({
+      in: 'cookie',
+      name: REFRESH_COOKIE_NAME,
+      type: 'apiKey',
     });
     expect(operation?.parameters).toEqual(
       expect.arrayContaining([

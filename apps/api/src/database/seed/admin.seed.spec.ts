@@ -4,32 +4,44 @@ import { AccountStatus, Role } from '@/generated/prisma/client';
 import type { SeedTransactionClient } from '@/database/seed/seed-client';
 
 describe('seedAdministrator', () => {
-  it('creates an active administrator mapped to an existing Clerk identity', async () => {
-    const upsert = jest.fn().mockResolvedValue({ role: Role.ADMIN });
-    const client = { user: { upsert } } as unknown as SeedTransactionClient;
+  it('creates a verified local administrator', async () => {
+    const findFirst = jest.fn().mockResolvedValue(null);
+    const create = jest.fn().mockResolvedValue({ id: 'admin-id' });
+    const client = { user: { findFirst, create } } as unknown as SeedTransactionClient;
 
-    await seedAdministrator(client, 'user_admin', 'admin@example.com');
+    await seedAdministrator(client, 'admin@example.com', 'argon-hash');
 
-    expect(upsert).toHaveBeenCalledWith({
-      where: { clerkUserId: 'user_admin' },
-      update: { primaryEmail: 'admin@example.com' },
-      create: {
-        clerkUserId: 'user_admin',
-        primaryEmail: 'admin@example.com',
-        role: Role.ADMIN,
-        accountStatus: AccountStatus.ACTIVE,
-      },
-      select: { role: true },
+    expect(create).toHaveBeenCalledTimes(1);
+    const calls = create.mock.calls as unknown as Array<
+      [
+        {
+          data: {
+            accountStatus: AccountStatus;
+            email: string;
+            emailVerifiedAt: Date;
+            passwordHash: string;
+            role: Role;
+          };
+        },
+      ]
+    >;
+    const data = calls[0]?.[0].data;
+    expect(data).toMatchObject({
+      email: 'admin@example.com',
+      passwordHash: 'argon-hash',
+      role: Role.ADMIN,
+      accountStatus: AccountStatus.ACTIVE,
     });
+    expect(data?.emailVerifiedAt).toBeInstanceOf(Date);
   });
 
-  it('refuses to elevate an existing non-admin account', async () => {
+  it('refuses to elevate a non-admin account', async () => {
     const client = {
-      user: { upsert: jest.fn().mockResolvedValue({ role: Role.TUTOR }) },
+      user: { findFirst: jest.fn().mockResolvedValue({ id: 'user-id', role: Role.TUTOR }) },
     } as unknown as SeedTransactionClient;
 
-    await expect(seedAdministrator(client, 'user_admin', 'admin@example.com')).rejects.toThrow(
-      'Admin seed Clerk user ID belongs to a non-admin account',
+    await expect(seedAdministrator(client, 'admin@example.com', 'argon-hash')).rejects.toThrow(
+      'Admin seed email belongs to a non-admin account',
     );
   });
 });

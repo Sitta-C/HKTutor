@@ -1,14 +1,16 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { ThrottlerModule } from '@nestjs/throttler';
 
 import { AppController } from '@/app.controller';
 import { AppService } from '@/app.service';
 import { AuthModule } from '@/auth/auth.module';
+import { validateAuthEnvironment } from '@/config/auth.config';
 import { validateDatabaseEnvironment } from '@/config/database.config';
 import { DatabaseModule } from '@/database/database.module';
+import { AuthExampleModule } from '@/examples/auth-example.module';
 import { HealthModule } from '@/health/health.module';
 import { TutorsModule } from '@/tutors/tutors.module';
-import { UsersModule } from '@/users/users.module';
 
 @Module({
   imports: [
@@ -16,13 +18,14 @@ import { UsersModule } from '@/users/users.module';
       cache: true,
       envFilePath: ['../../.env', '.env'],
       isGlobal: true,
-      validate: validateDatabaseEnvironment,
+      validate: (config) => validateAuthEnvironment(validateDatabaseEnvironment(config)),
     }),
+    ThrottlerModule.forRoot([{ limit: 100, ttl: 60_000 }]),
     DatabaseModule,
     HealthModule,
     TutorsModule,
-    UsersModule,
     AuthModule,
+    AuthExampleModule,
   ],
   controllers: [AppController],
   providers: [AppService],

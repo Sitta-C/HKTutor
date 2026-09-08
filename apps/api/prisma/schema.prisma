@@ -19,11 +19,6 @@ enum AccountStatus {
   DELETED   @map("deleted")
 }
 
-enum ClerkWebhookStatus {
-  PROCESSED @map("processed")
-  FAILED    @map("failed")
-}
-
 enum TutorVerificationStatus {
   PENDING  @map("pending")
   VERIFIED @map("verified")
@@ -45,9 +40,11 @@ enum BookingStatus {
 
 model User {
   id                String        @id @default(uuid()) @db.Uuid
-  clerkUserId       String        @unique
-  /// Synchronized cache of Clerk's primary email. A partial unique index for active users is migration-managed.
-  primaryEmail      String?       @db.Citext
+  /// A partial unique index for non-deleted users is migration-managed.
+  email             String        @db.Citext
+  /// Null is reserved for deterministic, non-loginable search fixtures.
+  passwordHash      String?
+  emailVerifiedAt   DateTime?     @db.Timestamptz(3)
   role              Role
   accountStatus     AccountStatus @default(ACTIVE)
   /// Consent time and policy version are nullable together for provisioned/demo users; a migration-managed check prevents a partial consent state.
@@ -58,17 +55,34 @@ model User {
   deletedAt         DateTime?     @db.Timestamptz(3)
   tutorProfile      TutorProfile?
   studentBookings   Booking[]     @relation("BookingStudent")
+  authSessions      AuthSession[]
+  verificationTokens EmailVerificationToken[]
 }
 
-model ClerkWebhookEvent {
-  eventId     String             @id
-  type        String
-  clerkUserId String
-  status      ClerkWebhookStatus
-  processedAt DateTime           @db.Timestamptz(3)
-  payloadHash String?
+model EmailVerificationToken {
+  id         String    @id @default(uuid()) @db.Uuid
+  userId     String    @db.Uuid
+  tokenHash  String    @unique
+  expiresAt  DateTime  @db.Timestamptz(3)
+  consumedAt DateTime? @db.Timestamptz(3)
+  createdAt  DateTime  @default(now()) @db.Timestamptz(3)
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
 
-  @@index([clerkUserId], map: "ClerkWebhookEvent_clerkUserId_idx")
+  @@index([userId, expiresAt], map: "EmailVerificationToken_userId_expiresAt_idx")
+}
+
+model AuthSession {
+  id               String    @id @default(uuid()) @db.Uuid
+  userId           String    @db.Uuid
+  refreshTokenHash String    @unique
+  expiresAt        DateTime  @db.Timestamptz(3)
+  revokedAt        DateTime? @db.Timestamptz(3)
+  lastUsedAt       DateTime? @db.Timestamptz(3)
+  createdAt        DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt        DateTime  @updatedAt @db.Timestamptz(3)
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@index([userId, revokedAt], map: "AuthSession_userId_revokedAt_idx")
 }
 
 model TutorProfile {

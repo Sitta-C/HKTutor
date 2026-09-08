@@ -1,21 +1,17 @@
-import { clerkMiddleware } from '@clerk/nextjs/server';
 import { NextResponse } from 'next/server';
 
-export default clerkMiddleware(async (auth, req) => {
-  const { userId } = await auth();
-  if (userId && req.nextUrl.pathname === '/') {
-    return NextResponse.redirect(new URL('/dashboard', req.url));
+import type { NextRequest } from 'next/server';
+
+export function proxy(request: NextRequest) {
+  const hasRefreshCookie = request.cookies.has('hktutor_refresh');
+  const isDashboard = request.nextUrl.pathname.startsWith('/dashboard');
+
+  if (isDashboard && !hasRefreshCookie) {
+    return NextResponse.redirect(new URL('/', request.url));
   }
   return NextResponse.next();
-});
+}
 
 export const config = {
-  matcher: [
-    // Skip Next.js internals and all static files, unless found in search params
-    '/((?!_next|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)',
-    // Always run for API routes
-    '/(api|trpc)(.*)',
-    // Always run for Clerk-specific frontend API routes
-    '/__clerk/(.*)',
-  ],
+  matcher: ['/', '/dashboard/:path*'],
 };

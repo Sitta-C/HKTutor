@@ -160,33 +160,33 @@ async function runTransactionalChecks(client) {
   try {
     await client.query(
       `INSERT INTO "User" (
-        "id", "clerkUserId", "primaryEmail", "role", "accountStatus",
+        "id", "email", "role", "accountStatus",
         "consentAcceptedAt", "policyVersion", "updatedAt"
-      ) VALUES ($1, 'user_contract_student', 'contract.student@hktutor.invalid', 'student',
+      ) VALUES ($1, 'contract.student@hktutor.invalid', 'student',
         'active', '2099-01-01T00:00:00Z', 'contract-v1', CURRENT_TIMESTAMP)`,
       [ids.student],
     );
 
     await expectViolation(
       client,
-      'duplicate Clerk identity',
-      `INSERT INTO "User" ("id", "clerkUserId", "role", "updatedAt")
-       VALUES ($1, 'user_contract_student', 'student', CURRENT_TIMESTAMP)`,
+      'duplicate active email',
+      `INSERT INTO "User" ("id", "email", "role", "updatedAt")
+       VALUES ($1, 'CONTRACT.STUDENT@hktutor.invalid', 'student', CURRENT_TIMESTAMP)`,
       [ids.consentTimeOnly],
       ['23505'],
     );
 
     await client.query(
-      `INSERT INTO "User" ("id", "clerkUserId", "primaryEmail", "role", "accountStatus", "updatedAt")
-       VALUES ($1, 'user_contract_email_owner', 'contract.unique@hktutor.invalid', 'tutor',
+      `INSERT INTO "User" ("id", "email", "role", "accountStatus", "updatedAt")
+       VALUES ($1, 'contract.unique@hktutor.invalid', 'tutor',
          'active', CURRENT_TIMESTAMP)`,
       [ids.emailOwner],
     );
     await expectViolation(
       client,
-      'non-deleted cached email remains unique while suspended',
-      `INSERT INTO "User" ("id", "clerkUserId", "primaryEmail", "role", "accountStatus", "updatedAt")
-       VALUES ($1, 'user_contract_email_duplicate', 'CONTRACT.UNIQUE@hktutor.invalid', 'tutor',
+      'non-deleted email remains unique while suspended',
+      `INSERT INTO "User" ("id", "email", "role", "accountStatus", "updatedAt")
+       VALUES ($1, 'CONTRACT.UNIQUE@hktutor.invalid', 'tutor',
          'suspended', CURRENT_TIMESTAMP)`,
       [ids.emailReplacement],
       ['23505'],
@@ -195,26 +195,26 @@ async function runTransactionalChecks(client) {
       ids.emailOwner,
     ]);
     await client.query(
-      `INSERT INTO "User" ("id", "clerkUserId", "primaryEmail", "role", "accountStatus", "updatedAt")
-       VALUES ($1, 'user_contract_email_replacement', 'CONTRACT.UNIQUE@hktutor.invalid', 'tutor',
+      `INSERT INTO "User" ("id", "email", "role", "accountStatus", "updatedAt")
+       VALUES ($1, 'CONTRACT.UNIQUE@hktutor.invalid', 'tutor',
          'suspended', CURRENT_TIMESTAMP)`,
       [ids.emailReplacement],
     );
-    console.info('PASS soft deletion releases cached email uniqueness');
+    console.info('PASS soft deletion releases email uniqueness');
 
     await expectViolation(
       client,
       'consent timestamp without policy version',
-      `INSERT INTO "User" ("id", "clerkUserId", "role", "consentAcceptedAt", "updatedAt")
-       VALUES ($1, 'user_contract_consent_time', 'student', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+      `INSERT INTO "User" ("id", "email", "role", "consentAcceptedAt", "updatedAt")
+       VALUES ($1, 'consent-time@hktutor.invalid', 'student', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
       [ids.consentTimeOnly],
       ['23514'],
     );
     await expectViolation(
       client,
       'policy version without consent timestamp',
-      `INSERT INTO "User" ("id", "clerkUserId", "role", "policyVersion", "updatedAt")
-       VALUES ($1, 'user_contract_consent_policy', 'student', 'contract-v1', CURRENT_TIMESTAMP)`,
+      `INSERT INTO "User" ("id", "email", "role", "policyVersion", "updatedAt")
+       VALUES ($1, 'consent-policy@hktutor.invalid', 'student', 'contract-v1', CURRENT_TIMESTAMP)`,
       [ids.consentPolicyOnly],
       ['23514'],
     );
@@ -222,8 +222,8 @@ async function runTransactionalChecks(client) {
       client,
       'blank policy version with consent timestamp',
       `INSERT INTO "User" (
-        "id", "clerkUserId", "role", "consentAcceptedAt", "policyVersion", "updatedAt"
-       ) VALUES ($1, 'user_contract_consent_blank', 'student', CURRENT_TIMESTAMP, '   ',
+        "id", "email", "role", "consentAcceptedAt", "policyVersion", "updatedAt"
+       ) VALUES ($1, 'consent-blank@hktutor.invalid', 'student', CURRENT_TIMESTAMP, '   ',
          CURRENT_TIMESTAMP)`,
       [ids.consentBlankPolicy],
       ['23514'],
@@ -472,8 +472,8 @@ async function runConcurrencyCheck(connectionString) {
     await setup.query(`DELETE FROM "AvailabilitySlot" WHERE "id" = $1`, [ids.concurrencySlot]);
     await setup.query(`DELETE FROM "User" WHERE "id" = $1`, [ids.concurrencyStudent]);
     await setup.query(
-      `INSERT INTO "User" ("id", "clerkUserId", "role", "updatedAt")
-       VALUES ($1, 'user_contract_concurrency_student', 'student', CURRENT_TIMESTAMP)`,
+      `INSERT INTO "User" ("id", "email", "role", "updatedAt")
+       VALUES ($1, 'concurrency-student@hktutor.invalid', 'student', CURRENT_TIMESTAMP)`,
       [ids.concurrencyStudent],
     );
     await setup.query(

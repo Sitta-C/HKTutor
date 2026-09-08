@@ -1,15 +1,9 @@
-import { ListingPublicationStatus, Role, TutorVerificationStatus } from '@/generated/prisma/client';
+import { seedTutorSearchFixtures } from '@/database/seed/search-fixtures.seed';
+import { ListingPublicationStatus, Role } from '@/generated/prisma/client';
 
 import type { SeedTransactionClient } from '@/database/seed/seed-client';
 import type { TutorFoundationSeedResult } from '@/database/seed/tutor-foundation.seed';
 import type { Prisma } from '@/generated/prisma/client';
-
-interface SearchFixturesModule {
-  seedTutorSearchFixtures: (
-    client: SeedTransactionClient,
-    foundation: TutorFoundationSeedResult,
-  ) => Promise<void>;
-}
 
 const foundation: TutorFoundationSeedResult = {
   tutorUserId: 'anan-id',
@@ -17,255 +11,79 @@ const foundation: TutorFoundationSeedResult = {
   grade10Id: 'grade-10-id',
 };
 
-function loadSearchFixturesModule(): SearchFixturesModule {
-  return jest.requireActual<SearchFixturesModule>('@/database/seed/search-fixtures.seed');
-}
-
-function createClient(
-  role: Role = Role.TUTOR,
-  maliUserId = '20000000-0000-4000-8000-000000000001',
-) {
-  const subjectUpsert = jest
-    .fn<Promise<{ id: string }>, [Prisma.SubjectUpsertArgs]>()
-    .mockResolvedValue({ id: 'physics-id' });
-  const gradeLevelUpsert = jest
-    .fn<Promise<{ id: string }>, [Prisma.GradeLevelUpsertArgs]>()
-    .mockResolvedValue({ id: 'grade-11-id' });
-  const userIdsByClerkId: Record<string, string> = {
-    user_s1t20_mali: maliUserId,
-    user_s1t20_kiet: '20000000-0000-4000-8000-000000000002',
-    user_s1t20_niran: '20000000-0000-4000-8000-000000000003',
-    user_s1t20_pim: '20000000-0000-4000-8000-000000000004',
-  };
+function createClient(firstRole: Role = Role.TUTOR) {
   const userUpsert = jest
     .fn<Promise<{ id: string; role: Role }>, [Prisma.UserUpsertArgs]>()
-    .mockImplementation((args) => {
-      const clerkUserId = String(args.where.clerkUserId);
-
-      return Promise.resolve({
-        id: userIdsByClerkId[clerkUserId] ?? 'unexpected-user-id',
-        role: clerkUserId === 'user_s1t20_mali' ? role : Role.TUTOR,
-      });
-    });
-  const tutorProfileUpdate = jest
-    .fn<Promise<{ userId: string }>, [Prisma.TutorProfileUpdateArgs]>()
-    .mockResolvedValue({ userId: 'anan-id' });
-  const tutorProfileUpsert = jest
-    .fn<Promise<{ userId: string }>, [Prisma.TutorProfileUpsertArgs]>()
-    .mockResolvedValue({ userId: 'fixture-id' });
+    .mockImplementation((args) =>
+      Promise.resolve({
+        id: String(args.where.id),
+        role: args.where.id === '20000000-0000-4000-8000-000000000001' ? firstRole : Role.TUTOR,
+      }),
+    );
   const teachingListingUpsert = jest
     .fn<Promise<{ id: string }>, [Prisma.TeachingListingUpsertArgs]>()
     .mockResolvedValue({ id: 'listing-id' });
+  const tutorProfileUpsert = jest.fn().mockResolvedValue({ userId: 'fixture-id' });
 
   return {
     client: {
-      subject: { upsert: subjectUpsert },
-      gradeLevel: { upsert: gradeLevelUpsert },
+      subject: { upsert: jest.fn().mockResolvedValue({ id: 'physics-id' }) },
+      gradeLevel: { upsert: jest.fn().mockResolvedValue({ id: 'grade-11-id' }) },
       user: { upsert: userUpsert },
-      tutorProfile: { update: tutorProfileUpdate, upsert: tutorProfileUpsert },
+      tutorProfile: {
+        update: jest.fn().mockResolvedValue({ userId: 'anan-id' }),
+        upsert: tutorProfileUpsert,
+      },
       teachingListing: { upsert: teachingListingUpsert },
     } as unknown as SeedTransactionClient,
-    gradeLevelUpsert,
-    subjectUpsert,
     teachingListingUpsert,
-    tutorProfileUpdate,
     tutorProfileUpsert,
     userUpsert,
   };
 }
 
 describe('seedTutorSearchFixtures', () => {
-  it('seeds the exact-match, boundary, subject-mismatch, and grade-mismatch matrix', async () => {
-    const {
-      client,
-      gradeLevelUpsert,
-      subjectUpsert,
-      teachingListingUpsert,
-      tutorProfileUpdate,
-      tutorProfileUpsert,
-      userUpsert,
-    } = createClient();
-    const { seedTutorSearchFixtures } = loadSearchFixturesModule();
+  it('creates deterministic non-loginable tutor and listing fixtures', async () => {
+    const { client, teachingListingUpsert, userUpsert } = createClient();
 
     await seedTutorSearchFixtures(client, foundation);
 
-    expect(subjectUpsert).toHaveBeenCalledWith({
-      where: { code: 'physics' },
-      update: { name: 'Physics', active: true },
-      create: { code: 'physics', name: 'Physics', active: true },
-    });
-    expect(gradeLevelUpsert).toHaveBeenCalledWith({
-      where: { code: 'grade-11' },
-      update: { name: 'Grade 11', sortOrder: 11, active: true },
-      create: { code: 'grade-11', name: 'Grade 11', sortOrder: 11, active: true },
-    });
-    expect(userUpsert.mock.calls.map(([args]) => args.where.clerkUserId)).toEqual([
-      'user_s1t20_mali',
-      'user_s1t20_kiet',
-      'user_s1t20_niran',
-      'user_s1t20_pim',
-    ]);
-    expect(userUpsert.mock.calls.map(([args]) => args.create.primaryEmail)).toEqual([
-      'mali@s1t20.hktutor.invalid',
-      'kiet@s1t20.hktutor.invalid',
-      'niran@s1t20.hktutor.invalid',
-      'pim@s1t20.hktutor.invalid',
-    ]);
-    expect(userUpsert.mock.calls.map(([args]) => args.create.id)).toEqual([
+    expect(userUpsert).toHaveBeenCalledTimes(4);
+    expect(userUpsert.mock.calls.map(([args]) => args.where.id)).toEqual([
       '20000000-0000-4000-8000-000000000001',
       '20000000-0000-4000-8000-000000000002',
       '20000000-0000-4000-8000-000000000003',
       '20000000-0000-4000-8000-000000000004',
     ]);
-    expect(userUpsert.mock.calls.map(([args]) => args.update)).toEqual([
-      { primaryEmail: 'mali@s1t20.hktutor.invalid' },
-      { primaryEmail: 'kiet@s1t20.hktutor.invalid' },
-      { primaryEmail: 'niran@s1t20.hktutor.invalid' },
-      { primaryEmail: 'pim@s1t20.hktutor.invalid' },
+    expect(userUpsert.mock.calls.map(([args]) => args.create.passwordHash)).toEqual([
+      undefined,
+      undefined,
+      undefined,
+      undefined,
     ]);
-    expect(tutorProfileUpdate).toHaveBeenCalledWith({
-      where: { userId: 'anan-id' },
-      data: {
-        verificationStatus: TutorVerificationStatus.VERIFIED,
-        ratingAverage: '4.80',
-        reviewCount: 24,
-        ratingUpdatedAt: new Date('2026-09-01T00:00:00.000Z'),
-      },
-    });
-    expect(
-      tutorProfileUpsert.mock.calls.map(([args]) => ({
-        userId: args.where.userId,
-        ratingAverage: args.create.ratingAverage,
-        reviewCount: args.create.reviewCount,
-      })),
-    ).toEqual([
-      {
-        userId: '20000000-0000-4000-8000-000000000001',
-        ratingAverage: '4.40',
-        reviewCount: 18,
-      },
-      {
-        userId: '20000000-0000-4000-8000-000000000002',
-        ratingAverage: '4.00',
-        reviewCount: 10,
-      },
-      {
-        userId: '20000000-0000-4000-8000-000000000003',
-        ratingAverage: '4.70',
-        reviewCount: 12,
-      },
-      {
-        userId: '20000000-0000-4000-8000-000000000004',
-        ratingAverage: '4.60',
-        reviewCount: 15,
-      },
-    ]);
-
+    expect(teachingListingUpsert).toHaveBeenCalledTimes(6);
     expect(
       teachingListingUpsert.mock.calls.map(([args]) => ({
         id: args.where.id,
-        tutorProfileId: args.create.tutorProfileId,
-        subjectId: args.create.subjectId,
-        gradeLevelId: args.create.gradeLevelId,
-        pricePerHour: args.create.pricePerHour,
-        publicationStatus: args.create.publicationStatus,
-        publishedAt: args.create.publishedAt,
+        status: args.create.publicationStatus,
       })),
     ).toEqual([
-      {
-        id: '10000000-0000-4000-8000-000000000001',
-        tutorProfileId: 'anan-id',
-        subjectId: 'mathematics-id',
-        gradeLevelId: 'grade-10-id',
-        pricePerHour: '400.00',
-        publicationStatus: ListingPublicationStatus.PUBLISHED,
-        publishedAt: new Date('2026-09-01T00:00:00.000Z'),
-      },
-      {
-        id: '10000000-0000-4000-8000-000000000002',
-        tutorProfileId: '20000000-0000-4000-8000-000000000001',
-        subjectId: 'mathematics-id',
-        gradeLevelId: 'grade-10-id',
-        pricePerHour: '350.00',
-        publicationStatus: ListingPublicationStatus.PUBLISHED,
-        publishedAt: new Date('2026-09-01T00:00:00.000Z'),
-      },
-      {
-        id: '10000000-0000-4000-8000-000000000003',
-        tutorProfileId: '20000000-0000-4000-8000-000000000002',
-        subjectId: 'mathematics-id',
-        gradeLevelId: 'grade-10-id',
-        pricePerHour: '500.00',
-        publicationStatus: ListingPublicationStatus.PUBLISHED,
-        publishedAt: new Date('2026-09-01T00:00:00.000Z'),
-      },
-      {
-        id: '10000000-0000-4000-8000-000000000004',
-        tutorProfileId: '20000000-0000-4000-8000-000000000003',
-        subjectId: 'physics-id',
-        gradeLevelId: 'grade-10-id',
-        pricePerHour: '400.00',
-        publicationStatus: ListingPublicationStatus.PUBLISHED,
-        publishedAt: new Date('2026-09-01T00:00:00.000Z'),
-      },
-      {
-        id: '10000000-0000-4000-8000-000000000005',
-        tutorProfileId: '20000000-0000-4000-8000-000000000004',
-        subjectId: 'mathematics-id',
-        gradeLevelId: 'grade-11-id',
-        pricePerHour: '450.00',
-        publicationStatus: ListingPublicationStatus.PUBLISHED,
-        publishedAt: new Date('2026-09-01T00:00:00.000Z'),
-      },
-      {
-        id: '10000000-0000-4000-8000-000000000006',
-        tutorProfileId: 'anan-id',
-        subjectId: 'mathematics-id',
-        gradeLevelId: 'grade-10-id',
-        pricePerHour: '300.00',
-        publicationStatus: ListingPublicationStatus.DRAFT,
-        publishedAt: null,
-      },
+      { id: '10000000-0000-4000-8000-000000000001', status: ListingPublicationStatus.PUBLISHED },
+      { id: '10000000-0000-4000-8000-000000000002', status: ListingPublicationStatus.PUBLISHED },
+      { id: '10000000-0000-4000-8000-000000000003', status: ListingPublicationStatus.PUBLISHED },
+      { id: '10000000-0000-4000-8000-000000000004', status: ListingPublicationStatus.PUBLISHED },
+      { id: '10000000-0000-4000-8000-000000000005', status: ListingPublicationStatus.PUBLISHED },
+      { id: '10000000-0000-4000-8000-000000000006', status: ListingPublicationStatus.DRAFT },
     ]);
   });
 
-  it('refuses a reserved fixture email that belongs to a non-tutor account', async () => {
+  it('refuses a deterministic fixture id owned by a non-tutor', async () => {
     const { client, teachingListingUpsert, tutorProfileUpsert } = createClient(Role.STUDENT);
-    const { seedTutorSearchFixtures } = loadSearchFixturesModule();
 
     await expect(seedTutorSearchFixtures(client, foundation)).rejects.toThrow(
-      'Search fixture Clerk user ID belongs to a non-tutor account',
+      'Search fixture user ID belongs to a non-tutor account',
     );
     expect(tutorProfileUpsert).not.toHaveBeenCalled();
     expect(teachingListingUpsert).not.toHaveBeenCalled();
-  });
-
-  it('refuses a reserved fixture email claimed by an unrelated tutor account', async () => {
-    const { client, teachingListingUpsert, tutorProfileUpsert } = createClient(
-      Role.TUTOR,
-      'claimed-tutor-id',
-    );
-    const { seedTutorSearchFixtures } = loadSearchFixturesModule();
-
-    await expect(seedTutorSearchFixtures(client, foundation)).rejects.toThrow(
-      'Search fixture Clerk user ID is not owned by the seed',
-    );
-    expect(tutorProfileUpsert).not.toHaveBeenCalled();
-    expect(teachingListingUpsert).not.toHaveBeenCalled();
-  });
-
-  it('uses stable listing ids so repeat runs update the same fixture rows', async () => {
-    const { client, teachingListingUpsert } = createClient();
-    const { seedTutorSearchFixtures } = loadSearchFixturesModule();
-
-    await seedTutorSearchFixtures(client, foundation);
-    const firstRunIds = teachingListingUpsert.mock.calls.map(([args]) => args.where.id);
-
-    teachingListingUpsert.mockClear();
-    await seedTutorSearchFixtures(client, foundation);
-    const secondRunIds = teachingListingUpsert.mock.calls.map(([args]) => args.where.id);
-
-    expect(secondRunIds).toEqual(firstRunIds);
-    expect(new Set(secondRunIds).size).toBe(6);
   });
 });

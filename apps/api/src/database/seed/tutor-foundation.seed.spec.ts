@@ -2,32 +2,48 @@ import { seedTutorFoundation } from '@/database/seed/tutor-foundation.seed';
 import { AccountStatus, Role, TutorVerificationStatus } from '@/generated/prisma/client';
 
 import type { SeedTransactionClient } from '@/database/seed/seed-client';
+import type { Prisma } from '@/generated/prisma/client';
 
-function createClient(role: Role = Role.TUTOR) {
+function createClient(existing: { id: string; role: Role } | null = null) {
   const subjectUpsert = jest.fn().mockResolvedValue({ id: 'subject-id' });
   const gradeLevelUpsert = jest.fn().mockResolvedValue({ id: 'grade-id' });
-  const userUpsert = jest.fn().mockResolvedValue({ id: 'tutor-user-id', role });
-  const tutorProfileUpsert = jest.fn().mockResolvedValue({ userId: 'tutor-user-id' });
+  const findFirst = jest.fn().mockResolvedValue(existing);
+  const create = jest
+    .fn<Promise<{ id: string; role: Role }>, [Prisma.UserCreateArgs]>()
+    .mockResolvedValue({ id: 'tutor-user-id', role: Role.TUTOR });
+  const update = jest
+    .fn<Promise<{ id: string | undefined; role: Role | undefined }>, [Prisma.UserUpdateArgs]>()
+    .mockResolvedValue({ id: existing?.id, role: existing?.role });
+  const tutorProfileUpsert = jest
+    .fn<Promise<{ userId: string }>, [Prisma.TutorProfileUpsertArgs]>()
+    .mockResolvedValue({ userId: 'tutor-user-id' });
 
   return {
     client: {
       subject: { upsert: subjectUpsert },
       gradeLevel: { upsert: gradeLevelUpsert },
-      user: { upsert: userUpsert },
+      user: { findFirst, create, update },
       tutorProfile: { upsert: tutorProfileUpsert },
     } as unknown as SeedTransactionClient,
+    create,
     gradeLevelUpsert,
     subjectUpsert,
     tutorProfileUpsert,
-    userUpsert,
+    update,
   };
 }
 
 describe('seedTutorFoundation', () => {
-  it('upserts canonical Mathematics and Grade 10 catalog rows', async () => {
-    const { client, gradeLevelUpsert, subjectUpsert } = createClient();
+  it('creates a verified local tutor and canonical catalog rows', async () => {
+    const { client, create, gradeLevelUpsert, subjectUpsert, tutorProfileUpsert } = createClient();
 
-    const result = await seedTutorFoundation(client, 'user_tutor', 'tutor@example.com');
+    await expect(
+      seedTutorFoundation(client, 'tutor@example.com', 'argon2id-hash'),
+    ).resolves.toEqual({
+      tutorUserId: 'tutor-user-id',
+      mathematicsSubjectId: 'subject-id',
+      grade10Id: 'grade-id',
+    });
 
     expect(subjectUpsert).toHaveBeenCalledWith({
       where: { code: 'mathematics' },
@@ -39,54 +55,52 @@ describe('seedTutorFoundation', () => {
       update: { name: 'Grade 10', sortOrder: 10, active: true },
       create: { code: 'grade-10', name: 'Grade 10', sortOrder: 10, active: true },
     });
-    expect(result).toEqual({
-      tutorUserId: 'tutor-user-id',
-      mathematicsSubjectId: 'subject-id',
-      grade10Id: 'grade-id',
+    const createArgs = create.mock.calls[0]?.[0];
+    expect(createArgs?.data).toMatchObject({
+      email: 'tutor@example.com',
+      passwordHash: 'argon2id-hash',
+      role: Role.TUTOR,
+      accountStatus: AccountStatus.ACTIVE,
+    });
+    expect(createArgs?.data.emailVerifiedAt).toBeInstanceOf(Date);
+    expect(createArgs?.select).toEqual({ id: true, role: true });
+
+    const profileArgs = tutorProfileUpsert.mock.calls[0]?.[0];
+    expect(profileArgs?.where).toEqual({ userId: 'tutor-user-id' });
+    expect(profileArgs?.update).toEqual({
+      verificationStatus: TutorVerificationStatus.VERIFIED,
+    });
+    expect(profileArgs?.create).toMatchObject({
+      userId: 'tutor-user-id',
+      verificationStatus: TutorVerificationStatus.VERIFIED,
     });
   });
 
-  it('creates an active tutor mapped to Clerk and a verified profile', async () => {
-    const { client, tutorProfileUpsert, userUpsert } = createClient();
+  it('updates credentials on a repeat seed without creating a second tutor', async () => {
+    const { client, create, update } = createClient({ id: 'existing-id', role: Role.TUTOR });
 
-    await seedTutorFoundation(client, 'user_tutor', 'tutor@example.com');
+    await seedTutorFoundation(client, 'tutor@example.com', 'new-hash');
 
-    expect(userUpsert).toHaveBeenCalledWith({
-      where: { clerkUserId: 'user_tutor' },
-      update: { primaryEmail: 'tutor@example.com' },
-      create: {
-        clerkUserId: 'user_tutor',
-        primaryEmail: 'tutor@example.com',
-        role: Role.TUTOR,
-        accountStatus: AccountStatus.ACTIVE,
-      },
-      select: { id: true, role: true },
+    expect(create).not.toHaveBeenCalled();
+    const updateArgs = update.mock.calls[0]?.[0];
+    expect(updateArgs?.where).toEqual({ id: 'existing-id' });
+    expect(updateArgs?.data).toMatchObject({
+      passwordHash: 'new-hash',
+      accountStatus: AccountStatus.ACTIVE,
     });
-    expect(tutorProfileUpsert).toHaveBeenCalledWith({
-      where: { userId: 'tutor-user-id' },
-      update: { verificationStatus: TutorVerificationStatus.VERIFIED },
-      create: {
-        userId: 'tutor-user-id',
-        displayName: 'Anan',
-        bio: 'Verified tutor seeded for Sprint 1 demonstrations.',
-        experienceYears: 5,
-        verificationStatus: TutorVerificationStatus.VERIFIED,
-        ratingAverage: null,
-        reviewCount: 0,
-        ratingUpdatedAt: null,
-      },
-    });
+    expect(updateArgs?.data.emailVerifiedAt).toBeInstanceOf(Date);
+    expect(updateArgs?.select).toEqual({ id: true, role: true });
   });
 
-  it.each([Role.STUDENT, Role.ADMIN])(
-    'refuses to convert an existing %s account into the seeded tutor',
-    async (role) => {
-      const { client, tutorProfileUpsert } = createClient(role);
+  it('refuses to convert an existing non-tutor account', async () => {
+    const { client, tutorProfileUpsert } = createClient({
+      id: 'student-id',
+      role: Role.STUDENT,
+    });
 
-      await expect(seedTutorFoundation(client, 'user_tutor', 'tutor@example.com')).rejects.toThrow(
-        'Tutor seed Clerk user ID belongs to a non-tutor account',
-      );
-      expect(tutorProfileUpsert).not.toHaveBeenCalled();
-    },
-  );
+    await expect(seedTutorFoundation(client, 'tutor@example.com', 'argon2id-hash')).rejects.toThrow(
+      'Tutor seed email belongs to a non-tutor account',
+    );
+    expect(tutorProfileUpsert).not.toHaveBeenCalled();
+  });
 });

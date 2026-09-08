@@ -12,7 +12,6 @@
     "db:validate": "pnpm --filter @hktutor/api db:validate",
     "db:migrate:deploy": "pnpm --filter @hktutor/api db:migrate:deploy",
     "db:migrate:status": "pnpm --filter @hktutor/api db:migrate:status",
-    "db:preflight:s1-t07-clerk": "pnpm --filter @hktutor/api db:preflight:s1-t07-clerk",
     "db:seed": "pnpm --filter @hktutor/api db:seed",
     "db:verify:sprint1": "pnpm --filter @hktutor/api db:verify:sprint1",
     "test": "pnpm -r --if-present test",
