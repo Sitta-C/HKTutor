@@ -90,7 +90,6 @@ export default function Login() {
       } else {
         setErrorMessage('Failed to sign in');
       }
-    } finally {
       setIsLoading(false);
     }
   };

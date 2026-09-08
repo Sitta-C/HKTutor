@@ -96,9 +96,6 @@ export default function Register() {
       const { error } = await signUp.password({
         emailAddress: email,
         password,
-        // Clerk persists this onboarding choice on the completed user. The backend must still
-        // validate the allowed student/tutor values before using it for authorization.
-        unsafeMetadata: { role },
       });
 
       if (error) {

@@ -49,13 +49,12 @@ export class ClerkAuthGuard implements CanActivate {
       const { isAuthenticated } = await this.clerkClient.authenticateRequest(webRequest);
 
       if (!isAuthenticated) {
-        throw new UnauthorizedException('Missing authentication token');
+        throw new UnauthorizedException('Invalid or expired authentication token');
       }
 
       return true;
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      throw new UnauthorizedException(`Authentication failed: ${message}`);
+    } catch {
+      throw new UnauthorizedException('Invalid or expired authentication token');
     }
   }
 

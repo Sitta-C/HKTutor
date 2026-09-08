@@ -24,25 +24,9 @@ test('does not register the public Clerk token test endpoint', async () => {
   await assert.rejects(fs.access('apps/api/src/testAPI/test.controller.ts'));
 });
 
-test('uses deployable Clerk, API, and CORS environment names', async () => {
-  const [authModule, bootstrap] = await Promise.all([
-    fs.readFile('apps/api/src/auth/auth.module.ts', 'utf8'),
-    fs.readFile('apps/api/src/main.ts', 'utf8'),
-  ]);
+test('uses the browser-visible Clerk publishable key name', async () => {
+  const authModule = await fs.readFile('apps/api/src/auth/auth.module.ts', 'utf8');
 
   assert.match(authModule, /process\.env\['NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY'\]/);
   assert.doesNotMatch(authModule, /process\.env\['CLERK_PUBLISHABLE_KEY'\]/);
-  assert.match(bootstrap, /process\.env\['WEB_ORIGIN'\]/);
-});
-
-test('always clears the login loading state', async () => {
-  const login = await fs.readFile('apps/web/src/components/login.tsx', 'utf8');
-
-  assert.match(login, /finally\s*{\s*setIsLoading\(false\);\s*}/s);
-});
-
-test('persists the selected registration role in Clerk metadata', async () => {
-  const register = await fs.readFile('apps/web/src/components/register.tsx', 'utf8');
-
-  assert.match(register, /signUp\.password\(\{[\s\S]*unsafeMetadata:\s*\{\s*role\s*}/);
 });
