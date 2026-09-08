@@ -9,6 +9,7 @@ Resend, and then use short-lived JWT access tokens backed by revocable refresh s
 - `apps/web` — Next.js 16 client on port 3000
 - `apps/api` — NestJS 11 API on port 3001
 - `packages/eslint-config` and `packages/tsconfig` — shared tooling
+- `ui-design` — versioned static HTML design references; these do not ship with `apps/web`
 
 Use Node.js 24.19.0 and pnpm 11.19.0.
 
@@ -21,6 +22,20 @@ pnpm dev
 
 The API documentation is available at `http://localhost:3001/api/docs` and the health endpoint at
 `http://localhost:3001/api/health`.
+
+### Current product surface
+
+The implemented web flow is login (`/`), registration (`/register`), email verification
+(`/register/verify`, with `/register/verifypage` retained as a legacy alias), a protected dashboard
+stub (`/dashboard`), privacy (`/privacy`), and the informational `/about-me` page. The dashboard
+currently proves authentication and displays the user returned by `GET /api/auth/me`; it is not
+yet the final role-specific product dashboard.
+
+The accepted student and tutor dashboard concepts, plus the tutor profile/certificate form, live
+in [`ui-design`](ui-design/). Open [`ui-design/index.html`](ui-design/index.html) directly or serve
+the directory as static files. [`ui-design/uidesign.md`](ui-design/uidesign.md) records the page
+inventory, design tokens, component conventions, draft status, and API dependencies. Implemented
+UI must be ported into `apps/web`; do not import or iframe the prototype HTML.
 
 ## Authentication flow
 
@@ -110,3 +125,8 @@ The local authentication implementation covers registration, verification-link r
 verification, login, refresh rotation, logout, current-user lookup, and route protection. Password
 reset, email change, multi-factor authentication, and session-management UI are intentionally out
 of scope for this small demo.
+
+Domain models for tutor profiles, teaching listings, availability slots, and bookings already
+exist in Prisma, but the corresponding production web flows are not complete. Check the current
+task tracker and API surface before implementing a design draft; task wording that refers to Clerk
+is stale because `main` now uses local JWT authentication.

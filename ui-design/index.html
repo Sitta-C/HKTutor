@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>HKTutor — UI Design Gallery</title>
+    <style>
+      :root {
+        --fg: #111827;
+        --muted: #6b7280;
+        --accent: #2563eb;
+        --border: #e5e7eb;
+        --card: #ffffff;
+      }
+      * {
+        box-sizing: border-box;
+        margin: 0;
+      }
+      body {
+        font-family:
+          system-ui,
+          -apple-system,
+          'Noto Sans Thai',
+          sans-serif;
+        color: var(--fg);
+        background: #f9fafb;
+        padding: 2rem;
+        max-width: 900px;
+      }
+      h1 {
+        font-size: 1.5rem;
+        margin-bottom: 0.25rem;
+      }
+      p.sub {
+        color: var(--muted);
+        margin-bottom: 1.5rem;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+        gap: 1rem;
+      }
+      a.card {
+        display: block;
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 1rem 1.25rem;
+        text-decoration: none;
+        color: inherit;
+        transition: border-color 0.15s;
+      }
+      a.card:hover {
+        border-color: var(--accent);
+      }
+      .card h2 {
+        font-size: 1rem;
+        margin-bottom: 0.25rem;
+      }
+      .card p {
+        font-size: 0.8rem;
+        color: var(--muted);
+      }
+      .badge {
+        display: inline-block;
+        font-size: 0.7rem;
+        padding: 0.15rem 0.5rem;
+        border-radius: 999px;
+        background: #eff6ff;
+        color: var(--accent);
+        margin-top: 0.5rem;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>HKTutor — UI Design Gallery</h1>
+    <p class="sub">
+      Draft demos (HTML/TS) for Sprint 1 pages · see <code>ui-design/uidesign.md</code> for
+      conventions
+    </p>
+    <div class="grid">
+      <a class="card" href="pages/dashboard-student.html"
+        ><h2>Dashboard — Student</h2>
+        <p>Role-aware student view after login</p>
+        <span class="badge">S1-T09</span></a
+      >
+      <a class="card" href="pages/dashboard-tutor.html"
+        ><h2>Dashboard — Tutor</h2>
+        <p>Role-aware tutor view after login</p>
+        <span class="badge">S1-T09</span></a
+      >
+      <a class="card" href="pages/tutor-profile.html"
+        ><h2>Tutor Profile Form</h2>
+        <p>Profile details + multiple tutor certificates</p>
+        <span class="badge">S1-T16</span></a
+      >
+      <a class="card" href="pages/listing-form.html"
+        ><h2>Teaching Listing</h2>
+        <p>Listing form + cards (DRAFT/PUBLISHED)</p>
+        <span class="badge">S1-T16</span></a
+      >
+      <a class="card" href="pages/availability.html"
+        ><h2>Availability Manager</h2>
+        <p>Slot create/delete — Bangkok time (UTC+7)</p>
+        <span class="badge">S1-T19</span></a
+      >
+      <a class="card" href="pages/search.html"
+        ><h2>Tutor Search</h2>
+        <p>Filters + result cards + no-match state</p>
+        <span class="badge">S1-T22</span></a
+      >
+      <a class="card" href="pages/booking.html"
+        ><h2>Booking</h2>
+        <p>Confirmation screen + student booking list</p>
+        <span class="badge">S1-T25</span></a
+      >
+    </div>
+  </body>
+</html>
