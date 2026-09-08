@@ -10,7 +10,7 @@ export interface SubmitOnboardingResult {
 }
 
 export class OnboardingTokenError extends Error {
-  name = 'OnboardingTokenError';
+  override name = 'OnboardingTokenError';
 }
 
 export const ONBOARDING_ENDPOINT_PATH = '/api/users/onboarding';
