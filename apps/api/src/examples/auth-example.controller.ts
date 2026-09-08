@@ -11,14 +11,29 @@ import { Role } from '@/generated/prisma/client';
 
 import type { AuthenticatedUser } from '@/auth/auth.guard';
 
+/**
+ * ตัวอย่าง endpoint ที่ใช้ authentication และ role-based authorization ครบทั้ง flow
+ *
+ * ลำดับการทำงานของ request:
+ * 1. JwtAuthGuard ตรวจ Bearer access token และตรวจ session/user ในฐานข้อมูล
+ * 2. JwtAuthGuard แนบข้อมูลผู้ใช้ที่เชื่อถือได้ไว้ใน request.auth
+ * 3. RolesGuard อ่าน role ที่ @Roles กำหนด แล้วเปรียบเทียบกับ request.auth.role
+ * 4. @CurrentUser ดึง request.auth มาให้ controller ใช้งาน
+ *
+ * Swagger decorators มีหน้าที่สร้างเอกสาร API เท่านั้น ไม่ได้ป้องกัน endpoint จริง
+ * การป้องกันจริงเกิดจาก @UseGuards และ @Roles
+ */
 @ApiTags('examples')
 @Controller('api/examples')
-// Authentication must run before authorization so RolesGuard can read request.auth.
+// Guard ทำงานจากซ้ายไปขวา: ต้อง authenticate และสร้าง request.auth ก่อนตรวจ role เสมอ
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class AuthExampleController {
   @Get('protected')
+  // รวม Swagger decorators ของ endpoint ไว้ในไฟล์ .swagger แยกจาก business logic
   @GetProtectedAuthExampleDoc()
+  // เป็นเพียง metadata ให้ RolesGuard อ่าน จึงวางก่อนหรือหลัง @UseGuards ใน source ได้
   @Roles(Role.TUTOR, Role.ADMIN)
+  // JwtAuthGuard รับประกันว่า request.auth มีค่าแล้วก่อน controller ถูกเรียก
   getProtectedExample(@CurrentUser() user: AuthenticatedUser): AuthExampleResponseDto {
     return {
       email: user.email,
