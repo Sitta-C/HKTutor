@@ -22,6 +22,9 @@ RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
 
 FROM dependencies AS build
 
+ARG NEXT_PUBLIC_BACKEND_URL=http://localhost:3001
+ENV NEXT_PUBLIC_BACKEND_URL=$NEXT_PUBLIC_BACKEND_URL
+
 COPY apps/web apps/web
 COPY packages packages
 

@@ -23,6 +23,7 @@ test('provides only safe server-side Supabase placeholders', async () => {
     'CLERK_PUBLISHABLE_KEY',
     'CLERK_SECRET_KEY',
     'DATABASE_URL',
+    'NEXT_PUBLIC_BACKEND_URL',
     'SEED_ADMIN_CLERK_USER_ID',
     'SEED_ADMIN_EMAIL',
     'SEED_TUTOR_CLERK_USER_ID',
@@ -42,9 +43,12 @@ test('provides only safe server-side Supabase placeholders', async () => {
   assert.equal(template.SEED_TUTOR_EMAIL, '[TUTOR_EMAIL]');
   assert.equal(template.CLERK_SECRET_KEY, '[CLERK_SECRET_KEY]');
   assert.equal(template.CLERK_PUBLISHABLE_KEY, '[CLERK_PUBLISHABLE_KEY]');
+  const nextPublicKeys = Object.keys(template).filter((name) => name.startsWith('NEXT_PUBLIC_'));
+  assert.deepEqual(nextPublicKeys, ['NEXT_PUBLIC_BACKEND_URL']);
   assert.equal(
-    Object.keys(template).some((name) => name.startsWith('NEXT_PUBLIC_')),
-    false,
+    template.NEXT_PUBLIC_BACKEND_URL,
+    'http://localhost:3001',
+    'the onboarding API URL ships as a documented, overridable build-time default',
   );
 });
 

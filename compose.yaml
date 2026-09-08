@@ -29,6 +29,8 @@ services:
     build:
       context: .
       dockerfile: apps/web/Dockerfile
+      args:
+        NEXT_PUBLIC_BACKEND_URL: '${NEXT_PUBLIC_BACKEND_URL:-http://localhost:3001}'
     environment:
       HOSTNAME: 0.0.0.0
       NODE_ENV: production
