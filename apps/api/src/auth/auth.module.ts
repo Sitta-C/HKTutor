@@ -1,29 +1,26 @@
-// src/auth/auth.module.ts
-import { createClerkClient } from '@clerk/backend';
-import { Module, Global } from '@nestjs/common';
+import { Global, Module } from '@nestjs/common';
 
-import { ClerkAuthGuard } from '@/auth/auth.guard';
+import { AuthController } from '@/auth/auth.controller';
+import { JwtAuthGuard } from '@/auth/auth.guard';
+import { AuthService } from '@/auth/auth.service';
+import { JwtTokenService } from '@/auth/jwt.service';
+import { PasswordService } from '@/auth/password.service';
+import { RolesGuard } from '@/auth/roles.guard';
+import { AuthConfigService } from '@/config/auth.config';
+import { EmailModule } from '@/email/email.module';
 
 @Global()
 @Module({
+  imports: [EmailModule],
+  controllers: [AuthController],
   providers: [
-    {
-      provide: 'CLERK_CLIENT',
-      useFactory: () => {
-        if (!process.env['CLERK_SECRET_KEY']) {
-          throw new Error('Secret key missing');
-        }
-        if (!process.env['NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY']) {
-          throw new Error('Public key missing');
-        }
-        return createClerkClient({
-          secretKey: process.env['CLERK_SECRET_KEY'],
-          publishableKey: process.env['NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY'],
-        });
-      },
-    },
-    ClerkAuthGuard,
+    AuthConfigService,
+    AuthService,
+    JwtAuthGuard,
+    JwtTokenService,
+    PasswordService,
+    RolesGuard,
   ],
-  exports: ['CLERK_CLIENT', ClerkAuthGuard],
+  exports: [JwtAuthGuard, JwtTokenService, RolesGuard],
 })
 export class AuthModule {}

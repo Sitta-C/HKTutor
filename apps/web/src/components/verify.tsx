@@ -1,184 +1,158 @@
 'use client';
 
-import { useAuth, useSignUp } from '@clerk/nextjs';
+import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Suspense, useState } from 'react';
+import { Suspense, useEffect, useRef, useState } from 'react';
 
 import AuthShell from '@/components/auth-shell';
+import { resendVerification } from '@/lib/auth-client';
+import { useAuth } from '@/lib/auth-context';
 import { useLanguage } from '@/lib/i18n';
-import { submitOnboarding } from '@/lib/onboarding';
 
-import type { FormEvent } from 'react';
+const EMAIL_VERIFICATION_CHANNEL = 'hktutor-email-verification';
+const ORIGINAL_TAB_RESPONSE_TIMEOUT_MS = 1_500;
 
-const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3001';
+type VerificationTabMessage =
+  | { eventId: string; type: 'email-verified' }
+  | { eventId: string; type: 'email-verified-acknowledged' };
 
-type OnboardingPayload = {
-  consent: boolean;
-  policyVersion: string;
-  role: 'student' | 'tutor';
-};
-
-function readOnboardingPayload(): OnboardingPayload | null {
-  try {
-    const raw = sessionStorage.getItem('hktutor:onboarding');
-    if (!raw) return null;
-
-    const payload = JSON.parse(raw) as Partial<OnboardingPayload> | null;
-    if (
-      payload?.consent !== true ||
-      typeof payload.policyVersion !== 'string' ||
-      (payload.role !== 'student' && payload.role !== 'tutor')
-    ) {
-      return null;
-    }
-
-    return {
-      consent: payload.consent,
-      policyVersion: payload.policyVersion,
-      role: payload.role,
-    };
-  } catch {
-    return null;
-  }
+function isVerificationTabMessage(value: unknown): value is VerificationTabMessage {
+  if (!value || typeof value !== 'object') return false;
+  const message = value as Partial<VerificationTabMessage>;
+  return (
+    typeof message.eventId === 'string' &&
+    (message.type === 'email-verified' || message.type === 'email-verified-acknowledged')
+  );
 }
 
-function getErrorMessage(error: unknown, fallback: string) {
-  if (error instanceof Error) return error.message || fallback;
-  if (typeof error === 'object' && error !== null && 'errors' in error) {
-    const errors = error.errors;
-    if (Array.isArray(errors) && errors[0] && typeof errors[0] === 'object') {
-      const longMessage = 'longMessage' in errors[0] ? errors[0].longMessage : undefined;
-      if (typeof longMessage === 'string') return longMessage;
-    }
-  }
-  return fallback;
+function notifyOriginalTab(): Promise<boolean> {
+  if (typeof BroadcastChannel === 'undefined') return Promise.resolve(false);
+
+  return new Promise((resolve) => {
+    const channel = new BroadcastChannel(EMAIL_VERIFICATION_CHANNEL);
+    const eventId = window.crypto.randomUUID();
+    let settled = false;
+
+    const finish = (acknowledged: boolean) => {
+      if (settled) return;
+      settled = true;
+      window.clearTimeout(timeoutId);
+      channel.close();
+      resolve(acknowledged);
+    };
+
+    const timeoutId = window.setTimeout(() => finish(false), ORIGINAL_TAB_RESPONSE_TIMEOUT_MS);
+
+    channel.addEventListener('message', (event: MessageEvent<unknown>) => {
+      if (
+        isVerificationTabMessage(event.data) &&
+        event.data.type === 'email-verified-acknowledged' &&
+        event.data.eventId === eventId
+      ) {
+        finish(true);
+      }
+    });
+
+    channel.postMessage({ eventId, type: 'email-verified' } satisfies VerificationTabMessage);
+  });
 }
 
 function VerifyForm() {
+  const { verify } = useAuth();
   const { copy } = useLanguage();
-  const { signUp } = useSignUp();
-  const { getToken } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const email = searchParams.get('email') ?? '';
-  const [code, setCode] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const [isOnboarding, setIsOnboarding] = useState(false);
-  const [isRetryingOnboarding, setIsRetryingOnboarding] = useState(false);
+  const token = searchParams.get('token');
+  const initialEmail = searchParams.get('email') ?? '';
+  const attemptedToken = useRef<string | null>(null);
+  const handledVerificationEvent = useRef(false);
+  const [email, setEmail] = useState(initialEmail);
+  const [status, setStatus] = useState<'waiting' | 'verifying' | 'verified' | 'error'>(
+    token ? 'verifying' : 'waiting',
+  );
+  const [message, setMessage] = useState(
+    token
+      ? copy.register.otpLoading
+      : copy.register.otpSubtitle.replace('{email}', initialEmail || copy.register.emailLabel),
+  );
   const [isResending, setIsResending] = useState(false);
-  const [resendSuccess, setResendSuccess] = useState(false);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [onboardingError, setOnboardingError] = useState(false);
 
-  const handleVerification = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (!signUp || !code.trim()) return;
+  useEffect(() => {
+    if (token || typeof BroadcastChannel === 'undefined') return;
 
-    setIsLoading(true);
-    setErrorMessage(null);
-    setOnboardingError(false);
-    setResendSuccess(false);
-
-    try {
-      const result = await signUp.verifications.verifyEmailCode({ code: code.trim() });
-
-      if (result && 'error' in result && result.error) {
-        setErrorMessage(result.error.longMessage || result.error.message || 'Verification failed');
+    const channel = new BroadcastChannel(EMAIL_VERIFICATION_CHANNEL);
+    const handleMessage = (event: MessageEvent<unknown>) => {
+      if (
+        handledVerificationEvent.current ||
+        !isVerificationTabMessage(event.data) ||
+        event.data.type !== 'email-verified'
+      ) {
         return;
       }
 
-      try {
-        await signUp.finalize({
-          navigate: ({ session }) => {
-            if (session?.currentTask) return;
-          },
-        });
-      } catch {
-        setErrorMessage(copy.register.onboardingFailed);
-        return;
-      }
+      handledVerificationEvent.current = true;
+      channel.postMessage({
+        eventId: event.data.eventId,
+        type: 'email-verified-acknowledged',
+      } satisfies VerificationTabMessage);
 
-      setIsOnboarding(true);
-      try {
-        const payload = readOnboardingPayload();
+      // A full navigation makes this tab bootstrap auth from the refresh cookie
+      // that the verification request set in the other tab.
+      window.setTimeout(() => window.location.replace('/dashboard'), 50);
+    };
 
-        if (!payload) {
-          // The carried consent is missing or corrupt: recover it at the
-          // dedicated onboarding step instead of trapping or admitting the user.
-          sessionStorage.removeItem('hktutor:onboarding');
-          router.replace('/register/onboarding');
+    channel.addEventListener('message', handleMessage);
+    return () => {
+      channel.removeEventListener('message', handleMessage);
+      channel.close();
+    };
+  }, [token]);
+
+  useEffect(() => {
+    if (!token || attemptedToken.current === token) return;
+    attemptedToken.current = token;
+    verify(token)
+      .then(async () => {
+        setStatus('verified');
+        const originalTabAcknowledged = await notifyOriginalTab();
+
+        if (!originalTabAcknowledged) {
+          router.replace('/dashboard');
           return;
         }
 
-        const { ok } = await submitOnboarding(getToken, backendUrl, payload);
+        setMessage(copy.register.verificationReturningToOriginalTab);
+        window.close();
 
-        if (!ok) {
-          // Keep the stored payload so the retry path can re-run only the POST.
-          setOnboardingError(true);
-          return;
-        }
+        // Some browsers refuse programmatic closing. Keep a clear manual fallback
+        // instead of opening a second dashboard in that tab.
+        window.setTimeout(() => {
+          setMessage(copy.register.verificationCloseTab);
+        }, 250);
+      })
+      .catch((error: unknown) => {
+        setStatus('error');
+        setMessage(error instanceof Error ? error.message : copy.register.verificationFailed);
+      });
+  }, [
+    copy.register.verificationCloseTab,
+    copy.register.verificationFailed,
+    copy.register.verificationReturningToOriginalTab,
+    router,
+    token,
+    verify,
+  ]);
 
-        // Only clear the payload after the onboarding call succeeded.
-        sessionStorage.removeItem('hktutor:onboarding');
-        router.replace('/dashboard');
-      } catch {
-        setOnboardingError(true);
-      } finally {
-        setIsOnboarding(false);
-      }
-    } catch (error: unknown) {
-      setErrorMessage(getErrorMessage(error, 'Verification failed'));
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const retryOnboarding = async () => {
-    const payload = readOnboardingPayload();
-
-    if (!payload) {
-      sessionStorage.removeItem('hktutor:onboarding');
-      router.replace('/register/onboarding');
-      return;
-    }
-
-    setIsRetryingOnboarding(true);
-    setOnboardingError(false);
-    try {
-      const { ok } = await submitOnboarding(getToken, backendUrl, payload);
-
-      if (!ok) {
-        setOnboardingError(true);
-        return;
-      }
-
-      sessionStorage.removeItem('hktutor:onboarding');
-      router.replace('/dashboard');
-    } catch {
-      setOnboardingError(true);
-    } finally {
-      setIsRetryingOnboarding(false);
-    }
-  };
-
-  const handleResendCode = async () => {
-    if (!signUp) return;
-
+  const handleResend = async () => {
+    if (!email.trim()) return;
     setIsResending(true);
-    setErrorMessage(null);
-    setResendSuccess(false);
-
     try {
-      const result = await signUp.verifications.sendEmailCode();
-      if (result && 'error' in result && result.error) {
-        setErrorMessage(
-          result.error.longMessage || result.error.message || 'Failed to resend verification code',
-        );
-      } else {
-        setResendSuccess(true);
-      }
+      const result = await resendVerification(email.trim());
+      setStatus('waiting');
+      setMessage(result.message);
     } catch (error: unknown) {
-      setErrorMessage(getErrorMessage(error, 'Failed to resend code'));
+      setStatus('error');
+      setMessage(error instanceof Error ? error.message : copy.register.resendFailed);
     } finally {
       setIsResending(false);
     }
@@ -186,104 +160,64 @@ function VerifyForm() {
 
   return (
     <AuthShell page="register">
-      <section className="w-full max-w-[624px] rounded-[2rem] bg-white px-6 py-9 shadow-[0_22px_65px_rgba(46,39,25,0.08)] sm:px-12 sm:py-12 lg:px-[4.25rem] lg:py-14">
-        <div className="mx-auto max-w-[490px]">
-          <div className="mb-7 text-center sm:mb-8">
-            <p className="mb-3 text-[0.68rem] font-bold uppercase tracking-[0.24em] text-[#d18b43]">
-              {copy.register.otpEyebrow}
-            </p>
-            <h1 className="text-[2rem] font-bold tracking-[-0.055em] text-[#171714] sm:text-[2.25rem]">
-              {copy.register.otpTitle}
-            </h1>
-            <p className="mx-auto mt-3 max-w-[380px] text-[1.02rem] leading-7 text-[#5e5a52]">
-              {copy.register.otpSubtitle.replace('{email}', email)}
-            </p>
-          </div>
+      <section className="w-full max-w-[624px] rounded-[2rem] bg-white px-6 py-10 shadow-[0_22px_65px_rgba(46,39,25,0.08)] sm:px-12 sm:py-14 lg:px-[4.25rem] lg:py-[4.5rem]">
+        <div className="mx-auto max-w-[490px] text-center">
+          <p className="mb-3 text-[0.68rem] font-bold uppercase tracking-[0.24em] text-[#d18b43]">
+            {copy.register.otpEyebrow}
+          </p>
+          <h1 className="text-[2.1rem] font-bold tracking-[-0.055em] text-[#171714]">
+            {status === 'verifying' ? copy.register.otpLoading : copy.register.otpTitle}
+          </h1>
+          <p
+            className={`mx-auto mt-4 max-w-[390px] leading-7 ${status === 'error' ? 'text-[#c04f40]' : 'text-[#5e5a52]'}`}
+            role={status === 'error' ? 'alert' : 'status'}
+          >
+            {message}
+          </p>
 
-          <form onSubmit={handleVerification} className="space-y-4">
-            {errorMessage && (
-              <p className="rounded-lg bg-red-50 p-3 text-xs text-[#c04f40]" role="alert">
-                {errorMessage}
-              </p>
-            )}
-            {resendSuccess && (
-              <p className="rounded-lg bg-emerald-50 p-3 text-xs text-[#2e7d32]" role="status">
-                {copy.register.otpResent}
-              </p>
-            )}
-            <div>
-              <label htmlFor="code" className="sr-only">
-                {copy.register.otpLabel}
+          {(status === 'waiting' || status === 'error') && (
+            <div className="mt-8 space-y-3">
+              <label htmlFor="verificationEmail" className="sr-only">
+                {copy.register.emailLabel}
               </label>
               <input
-                id="code"
-                name="code"
-                type="text"
-                inputMode="numeric"
-                autoComplete="one-time-code"
-                placeholder={copy.register.otpPlaceholder}
-                value={code}
-                onChange={(event) => {
-                  setCode(event.target.value);
-                  if (errorMessage) setErrorMessage(null);
-                }}
-                className="h-[3.65rem] w-full rounded-xl border border-[#e2dfd8] bg-white px-5 text-center font-mono text-xl tracking-[0.25em] text-[#171714] outline-none transition-colors placeholder:font-sans placeholder:tracking-normal placeholder:text-[#77736b] hover:border-[#c6c0b5] focus:border-[#171714] focus:ring-2 focus:ring-[#171714]/10"
-                required
-                autoFocus
+                id="verificationEmail"
+                type="email"
+                autoComplete="email"
+                placeholder={copy.register.emailPlaceholder}
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                className="h-[3.65rem] w-full rounded-xl border border-[#e2dfd8] bg-white px-5 text-left text-[0.98rem] text-[#171714] outline-none focus:border-[#171714] focus:ring-2 focus:ring-[#171714]/10"
               />
-            </div>
-            <button
-              type="submit"
-              disabled={
-                !signUp || isLoading || isOnboarding || isRetryingOnboarding || !code.trim()
-              }
-              className="mt-2 flex h-[3.65rem] w-full items-center justify-center rounded-xl bg-[#ffc57d] px-5 text-base font-bold text-[#171714] shadow-[0_8px_18px_rgba(206,145,64,0.14)] transition-all hover:-translate-y-0.5 hover:bg-[#ffbd6c] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#171714]/30 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {isOnboarding || isRetryingOnboarding
-                ? copy.register.onboardingPending
-                : isLoading
-                  ? copy.register.otpLoading
-                  : copy.register.otpSubmit}
-            </button>
-            {onboardingError && (
-              <div className="mt-4 space-y-3">
-                <p className="rounded-lg bg-red-50 p-3 text-xs text-[#c04f40]" role="alert">
-                  {copy.register.onboardingFailed}
-                </p>
-                <button
-                  type="button"
-                  onClick={retryOnboarding}
-                  disabled={isRetryingOnboarding}
-                  className="flex h-[3.65rem] w-full items-center justify-center rounded-xl border border-[#e2dfd8] bg-[#faf9f6] px-5 text-base font-bold text-[#171714] transition-all hover:-translate-y-0.5 hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#171714]/30 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {isRetryingOnboarding
-                    ? copy.register.onboardingPending
-                    : copy.register.onboardingRetrySubmit}
-                </button>
-              </div>
-            )}
-          </form>
-
-          <div className="mt-6 flex flex-col items-center justify-center gap-3 text-sm text-[#5e5a52]">
-            <div className="flex items-center gap-1.5">
-              <span>{copy.register.otpResendPrompt}</span>
               <button
                 type="button"
-                disabled={!signUp || isResending}
-                onClick={handleResendCode}
-                className="font-bold text-[#171714] underline decoration-[#d18b43] underline-offset-4 hover:text-[#d88835] disabled:cursor-not-allowed disabled:opacity-60"
+                onClick={handleResend}
+                disabled={isResending || !email.trim()}
+                className="flex h-[3.65rem] w-full items-center justify-center rounded-xl bg-[#ffc57d] px-5 text-base font-bold text-[#171714] transition-all hover:bg-[#ffbd6c] disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {isResending ? copy.register.otpResending : copy.register.otpResend}
               </button>
             </div>
+          )}
+
+          {status === 'verified' && (
             <button
               type="button"
-              onClick={() => router.push('/register')}
-              className="text-xs text-[#77736b] transition-colors hover:text-[#171714] hover:underline"
+              onClick={() => window.close()}
+              className="mt-8 flex h-[3.65rem] w-full items-center justify-center rounded-xl bg-[#ffc57d] px-5 text-base font-bold text-[#171714] transition-all hover:bg-[#ffbd6c]"
             >
-              ← {copy.register.otpBack}
+              {copy.register.closeVerificationTab}
             </button>
-          </div>
+          )}
+
+          {status !== 'verified' && (
+            <Link
+              href="/"
+              className="mt-7 inline-block text-sm font-bold text-[#171714] underline decoration-[#d18b43] underline-offset-4"
+            >
+              {copy.register.signIn}
+            </Link>
+          )}
         </div>
       </section>
     </AuthShell>

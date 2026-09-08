@@ -13,7 +13,7 @@ const read = (path) => fs.readFile(path, 'utf8');
 test('pins the S1-T11 privacy policy version and consent contract', async () => {
   const notice = await read(noticeModulePath);
 
-  assert.match(notice, /export const PRIVACY_POLICY_VERSION = '2026-08-01';/);
+  assert.match(notice, /export const PRIVACY_POLICY_VERSION = '2026-09-08';/);
   assert.match(notice, /export const PRIVACY_NOTICE_PATH = '\/privacy';/);
   assert.match(notice, /export const CONSENT_REQUIRED_MESSAGE =/);
   assert.match(
@@ -24,14 +24,13 @@ test('pins the S1-T11 privacy policy version and consent contract', async () => 
   assert.match(notice, /policyVersion: PRIVACY_POLICY_VERSION/);
 });
 
-test('names Clerk as the credential processor and excludes local password storage', async () => {
+test('describes local password storage and Resend email delivery', async () => {
   const notice = await read(noticeModulePath);
 
-  assert.match(notice, /Clerk as its identity and authentication provider/);
-  assert.match(notice, /HKTutor never receives or stores your password/);
-  assert.match(notice, /no local password hash, JWT secret, or refresh token/);
-  assert.match(notice, /Clerk user identifier/);
-  assert.match(notice, /Clerk acts as a processor for HKTutor/);
+  assert.match(notice, /stores a one-way password hash rather than your password/);
+  assert.match(notice, /uses Resend to deliver account verification emails/);
+  assert.match(notice, /short-lived access '[\s\S]*tokens plus a refresh-session cookie/);
+  assert.match(notice, /Verification links are random, expire/);
 });
 
 test('covers every required disclosure topic exactly once per heading', async () => {
@@ -46,7 +45,7 @@ test('covers every required disclosure topic exactly once per heading', async ()
   );
 
   for (const topic of [
-    /Clerk processes your sign-in credentials/,
+    /How sign-in credentials are processed/,
     /What HKTutor stores about you/,
     /Why HKTutor needs this data/,
     /Consent is required before your account is created/,
@@ -124,11 +123,7 @@ test('translates the consent line in both languages', async () => {
     2,
     'both languages must interpolate the accepted policy version',
   );
-  assert.equal(
-    [...i18n.matchAll(/Clerk/g)].length,
-    2,
-    'both languages must name Clerk in the consent line',
-  );
+  assert.equal([...i18n.matchAll(/Clerk/g)].length, 0);
   assert.doesNotMatch(i18n, /^\s*policy:/m, 'the pre-S1-T11 placeholder copy is replaced');
 });
 
@@ -149,7 +144,8 @@ test('blocks registration submission until the notice is accepted', async () => 
   assert.match(register, /error=\{consentError\}/);
   assert.match(register, /buildOnboardingConsent\(acceptedPolicy\)/);
   assert.doesNotMatch(register, /void consent/);
-  assert.match(register, /sessionStorage\.setItem\('hktutor:onboarding'/);
+  assert.match(register, /await register\(/);
+  assert.match(register, /router\.push\(`\/register\/verify\?email=/);
   assert.doesNotMatch(
     register,
     /copy\.register\.policy\}/,

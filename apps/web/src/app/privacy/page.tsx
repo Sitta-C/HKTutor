@@ -7,7 +7,7 @@ import type { Metadata } from 'next';
 export const metadata: Metadata = {
   title: 'Privacy Notice',
   description:
-    'How HKTutor collects and uses personal data, and how Clerk processes sign-in credentials.',
+    'How HKTutor collects, secures, and uses personal data for this demonstration project.',
 };
 
 export default function PrivacyNoticePage() {

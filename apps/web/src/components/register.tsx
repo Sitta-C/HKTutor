@@ -1,12 +1,12 @@
 'use client';
 
-import { useClerk, useSignUp, useUser } from '@clerk/nextjs';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 
-import AuthShell, { AuthSocialButtons, EyeIcon } from '@/components/auth-shell';
+import AuthShell, { EyeIcon } from '@/components/auth-shell';
 import PrivacyConsent from '@/components/privacy-consent';
+import { useAuth } from '@/lib/auth-context';
 import { useLanguage } from '@/lib/i18n';
 import { buildOnboardingConsent } from '@/lib/privacy-notice';
 
@@ -16,22 +16,13 @@ type Role = 'student' | 'tutor';
 
 function getErrorMessage(error: unknown, fallback: string) {
   if (error instanceof Error) return error.message || fallback;
-  if (typeof error === 'object' && error !== null && 'errors' in error) {
-    const errors = error.errors;
-    if (Array.isArray(errors) && errors[0] && typeof errors[0] === 'object') {
-      const longMessage = 'longMessage' in errors[0] ? errors[0].longMessage : undefined;
-      if (typeof longMessage === 'string') return longMessage;
-    }
-  }
   return fallback;
 }
 
 export default function Register() {
   const { copy } = useLanguage();
-  const { signUp } = useSignUp();
+  const { register } = useAuth();
   const router = useRouter();
-  const { isSignedIn, isLoaded } = useUser();
-  const { signOut } = useClerk();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -44,14 +35,6 @@ export default function Register() {
   const [isConfirmPasswordVisible, setIsConfirmPasswordVisible] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (isLoaded && isSignedIn) {
-      signOut().then(() => {
-        window.location.reload();
-      });
-    }
-  }, [isLoaded, isSignedIn, signOut]);
 
   const handleConsentChange = (accepted: boolean) => {
     setAcceptedPolicy(accepted);
@@ -69,7 +52,11 @@ export default function Register() {
     }
     setPasswordError('');
 
-    // TODO: Weak Password check (or just let Clerk do it)
+    if (password.length < 10 || !/[A-Za-z]/.test(password) || !/\d/.test(password)) {
+      setPasswordError('Password must be at least 10 characters and contain a letter and number');
+      return;
+    }
+
     if (!acceptedPolicy) {
       setConsentError(copy.register.policyRequired);
       return;
@@ -77,52 +64,16 @@ export default function Register() {
     setConsentError(null);
     setErrorMessage(null);
 
-    // force sign out before sign up
-    if (isSignedIn) {
-      // Stale session on this client — clear it and retry once
-      await signOut();
-      window.location.reload();
-      return;
-    }
-
-    // authentication with Clerk
     setIsLoading(true);
     try {
-      // Create user in Clerk with password
-      const { error } = await signUp.password({
-        emailAddress: email,
+      await register({
+        email,
         password,
+        role,
+        ...buildOnboardingConsent(acceptedPolicy),
       });
-
-      if (error) {
-        setErrorMessage(error.longMessage || error.message || 'Registration failed');
-        setIsLoading(false);
-        return;
-      }
-
-      // email verification
-      const verifyResult = await signUp.verifications.sendEmailCode();
-
-      // verification fail
-      if (verifyResult && 'error' in verifyResult && verifyResult.error) {
-        setErrorMessage(
-          verifyResult.error.longMessage ||
-            verifyResult.error.message ||
-            'Failed to send verification code',
-        );
-        setIsLoading(false);
-        return;
-      }
-
-      // persist the onboarding consent for the verification step, which posts
-      // it to the backend once the Clerk session is active
-      const onboardingPayload = { ...buildOnboardingConsent(acceptedPolicy), role };
-      sessionStorage.setItem('hktutor:onboarding', JSON.stringify(onboardingPayload));
-
-      // send user to verification page
-      router.push(`/register/verifypage?email=${encodeURIComponent(email)}`);
+      router.push(`/register/verify?email=${encodeURIComponent(email)}`);
     } catch (err: unknown) {
-      console.error('Registration Error:', err);
       setErrorMessage(getErrorMessage(err, 'Registration failed'));
     } finally {
       setIsLoading(false);
@@ -177,6 +128,7 @@ export default function Register() {
                   id="password"
                   type={isPasswordVisible ? 'text' : 'password'}
                   autoComplete="new-password"
+                  minLength={10}
                   placeholder={copy.register.passwordPlaceholder}
                   value={password}
                   onChange={(event) => {
@@ -207,6 +159,7 @@ export default function Register() {
                   id="confirmPassword"
                   type={isConfirmPasswordVisible ? 'text' : 'password'}
                   autoComplete="new-password"
+                  minLength={10}
                   placeholder={copy.register.confirmPasswordPlaceholder}
                   value={confirmPassword}
                   onChange={(event) => {
@@ -284,11 +237,6 @@ export default function Register() {
                 />
               </div>
 
-              {/* Clerk's CAPTCHA widget */}
-              <div className="my-3 flex justify-center min-h-[65px]">
-                <div id="clerk-captcha"></div>
-              </div>
-
               <button
                 type="submit"
                 disabled={isLoading}
@@ -297,14 +245,6 @@ export default function Register() {
                 {isLoading ? copy.register.loading : copy.register.submit}
               </button>
             </form>
-
-            <div className="my-7 flex items-center gap-3 text-sm text-[#77736b]">
-              <span className="h-px flex-1 bg-[#e2dfd8]" />
-              <span>{copy.social.dividerRegister}</span>
-              <span className="h-px flex-1 bg-[#e2dfd8]" />
-            </div>
-
-            <AuthSocialButtons />
 
             <p className="mt-7 text-center text-sm text-[#5e5a52]">
               {copy.register.already}{' '}

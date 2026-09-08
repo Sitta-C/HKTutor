@@ -1,21 +1,18 @@
 'use client';
 
-import { useSignIn, useAuth, useUser } from '@clerk/nextjs';
-import { isClerkAPIResponseError } from '@clerk/nextjs/errors';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
-import AuthShell, { AuthSocialButtons, EyeIcon } from '@/components/auth-shell';
+import AuthShell, { EyeIcon } from '@/components/auth-shell';
+import { useAuth } from '@/lib/auth-context';
 import { useLanguage } from '@/lib/i18n';
 
 import type { FormEvent } from 'react';
 
 export default function Login() {
   const { copy } = useLanguage();
-  const { signIn } = useSignIn();
-  const { isLoaded } = useAuth();
-  const { isSignedIn } = useUser();
+  const { isLoading: isAuthLoading, login, user } = useAuth();
   const router = useRouter();
 
   const [email, setEmail] = useState('');
@@ -24,72 +21,23 @@ export default function Login() {
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
+  useEffect(() => {
+    if (!isAuthLoading && user) router.replace('/dashboard');
+  }, [isAuthLoading, router, user]);
+
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!isLoaded) return;
+    if (isAuthLoading) return;
 
     setIsLoading(true);
     setErrorMessage(null);
 
-    // sign in
     try {
-      if (isSignedIn) {
-        router.push(`/dashboard`);
-        return;
-      }
-
-      const { error } = await signIn.password({
-        emailAddress: email,
-        password,
-      });
-
-      if (error) {
-        console.error(JSON.stringify(error, null, 2));
-        setErrorMessage(error.message || 'Failed to sign in');
-        return;
-      }
-
-      if (signIn.status === 'complete') {
-        await signIn.finalize({
-          navigate: ({ session, decorateUrl }) => {
-            if (session?.currentTask) {
-              return;
-            }
-
-            const url = decorateUrl('/dashboard');
-            if (url.startsWith('http')) {
-              window.location.href = url;
-            } else {
-              router.push(url);
-            }
-          },
-        });
-      } else if (signIn.status === 'needs_client_trust') {
-        // device trust (not enabled) should not fall here either
-        // Clerk will sent email to notice user about the sign-in of the device instead of OTP
-
-        console.error('needs client trust');
-        const emailCodeFactor = signIn.supportedSecondFactors.find(
-          (factor) => factor.strategy === 'email_code',
-        );
-
-        if (emailCodeFactor) {
-          await signIn.mfa.sendEmailCode();
-        }
-
-        // TODO: verify UI if need device trust
-      } else if (signIn.status === 'needs_second_factor') {
-        // MFA verification (not implement) should not fall here either
-        console.error('needs 2FA');
-      } else {
-        console.error('Login is not complete (might need something else or fail): ', signIn);
-      }
+      await login(email, password);
+      router.replace('/dashboard');
     } catch (err: unknown) {
-      if (isClerkAPIResponseError(err)) {
-        setErrorMessage(err.errors?.[0]?.longMessage || 'Failed to sign in');
-      } else {
-        setErrorMessage('Failed to sign in');
-      }
+      setErrorMessage(err instanceof Error ? err.message : 'Failed to sign in');
+    } finally {
       setIsLoading(false);
     }
   };
@@ -162,20 +110,12 @@ export default function Login() {
 
             <button
               type="submit"
-              disabled={isLoading || !isLoaded}
+              disabled={isLoading || isAuthLoading}
               className="mt-2 flex h-[3.9rem] w-full items-center justify-center rounded-xl bg-[#ffc57d] px-5 text-base font-bold text-[#171714] shadow-[0_8px_18px_rgba(206,145,64,0.14)] transition-all hover:-translate-y-0.5 hover:bg-[#ffbd6c] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#171714]/30 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {isLoading ? copy.login.loading : copy.login.submit}
             </button>
           </form>
-
-          <div className="my-8 flex items-center gap-3 text-sm text-[#77736b]">
-            <span className="h-px flex-1 bg-[#e2dfd8]" />
-            <span>{copy.social.dividerLogin}</span>
-            <span className="h-px flex-1 bg-[#e2dfd8]" />
-          </div>
-
-          <AuthSocialButtons />
 
           <p className="mt-8 text-center text-sm text-[#5e5a52]">
             {copy.login.newTo}{' '}

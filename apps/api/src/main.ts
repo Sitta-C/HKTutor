@@ -1,4 +1,5 @@
 import { NestFactory } from '@nestjs/core';
+import cookieParser from 'cookie-parser';
 
 import { AppModule } from '@/app.module';
 import { configureApplication } from '@/app.setup';
@@ -6,11 +7,13 @@ import { configureApplication } from '@/app.setup';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
+  app.use(cookieParser());
+
   app.enableCors({
-    origin: 'http://localhost:3000',
+    origin: process.env['WEB_ORIGIN'] ?? 'http://localhost:3000',
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
-    credentials: true, // only if you're using cookies; not needed for Bearer-token auth
+    credentials: true,
   });
 
   configureApplication(app);

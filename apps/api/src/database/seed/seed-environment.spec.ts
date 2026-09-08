@@ -1,77 +1,40 @@
 import { readSeedEnvironment } from '@/database/seed/seed-environment';
 
 const completeEnvironment = {
-  SEED_ADMIN_CLERK_USER_ID: ' user_admin ',
   SEED_ADMIN_EMAIL: ' Admin@Example.com ',
-  SEED_TUTOR_CLERK_USER_ID: '\tuser_tutor\n',
+  SEED_ADMIN_PASSWORD: 'admin-pass-123',
   SEED_TUTOR_EMAIL: ' Tutor@Example.com ',
+  SEED_TUTOR_PASSWORD: 'tutor-pass-123',
 };
 
 describe('readSeedEnvironment', () => {
-  it('normalizes Clerk user IDs and cached primary emails', () => {
+  it('normalizes emails and reads local demo credentials', () => {
     expect(readSeedEnvironment(completeEnvironment)).toEqual({
-      adminClerkUserId: 'user_admin',
       adminEmail: 'admin@example.com',
-      tutorClerkUserId: 'user_tutor',
+      adminPassword: 'admin-pass-123',
       tutorEmail: 'tutor@example.com',
+      tutorPassword: 'tutor-pass-123',
     });
   });
 
-  it.each([undefined, '', '   ', '[ADMIN_EMAIL]', '[ADMIN_CLERK_USER_ID]'])(
-    'rejects incomplete administrator seed value %p',
-    (value) => {
-      const environment = { ...completeEnvironment };
-
-      if (value === undefined) {
-        delete environment.SEED_ADMIN_CLERK_USER_ID;
-      } else if (value === '[ADMIN_EMAIL]') {
-        environment.SEED_ADMIN_EMAIL = value;
-      } else {
-        environment.SEED_ADMIN_CLERK_USER_ID = value;
-      }
-
-      expect(() => readSeedEnvironment(environment)).toThrow(
-        'Admin seed environment is incomplete',
-      );
-    },
-  );
-
-  it.each([undefined, '', '   ', '[TUTOR_EMAIL]', '[TUTOR_CLERK_USER_ID]'])(
-    'rejects incomplete tutor seed value %p',
-    (value) => {
-      const environment = { ...completeEnvironment };
-
-      if (value === undefined) {
-        delete environment.SEED_TUTOR_CLERK_USER_ID;
-      } else if (value === '[TUTOR_EMAIL]') {
-        environment.SEED_TUTOR_EMAIL = value;
-      } else {
-        environment.SEED_TUTOR_CLERK_USER_ID = value;
-      }
-
-      expect(() => readSeedEnvironment(environment)).toThrow(
-        'Tutor seed environment is incomplete',
-      );
-    },
-  );
-
-  it('rejects the same administrator and tutor email case-insensitively', () => {
+  it('rejects placeholder or missing credentials', () => {
     expect(() =>
-      readSeedEnvironment({
-        ...completeEnvironment,
-        SEED_ADMIN_EMAIL: 'ADMIN@example.com',
-        SEED_TUTOR_EMAIL: 'admin@EXAMPLE.com',
-      }),
-    ).toThrow('Admin and tutor seed emails must be different');
+      readSeedEnvironment({ ...completeEnvironment, SEED_ADMIN_PASSWORD: '[ADMIN_PASSWORD]' }),
+    ).toThrow('Admin seed environment is incomplete');
+    expect(() =>
+      readSeedEnvironment({ ...completeEnvironment, SEED_TUTOR_EMAIL: undefined }),
+    ).toThrow('Tutor seed environment is incomplete');
   });
 
-  it('rejects the same Clerk identity for administrator and tutor fixtures', () => {
+  it('rejects short passwords', () => {
     expect(() =>
-      readSeedEnvironment({
-        ...completeEnvironment,
-        SEED_ADMIN_CLERK_USER_ID: 'user_shared',
-        SEED_TUTOR_CLERK_USER_ID: ' user_shared ',
-      }),
-    ).toThrow('Admin and tutor Clerk user IDs must be different');
+      readSeedEnvironment({ ...completeEnvironment, SEED_TUTOR_PASSWORD: 'short' }),
+    ).toThrow('Seed passwords must be at least 10 characters');
+  });
+
+  it('rejects duplicate emails case-insensitively', () => {
+    expect(() =>
+      readSeedEnvironment({ ...completeEnvironment, SEED_TUTOR_EMAIL: 'ADMIN@example.com' }),
+    ).toThrow('Admin and tutor seed emails must be different');
   });
 });

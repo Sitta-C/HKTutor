@@ -20,16 +20,28 @@ test('documents the required server-only and intentionally public environment va
   const template = parseEnvironment(await fs.readFile('.env.example', 'utf8'));
 
   assert.deepEqual(Object.keys(template).sort(), [
-    'CLERK_SECRET_KEY',
+    'APP_URL',
+    'COOKIE_DOMAIN',
+    'COOKIE_SAME_SITE',
+    'COOKIE_SECURE',
     'DATABASE_URL',
+    'EMAIL_FROM',
+    'EMAIL_VERIFICATION_TTL_MINUTES',
+    'JWT_ACCESS_SECRET',
+    'JWT_ACCESS_TTL_SECONDS',
+    'JWT_AUDIENCE',
+    'JWT_ISSUER',
+    'JWT_REFRESH_SECRET',
+    'JWT_REFRESH_TTL_SECONDS',
     'NEXT_PUBLIC_BACKEND_URL',
-    'NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY',
-    'SEED_ADMIN_CLERK_USER_ID',
+    'RESEND_API_KEY',
     'SEED_ADMIN_EMAIL',
-    'SEED_TUTOR_CLERK_USER_ID',
+    'SEED_ADMIN_PASSWORD',
     'SEED_TUTOR_EMAIL',
+    'SEED_TUTOR_PASSWORD',
     'SUPABASE_SECRET_KEY',
     'SUPABASE_URL',
+    'WEB_ORIGIN',
   ]);
   assert.equal(
     template.DATABASE_URL,
@@ -37,24 +49,22 @@ test('documents the required server-only and intentionally public environment va
   );
   assert.equal(template.SUPABASE_URL, 'https://[PROJECT_REF].supabase.co');
   assert.equal(template.SUPABASE_SECRET_KEY, 'sb_secret_[REPLACE_ME]');
-  assert.equal(template.SEED_ADMIN_CLERK_USER_ID, '[ADMIN_CLERK_USER_ID]');
   assert.equal(template.SEED_ADMIN_EMAIL, '[ADMIN_EMAIL]');
-  assert.equal(template.SEED_TUTOR_CLERK_USER_ID, '[TUTOR_CLERK_USER_ID]');
+  assert.equal(template.SEED_ADMIN_PASSWORD, '[ADMIN_PASSWORD_AT_LEAST_10_CHARACTERS]');
   assert.equal(template.SEED_TUTOR_EMAIL, '[TUTOR_EMAIL]');
-  assert.equal(template.CLERK_SECRET_KEY, '[CLERK_SECRET_KEY]');
-  assert.equal(template.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY, '[NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY]');
+  assert.equal(template.SEED_TUTOR_PASSWORD, '[TUTOR_PASSWORD_AT_LEAST_10_CHARACTERS]');
+  assert.equal(template.JWT_ACCESS_SECRET, '[JWT_ACCESS_SECRET_AT_LEAST_32_CHARACTERS]');
+  assert.equal(template.JWT_REFRESH_SECRET, '[JWT_REFRESH_SECRET_AT_LEAST_32_CHARACTERS]');
+  assert.equal(template.RESEND_API_KEY, '[RESEND_API_KEY]');
   assert.equal(
     template.NEXT_PUBLIC_BACKEND_URL,
     'http://localhost:3001',
-    'the onboarding API URL ships as a documented, overridable build-time default',
+    'the authentication API URL ships as a documented, overridable build-time default',
   );
   const nextPublicKeys = Object.keys(template)
     .filter((name) => name.startsWith('NEXT_PUBLIC_'))
     .sort();
-  assert.deepEqual(nextPublicKeys, [
-    'NEXT_PUBLIC_BACKEND_URL',
-    'NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY',
-  ]);
+  assert.deepEqual(nextPublicKeys, ['NEXT_PUBLIC_BACKEND_URL']);
 });
 
 test('ignores local environment files but keeps the safe template trackable', () => {

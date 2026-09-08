@@ -1,67 +1,72 @@
-// src/clerk/clerk-auth.guard.ts
-import {
-  CanActivate,
-  ExecutionContext,
-  Inject,
-  Injectable,
-  UnauthorizedException,
-} from '@nestjs/common';
-import { Request as ExpressRequest } from 'express';
+import { CanActivate, ExecutionContext, Injectable, UnauthorizedException } from '@nestjs/common';
 
-import type { ClerkClient } from '@clerk/backend';
+import { JwtTokenService } from '@/auth/jwt.service';
+import { PrismaService } from '@/database/prisma.service';
+import { AccountStatus, Role } from '@/generated/prisma/client';
+
+import type { Request as ExpressRequest } from 'express';
+
+export interface AuthenticatedUser {
+  id: string;
+  email: string;
+  role: Role;
+  sessionId: string;
+}
 
 export interface AuthenticatedRequest extends ExpressRequest {
-  auth?: { userId: string };
+  auth?: AuthenticatedUser;
 }
 
 @Injectable()
-export class ClerkAuthGuard implements CanActivate {
-  constructor(@Inject('CLERK_CLIENT') private readonly clerkClient: ClerkClient) {}
+export class JwtAuthGuard implements CanActivate {
+  constructor(
+    private readonly jwtTokens: JwtTokenService,
+    private readonly prisma: PrismaService,
+  ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
-    const token = this.extractTokenFromHeader(context.switchToHttp().getRequest());
+    const request = context.switchToHttp().getRequest<AuthenticatedRequest>();
+    const token = this.extractBearerToken(request);
 
     if (!token) {
       throw new UnauthorizedException('Missing authentication token');
     }
 
-    const request = context.switchToHttp().getRequest<AuthenticatedRequest>();
-
-    const protocol = request.protocol || 'http';
-    const host = request.get('host') || 'localhost';
-    const path = request.originalUrl || request.url || '/';
-
-    const fullUrl = `${protocol}://${host}${path}`;
-
-    const headers = new Headers();
-    Object.entries(request.headers).forEach(([key, value]) => {
-      if (value) {
-        headers.append(key, Array.isArray(value) ? value.join(', ') : value);
-      }
-    });
-
-    const webRequest = new Request(fullUrl, {
-      method: request.method,
-      headers: headers,
-    });
-
-    try {
-      const authState = await this.clerkClient.authenticateRequest(webRequest);
-
-      if (!authState.isAuthenticated) {
-        throw new UnauthorizedException('Invalid or expired authentication token');
-      }
-
-      request.auth = { userId: authState.toAuth().userId };
-
-      return true;
-    } catch {
+    const payload = this.jwtTokens.verifyAccessToken(token);
+    if (!payload) {
       throw new UnauthorizedException('Invalid or expired authentication token');
     }
+
+    const session = await this.prisma.authSession.findUnique({
+      where: { id: payload.sid },
+      include: { user: true },
+    });
+    const now = new Date();
+
+    if (
+      !session ||
+      session.userId !== payload.sub ||
+      session.revokedAt ||
+      session.expiresAt <= now ||
+      session.user.deletedAt ||
+      session.user.accountStatus !== AccountStatus.ACTIVE ||
+      !session.user.emailVerifiedAt
+    ) {
+      throw new UnauthorizedException('Invalid or expired authentication token');
+    }
+
+    request.auth = {
+      id: session.user.id,
+      email: session.user.email,
+      role: session.user.role,
+      sessionId: session.id,
+    };
+
+    return true;
   }
 
-  private extractTokenFromHeader(request: ExpressRequest): string | undefined {
+  private extractBearerToken(request: ExpressRequest): string | undefined {
     const [type, token] = request.headers.authorization?.split(' ') ?? [];
-    return type === 'Bearer' ? token : undefined;
+    return type === 'Bearer' && token ? token : undefined;
   }
 }

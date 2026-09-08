@@ -2,9 +2,9 @@
  * S1-T11 canonical privacy notice content and consent contract.
  *
  * This module is the single source of truth for the notice text, its version string, and the
- * consent payload shape. The `/privacy` page renders it, the onboarding consent control links to
- * it, and S1-T12 persists `policyVersion` from `PRIVACY_POLICY_VERSION` inside the Local User
- * onboarding transaction. Update `PRIVACY_POLICY_VERSION` whenever the notice text changes so
+ * consent payload shape. The `/privacy` page renders it, the registration consent control links to
+ * it, and the API persists `policyVersion` from `PRIVACY_POLICY_VERSION` with the Local User.
+ * Update `PRIVACY_POLICY_VERSION` whenever the notice text changes so
  * stored consent stays attributable to the wording the user actually accepted.
  *
  * The notice body is English only. The short consent line rendered beside the registration
@@ -12,7 +12,7 @@
  * must ship with its own version bump so each language is attributable to one accepted wording.
  */
 
-export const PRIVACY_POLICY_VERSION = '2026-08-01';
+export const PRIVACY_POLICY_VERSION = '2026-09-08';
 
 export const PRIVACY_NOTICE_PATH = '/privacy';
 
@@ -36,7 +36,7 @@ export interface PrivacyNotice {
 export const PRIVACY_NOTICE: PrivacyNotice = {
   title: 'HKTutor Privacy Notice',
   version: PRIVACY_POLICY_VERSION,
-  effectiveDate: '1 August 2026',
+  effectiveDate: '8 September 2026',
   summary:
     'HKTutor is an online tutor marketplace built as a university course project. This notice ' +
     'explains which personal data is collected when you register, who processes it, why it is ' +
@@ -56,23 +56,19 @@ export const PRIVACY_NOTICE: PrivacyNotice = {
       bullets: [],
     },
     {
-      heading: '2. Clerk processes your sign-in credentials',
+      heading: '2. How sign-in credentials are processed',
       paragraphs: [
-        'HKTutor uses Clerk as its identity and authentication provider. Clerk hosts the sign-up, ' +
-          'sign-in, email verification, and sign-out experience, issues the session token your ' +
-          'browser sends to the HKTutor API, and stores the credentials behind that session.',
-        'When you register, Clerk processes the account data you supply and the technical data ' +
-          'that authentication requires. HKTutor never receives or stores your password, and it ' +
-          'stores no local password hash, JWT secret, or refresh token of its own.',
+        'HKTutor operates its own sign-up, sign-in, email verification, and session system. The API ' +
+          'stores a one-way password hash rather than your password and issues short-lived access ' +
+          'tokens plus a refresh-session cookie.',
+        'HKTutor uses Resend to deliver account verification emails. Resend processes the recipient ' +
+          'address and delivery metadata needed to send those messages.',
       ],
       bullets: [
-        'Data Clerk processes: email address, any name you provide, email verification state, ' +
-          'authentication events, session and device metadata such as IP address and user agent.',
-        'Data HKTutor keeps from Clerk: the Clerk user identifier, which links your Clerk identity ' +
-          'to one HKTutor account, and a cached primary email address used to contact you about ' +
-          'your bookings.',
-        'Clerk acts as a processor for HKTutor and handles that data under its own published ' +
-          'privacy terms and security controls.',
+        'Account security data includes your email address, password hash, email verification state, ' +
+          'and revocable refresh-session records.',
+        'Verification links are random, expire after a limited period, and are stored by HKTutor ' +
+          'only as one-way hashes.',
       ],
     },
     {
@@ -83,7 +79,7 @@ export const PRIVACY_NOTICE: PrivacyNotice = {
           'reachable through short-lived signed links issued by the API.',
       ],
       bullets: [
-        'Account record: Clerk user identifier, cached email, role (student or tutor), account ' +
+        'Account record: email address, password hash, role (student or tutor), account ' +
           'status, the time you accepted this notice, and the version you accepted.',
         'Tutor records: display name, biography, years of experience, verification status, ' +
           'teaching listings, prices, and availability slots.',
@@ -113,8 +109,7 @@ export const PRIVACY_NOTICE: PrivacyNotice = {
       heading: '5. Consent is required before your account is created',
       paragraphs: [
         'Accepting this notice is a required step of onboarding. If you do not accept it, HKTutor ' +
-          'creates no account record and no tutor or student profile, and your Clerk identity ' +
-          'stays in an onboarding-incomplete state.',
+          'creates no account record and no tutor or student profile.',
         'When you accept, HKTutor records the moment of acceptance and the version of this notice ' +
           'shown to you, so it is always clear which wording you agreed to. Re-submitting the same ' +
           'onboarding form does not create a second account.',
@@ -131,7 +126,7 @@ export const PRIVACY_NOTICE: PrivacyNotice = {
           'the service cannot work without it.',
       ],
       bullets: [
-        'Clerk, as the identity and session processor described in section 2.',
+        'Resend, as the verification-email delivery processor described in section 2.',
         'Supabase, as the managed database and private file storage processor.',
         'The other party to a booking or chat, who sees the profile details, class details, and ' +
           'messages needed to hold the class.',
@@ -154,8 +149,8 @@ export const PRIVACY_NOTICE: PrivacyNotice = {
       heading: '8. Your choices and how to contact us',
       paragraphs: [
         'You can ask the project team to give you a copy of your account data, correct it, or ' +
-          'delete your account. Sign-in credentials are held by Clerk, so password and email ' +
-          'changes are made through the Clerk-hosted account screens.',
+          'delete your account. Because this is a demonstration project, password and email changes ' +
+          'are handled by the project team until self-service account settings are added.',
         'Contact route: the HKTutor project team, through the contact address published in the ' +
           'project repository README. This is a course project, so please allow for reply times ' +
           'outside teaching hours.',
@@ -169,8 +164,8 @@ export const PRIVACY_NOTICE: PrivacyNotice = {
           'code never receives a database connection string or a service key.',
       ],
       bullets: [
-        'All connections between the browser, the API, Clerk, and Supabase use TLS.',
-        'Every request to a protected endpoint is checked against the Clerk session and then ' +
+        'All deployed connections between the browser, the API, Resend, and Supabase use TLS.',
+        'Every request to a protected endpoint is checked against the signed JWT session and then ' +
           'against local role, account status, and ownership rules.',
         'Tutor documents live in a private bucket and are opened only through signed links that ' +
           'expire within minutes.',
