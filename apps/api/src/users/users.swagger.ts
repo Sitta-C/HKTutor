@@ -1,15 +1,19 @@
 import { applyDecorators } from '@nestjs/common';
 import {
   ApiBadRequestResponse,
+  ApiBearerAuth,
   ApiConflictResponse,
   ApiOperation,
   ApiResponse,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
 
+import { CLERK_BEARER_AUTH } from '@/auth/auth.swagger';
+
 export function PostOnboardingDoc(): MethodDecorator {
   return applyDecorators(
     ApiOperation({ summary: 'Accept the privacy notice and complete onboarding' }),
+    ApiBearerAuth(CLERK_BEARER_AUTH),
     ApiResponse({ status: 201, description: 'Onboarding consent persisted' }),
     ApiBadRequestResponse({
       description: 'Consent was declined or the payload is invalid',

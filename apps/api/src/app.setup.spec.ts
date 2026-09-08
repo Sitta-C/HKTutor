@@ -6,6 +6,7 @@ import { IsNumber, Min } from 'class-validator';
 import request from 'supertest';
 
 import { configureApplication } from '@/app.setup';
+import { CLERK_BEARER_AUTH } from '@/auth/auth.swagger';
 
 import type { INestApplication } from '@nestjs/common';
 import type { OpenAPIObject } from '@nestjs/swagger';
@@ -97,6 +98,11 @@ describe('configureApplication', () => {
       description: 'REST API for the HKTutor platform',
       title: 'HKTutor API',
       version: '1.0.0',
+    });
+    expect(document.components?.securitySchemes?.[CLERK_BEARER_AUTH]).toMatchObject({
+      bearerFormat: 'JWT',
+      scheme: 'bearer',
+      type: 'http',
     });
     expect(operation?.parameters).toEqual(
       expect.arrayContaining([

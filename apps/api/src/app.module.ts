@@ -7,7 +7,6 @@ import { AuthModule } from '@/auth/auth.module';
 import { validateDatabaseEnvironment } from '@/config/database.config';
 import { DatabaseModule } from '@/database/database.module';
 import { HealthModule } from '@/health/health.module';
-import { TestModule } from '@/testAPI/test.module';
 import { TutorsModule } from '@/tutors/tutors.module';
 import { UsersModule } from '@/users/users.module';
 
@@ -24,7 +23,6 @@ import { UsersModule } from '@/users/users.module';
     TutorsModule,
     UsersModule,
     AuthModule,
-    TestModule,
   ],
   controllers: [AppController],
   providers: [AppService],
