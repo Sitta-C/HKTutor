@@ -2,6 +2,12 @@ import { ApiProperty } from '@nestjs/swagger';
 
 import { Role } from '@/generated/prisma/client';
 
+/**
+ * DTO ของ response ที่ส่งกลับหลังผ่าน JwtAuthGuard และ RolesGuard แล้ว
+ *
+ * @ApiProperty ทำให้ Swagger ทราบชนิด คำอธิบาย และตัวอย่างของแต่ละ field
+ * แต่ไม่ได้ทำ runtime validation เพราะ class นี้เป็น response DTO ไม่ใช่ request DTO
+ */
 export class AuthExampleResponseDto {
   @ApiProperty({
     description: 'Confirmation that both authentication and role authorization succeeded',
