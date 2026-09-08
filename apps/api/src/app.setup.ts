@@ -1,6 +1,8 @@
 import { ValidationPipe } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 
+import { CLERK_BEARER_AUTH } from '@/auth/auth.swagger';
+
 import type { INestApplication } from '@nestjs/common';
 
 export function configureApplication(app: INestApplication): void {
@@ -20,6 +22,15 @@ export function configureApplication(app: INestApplication): void {
     .setTitle('HKTutor API')
     .setDescription('REST API for the HKTutor platform')
     .setVersion('1.0.0')
+    .addBearerAuth(
+      {
+        bearerFormat: 'JWT',
+        description: 'Clerk session token supplied as Authorization: Bearer <token>',
+        scheme: 'bearer',
+        type: 'http',
+      },
+      CLERK_BEARER_AUTH,
+    )
     .build();
   const documentFactory = () => SwaggerModule.createDocument(app, swaggerConfig);
 
