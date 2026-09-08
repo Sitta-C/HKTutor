@@ -1,6 +1,6 @@
 import { UnauthorizedException } from '@nestjs/common';
 
-import { ClerkAuthGuard } from '@/auth/auth.guard';
+import { ClerkAuthGuard, type AuthenticatedRequest } from '@/auth/auth.guard';
 
 import type { ClerkClient } from '@clerk/backend';
 import type { ExecutionContext } from '@nestjs/common';
@@ -21,14 +21,22 @@ describe('ClerkAuthGuard', () => {
   });
 
   it('accepts a valid Clerk token', async () => {
-    authenticateRequest.mockResolvedValue({ isAuthenticated: true } as AuthenticationState);
+    authenticateRequest.mockResolvedValue({
+      isAuthenticated: true,
+      toAuth: () => ({ userId: 'user_test' }),
+    } as AuthenticationState);
 
-    await expect(guard.canActivate(createContext('Bearer valid-token'))).resolves.toBe(true);
+    const context = createContext('Bearer valid-token');
+
+    await expect(guard.canActivate(context)).resolves.toBe(true);
 
     expect(authenticateRequest).toHaveBeenCalledTimes(1);
     const request = authenticateRequest.mock.calls[0]?.[0];
     expect(request).toBeInstanceOf(Request);
     expect(request?.headers.get('authorization')).toBe('Bearer valid-token');
+    expect(context.switchToHttp().getRequest<AuthenticatedRequest>().auth).toEqual({
+      userId: 'user_test',
+    });
   });
 
   it('rejects a request without a token', async () => {

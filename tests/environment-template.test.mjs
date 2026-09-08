@@ -22,6 +22,7 @@ test('documents the required server-only and intentionally public environment va
   assert.deepEqual(Object.keys(template).sort(), [
     'CLERK_SECRET_KEY',
     'DATABASE_URL',
+    'NEXT_PUBLIC_BACKEND_URL',
     'NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY',
     'SEED_ADMIN_CLERK_USER_ID',
     'SEED_ADMIN_EMAIL',
@@ -42,12 +43,18 @@ test('documents the required server-only and intentionally public environment va
   assert.equal(template.SEED_TUTOR_EMAIL, '[TUTOR_EMAIL]');
   assert.equal(template.CLERK_SECRET_KEY, '[CLERK_SECRET_KEY]');
   assert.equal(template.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY, '[NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY]');
-  assert.deepEqual(
-    Object.keys(template)
-      .filter((name) => name.startsWith('NEXT_PUBLIC_'))
-      .sort(),
-    ['NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY'],
+  assert.equal(
+    template.NEXT_PUBLIC_BACKEND_URL,
+    'http://localhost:3001',
+    'the onboarding API URL ships as a documented, overridable build-time default',
   );
+  const nextPublicKeys = Object.keys(template)
+    .filter((name) => name.startsWith('NEXT_PUBLIC_'))
+    .sort();
+  assert.deepEqual(nextPublicKeys, [
+    'NEXT_PUBLIC_BACKEND_URL',
+    'NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY',
+  ]);
 });
 
 test('ignores local environment files but keeps the safe template trackable', () => {

@@ -1,13 +1,46 @@
 'use client';
 
-import { useSignUp } from '@clerk/nextjs';
+import { useAuth, useSignUp } from '@clerk/nextjs';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useState } from 'react';
 
 import AuthShell from '@/components/auth-shell';
 import { useLanguage } from '@/lib/i18n';
+import { submitOnboarding } from '@/lib/onboarding';
 
 import type { FormEvent } from 'react';
+
+const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3001';
+
+type OnboardingPayload = {
+  consent: boolean;
+  policyVersion: string;
+  role: 'student' | 'tutor';
+};
+
+function readOnboardingPayload(): OnboardingPayload | null {
+  try {
+    const raw = sessionStorage.getItem('hktutor:onboarding');
+    if (!raw) return null;
+
+    const payload = JSON.parse(raw) as Partial<OnboardingPayload> | null;
+    if (
+      payload?.consent !== true ||
+      typeof payload.policyVersion !== 'string' ||
+      (payload.role !== 'student' && payload.role !== 'tutor')
+    ) {
+      return null;
+    }
+
+    return {
+      consent: payload.consent,
+      policyVersion: payload.policyVersion,
+      role: payload.role,
+    };
+  } catch {
+    return null;
+  }
+}
 
 function getErrorMessage(error: unknown, fallback: string) {
   if (error instanceof Error) return error.message || fallback;
@@ -24,14 +57,18 @@ function getErrorMessage(error: unknown, fallback: string) {
 function VerifyForm() {
   const { copy } = useLanguage();
   const { signUp } = useSignUp();
+  const { getToken } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
   const email = searchParams.get('email') ?? '';
   const [code, setCode] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isOnboarding, setIsOnboarding] = useState(false);
+  const [isRetryingOnboarding, setIsRetryingOnboarding] = useState(false);
   const [isResending, setIsResending] = useState(false);
   const [resendSuccess, setResendSuccess] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [onboardingError, setOnboardingError] = useState(false);
 
   const handleVerification = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -39,6 +76,7 @@ function VerifyForm() {
 
     setIsLoading(true);
     setErrorMessage(null);
+    setOnboardingError(false);
     setResendSuccess(false);
 
     try {
@@ -49,18 +87,77 @@ function VerifyForm() {
         return;
       }
 
-      await signUp.finalize({
-        navigate: ({ session, decorateUrl }) => {
-          if (session?.currentTask) return;
-          const url = decorateUrl('/dashboard');
-          if (url.startsWith('http')) window.location.replace(url);
-          else router.replace(url);
-        },
-      });
+      try {
+        await signUp.finalize({
+          navigate: ({ session }) => {
+            if (session?.currentTask) return;
+          },
+        });
+      } catch {
+        setErrorMessage(copy.register.onboardingFailed);
+        return;
+      }
+
+      setIsOnboarding(true);
+      try {
+        const payload = readOnboardingPayload();
+
+        if (!payload) {
+          // The carried consent is missing or corrupt: recover it at the
+          // dedicated onboarding step instead of trapping or admitting the user.
+          sessionStorage.removeItem('hktutor:onboarding');
+          router.replace('/register/onboarding');
+          return;
+        }
+
+        const { ok } = await submitOnboarding(getToken, backendUrl, payload);
+
+        if (!ok) {
+          // Keep the stored payload so the retry path can re-run only the POST.
+          setOnboardingError(true);
+          return;
+        }
+
+        // Only clear the payload after the onboarding call succeeded.
+        sessionStorage.removeItem('hktutor:onboarding');
+        router.replace('/dashboard');
+      } catch {
+        setOnboardingError(true);
+      } finally {
+        setIsOnboarding(false);
+      }
     } catch (error: unknown) {
       setErrorMessage(getErrorMessage(error, 'Verification failed'));
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const retryOnboarding = async () => {
+    const payload = readOnboardingPayload();
+
+    if (!payload) {
+      sessionStorage.removeItem('hktutor:onboarding');
+      router.replace('/register/onboarding');
+      return;
+    }
+
+    setIsRetryingOnboarding(true);
+    setOnboardingError(false);
+    try {
+      const { ok } = await submitOnboarding(getToken, backendUrl, payload);
+
+      if (!ok) {
+        setOnboardingError(true);
+        return;
+      }
+
+      sessionStorage.removeItem('hktutor:onboarding');
+      router.replace('/dashboard');
+    } catch {
+      setOnboardingError(true);
+    } finally {
+      setIsRetryingOnboarding(false);
     }
   };
 
@@ -137,11 +234,34 @@ function VerifyForm() {
             </div>
             <button
               type="submit"
-              disabled={!signUp || isLoading || !code.trim()}
+              disabled={
+                !signUp || isLoading || isOnboarding || isRetryingOnboarding || !code.trim()
+              }
               className="mt-2 flex h-[3.65rem] w-full items-center justify-center rounded-xl bg-[#ffc57d] px-5 text-base font-bold text-[#171714] shadow-[0_8px_18px_rgba(206,145,64,0.14)] transition-all hover:-translate-y-0.5 hover:bg-[#ffbd6c] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#171714]/30 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {isLoading ? copy.register.otpLoading : copy.register.otpSubmit}
+              {isOnboarding || isRetryingOnboarding
+                ? copy.register.onboardingPending
+                : isLoading
+                  ? copy.register.otpLoading
+                  : copy.register.otpSubmit}
             </button>
+            {onboardingError && (
+              <div className="mt-4 space-y-3">
+                <p className="rounded-lg bg-red-50 p-3 text-xs text-[#c04f40]" role="alert">
+                  {copy.register.onboardingFailed}
+                </p>
+                <button
+                  type="button"
+                  onClick={retryOnboarding}
+                  disabled={isRetryingOnboarding}
+                  className="flex h-[3.65rem] w-full items-center justify-center rounded-xl border border-[#e2dfd8] bg-[#faf9f6] px-5 text-base font-bold text-[#171714] transition-all hover:-translate-y-0.5 hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#171714]/30 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {isRetryingOnboarding
+                    ? copy.register.onboardingPending
+                    : copy.register.onboardingRetrySubmit}
+                </button>
+              </div>
+            )}
           </form>
 
           <div className="mt-6 flex flex-col items-center justify-center gap-3 text-sm text-[#5e5a52]">
