@@ -68,12 +68,17 @@ For a fresh clone, create the local file before adding credentials:
 cp .env.example .env
 ```
 
-Replace every bracketed placeholder in `.env` with values from the Supabase project:
+Replace every bracketed placeholder in `.env` with the corresponding local or hosted value:
 
 - `DATABASE_URL` — the Supavisor session-mode PostgreSQL connection string on port `5432`, used by
   the NestJS Prisma client and migration commands
 - `SUPABASE_URL` — the project API URL
 - `SUPABASE_SECRET_KEY` — a server-side `sb_secret_...` key for later NestJS Storage/API work
+- `CLERK_SECRET_KEY` — the server-only Clerk key used by Next.js middleware and the NestJS API
+- `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` — the browser-safe Clerk key; Next.js embeds it when the web
+  application is built
+- `NEXT_PUBLIC_BACKEND_URL` — the API URL used by browser requests
+- `WEB_ORIGIN` — the web application origin accepted by the NestJS CORS policy
 - `SEED_ADMIN_CLERK_USER_ID` and `SEED_ADMIN_EMAIL` — map a pre-provisioned Clerk identity to the
   active local administrator introduced in S1-T07
 - `SEED_TUTOR_CLERK_USER_ID` and `SEED_TUTOR_EMAIL` — map a pre-provisioned Clerk identity to the
@@ -461,7 +466,9 @@ docker compose down
 
 Compose intentionally contains only `web` and `api`. PostgreSQL and file storage are managed by
 the shared Supabase project; no database container or persistent volume belongs here. Compose
-requires `DATABASE_URL` from the ignored root `.env` and passes it only to the API container.
+requires `DATABASE_URL`, `CLERK_SECRET_KEY`, and `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` from the
+ignored root `.env`. It supplies browser-visible values to the Next.js build, keeps the Clerk
+secret out of image build arguments, and configures the API CORS origin through `WEB_ORIGIN`.
 
 ## Repository boundaries
 

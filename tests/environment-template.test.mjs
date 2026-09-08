@@ -16,19 +16,21 @@ const parseEnvironment = (source) =>
       }),
   );
 
-test('provides only safe server-side Supabase placeholders', async () => {
+test('documents the required server-only and intentionally public environment values', async () => {
   const template = parseEnvironment(await fs.readFile('.env.example', 'utf8'));
 
   assert.deepEqual(Object.keys(template).sort(), [
-    'CLERK_PUBLISHABLE_KEY',
     'CLERK_SECRET_KEY',
     'DATABASE_URL',
+    'NEXT_PUBLIC_BACKEND_URL',
+    'NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY',
     'SEED_ADMIN_CLERK_USER_ID',
     'SEED_ADMIN_EMAIL',
     'SEED_TUTOR_CLERK_USER_ID',
     'SEED_TUTOR_EMAIL',
     'SUPABASE_SECRET_KEY',
     'SUPABASE_URL',
+    'WEB_ORIGIN',
   ]);
   assert.equal(
     template.DATABASE_URL,
@@ -41,10 +43,14 @@ test('provides only safe server-side Supabase placeholders', async () => {
   assert.equal(template.SEED_TUTOR_CLERK_USER_ID, '[TUTOR_CLERK_USER_ID]');
   assert.equal(template.SEED_TUTOR_EMAIL, '[TUTOR_EMAIL]');
   assert.equal(template.CLERK_SECRET_KEY, '[CLERK_SECRET_KEY]');
-  assert.equal(template.CLERK_PUBLISHABLE_KEY, '[CLERK_PUBLISHABLE_KEY]');
-  assert.equal(
-    Object.keys(template).some((name) => name.startsWith('NEXT_PUBLIC_')),
-    false,
+  assert.equal(template.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY, '[NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY]');
+  assert.equal(template.NEXT_PUBLIC_BACKEND_URL, 'http://localhost:3001');
+  assert.equal(template.WEB_ORIGIN, 'http://localhost:3000');
+  assert.deepEqual(
+    Object.keys(template)
+      .filter((name) => name.startsWith('NEXT_PUBLIC_'))
+      .sort(),
+    ['NEXT_PUBLIC_BACKEND_URL', 'NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY'],
   );
 });
 
