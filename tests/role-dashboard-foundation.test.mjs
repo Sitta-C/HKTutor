@@ -63,3 +63,25 @@ test('role selection never reads from localStorage, cookies, or URL search param
   // i18n dashboard translations should not hardcode fake user booking data as real
   assert.doesNotMatch(i18nSource, /Pim · Mathematics · 450฿/);
 });
+
+test('dashboard shell enforces accessibility, responsive toggle, and visible focus states', async () => {
+  const [shellSource, cssSource] = await Promise.all([
+    read('apps/web/src/components/dashboard/dashboard-shell.tsx'),
+    read('apps/web/src/app/globals.css'),
+  ]);
+
+  // Accessible buttons and aria labels
+  assert.match(shellSource, /aria-label={copy\.dashboard\.sidebar\.closeSidebar}/);
+  assert.match(shellSource, /aria-label={copy\.dashboard\.sidebar\.openSidebar}/);
+  assert.match(shellSource, /aria-pressed={language === 'th'}/);
+  assert.match(shellSource, /aria-hidden="true"/);
+
+  // Focus visible styles
+  assert.match(cssSource, /\.dash-sb-close:focus-visible/);
+  assert.match(cssSource, /\.dash-reopen-logo:focus-visible/);
+  assert.match(cssSource, /\.dash-lang-btn:focus-visible/);
+
+  // Responsive sidebar collapse styling
+  assert.match(cssSource, /\.dash-app\.sb-collapsed \.dash-sidebar/);
+  assert.match(cssSource, /@media \(max-width: 960px\)/);
+});
