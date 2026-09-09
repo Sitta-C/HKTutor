@@ -20,8 +20,9 @@ pnpm db:generate
 pnpm dev
 ```
 
-The API documentation is available at `http://localhost:3001/api/v1/docs` and the health endpoint
-at `http://localhost:3001/api/v1/health`.
+The web client calls the API through the same origin at `/api/v1`. During `pnpm dev`, Next.js
+rewrites that path to the API on port 3001. The API documentation is available at
+`http://localhost:3000/api/v1/docs` (or directly at `http://localhost:3001/api/v1/docs`).
 
 ### Current product surface
 
@@ -61,7 +62,7 @@ Copy `.env.example` to the ignored `.env` and replace every bracketed placeholde
 - `APP_URL` — web URL embedded in email verification links
 - `WEB_ORIGIN` — exact browser origin allowed by API CORS
 - `COOKIE_SECURE=true` — required for an HTTPS deployment
-- `NEXT_PUBLIC_BACKEND_URL` — public API origin without `/api/v1`, baked into the web build
+- `API_INTERNAL_URL` — server-only NestJS origin used by the Next.js development rewrite
 - `SEED_ADMIN_EMAIL`, `SEED_ADMIN_PASSWORD`, `SEED_TUTOR_EMAIL`, and `SEED_TUTOR_PASSWORD` — local
   verified demo accounts; passwords must be at least 10 characters
 
@@ -116,8 +117,9 @@ This generates Prisma Client, runs workspace contract tests, formatting checks, 
 and production builds. It does not apply migrations, seed a database, or send email.
 
 Docker images can be validated with `docker compose config` after required environment values are
-set. The web image receives only `NEXT_PUBLIC_BACKEND_URL`; JWT, database, and Resend secrets remain
-API runtime values.
+set. Compose publishes one gateway on port 3000; `/api/v1` goes directly to NestJS and every other
+path goes to Next.js. The web and API ports stay private inside the Compose network. Terminate HTTPS
+at this gateway or an upstream VM proxy and set `COOKIE_SECURE=true` for a deployed demo.
 
 ## Demo scope
 

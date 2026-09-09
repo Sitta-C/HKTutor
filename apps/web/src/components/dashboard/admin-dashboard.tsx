@@ -6,7 +6,7 @@ import DashboardShell from '@/components/dashboard/dashboard-shell';
 import { getUserDisplayName } from '@/lib/dashboard-navigation';
 import { useLanguage } from '@/lib/i18n';
 
-import type { AuthUser } from '@/lib/auth-client';
+import type { AuthUser } from '@/lib/api/types';
 
 export interface AdminDashboardProps {
   user: AuthUser;

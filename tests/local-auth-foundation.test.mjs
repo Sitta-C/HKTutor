@@ -88,14 +88,16 @@ test('verifies JWT signatures and keeps refresh tokens out of response bodies', 
 
 test('web keeps access tokens in memory and sends refresh cookies as credentials', async () => {
   const [client, layout, proxy] = await Promise.all([
-    read('apps/web/src/lib/auth-client.ts'),
+    read('apps/web/src/lib/api/client.ts'),
     read('apps/web/src/app/layout.tsx'),
     read('apps/web/src/proxy.ts'),
   ]);
 
   assert.match(client, /let accessToken: string \| null = null/);
+  assert.match(client, /const API_BASE_URL = '\/api\/v1'/);
   assert.match(client, /credentials: 'include'/);
   assert.match(client, /Bearer \$\{accessToken\}/);
+  assert.match(client, /navigator\.locks/);
   assert.doesNotMatch(client, /localStorage|sessionStorage/);
   assert.match(layout, /<AuthProvider>/);
   assert.match(proxy, /hktutor_refresh/);
