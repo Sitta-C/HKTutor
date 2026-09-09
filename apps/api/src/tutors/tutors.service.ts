@@ -1,4 +1,9 @@
-import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 
 import { PrismaService } from '@/database/prisma.service';
 import {
@@ -202,10 +207,10 @@ export class TutorsService {
       },
       where: {
         userId: userid,
-      }
+      },
     });
 
-    if(!tutorProfile || tutorProfile.verificationStatus != 'VERIFIED') {
+    if (!tutorProfile || tutorProfile.verificationStatus !== 'VERIFIED') {
       throw new ForbiddenException(`Tutor is unverified`);
     }
 

@@ -31,6 +31,9 @@ export function PatchListingDoc(): MethodDecorator {
 export function PublishListingDoc(): MethodDecorator {
   return applyDecorators(
     ApiOperation({ summary: 'Publish a listing of current user where it is not deleted' }),
-    ApiOkResponse({ description: 'Role-specific private listing which is published and its published timestamp returned to its owner' }),
+    ApiOkResponse({
+      description:
+        'Role-specific private listing which is published and its published timestamp returned to its owner',
+    }),
   );
 }
