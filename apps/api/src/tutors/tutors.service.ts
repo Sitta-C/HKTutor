@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 
 import { PrismaService } from '@/database/prisma.service';
 import {
@@ -24,6 +24,7 @@ export class TutorsService {
   ): Promise<ListingResponseDto[] | null> {
     const listingsToSearch = {
       userid: userid,
+      deletedAt: null,
       ...(request.publicationStatus !== undefined && {
         publicationStatus: request.publicationStatus,
       }),
@@ -145,6 +146,7 @@ export class TutorsService {
       where: {
         tutorProfileId: userid,
         id: listingid,
+        deletedAt: null,
       },
       data: dataToUpdate,
     });
@@ -193,8 +195,21 @@ export class TutorsService {
     return response;
   }
 
-  async postPublishListing(userid: string, listingid: string) {
-    const response = await this.prisma.teachingListing.update({
+  async postPublishListing(userid: string, listingid: string): Promise<ListingResponseDto> {
+    const tutorProfile = await this.prisma.tutorProfile.findFirst({
+      select: {
+        verificationStatus: true,
+      },
+      where: {
+        userId: userid,
+      }
+    });
+
+    if(!tutorProfile || tutorProfile.verificationStatus != 'VERIFIED') {
+      throw new ForbiddenException(`Tutor is unverified`);
+    }
+
+    const updatedListing = await this.prisma.teachingListing.update({
       where: {
         tutorProfileId: userid,
         id: listingid,
@@ -204,9 +219,46 @@ export class TutorsService {
       },
     });
 
-    if (!response) {
+    if (!updatedListing) {
       throw new NotFoundException('absent/not-owned listing');
     }
+
+    const responseSubject = await this.prisma.subject.findFirstOrThrow({
+      where: {
+        id: updatedListing.subjectId,
+      },
+    });
+
+    const responseGradeLevel = await this.prisma.gradeLevel.findFirstOrThrow({
+      where: {
+        id: updatedListing.gradeLevelId,
+      },
+    });
+
+    const response: ListingResponseDto = {
+      listingId: updatedListing.id,
+      subject: {
+        id: responseSubject.id,
+        code: responseSubject.code,
+        name: responseSubject.name,
+        active: responseSubject.active,
+        createdAt: new Date(responseSubject.createdAt),
+        updatedAt: new Date(responseSubject.updatedAt),
+      },
+      gradeLevel: {
+        id: responseGradeLevel.id,
+        code: responseGradeLevel.code,
+        name: responseGradeLevel.name,
+        active: responseGradeLevel.active,
+        createdAt: new Date(responseGradeLevel.createdAt),
+        updatedAt: new Date(responseGradeLevel.updatedAt),
+      },
+      pricePerHour: updatedListing.pricePerHour.toNumber(),
+      description: updatedListing.description,
+      publicationStatus: updatedListing.publicationStatus,
+      publishedAt: updatedListing.publishedAt ? new Date(updatedListing.publishedAt) : null,
+      updatedAt: new Date(updatedListing.updatedAt),
+    };
 
     return response;
   }

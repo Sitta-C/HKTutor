@@ -10,7 +10,6 @@ import {
   Patch,
   Param,
 } from '@nestjs/common';
-import { ApiTags } from '@nestjs/swagger';
 
 import { JwtAuthGuard } from '@/auth/auth.guard';
 import { Roles } from '@/auth/roles.decorator';
@@ -24,8 +23,10 @@ import {
 } from '@/tutors/tutors.dto';
 import { TutorsService } from '@/tutors/tutors.service';
 import { GetUser } from '@/user/get-user.decorator';
+import { GetMyListingsDoc, PatchListingDoc, PostListingDoc, PublishListingDoc, TutorsControllerDoc } from '@/tutors/tutors.swagger';
 
-@ApiTags('tutors')
+
+@TutorsControllerDoc()
 @Controller('api/tutors')
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(Role.TUTOR)
@@ -35,6 +36,7 @@ export class TutorsController {
   //Listing
   @Get('me/listings')
   @HttpCode(HttpStatus.OK)
+  @GetMyListingsDoc()
   async getListings(
     @GetUser('userId') userId: string,
     @Body() request: ListingQueryDto,
@@ -48,6 +50,7 @@ export class TutorsController {
 
   @Post('me/listings')
   @HttpCode(HttpStatus.CREATED)
+  @PostListingDoc()
   async postListing(
     @GetUser('userId') userId: string,
     @Body() request: ListingPostRequestDto,
@@ -61,6 +64,7 @@ export class TutorsController {
 
   @Patch('me/listings/:listingId')
   @HttpCode(HttpStatus.OK)
+  @PatchListingDoc()
   async patchListing(
     @GetUser('userId') userId: string,
     @Param('listingId') listingId: string,
@@ -78,6 +82,7 @@ export class TutorsController {
 
   @Post('me/listings/:listingId/publish')
   @HttpCode(HttpStatus.OK)
+  @PublishListingDoc()
   async postPublishListing(
     @GetUser('userId') userId: string,
     @Param('listingId') listingId: string,

@@ -5,18 +5,19 @@ import { PrismaService } from '@/database/prisma.service';
 import { Role } from '@/generated/prisma/client';
 
 import type { AuthenticatedUser } from '@/auth/auth.guard';
+import type { Prisma } from '@/generated/prisma/client';
 import type { SaveStudentProfileDto, SaveTutorProfileDto } from '@/profiles/profiles.dto';
 
-const studentProfileSelect = {
+const studentProfileSelect: Prisma.StudentProfileSelect = {
   firstName: true,
   gradeLevel: true,
   lastName: true,
   nickname: true,
   phone: true,
   school: true,
-} as const;
+};
 
-const tutorProfileSelect = {
+const tutorProfileSelect: Prisma.TutorProfileSelect = {
   bio: true,
   displayName: true,
   experienceYears: true,
@@ -26,7 +27,7 @@ const tutorProfileSelect = {
   ratingAverage: true,
   reviewCount: true,
   verificationStatus: true,
-} as const;
+};
 
 @Injectable()
 export class ProfilesService {

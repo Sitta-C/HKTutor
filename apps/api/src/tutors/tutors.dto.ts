@@ -1,13 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
-import {
-  IsNumber,
-  IsOptional,
-  IsString,
-  IsDefined,
-  IsPositive,
-  Length,
-} from 'class-validator';
+import { IsNumber, IsOptional, IsString, IsDefined, IsPositive, Length } from 'class-validator';
 
 import type { TransformFnParams } from 'class-transformer';
 
