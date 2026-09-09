@@ -163,7 +163,6 @@ input {
 }
 
 .dash-sidebar {
-  min-width: 0;
   width: 300px;
   flex: 0 0 300px;
   position: sticky;
@@ -195,43 +194,14 @@ input {
   border-right: none;
 }
 
-@media (min-width: 961px) {
-  .dash-sidebar {
-    overflow-x: hidden;
-    margin-left: 0;
-    transition: margin-left 0.3s ease;
-  }
-
-  .dash-sidebar > * {
-    width: calc(300px - 2.5rem - 1px);
-    flex-shrink: 0;
-  }
-
-  .dash-app.sb-collapsed .dash-sidebar {
-    flex-basis: 300px;
-    width: 300px;
-    padding: 1.5rem 1.25rem;
-    margin-left: -300px;
-    opacity: 1;
-    border-right: 1px solid rgba(23, 23, 20, 0.07);
-  }
-}
-
 @media (prefers-reduced-motion: reduce) {
   .dash-sidebar,
-  .dash-sidebar > *,
   .dash-sb-close,
   .dash-reopen-logo,
   .dash-reopen-logo .mono,
   .dash-reopen-logo .reopen-txt,
   .dash-reopen-logo .burger i {
     transition: none;
-  }
-}
-
-@media (min-width: 961px) and (prefers-reduced-motion: reduce) {
-  .dash-sidebar {
-    transition: margin-left 0.15s linear;
   }
 }
 
@@ -378,19 +348,11 @@ input {
   .dash-sidebar {
     position: static;
     height: auto;
-    max-height: 100vh;
     width: 100% !important;
     flex-basis: auto;
-    transition:
-      max-height 0.3s ease,
-      padding 0.3s ease,
-      opacity 0.2s ease;
   }
   .dash-app.sb-collapsed .dash-sidebar {
-    display: flex;
-    max-height: 0;
-    padding-top: 0;
-    padding-bottom: 0;
+    display: none;
   }
 }
 
