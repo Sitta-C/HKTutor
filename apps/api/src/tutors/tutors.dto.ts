@@ -1,10 +1,9 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsNumber, IsOptional, IsString, Min, IsInt, IsDefined } from 'class-validator';
+import { IsNumber, IsOptional, IsString, Min, IsInt, IsDefined, IsEnum } from 'class-validator';
 import { Transform } from 'class-transformer';
 import type { TransformFnParams } from 'class-transformer';
 
-//Tutor profile
-
+//Profile
 export type TutorVerificationStatus = 'PENDING' | 'VERIFIED' | 'REJECTED';
 
 export class TutorProfileResponseDto {
@@ -48,6 +47,57 @@ export class TutorProfileUpdateQueryDto {
   @Transform(toNumberWhenPresent)
   @Min(0, { message: 'Negative experience' })
   experienceYears?: number;
+}
+
+//Listing
+export type PublicationStatus = 'DRAFT' | 'PUBLISHED' | 'ARCHIVED';
+
+export class ListingQueryDto {
+
+  @IsOptional()
+  publicationStatus?: PublicationStatus;
+}
+
+export class ListingResponseDto {
+
+  @ApiProperty({ example: '<uuid>' })
+  listingId!: string;
+
+  @ApiProperty({ example: `{id: <uuid>, code: <code>, name: math, active: true, createdAt: ${new Date("2026-08-17")}, updatedAt: ${new Date("2026-08-17")}}` })
+  subject!: {
+    id: string,
+    code: string,
+    name: string,
+    active: boolean,
+    createdAt: Date,
+    updatedAt: Date,
+  };
+
+  @ApiProperty({ example: `{id: <uuid>, code: <code>, name: <name>, active: true, createdAt: ${new Date("2026-08-17")}, updatedAt: ${new Date("2026-08-17")}}` })
+  gradeLevel!: {
+    id: string,
+    code: string,
+    name: string,
+    active: boolean,
+    createdAt: Date,
+    updatedAt: Date,
+  };
+
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @ApiProperty({ example: 199.00 })
+  pricePerHour!: number;
+
+  @ApiProperty({ example: '...' })
+  description!: string;
+
+  @ApiProperty({ example: 'DRAFT' })
+  publicationStatus!: PublicationStatus;
+
+  @ApiProperty({ example: new Date("2026-08-17") })
+  publishedAt?: Date | null;
+
+  @ApiProperty({ example: new Date("2026-08-17") })
+  updatedAt!: Date;
 }
 
 function toNumberWhenPresent({ value }: TransformFnParams): unknown {

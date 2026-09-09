@@ -1,10 +1,10 @@
-import { Controller, Get, Put, UseGuards, Res, HttpStatus, HttpCode, Body, BadRequestException } from '@nestjs/common';
+import { Controller, Get, Put, UseGuards, Res, HttpStatus, HttpCode, Body, BadRequestException, Query } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 
 import { JwtAuthGuard } from '@/auth/auth.guard';
 import { RolesGuard } from '@/auth/roles.guard';
 import { Roles } from '@/auth/roles.decorator';
-import { TutorProfileResponseDto, TutorProfileUpdateQueryDto } from '@/tutors/tutors.dto';
+import { ListingQueryDto, ListingResponseDto, TutorProfileResponseDto, TutorProfileUpdateQueryDto } from '@/tutors/tutors.dto';
 import { TutorsService } from '@/tutors/tutors.service';
 import { GetUser } from '@/user/get-user.decorator';
 
@@ -15,13 +15,14 @@ import { GetUser } from '@/user/get-user.decorator';
 export class TutorsController {
   constructor(private readonly tutorsService: TutorsService) {}
 
+  //Profile
   @Get('me/profile')
   @HttpCode(HttpStatus.OK)
   async getProfile(@GetUser('userId') userId: string, @Res({ passthrough: true }) res: Response): Promise<TutorProfileResponseDto> {
     if(!userId) {
       throw new BadRequestException(`userId missing`)
     }
-    return this.tutorsService.getProfile(userId);
+    return await this.tutorsService.getProfile(userId);
   }
 
   @Put('me/profile')
@@ -30,6 +31,17 @@ export class TutorsController {
     if(!userId) {
       throw new BadRequestException(`userId missing`)
     }
-    return this.tutorsService.putProfile(userId, updateTutorProfileDto);
+    return await this.tutorsService.putProfile(userId, updateTutorProfileDto);
+  }
+
+  //Listing
+  @Get('me/listings')
+  @HttpCode(HttpStatus.OK)
+  async getListings(@GetUser('userId') userId: string, @Query() query: ListingQueryDto): Promise<ListingResponseDto[]> {
+    if(!userId) {
+      throw new BadRequestException(`userId missing`)
+    }
+    const response = await this.tutorsService.getListings(userId, query)
+    return (response)? response : [];
   }
 }
