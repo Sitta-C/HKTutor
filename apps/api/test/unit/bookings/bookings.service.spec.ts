@@ -24,9 +24,9 @@ type DatabaseError = Error & { code: string };
 type TransactionCallback = (
   tx: {
     $queryRaw?: jest.Mock;
-    booking?: { create: jest.Mock; findFirst: jest.Mock };
-    teachingListing?: { findFirst: jest.Mock; findUnique: jest.Mock };
-    user?: { findUnique: jest.Mock };
+    booking?: { create?: jest.Mock; findFirst?: jest.Mock };
+    teachingListing?: { findFirst?: jest.Mock; findUnique?: jest.Mock };
+    user?: { findUnique?: jest.Mock };
   },
 ) => Promise<unknown>;
 
