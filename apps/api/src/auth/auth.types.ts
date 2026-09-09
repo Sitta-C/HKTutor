@@ -6,10 +6,10 @@ export interface JwtPayload {
   role: Role;
   type: 'access' | 'refresh';
   jti: string;
-  iat?: number;
-  exp?: number;
-  iss?: string;
-  aud?: string | string[];
+  iat: number;
+  exp: number;
+  iss: string;
+  aud: string | string[];
 }
 
 export interface PublicUser {

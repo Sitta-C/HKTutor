@@ -4,6 +4,7 @@ import { AuthController } from '@/auth/auth.controller';
 import { JwtAuthGuard } from '@/auth/auth.guard';
 import { AuthService } from '@/auth/auth.service';
 import { JwtTokenService } from '@/auth/jwt.service';
+import { ResourceOwnershipGuard } from '@/auth/ownership.guard';
 import { PasswordService } from '@/auth/password.service';
 import { RolesGuard } from '@/auth/roles.guard';
 import { AuthConfigService } from '@/config/auth.config';
@@ -19,8 +20,9 @@ import { EmailModule } from '@/email/email.module';
     JwtAuthGuard,
     JwtTokenService,
     PasswordService,
+    ResourceOwnershipGuard,
     RolesGuard,
   ],
-  exports: [JwtAuthGuard, JwtTokenService, RolesGuard],
+  exports: [JwtAuthGuard, JwtTokenService, ResourceOwnershipGuard, RolesGuard],
 })
 export class AuthModule {}

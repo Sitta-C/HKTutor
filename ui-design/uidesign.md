@@ -27,15 +27,15 @@ real pages are implemented in `apps/web`.
 
 ## 1. Existing pages (7 routes)
 
-| #   | Route                  | File(s)                                             | Task | Status          | Purpose                                                                                                                            |
-| --- | ---------------------- | --------------------------------------------------- | ---- | --------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| 1   | `/`                    | `app/page.tsx` + `components/login.tsx`             | T06  | ✅ Done         | Email/password login. Successful login stores the access token in memory and routes to `/dashboard`.                               |
-| 2   | `/register`            | `app/register/page.tsx` + `components/register.tsx` | T06  | ✅ Done         | Registration form for student/tutor role and privacy consent. The API creates the local user and sends a Resend verification link. |
-| 3   | `/register/verify`     | `page.tsx` + `components/verify.tsx`                | T06  | ✅ Done         | Consumes the one-time `token` query parameter, starts the session, and supports resending verification by email.                   |
-| 4   | `/register/verifypage` | `page.tsx` + `components/verify.tsx`                | T06  | ⚠️ Legacy alias | Renders the same verification component; new email links use `/register/verify`.                                                   |
-| 5   | `/dashboard`           | `app/dashboard/page.tsx`                            | T09  | ⚠️ **Stub**     | Protected demo showing the current local user from `GET /api/auth/me`. **Replace with the role-aware student/tutor dashboards.**   |
-| 6   | `/privacy`             | `app/privacy/page.tsx`                              | T11  | ✅ Done         | Server component rendering the current local-auth privacy notice and policy version.                                               |
-| 7   | `/about-me`            | `app/about-me/page.tsx`                             | —    | ⚠️ Static       | Informational page; not part of the core transaction flow.                                                                         |
+| #   | Route                  | File(s)                                             | Task | Status          | Purpose                                                                                                                             |
+| --- | ---------------------- | --------------------------------------------------- | ---- | --------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | `/`                    | `app/page.tsx` + `components/login.tsx`             | T06  | ✅ Done         | Email/password login. Successful login stores the access token in memory and routes to `/dashboard`.                                |
+| 2   | `/register`            | `app/register/page.tsx` + `components/register.tsx` | T06  | ✅ Done         | Registration form for student/tutor role and privacy consent. The API creates the local user and sends a Resend verification link.  |
+| 3   | `/register/verify`     | `page.tsx` + `components/verify.tsx`                | T06  | ✅ Done         | Consumes the one-time `token` query parameter, starts the session, and supports resending verification by email.                    |
+| 4   | `/register/verifypage` | `page.tsx` + `components/verify.tsx`                | T06  | ⚠️ Legacy alias | Renders the same verification component; new email links use `/register/verify`.                                                    |
+| 5   | `/dashboard`           | `app/dashboard/page.tsx`                            | T09  | ⚠️ **Stub**     | Protected demo showing the current local user from `GET /api/v1/auth/me`. **Replace with the role-aware student/tutor dashboards.** |
+| 6   | `/privacy`             | `app/privacy/page.tsx`                              | T11  | ✅ Done         | Server component rendering the current local-auth privacy notice and policy version.                                                |
+| 7   | `/about-me`            | `app/about-me/page.tsx`                             | —    | ⚠️ Static       | Informational page; not part of the core transaction flow.                                                                          |
 
 Shared plumbing: `lib/auth-client.ts` (in-memory access token, credentialed refresh),
 `lib/auth-context.tsx`, `lib/i18n.tsx` (hand-rolled EN/TH), `lib/privacy-notice.ts`,
@@ -48,7 +48,7 @@ authorization remains authoritative.
 
 | #   | Page                                               | Task       | Owner             | Sheet status | Depends on                  | Details                                                                                                                                                                                                 |
 | --- | -------------------------------------------------- | ---------- | ----------------- | ------------ | --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 8   | **Role-aware dashboards** (student vs tutor views) | **S1-T09** | **Tonnam/Korpai** | ⬜ To do     | Local auth foundation ✅    | Read the role from `GET /api/auth/me` through `AuthContext` and render the matching navigation/layout. Replaces the `/dashboard` stub. Drafts below are the agreed design.                              |
+| 8   | **Role-aware dashboards** (student vs tutor views) | **S1-T09** | **Tonnam/Korpai** | ⬜ To do     | Local auth foundation ✅    | Read the role from `GET /api/v1/auth/me` through `AuthContext` and render the matching navigation/layout. Replaces the `/dashboard` stub. Drafts below are the agreed design.                           |
 | 9   | **Tutor profile form**                             | S1-T16     | First/P           | ⬜ To do     | Profile API                 | Create/edit `displayName`, `bio`, `experienceYears`, plus multiple tutor documents/certificates.                                                                                                        |
 | 10  | **Teaching listing form + cards**                  | S1-T16     | First/P           | ⬜ To do     | Listing API                 | Create listings (subject, grade level, price, description), manage cards, and publish/unpublish.                                                                                                        |
 | 11  | **Availability manager (Bangkok time)**            | **S1-T19** | **Korpai/Tonnam** | ⬜ To do     | **T18 (Jojo, in progress)** | Create/delete `AvailabilitySlot` ranges; display times in **Bangkok time (UTC+7)** while the DB stores UTC (`timestamptz`). Blocked until T18 API merges.                                               |
@@ -62,7 +62,7 @@ authorization remains authoritative.
 ## 3. Dependency chain (UI-relevant)
 
 The local JWT authentication foundation is merged. UI implementation can use
-`AuthContext` + `GET /api/auth/me` now; domain pages still depend on their corresponding APIs:
+`AuthContext` + `GET /api/v1/auth/me` now; domain pages still depend on their corresponding APIs:
 
 ```text
 local auth → role-aware dashboards
@@ -243,8 +243,8 @@ ui-design/
 4. **One draft per page route** — name files after the real route: `dashboard-student.html`,
    `dashboard-tutor.html`, `availability.html`, etc. Iterate in place; git-history style backups
    are not needed here.
-5. **No real data.** Mock data only (tutor names/prices may copy the seed fixtures: Pim 450฿,
-   Mali 350฿ Mathematics). No secrets, no Clerk IDs, no connection strings — ever.
+5. **No real data.** Mock data only (tutor names/prices may copy the seed fixtures: Pim THB 450,
+   Mali THB 350 Mathematics). No secrets, no Clerk IDs, no connection strings — ever.
 6. **Not a spec of record.** Sections 1–3 above are the page inventory of record; the draft
    index (§7) is exploration tracking. When a draft is accepted, mark it in §7 and implement
    in `apps/web` on the owning task's branch.

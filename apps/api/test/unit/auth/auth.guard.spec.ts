@@ -21,23 +21,14 @@ describe('JwtAuthGuard', () => {
 
   it('accepts a signed access token backed by an active session', async () => {
     verifyAccessToken.mockReturnValue({ sub: 'user-id', sid: 'session-id' });
-    findUnique.mockResolvedValue({
-      id: 'session-id',
-      userId: 'user-id',
-      expiresAt: new Date(Date.now() + 60_000),
-      revokedAt: null,
-      user: {
-        id: 'user-id',
-        email: 'student@example.com',
-        role: Role.STUDENT,
-        accountStatus: AccountStatus.ACTIVE,
-        emailVerifiedAt: new Date(),
-        deletedAt: null,
-      },
-    });
+    findUnique.mockResolvedValue(activeSession());
     const context = createContext('Bearer signed-token');
 
     await expect(guard.canActivate(context)).resolves.toBe(true);
+    expect(findUnique).toHaveBeenCalledWith({
+      where: { id: 'session-id' },
+      include: { user: true },
+    });
     expect(context.switchToHttp().getRequest<AuthenticatedRequest>().auth).toEqual({
       id: 'user-id',
       email: 'student@example.com',
@@ -64,18 +55,73 @@ describe('JwtAuthGuard', () => {
 
   it('rejects a revoked session', async () => {
     verifyAccessToken.mockReturnValue({ sub: 'user-id', sid: 'session-id' });
-    findUnique.mockResolvedValue({
-      userId: 'user-id',
-      expiresAt: new Date(Date.now() + 60_000),
-      revokedAt: new Date(),
-      user: {},
-    });
+    findUnique.mockResolvedValue(activeSession({ revokedAt: new Date() }));
 
     await expect(guard.canActivate(createContext('Bearer signed-token'))).rejects.toThrow(
       'Invalid or expired authentication token',
     );
   });
+
+  it.each([
+    ['a missing session', null],
+    ['a session bound to another user', activeSession({ userId: 'other-user-id' })],
+    ['an expired session', activeSession({ expiresAt: new Date(Date.now() - 1_000) })],
+    [
+      'a soft-deleted user',
+      activeSession({ user: { ...activeSession().user, deletedAt: new Date() } }),
+    ],
+    [
+      'a suspended user',
+      activeSession({
+        user: { ...activeSession().user, accountStatus: AccountStatus.SUSPENDED },
+      }),
+    ],
+    [
+      'an unverified user',
+      activeSession({ user: { ...activeSession().user, emailVerifiedAt: null } }),
+    ],
+  ])('rejects %s', async (_description, session) => {
+    verifyAccessToken.mockReturnValue({ sub: 'user-id', sid: 'session-id' });
+    findUnique.mockResolvedValue(session);
+
+    await expect(guard.canActivate(createContext('Bearer signed-token'))).rejects.toThrow(
+      new UnauthorizedException('Invalid or expired authentication token'),
+    );
+  });
 });
+
+interface SessionFixture {
+  id: string;
+  userId: string;
+  expiresAt: Date;
+  revokedAt: Date | null;
+  user: {
+    id: string;
+    email: string;
+    role: Role;
+    accountStatus: AccountStatus;
+    emailVerifiedAt: Date | null;
+    deletedAt: Date | null;
+  };
+}
+
+function activeSession(overrides: Partial<SessionFixture> = {}): SessionFixture {
+  return {
+    id: 'session-id',
+    userId: 'user-id',
+    expiresAt: new Date(Date.now() + 60_000),
+    revokedAt: null,
+    user: {
+      id: 'user-id',
+      email: 'student@example.com',
+      role: Role.STUDENT,
+      accountStatus: AccountStatus.ACTIVE,
+      emailVerifiedAt: new Date(),
+      deletedAt: null,
+    },
+    ...overrides,
+  };
+}
 
 function createContext(authorization?: string): ExecutionContext {
   const headers: ExpressRequest['headers'] = {};

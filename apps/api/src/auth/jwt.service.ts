@@ -53,13 +53,30 @@ export class JwtTokenService {
   ): JwtPayload | null {
     try {
       const payload = jwt.verify(token, secret, {
+        algorithms: ['HS256'],
         audience: this.config.audience,
         issuer: this.config.issuer,
-      }) as JwtPayload;
+      });
 
-      return payload.type === expectedType && payload.sub && payload.sid ? payload : null;
+      if (
+        typeof payload === 'string' ||
+        payload['type'] !== expectedType ||
+        !isNonEmptyString(payload.sub) ||
+        !isNonEmptyString(payload['sid']) ||
+        !isNonEmptyString(payload['jti']) ||
+        typeof payload.iat !== 'number' ||
+        typeof payload.exp !== 'number'
+      ) {
+        return null;
+      }
+
+      return payload as JwtPayload;
     } catch {
       return null;
     }
   }
+}
+
+function isNonEmptyString(value: unknown): value is string {
+  return typeof value === 'string' && value.length > 0;
 }
