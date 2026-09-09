@@ -1,8 +1,10 @@
 import { Transform } from 'class-transformer';
 import { IsBoolean, IsEmail, IsIn, IsString, Matches, MaxLength, MinLength } from 'class-validator';
 
+import { CURRENT_PRIVACY_POLICY_VERSION } from '@/auth/auth.constants';
+
 const PUBLIC_ROLES = ['student', 'tutor'] as const;
-const POLICY_VERSIONS = ['2026-09-08'] as const;
+const POLICY_VERSIONS = [CURRENT_PRIVACY_POLICY_VERSION] as const;
 
 const normalizeEmail = ({ value }: { value: unknown }): unknown =>
   typeof value === 'string' ? value.trim().toLowerCase() : value;
@@ -54,4 +56,13 @@ export class ResendVerificationDto {
   @IsEmail()
   @MaxLength(254)
   email!: string;
+}
+
+export class AcceptPrivacyNoticeDto {
+  @IsBoolean()
+  consent!: boolean;
+
+  @Matches(/^\d{4}-\d{2}-\d{2}$/)
+  @IsIn([...POLICY_VERSIONS])
+  policyVersion!: string;
 }

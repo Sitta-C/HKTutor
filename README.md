@@ -27,10 +27,10 @@ rewrites that path to the API on port 3001. The API documentation is available a
 ### Current product surface
 
 The implemented web flow is login (`/`), registration (`/register`), email verification
-(`/register/verify`, with `/register/verifypage` retained as a legacy alias), a protected dashboard
-stub (`/dashboard`), privacy (`/privacy`), and the informational `/about-me` page. The dashboard
-currently proves authentication and displays the user returned by `GET /api/v1/auth/me`; it is not
-yet the final role-specific product dashboard.
+(`/register/verify`, with `/register/verifypage` retained as a legacy alias), role-specific profile
+onboarding (`/onboarding/profile`), a protected dashboard (`/dashboard`), profile editing
+(`/dashboard/profile`), and the informational `/about-me` page. The privacy notice opens as a
+closable modal from registration and the dashboard instead of using a separate route.
 
 The accepted student and tutor dashboard concepts, plus the tutor profile/certificate form, live
 in [`ui-design`](ui-design/). Open [`ui-design/index.html`](ui-design/index.html) directly or serve

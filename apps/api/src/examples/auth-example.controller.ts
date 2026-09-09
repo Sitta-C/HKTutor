@@ -1,5 +1,4 @@
 import { Controller, Get, Param, UseGuards } from '@nestjs/common';
-import { ApiTags } from '@nestjs/swagger';
 
 import { CurrentUser } from '@/auth/auth.decorator';
 import { JwtAuthGuard } from '@/auth/auth.guard';
@@ -12,6 +11,7 @@ import {
   OwnedListingExampleResponseDto,
 } from '@/examples/auth-example.dto';
 import {
+  AuthExampleControllerDoc,
   GetOwnedListingExampleDoc,
   GetProtectedAuthExampleDoc,
 } from '@/examples/auth-example.swagger';
@@ -32,7 +32,7 @@ import type { AuthenticatedUser } from '@/auth/auth.guard';
  * Swagger decorators มีหน้าที่สร้างเอกสาร API เท่านั้น ไม่ได้ป้องกัน endpoint จริง
  * การป้องกันจริงเกิดจาก @UseGuards, @Roles และ @RequireOwnership
  */
-@ApiTags('examples')
+@AuthExampleControllerDoc()
 @Controller('examples')
 // Guard ทำงานจากซ้ายไปขวา: authenticate ก่อนตรวจ role แล้วจึงตรวจ ownership
 @UseGuards(JwtAuthGuard, RolesGuard, ResourceOwnershipGuard)

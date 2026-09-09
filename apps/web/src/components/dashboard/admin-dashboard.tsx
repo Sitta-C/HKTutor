@@ -1,7 +1,5 @@
 'use client';
 
-import Link from 'next/link';
-
 import DashboardShell from '@/components/dashboard/dashboard-shell';
 import { getUserDisplayName } from '@/lib/dashboard-navigation';
 import { useLanguage } from '@/lib/i18n';
@@ -44,12 +42,6 @@ export function AdminDashboard({ user, onLogout }: AdminDashboardProps) {
               <button type="button" onClick={() => void onLogout()} className="dash-btn-dark">
                 <span>{adminCopy.signOutButton}</span>
               </button>
-              <Link
-                href="/privacy"
-                className="rounded-full border border-[#d9d2c6] bg-white px-5 py-2.5 text-sm font-bold text-[#1a1916] transition-colors hover:bg-[#faf8f4]"
-              >
-                {adminCopy.privacyButton}
-              </Link>
             </div>
           </div>
         </div>

@@ -10,6 +10,32 @@ import type { PrismaService } from '@/database/prisma.service';
 import type { EmailService } from '@/email/email.service';
 
 describe('AuthService', () => {
+  it('records the current privacy notice when an authenticated user re-consents', async () => {
+    const update = jest
+      .fn()
+      .mockImplementation(
+        ({ data }: { data: { consentAcceptedAt: Date; policyVersion: string } }) =>
+          Promise.resolve({
+            consentAcceptedAt: data.consentAcceptedAt,
+            policyVersion: data.policyVersion,
+          }),
+      );
+    const service = createService({ prisma: { user: { update } } });
+
+    await expect(
+      service.acceptPrivacyNotice('user-id', {
+        consent: true,
+        policyVersion: '2026-09-09',
+      }),
+    ).resolves.toMatchObject({ policyVersion: '2026-09-09' });
+    const calls = update.mock.calls as unknown as Array<
+      [{ where: { id: string }; data: { consentAcceptedAt: Date; policyVersion: string } }]
+    >;
+    expect(calls[0]?.[0].where).toEqual({ id: 'user-id' });
+    expect(calls[0]?.[0].data.policyVersion).toBe('2026-09-09');
+    expect(calls[0]?.[0].data.consentAcceptedAt).toBeInstanceOf(Date);
+  });
+
   it('stores password and verification-token hashes before sending the plain token', async () => {
     const userFindFirst = jest.fn().mockResolvedValue(null);
     const userCreate = jest.fn().mockResolvedValue({ id: 'user-id' });
@@ -33,7 +59,7 @@ describe('AuthService', () => {
         password: 'password123',
         role: 'student',
         consent: true,
-        policyVersion: '2026-09-08',
+        policyVersion: '2026-09-09',
       }),
     ).resolves.toEqual({ message: 'Check your email to verify your account.' });
 

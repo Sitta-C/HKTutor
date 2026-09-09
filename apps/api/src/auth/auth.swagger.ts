@@ -12,6 +12,7 @@ import {
   ApiOperation,
   ApiResponse,
   ApiServiceUnavailableResponse,
+  ApiTags,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
 
@@ -21,6 +22,10 @@ import type { HeaderObject, SchemaObject } from '@nestjs/swagger';
 
 export const JWT_BEARER_AUTH = 'jwt-bearer';
 export const REFRESH_COOKIE_AUTH = 'refresh-cookie';
+
+export function AuthControllerDoc(): ClassDecorator {
+  return applyDecorators(ApiTags('authentication'));
+}
 
 const errorSchema: SchemaObject = {
   example: {
@@ -104,7 +109,7 @@ export function RegisterAuthDoc(): MethodDecorator {
           consent: true,
           email: 'student@example.com',
           password: 'password123',
-          policyVersion: '2026-09-08',
+          policyVersion: '2026-09-09',
           role: 'student',
         },
         properties: {
@@ -116,7 +121,7 @@ export function RegisterAuthDoc(): MethodDecorator {
             format: 'password',
             type: 'string',
           },
-          policyVersion: { enum: ['2026-09-08'], type: 'string' },
+          policyVersion: { enum: ['2026-09-09'], type: 'string' },
           role: { enum: ['student', 'tutor'], type: 'string' },
         },
         required: ['email', 'password', 'role', 'consent', 'policyVersion'],
@@ -272,6 +277,18 @@ export function LogoutAuthDoc(): MethodDecorator {
           schema: { type: 'string' },
         },
       },
+    }),
+  );
+}
+
+export function AcceptPrivacyNoticeAuthDoc(): MethodDecorator {
+  return applyDecorators(
+    ApiOperation({ summary: 'Accept the current privacy notice' }),
+    ApiBearerAuth(JWT_BEARER_AUTH),
+    ApiOkResponse({ description: 'Current consent version recorded for the signed-in user' }),
+    ApiUnauthorizedResponse({
+      description: 'Access token or its backing session is missing, invalid, expired, or revoked',
+      schema: errorSchema,
     }),
   );
 }

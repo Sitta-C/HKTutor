@@ -67,11 +67,18 @@ describe('seedTutorFoundation', () => {
 
     const profileArgs = tutorProfileUpsert.mock.calls[0]?.[0];
     expect(profileArgs?.where).toEqual({ userId: 'tutor-user-id' });
-    expect(profileArgs?.update).toEqual({
+    expect(profileArgs?.update).toMatchObject({
+      firstName: 'Anan',
+      lastName: 'Sukjai',
+      nickname: 'Anan',
+      displayName: 'Anan',
       verificationStatus: TutorVerificationStatus.VERIFIED,
     });
     expect(profileArgs?.create).toMatchObject({
       userId: 'tutor-user-id',
+      firstName: 'Anan',
+      lastName: 'Sukjai',
+      nickname: 'Anan',
       verificationStatus: TutorVerificationStatus.VERIFIED,
     });
   });
