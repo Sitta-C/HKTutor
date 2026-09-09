@@ -1,8 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsNumber, IsOptional, IsString, Min, IsInt } from 'class-validator';
 
-import type { TransformFnParams } from 'class-transformer';
-
 //Tutor profile
 
 export type TutorVerificationStatus = 'PENDING' | 'VERIFIED' | 'REJECTED';
