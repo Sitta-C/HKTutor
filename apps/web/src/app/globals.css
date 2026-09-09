@@ -819,6 +819,26 @@ input {
   color: var(--ink);
 }
 
+.dash-earnings-value {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  column-gap: 0.45rem;
+  color: var(--ink);
+}
+
+.dash-earnings-value strong {
+  font-size: 1.7rem;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+}
+
+.dash-earnings-value span {
+  color: var(--ink-2);
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
 .dash-sub {
   font-size: 0.8rem;
   color: var(--ink-2);

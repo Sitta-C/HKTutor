@@ -83,11 +83,9 @@ export function TutorDashboard({ user, onLogout }: TutorDashboardProps) {
               <span className="dot" style={{ backgroundColor: 'var(--tutor)' }} />
               <span>{tutorCopy.earnings}</span>
             </h2>
-            <div className="dash-big">
-              0฿{' '}
-              <span className="text-xs font-semibold text-[#5e5a52]">
-                {tutorCopy.thisMonthZero}
-              </span>
+            <div className="dash-earnings-value">
+              <strong>0฿</strong>
+              <span>{tutorCopy.thisMonth}</span>
             </div>
             <div className="mt-2.5 flex flex-col gap-1.5 text-xs text-[#5e5a52]">
               <div className="flex items-center justify-between">

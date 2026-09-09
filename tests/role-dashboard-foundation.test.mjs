@@ -89,10 +89,11 @@ test('dashboard shell enforces accessibility, responsive toggle, and visible foc
 });
 
 test('role-specific views render distinct content with honest empty states', async () => {
-  const [studentSource, tutorSource, adminSource] = await Promise.all([
+  const [studentSource, tutorSource, adminSource, i18nSource] = await Promise.all([
     read('apps/web/src/components/dashboard/student-dashboard.tsx'),
     read('apps/web/src/components/dashboard/tutor-dashboard.tsx'),
     read('apps/web/src/components/dashboard/admin-dashboard.tsx'),
+    read('apps/web/src/lib/i18n.tsx'),
   ]);
 
   // Student view features
@@ -110,6 +111,8 @@ test('role-specific views render distinct content with honest empty states', asy
   assert.match(tutorSource, /tutorCopy\.myListings/);
   assert.match(tutorSource, /tutorCopy\.todayBangkokTime/);
   assert.match(tutorSource, /tutorCopy\.noUpcomingSessions/);
+  assert.match(tutorSource, /dash-earnings-value/);
+  assert.doesNotMatch(i18nSource, /thisMonth:\s*['"]0฿/);
   // Tutor view must not have student-specific panels
   assert.doesNotMatch(tutorSource, /studentCopy\.yourTutors/);
 
