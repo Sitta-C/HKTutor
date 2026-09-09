@@ -1,3 +1,5 @@
+/* global document, window */
+
 (function () {
   const paths = {
     student: [
