@@ -1,21 +1,23 @@
 # Auth example
 
-โฟลเดอร์นี้เป็นตัวอย่างการสร้าง NestJS endpoint ที่ใช้ระบบ authentication ใหม่ครบทั้ง Swagger, JWT authentication, role-based authorization และการอ่านผู้ใช้ปัจจุบันจาก request
+This directory demonstrates a NestJS endpoint that uses the current authentication stack end to
+end: Swagger documentation, JWT authentication, role-based authorization, and access to the
+current authenticated user.
 
-Endpoint ตัวอย่างคือ:
+The example endpoint is:
 
 ```http
 GET /api/examples/protected
 Authorization: Bearer <access-token>
 ```
 
-อนุญาตเฉพาะผู้ใช้ role `TUTOR` หรือ `ADMIN`
+Only users with the `TUTOR` or `ADMIN` role may call it.
 
-## ไฟล์ภายในโฟลเดอร์
+## Files
 
 ### `auth-example.controller.ts`
 
-ประกาศ route และรวม security components เข้าด้วยกัน:
+The controller declares the route and connects the security components:
 
 ```ts
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -24,79 +26,89 @@ export class AuthExampleController {
   @GetProtectedAuthExampleDoc()
   @Roles(Role.TUTOR, Role.ADMIN)
   getProtectedExample(@CurrentUser() user: AuthenticatedUser) {
-    // ใช้ user.id, user.email, user.role และ user.sessionId ได้ที่นี่
+    // user.id, user.email, user.role, and user.sessionId are available here.
   }
 }
 ```
 
-`@UseGuards(JwtAuthGuard, RolesGuard)` มีลำดับสำคัญ Guard ทำงานจากซ้ายไปขวา ดังนั้น `JwtAuthGuard` ต้องมาก่อนเพื่อสร้าง `request.auth` แล้ว `RolesGuard` จึงตรวจ `request.auth.role` ได้
+Guard order matters. NestJS runs the guards from left to right, so `JwtAuthGuard` must run first to
+create `request.auth`. `RolesGuard` can then check `request.auth.role`.
 
-ตำแหน่งของ `@Roles(...)` เมื่อเทียบกับ `@UseGuards(...)` ใน source code ไม่ได้กำหนดลำดับการทำงาน เพราะ `@Roles` มีหน้าที่บันทึก metadata เท่านั้น ส่วนลำดับภายใน `@UseGuards(...)` เป็นสิ่งที่กำหนดลำดับ Guard
+The source position of `@Roles(...)` relative to `@UseGuards(...)` does not control guard order.
+`@Roles` stores metadata; the order inside `@UseGuards(...)` controls execution.
 
-ปัจจุบัน `@UseGuards` อยู่ระดับ controller จึงป้องกันทุก endpoint ใน controller นี้ หากต้องการป้องกันเฉพาะบาง endpoint ให้นำ `@UseGuards` ไปวางที่ method นั้นแทน
+The example applies `@UseGuards` at controller level, so every endpoint in this controller is
+protected. Move it to an individual method when only that route needs protection.
 
 ### `auth-example.swagger.ts`
 
-รวม Swagger decorators ไว้ใน custom decorator `@GetProtectedAuthExampleDoc()` เพื่อแยก API documentation ออกจาก controller logic
+The `@GetProtectedAuthExampleDoc()` decorator keeps Swagger metadata separate from controller
+logic:
 
-- `ApiOperation` แสดงชื่อ endpoint ใน Swagger UI
-- `ApiBearerAuth` ระบุว่าต้องใช้ Bearer access token
-- `ApiOkResponse` อธิบาย response เมื่อสำเร็จ
-- `ApiUnauthorizedResponse` อธิบาย `401 Unauthorized`
-- `ApiForbiddenResponse` อธิบาย `403 Forbidden`
+- `ApiOperation` supplies the Swagger UI operation name.
+- `ApiBearerAuth` declares the Bearer access-token requirement.
+- `ApiOkResponse` documents the successful response.
+- `ApiUnauthorizedResponse` documents `401 Unauthorized`.
+- `ApiForbiddenResponse` documents `403 Forbidden`.
 
-Swagger เป็นเพียงเอกสารและช่องสำหรับกรอก token ใน Swagger UI การใส่ `ApiBearerAuth` อย่างเดียวไม่ได้ป้องกัน API ต้องมี `JwtAuthGuard` ด้วยเสมอ
+Swagger describes the API and provides a token field in its UI. `ApiBearerAuth` does not protect a
+route; the route must still use `JwtAuthGuard`.
 
-ชื่อ `JWT_BEARER_AUTH` ต้องตรงกับชื่อที่ใช้ตอนลงทะเบียน security scheme ใน `DocumentBuilder.addBearerAuth(...)` มิฉะนั้นปุ่ม Authorize อาจไม่แนบ token ให้ endpoint นี้
+`JWT_BEARER_AUTH` must match the security-scheme name registered through
+`DocumentBuilder.addBearerAuth(...)`. Otherwise, Swagger UI may not attach the token to requests.
 
 ### `auth-example.dto.ts`
 
-กำหนด response ที่ Swagger และ TypeScript ใช้อ้างอิง มีข้อมูล:
+The response type used by Swagger and TypeScript contains:
 
-- `message`: ข้อความยืนยันว่า request ผ่าน Guard แล้ว
-- `userId`: ID ของผู้ใช้ปัจจุบัน
-- `email`: อีเมลที่โหลดจากฐานข้อมูล
-- `role`: role ปัจจุบันที่ `RolesGuard` ใช้ตรวจสิทธิ์
+- `message`: confirmation that the request passed the guards
+- `userId`: the current user's ID
+- `email`: the email loaded from the database
+- `role`: the current database-backed role checked by `RolesGuard`
 
-`@ApiProperty` ใช้สร้าง OpenAPI schema ไม่ได้ทำ runtime validation หากเป็น request body ควรใช้ validation decorators เช่น `class-validator` เพิ่มต่างหาก
+`@ApiProperty` produces OpenAPI schema metadata. It does not perform runtime validation. Request
+bodies need validation decorators such as those from `class-validator`.
 
 ### `auth-example.module.ts`
 
-ลงทะเบียน `AuthExampleController` กับ NestJS ส่วน Auth dependencies มาจาก global `AuthModule` ที่ `AppModule` โหลดไว้แล้ว จึงไม่ต้อง import `AuthModule` ซ้ำใน module นี้
+This module registers `AuthExampleController`. Its authentication dependencies come from the
+global `AuthModule` loaded by `AppModule`, so it does not import `AuthModule` again.
 
 ### `test/unit/examples/auth-example.controller.spec.ts`
 
-ทดสอบทั้ง behavior และ OpenAPI contract:
+The tests cover behavior and the OpenAPI contract:
 
-- controller ส่งข้อมูลผู้ใช้ปัจจุบันกลับถูกต้อง
-- endpoint กำหนด allowed roles เป็น `TUTOR` และ `ADMIN`
-- Swagger มี Bearer security และ response `200`, `401`, `403`
+- the controller returns the current user correctly
+- the endpoint allows `TUTOR` and `ADMIN`
+- the Swagger operation declares Bearer security and `200`, `401`, and `403` responses
 
-## Request flow โดยละเอียด
+## Detailed request flow
 
 ```text
 Client
   -> Authorization: Bearer <access-token>
   -> JwtAuthGuard
-       1. อ่าน Bearer token จาก Authorization header
-       2. ตรวจ signature, issuer, audience, type และวันหมดอายุ
-       3. อ่าน sub (user ID) และ sid (session ID) จาก payload
-       4. ตรวจ AuthSession ว่ายัง active และยังไม่หมดอายุ
-       5. ตรวจ User ว่ายืนยันอีเมลแล้วและ accountStatus ยังใช้งานได้
-       6. สร้าง request.auth จากข้อมูลปัจจุบันในฐานข้อมูล
+       1. Read the Bearer token from the Authorization header.
+       2. Verify signature, issuer, audience, token type, and expiry.
+       3. Read sub (user ID) and sid (session ID) from the payload.
+       4. Confirm that AuthSession is active and unexpired.
+       5. Confirm that User is verified and has an active account status.
+       6. Build request.auth from current database data.
   -> RolesGuard
-       1. อ่าน allowed roles จาก @Roles(...)
-       2. อ่าน role จาก request.auth
-       3. อนุญาตเมื่อ role ตรงกับอย่างน้อยหนึ่งค่าที่กำหนด
+       1. Read the roles declared by @Roles(...).
+       2. Read the role from request.auth.
+       3. Allow the request when the current role matches an allowed role.
   -> @CurrentUser()
-       1. อ่าน request.auth จาก ExecutionContext
-       2. ส่ง AuthenticatedUser เข้า parameter ของ controller
+       1. Read request.auth from ExecutionContext.
+       2. Pass AuthenticatedUser to the controller parameter.
   -> Controller handler
 ```
 
-ข้อมูลใน access-token payload มี `sub`, `sid`, `role`, `type`, `jti` และ standard JWT claims แต่ controller ไม่ควรถอด token เอง ให้ใช้ `@CurrentUser()` เพราะข้อมูลนี้ผ่านการตรวจจาก `JwtAuthGuard` และตรวจสถานะล่าสุดในฐานข้อมูลแล้ว
+The access-token payload contains `sub`, `sid`, `role`, `type`, `jti`, and standard JWT claims.
+Controllers must not decode it themselves. Use `@CurrentUser()` because it exposes identity that
+has passed `JwtAuthGuard` and has been refreshed from current database state.
 
-`AuthenticatedUser` มีรูปแบบดังนี้:
+`AuthenticatedUser` has this shape:
 
 ```ts
 interface AuthenticatedUser {
@@ -107,23 +119,27 @@ interface AuthenticatedUser {
 }
 ```
 
-แม้ token จะมี `role` แต่ `JwtAuthGuard` ใช้ role ปัจจุบันจาก `User` ในฐานข้อมูลเป็นค่าที่เชื่อถือได้ หาก admin เปลี่ยน role หรือระงับบัญชี สิทธิ์จึงเปลี่ยนตามสถานะล่าสุดโดยไม่ต้องรอ access token หมดอายุ
+Although the token contains a role claim, `JwtAuthGuard` treats the current role in `User` as
+authoritative. An administrator's role or suspension change therefore takes effect without waiting
+for the access token to expire.
 
-## ความแตกต่างระหว่าง 401 และ 403
+## `401` and `403`
 
-`401 Unauthorized` หมายถึงระบบยังยืนยันตัวตนไม่ได้ ตัวอย่างเช่น:
+`401 Unauthorized` means the request could not be authenticated. Examples include:
 
-- ไม่ส่ง Bearer token
-- token ผิดรูปแบบ ลายเซ็นไม่ถูกต้อง หรือหมดอายุ
-- token เป็น refresh token ไม่ใช่ access token
-- session ถูก revoke หรือหมดอายุ
-- user ไม่พบ ถูกลบ ถูก suspend หรือยังไม่ยืนยันอีเมล
+- no Bearer token
+- malformed, invalidly signed, or expired token
+- a refresh token supplied where an access token is required
+- a revoked or expired session
+- a missing, deleted, suspended, or unverified user
 
-`403 Forbidden` หมายถึงยืนยันตัวตนสำเร็จแล้ว แต่ role ไม่มีสิทธิ์ เช่น `STUDENT` เรียก endpoint ที่อนุญาตเฉพาะ `TUTOR` และ `ADMIN`
+`403 Forbidden` means authentication succeeded, but the current role is not allowed. For example,
+a `STUDENT` receives 403 from an endpoint restricted to `TUTOR` and `ADMIN`.
 
-## Endpoint ที่ต้อง login แต่ไม่จำกัด role
+## Authentication without a role restriction
 
-ใช้ `JwtAuthGuard` อย่างเดียว หรือใช้ `RolesGuard` ร่วมด้วยแต่ไม่ใส่ `@Roles` ก็ได้ โดยแบบที่อ่านง่ายที่สุดคือ:
+Use `JwtAuthGuard` alone. `RolesGuard` also allows every authenticated role when no `@Roles`
+metadata exists, but the clearest form is:
 
 ```ts
 @Get('me')
@@ -133,7 +149,7 @@ getMe(@CurrentUser() user: AuthenticatedUser) {
 }
 ```
 
-## Endpoint ที่จำกัด role
+## Role-restricted endpoint
 
 ```ts
 @Get('admin-only')
@@ -144,15 +160,18 @@ getAdminOnly(@CurrentUser() user: AuthenticatedUser) {
 }
 ```
 
-ถ้า endpoint หลายเส้นใน controller ใช้ Guard ชุดเดียวกัน สามารถวาง `@UseGuards` ระดับ controller แล้วกำหนด `@Roles` แยกในแต่ละ method ได้ Method ที่ไม่ใส่ `@Roles` จะผ่าน `RolesGuard` สำหรับทุก role ที่ login แล้ว
+When several controller routes share the same guards, apply `@UseGuards` at controller level and
+put `@Roles` on the individual methods. A method without `@Roles` remains available to every
+authenticated role.
 
-## การทดสอบผ่าน Swagger UI
+## Testing through Swagger UI
 
-1. เรียก `POST /api/auth/login` ด้วยบัญชีที่ยืนยันอีเมลแล้ว
-2. คัดลอก `accessToken` จาก response ไม่ใช่ refresh token
-3. กด **Authorize** ใน Swagger UI
-4. ใส่ access token ตามรูปแบบที่ UI ขอ
-5. เรียก `GET /api/examples/protected`
-6. บัญชี `TUTOR` หรือ `ADMIN` ควรได้ `200`; บัญชี `STUDENT` ควรได้ `403`
+1. Call `POST /api/auth/login` with a verified account.
+2. Copy `accessToken` from the response. Do not use the refresh token.
+3. Select **Authorize** in Swagger UI.
+4. Enter the access token in the format requested by the UI.
+5. Call `GET /api/examples/protected`.
+6. A `TUTOR` or `ADMIN` should receive 200; a `STUDENT` should receive 403.
 
-Refresh token ถูกเก็บใน cookie `hktutor_refresh` และใช้กับ endpoint refresh/logout ไม่ควรนำ refresh token มาใส่ใน Bearer header
+The refresh token is stored in the `hktutor_refresh` cookie and is used only by refresh/logout. Do
+not place it in the Bearer header.

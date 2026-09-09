@@ -243,8 +243,8 @@ ui-design/
 4. **One draft per page route** — name files after the real route: `dashboard-student.html`,
    `dashboard-tutor.html`, `availability.html`, etc. Iterate in place; git-history style backups
    are not needed here.
-5. **No real data.** Mock data only (tutor names/prices may copy the seed fixtures: Pim 450฿,
-   Mali 350฿ Mathematics). No secrets, no Clerk IDs, no connection strings — ever.
+5. **No real data.** Mock data only (tutor names/prices may copy the seed fixtures: Pim THB 450,
+   Mali THB 350 Mathematics). No secrets, no Clerk IDs, no connection strings — ever.
 6. **Not a spec of record.** Sections 1–3 above are the page inventory of record; the draft
    index (§7) is exploration tracking. When a draft is accepted, mark it in §7 and implement
    in `apps/web` on the owning task's branch.
