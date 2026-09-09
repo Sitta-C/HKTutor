@@ -15,15 +15,6 @@ export class CreateBookingDto {
   @IsUUID()
   @IsString()
   listingId?: string;
-
-  @ApiProperty({
-    example: '70e1232d-3c06-4d5d-b3d2-6026df5ff315',
-    required: false,
-  })
-  @IsOptional()
-  @IsUUID()
-  @IsString()
-  studentUserId?: string;
 }
 
 export class BookingResponseDto {

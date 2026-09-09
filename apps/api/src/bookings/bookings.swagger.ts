@@ -1,20 +1,24 @@
 import { applyDecorators } from '@nestjs/common';
 import {
   ApiBadRequestResponse,
+  ApiBearerAuth,
   ApiConflictResponse,
   ApiCreatedResponse,
   ApiExtraModels,
   ApiForbiddenResponse,
   ApiOperation,
+  ApiUnauthorizedResponse,
   getSchemaPath,
 } from '@nestjs/swagger';
 
+import { JWT_BEARER_AUTH } from '@/auth/auth.swagger';
 import { BookingResponseDto, CreateBookingDto } from '@/bookings/bookings.dto';
 
 export function CreateBookingDoc(): MethodDecorator {
   return applyDecorators(
     ApiExtraModels(CreateBookingDto, BookingResponseDto),
     ApiOperation({ summary: 'Create booking' }),
+    ApiBearerAuth(JWT_BEARER_AUTH),
     ApiCreatedResponse({
       description: 'The slot was reserved for the student in a single transaction',
       schema: {
@@ -39,8 +43,20 @@ export function CreateBookingDoc(): MethodDecorator {
       schema: {
         example: {
           error: 'Bad Request',
-          message: ['studentUserId is required'],
+          message: ['slotId must be a UUID'],
           statusCode: 400,
+        },
+        type: 'object',
+      },
+    }),
+    ApiUnauthorizedResponse({
+      description:
+        'The access token or its backing session is missing, invalid, expired, or revoked',
+      schema: {
+        example: {
+          error: 'Unauthorized',
+          message: 'Invalid or expired authentication token',
+          statusCode: 401,
         },
         type: 'object',
       },
@@ -57,7 +73,8 @@ export function CreateBookingDoc(): MethodDecorator {
       },
     }),
     ApiForbiddenResponse({
-      description: 'Active student validation failed for the booking request',
+      description:
+        'The authenticated user is not a student, or active-student validation failed for the booking request',
       schema: {
         example: {
           error: 'Forbidden',
