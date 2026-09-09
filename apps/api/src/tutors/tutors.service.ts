@@ -1,7 +1,14 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 
 import { PrismaService } from '@/database/prisma.service';
-import { ListingPatchRequestDto, ListingPostRequestDto, ListingQueryDto, ListingResponseDto, TutorProfileResponseDto, TutorProfileUpdateQueryDto } from '@/tutors/tutors.dto';
+import {
+  ListingPatchRequestDto,
+  ListingPostRequestDto,
+  ListingQueryDto,
+  ListingResponseDto,
+  TutorProfileResponseDto,
+  TutorProfileUpdateQueryDto,
+} from '@/tutors/tutors.dto';
 
 export interface SearchTutorsQuery {
   maxPrice?: number;
@@ -29,7 +36,7 @@ export class TutorsService {
       },
     });
 
-    if(!profile) {
+    if (!profile) {
       throw new NotFoundException(`Profile absent`);
     }
 
@@ -40,8 +47,8 @@ export class TutorsService {
       experienceYears: profile.experienceYears,
       verificationStatus: profile.verificationStatus,
       ratingAverage: profile.ratingAverage?.toDecimalPlaces(1).toNumber() || null,
-      reviewCount: profile.reviewCount
-    }
+      reviewCount: profile.reviewCount,
+    };
 
     return response;
   }
@@ -50,8 +57,8 @@ export class TutorsService {
     const dataToUpdate = {
       displayName: request.displayName,
       ...(request.bio !== undefined && { bio: request.bio }),
-      ...(request.experienceYears !== undefined && {experienceYears: request.experienceYears}) 
-    }
+      ...(request.experienceYears !== undefined && { experienceYears: request.experienceYears }),
+    };
 
     const updatedProfile = await this.prisma.tutorProfile.update({
       where: {
@@ -64,11 +71,16 @@ export class TutorsService {
   }
 
   //Listing
-  async getListings(userid: string, request: ListingQueryDto): Promise<ListingResponseDto[] | null> {
+  async getListings(
+    userid: string,
+    request: ListingQueryDto,
+  ): Promise<ListingResponseDto[] | null> {
     const listingsToSearch = {
       userid: userid,
-      ...(request.publicationStatus !== undefined && {publicationStatus: request.publicationStatus})
-    }
+      ...(request.publicationStatus !== undefined && {
+        publicationStatus: request.publicationStatus,
+      }),
+    };
 
     const listings = await this.prisma.teachingListing.findMany({
       select: {
@@ -81,7 +93,7 @@ export class TutorsService {
             active: true,
             createdAt: true,
             updatedAt: true,
-          }
+          },
         },
         gradeLevel: {
           select: {
@@ -91,7 +103,7 @@ export class TutorsService {
             active: true,
             createdAt: true,
             updatedAt: true,
-          }
+          },
         },
         pricePerHour: true,
         description: true,
@@ -99,7 +111,7 @@ export class TutorsService {
         publishedAt: true,
         updatedAt: true,
       },
-      where: listingsToSearch
+      where: listingsToSearch,
     });
 
     return listings.map((listing) => ({
@@ -123,21 +135,21 @@ export class TutorsService {
       pricePerHour: listing.pricePerHour.toNumber(),
       description: listing.description,
       publicationStatus: listing.publicationStatus,
-      publishedAt: (listing.publishedAt)? new Date(listing.publishedAt) : null,
+      publishedAt: listing.publishedAt ? new Date(listing.publishedAt) : null,
       updatedAt: new Date(listing.updatedAt),
     }));
   }
 
   async postListing(userid: string, request: ListingPostRequestDto): Promise<string> {
-    if(!request) {
+    if (!request) {
       throw new NotFoundException(`Catalog value absent`);
     }
 
-    if(await this.prisma.subject.count({ where: {id: request.subjectId}}) <= 0) {
+    if ((await this.prisma.subject.count({ where: { id: request.subjectId } })) <= 0) {
       throw new BadRequestException(`subjectId is invalid`);
     }
 
-    if(await this.prisma.gradeLevel.count({ where: {id: request.gradeLevelId}}) <= 0) {
+    if ((await this.prisma.gradeLevel.count({ where: { id: request.gradeLevelId } })) <= 0) {
       throw new BadRequestException(`gradeLevelId is invalid`);
     }
 
@@ -147,29 +159,38 @@ export class TutorsService {
       gradeLevelId: request.gradeLevelId,
       pricePerHour: request.pricePerHour,
       description: request.description,
-    }
-    
+    };
+
     const newListing = await this.prisma.teachingListing.create({
-      data: createListingData
+      data: createListingData,
     });
 
     return newListing.id;
   }
 
-  async patchListing(userid: string, listingid: string, request: ListingPatchRequestDto): Promise<ListingResponseDto> {
-
+  async patchListing(
+    userid: string,
+    listingid: string,
+    request: ListingPatchRequestDto,
+  ): Promise<ListingResponseDto> {
     const dataToUpdate = {
-      ...(request.subjectId !== undefined && {subjectId: request.subjectId}),
-      ...(request.gradeLevelId !== undefined && {gradeLevelId: request.gradeLevelId}),
-      ...(request.pricePerHour !== undefined && {pricePerHour: request.pricePerHour}),
-      ...(request.description !== undefined && {description: request.description}),
-    }
+      ...(request.subjectId !== undefined && { subjectId: request.subjectId }),
+      ...(request.gradeLevelId !== undefined && { gradeLevelId: request.gradeLevelId }),
+      ...(request.pricePerHour !== undefined && { pricePerHour: request.pricePerHour }),
+      ...(request.description !== undefined && { description: request.description }),
+    };
 
-    if(request.subjectId !== undefined && await this.prisma.subject.count({ where: {id: request.subjectId}}) <= 0) {
+    if (
+      request.subjectId !== undefined &&
+      (await this.prisma.subject.count({ where: { id: request.subjectId } })) <= 0
+    ) {
       throw new BadRequestException(`subjectId is invalid`);
     }
 
-    if(request.gradeLevelId !== undefined && await this.prisma.gradeLevel.count({ where: {id: request.gradeLevelId}}) <= 0) {
+    if (
+      request.gradeLevelId !== undefined &&
+      (await this.prisma.gradeLevel.count({ where: { id: request.gradeLevelId } })) <= 0
+    ) {
       throw new BadRequestException(`gradeLevelId is invalid`);
     }
 
@@ -181,21 +202,21 @@ export class TutorsService {
       data: dataToUpdate,
     });
 
-    if(!updatedListing) {
+    if (!updatedListing) {
       throw new NotFoundException(`absent/not owned/deleted listing`);
     }
 
     const responseSubject = await this.prisma.subject.findFirstOrThrow({
       where: {
         id: updatedListing.subjectId,
-      }
-    })
+      },
+    });
 
     const responseGradeLevel = await this.prisma.gradeLevel.findFirstOrThrow({
       where: {
         id: updatedListing.gradeLevelId,
-      }
-    })
+      },
+    });
 
     const response: ListingResponseDto = {
       listingId: updatedListing.id,
@@ -218,9 +239,9 @@ export class TutorsService {
       pricePerHour: updatedListing.pricePerHour.toNumber(),
       description: updatedListing.description,
       publicationStatus: updatedListing.publicationStatus,
-      publishedAt: (updatedListing.publishedAt)? new Date(updatedListing.publishedAt) : null,
+      publishedAt: updatedListing.publishedAt ? new Date(updatedListing.publishedAt) : null,
       updatedAt: new Date(updatedListing.updatedAt),
-    }
+    };
 
     return response;
   }
@@ -236,11 +257,10 @@ export class TutorsService {
       },
     });
 
-    if(!response) {
+    if (!response) {
       throw new NotFoundException('absent/not-owned listing');
     }
 
     return response;
   }
-
 }

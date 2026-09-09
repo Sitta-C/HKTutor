@@ -1,6 +1,15 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
-import { IsNumber, IsOptional, IsString, Min, IsInt, IsDefined, IsPositive, Length } from 'class-validator';
+import {
+  IsNumber,
+  IsOptional,
+  IsString,
+  Min,
+  IsInt,
+  IsDefined,
+  IsPositive,
+  Length,
+} from 'class-validator';
 
 import type { TransformFnParams } from 'class-transformer';
 
@@ -8,7 +17,6 @@ import type { TransformFnParams } from 'class-transformer';
 export type TutorVerificationStatus = 'PENDING' | 'VERIFIED' | 'REJECTED';
 
 export class TutorProfileResponseDto {
-
   @ApiProperty({ example: '<uuid>' })
   userId!: string;
 
@@ -35,9 +43,8 @@ export class TutorProfileResponseDto {
 }
 
 export class TutorProfileUpdateQueryDto {
-
   @IsString()
-  @IsDefined({ message: 'Invalid displayName'})
+  @IsDefined({ message: 'Invalid displayName' })
   displayName!: string;
 
   @IsString()
@@ -54,38 +61,40 @@ export class TutorProfileUpdateQueryDto {
 export type PublicationStatus = 'DRAFT' | 'PUBLISHED' | 'ARCHIVED';
 
 export class ListingQueryDto {
-
   @IsOptional()
   publicationStatus?: PublicationStatus;
 }
 
 export class ListingResponseDto {
-
   @ApiProperty({ example: '<uuid>' })
   listingId!: string;
 
-  @ApiProperty({ example: `{id: <uuid>, code: <code>, name: math, active: true, createdAt: ${new Date("2026-08-17").toISOString()}, updatedAt: ${new Date("2026-08-17").toISOString()}}` })
+  @ApiProperty({
+    example: `{id: <uuid>, code: <code>, name: math, active: true, createdAt: ${new Date('2026-08-17').toISOString()}, updatedAt: ${new Date('2026-08-17').toISOString()}}`,
+  })
   subject!: {
-    id: string,
-    code: string,
-    name: string,
-    active: boolean,
-    createdAt: Date,
-    updatedAt: Date,
+    id: string;
+    code: string;
+    name: string;
+    active: boolean;
+    createdAt: Date;
+    updatedAt: Date;
   };
 
-  @ApiProperty({ example: `{id: <uuid>, code: <code>, name: <name>, active: true, createdAt: ${new Date("2026-08-17").toISOString()}, updatedAt: ${new Date("2026-08-17").toISOString()}}` })
+  @ApiProperty({
+    example: `{id: <uuid>, code: <code>, name: <name>, active: true, createdAt: ${new Date('2026-08-17').toISOString()}, updatedAt: ${new Date('2026-08-17').toISOString()}}`,
+  })
   gradeLevel!: {
-    id: string,
-    code: string,
-    name: string,
-    active: boolean,
-    createdAt: Date,
-    updatedAt: Date,
+    id: string;
+    code: string;
+    name: string;
+    active: boolean;
+    createdAt: Date;
+    updatedAt: Date;
   };
 
   @IsNumber({ maxDecimalPlaces: 2 })
-  @ApiProperty({ example: 199.00 })
+  @ApiProperty({ example: 199.0 })
   pricePerHour!: number;
 
   @ApiProperty({ example: '...' })
@@ -94,15 +103,14 @@ export class ListingResponseDto {
   @ApiProperty({ example: 'DRAFT' })
   publicationStatus!: PublicationStatus;
 
-  @ApiProperty({ example: new Date("2026-08-17") })
+  @ApiProperty({ example: new Date('2026-08-17') })
   publishedAt?: Date | null;
 
-  @ApiProperty({ example: new Date("2026-08-17") })
+  @ApiProperty({ example: new Date('2026-08-17') })
   updatedAt!: Date;
 }
 
 export class ListingPostRequestDto {
-
   @IsDefined()
   subjectId!: string;
 
@@ -112,7 +120,7 @@ export class ListingPostRequestDto {
   @IsDefined()
   @Transform(toNumberWhenPresent)
   @IsNumber({ maxDecimalPlaces: 2 })
-  @IsPositive({ message: 'pricePerHour must be more than 0'})
+  @IsPositive({ message: 'pricePerHour must be more than 0' })
   pricePerHour!: number;
 
   @IsDefined()
@@ -122,7 +130,6 @@ export class ListingPostRequestDto {
 }
 
 export class ListingPatchRequestDto {
-
   @IsOptional()
   subjectId?: string;
 
@@ -132,7 +139,7 @@ export class ListingPatchRequestDto {
   @IsOptional()
   @Transform(toNumberWhenPresent)
   @IsNumber({ maxDecimalPlaces: 2 })
-  @IsPositive({ message: 'pricePerHour must be more than 0'})
+  @IsPositive({ message: 'pricePerHour must be more than 0' })
   pricePerHour?: number;
 
   @IsOptional()
