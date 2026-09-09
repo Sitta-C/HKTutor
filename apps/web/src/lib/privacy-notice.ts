@@ -2,8 +2,8 @@
  * S1-T11 canonical privacy notice content and consent contract.
  *
  * This module is the single source of truth for the notice text, its version string, and the
- * consent payload shape. The `/privacy` page renders it, the registration consent control links to
- * it, and the API persists `policyVersion` from `PRIVACY_POLICY_VERSION` with the Local User.
+ * consent payload shape. The reusable privacy modal renders it, and the API persists
+ * `policyVersion` from `PRIVACY_POLICY_VERSION` with the Local User.
  * Update `PRIVACY_POLICY_VERSION` whenever the notice text changes so
  * stored consent stays attributable to the wording the user actually accepted.
  *
@@ -12,9 +12,7 @@
  * must ship with its own version bump so each language is attributable to one accepted wording.
  */
 
-export const PRIVACY_POLICY_VERSION = '2026-09-08';
-
-export const PRIVACY_NOTICE_PATH = '/privacy';
+export const PRIVACY_POLICY_VERSION = '2026-09-09';
 
 export const CONSENT_REQUIRED_MESSAGE =
   'You must accept the privacy notice before an HKTutor account can be created.';
@@ -36,12 +34,12 @@ export interface PrivacyNotice {
 export const PRIVACY_NOTICE: PrivacyNotice = {
   title: 'HKTutor Privacy Notice',
   version: PRIVACY_POLICY_VERSION,
-  effectiveDate: '8 September 2026',
+  effectiveDate: '9 September 2026',
   summary:
     'HKTutor is an online tutor marketplace built as a university course project. This notice ' +
-    'explains which personal data is collected when you register, who processes it, why it is ' +
-    'needed, and how long it is kept. You must accept this notice before HKTutor creates your ' +
-    'account record.',
+    'explains which account, profile, education, contact, and activity data HKTutor collects, who ' +
+    'can see it, why it is needed, and how long it is kept. You must accept this notice before ' +
+    'HKTutor creates your account record or saves your profile.',
   sections: [
     {
       heading: '1. Who is responsible for your data',
@@ -81,8 +79,10 @@ export const PRIVACY_NOTICE: PrivacyNotice = {
       bullets: [
         'Account record: email address, password hash, role (student or tutor), account ' +
           'status, the time you accepted this notice, and the version you accepted.',
-        'Tutor records: display name, biography, years of experience, verification status, ' +
-          'teaching listings, prices, and availability slots.',
+        'Student profile: first name, last name, nickname, school, grade level, and telephone ' +
+          'number. The telephone number is treated as a private emergency contact field.',
+        'Tutor profile: first name, last name, nickname, public display name, biography, years of ' +
+          'experience, verification status, teaching listings, prices, and availability slots.',
         'Activity records: bookings, cancellations and reschedule requests, chat messages with the ' +
           'other party, notifications, reviews you write, and mock payment references.',
         'Security records: an append-only audit log of security-relevant actions, holding the ' +
@@ -98,6 +98,12 @@ export const PRIVACY_NOTICE: PrivacyNotice = {
       bullets: [
         'To create and secure your account, and to apply the role and ownership rules that keep ' +
           'your records private from other users.',
+        'To identify you inside your own account, complete role-specific onboarding, and let you ' +
+          'review and correct your profile.',
+        'To use a student’s school and grade level to support relevant tutoring and matching ' +
+          'features.',
+        'To let an authorised project administrator contact a student about an urgent class, ' +
+          'safety, or service incident. Student telephone numbers are not used for marketing.',
         'To let students search tutors, and to let tutors publish listings and availability.',
         'To create, confirm, reschedule, cancel, and complete bookings, and to send you the ' +
           'related in-app notifications and reminders.',
@@ -108,8 +114,8 @@ export const PRIVACY_NOTICE: PrivacyNotice = {
     {
       heading: '5. Consent is required before your account is created',
       paragraphs: [
-        'Accepting this notice is a required step of onboarding. If you do not accept it, HKTutor ' +
-          'creates no account record and no tutor or student profile.',
+        'Accepting this notice is a required step of registration and profile onboarding. If you ' +
+          'do not accept it, HKTutor creates no account record and saves no tutor or student profile.',
         'When you accept, HKTutor records the moment of acceptance and the version of this notice ' +
           'shown to you, so it is always clear which wording you agreed to. Re-submitting the same ' +
           'onboarding form does not create a second account.',
@@ -128,8 +134,13 @@ export const PRIVACY_NOTICE: PrivacyNotice = {
       bullets: [
         'Resend, as the verification-email delivery processor described in section 2.',
         'Supabase, as the managed database and private file storage processor.',
-        'The other party to a booking or chat, who sees the profile details, class details, and ' +
-          'messages needed to hold the class.',
+        'Students and visitors may see a tutor’s public display name, biography, experience, ' +
+          'verification state, listings, ratings, and availability where the product permits it.',
+        'A tutor connected to a booking may see the student’s nickname and the class details needed ' +
+          'to teach. The student’s first name, last name, school, grade level, and telephone number ' +
+          'are not part of a public tutor or search response.',
+        'Authorised project administrators may access private profile data when needed for account ' +
+          'support, an urgent class or safety incident, security, or course-project administration.',
         'Project administrators, who review tutor verification documents and security audit ' +
           'records.',
       ],
@@ -137,9 +148,10 @@ export const PRIVACY_NOTICE: PrivacyNotice = {
     {
       heading: '7. How long data is kept',
       paragraphs: [
-        'Accounts, listings, and availability slots are deactivated by marking them deleted rather ' +
-          'than by erasing rows, so that bookings, payments, and reviews that reference them stay ' +
-          'accurate. Audit log entries are append-only and are never edited after they are written.',
+        'Account and profile data is kept while the account is active. Deleted accounts, listings, ' +
+          'and availability may be deactivated rather than immediately erased so bookings, payments, ' +
+          'reviews, security records, and other users’ records remain accurate. Private profile data ' +
+          'is not used for new activity after account deletion.',
         'When the course project ends, the shared demonstration database and storage bucket are ' +
           'the project team responsibility and may be removed together with the data they hold.',
       ],
@@ -148,9 +160,10 @@ export const PRIVACY_NOTICE: PrivacyNotice = {
     {
       heading: '8. Your choices and how to contact us',
       paragraphs: [
-        'You can ask the project team to give you a copy of your account data, correct it, or ' +
-          'delete your account. Because this is a demonstration project, password and email changes ' +
-          'are handled by the project team until self-service account settings are added.',
+        'You can ask the project team to access, correct, receive a copy of, restrict, object to, or ' +
+          'delete your personal data, and you may withdraw consent where consent is the applicable ' +
+          'basis. Some requests may be limited where HKTutor must preserve another user’s transaction ' +
+          'or comply with an applicable obligation.',
         'Contact route: the HKTutor project team, through the contact address published in the ' +
           'project repository README. This is a course project, so please allow for reply times ' +
           'outside teaching hours.',

@@ -10,6 +10,7 @@ import { validateDatabaseEnvironment } from '@/config/database.config';
 import { DatabaseModule } from '@/database/database.module';
 import { AuthExampleModule } from '@/examples/auth-example.module';
 import { HealthModule } from '@/health/health.module';
+import { ProfilesModule } from '@/profiles/profiles.module';
 
 @Module({
   imports: [
@@ -23,6 +24,7 @@ import { HealthModule } from '@/health/health.module';
     DatabaseModule,
     HealthModule,
     AuthModule,
+    ProfilesModule,
     AuthExampleModule,
   ],
   controllers: [AppController],

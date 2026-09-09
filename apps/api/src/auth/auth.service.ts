@@ -15,7 +15,13 @@ import { PrismaService } from '@/database/prisma.service';
 import { EmailService } from '@/email/email.service';
 import { AccountStatus, Role } from '@/generated/prisma/client';
 
-import type { LoginDto, RegisterDto, ResendVerificationDto, VerifyEmailDto } from '@/auth/auth.dto';
+import type {
+  AcceptPrivacyNoticeDto,
+  LoginDto,
+  RegisterDto,
+  ResendVerificationDto,
+  VerifyEmailDto,
+} from '@/auth/auth.dto';
 import type { AuthResult, JwtPayload, PublicUser } from '@/auth/auth.types';
 
 const GENERIC_LOGIN_ERROR = 'Email or password is incorrect';
@@ -92,6 +98,27 @@ export class AuthService {
 
     await this.email.sendVerificationEmail(dto.email, token);
     return { message: 'Check your email to verify your account.' };
+  }
+
+  async acceptPrivacyNotice(
+    userId: string,
+    dto: AcceptPrivacyNoticeDto,
+  ): Promise<{ consentAcceptedAt: Date; policyVersion: string }> {
+    if (!dto.consent) {
+      throw new BadRequestException('Consent must be accepted to continue');
+    }
+
+    const consentAcceptedAt = new Date();
+    const user = await this.prisma.user.update({
+      where: { id: userId },
+      data: { consentAcceptedAt, policyVersion: dto.policyVersion },
+      select: { consentAcceptedAt: true, policyVersion: true },
+    });
+
+    return {
+      consentAcceptedAt: user.consentAcceptedAt ?? consentAcceptedAt,
+      policyVersion: user.policyVersion ?? dto.policyVersion,
+    };
   }
 
   async resendVerification(dto: ResendVerificationDto): Promise<{ message: string }> {

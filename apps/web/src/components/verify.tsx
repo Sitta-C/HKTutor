@@ -98,7 +98,7 @@ function VerifyForm() {
 
       // A full navigation makes this tab bootstrap auth from the refresh cookie
       // that the verification request set in the other tab.
-      window.setTimeout(() => window.location.replace('/dashboard'), 50);
+      window.setTimeout(() => window.location.replace('/onboarding/profile'), 50);
     };
 
     channel.addEventListener('message', handleMessage);
@@ -117,7 +117,7 @@ function VerifyForm() {
         const originalTabAcknowledged = await notifyOriginalTab();
 
         if (!originalTabAcknowledged) {
-          router.replace('/dashboard');
+          router.replace('/onboarding/profile');
           return;
         }
 

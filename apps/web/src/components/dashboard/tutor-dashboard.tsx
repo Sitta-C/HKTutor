@@ -120,7 +120,7 @@ export function TutorDashboard({ user, onLogout }: TutorDashboardProps) {
                 </span>
                 <span>{tutorCopy.openSlotsAction}</span>
               </Link>
-              <Link href="#profile">
+              <Link href="/dashboard/profile">
                 <span className="ico" aria-hidden="true">
                   👤
                 </span>

@@ -3,6 +3,9 @@ import { AccountStatus, Role, TutorVerificationStatus } from '@/generated/prisma
 import type { SeedTransactionClient } from '@/database/seed/seed-client';
 
 const SEEDED_TUTOR_PROFILE = {
+  firstName: 'Anan',
+  lastName: 'Sukjai',
+  nickname: 'Anan',
   displayName: 'Anan',
   bio: 'Verified tutor seeded for Sprint 1 demonstrations.',
   experienceYears: 5,
@@ -65,7 +68,7 @@ export async function seedTutorFoundation(
 
   await client.tutorProfile.upsert({
     where: { userId: tutor.id },
-    update: { verificationStatus: TutorVerificationStatus.VERIFIED },
+    update: SEEDED_TUTOR_PROFILE,
     create: {
       userId: tutor.id,
       ...SEEDED_TUTOR_PROFILE,

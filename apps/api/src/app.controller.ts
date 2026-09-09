@@ -1,10 +1,10 @@
 import { Controller, Get, UseGuards } from '@nestjs/common';
-import { ApiTags } from '@nestjs/swagger';
 
 import { AppService } from '@/app.service';
+import { AppControllerDoc } from '@/app.swagger';
 import { JwtAuthGuard } from '@/auth/auth.guard';
 
-@ApiTags('authentication')
+@AppControllerDoc()
 @Controller()
 @UseGuards(JwtAuthGuard)
 export class AppController {

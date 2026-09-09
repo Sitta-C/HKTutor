@@ -16,6 +16,21 @@ test('API declares the Swagger and class-based validation runtime dependencies',
   }
 });
 
+test('keeps Swagger implementation out of controller files', async () => {
+  const controllerPaths = [];
+
+  for await (const path of fs.glob('apps/api/src/**/*.controller.ts')) {
+    controllerPaths.push(path);
+  }
+
+  assert.ok(controllerPaths.length > 0, 'expected at least one API controller');
+
+  for (const path of controllerPaths) {
+    const source = await fs.readFile(path, 'utf8');
+    assert.doesNotMatch(source, /from ['"]@nestjs\/swagger['"]/, `${path} must use a .swagger.ts`);
+  }
+});
+
 test('CI runs the complete workspace check with the pinned toolchain', async () => {
   const workflow = await fs.readFile('.github/workflows/ci.yml', 'utf8');
 

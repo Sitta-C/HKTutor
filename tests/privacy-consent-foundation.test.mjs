@@ -3,7 +3,7 @@ import fs from 'node:fs/promises';
 import test from 'node:test';
 
 const noticeModulePath = 'apps/web/src/lib/privacy-notice.ts';
-const noticePagePath = 'apps/web/src/app/privacy/page.tsx';
+const noticeModalPath = 'apps/web/src/components/privacy-notice-modal.tsx';
 const consentComponentPath = 'apps/web/src/components/privacy-consent.tsx';
 const registerComponentPath = 'apps/web/src/components/register.tsx';
 const i18nPath = 'apps/web/src/lib/i18n.tsx';
@@ -13,8 +13,8 @@ const read = (path) => fs.readFile(path, 'utf8');
 test('pins the S1-T11 privacy policy version and consent contract', async () => {
   const notice = await read(noticeModulePath);
 
-  assert.match(notice, /export const PRIVACY_POLICY_VERSION = '2026-09-08';/);
-  assert.match(notice, /export const PRIVACY_NOTICE_PATH = '\/privacy';/);
+  assert.match(notice, /export const PRIVACY_POLICY_VERSION = '2026-09-09';/);
+  assert.doesNotMatch(notice, /PRIVACY_NOTICE_PATH/);
   assert.match(notice, /export const CONSENT_REQUIRED_MESSAGE =/);
   assert.match(
     notice,
@@ -31,6 +31,16 @@ test('describes local password storage and Resend email delivery', async () => {
   assert.match(notice, /uses Resend to deliver account verification emails/);
   assert.match(notice, /short-lived access '[\s\S]*tokens plus a refresh-session cookie/);
   assert.match(notice, /Verification links are random, expire/);
+});
+
+test('discloses the new personal, education, and emergency-contact data', async () => {
+  const notice = await read(noticeModulePath);
+
+  assert.match(notice, /Student profile: first name, last name, nickname, school, grade level/);
+  assert.match(notice, /telephone number is treated as a private emergency contact field/);
+  assert.match(notice, /Tutor profile: first name, last name, nickname, public display name/);
+  assert.match(notice, /Student telephone numbers are not used for marketing/);
+  assert.match(notice, /are not part of a public tutor or search response/);
 });
 
 test('covers every required disclosure topic exactly once per heading', async () => {
@@ -66,24 +76,23 @@ test('covers every required disclosure topic exactly once per heading', async ()
 test('states that no account record exists without consent', async () => {
   const notice = await read(noticeModulePath);
 
-  assert.match(notice, /Accepting this notice is a required step of onboarding/);
-  assert.match(notice, /creates no account record and no tutor or student profile/);
+  assert.match(
+    notice,
+    /Accepting this notice is a required step of registration and profile onboarding/,
+  );
+  assert.match(notice, /creates no account record and saves no tutor or student profile/);
   assert.match(notice, /records the moment of acceptance and the version of this notice/);
 });
 
-test('renders the notice route from the shared content module', async () => {
-  const page = await read(noticePagePath);
+test('renders a closable modal instead of a separate privacy route', async () => {
+  const modal = await read(noticeModalPath);
 
-  assert.match(page, /import \{ PRIVACY_NOTICE \} from '@\/lib\/privacy-notice';/);
-  assert.match(page, /export const metadata: Metadata/);
-  assert.match(page, /title: 'Privacy Notice'/);
-  assert.match(page, /PRIVACY_NOTICE\.sections\.map/);
-  assert.match(page, /\{PRIVACY_NOTICE\.version\}/);
-  assert.doesNotMatch(
-    page,
-    /'use client'/,
-    'the notice is static and must stay a server component',
-  );
+  assert.match(modal, /^'use client';/m);
+  assert.match(modal, /<dialog/);
+  assert.match(modal, /dialog\.showModal\(\)/);
+  assert.match(modal, /onClose=\{onClose\}/);
+  assert.match(modal, /PRIVACY_NOTICE\.sections\.map/);
+  await assert.rejects(fs.stat('apps/web/src/app/privacy/page.tsx'));
 });
 
 test('requires an explicit consent decision in the onboarding control', async () => {
@@ -95,8 +104,9 @@ test('requires an explicit consent decision in the onboarding control', async ()
   assert.match(consent, /readonly error: string \| null;/);
   assert.match(consent, /type="checkbox"/);
   assert.match(consent, /checked=\{accepted\}/);
-  assert.match(consent, /href=\{PRIVACY_NOTICE_PATH\}/);
-  assert.match(consent, /rel="noopener noreferrer"/);
+  assert.match(consent, /<PrivacyNoticeModal/);
+  assert.match(consent, /setNoticeOpen\(true\)/);
+  assert.doesNotMatch(consent, /href=/);
   assert.match(
     consent,
     /copy\.register\.policyAfter\.replace\('\{version\}', PRIVACY_POLICY_VERSION\)/,
@@ -154,7 +164,7 @@ test('blocks registration submission until the notice is accepted', async () => 
 });
 
 test('adds no environment variable or secret surface for the notice', async () => {
-  for (const path of [noticeModulePath, noticePagePath, consentComponentPath]) {
+  for (const path of [noticeModulePath, noticeModalPath, consentComponentPath]) {
     const source = await read(path);
     assert.doesNotMatch(source, /process\.env/);
     assert.doesNotMatch(source, /NEXT_PUBLIC_/);

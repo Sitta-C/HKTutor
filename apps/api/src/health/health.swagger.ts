@@ -1,5 +1,14 @@
 import { applyDecorators } from '@nestjs/common';
-import { ApiOkResponse, ApiOperation, ApiServiceUnavailableResponse } from '@nestjs/swagger';
+import {
+  ApiOkResponse,
+  ApiOperation,
+  ApiServiceUnavailableResponse,
+  ApiTags,
+} from '@nestjs/swagger';
+
+export function HealthControllerDoc(): ClassDecorator {
+  return applyDecorators(ApiTags('health'));
+}
 
 export function GetHealthDoc(): MethodDecorator {
   return applyDecorators(

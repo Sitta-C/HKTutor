@@ -5,6 +5,7 @@ import {
   ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
+  ApiTags,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
 
@@ -13,6 +14,10 @@ import {
   AuthExampleResponseDto,
   OwnedListingExampleResponseDto,
 } from '@/examples/auth-example.dto';
+
+export function AuthExampleControllerDoc(): ClassDecorator {
+  return applyDecorators(ApiTags('examples'));
+}
 
 /**
  * Schema กลางสำหรับ response ที่ request ไม่ผ่าน authentication/authorization

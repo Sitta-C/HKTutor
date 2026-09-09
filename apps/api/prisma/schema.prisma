@@ -39,24 +39,38 @@ enum BookingStatus {
 }
 
 model User {
-  id                String        @id @default(uuid()) @db.Uuid
+  id                 String                   @id @default(uuid()) @db.Uuid
   /// A partial unique index for non-deleted users is migration-managed.
-  email             String        @db.Citext
+  email              String                   @db.Citext
   /// Null is reserved for deterministic, non-loginable search fixtures.
-  passwordHash      String?
-  emailVerifiedAt   DateTime?     @db.Timestamptz(3)
-  role              Role
-  accountStatus     AccountStatus @default(ACTIVE)
+  passwordHash       String?
+  emailVerifiedAt    DateTime?                @db.Timestamptz(3)
+  role               Role
+  accountStatus      AccountStatus            @default(ACTIVE)
   /// Consent time and policy version are nullable together for provisioned/demo users; a migration-managed check prevents a partial consent state.
-  consentAcceptedAt DateTime?     @db.Timestamptz(3)
-  policyVersion     String?
-  createdAt         DateTime      @default(now()) @db.Timestamptz(3)
-  updatedAt         DateTime      @updatedAt @db.Timestamptz(3)
-  deletedAt         DateTime?     @db.Timestamptz(3)
-  tutorProfile      TutorProfile?
-  studentBookings   Booking[]     @relation("BookingStudent")
-  authSessions      AuthSession[]
+  consentAcceptedAt  DateTime?                @db.Timestamptz(3)
+  policyVersion      String?
+  createdAt          DateTime                 @default(now()) @db.Timestamptz(3)
+  updatedAt          DateTime                 @updatedAt @db.Timestamptz(3)
+  deletedAt          DateTime?                @db.Timestamptz(3)
+  tutorProfile       TutorProfile?
+  studentProfile     StudentProfile?
+  studentBookings    Booking[]                @relation("BookingStudent")
+  authSessions       AuthSession[]
   verificationTokens EmailVerificationToken[]
+}
+
+model StudentProfile {
+  userId     String   @id @db.Uuid
+  firstName  String
+  lastName   String
+  nickname   String
+  school     String
+  gradeLevel String
+  phone      String
+  createdAt  DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt  DateTime @updatedAt @db.Timestamptz(3)
+  user       User     @relation(fields: [userId], references: [id], onDelete: Restrict, onUpdate: Cascade)
 }
 
 model EmailVerificationToken {
@@ -87,6 +101,12 @@ model AuthSession {
 
 model TutorProfile {
   userId             String                  @id @db.Uuid
+  /// Nullable only for tutor rows created before personal-profile onboarding was introduced.
+  firstName          String?
+  /// Nullable only for tutor rows created before personal-profile onboarding was introduced.
+  lastName           String?
+  /// Nullable only for tutor rows created before personal-profile onboarding was introduced.
+  nickname           String?
   displayName        String
   bio                String
   experienceYears    Int

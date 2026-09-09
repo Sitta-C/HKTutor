@@ -126,6 +126,9 @@ export async function seedTutorSearchFixtures(
 
     tutorIds.set(fixture.key, tutor.id);
     const profileData = {
+      firstName: fixture.displayName,
+      lastName: 'Fixture',
+      nickname: fixture.displayName,
       displayName: fixture.displayName,
       bio: fixture.bio,
       experienceYears: fixture.experienceYears,

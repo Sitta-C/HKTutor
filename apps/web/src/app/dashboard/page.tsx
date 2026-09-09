@@ -1,24 +1,63 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 
 import AdminDashboard from '@/components/dashboard/admin-dashboard';
 import StudentDashboard from '@/components/dashboard/student-dashboard';
 import TutorDashboard from '@/components/dashboard/tutor-dashboard';
+import { getMyProfile } from '@/lib/api/profiles';
 import { useAuth } from '@/lib/auth-context';
 import { useLanguage } from '@/lib/i18n';
+
+import type { AuthUser } from '@/lib/api/types';
 
 export default function DashboardPage() {
   const { isLoading, logout, user } = useAuth();
   const { copy } = useLanguage();
   const router = useRouter();
+  const [profileUser, setProfileUser] = useState<AuthUser | null>(null);
+  const [profileError, setProfileError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isLoading && !user) {
       router.replace('/');
     }
   }, [isLoading, router, user]);
+
+  useEffect(() => {
+    if (!user) return;
+    let active = true;
+
+    getMyProfile()
+      .then((result) => {
+        if (!active) return;
+        if (!result.profileComplete || !result.consentCurrent) {
+          router.replace('/onboarding/profile');
+          return;
+        }
+
+        const displayName =
+          result.role === 'STUDENT'
+            ? result.profile && 'school' in result.profile
+              ? result.profile.nickname
+              : undefined
+            : result.role === 'TUTOR'
+              ? result.profile && 'displayName' in result.profile
+                ? result.profile.displayName
+                : undefined
+              : undefined;
+        setProfileUser(displayName ? { ...user, displayName } : { ...user });
+      })
+      .catch((error: unknown) => {
+        if (active)
+          setProfileError(error instanceof Error ? error.message : 'Unable to load profile');
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [router, user]);
 
   const handleLogout = async () => {
     await logout();
@@ -49,15 +88,42 @@ export default function DashboardPage() {
     );
   }
 
+  if (!profileUser && !profileError) {
+    return (
+      <div
+        role="status"
+        aria-live="polite"
+        className="flex min-h-dvh items-center justify-center bg-[#fbfaf7] p-6 text-sm font-semibold text-[#5e5a52]"
+      >
+        {copy.dashboard.common.loading}
+      </div>
+    );
+  }
+
+  if (profileError) {
+    return (
+      <main className="flex min-h-dvh items-center justify-center bg-[#fbfaf7] p-6">
+        <div className="max-w-md rounded-2xl bg-white p-8 text-center shadow-sm">
+          <h1 className="text-xl font-bold text-[#171714]">Unable to load profile</h1>
+          <p className="mt-3 text-sm text-[#c04f40]" role="alert">
+            {profileError}
+          </p>
+        </div>
+      </main>
+    );
+  }
+
+  if (!profileUser) return null;
+
   // Strictly use authenticated API role from AuthContext
   if (user.role === 'STUDENT') {
-    return <StudentDashboard user={user} onLogout={handleLogout} />;
+    return <StudentDashboard user={profileUser} onLogout={handleLogout} />;
   }
 
   if (user.role === 'TUTOR') {
-    return <TutorDashboard user={user} onLogout={handleLogout} />;
+    return <TutorDashboard user={profileUser} onLogout={handleLogout} />;
   }
 
   // Explicit safe ADMIN state and unsupported fallback (never student or tutor)
-  return <AdminDashboard user={user} onLogout={handleLogout} />;
+  return <AdminDashboard user={profileUser} onLogout={handleLogout} />;
 }

@@ -128,7 +128,7 @@ const translations = {
       policyBefore: 'I have read and accept the',
       policyLink: 'HKTutor privacy notice',
       policyAfter:
-        ' (version {version}), including account security and verification email processing.',
+        ' (version {version}), including account, profile, education, emergency contact, security, and verification email processing.',
       policyRequired:
         'You must accept the privacy notice before an HKTutor account can be created.',
       submit: 'Create account',
@@ -148,7 +148,7 @@ const translations = {
       otpResending: 'Resending...',
       otpResent: 'Verification email resent!',
       otpBack: 'Change email',
-      verificationSuccess: 'Email verified. Redirecting to your dashboard…',
+      verificationSuccess: 'Email verified. Redirecting you to complete your profile…',
       verificationReturningToOriginalTab: 'Email verified. Returning to your original tab…',
       verificationCloseTab:
         'Email verified. Your original tab is ready; you can close this tab manually.',
@@ -352,7 +352,7 @@ const translations = {
       policyBefore: 'ฉันได้อ่านและยอมรับ',
       policyLink: 'ประกาศความเป็นส่วนตัวของ HKTutor',
       policyAfter:
-        ' (เวอร์ชัน {version}) รวมถึงการประมวลผลข้อมูลเพื่อรักษาความปลอดภัยและยืนยันอีเมล',
+        ' (เวอร์ชัน {version}) รวมถึงข้อมูลบัญชี โปรไฟล์ การศึกษา เบอร์ติดต่อฉุกเฉิน ความปลอดภัย และการยืนยันอีเมล',
       policyRequired: 'คุณต้องยอมรับประกาศความเป็นส่วนตัวก่อนจึงจะสร้างบัญชี HKTutor ได้',
       submit: 'สร้างบัญชี',
       loading: 'กำลังสร้างบัญชี...',
@@ -371,7 +371,7 @@ const translations = {
       otpResending: 'กำลังส่งอีเมลอีกครั้ง...',
       otpResent: 'ส่งอีเมลยืนยันใหม่แล้ว!',
       otpBack: 'เปลี่ยนอีเมล',
-      verificationSuccess: 'ยืนยันอีเมลสำเร็จ กำลังไปยังแดชบอร์ด…',
+      verificationSuccess: 'ยืนยันอีเมลสำเร็จ กำลังไปกรอกข้อมูลโปรไฟล์…',
       verificationReturningToOriginalTab: 'ยืนยันอีเมลสำเร็จ กำลังกลับไปยังแท็บเดิม…',
       verificationCloseTab: 'ยืนยันอีเมลสำเร็จ แท็บเดิมพร้อมใช้งานแล้ว คุณสามารถปิดแท็บนี้ได้',
       closeVerificationTab: 'ปิดแท็บนี้',

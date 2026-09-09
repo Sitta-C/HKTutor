@@ -9,15 +9,22 @@ import {
   Res,
   UseGuards,
 } from '@nestjs/common';
-import { ApiTags } from '@nestjs/swagger';
 import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
 
 import { REFRESH_COOKIE_NAME } from '@/auth/auth.constants';
 import { CurrentUser } from '@/auth/auth.decorator';
-import { LoginDto, RegisterDto, ResendVerificationDto, VerifyEmailDto } from '@/auth/auth.dto';
+import {
+  AcceptPrivacyNoticeDto,
+  LoginDto,
+  RegisterDto,
+  ResendVerificationDto,
+  VerifyEmailDto,
+} from '@/auth/auth.dto';
 import { JwtAuthGuard } from '@/auth/auth.guard';
 import { AuthService } from '@/auth/auth.service';
 import {
+  AcceptPrivacyNoticeAuthDoc,
+  AuthControllerDoc,
   GetCurrentUserAuthDoc,
   LoginAuthDoc,
   LogoutAuthDoc,
@@ -32,7 +39,7 @@ import type { AuthenticatedUser } from '@/auth/auth.guard';
 import type { AuthResult } from '@/auth/auth.types';
 import type { Request, Response } from 'express';
 
-@ApiTags('authentication')
+@AuthControllerDoc()
 @Controller('auth')
 export class AuthController {
   constructor(
@@ -103,6 +110,17 @@ export class AuthController {
   ): Promise<void> {
     await this.auth.logout(this.refreshCookie(request));
     response.clearCookie(REFRESH_COOKIE_NAME, this.config.refreshCookieOptions);
+  }
+
+  @Post('consent')
+  @AcceptPrivacyNoticeAuthDoc()
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(JwtAuthGuard)
+  async acceptPrivacyNotice(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: AcceptPrivacyNoticeDto,
+  ): Promise<{ consentAcceptedAt: Date; policyVersion: string }> {
+    return this.auth.acceptPrivacyNotice(user.id, dto);
   }
 
   @Get('me')
