@@ -4,8 +4,12 @@ Updated 2026-09-09 from the complete first-party Markdown/TSX inventory and the 
 This document defines what each screen should show, which model supplies it, who may act, and
 what remains to design. It is a design plan, not a claim that the proposed pages or APIs exist.
 
-Worktree: `HKTutor-design-ui/`, branch `design/ui`. Both its HEAD and freshly fetched `origin/main`
-were `ead6751` at this review. The main checkout is `HKTutor/`.
+For the page-by-page API dependency and Sprint 1 delivery checklist, see
+[`sprint1-ui-api-map.md`](./sprint1-ui-api-map.md).
+
+Documentation worktree: `HKTutor-sprint1-ui-api-map/`, branch `docs/sprint1-ui-api-map`, created
+from `origin/main` at `b571d0f`. The original mapping baseline was `ead6751`; its design work was
+later merged through UI design PR #29. The main checkout is `HKTutor/`.
 
 ## Sources and reading scope
 
@@ -17,7 +21,7 @@ were `ead6751` at this review. The main checkout is `HKTutor/`.
 | Product Backlog tab in the same workbook                                                                                                            | Rows 4–86: UI acceptance criteria and Sprint 1–3 boundaries, including exact filtering, chat, classes, rescheduling, documents, reports, reviews and coupons.                            |
 | `apps/api/prisma/schema.prisma` and migrations                                                                                                      | Actual persisted fields and database constraints. A sheet field is not necessarily implemented.                                                                                          |
 | `apps/api/src/app.module.ts`, controllers, auth DTO/client and root foundation tests                                                                | Actual HTTP surface, identity contract and implemented safeguards. Production domain controllers are absent at this commit.                                                              |
-| All seven repository Markdown files                                                                                                                 | Root README, API README, auth example README, web README, web AGENTS/CLAUDE and this file. Read once after confirming copies in both checkouts were byte-identical.                      |
+| All repository Markdown files present at the baseline                                                                                               | Root README, API README, auth example README, web README, web AGENTS/CLAUDE and this file. Read once after confirming copies in both checkouts were byte-identical.                      |
 | Workspace `AGENT.md`, `t09progress.md`, three `.hermes/plans/*.md` files                                                                            | Working conventions and history. Old Clerk/onboarding plans and pre-merge progress wording are historical.                                                                               |
 | All 19 first-party `apps/web/src/**/*.tsx` files                                                                                                    | Seven route pages, root layout, nine components, auth context and i18n. Both checkouts were byte-identical before this documentation change. Generated output/dependencies are excluded. |
 | `dashboard-navigation.ts`, `globals.css`, `ui-design/index.html` and prototype references                                                           | Navigation targets, theme and existing design conventions.                                                                                                                               |
