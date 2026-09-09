@@ -122,3 +122,33 @@ test('role-specific views render distinct content with honest empty states', asy
   assert.doesNotMatch(studentSource, /Pim · 450฿/);
   assert.doesNotMatch(tutorSource, /4,050฿/);
 });
+
+test('dashboard page derives role only from AuthContext and enforces loading/unauthenticated safeguards', async () => {
+  const pageSource = await read('apps/web/src/app/dashboard/page.tsx');
+
+  // Must import useAuth
+  assert.match(pageSource, /import\s+{\s*useAuth\s*}\s+from\s+['"]@\/lib\/auth-context['"]/);
+
+  // Derives role strictly from AuthContext user
+  assert.match(pageSource, /const\s+{\s*isLoading,\s*logout,\s*user\s*}\s*=\s*useAuth\(\)/);
+  assert.match(pageSource, /if\s*\(\s*user\.role\s*===\s*['"]STUDENT['"]\s*\)/);
+  assert.match(pageSource, /if\s*\(\s*user\.role\s*===\s*['"]TUTOR['"]\s*\)/);
+  // Explicit safe Admin fallback
+  assert.match(pageSource, /return\s+<AdminDashboard/);
+
+  // Guards against flashing content during loading or unauthenticated
+  assert.match(pageSource, /if\s*\(\s*isLoading\s*\|\|\s*!user\s*\)/);
+  assert.match(pageSource, /role="status"/);
+
+  // Unauthenticated redirect to root
+  assert.match(
+    pageSource,
+    /if\s*\(\s*!isLoading\s*&&\s*!user\s*\)\s*{\s*router\.replace\(['"]\/['"]\)/,
+  );
+
+  // Never inspects query params, searchParams, window, or localStorage for role
+  assert.doesNotMatch(
+    pageSource,
+    /searchParams|localStorage|sessionStorage|location\.search|document\.cookie/,
+  );
+});
