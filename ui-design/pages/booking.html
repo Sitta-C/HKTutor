@@ -23,10 +23,22 @@
             <div class="proto-summary-box" style="margin-top:1rem"><p class="proto-summary-label" data-en="Selected listing" data-th="คอร์สที่เลือก">Selected listing</p><p class="proto-summary-value" data-en="Mathematics · Grade 10" data-th="คณิตศาสตร์ · มัธยมศึกษาปีที่ 4">Mathematics · Grade 10</p><p class="proto-description" data-en="Clear explanations, guided examples and exam-style practice tailored to your current level." data-th="อธิบายชัดเจน ฝึกตัวอย่างแบบมีขั้นตอน และโจทย์แนวข้อสอบที่เหมาะกับระดับของผู้เรียน">Clear explanations, guided examples and exam-style practice tailored to your current level.</p></div>
             <fieldset class="proto-fieldset" style="margin-top:1rem">
               <legend class="proto-legend" data-en="Choose an open time · Bangkok time (UTC+7)" data-th="เลือกช่วงเวลาว่าง · เวลาตามกรุงเทพฯ (UTC+7)">Choose an open time · Bangkok time (UTC+7)</legend>
-              <div class="proto-grid-3" style="margin-top:.8rem">
-                <label class="proto-summary-box" style="cursor:pointer"><input type="radio" name="slot" value="sl-100" checked /> <strong style="margin-left:.35rem">Thu 10 Sep</strong><p class="proto-summary-value">10:00–11:00</p><span class="proto-pill open" data-en="OPEN" data-th="ว่าง">OPEN</span></label>
-                <label class="proto-summary-box" style="cursor:pointer"><input type="radio" name="slot" value="sl-103" /> <strong style="margin-left:.35rem">Sat 12 Sep</strong><p class="proto-summary-value">09:00–10:00</p><span class="proto-pill open" data-en="OPEN" data-th="ว่าง">OPEN</span></label>
-                <label class="proto-summary-box" style="cursor:pointer"><input type="radio" name="slot" value="sl-105" /> <strong style="margin-left:.35rem">Sat 12 Sep</strong><p class="proto-summary-value">13:00–15:00</p><span class="proto-pill open" data-en="OPEN" data-th="ว่าง">OPEN</span></label>
+              <div class="proto-booking-options" style="margin-top:.8rem">
+                <label class="proto-booking-option">
+                  <input type="radio" name="slot" value="sl-100" checked />
+                  <span class="proto-booking-option-copy"><strong data-en="Thursday, 10 September" data-th="วันพฤหัสบดี 10 กันยายน">Thursday, 10 September</strong><span>10:00–11:00 · <span data-en="1 hour" data-th="1 ชั่วโมง">1 hour</span></span></span>
+                  <span class="proto-pill open" data-en="OPEN" data-th="ว่าง">OPEN</span>
+                </label>
+                <label class="proto-booking-option">
+                  <input type="radio" name="slot" value="sl-103" />
+                  <span class="proto-booking-option-copy"><strong data-en="Saturday, 12 September" data-th="วันเสาร์ 12 กันยายน">Saturday, 12 September</strong><span>09:00–10:00 · <span data-en="1 hour" data-th="1 ชั่วโมง">1 hour</span></span></span>
+                  <span class="proto-pill open" data-en="OPEN" data-th="ว่าง">OPEN</span>
+                </label>
+                <label class="proto-booking-option">
+                  <input type="radio" name="slot" value="sl-105" />
+                  <span class="proto-booking-option-copy"><strong data-en="Saturday, 12 September" data-th="วันเสาร์ 12 กันยายน">Saturday, 12 September</strong><span>13:00–15:00 · <span data-en="2 hours" data-th="2 ชั่วโมง">2 hours</span></span></span>
+                  <span class="proto-pill open" data-en="OPEN" data-th="ว่าง">OPEN</span>
+                </label>
               </div>
             </fieldset>
             <div class="proto-notice" style="margin-top:1rem"><strong data-en="Request, not confirmation" data-th="นี่คือคำขอ ไม่ใช่การยืนยัน">Request, not confirmation</strong><br /><span data-en="Submitting creates a Pending booking. Tutor confirmation is a later booking action." data-th="เมื่อส่งแล้วจะสร้างการจองสถานะรอยืนยัน การตอบรับจากติวเตอร์เป็นขั้นตอนภายหลัง">Submitting creates a Pending booking. Tutor confirmation is a later booking action.</span></div>
@@ -36,8 +48,8 @@
         <aside class="proto-card proto-panel proto-preview">
           <div class="proto-section-head"><div><h2 data-en="Booking summary" data-th="สรุปการจอง">Booking summary</h2><p data-en="Amounts are confirmed by the server." data-th="ยอดเงินยืนยันโดยเซิร์ฟเวอร์">Amounts are confirmed by the server.</p></div></div>
           <div class="proto-section-body">
-            <div class="proto-summary-box"><p class="proto-summary-label" data-en="Lesson time" data-th="เวลาเรียน">Lesson time</p><p class="proto-summary-value" id="selectedTime">Thursday 10 Sep 2026 · 10:00–11:00</p><p class="proto-help" data-en="Bangkok time (UTC+7) · 1 hour" data-th="เวลาตามกรุงเทพฯ (UTC+7) · 1 ชั่วโมง">Bangkok time (UTC+7) · 1 hour</p></div>
-            <div style="margin-top:1rem"><div class="proto-money-row"><span data-en="Hourly rate" data-th="ราคาต่อชั่วโมง">Hourly rate</span><strong>450.00฿</strong></div><div class="proto-money-row"><span data-en="Lesson duration" data-th="ระยะเวลาบทเรียน">Lesson duration</span><strong id="duration">1 hour</strong></div><div class="proto-money-row"><span data-en="Subtotal" data-th="ยอดก่อนส่วนลด">Subtotal</span><strong id="subtotal">450.00฿</strong></div><div class="proto-money-row"><span data-en="Discount" data-th="ส่วนลด">Discount</span><strong>0.00฿</strong></div><div class="proto-money-row total"><span data-en="Request total" data-th="ยอดคำขอจอง">Request total</span><strong id="net">450.00 THB</strong></div></div>
+            <div class="proto-summary-box"><p class="proto-summary-label" data-en="Lesson time" data-th="เวลาเรียน">Lesson time</p><p class="proto-summary-value" id="selectedTime" data-en="Thursday 10 Sep 2026 · 10:00–11:00" data-th="วันพฤหัสบดี 10 ก.ย. 2026 · 10:00–11:00">Thursday 10 Sep 2026 · 10:00–11:00</p><p class="proto-help" data-en="Bangkok time (UTC+7) · 1 hour" data-th="เวลาตามกรุงเทพฯ (UTC+7) · 1 ชั่วโมง">Bangkok time (UTC+7) · 1 hour</p></div>
+            <div style="margin-top:1rem"><div class="proto-money-row"><span data-en="Hourly rate" data-th="ราคาต่อชั่วโมง">Hourly rate</span><strong>450.00฿</strong></div><div class="proto-money-row"><span data-en="Lesson duration" data-th="ระยะเวลาบทเรียน">Lesson duration</span><strong id="duration" data-en="1 hour" data-th="1 ชั่วโมง">1 hour</strong></div><div class="proto-money-row"><span data-en="Subtotal" data-th="ยอดก่อนส่วนลด">Subtotal</span><strong id="subtotal">450.00฿</strong></div><div class="proto-money-row"><span data-en="Discount" data-th="ส่วนลด">Discount</span><strong>0.00฿</strong></div><div class="proto-money-row total"><span data-en="Request total" data-th="ยอดคำขอจอง">Request total</span><strong id="net">450.00 THB</strong></div></div>
             <button class="proto-button-amber" id="submitBooking" type="button" style="width:100%;margin-top:1.1rem"><span data-en="Send booking request" data-th="ส่งคำขอจอง">Send booking request</span></button>
             <button class="proto-text-button" id="simulateConflict" type="button" style="width:100%;margin-top:.6rem" data-en="Preview unavailable-slot state" data-th="ดูตัวอย่างเมื่อช่วงเวลาถูกจอง">Preview unavailable-slot state</button>
             <div class="proto-error-box proto-hidden" id="bookingConflict" style="margin-top:.8rem"><strong data-en="This time was just booked" data-th="ช่วงเวลานี้เพิ่งถูกจอง">This time was just booked</strong><p data-en="Choose another open time. The latest availability has been reloaded." data-th="กรุณาเลือกช่วงเวลาอื่น ระบบโหลดเวลาว่างล่าสุดให้แล้ว">Choose another open time. The latest availability has been reloaded.</p></div>
@@ -66,13 +78,23 @@
     <script src="../shared/prototype-shell.js"></script>
     <script>
       HKTutorPrototype.mount({ role: 'student', active: 'bookings', headerSecondary: { en: 'Find a tutor', th: 'ค้นหาติวเตอร์', href: 'search.html' }, headerPrimary: { en: 'My bookings', th: 'การจองของฉัน', href: '#bookings' } });
-      const slots = { 'sl-100': ['Thursday 10 Sep 2026 · 10:00–11:00', 1], 'sl-103': ['Saturday 12 Sep 2026 · 09:00–10:00', 1], 'sl-105': ['Saturday 12 Sep 2026 · 13:00–15:00', 2] };
+      const slots = {
+        'sl-100': { en: 'Thursday 10 Sep 2026 · 10:00–11:00', th: 'วันพฤหัสบดี 10 ก.ย. 2026 · 10:00–11:00', hours: 1 },
+        'sl-103': { en: 'Saturday 12 Sep 2026 · 09:00–10:00', th: 'วันเสาร์ 12 ก.ย. 2026 · 09:00–10:00', hours: 1 },
+        'sl-105': { en: 'Saturday 12 Sep 2026 · 13:00–15:00', th: 'วันเสาร์ 12 ก.ย. 2026 · 13:00–15:00', hours: 2 },
+      };
       document.querySelectorAll('input[name="slot"]').forEach((radio) => radio.addEventListener('change', () => {
-        const [label, hours] = slots[radio.value];
-        document.getElementById('selectedTime').textContent = label;
-        document.getElementById('duration').textContent = `${hours} hour${hours === 1 ? '' : 's'}`;
+        const slot = slots[radio.value];
+        const hours = slot.hours;
+        const selectedTime = document.getElementById('selectedTime');
+        const duration = document.getElementById('duration');
+        selectedTime.dataset.en = slot.en;
+        selectedTime.dataset.th = slot.th;
+        duration.dataset.en = `${hours} hour${hours === 1 ? '' : 's'}`;
+        duration.dataset.th = `${hours} ชั่วโมง`;
         document.getElementById('subtotal').textContent = `${(450 * hours).toFixed(2)}฿`;
         document.getElementById('net').textContent = `${(450 * hours).toFixed(2)} THB`;
+        HKTutorPrototype.applyLanguage();
       }));
       document.getElementById('submitBooking').addEventListener('click', () => {
         document.getElementById('bookingReview').classList.add('proto-hidden');
