@@ -63,15 +63,22 @@ describe('configureApplication', () => {
 
   it('transforms a valid numeric query parameter before it reaches the controller', async () => {
     await request(app.getHttpServer())
-      .get('/contract-probe')
+      .get('/api/v1/contract-probe')
       .query({ maxPrice: '500' })
       .expect(200)
       .expect({ maxPrice: 500 });
   });
 
+  it('does not expose controller routes without the global API prefix', async () => {
+    await request(app.getHttpServer())
+      .get('/contract-probe')
+      .query({ maxPrice: '500' })
+      .expect(404);
+  });
+
   it('returns validation details with HTTP 400 for a malformed query parameter', async () => {
     const response = await request(app.getHttpServer())
-      .get('/contract-probe')
+      .get('/api/v1/contract-probe')
       .query({ maxPrice: 'abc' })
       .expect(400);
     const body = response.body as ValidationErrorBody;
@@ -82,7 +89,7 @@ describe('configureApplication', () => {
 
   it('rejects query parameters that are not declared by the DTO', async () => {
     const response = await request(app.getHttpServer())
-      .get('/contract-probe')
+      .get('/api/v1/contract-probe')
       .query({ maxPrice: '500', unexpected: 'value' })
       .expect(400);
     const body = response.body as ValidationErrorBody;
@@ -91,9 +98,9 @@ describe('configureApplication', () => {
   });
 
   it('publishes the API contract as OpenAPI JSON', async () => {
-    const response = await request(app.getHttpServer()).get('/api/docs-json').expect(200);
+    const response = await request(app.getHttpServer()).get('/api/v1/docs-json').expect(200);
     const document = response.body as OpenAPIObject;
-    const operation = document.paths['/contract-probe']?.get;
+    const operation = document.paths['/api/v1/contract-probe']?.get;
 
     expect(document.info).toMatchObject({
       description: 'REST API for the HKTutor platform',
@@ -137,7 +144,7 @@ describe('configureApplication', () => {
 
   it('serves the interactive Swagger UI', async () => {
     await request(app.getHttpServer())
-      .get('/api/docs')
+      .get('/api/v1/docs')
       .expect(200)
       .expect('Content-Type', /text\/html/);
   });

@@ -33,7 +33,7 @@ import type { AuthResult } from '@/auth/auth.types';
 import type { Request, Response } from 'express';
 
 @ApiTags('authentication')
-@Controller('api/auth')
+@Controller('auth')
 export class AuthController {
   constructor(
     private readonly auth: AuthService,

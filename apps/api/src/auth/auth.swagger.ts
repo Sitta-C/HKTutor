@@ -219,10 +219,10 @@ export function LoginAuthDoc(): MethodDecorator {
     ApiOperation({ summary: 'Sign in with email and password' }),
     ApiBody({
       schema: {
-        example: { email: 'student@example.com', password: 'password123' },
+        example: { email: 'admin@example.com', password: 'admin12345' },
         properties: {
-          email: { example: 'student@example.com', format: 'email', type: 'string' },
-          password: { example: 'password123', format: 'password', type: 'string' },
+          email: { example: 'admin@example.com', format: 'email', type: 'string' },
+          password: { example: 'admin1234', format: 'password', type: 'string' },
         },
         required: ['email', 'password'],
         type: 'object',

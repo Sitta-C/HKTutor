@@ -20,15 +20,15 @@ pnpm db:generate
 pnpm dev
 ```
 
-The API documentation is available at `http://localhost:3001/api/docs` and the health endpoint at
-`http://localhost:3001/api/health`.
+The API documentation is available at `http://localhost:3001/api/v1/docs` and the health endpoint
+at `http://localhost:3001/api/v1/health`.
 
 ### Current product surface
 
 The implemented web flow is login (`/`), registration (`/register`), email verification
 (`/register/verify`, with `/register/verifypage` retained as a legacy alias), a protected dashboard
 stub (`/dashboard`), privacy (`/privacy`), and the informational `/about-me` page. The dashboard
-currently proves authentication and displays the user returned by `GET /api/auth/me`; it is not
+currently proves authentication and displays the user returned by `GET /api/v1/auth/me`; it is not
 yet the final role-specific product dashboard.
 
 The accepted student and tutor dashboard concepts, plus the tutor profile/certificate form, live
@@ -39,10 +39,10 @@ UI must be ported into `apps/web`; do not import or iframe the prototype HTML.
 
 ## Authentication flow
 
-1. `POST /api/auth/register` accepts email, password, `student` or `tutor` role, and privacy consent.
+1. `POST /api/v1/auth/register` accepts email, password, `student` or `tutor` role, and privacy consent.
 2. The API stores an Argon2id password hash and a SHA-256 hash of a random verification token.
 3. Resend delivers a link to `/register/verify?token=...`.
-4. `POST /api/auth/verify-email` consumes the one-time token and starts a session.
+4. `POST /api/v1/auth/verify-email` consumes the one-time token and starts a session.
 5. Login and verification return a short-lived JWT access token. The rotating refresh token is kept
    only in an HttpOnly cookie and represented in PostgreSQL by its SHA-256 hash.
 6. Protected endpoints verify the JWT signature, issuer, audience, token type, session state,
@@ -61,7 +61,7 @@ Copy `.env.example` to the ignored `.env` and replace every bracketed placeholde
 - `APP_URL` — web URL embedded in email verification links
 - `WEB_ORIGIN` — exact browser origin allowed by API CORS
 - `COOKIE_SECURE=true` — required for an HTTPS deployment
-- `NEXT_PUBLIC_BACKEND_URL` — public API base URL baked into the web build
+- `NEXT_PUBLIC_BACKEND_URL` — public API origin without `/api/v1`, baked into the web build
 - `SEED_ADMIN_EMAIL`, `SEED_ADMIN_PASSWORD`, `SEED_TUTOR_EMAIL`, and `SEED_TUTOR_PASSWORD` — local
   verified demo accounts; passwords must be at least 10 characters
 

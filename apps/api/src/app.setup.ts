@@ -6,7 +6,11 @@ import { JWT_BEARER_AUTH, REFRESH_COOKIE_AUTH } from '@/auth/auth.swagger';
 
 import type { INestApplication } from '@nestjs/common';
 
+export const API_GLOBAL_PREFIX = 'api/v1';
+
 export function configureApplication(app: INestApplication): void {
+  app.setGlobalPrefix(API_GLOBAL_PREFIX);
+
   app.useGlobalPipes(
     new ValidationPipe({
       forbidNonWhitelisted: true,
@@ -44,7 +48,8 @@ export function configureApplication(app: INestApplication): void {
     .build();
   const documentFactory = () => SwaggerModule.createDocument(app, swaggerConfig);
 
-  SwaggerModule.setup('api/docs', app, documentFactory, {
-    jsonDocumentUrl: 'api/docs-json',
+  SwaggerModule.setup('docs', app, documentFactory, {
+    jsonDocumentUrl: 'docs-json',
+    useGlobalPrefix: true,
   });
 }
