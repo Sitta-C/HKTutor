@@ -11,6 +11,7 @@ import { DatabaseModule } from '@/database/database.module';
 import { AuthExampleModule } from '@/examples/auth-example.module';
 import { HealthModule } from '@/health/health.module';
 import { ProfilesModule } from '@/profiles/profiles.module';
+import { TutorsModule } from '@/tutors/tutors.module';
 
 @Module({
   imports: [
