@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 
 import { PrismaService } from '@/database/prisma.service';
 import {
@@ -6,7 +6,7 @@ import {
   ListingPublicationStatus,
   TutorVerificationStatus,
 } from '@/generated/prisma/enums';
-import { TutorResponseDto } from '@/tutors/tutors.dto';
+import { TutorResponseDto, TutorProfileResponseDto } from '@/tutors/tutors.dto';
 
 export interface SearchTutorsQuery {
   maxPrice?: number;
@@ -65,5 +65,38 @@ export class TutorsService {
       rating: listing.tutorProfile.ratingAverage?.toNumber() ?? null,
       subject: listing.subject.name,
     }));
+  }
+
+  async getProfile(userid: string): Promise<TutorProfileResponseDto> {
+    const profile = await this.prisma.tutorProfile.findFirst({
+      select: {
+        userId: true,
+        displayName: true,
+        bio: true,
+        experienceYears: true,
+        verificationStatus: true,
+        ratingAverage: true,
+        reviewCount: true,
+      },
+      where: {
+        userId: userid,
+      },
+    });
+
+    if(!profile) {
+      throw new NotFoundException(`Profile not found`);
+    }
+
+    const response: TutorProfileResponseDto = {
+      userId: profile.userId,
+      displayName: profile.displayName,
+      bio: profile.bio,
+      experienceYears: profile.experienceYears,
+      verificationStatus: profile.verificationStatus,
+      ratingAverage: profile.ratingAverage?.toDecimalPlaces(1).toNumber() || null,
+      reviewCount: profile.reviewCount
+    }
+
+    return response;
   }
 }
