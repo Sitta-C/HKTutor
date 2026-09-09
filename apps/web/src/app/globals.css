@@ -993,3 +993,58 @@ input {
   margin: 0 0.75rem;
   color: var(--border-strong);
 }
+
+.dash-search {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  height: 3rem;
+  border: 1.5px solid var(--border-strong);
+  border-radius: 999px;
+  background: #fff;
+  padding: 0 1.1rem;
+  flex: 1;
+  min-width: 220px;
+  transition:
+    border-color 0.15s,
+    box-shadow 0.15s;
+}
+
+.dash-search-student:focus-within {
+  border-color: var(--student);
+  box-shadow: 0 0 0 4px rgba(34, 196, 154, 0.14);
+}
+
+.dash-search-tutor:focus-within {
+  border-color: var(--tutor);
+  box-shadow: 0 0 0 4px rgba(14, 142, 234, 0.14);
+}
+
+.dash-search input {
+  border: 0;
+  outline: none;
+  background: transparent;
+  font: inherit;
+  font-size: 0.92rem;
+  width: 100%;
+  color: var(--ink);
+}
+
+.dash-search input::placeholder {
+  color: var(--ink-3);
+}
+
+.dash-strength {
+  height: 0.45rem;
+  border-radius: 99px;
+  background: var(--border);
+  overflow: hidden;
+  margin-top: 0.55rem;
+}
+
+.dash-strength i {
+  display: block;
+  height: 100%;
+  border-radius: 99px;
+  background: linear-gradient(90deg, var(--tutor-grad-1), var(--tutor-grad-2));
+}

@@ -85,3 +85,40 @@ test('dashboard shell enforces accessibility, responsive toggle, and visible foc
   assert.match(cssSource, /\.dash-app\.sb-collapsed \.dash-sidebar/);
   assert.match(cssSource, /@media \(max-width: 960px\)/);
 });
+
+test('role-specific views render distinct content with honest empty states', async () => {
+  const [studentSource, tutorSource, adminSource] = await Promise.all([
+    read('apps/web/src/components/dashboard/student-dashboard.tsx'),
+    read('apps/web/src/components/dashboard/tutor-dashboard.tsx'),
+    read('apps/web/src/components/dashboard/admin-dashboard.tsx'),
+  ]);
+
+  // Student view features
+  assert.match(studentSource, /dash-role-chip-student/);
+  assert.match(studentSource, /studentCopy\.yourTutors/);
+  assert.match(studentSource, /studentCopy\.noUpcomingLessons/);
+  assert.match(studentSource, /studentCopy\.noTutorsYetTitle/);
+  // Student view must not have tutor listings or availability panels
+  assert.doesNotMatch(studentSource, /myListings/);
+  assert.doesNotMatch(studentSource, /manageAvailability/);
+
+  // Tutor view features
+  assert.match(tutorSource, /dash-role-chip-tutor/);
+  assert.match(tutorSource, /tutorCopy\.bookingRequests/);
+  assert.match(tutorSource, /tutorCopy\.myListings/);
+  assert.match(tutorSource, /tutorCopy\.todayBangkokTime/);
+  assert.match(tutorSource, /tutorCopy\.noUpcomingSessions/);
+  // Tutor view must not have student-specific panels
+  assert.doesNotMatch(tutorSource, /studentCopy\.yourTutors/);
+
+  // Admin view features
+  assert.match(adminSource, /dash-role-chip-admin/);
+  assert.match(adminSource, /adminCopy\.notice/);
+  assert.match(adminSource, /adminCopy\.signOutButton/);
+  // Admin view must never render student/tutor features
+  assert.doesNotMatch(adminSource, /studentCopy|tutorCopy|dash-summary/);
+
+  // Neither student nor tutor view presents fake mock bookings as real user data
+  assert.doesNotMatch(studentSource, /Pim · 450฿/);
+  assert.doesNotMatch(tutorSource, /4,050฿/);
+});
