@@ -348,11 +348,19 @@ input {
   .dash-sidebar {
     position: static;
     height: auto;
+    max-height: 100vh;
     width: 100% !important;
     flex-basis: auto;
+    transition:
+      max-height 0.3s ease,
+      padding 0.3s ease,
+      opacity 0.2s ease;
   }
   .dash-app.sb-collapsed .dash-sidebar {
-    display: none;
+    display: flex;
+    max-height: 0;
+    padding-top: 0;
+    padding-bottom: 0;
   }
 }
 
