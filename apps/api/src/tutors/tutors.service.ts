@@ -1,7 +1,7 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 
 import { PrismaService } from '@/database/prisma.service';
-import { TutorProfileResponseDto } from '@/tutors/tutors.dto';
+import { TutorProfileResponseDto, TutorProfileUpdateQueryDto } from '@/tutors/tutors.dto';
 
 export interface SearchTutorsQuery {
   maxPrice?: number;
@@ -29,7 +29,7 @@ export class TutorsService {
     });
 
     if(!profile) {
-      throw new NotFoundException(`Profile not found`);
+      throw new NotFoundException(`Profile absent`);
     }
 
     const response: TutorProfileResponseDto = {
@@ -43,5 +43,23 @@ export class TutorsService {
     }
 
     return response;
+  }
+
+  async putProfile(userid: string, query: TutorProfileUpdateQueryDto) {
+
+    const dataToUpdate = {
+      displayName: query.displayName,
+      ...(query.bio !== undefined && { bio: query.bio }),
+      ...(query.experienceYears !== undefined && {experienceYears: query.experienceYears}) 
+    }
+
+    const updatedProfile = await this.prisma.tutorProfile.update({
+      where: {
+        userId: userid,
+      },
+      data: dataToUpdate,
+    });
+
+    return updatedProfile;
   }
 }
