@@ -225,4 +225,22 @@ export class TutorsService {
     return response;
   }
 
+  async postPublishListing(userid: string, listingid: string) {
+    const response = await this.prisma.teachingListing.update({
+      where: {
+        tutorProfileId: userid,
+        id: listingid,
+      },
+      data: {
+        publicationStatus: 'PUBLISHED',
+      },
+    });
+
+    if(!response) {
+      throw new NotFoundException('absent/not-owned listing');
+    }
+
+    return response;
+  }
+
 }

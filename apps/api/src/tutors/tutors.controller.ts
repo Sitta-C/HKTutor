@@ -67,4 +67,17 @@ export class TutorsController {
     const response = await this.tutorsService.patchListing(userId, listingId, request);
     return response;
   }
+
+  @Post('me/listings/:listingId/publish')
+  @HttpCode(HttpStatus.OK)
+  async postPublishListing(@GetUser('userId') userId: string, @Param('listingId') listingId: string) {
+    if(!userId) {
+      throw new BadRequestException(`userId missing`)
+    }
+    if(!listingId) {
+      throw new BadRequestException(`listingId missing`)
+    }
+    await this.tutorsService.postPublishListing(userId, listingId);
+    return;
+  }
 }
