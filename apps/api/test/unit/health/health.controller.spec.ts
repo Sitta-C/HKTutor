@@ -2,6 +2,7 @@ import { ServiceUnavailableException } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { Test } from '@nestjs/testing';
 
+import { API_GLOBAL_PREFIX } from '@/app.setup';
 import { PrismaService } from '@/database/prisma.service';
 import { HealthController } from '@/health/health.controller';
 
@@ -51,6 +52,7 @@ describe('HealthController OpenAPI contract', () => {
       providers: [{ provide: PrismaService, useValue: { isHealthy: jest.fn() } }],
     }).compile();
     const app: INestApplication = moduleFixture.createNestApplication();
+    app.setGlobalPrefix(API_GLOBAL_PREFIX);
     await app.init();
 
     try {
@@ -58,7 +60,7 @@ describe('HealthController OpenAPI contract', () => {
         app,
         new DocumentBuilder().setTitle('Test').setVersion('1').build(),
       );
-      const operation = document.paths['/api/health']?.get;
+      const operation = document.paths['/api/v1/health']?.get;
       const responses = operation?.responses;
 
       expect(operation?.summary).toBe('Check database connectivity');

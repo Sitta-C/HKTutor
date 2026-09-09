@@ -5,7 +5,7 @@ import { PrismaService } from '@/database/prisma.service';
 import { GetHealthDoc } from '@/health/health.swagger';
 
 @ApiTags('health')
-@Controller('api/health')
+@Controller('health')
 export class HealthController {
   constructor(private readonly prisma: PrismaService) {}
 

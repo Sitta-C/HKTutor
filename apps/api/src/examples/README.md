@@ -5,7 +5,7 @@
 Endpoint ตัวอย่างคือ:
 
 ```http
-GET /api/examples/protected
+GET /api/v1/examples/protected
 Authorization: Bearer <access-token>
 ```
 
@@ -146,13 +146,35 @@ getAdminOnly(@CurrentUser() user: AuthenticatedUser) {
 
 ถ้า endpoint หลายเส้นใน controller ใช้ Guard ชุดเดียวกัน สามารถวาง `@UseGuards` ระดับ controller แล้วกำหนด `@Roles` แยกในแต่ละ method ได้ Method ที่ไม่ใส่ `@Roles` จะผ่าน `RolesGuard` สำหรับทุก role ที่ login แล้ว
 
+## Endpoint ที่ตรวจ ownership
+
+วาง `ResourceOwnershipGuard` หลัง authentication และ role authorization เสมอ:
+
+```ts
+@Get('listings/:listingId')
+@UseGuards(JwtAuthGuard, RolesGuard, ResourceOwnershipGuard)
+@Roles(Role.TUTOR, Role.ADMIN)
+@RequireOwnership({
+  resource: 'teachingListing',
+  idParam: 'listingId',
+  allowAdmin: true,
+})
+getListing() {
+  // เรียก business service หลังผ่าน authentication, role และ ownership แล้ว
+}
+```
+
+`RequireOwnership` รองรับ `tutorProfile`, `teachingListing`, `availabilitySlot` และ `booking` โดย guard จะค้นหา resource ID พร้อม owner scope ใน query เดียว สำหรับ booking จะเลือก `studentUserId` หรือ `tutorProfileId` ตาม role ปัจจุบัน
+
+เมื่อ record ไม่มีอยู่, ID ผิดรูปแบบ หรือเป็น private record ของผู้ใช้อื่น guard จะตอบ `404 Resource not found` เหมือนกันทั้งหมด จึงไม่เปิดเผยว่า record ของผู้ใช้อื่นมีอยู่หรือไม่ ส่วน `allowAdmin` ต้องเปิดเป็นราย endpoint ตามสิทธิ์ใน access matrix
+
 ## การทดสอบผ่าน Swagger UI
 
-1. เรียก `POST /api/auth/login` ด้วยบัญชีที่ยืนยันอีเมลแล้ว
+1. เรียก `POST /api/v1/auth/login` ด้วยบัญชีที่ยืนยันอีเมลแล้ว
 2. คัดลอก `accessToken` จาก response ไม่ใช่ refresh token
 3. กด **Authorize** ใน Swagger UI
 4. ใส่ access token ตามรูปแบบที่ UI ขอ
-5. เรียก `GET /api/examples/protected`
+5. เรียก `GET /api/v1/examples/protected`
 6. บัญชี `TUTOR` หรือ `ADMIN` ควรได้ `200`; บัญชี `STUDENT` ควรได้ `403`
 
 Refresh token ถูกเก็บใน cookie `hktutor_refresh` และใช้กับ endpoint refresh/logout ไม่ควรนำ refresh token มาใส่ใน Bearer header

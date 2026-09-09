@@ -2,13 +2,17 @@ import { applyDecorators } from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiForbiddenResponse,
+  ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
 
 import { JWT_BEARER_AUTH } from '@/auth/auth.swagger';
-import { AuthExampleResponseDto } from '@/examples/auth-example.dto';
+import {
+  AuthExampleResponseDto,
+  OwnedListingExampleResponseDto,
+} from '@/examples/auth-example.dto';
 
 /**
  * Schema กลางสำหรับ response ที่ request ไม่ผ่าน authentication/authorization
@@ -31,7 +35,7 @@ const errorResponseSchema = {
 } as const;
 
 /**
- * รวม Swagger decorators ของ GET /api/examples/protected ไว้เป็น decorator เดียว
+ * รวม Swagger decorators ของ GET /api/v1/examples/protected ไว้เป็น decorator เดียว
  * เพื่อไม่ให้ controller เต็มไปด้วยรายละเอียดของเอกสาร API
  *
  * - ApiOperation: ชื่อ/คำอธิบาย operation ใน Swagger UI
@@ -69,6 +73,49 @@ export function GetProtectedAuthExampleDoc(): MethodDecorator {
           error: 'Forbidden',
           message: 'You do not have permission to access this resource',
           statusCode: 403,
+        },
+      },
+    }),
+  );
+}
+
+/**
+ * Swagger contract ของ endpoint ตัวอย่างที่ใช้ authentication, role และ ownership guards
+ */
+export function GetOwnedListingExampleDoc(): MethodDecorator {
+  return applyDecorators(
+    ApiOperation({
+      summary: 'Example of owner-scoped access to a private teaching listing',
+    }),
+    ApiBearerAuth(JWT_BEARER_AUTH),
+    ApiOkResponse({
+      description: 'The authenticated tutor owns the listing, or admin access was allowed',
+      type: OwnedListingExampleResponseDto,
+    }),
+    ApiUnauthorizedResponse({
+      description:
+        'The access token or its backing session is missing, invalid, expired, or revoked',
+      schema: errorResponseSchema,
+    }),
+    ApiForbiddenResponse({
+      description: 'The authenticated user is not a tutor or admin',
+      schema: {
+        ...errorResponseSchema,
+        example: {
+          error: 'Forbidden',
+          message: 'You do not have permission to access this resource',
+          statusCode: 403,
+        },
+      },
+    }),
+    ApiNotFoundResponse({
+      description: 'The private listing is missing or inaccessible to the authenticated user',
+      schema: {
+        ...errorResponseSchema,
+        example: {
+          error: 'Not Found',
+          message: 'Resource not found',
+          statusCode: 404,
         },
       },
     }),
