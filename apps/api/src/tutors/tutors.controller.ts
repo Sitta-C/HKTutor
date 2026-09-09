@@ -4,7 +4,7 @@ import { ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '@/auth/auth.guard';
 import { RolesGuard } from '@/auth/roles.guard';
 import { Roles } from '@/auth/roles.decorator';
-import { SearchTutorsQueryDto, TutorResponseDto, TutorProfileResponseDto } from '@/tutors/tutors.dto';
+import { TutorProfileResponseDto } from '@/tutors/tutors.dto';
 import { TutorsService } from '@/tutors/tutors.service';
 import { GetUser } from '@/user/get-user.decorator';
 
