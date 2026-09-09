@@ -1,10 +1,10 @@
-import { Controller, Get, Put, UseGuards, Res, HttpStatus, HttpCode, Body, BadRequestException, Query } from '@nestjs/common';
+import { Controller, Get, Put, UseGuards, HttpStatus, HttpCode, Body, BadRequestException, Post } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 
 import { JwtAuthGuard } from '@/auth/auth.guard';
 import { RolesGuard } from '@/auth/roles.guard';
 import { Roles } from '@/auth/roles.decorator';
-import { ListingQueryDto, ListingResponseDto, TutorProfileResponseDto, TutorProfileUpdateQueryDto } from '@/tutors/tutors.dto';
+import { ListingPostRequestDto, ListingQueryDto, ListingResponseDto, TutorProfileResponseDto, TutorProfileUpdateQueryDto } from '@/tutors/tutors.dto';
 import { TutorsService } from '@/tutors/tutors.service';
 import { GetUser } from '@/user/get-user.decorator';
 
@@ -18,7 +18,7 @@ export class TutorsController {
   //Profile
   @Get('me/profile')
   @HttpCode(HttpStatus.OK)
-  async getProfile(@GetUser('userId') userId: string, @Res({ passthrough: true }) res: Response): Promise<TutorProfileResponseDto> {
+  async getProfile(@GetUser('userId') userId: string): Promise<TutorProfileResponseDto> {
     if(!userId) {
       throw new BadRequestException(`userId missing`)
     }
@@ -27,21 +27,31 @@ export class TutorsController {
 
   @Put('me/profile')
   @HttpCode(HttpStatus.OK)
-  async putProfile(@GetUser('userId') userId: string, @Body() updateTutorProfileDto: TutorProfileUpdateQueryDto) {
+  async putProfile(@GetUser('userId') userId: string, @Body() request: TutorProfileUpdateQueryDto) {
     if(!userId) {
       throw new BadRequestException(`userId missing`)
     }
-    return await this.tutorsService.putProfile(userId, updateTutorProfileDto);
+    return await this.tutorsService.putProfile(userId, request);
   }
 
   //Listing
   @Get('me/listings')
   @HttpCode(HttpStatus.OK)
-  async getListings(@GetUser('userId') userId: string, @Query() query: ListingQueryDto): Promise<ListingResponseDto[]> {
+  async getListings(@GetUser('userId') userId: string, @Body() request: ListingQueryDto): Promise<ListingResponseDto[]> {
     if(!userId) {
       throw new BadRequestException(`userId missing`)
     }
-    const response = await this.tutorsService.getListings(userId, query)
+    const response = await this.tutorsService.getListings(userId, request);
     return (response)? response : [];
+  }
+
+  @Post('me/listings')
+  @HttpCode(HttpStatus.CREATED)
+  async postListings(@GetUser('userId') userId: string, @Body() request: ListingPostRequestDto): Promise<string> {
+    if(!userId) {
+      throw new BadRequestException(`userId missing`)
+    }
+    const response = await this.tutorsService.postListing(userId, request);
+    return response;
   }
 }

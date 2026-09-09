@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsNumber, IsOptional, IsString, Min, IsInt, IsDefined, IsEnum } from 'class-validator';
+import { IsNumber, IsOptional, IsString, Min, IsInt, IsDefined, IsEnum, IsPositive, Length } from 'class-validator';
 import { Transform } from 'class-transformer';
 import type { TransformFnParams } from 'class-transformer';
 
@@ -98,6 +98,24 @@ export class ListingResponseDto {
 
   @ApiProperty({ example: new Date("2026-08-17") })
   updatedAt!: Date;
+}
+
+export class ListingPostRequestDto {
+
+  @IsDefined()
+  subjectId!: string;
+
+  @IsDefined()
+  gradeLevelId!: string;
+
+  @Transform(toNumberWhenPresent)
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @IsPositive({ message: 'pricePerHour must be more than 0'})
+  pricePerHour!: number;
+
+  @IsString()
+  @Length(20, 1000)
+  description!: string;
 }
 
 function toNumberWhenPresent({ value }: TransformFnParams): unknown {

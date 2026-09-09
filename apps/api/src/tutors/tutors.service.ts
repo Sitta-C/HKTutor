@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 
 import { PrismaService } from '@/database/prisma.service';
-import { ListingQueryDto, ListingResponseDto, TutorProfileResponseDto, TutorProfileUpdateQueryDto } from '@/tutors/tutors.dto';
+import { ListingPostRequestDto, ListingQueryDto, ListingResponseDto, TutorProfileResponseDto, TutorProfileUpdateQueryDto } from '@/tutors/tutors.dto';
 
 export interface SearchTutorsQuery {
   maxPrice?: number;
@@ -46,11 +46,11 @@ export class TutorsService {
     return response;
   }
 
-  async putProfile(userid: string, query: TutorProfileUpdateQueryDto) {
+  async putProfile(userid: string, request: TutorProfileUpdateQueryDto) {
     const dataToUpdate = {
-      displayName: query.displayName,
-      ...(query.bio !== undefined && { bio: query.bio }),
-      ...(query.experienceYears !== undefined && {experienceYears: query.experienceYears}) 
+      displayName: request.displayName,
+      ...(request.bio !== undefined && { bio: request.bio }),
+      ...(request.experienceYears !== undefined && {experienceYears: request.experienceYears}) 
     }
 
     const updatedProfile = await this.prisma.tutorProfile.update({
@@ -64,10 +64,10 @@ export class TutorsService {
   }
 
   //Listing
-  async getListings(userid: string, query: ListingQueryDto): Promise<ListingResponseDto[] | null> {
+  async getListings(userid: string, request: ListingQueryDto): Promise<ListingResponseDto[] | null> {
     const listingsToSearch = {
       userid: userid,
-      ...(query.publicationStatus !== undefined && {publicationStatus: query.publicationStatus})
+      ...(request.publicationStatus !== undefined && {publicationStatus: request.publicationStatus})
     }
 
     const listings = await this.prisma.teachingListing.findMany({
@@ -126,6 +126,26 @@ export class TutorsService {
       publishedAt: (listing.publishedAt)? new Date(listing.publishedAt) : null,
       updatedAt: new Date(listing.updatedAt),
     }));
+  }
+
+  async postListing(userid: string, request: ListingPostRequestDto): Promise<string> {
+    if(!request) {
+      throw new NotFoundException(`Catalog value absent`);
+    }
+
+    const createListingData = {
+      tutorProfileId: userid,
+      subjectId: request.subjectId,
+      gradeLevelId: request.gradeLevelId,
+      pricePerHour: request.pricePerHour,
+      description: request.description,
+    }
+    
+    const newListing = await this.prisma.teachingListing.create({
+      data: createListingData
+    });
+
+    return newListing.id;
   }
 
 }
