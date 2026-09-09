@@ -108,14 +108,36 @@ export class ListingPostRequestDto {
   @IsDefined()
   gradeLevelId!: string;
 
+  @IsDefined()
   @Transform(toNumberWhenPresent)
   @IsNumber({ maxDecimalPlaces: 2 })
   @IsPositive({ message: 'pricePerHour must be more than 0'})
   pricePerHour!: number;
 
+  @IsDefined()
   @IsString()
   @Length(20, 1000)
   description!: string;
+}
+
+export class ListingPatchRequestDto {
+
+  @IsOptional()
+  subjectId?: string;
+
+  @IsOptional()
+  gradeLevelId?: string;
+
+  @IsOptional()
+  @Transform(toNumberWhenPresent)
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @IsPositive({ message: 'pricePerHour must be more than 0'})
+  pricePerHour?: number;
+
+  @IsOptional()
+  @IsString()
+  @Length(20, 1000)
+  description?: string;
 }
 
 function toNumberWhenPresent({ value }: TransformFnParams): unknown {
