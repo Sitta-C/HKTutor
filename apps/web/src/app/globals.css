@@ -259,6 +259,9 @@ input {
   background: transparent;
   border: 0;
   font: inherit;
+  font-size: 1.6rem;
+  font-weight: 900;
+  letter-spacing: -0.08em;
   color: var(--ink);
   transition:
     background 0.22s ease,
@@ -373,7 +376,8 @@ input {
   outline-offset: 2px;
 }
 
-.dash-logo .mono {
+.dash-logo .mono,
+.dash-reopen-logo .mono {
   display: flex;
   width: 2rem;
   height: 2rem;
