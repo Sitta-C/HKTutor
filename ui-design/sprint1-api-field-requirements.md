@@ -26,6 +26,14 @@ silently remove a field used by a page.
   `message: string | string[]`. Domain errors should also expose a stable `code` when the UI needs
   different behavior for conflicts.
 
+## Confirmed Sprint 1 UI identity decisions
+
+- Booking does not need a public or human-readable reference. `Booking.id` remains an internal API
+  and route value and is not displayed by the seven UI drafts.
+- The only missing model-backed display value required by the current drafts is a Student display
+  name for Tutor-facing booking and lesson rows. Until that contract exists, omit the participant
+  name rather than exposing email, displaying an internal ID, or fabricating a value.
+
 ## Shared output objects
 
 These names describe the fields Frontend needs. Backend may choose different DTO class names, but

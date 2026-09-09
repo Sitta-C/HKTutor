@@ -520,6 +520,10 @@ Planned Booking fields absent from current Prisma: `couponId`, `paymentStatus`, 
 These items do not prevent static design. They must be settled with the owning API task before
 shipping the corresponding controls or query logic.
 
+Confirmed Sprint 1 decision: Booking has no public reference in the UI. Its UUID is used internally
+for API calls and routes only. Among the seven current drafts, the remaining missing model-backed
+display value is the Student name needed by Tutor-facing booking and lesson rows.
+
 | Finding                                     | Evidence / effect                                                                                                                              | Design decision for now                                                                                                                           |
 | ------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Dashboard documentation lag                 | Root README and old UI inventory call it a stub; TSX and T09 Done show role shells                                                             | Mark shells implemented, domain data pending. Do not redesign completed auth/session work                                                         |
