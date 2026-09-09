@@ -85,6 +85,8 @@ test('dashboard shell enforces accessibility, responsive toggle, and visible foc
   // Responsive sidebar collapse styling
   assert.match(cssSource, /\.dash-app\.sb-collapsed \.dash-sidebar/);
   assert.match(cssSource, /@media \(max-width: 960px\)/);
+  assert.match(cssSource, /\.dash-header nav > a:not\(\.dash-cta\)/);
+  assert.match(cssSource, /white-space:\s*nowrap/);
   assert.match(cssSource, /@media \(prefers-reduced-motion: reduce\)/);
 });
 

@@ -737,6 +737,27 @@ input {
 }
 
 @media (max-width: 560px) {
+  .dash-header {
+    padding: 1rem 0.75rem;
+  }
+
+  .dash-header nav {
+    gap: 0.55rem;
+  }
+
+  .dash-header nav > a:not(.dash-cta) {
+    display: none;
+  }
+
+  .dash-cta {
+    padding: 0.65rem 0.9rem;
+    white-space: nowrap;
+  }
+
+  .dash-main {
+    width: min(1200px, 100% - 1.5rem);
+  }
+
   .dash-summary {
     grid-template-columns: 1fr;
   }
