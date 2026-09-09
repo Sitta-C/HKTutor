@@ -22,6 +22,7 @@ HKTutor_overview.xlsx
 
 # Tooling files
 *.tsbuildinfo
+.vscode/
 
 # AI Skills
 apps/api/.agents/*
