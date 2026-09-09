@@ -35,7 +35,7 @@ describe('authentication Swagger contract', () => {
     app = moduleFixture.createNestApplication();
     configureApplication(app);
     await app.init();
-    const response = await request(app.getHttpServer()).get('/api/docs-json').expect(200);
+    const response = await request(app.getHttpServer()).get('/api/v1/docs-json').expect(200);
     document = response.body as OpenAPIObject;
   });
 
@@ -44,27 +44,29 @@ describe('authentication Swagger contract', () => {
   });
 
   it.each([
-    ['post', '/api/auth/register', 'Register with email and password'],
-    ['post', '/api/auth/verify-email', 'Verify an email address and start a session'],
-    ['post', '/api/auth/resend-verification', 'Send a new email verification link'],
-    ['post', '/api/auth/login', 'Sign in with email and password'],
-    ['post', '/api/auth/refresh', 'Rotate the refresh session and issue a new access token'],
-    ['post', '/api/auth/logout', 'Revoke the current refresh session'],
-    ['get', '/api/auth/me', 'Return the user authenticated by the access token'],
+    ['post', '/api/v1/auth/register', 'Register with email and password'],
+    ['post', '/api/v1/auth/verify-email', 'Verify an email address and start a session'],
+    ['post', '/api/v1/auth/resend-verification', 'Send a new email verification link'],
+    ['post', '/api/v1/auth/login', 'Sign in with email and password'],
+    ['post', '/api/v1/auth/refresh', 'Rotate the refresh session and issue a new access token'],
+    ['post', '/api/v1/auth/logout', 'Revoke the current refresh session'],
+    ['get', '/api/v1/auth/me', 'Return the user authenticated by the access token'],
   ])('documents %s %s', (method, path, summary) => {
     expect(operation(method, path).summary).toBe(summary);
   });
 
   it('documents access-token and refresh-cookie security independently', () => {
-    expect(operation('get', '/api/auth/me').security).toEqual([{ [JWT_BEARER_AUTH]: [] }]);
-    expect(operation('post', '/api/auth/refresh').security).toEqual([
+    expect(operation('get', '/api/v1/auth/me').security).toEqual([{ [JWT_BEARER_AUTH]: [] }]);
+    expect(operation('post', '/api/v1/auth/refresh').security).toEqual([
       { [REFRESH_COOKIE_AUTH]: [] },
     ]);
-    expect(operation('post', '/api/auth/logout').security).toEqual([{ [REFRESH_COOKIE_AUTH]: [] }]);
+    expect(operation('post', '/api/v1/auth/logout').security).toEqual([
+      { [REFRESH_COOKIE_AUTH]: [] },
+    ]);
   });
 
   it('shows authentication responses without exposing refresh tokens in JSON', () => {
-    const login = operation('post', '/api/auth/login');
+    const login = operation('post', '/api/v1/auth/login');
     const serialized = JSON.stringify(login.responses['200']);
 
     expect(serialized).toContain('accessToken');

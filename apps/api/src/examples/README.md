@@ -7,7 +7,7 @@ current authenticated user.
 The example endpoint is:
 
 ```http
-GET /api/examples/protected
+GET /api/v1/examples/protected
 Authorization: Bearer <access-token>
 ```
 
@@ -164,13 +164,39 @@ When several controller routes share the same guards, apply `@UseGuards` at cont
 put `@Roles` on the individual methods. A method without `@Roles` remains available to every
 authenticated role.
 
+## Ownership-checked endpoint
+
+Place `ResourceOwnershipGuard` after authentication and role authorization:
+
+```ts
+@Get('listings/:listingId')
+@UseGuards(JwtAuthGuard, RolesGuard, ResourceOwnershipGuard)
+@Roles(Role.TUTOR, Role.ADMIN)
+@RequireOwnership({
+  resource: 'teachingListing',
+  idParam: 'listingId',
+  allowAdmin: true,
+})
+getListing() {
+  // Call the business service only after authentication, role, and ownership checks pass.
+}
+```
+
+`RequireOwnership` supports `tutorProfile`, `teachingListing`, `availabilitySlot`, and `booking`.
+The guard queries the resource ID and its owner scope together. For a booking it selects
+`studentUserId` or `tutorProfileId` according to the authenticated role.
+
+Missing records, malformed IDs, and another user's private record all receive the same
+`404 Resource not found` response, so the API does not disclose the existence of another user's
+resource. Enable `allowAdmin` individually per endpoint according to the access matrix.
+
 ## Testing through Swagger UI
 
-1. Call `POST /api/auth/login` with a verified account.
+1. Call `POST /api/v1/auth/login` with a verified account.
 2. Copy `accessToken` from the response. Do not use the refresh token.
 3. Select **Authorize** in Swagger UI.
 4. Enter the access token in the format requested by the UI.
-5. Call `GET /api/examples/protected`.
+5. Call `GET /api/v1/examples/protected`.
 6. A `TUTOR` or `ADMIN` should receive 200; a `STUDENT` should receive 403.
 
 The refresh token is stored in the `hktutor_refresh` cookie and is used only by refresh/logout. Do

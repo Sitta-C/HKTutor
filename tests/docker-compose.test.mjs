@@ -49,7 +49,7 @@ test('defines web and API services with health checks and no local data service'
     'test-refresh-secret-that-is-at-least-32-characters',
   );
   assert.equal(config.services.api.environment.RESEND_API_KEY, 're_test_placeholder');
-  assert.match(config.services.api.healthcheck.test.join(' '), /\/api\/health/);
+  assert.match(config.services.api.healthcheck.test.join(' '), /\/api\/v1\/health/);
   assert.equal(config.services.api.build.dockerfile, 'apps/api/Dockerfile');
   assert.equal(config.services.web.build.dockerfile, 'apps/web/Dockerfile');
   assert.equal(

@@ -1,13 +1,16 @@
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { Test } from '@nestjs/testing';
 
+import { API_GLOBAL_PREFIX } from '@/app.setup';
 import { JWT_BEARER_AUTH } from '@/auth/auth.swagger';
+import { OWNERSHIP_KEY } from '@/auth/ownership.decorator';
 import { ROLES_KEY } from '@/auth/roles.decorator';
 import { PrismaService } from '@/database/prisma.service';
 import { AuthExampleController } from '@/examples/auth-example.controller';
 import { Role } from '@/generated/prisma/client';
 
 import type { AuthenticatedUser } from '@/auth/auth.guard';
+import type { OwnershipRule } from '@/auth/ownership.decorator';
 import type { INestApplication, Type } from '@nestjs/common';
 import type { OpenAPIObject } from '@nestjs/swagger';
 
@@ -40,6 +43,44 @@ describe('AuthExampleController', () => {
 
     expect(roles).toEqual([Role.TUTOR, Role.ADMIN]);
   });
+
+  it('returns the owner-scoped listing example after all guards pass', () => {
+    const controller = new AuthExampleController();
+    const user: AuthenticatedUser = {
+      email: 'tutor@example.com',
+      id: '20000000-0000-4000-8000-000000000001',
+      role: Role.TUTOR,
+      sessionId: 'session-1',
+    };
+    const listingId = '10000000-0000-4000-8000-000000000001';
+
+    expect(controller.getOwnedListingExample(listingId, user)).toEqual({
+      listingId,
+      message: 'Private listing access accepted',
+      requesterId: user.id,
+      role: Role.TUTOR,
+    });
+  });
+
+  it('declares the role and ownership policy for the private listing example', () => {
+    const handler = Object.getOwnPropertyDescriptor(
+      AuthExampleController.prototype,
+      'getOwnedListingExample',
+    )?.value as object | undefined;
+    const roles = handler
+      ? (Reflect.getMetadata(ROLES_KEY, handler) as Role[] | undefined)
+      : undefined;
+    const ownership = handler
+      ? (Reflect.getMetadata(OWNERSHIP_KEY, handler) as OwnershipRule | undefined)
+      : undefined;
+
+    expect(roles).toEqual([Role.TUTOR, Role.ADMIN]);
+    expect(ownership).toEqual({
+      resource: 'teachingListing',
+      idParam: 'listingId',
+      allowAdmin: true,
+    });
+  });
 });
 
 describe('AuthExampleController OpenAPI contract', () => {
@@ -57,6 +98,7 @@ describe('AuthExampleController OpenAPI contract', () => {
       .compile();
 
     app = moduleFixture.createNestApplication();
+    app.setGlobalPrefix(API_GLOBAL_PREFIX);
     await app.init();
     document = SwaggerModule.createDocument(
       app,
@@ -79,7 +121,7 @@ describe('AuthExampleController OpenAPI contract', () => {
   });
 
   it('documents bearer authentication and authorization failures', () => {
-    const operation = document.paths['/api/examples/protected']?.get;
+    const operation = document.paths['/api/v1/examples/protected']?.get;
 
     expect(operation?.summary).toBe(
       'Example of a JWT-protected endpoint restricted to tutors and admins',
@@ -88,5 +130,16 @@ describe('AuthExampleController OpenAPI contract', () => {
     expect(operation?.responses['200']).toBeDefined();
     expect(operation?.responses['401']).toBeDefined();
     expect(operation?.responses['403']).toBeDefined();
+  });
+
+  it('documents the private listing ownership example and its 404 response', () => {
+    const operation = document.paths['/api/v1/examples/private-listings/{listingId}']?.get;
+
+    expect(operation?.summary).toBe('Example of owner-scoped access to a private teaching listing');
+    expect(operation?.security).toEqual([{ [JWT_BEARER_AUTH]: [] }]);
+    expect(operation?.responses['200']).toBeDefined();
+    expect(operation?.responses['401']).toBeDefined();
+    expect(operation?.responses['403']).toBeDefined();
+    expect(operation?.responses['404']).toBeDefined();
   });
 });

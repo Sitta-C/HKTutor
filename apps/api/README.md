@@ -11,7 +11,8 @@ pnpm --filter @hktutor/api test
 pnpm --filter @hktutor/api build
 ```
 
-Authentication endpoints are under `/api/auth`:
+All controller routes receive the global `/api/v1` prefix. Authentication endpoints are under
+`/api/v1/auth`:
 
 - `POST /register`
 - `POST /verify-email`
