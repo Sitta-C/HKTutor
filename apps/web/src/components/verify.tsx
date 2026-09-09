@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useEffect, useRef, useState } from 'react';
 
 import AuthShell from '@/components/auth-shell';
-import { resendVerification } from '@/lib/auth-client';
+import { resendVerification } from '@/lib/api/auth';
 import { useAuth } from '@/lib/auth-context';
 import { useLanguage } from '@/lib/i18n';
 

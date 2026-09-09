@@ -8,9 +8,10 @@ import {
   refreshSession,
   registerAccount,
   verifyEmail,
-} from '@/lib/auth-client';
+} from '@/lib/api/auth';
+import { onSessionExpired } from '@/lib/api/client';
 
-import type { AuthUser } from '@/lib/auth-client';
+import type { AuthUser } from '@/lib/api/types';
 import type { ReactNode } from 'react';
 
 interface RegisterInput {
@@ -35,6 +36,8 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => onSessionExpired(() => setUser(null)), []);
 
   useEffect(() => {
     let active = true;

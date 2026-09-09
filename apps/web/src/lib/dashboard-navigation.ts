@@ -1,4 +1,4 @@
-import type { AuthUser, UserRole } from '@/lib/auth-client';
+import type { AuthUser, UserRole } from '@/lib/api/types';
 import type { Translation } from '@/lib/i18n';
 
 export type DashboardViewType = 'student' | 'tutor' | 'admin';

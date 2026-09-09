@@ -20,6 +20,7 @@ test('documents the required server-only and intentionally public environment va
   const template = parseEnvironment(await fs.readFile('.env.example', 'utf8'));
 
   assert.deepEqual(Object.keys(template).sort(), [
+    'API_INTERNAL_URL',
     'APP_URL',
     'COOKIE_DOMAIN',
     'COOKIE_SAME_SITE',
@@ -33,7 +34,6 @@ test('documents the required server-only and intentionally public environment va
     'JWT_ISSUER',
     'JWT_REFRESH_SECRET',
     'JWT_REFRESH_TTL_SECONDS',
-    'NEXT_PUBLIC_BACKEND_URL',
     'RESEND_API_KEY',
     'SEED_ADMIN_EMAIL',
     'SEED_ADMIN_PASSWORD',
@@ -56,15 +56,11 @@ test('documents the required server-only and intentionally public environment va
   assert.equal(template.JWT_ACCESS_SECRET, '[JWT_ACCESS_SECRET_AT_LEAST_32_CHARACTERS]');
   assert.equal(template.JWT_REFRESH_SECRET, '[JWT_REFRESH_SECRET_AT_LEAST_32_CHARACTERS]');
   assert.equal(template.RESEND_API_KEY, '[RESEND_API_KEY]');
-  assert.equal(
-    template.NEXT_PUBLIC_BACKEND_URL,
-    'http://localhost:3001',
-    'the authentication API URL ships as a documented, overridable build-time default',
-  );
+  assert.equal(template.API_INTERNAL_URL, 'http://localhost:3001');
   const nextPublicKeys = Object.keys(template)
     .filter((name) => name.startsWith('NEXT_PUBLIC_'))
     .sort();
-  assert.deepEqual(nextPublicKeys, ['NEXT_PUBLIC_BACKEND_URL']);
+  assert.deepEqual(nextPublicKeys, [], 'the browser uses a same-origin API path');
 });
 
 test('ignores local environment files but keeps the safe template trackable', () => {
