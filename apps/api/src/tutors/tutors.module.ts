@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
 
-import { TutorsService } from '@/tutors/tutors.service';
 import { TutorsController } from '@/tutors/tutors.controller';
+import { TutorsService } from '@/tutors/tutors.service';
 
 @Module({
     controllers: [TutorsController],

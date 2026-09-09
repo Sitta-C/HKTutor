@@ -1,5 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsNumber, IsOptional, IsString, Min, IsInt, IsDefined, IsEnum, IsPositive, Length } from 'class-validator';
+
+import { IsNumber, IsOptional, IsString, Min, IsInt, IsDefined, IsPositive, Length } from 'class-validator';
 import { Transform } from 'class-transformer';
 import type { TransformFnParams } from 'class-transformer';
 
@@ -63,7 +64,7 @@ export class ListingResponseDto {
   @ApiProperty({ example: '<uuid>' })
   listingId!: string;
 
-  @ApiProperty({ example: `{id: <uuid>, code: <code>, name: math, active: true, createdAt: ${new Date("2026-08-17")}, updatedAt: ${new Date("2026-08-17")}}` })
+  @ApiProperty({ example: `{id: <uuid>, code: <code>, name: math, active: true, createdAt: ${new Date("2026-08-17").toISOString()}, updatedAt: ${new Date("2026-08-17").toISOString()}}` })
   subject!: {
     id: string,
     code: string,
@@ -73,7 +74,7 @@ export class ListingResponseDto {
     updatedAt: Date,
   };
 
-  @ApiProperty({ example: `{id: <uuid>, code: <code>, name: <name>, active: true, createdAt: ${new Date("2026-08-17")}, updatedAt: ${new Date("2026-08-17")}}` })
+  @ApiProperty({ example: `{id: <uuid>, code: <code>, name: <name>, active: true, createdAt: ${new Date("2026-08-17").toISOString()}, updatedAt: ${new Date("2026-08-17").toISOString()}}` })
   gradeLevel!: {
     id: string,
     code: string,
