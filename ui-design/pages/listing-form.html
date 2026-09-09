@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Teaching listings | HKTutor UI draft</title>
+    <link rel="stylesheet" href="../shared/prototype.css" />
+  </head>
+  <body data-role="tutor">
+    <div id="app"></div>
+    <template id="page-content">
+      <section class="proto-greeting">
+        <p class="proto-eyebrow" data-en="Teaching listings" data-th="คอร์สสอน">Teaching listings</p>
+        <h1 class="proto-title">
+          <span data-en="Create a clear offer for students" data-th="สร้างคอร์สที่นักเรียนเข้าใจได้ทันที">Create a clear offer for students</span>
+          <span class="proto-role-chip" data-en="Tutor" data-th="ติวเตอร์">Tutor</span>
+        </h1>
+        <p class="proto-subtitle" data-en="Each listing connects one subject, one grade level, an hourly rate and a description. Your profile must be verified before publishing." data-th="แต่ละคอร์สเชื่อมหนึ่งวิชา หนึ่งระดับชั้น ราคาต่อชั่วโมง และคำอธิบาย โปรไฟล์ต้องผ่านการตรวจสอบก่อนเผยแพร่">Each listing connects one subject, one grade level, an hourly rate and a description. Your profile must be verified before publishing.</p>
+      </section>
+
+      <div class="proto-form-grid">
+        <form class="proto-card proto-panel" id="listingForm" novalidate>
+          <div class="proto-section-head">
+            <div>
+              <h2 data-en="New teaching listing" data-th="สร้างคอร์สใหม่">New teaching listing</h2>
+              <p data-en="Required fields are saved as a draft until you choose Publish." data-th="ข้อมูลที่กรอกจะบันทึกเป็นฉบับร่างจนกว่าจะกดเผยแพร่">Required fields are saved as a draft until you choose Publish.</p>
+            </div>
+            <span class="proto-pill" data-en="DRAFT" data-th="ฉบับร่าง">DRAFT</span>
+          </div>
+          <div class="proto-section-body">
+            <fieldset class="proto-fieldset">
+              <legend class="proto-legend" data-en="Course details" data-th="รายละเอียดคอร์ส">Course details</legend>
+              <div class="proto-field-grid" style="margin-top:.8rem">
+                <div class="proto-field" id="subjectField">
+                  <label for="subject" data-en="Subject" data-th="วิชา">Subject</label>
+                  <select class="proto-select" id="subject" required>
+                    <option value="" data-en="Select a subject" data-th="เลือกวิชา">Select a subject</option>
+                    <option value="mathematics" selected data-en="Mathematics" data-th="คณิตศาสตร์">Mathematics</option>
+                    <option value="english" data-en="English" data-th="ภาษาอังกฤษ">English</option>
+                    <option value="physics" data-en="Physics" data-th="ฟิสิกส์">Physics</option>
+                  </select>
+                  <p class="proto-help" data-en="Only active subjects can be selected." data-th="เลือกได้เฉพาะวิชาที่เปิดใช้งาน">Only active subjects can be selected.</p>
+                  <p class="proto-error" data-en="Choose a subject." data-th="กรุณาเลือกวิชา">Choose a subject.</p>
+                </div>
+                <div class="proto-field" id="gradeField">
+                  <label for="grade" data-en="Grade level" data-th="ระดับชั้น">Grade level</label>
+                  <select class="proto-select" id="grade" required>
+                    <option value="" data-en="Select a grade" data-th="เลือกระดับชั้น">Select a grade</option>
+                    <option value="g9" data-en="Grade 9" data-th="มัธยมศึกษาปีที่ 3">Grade 9</option>
+                    <option value="g10" selected data-en="Grade 10" data-th="มัธยมศึกษาปีที่ 4">Grade 10</option>
+                    <option value="g11" data-en="Grade 11" data-th="มัธยมศึกษาปีที่ 5">Grade 11</option>
+                    <option value="g12" data-en="Grade 12" data-th="มัธยมศึกษาปีที่ 6">Grade 12</option>
+                  </select>
+                  <p class="proto-help" data-en="Grade choices follow the shared catalog order." data-th="ระดับชั้นเรียงตามข้อมูลกลางของระบบ">Grade choices follow the shared catalog order.</p>
+                  <p class="proto-error" data-en="Choose a grade level." data-th="กรุณาเลือกระดับชั้น">Choose a grade level.</p>
+                </div>
+                <div class="proto-field" id="priceField">
+                  <label for="price" data-en="Price per hour (THB)" data-th="ราคาต่อชั่วโมง (บาท)">Price per hour (THB)</label>
+                  <input class="proto-input" id="price" type="number" min="0.01" step="0.01" value="450" required />
+                  <p class="proto-help" data-en="The final booking amount is calculated by the server." data-th="ยอดจองสุดท้ายจะคำนวณโดยเซิร์ฟเวอร์">The final booking amount is calculated by the server.</p>
+                  <p class="proto-error" data-en="Enter a price greater than zero." data-th="กรุณากรอกราคามากกว่าศูนย์">Enter a price greater than zero.</p>
+                </div>
+                <div class="proto-field">
+                  <label data-en="Publication status" data-th="สถานะการเผยแพร่">Publication status</label>
+                  <div class="proto-summary-box">
+                    <span class="proto-pill" data-en="DRAFT" data-th="ฉบับร่าง">DRAFT</span>
+                    <p class="proto-help" style="margin-top:.5rem" data-en="Publishing is available because this tutor profile is verified." data-th="สามารถเผยแพร่ได้เนื่องจากโปรไฟล์ติวเตอร์ผ่านการตรวจสอบแล้ว">Publishing is available because this tutor profile is verified.</p>
+                  </div>
+                </div>
+                <div class="proto-field full" id="descriptionField">
+                  <div class="proto-between"><label for="description" data-en="Listing description" data-th="คำอธิบายคอร์ส">Listing description</label><span class="proto-counter"><span id="descriptionCount">142</span> / 1000</span></div>
+                  <textarea class="proto-textarea" id="description" minlength="20" maxlength="1000" required>Build confidence in Grade 10 mathematics through clear explanations, guided examples and exam-style practice tailored to your current level.</textarea>
+                  <p class="proto-help" data-en="Use 20–1,000 characters after trimming." data-th="ใช้ข้อความ 20–1,000 ตัวอักษรหลังตัดช่องว่างหัวท้าย">Use 20–1,000 characters after trimming.</p>
+                  <p class="proto-error" data-en="Write between 20 and 1,000 characters." data-th="กรุณาเขียนระหว่าง 20 ถึง 1,000 ตัวอักษร">Write between 20 and 1,000 characters.</p>
+                </div>
+              </div>
+            </fieldset>
+            <div class="proto-actions">
+              <button class="proto-button" type="submit" data-action="draft"><span data-en="Save draft" data-th="บันทึกฉบับร่าง">Save draft</span></button>
+              <button class="proto-button-role" type="submit" data-action="publish"><span data-en="Publish listing" data-th="เผยแพร่คอร์ส">Publish listing</span></button>
+              <button class="proto-button-secondary" type="reset"><span data-en="Clear form" data-th="ล้างข้อมูล">Clear form</span></button>
+              <span class="proto-help push-right" data-en="Unsaved changes" data-th="มีการเปลี่ยนแปลงที่ยังไม่ได้บันทึก">Unsaved changes</span>
+            </div>
+          </div>
+        </form>
+
+        <aside class="proto-stack">
+          <section class="proto-card proto-panel proto-preview">
+            <div class="proto-section-head"><div><h2 data-en="Student preview" data-th="ตัวอย่างที่นักเรียนเห็น">Student preview</h2><p data-en="Preview updates as you edit the form." data-th="ตัวอย่างจะเปลี่ยนตามข้อมูลในแบบฟอร์ม">Preview updates as you edit the form.</p></div><span class="proto-pill role" data-en="VERIFIED" data-th="ยืนยันแล้ว">VERIFIED</span></div>
+            <div class="proto-section-body">
+              <h3 class="proto-catalog-title" id="previewTitle">Mathematics · Grade 10</h3>
+              <div class="proto-meta" style="margin-top:.45rem"><span>Pim S.</span><span>★ 4.90 (24)</span><span data-en="6 years experience" data-th="ประสบการณ์ 6 ปี">6 years experience</span></div>
+              <p class="proto-description" id="previewDescription">Build confidence in Grade 10 mathematics through clear explanations, guided examples and exam-style practice tailored to your current level.</p>
+              <div class="proto-between" style="margin-top:1rem"><strong class="proto-price"><span id="previewPrice">450</span>฿/<span data-en="hour" data-th="ชั่วโมง">hour</span></strong><span class="proto-pill" data-en="DRAFT PREVIEW" data-th="ตัวอย่างฉบับร่าง">DRAFT PREVIEW</span></div>
+            </div>
+          </section>
+          <section class="proto-notice"><strong data-en="Publication rule" data-th="เงื่อนไขการเผยแพร่">Publication rule</strong><br /><span data-en="Only a verified tutor can publish. A rejected or pending profile may still save a draft." data-th="เฉพาะติวเตอร์ที่ผ่านการตรวจสอบแล้วจึงเผยแพร่ได้ โปรไฟล์ที่รอตรวจหรือถูกปฏิเสธยังบันทึกฉบับร่างได้">Only a verified tutor can publish. A rejected or pending profile may still save a draft.</span></section>
+        </aside>
+      </div>
+
+      <section class="proto-card proto-panel" style="margin-top:1.2rem" id="listings">
+        <div class="proto-section-head"><div><h2 data-en="My listings" data-th="คอร์สของฉัน">My listings</h2><p data-en="Three records · one published, one draft and one archived." data-th="3 รายการ · เผยแพร่ 1 ฉบับร่าง 1 และเก็บถาวร 1">Three records · one published, one draft and one archived.</p></div><div class="proto-tabs" aria-label="Listing filters"><button class="proto-tab active" type="button" data-filter="all" data-en="All 3" data-th="ทั้งหมด 3">All 3</button><button class="proto-tab" type="button" data-filter="published" data-en="Published 1" data-th="เผยแพร่ 1">Published 1</button><button class="proto-tab" type="button" data-filter="draft" data-en="Draft 1" data-th="ฉบับร่าง 1">Draft 1</button><button class="proto-tab" type="button" data-filter="archived" data-en="Archived 1" data-th="เก็บถาวร 1">Archived 1</button></div></div>
+        <div class="proto-list proto-section-body" id="listingRows">
+          <article class="proto-row" data-status="published"><span class="proto-avatar">∑</span><div class="proto-row-copy"><b data-en="Mathematics · Grade 10" data-th="คณิตศาสตร์ · มัธยมศึกษาปีที่ 4">Mathematics · Grade 10</b><span data-en="450฿/hour · Published 7 Sep 2026 · Updated 8 Sep 2026" data-th="450฿/ชั่วโมง · เผยแพร่ 7 ก.ย. 2026 · แก้ไข 8 ก.ย. 2026">450฿/hour · Published 7 Sep 2026 · Updated 8 Sep 2026</span></div><span class="proto-pill published" data-en="PUBLISHED" data-th="เผยแพร่แล้ว">PUBLISHED</span><button class="proto-button-secondary" type="button" data-en="Edit" data-th="แก้ไข">Edit</button></article>
+          <article class="proto-row" data-status="draft"><span class="proto-avatar">π</span><div class="proto-row-copy"><b data-en="Mathematics · Grade 9" data-th="คณิตศาสตร์ · มัธยมศึกษาปีที่ 3">Mathematics · Grade 9</b><span data-en="350฿/hour · Draft saved 8 Sep 2026" data-th="350฿/ชั่วโมง · บันทึกฉบับร่าง 8 ก.ย. 2026">350฿/hour · Draft saved 8 Sep 2026</span></div><span class="proto-pill" data-en="DRAFT" data-th="ฉบับร่าง">DRAFT</span><button class="proto-button-secondary" type="button" data-en="Continue" data-th="ทำต่อ">Continue</button></article>
+          <article class="proto-row" data-status="archived"><span class="proto-avatar">A</span><div class="proto-row-copy"><b data-en="English · Grade 11" data-th="ภาษาอังกฤษ · มัธยมศึกษาปีที่ 5">English · Grade 11</b><span data-en="500฿/hour · Archived 1 Sep 2026 · Booking history retained" data-th="500฿/ชั่วโมง · เก็บถาวร 1 ก.ย. 2026 · ประวัติการจองยังอยู่">500฿/hour · Archived 1 Sep 2026 · Booking history retained</span></div><span class="proto-pill" data-en="ARCHIVED" data-th="เก็บถาวร">ARCHIVED</span><button class="proto-button-secondary" type="button" data-en="View" data-th="ดู">View</button></article>
+        </div>
+      </section>
+    </template>
+    <script src="../shared/prototype-shell.js"></script>
+    <script>
+      HKTutorPrototype.mount({ role: 'tutor', active: 'listings', headerSecondary: { en: 'Availability', th: 'ตารางว่าง', href: 'availability.html' }, headerPrimary: { en: 'New listing', th: 'สร้างคอร์สใหม่', href: '#listingForm' } });
+      const form = document.getElementById('listingForm');
+      const subject = document.getElementById('subject');
+      const grade = document.getElementById('grade');
+      const price = document.getElementById('price');
+      const description = document.getElementById('description');
+      function updatePreview() {
+        const subjectText = subject.options[subject.selectedIndex]?.text || 'Subject';
+        const gradeText = grade.options[grade.selectedIndex]?.text || 'Grade level';
+        document.getElementById('previewTitle').textContent = `${subjectText} · ${gradeText}`;
+        document.getElementById('previewPrice').textContent = price.value || '0';
+        document.getElementById('previewDescription').textContent = description.value.trim() || 'Your listing description will appear here.';
+        document.getElementById('descriptionCount').textContent = description.value.length;
+      }
+      [subject, grade, price, description].forEach((field) => field.addEventListener('input', updatePreview));
+      form.addEventListener('submit', (event) => {
+        event.preventDefault();
+        const valid = subject.value && grade.value && Number(price.value) > 0 && description.value.trim().length >= 20;
+        document.getElementById('subjectField').classList.toggle('invalid', !subject.value);
+        document.getElementById('gradeField').classList.toggle('invalid', !grade.value);
+        document.getElementById('priceField').classList.toggle('invalid', !price.value || Number(price.value) <= 0);
+        document.getElementById('descriptionField').classList.toggle('invalid', description.value.trim().length < 20);
+        if (!valid) return;
+        const publish = event.submitter?.dataset.action === 'publish';
+        HKTutorPrototype.toast(publish ? 'Listing published' : 'Draft saved', publish ? 'เผยแพร่คอร์สแล้ว' : 'บันทึกฉบับร่างแล้ว');
+      });
+      form.addEventListener('reset', () => window.setTimeout(updatePreview));
+      document.querySelectorAll('.proto-tab').forEach((tab) => tab.addEventListener('click', () => {
+        document.querySelectorAll('.proto-tab').forEach((item) => item.classList.remove('active'));
+        tab.classList.add('active');
+        document.querySelectorAll('#listingRows [data-status]').forEach((row) => row.classList.toggle('proto-hidden', tab.dataset.filter !== 'all' && row.dataset.status !== tab.dataset.filter));
+      }));
+      updatePreview();
+    </script>
+  </body>
+</html>
