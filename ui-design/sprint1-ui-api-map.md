@@ -3,6 +3,9 @@
 All paths use the global `/api/v1` prefix. APIs marked **Proposed** still need a final Swagger
 contract from Backend.
 
+Detailed input, output, validation, and error requirements are in
+[`sprint1-api-field-requirements.md`](./sprint1-api-field-requirements.md).
+
 | API                                                                          | Page use                                      | API task ID                      | Page task ID             | What does it do                                                                                                |
 | ---------------------------------------------------------------------------- | --------------------------------------------- | -------------------------------- | ------------------------ | -------------------------------------------------------------------------------------------------------------- |
 | `POST /auth/register`                                                        | `/register`                                   | S1-T08 (Done)                    | S1-T06, S1-T11 (Done)    | Creates a Student or Tutor account and records privacy consent.                                                |
