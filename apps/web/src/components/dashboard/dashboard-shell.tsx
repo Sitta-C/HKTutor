@@ -11,7 +11,7 @@ import {
 } from '@/lib/dashboard-navigation';
 import { useLanguage } from '@/lib/i18n';
 
-import type { AuthUser } from '@/lib/auth-client';
+import type { AuthUser } from '@/lib/api/types';
 import type { ReactNode } from 'react';
 
 export interface DashboardShellProps {
