@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Availability | HKTutor UI draft</title>
+    <link rel="stylesheet" href="../shared/prototype.css" />
+  </head>
+  <body data-role="tutor">
+    <div id="app"></div>
+    <template id="page-content">
+      <section class="proto-greeting">
+        <p class="proto-eyebrow" data-en="Availability" data-th="ตารางว่าง">Availability</p>
+        <h1 class="proto-title"><span data-en="Plan your teaching time" data-th="จัดเวลาสอนของคุณ">Plan your teaching time</span><span class="proto-role-chip" data-en="Bangkok time" data-th="เวลาตามกรุงเทพฯ">Bangkok time</span></h1>
+        <p class="proto-subtitle" data-en="Add future time ranges in Asia/Bangkok. HKTutor stores UTC and calculates whether each slot is open from active bookings." data-th="เพิ่มช่วงเวลาในอนาคตตามเวลาเอเชีย/กรุงเทพฯ ระบบจัดเก็บเป็น UTC และคำนวณสถานะว่างจากการจองที่ยังใช้งานอยู่">Add future time ranges in Asia/Bangkok. HKTutor stores UTC and calculates whether each slot is open from active bookings.</p>
+      </section>
+
+      <div class="proto-grid-4" style="margin-bottom:1.15rem">
+        <section class="proto-card proto-stat"><p class="proto-stat-label" data-en="Open slots" data-th="ช่วงเวลาว่าง">Open slots</p><p class="proto-stat-value" id="openCount">4</p><p class="proto-stat-sub" data-en="Future and available" data-th="ในอนาคตและยังจองได้">Future and available</p></section>
+        <section class="proto-card proto-stat"><p class="proto-stat-label" data-en="Reserved slots" data-th="ช่วงเวลาที่ถูกจอง">Reserved slots</p><p class="proto-stat-value">2</p><p class="proto-stat-sub" data-en="Pending or confirmed booking" data-th="มีการจองที่รอหรือยืนยันแล้ว">Pending or confirmed booking</p></section>
+        <section class="proto-card proto-stat"><p class="proto-stat-label" data-en="Teaching hours" data-th="ชั่วโมงสอน">Teaching hours</p><p class="proto-stat-value">6.5</p><p class="proto-stat-sub" data-en="Shown for this week" data-th="แสดงสำหรับสัปดาห์นี้">Shown for this week</p></section>
+        <section class="proto-card proto-stat"><p class="proto-stat-label" data-en="Timezone" data-th="เขตเวลา">Timezone</p><p class="proto-stat-value" style="font-size:1.3rem">UTC+7</p><p class="proto-stat-sub">Asia/Bangkok</p></section>
+      </div>
+
+      <div class="proto-form-grid">
+        <section class="proto-card proto-panel">
+          <div class="proto-section-head">
+            <div><h2 data-en="Week of 9–15 September 2026" data-th="สัปดาห์ 9–15 กันยายน 2026">Week of 9–15 September 2026</h2><p data-en="Adjacent ranges are allowed. Overlapping ranges are rejected." data-th="ช่วงเวลาที่ต่อกันสร้างได้ แต่ช่วงเวลาที่ซ้อนกันจะถูกปฏิเสธ">Adjacent ranges are allowed. Overlapping ranges are rejected.</p></div>
+            <div class="proto-actions" style="margin:0"><button class="proto-button-secondary" type="button" aria-label="Previous week">‹</button><button class="proto-button-secondary" type="button" data-en="Today" data-th="วันนี้">Today</button><button class="proto-button-secondary" type="button" aria-label="Next week">›</button></div>
+          </div>
+          <div class="proto-section-body" id="weekSlots">
+            <article class="proto-day">
+              <div class="proto-day-label"><strong data-en="Wednesday" data-th="วันพุธ">Wednesday</strong><span>9 Sep 2026</span></div>
+              <div class="proto-slot-list">
+                <div class="proto-slot"><span class="proto-slot-time">18:00–19:00</span><span class="proto-slot-copy" data-en="1 hour · No active booking" data-th="1 ชั่วโมง · ไม่มีการจองที่ใช้งานอยู่">1 hour · No active booking</span><span class="proto-pill open" data-en="OPEN" data-th="ว่าง">OPEN</span><button class="proto-button-danger delete-slot" type="button" data-en="Delete" data-th="ลบ">Delete</button></div>
+                <div class="proto-slot"><span class="proto-slot-time">19:00–20:00</span><span class="proto-slot-copy" data-en="1 hour · Booking B-501 pending" data-th="1 ชั่วโมง · การจอง B-501 รอยืนยัน">1 hour · Booking B-501 pending</span><span class="proto-pill reserved" data-en="RESERVED" data-th="ถูกจอง">RESERVED</span><button class="proto-button-secondary" type="button" disabled data-en="Reserved" data-th="ถูกจองแล้ว">Reserved</button></div>
+              </div>
+            </article>
+            <article class="proto-day">
+              <div class="proto-day-label"><strong data-en="Thursday" data-th="วันพฤหัสบดี">Thursday</strong><span>10 Sep 2026</span></div>
+              <div class="proto-slot-list">
+                <div class="proto-slot"><span class="proto-slot-time">10:00–11:30</span><span class="proto-slot-copy" data-en="1.5 hours · No active booking" data-th="1.5 ชั่วโมง · ไม่มีการจองที่ใช้งานอยู่">1.5 hours · No active booking</span><span class="proto-pill open" data-en="OPEN" data-th="ว่าง">OPEN</span><button class="proto-button-danger delete-slot" type="button" data-en="Delete" data-th="ลบ">Delete</button></div>
+                <div class="proto-slot"><span class="proto-slot-time">16:00–17:00</span><span class="proto-slot-copy" data-en="1 hour · Booking B-498 confirmed" data-th="1 ชั่วโมง · การจอง B-498 ยืนยันแล้ว">1 hour · Booking B-498 confirmed</span><span class="proto-pill reserved" data-en="RESERVED" data-th="ถูกจอง">RESERVED</span><button class="proto-button-secondary" type="button" disabled data-en="Reserved" data-th="ถูกจองแล้ว">Reserved</button></div>
+              </div>
+            </article>
+            <article class="proto-day">
+              <div class="proto-day-label"><strong data-en="Saturday" data-th="วันเสาร์">Saturday</strong><span>12 Sep 2026</span></div>
+              <div class="proto-slot-list">
+                <div class="proto-slot"><span class="proto-slot-time">09:00–10:00</span><span class="proto-slot-copy" data-en="1 hour · No active booking" data-th="1 ชั่วโมง · ไม่มีการจองที่ใช้งานอยู่">1 hour · No active booking</span><span class="proto-pill open" data-en="OPEN" data-th="ว่าง">OPEN</span><button class="proto-button-danger delete-slot" type="button" data-en="Delete" data-th="ลบ">Delete</button></div>
+                <div class="proto-slot"><span class="proto-slot-time">13:00–15:00</span><span class="proto-slot-copy" data-en="2 hours · No active booking" data-th="2 ชั่วโมง · ไม่มีการจองที่ใช้งานอยู่">2 hours · No active booking</span><span class="proto-pill open" data-en="OPEN" data-th="ว่าง">OPEN</span><button class="proto-button-danger delete-slot" type="button" data-en="Delete" data-th="ลบ">Delete</button></div>
+              </div>
+            </article>
+          </div>
+        </section>
+
+        <aside class="proto-stack">
+          <form class="proto-card proto-panel proto-preview" id="slotForm" novalidate>
+            <div class="proto-section-head"><div><h2 data-en="Add available time" data-th="เพิ่มช่วงเวลาว่าง">Add available time</h2><p data-en="Create one date and time range at a time." data-th="สร้างครั้งละหนึ่งวันที่และหนึ่งช่วงเวลา">Create one date and time range at a time.</p></div></div>
+            <div class="proto-section-body">
+              <div class="proto-field-grid">
+                <div class="proto-field full"><label for="slotDate" data-en="Date" data-th="วันที่">Date</label><input class="proto-input" id="slotDate" type="date" value="2026-09-13" min="2026-09-10" required /></div>
+                <div class="proto-field"><label for="startTime" data-en="Start time" data-th="เวลาเริ่ม">Start time</label><input class="proto-input" id="startTime" type="time" value="18:00" required /></div>
+                <div class="proto-field"><label for="endTime" data-en="End time" data-th="เวลาสิ้นสุด">End time</label><input class="proto-input" id="endTime" type="time" value="19:00" required /></div>
+              </div>
+              <div class="proto-summary-box" style="margin-top:1rem"><p class="proto-summary-label" data-en="Bangkok preview" data-th="ตัวอย่างเวลาตามกรุงเทพฯ">Bangkok preview</p><p class="proto-summary-value" id="slotPreview">Sunday 13 Sep 2026 · 18:00–19:00 · 1 hour</p><p class="proto-help" data-en="Stored as 11:00–12:00 UTC." data-th="จัดเก็บเป็น 11:00–12:00 UTC">Stored as 11:00–12:00 UTC.</p></div>
+              <p class="proto-error" id="slotError" style="margin-top:.7rem" data-en="End time must be later than start time." data-th="เวลาสิ้นสุดต้องอยู่หลังเวลาเริ่ม">End time must be later than start time.</p>
+              <div class="proto-actions"><button class="proto-button-role" type="submit"><span data-en="Add time" data-th="เพิ่มเวลา">Add time</span></button><button class="proto-button-secondary" type="reset"><span data-en="Reset" data-th="รีเซ็ต">Reset</span></button></div>
+            </div>
+          </form>
+          <section class="proto-notice"><strong data-en="Why a reserved slot cannot be deleted" data-th="เหตุผลที่ลบช่วงเวลาที่ถูกจองไม่ได้">Why a reserved slot cannot be deleted</strong><br /><span data-en="A pending or confirmed booking currently owns that reservation. Canceling or completing a booking changes availability through booking rules." data-th="การจองที่รอยืนยันหรือยืนยันแล้วกำลังใช้ช่วงเวลานั้น การยกเลิกหรือจบคลาสจะเปลี่ยนสถานะผ่านกฎของการจอง">A pending or confirmed booking currently owns that reservation. Canceling or completing a booking changes availability through booking rules.</span></section>
+        </aside>
+      </div>
+    </template>
+    <script src="../shared/prototype-shell.js"></script>
+    <script>
+      HKTutorPrototype.mount({ role: 'tutor', active: 'availability', headerSecondary: { en: 'My listings', th: 'คอร์สของฉัน', href: 'listing-form.html' }, headerPrimary: { en: 'Add time', th: 'เพิ่มเวลา', href: '#slotForm' } });
+      const form = document.getElementById('slotForm');
+      const date = document.getElementById('slotDate');
+      const start = document.getElementById('startTime');
+      const end = document.getElementById('endTime');
+      function updateSlotPreview() {
+        const startMinutes = Number(start.value.slice(0, 2)) * 60 + Number(start.value.slice(3));
+        const endMinutes = Number(end.value.slice(0, 2)) * 60 + Number(end.value.slice(3));
+        const duration = Math.max(0, endMinutes - startMinutes) / 60;
+        document.getElementById('slotPreview').textContent = `${date.value || 'Select date'} · ${start.value || '--:--'}–${end.value || '--:--'} · ${duration || 0} hour${duration === 1 ? '' : 's'}`;
+      }
+      [date, start, end].forEach((input) => input.addEventListener('input', updateSlotPreview));
+      form.addEventListener('submit', (event) => {
+        event.preventDefault();
+        const valid = start.value && end.value && end.value > start.value;
+        document.getElementById('slotError').style.display = valid ? 'none' : 'block';
+        if (!valid) return;
+        HKTutorPrototype.toast('Available time added', 'เพิ่มช่วงเวลาว่างแล้ว');
+      });
+      document.querySelectorAll('.delete-slot').forEach((button) => button.addEventListener('click', () => {
+        button.closest('.proto-slot').remove();
+        const count = document.querySelectorAll('.proto-pill.open').length;
+        document.getElementById('openCount').textContent = count;
+        HKTutorPrototype.toast('Available time deleted', 'ลบช่วงเวลาว่างแล้ว');
+      }));
+      updateSlotPreview();
+    </script>
+  </body>
+</html>

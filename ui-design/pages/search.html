@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Find a tutor | HKTutor UI draft</title>
+    <link rel="stylesheet" href="../shared/prototype.css" />
+  </head>
+  <body data-role="student">
+    <div id="app"></div>
+    <template id="page-content">
+      <section class="proto-greeting">
+        <p class="proto-eyebrow" data-en="Tutor search" data-th="ค้นหาติวเตอร์">Tutor search</p>
+        <h1 class="proto-title"><span data-en="Find an exact match" data-th="ค้นหาติวเตอร์ที่ตรงกับคุณ">Find an exact match</span><span class="proto-role-chip" data-en="Student" data-th="นักเรียน">Student</span></h1>
+        <p class="proto-subtitle" data-en="Filter published listings from verified tutors by subject, grade, maximum budget and minimum rating." data-th="กรองคอร์สที่เผยแพร่จากติวเตอร์ที่ผ่านการตรวจสอบตามวิชา ระดับชั้น งบสูงสุด และคะแนนขั้นต่ำ">Filter published listings from verified tutors by subject, grade, maximum budget and minimum rating.</p>
+      </section>
+
+      <div class="proto-search-layout">
+        <aside class="proto-card proto-panel proto-filter-panel">
+          <div class="proto-section-head"><div><h2 data-en="Filters" data-th="ตัวกรอง">Filters</h2><p data-en="All selected filters are combined." data-th="ระบบจะใช้ตัวกรองที่เลือกทั้งหมดร่วมกัน">All selected filters are combined.</p></div><span class="proto-pill role" id="filterCount">4</span></div>
+          <form class="proto-section-body" id="filterForm">
+            <div class="proto-field">
+              <label for="filterSubject" data-en="Subject" data-th="วิชา">Subject</label>
+              <select class="proto-select" id="filterSubject"><option value="all" data-en="All subjects" data-th="ทุกวิชา">All subjects</option><option value="mathematics" selected data-en="Mathematics" data-th="คณิตศาสตร์">Mathematics</option><option value="english" data-en="English" data-th="ภาษาอังกฤษ">English</option><option value="physics" data-en="Physics" data-th="ฟิสิกส์">Physics</option></select>
+            </div>
+            <div class="proto-field" style="margin-top:.8rem">
+              <label for="filterGrade" data-en="Grade level" data-th="ระดับชั้น">Grade level</label>
+              <select class="proto-select" id="filterGrade"><option value="all" data-en="All grades" data-th="ทุกระดับชั้น">All grades</option><option value="g9" data-en="Grade 9" data-th="มัธยมศึกษาปีที่ 3">Grade 9</option><option value="g10" selected data-en="Grade 10" data-th="มัธยมศึกษาปีที่ 4">Grade 10</option><option value="g11" data-en="Grade 11" data-th="มัธยมศึกษาปีที่ 5">Grade 11</option></select>
+            </div>
+            <div class="proto-field" style="margin-top:.8rem"><label for="filterBudget" data-en="Maximum budget (THB/hour)" data-th="งบสูงสุด (บาท/ชั่วโมง)">Maximum budget (THB/hour)</label><input class="proto-input" id="filterBudget" type="number" min="0" value="500" /><p class="proto-help" data-en="The upper limit is inclusive." data-th="ราคาที่เท่ากับงบสูงสุดจะแสดงด้วย">The upper limit is inclusive.</p></div>
+            <div class="proto-field" style="margin-top:.8rem"><label for="filterRating" data-en="Minimum rating" data-th="คะแนนขั้นต่ำ">Minimum rating</label><select class="proto-select" id="filterRating"><option value="0" data-en="Any rating" data-th="ทุกคะแนน">Any rating</option><option value="4" selected>4.0+</option><option value="4.5">4.5+</option><option value="4.8">4.8+</option></select><p class="proto-help" data-en="New tutors without a rating are excluded when a minimum is selected." data-th="ติวเตอร์ใหม่ที่ยังไม่มีคะแนนจะไม่แสดงเมื่อเลือกคะแนนขั้นต่ำ">New tutors without a rating are excluded when a minimum is selected.</p></div>
+            <div class="proto-actions"><button class="proto-button-role" type="submit"><span data-en="Apply filters" data-th="ใช้ตัวกรอง">Apply filters</span></button><button class="proto-button-secondary" id="clearFilters" type="button"><span data-en="Clear" data-th="ล้าง">Clear</span></button></div>
+          </form>
+        </aside>
+
+        <section>
+          <div class="proto-card proto-panel">
+            <div class="proto-section-head"><div><h2><span id="resultCount">2</span> <span data-en="exact matches" data-th="ผลลัพธ์ที่ตรงกัน">exact matches</span></h2><p id="resultSummary" data-en="Mathematics · Grade 10 · up to 500฿/hour · rating 4.0+" data-th="คณิตศาสตร์ · มัธยมศึกษาปีที่ 4 · ไม่เกิน 500฿/ชั่วโมง · คะแนน 4.0+">Mathematics · Grade 10 · up to 500฿/hour · rating 4.0+</p></div><span class="proto-pill role" data-en="VERIFIED ONLY" data-th="เฉพาะที่ยืนยันแล้ว">VERIFIED ONLY</span></div>
+            <div class="proto-section-body" id="results">
+              <article class="proto-card proto-result-card" data-subject="mathematics" data-grade="g10" data-price="450" data-rating="4.9">
+                <span class="proto-avatar">PS</span>
+                <div><div class="proto-inline" style="gap:.5rem;flex-wrap:wrap"><h3 class="proto-catalog-title">Pim S.</h3><span class="proto-pill role" data-en="VERIFIED" data-th="ยืนยันแล้ว">VERIFIED</span></div><div class="proto-meta" style="margin-top:.4rem"><span>★ 4.90 (24)</span><span data-en="6 years experience" data-th="ประสบการณ์ 6 ปี">6 years experience</span><span data-en="Next: Thu 10 Sep · 10:00" data-th="เวลาถัดไป: พฤ. 10 ก.ย. · 10:00">Next: Thu 10 Sep · 10:00</span></div><h4 style="margin-top:.75rem;font-size:.82rem" data-en="Mathematics · Grade 10" data-th="คณิตศาสตร์ · มัธยมศึกษาปีที่ 4">Mathematics · Grade 10</h4><p class="proto-description" data-en="Clear explanations, guided examples and exam-style practice tailored to your current level." data-th="อธิบายชัดเจน ฝึกตัวอย่างแบบมีขั้นตอน และโจทย์แนวข้อสอบที่เหมาะกับระดับของผู้เรียน">Clear explanations, guided examples and exam-style practice tailored to your current level.</p></div>
+                <div class="proto-result-actions"><strong class="proto-price">450฿/<span data-en="hour" data-th="ชั่วโมง">hour</span></strong><a class="proto-button" href="booking.html"><span data-en="View times" data-th="ดูเวลา">View times</span></a></div>
+              </article>
+              <article class="proto-card proto-result-card" data-subject="mathematics" data-grade="g10" data-price="500" data-rating="4.6">
+                <span class="proto-avatar">AM</span>
+                <div><div class="proto-inline" style="gap:.5rem;flex-wrap:wrap"><h3 class="proto-catalog-title">Anan M.</h3><span class="proto-pill role" data-en="VERIFIED" data-th="ยืนยันแล้ว">VERIFIED</span></div><div class="proto-meta" style="margin-top:.4rem"><span>★ 4.60 (11)</span><span data-en="9 years experience" data-th="ประสบการณ์ 9 ปี">9 years experience</span><span data-en="Next: Sat 12 Sep · 09:00" data-th="เวลาถัดไป: ส. 12 ก.ย. · 09:00">Next: Sat 12 Sep · 09:00</span></div><h4 style="margin-top:.75rem;font-size:.82rem" data-en="Mathematics · Grade 10" data-th="คณิตศาสตร์ · มัธยมศึกษาปีที่ 4">Mathematics · Grade 10</h4><p class="proto-description" data-en="Strengthen algebra and problem solving with structured lessons and targeted weekly practice." data-th="เสริมพื้นฐานพีชคณิตและการแก้โจทย์ด้วยบทเรียนเป็นขั้นตอนและแบบฝึกหัดรายสัปดาห์">Strengthen algebra and problem solving with structured lessons and targeted weekly practice.</p></div>
+                <div class="proto-result-actions"><strong class="proto-price">500฿/<span data-en="hour" data-th="ชั่วโมง">hour</span></strong><a class="proto-button" href="booking.html"><span data-en="View times" data-th="ดูเวลา">View times</span></a></div>
+              </article>
+              <article class="proto-card proto-result-card" data-subject="english" data-grade="g11" data-price="350" data-rating="0">
+                <span class="proto-avatar">MK</span>
+                <div><div class="proto-inline" style="gap:.5rem;flex-wrap:wrap"><h3 class="proto-catalog-title">Mali K.</h3><span class="proto-pill role" data-en="VERIFIED" data-th="ยืนยันแล้ว">VERIFIED</span></div><div class="proto-meta" style="margin-top:.4rem"><span data-en="New tutor · 0 reviews" data-th="ติวเตอร์ใหม่ · 0 รีวิว">New tutor · 0 reviews</span><span data-en="3 years experience" data-th="ประสบการณ์ 3 ปี">3 years experience</span><span data-en="No future slots" data-th="ยังไม่มีเวลาว่างในอนาคต">No future slots</span></div><h4 style="margin-top:.75rem;font-size:.82rem" data-en="English · Grade 11" data-th="ภาษาอังกฤษ · มัธยมศึกษาปีที่ 5">English · Grade 11</h4><p class="proto-description" data-en="Practical reading and writing support for school assignments and exam confidence." data-th="ฝึกอ่านและเขียนเพื่อช่วยงานโรงเรียนและเพิ่มความมั่นใจก่อนสอบ">Practical reading and writing support for school assignments and exam confidence.</p></div>
+                <div class="proto-result-actions"><strong class="proto-price">350฿/<span data-en="hour" data-th="ชั่วโมง">hour</span></strong><button class="proto-button-secondary" disabled data-en="No times" data-th="ไม่มีเวลา">No times</button></div>
+              </article>
+            </div>
+            <div class="proto-empty proto-hidden" id="noResults"><strong data-en="No exact matches found" data-th="ไม่พบผลลัพธ์ที่ตรงกัน">No exact matches found</strong><p style="margin-top:.4rem" data-en="Clear one or more filters to see other published tutors." data-th="ล้างตัวกรองบางรายการเพื่อดูติวเตอร์ที่เผยแพร่อื่น ๆ">Clear one or more filters to see other published tutors.</p><button class="proto-button-secondary" id="emptyClear" type="button" style="margin-top:1rem" data-en="Clear all filters" data-th="ล้างตัวกรองทั้งหมด">Clear all filters</button></div>
+          </div>
+          <p class="proto-section-note" style="margin:.8rem .5rem 0" data-en="Each card represents one matching teaching listing. Prices and subjects are never mixed across a tutor's other listings." data-th="แต่ละการ์ดแทนหนึ่งคอร์สที่ตรงกับตัวกรอง ราคาและวิชาจะไม่ถูกนำมาปะปนกับคอร์สอื่นของติวเตอร์คนเดียวกัน">Each card represents one matching teaching listing. Prices and subjects are never mixed across a tutor's other listings.</p>
+        </section>
+      </div>
+    </template>
+    <script src="../shared/prototype-shell.js"></script>
+    <script>
+      HKTutorPrototype.mount({ role: 'student', active: 'search', headerSecondary: { en: 'My bookings', th: 'การจองของฉัน', href: 'booking.html#bookings' }, headerPrimary: { en: 'Find tutors', th: 'ค้นหาติวเตอร์', href: '#filterForm' } });
+      const form = document.getElementById('filterForm');
+      const subject = document.getElementById('filterSubject');
+      const grade = document.getElementById('filterGrade');
+      const budget = document.getElementById('filterBudget');
+      const rating = document.getElementById('filterRating');
+      const resultSummary = document.getElementById('resultSummary');
+      const subjectCopy = { all: ['All subjects', 'ทุกวิชา'], mathematics: ['Mathematics', 'คณิตศาสตร์'], english: ['English', 'ภาษาอังกฤษ'], physics: ['Physics', 'ฟิสิกส์'] };
+      const gradeCopy = { all: ['All grades', 'ทุกระดับชั้น'], g9: ['Grade 9', 'มัธยมศึกษาปีที่ 3'], g10: ['Grade 10', 'มัธยมศึกษาปีที่ 4'], g11: ['Grade 11', 'มัธยมศึกษาปีที่ 5'] };
+      function updateSummary() {
+        const en = [subjectCopy[subject.value][0], gradeCopy[grade.value][0], budget.value ? `up to ${budget.value}฿/hour` : 'any budget', Number(rating.value) ? `rating ${rating.value}+` : 'any rating'].join(' · ');
+        const th = [subjectCopy[subject.value][1], gradeCopy[grade.value][1], budget.value ? `ไม่เกิน ${budget.value}฿/ชั่วโมง` : 'ไม่จำกัดงบ', Number(rating.value) ? `คะแนน ${rating.value}+` : 'ทุกคะแนน'].join(' · ');
+        resultSummary.dataset.en = en;
+        resultSummary.dataset.th = th;
+        resultSummary.textContent = document.documentElement.lang === 'th' ? th : en;
+      }
+      function runFilter() {
+        let count = 0;
+        document.querySelectorAll('#results [data-subject]').forEach((card) => {
+          const visible = (subject.value === 'all' || card.dataset.subject === subject.value) && (grade.value === 'all' || card.dataset.grade === grade.value) && (!budget.value || Number(card.dataset.price) <= Number(budget.value)) && Number(card.dataset.rating) >= Number(rating.value);
+          card.classList.toggle('proto-hidden', !visible);
+          if (visible) count += 1;
+        });
+        document.getElementById('resultCount').textContent = count;
+        document.getElementById('results').classList.toggle('proto-hidden', count === 0);
+        document.getElementById('noResults').classList.toggle('proto-hidden', count !== 0);
+        document.getElementById('filterCount').textContent = [subject.value !== 'all', grade.value !== 'all', Boolean(budget.value), Number(rating.value) > 0].filter(Boolean).length;
+        updateSummary();
+      }
+      function clearFilters() { subject.value = 'all'; grade.value = 'all'; budget.value = ''; rating.value = '0'; runFilter(); }
+      form.addEventListener('submit', (event) => { event.preventDefault(); runFilter(); HKTutorPrototype.toast('Filters applied', 'ใช้ตัวกรองแล้ว'); });
+      document.getElementById('clearFilters').addEventListener('click', clearFilters);
+      document.getElementById('emptyClear').addEventListener('click', clearFilters);
+      runFilter();
+    </script>
+  </body>
+</html>
