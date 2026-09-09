@@ -163,6 +163,7 @@ input {
 }
 
 .dash-sidebar {
+  min-width: 0;
   width: 300px;
   flex: 0 0 300px;
   position: sticky;
@@ -194,8 +195,34 @@ input {
   border-right: none;
 }
 
+@media (min-width: 961px) {
+  .dash-sidebar {
+    overflow-x: hidden;
+    transition:
+      flex-basis 0.3s ease,
+      width 0.3s ease,
+      padding 0.3s ease;
+  }
+
+  .dash-sidebar > * {
+    width: calc(300px - 2.5rem - 1px);
+    flex-shrink: 0;
+    transform: translateX(0);
+    transition: transform 0.3s ease;
+  }
+
+  .dash-app.sb-collapsed .dash-sidebar {
+    opacity: 1;
+  }
+
+  .dash-app.sb-collapsed .dash-sidebar > * {
+    transform: translateX(-300px);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .dash-sidebar,
+  .dash-sidebar > *,
   .dash-sb-close,
   .dash-reopen-logo,
   .dash-reopen-logo .mono,
