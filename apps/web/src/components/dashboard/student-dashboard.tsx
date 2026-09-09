@@ -96,7 +96,7 @@ export function StudentDashboard({ user, onLogout }: StudentDashboardProps) {
                 </span>
                 <span>{studentCopy.myBookingsAction}</span>
               </Link>
-              <Link href="#settings">
+              <Link href="/dashboard/profile">
                 <span className="ico" aria-hidden="true">
                   ⚙️
                 </span>

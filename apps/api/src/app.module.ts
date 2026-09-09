@@ -10,7 +10,7 @@ import { validateDatabaseEnvironment } from '@/config/database.config';
 import { DatabaseModule } from '@/database/database.module';
 import { AuthExampleModule } from '@/examples/auth-example.module';
 import { HealthModule } from '@/health/health.module';
-import { TutorsModule } from '@/tutors/tutors.module';
+import { ProfilesModule } from '@/profiles/profiles.module';
 
 @Module({
   imports: [
@@ -24,6 +24,7 @@ import { TutorsModule } from '@/tutors/tutors.module';
     DatabaseModule,
     HealthModule,
     AuthModule,
+    ProfilesModule,
     AuthExampleModule,
     TutorsModule,
   ],

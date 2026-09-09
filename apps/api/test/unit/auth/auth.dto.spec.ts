@@ -10,7 +10,7 @@ describe('RegisterDto', () => {
       password: 'password123',
       role: 'student',
       consent: true,
-      policyVersion: '2026-09-08',
+      policyVersion: '2026-09-09',
     });
 
     await expect(validate(dto)).resolves.toHaveLength(0);
@@ -27,7 +27,7 @@ describe('RegisterDto', () => {
       password: 'password123',
       role: 'student',
       consent: true,
-      policyVersion: '2026-09-08',
+      policyVersion: '2026-09-09',
       ...override,
     });
 

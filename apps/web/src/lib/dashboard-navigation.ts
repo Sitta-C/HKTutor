@@ -80,7 +80,7 @@ export function getDashboardNavItems(role: UserRole, copy: Translation): Dashboa
     return [
       {
         id: 'profile',
-        href: '#profile',
+        href: '/dashboard/profile',
         icon: '👤',
         label: navCopy.myProfile,
       },
@@ -105,7 +105,7 @@ export function getDashboardNavItems(role: UserRole, copy: Translation): Dashboa
       },
       {
         id: 'privacy',
-        href: '/privacy',
+        href: '#privacy',
         icon: '🔒',
         label: navCopy.privacy,
       },
@@ -123,7 +123,7 @@ export function getDashboardNavItems(role: UserRole, copy: Translation): Dashboa
     return [
       {
         id: 'profile',
-        href: '#profile',
+        href: '/dashboard/profile',
         icon: '👤',
         label: navCopy.myProfile,
       },
@@ -154,7 +154,7 @@ export function getDashboardNavItems(role: UserRole, copy: Translation): Dashboa
       },
       {
         id: 'privacy',
-        href: '/privacy',
+        href: '#privacy',
         icon: '🔒',
         label: navCopy.privacy,
       },
@@ -172,7 +172,7 @@ export function getDashboardNavItems(role: UserRole, copy: Translation): Dashboa
   return [
     {
       id: 'privacy',
-      href: '/privacy',
+      href: '#privacy',
       icon: '🔒',
       label: navCopy.privacy,
     },
@@ -186,12 +186,13 @@ export function getDashboardNavItems(role: UserRole, copy: Translation): Dashboa
   ];
 }
 
-export function getUserDisplayName(user: Pick<AuthUser, 'email'>): string {
+export function getUserDisplayName(user: Pick<AuthUser, 'email' | 'displayName'>): string {
+  if (user.displayName?.trim()) return user.displayName.trim();
   const prefix = user.email.split('@')[0] ?? 'User';
   if (!prefix) return 'User';
   return prefix.charAt(0).toUpperCase() + prefix.slice(1);
 }
 
-export function getUserInitial(user: Pick<AuthUser, 'email'>): string {
-  return (user.email.charAt(0) || 'U').toUpperCase();
+export function getUserInitial(user: Pick<AuthUser, 'email' | 'displayName'>): string {
+  return (user.displayName?.charAt(0) || user.email.charAt(0) || 'U').toUpperCase();
 }

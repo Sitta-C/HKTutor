@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useState } from 'react';
 
+import PrivacyNoticeModal from '@/components/privacy-notice-modal';
 import {
   getDashboardNavItems,
   getDashboardRoleConfig,
@@ -24,6 +25,7 @@ export interface DashboardShellProps {
 export function DashboardShell({ user, onLogout, children, headerNavRight }: DashboardShellProps) {
   const { language, copy, toggleLanguage } = useLanguage();
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [privacyNoticeOpen, setPrivacyNoticeOpen] = useState(false);
 
   const roleConfig = getDashboardRoleConfig(user.role, copy);
   const navItems = getDashboardNavItems(user.role, copy);
@@ -109,6 +111,19 @@ export function DashboardShell({ user, onLogout, children, headerNavRight }: Das
                   );
                 }
 
+                if (item.id === 'privacy') {
+                  return (
+                    <button key={item.id} type="button" onClick={() => setPrivacyNoticeOpen(true)}>
+                      <span className="flex items-center gap-2.5">
+                        <span className="ico" aria-hidden="true">
+                          {item.icon}
+                        </span>
+                        <span>{item.label}</span>
+                      </span>
+                    </button>
+                  );
+                }
+
                 return (
                   <Link key={item.id} href={item.href}>
                     <span className="flex items-center gap-2.5">
@@ -137,9 +152,9 @@ export function DashboardShell({ user, onLogout, children, headerNavRight }: Das
           <div className="dash-card dash-side-card">
             <h2>{copy.dashboard.sidebar.needHelpTitle}</h2>
             <p>{copy.dashboard.sidebar.needHelpBody}</p>
-            <Link href="/privacy" className="dash-link">
+            <button type="button" onClick={() => setPrivacyNoticeOpen(true)} className="dash-link">
               {copy.dashboard.sidebar.privacyNoticeLink}
-            </Link>
+            </button>
           </div>
         </aside>
 
@@ -185,12 +200,17 @@ export function DashboardShell({ user, onLogout, children, headerNavRight }: Das
               © {new Date().getFullYear()} {copy.dashboard.common.copyright}
             </span>
             <span className="sep">|</span>
-            <Link href="/privacy" style={{ color: 'inherit' }}>
+            <button
+              type="button"
+              onClick={() => setPrivacyNoticeOpen(true)}
+              style={{ color: 'inherit' }}
+            >
               {copy.dashboard.common.privacySupport}
-            </Link>
+            </button>
           </footer>
         </div>
       </div>
+      <PrivacyNoticeModal open={privacyNoticeOpen} onClose={() => setPrivacyNoticeOpen(false)} />
     </div>
   );
 }
