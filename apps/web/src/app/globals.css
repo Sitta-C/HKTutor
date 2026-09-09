@@ -194,6 +194,17 @@ input {
   border-right: none;
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .dash-sidebar,
+  .dash-sb-close,
+  .dash-reopen-logo,
+  .dash-reopen-logo .mono,
+  .dash-reopen-logo .reopen-txt,
+  .dash-reopen-logo .burger i {
+    transition: none;
+  }
+}
+
 .dash-sb-head {
   display: flex;
   align-items: center;

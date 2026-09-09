@@ -49,6 +49,8 @@ export function DashboardShell({ user, onLogout, children, headerNavRight }: Das
           className="dash-sidebar"
           id="dashboard-sidebar"
           aria-label={copy.dashboard.common.eyebrow}
+          aria-hidden={isSidebarCollapsed || undefined}
+          inert={isSidebarCollapsed || undefined}
         >
           <div className="dash-sb-head">
             <button

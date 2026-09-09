@@ -75,6 +75,7 @@ test('dashboard shell enforces accessibility, responsive toggle, and visible foc
   assert.match(shellSource, /aria-label={copy\.dashboard\.sidebar\.openSidebar}/);
   assert.match(shellSource, /aria-pressed={language === 'th'}/);
   assert.match(shellSource, /aria-hidden="true"/);
+  assert.match(shellSource, /inert={isSidebarCollapsed \|\| undefined}/);
 
   // Focus visible styles
   assert.match(cssSource, /\.dash-sb-close:focus-visible/);
@@ -84,6 +85,7 @@ test('dashboard shell enforces accessibility, responsive toggle, and visible foc
   // Responsive sidebar collapse styling
   assert.match(cssSource, /\.dash-app\.sb-collapsed \.dash-sidebar/);
   assert.match(cssSource, /@media \(max-width: 960px\)/);
+  assert.match(cssSource, /@media \(prefers-reduced-motion: reduce\)/);
 });
 
 test('role-specific views render distinct content with honest empty states', async () => {
