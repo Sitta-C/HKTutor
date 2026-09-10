@@ -36,8 +36,10 @@ under the workspace convention; product screens must support EN/TH.
 
 The tutor profile editor follows the supplied reference image as a visual direction: a dark,
 quiet navigation rail; a light workspace with a clear page title; a compact horizontal section
-navigation presented as a floating bubble; and an information-first two-column layout. HKTutor keeps its own blue tutor accent and
-uses familiar labels rather than copying the reference product's employee terminology.
+navigation presented as a floating bubble; and an information-first two-column layout. It shares
+the Login screen's cafe palette of warm cream, coffee brown, and apricot actions, with blue kept
+only where tutor-specific status needs a secondary accent. HKTutor uses familiar labels rather
+than copying the reference product's employee terminology.
 
 The left column is a concise identity and account summary. The right column is the editable profile
 form. A student-facing preview sits beside or below the form depending on available width. Verification,
@@ -296,7 +298,7 @@ ui-design/
 | `index.html`                   | — (gallery)                                 | —           | ✅ scaffold                                                                                                                                      |
 | `pages/dashboard-student.html` | `/dashboard` (student view)                 | S1-T09      | ✅ **shell implemented in T09** — accepted visual reference; domain data/actions still pending                                                   |
 | `pages/dashboard-tutor.html`   | `/dashboard` (tutor view)                   | S1-T09      | ✅ **shell implemented in T09** — accepted blue theme; booking, listing, availability and earnings data still pending                            |
-| `pages/tutor-profile.html`     | profile form                                | S1-T16      | 🟡 **draft v5** — reference-inspired dark rail/light workspace, profile preview and editable states; documents remain Sprint 2; see §9.4 and §12 |
+| `pages/tutor-profile.html`     | profile form                                | S1-T16      | 🟡 **draft v6** — cafe palette with coffee rail, floating tabs, profile preview and editable states; documents remain Sprint 2; see §9.4 and §12 |
 | `pages/listing-form.html`      | listing form + cards                        | S1-T16      | 🟡 interactive draft — complete data, validation, preview and status filters; awaiting visual review                                             |
 | `pages/availability.html`      | availability manager (Bangkok time UTC+7)   | S1-T19      | 🟡 interactive draft — complete slot data, derived status, create/delete and conflict states; awaiting visual review                             |
 | `pages/search.html`            | tutor search + filters + no-match state     | S1-T22      | 🟡 interactive draft — complete listing data, four filters and exact no-match state; awaiting visual review                                      |
