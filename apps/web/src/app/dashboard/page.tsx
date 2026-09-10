@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react';
 import AdminDashboard from '@/components/dashboard/admin-dashboard';
 import StudentDashboard from '@/components/dashboard/student-dashboard';
 import TutorDashboard from '@/components/dashboard/tutor-dashboard';
+import { ApiError } from '@/lib/api/error';
 import { getMyProfile } from '@/lib/api/profiles';
 import { useAuth } from '@/lib/auth-context';
 import { useLanguage } from '@/lib/i18n';
@@ -50,8 +51,12 @@ export default function DashboardPage() {
         setProfileUser(displayName ? { ...user, displayName } : { ...user });
       })
       .catch((error: unknown) => {
-        if (active)
-          setProfileError(error instanceof Error ? error.message : 'Unable to load profile');
+        if (!active) return;
+        if (error instanceof ApiError && error.status === 400) {
+          router.replace('/onboarding/profile');
+          return;
+        }
+        setProfileError(error instanceof Error ? error.message : 'Unable to load profile');
       });
 
     return () => {

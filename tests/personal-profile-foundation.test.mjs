@@ -65,6 +65,7 @@ test('exposes owner-only profile APIs and requires current consent for private r
 });
 
 test('adds profile onboarding/edit pages and redirects verified users to onboarding', async () => {
+  const dashboard = await read('apps/web/src/app/dashboard/page.tsx');
   const editor = await read('apps/web/src/components/profile/profile-editor.tsx');
   const verify = await read('apps/web/src/components/verify.tsx');
   const navigation = await read('apps/web/src/lib/dashboard-navigation.ts');
@@ -84,6 +85,10 @@ test('adds profile onboarding/edit pages and redirects verified users to onboard
   }
   assert.match(editor, /acceptCurrentPrivacyNotice/);
   assert.match(editor, /await acceptCurrentPrivacyNotice\(\);[\s\S]*await getMyProfile\(\)/);
+  assert.match(
+    dashboard,
+    /error instanceof ApiError && error\.status === 400[\s\S]*replace\('\/onboarding\/profile'\)/,
+  );
   assert.match(verify, /replace\('\/onboarding\/profile'\)/);
   assert.match(navigation, /href: '\/dashboard\/profile'/);
 });
