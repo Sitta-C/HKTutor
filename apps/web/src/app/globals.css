@@ -1942,3 +1942,300 @@ input {
 .dash-app-profile .profile-preview-box p {
   color: var(--profile-muted);
 }
+
+/* Compact section menu: the three-line trigger keeps profile navigation clear on every screen. */
+.profile-section-menu {
+  position: relative;
+  z-index: 7;
+  margin-top: 0.35rem;
+}
+
+.profile-section-menu-trigger {
+  width: min(100%, 20rem);
+  min-height: 50px;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: 0.45rem;
+  padding: 0.75rem 0.9rem;
+  background: rgba(255, 255, 255, 0.88);
+  color: var(--ink);
+  font-size: 0.92rem;
+  font-weight: 800;
+  cursor: pointer;
+  box-shadow: 0 6px 16px rgba(46, 39, 25, 0.06);
+  transition:
+    border-color 0.15s,
+    background 0.15s,
+    box-shadow 0.15s;
+}
+
+.profile-section-menu-trigger:hover,
+.profile-section-menu-trigger[aria-expanded='true'] {
+  border-color: var(--accent);
+  background: #fff;
+  box-shadow: 0 8px 20px rgba(46, 39, 25, 0.1);
+}
+
+.profile-section-menu-trigger:focus-visible {
+  outline: 3px solid rgba(209, 139, 67, 0.3);
+  outline-offset: 2px;
+}
+
+.profile-section-menu-icon {
+  width: 1.55rem;
+  height: 1.55rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  border-radius: 0.3rem;
+  background: #fff0da;
+  color: var(--accent);
+}
+
+.profile-section-menu-icon svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+.profile-section-menu-chevron {
+  width: 1rem;
+  height: 1rem;
+  margin-left: auto;
+  transition: transform 0.15s;
+}
+
+.profile-section-menu-trigger[aria-expanded='true'] .profile-section-menu-chevron {
+  transform: rotate(180deg);
+}
+
+.profile-section-menu-popover {
+  position: absolute;
+  top: calc(100% + 0.55rem);
+  left: 0;
+  width: min(22rem, calc(100vw - 2rem));
+  display: grid;
+  gap: 0.2rem;
+  padding: 0.35rem;
+  border: 1px solid var(--border);
+  border-radius: 0.45rem;
+  background: #fff;
+  box-shadow: 0 18px 38px rgba(46, 39, 25, 0.15);
+}
+
+.profile-section-menu-popover a {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  padding: 0.7rem 0.8rem;
+  border-radius: 0.3rem;
+  color: var(--ink-2);
+  font-size: 0.88rem;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.profile-section-menu-popover a:hover,
+.profile-section-menu-popover a:focus-visible,
+.profile-section-menu-popover a.is-active {
+  background: #fff3dd;
+  color: var(--ink);
+}
+
+.profile-section-menu-popover a:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+/* Header notification popover. It is intentionally lightweight until notification APIs are wired. */
+.dash-notification-wrap {
+  position: relative;
+  display: inline-flex;
+  flex: 0 0 auto;
+}
+
+.dash-notification-trigger {
+  position: relative;
+  width: 2.75rem;
+  height: 2.75rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border);
+  border-radius: 0.45rem;
+  background: rgba(255, 255, 255, 0.72);
+  color: var(--ink-2);
+  cursor: pointer;
+  transition:
+    border-color 0.15s,
+    background 0.15s,
+    color 0.15s;
+}
+
+.dash-notification-trigger:hover,
+.dash-notification-trigger[aria-expanded='true'] {
+  border-color: var(--accent);
+  background: #fff;
+  color: var(--ink);
+}
+
+.dash-notification-trigger:focus-visible {
+  outline: 3px solid rgba(209, 139, 67, 0.3);
+  outline-offset: 2px;
+}
+
+.dash-notification-trigger svg {
+  width: 1.2rem;
+  height: 1.2rem;
+}
+
+.dash-notification-badge {
+  position: absolute;
+  top: -0.3rem;
+  right: -0.3rem;
+  min-width: 1.15rem;
+  height: 1.15rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid var(--bg-grad-1);
+  border-radius: 999px;
+  padding: 0 0.2rem;
+  background: var(--error);
+  color: #fff;
+  font-size: 0.63rem;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.dash-notification-popover {
+  position: absolute;
+  top: calc(100% + 0.75rem);
+  right: 0;
+  z-index: 30;
+  width: min(22rem, calc(100vw - 1.5rem));
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  background: #fff;
+  box-shadow: 0 20px 45px rgba(46, 39, 25, 0.16);
+}
+
+.dash-notification-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.dash-notification-head h2 {
+  color: var(--ink);
+  font-size: 0.98rem;
+  font-weight: 900;
+}
+
+.dash-notification-head p {
+  margin-top: 0.2rem;
+  color: var(--ink-3);
+  font-size: 0.72rem;
+}
+
+.dash-notification-head button {
+  flex: 0 0 auto;
+  border: 0;
+  padding: 0.1rem 0;
+  background: transparent;
+  color: var(--accent);
+  font-size: 0.7rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.dash-notification-head button:hover {
+  color: var(--accent-hover);
+}
+
+.dash-notification-head button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+.dash-notification-list {
+  display: grid;
+}
+
+.dash-notification-item {
+  display: grid;
+  grid-template-columns: 0.45rem minmax(0, 1fr);
+  align-items: start;
+  gap: 0.7rem;
+  padding: 0.9rem 1rem;
+  border-bottom: 1px solid var(--border);
+  color: var(--ink);
+  text-decoration: none;
+  transition: background 0.15s;
+}
+
+.dash-notification-item:last-child {
+  border-bottom: 0;
+}
+
+.dash-notification-item:hover,
+.dash-notification-item:focus-visible {
+  background: #fffaf2;
+}
+
+.dash-notification-item:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.dash-notification-item-dot {
+  width: 0.45rem;
+  height: 0.45rem;
+  margin-top: 0.35rem;
+  border-radius: 50%;
+  background: transparent;
+}
+
+.dash-notification-item.is-unread .dash-notification-item-dot {
+  background: var(--accent);
+}
+
+.dash-notification-item strong,
+.dash-notification-item span span {
+  display: block;
+}
+
+.dash-notification-item strong {
+  font-size: 0.8rem;
+  font-weight: 850;
+}
+
+.dash-notification-item span span {
+  margin-top: 0.2rem;
+  color: var(--ink-2);
+  font-size: 0.73rem;
+  line-height: 1.45;
+}
+
+.dash-notification-empty {
+  padding: 1.25rem 1rem;
+  color: var(--ink-2);
+  font-size: 0.78rem;
+  text-align: center;
+}
+
+@media (max-width: 760px) {
+  .profile-section-menu-trigger {
+    width: 100%;
+  }
+
+  .profile-section-menu-popover {
+    width: 100%;
+  }
+}

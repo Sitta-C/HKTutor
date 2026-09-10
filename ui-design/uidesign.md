@@ -39,7 +39,8 @@ quiet navigation rail; a light workspace with a clear page title; a compact hori
 navigation presented as a floating bubble; and an information-first two-column layout. It shares
 the Login screen's cafe palette of warm cream, coffee brown, and apricot actions, with blue kept
 only where tutor-specific status needs a secondary accent. HKTutor uses familiar labels rather
-than copying the reference product's employee terminology.
+than copying the reference product's employee terminology. Profile users can open a compact
+three-line section menu and a header notification popover without losing access to the main form.
 
 The left column is a concise identity and account summary. The right column is the editable profile
 form. A student-facing preview sits beside or below the form depending on available width. Verification,

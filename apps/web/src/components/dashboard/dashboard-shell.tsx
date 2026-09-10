@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import PrivacyNoticeModal from '@/components/privacy-notice-modal';
 import {
@@ -197,6 +197,9 @@ export function DashboardShell({
             </button>
 
             <nav aria-label="Dashboard Top Navigation">
+              {visualVariant === 'profile' && (
+                <NotificationMenu userRole={user.role} copy={copy.dashboard.header} />
+              )}
               <button
                 type="button"
                 onClick={toggleLanguage}
@@ -230,6 +233,152 @@ export function DashboardShell({
         </div>
       </div>
       <PrivacyNoticeModal open={privacyNoticeOpen} onClose={() => setPrivacyNoticeOpen(false)} />
+    </div>
+  );
+}
+
+type NotificationMenuCopy = {
+  notifications: string;
+  notificationsUnread: string;
+  markAllNotificationsRead: string;
+  noNotifications: string;
+  profileNotificationTitle: string;
+  profileNotificationBody: string;
+  listingNotificationTitle: string;
+  listingNotificationBody: string;
+  privacyNotificationTitle: string;
+  privacyNotificationBody: string;
+};
+
+type NotificationItem = {
+  id: string;
+  href: string;
+  title: string;
+  body: string;
+};
+
+function NotificationMenu({
+  userRole,
+  copy,
+}: {
+  userRole: AuthUser['role'];
+  copy: NotificationMenuCopy;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [hasUnread, setHasUnread] = useState(true);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const closeOnPointerDown = (event: PointerEvent) => {
+      if (!menuRef.current?.contains(event.target as Node)) setIsOpen(false);
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setIsOpen(false);
+    };
+
+    document.addEventListener('pointerdown', closeOnPointerDown);
+    document.addEventListener('keydown', closeOnEscape);
+    return () => {
+      document.removeEventListener('pointerdown', closeOnPointerDown);
+      document.removeEventListener('keydown', closeOnEscape);
+    };
+  }, [isOpen]);
+
+  const items: NotificationItem[] =
+    userRole === 'TUTOR'
+      ? [
+          {
+            id: 'profile',
+            href: '/dashboard/profile',
+            title: copy.profileNotificationTitle,
+            body: copy.profileNotificationBody,
+          },
+          {
+            id: 'listing',
+            href: '/dashboard/listings/new',
+            title: copy.listingNotificationTitle,
+            body: copy.listingNotificationBody,
+          },
+        ]
+      : [
+          {
+            id: 'profile',
+            href: '/dashboard/profile',
+            title: copy.profileNotificationTitle,
+            body: copy.profileNotificationBody,
+          },
+          {
+            id: 'privacy',
+            href: '/dashboard/profile#privacy',
+            title: copy.privacyNotificationTitle,
+            body: copy.privacyNotificationBody,
+          },
+        ];
+
+  const unreadCount = hasUnread ? items.length : 0;
+  const unreadLabel = copy.notificationsUnread.replace('{count}', String(unreadCount));
+
+  return (
+    <div className="dash-notification-wrap" ref={menuRef}>
+      <button
+        type="button"
+        className="dash-notification-trigger"
+        aria-label={`${copy.notifications}${unreadCount ? `, ${unreadLabel}` : ''}`}
+        aria-expanded={isOpen}
+        aria-controls="dashboard-notifications"
+        onClick={() => setIsOpen((open) => !open)}
+      >
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.8"
+          aria-hidden="true"
+        >
+          <path d="M18 9a6 6 0 0 0-12 0c0 7-3 7-3 8.5h18C21 16 18 16 18 9Z" />
+          <path d="M10 21h4" />
+        </svg>
+        {unreadCount > 0 && <span className="dash-notification-badge">{unreadCount}</span>}
+      </button>
+
+      {isOpen && (
+        <div className="dash-notification-popover" id="dashboard-notifications" role="dialog">
+          <div className="dash-notification-head">
+            <div>
+              <h2>{copy.notifications}</h2>
+              <p>{unreadCount ? unreadLabel : copy.noNotifications}</p>
+            </div>
+            {unreadCount > 0 && (
+              <button type="button" onClick={() => setHasUnread(false)}>
+                {copy.markAllNotificationsRead}
+              </button>
+            )}
+          </div>
+
+          <div className="dash-notification-list">
+            {items.length > 0 ? (
+              items.map((item) => (
+                <Link
+                  key={item.id}
+                  href={item.href}
+                  className={`dash-notification-item${hasUnread ? ' is-unread' : ''}`}
+                  onClick={() => setIsOpen(false)}
+                >
+                  <span className="dash-notification-item-dot" aria-hidden="true" />
+                  <span>
+                    <strong>{item.title}</strong>
+                    <span>{item.body}</span>
+                  </span>
+                </Link>
+              ))
+            ) : (
+              <p className="dash-notification-empty">{copy.noNotifications}</p>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

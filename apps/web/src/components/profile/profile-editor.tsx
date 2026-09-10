@@ -127,8 +127,20 @@ export default function ProfileEditor({ mode }: ProfileEditorProps) {
   const [profileSummary, setProfileSummary] = useState<TutorProfile | null>(null);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [sectionMenuOpen, setSectionMenuOpen] = useState(false);
 
   const copy = language === 'th' ? thaiCopy : englishCopy;
+
+  useEffect(() => {
+    if (!sectionMenuOpen) return;
+
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setSectionMenuOpen(false);
+    };
+
+    window.addEventListener('keydown', closeOnEscape);
+    return () => window.removeEventListener('keydown', closeOnEscape);
+  }, [sectionMenuOpen]);
 
   useEffect(() => {
     if (authLoading) return;
@@ -310,19 +322,58 @@ export default function ProfileEditor({ mode }: ProfileEditorProps) {
           </div>
         </div>
 
-        <nav className="profile-tabs" aria-label={copy.profileTitle}>
-          <a className="profile-tab profile-tab-active" href="#overview" aria-current="page">
-            {copy.overview}
-          </a>
-          {user.role === 'TUTOR' && (
-            <Link className="profile-tab" href="/dashboard/listings">
-              {copy.teaching}
-            </Link>
+        <div className="profile-section-menu">
+          <button
+            type="button"
+            className="profile-section-menu-trigger"
+            aria-expanded={sectionMenuOpen}
+            aria-controls="profile-section-menu"
+            onClick={() => setSectionMenuOpen((open) => !open)}
+          >
+            <span className="profile-section-menu-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M4 7h16M4 12h16M4 17h16" />
+              </svg>
+            </span>
+            <span>{copy.overview}</span>
+            <svg
+              className="profile-section-menu-chevron"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              aria-hidden="true"
+            >
+              <path d="m7 10 5 5 5-5" />
+            </svg>
+          </button>
+
+          {sectionMenuOpen && (
+            <div className="profile-section-menu-popover" id="profile-section-menu" role="menu">
+              <a
+                href="#overview"
+                className="is-active"
+                role="menuitem"
+                aria-current="page"
+                onClick={() => setSectionMenuOpen(false)}
+              >
+                {copy.overview}
+              </a>
+              {user.role === 'TUTOR' && (
+                <Link
+                  href="/dashboard/listings"
+                  role="menuitem"
+                  onClick={() => setSectionMenuOpen(false)}
+                >
+                  {copy.teaching}
+                </Link>
+              )}
+              <a href="#privacy" role="menuitem" onClick={() => setSectionMenuOpen(false)}>
+                {copy.privacy}
+              </a>
+            </div>
           )}
-          <a className="profile-tab" href="#privacy">
-            {copy.privacy}
-          </a>
-        </nav>
+        </div>
 
         <div className="profile-layout" id="overview">
           <aside className="profile-summary-card" aria-label={copy.about}>
