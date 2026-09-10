@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 
+import { DashboardIcon } from '@/components/dashboard/dashboard-icon';
 import DashboardShell from '@/components/dashboard/dashboard-shell';
 import { getUserDisplayName } from '@/lib/dashboard-navigation';
 import { useLanguage } from '@/lib/i18n';
@@ -86,19 +87,19 @@ export function StudentDashboard({ user, onLogout }: StudentDashboardProps) {
             <div className="dash-qa dash-qa-student">
               <Link href="#find-tutor">
                 <span className="ico" aria-hidden="true">
-                  🔍
+                  <DashboardIcon name="search" />
                 </span>
                 <span>{studentCopy.findTutorAction}</span>
               </Link>
               <Link href="#bookings">
                 <span className="ico" aria-hidden="true">
-                  📅
+                  <DashboardIcon name="calendar" />
                 </span>
                 <span>{studentCopy.myBookingsAction}</span>
               </Link>
               <Link href="/dashboard/profile">
                 <span className="ico" aria-hidden="true">
-                  ⚙️
+                  <DashboardIcon name="settings" />
                 </span>
                 <span>{studentCopy.accountAction}</span>
               </Link>
@@ -157,7 +158,9 @@ export function StudentDashboard({ user, onLogout }: StudentDashboardProps) {
                 />
               </label>
               <Link href="#find-tutor" className="dash-btn-dark">
-                <span className="ico">＋</span>
+                <span className="ico" aria-hidden="true">
+                  <DashboardIcon name="plus" />
+                </span>
                 <span>{studentCopy.findNewTutor}</span>
               </Link>
             </div>
@@ -168,7 +171,9 @@ export function StudentDashboard({ user, onLogout }: StudentDashboardProps) {
             <p className="text-base font-bold text-[#1a1916]">{studentCopy.noTutorsYetTitle}</p>
             <p className="mt-1 text-xs text-[#5e5a52]">{studentCopy.noTutorsYetDescription}</p>
             <div className="mx-auto mt-4 max-w-md rounded-xl border border-[#f1ddc4] bg-[#fffaf4] p-3 text-xs text-[#c07a2e]">
-              <span className="mr-1.5 font-bold">ℹ️</span>
+              <span className="mr-1.5 inline-flex align-middle" aria-hidden="true">
+                <DashboardIcon name="info" className="h-4 w-4" />
+              </span>
               <span>{copy.dashboard.common.domainApiNotice}</span>
             </div>
           </div>
@@ -177,7 +182,7 @@ export function StudentDashboard({ user, onLogout }: StudentDashboardProps) {
           <div className="mt-5 flex flex-wrap items-center justify-between gap-4 border-t border-[#ebe6dd] pt-5">
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-[#ffc57d] to-[#f0a04e] font-black text-white shadow-sm">
-                ＋
+                <DashboardIcon name="plus" className="h-5 w-5" />
               </div>
               <div>
                 <b className="block text-sm font-bold text-[#1a1916]">

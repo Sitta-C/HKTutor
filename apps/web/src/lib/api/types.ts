@@ -78,7 +78,6 @@ export type PatchTeachingListingPayload = {
   [Field in keyof SaveTeachingListingPayload]: Pick<SaveTeachingListingPayload, Field> &
     Partial<Omit<SaveTeachingListingPayload, Field>>;
 }[keyof SaveTeachingListingPayload];
-
 export interface MyProfileResponse {
   role: UserRole;
   consentCurrent: boolean;
