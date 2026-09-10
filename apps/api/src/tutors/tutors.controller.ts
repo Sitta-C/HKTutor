@@ -43,11 +43,11 @@ import type { AuthenticatedUser } from '@/auth/auth.guard';
 @TutorsControllerDoc()
 @UseGuards(JwtAuthGuard, RolesGuard, ResourceOwnershipGuard)
 @Roles(Role.TUTOR)
-@Controller('tutors')
-export class TutorsController {
+@Controller('tutors/me')
+export class TutorsPrivateController {
   constructor(private readonly tutors: TutorsService) {}
 
-  @Get('me/listings')
+  @Get('listings')
   @GetMyListingsDoc()
   getListings(
     @CurrentUser() user: AuthenticatedUser,
@@ -56,7 +56,7 @@ export class TutorsController {
     return this.tutors.getListings(user.id, query);
   }
 
-  @Post('me/listings')
+  @Post('listings')
   @PostListingDoc()
   postListing(
     @CurrentUser() user: AuthenticatedUser,
@@ -65,7 +65,7 @@ export class TutorsController {
     return this.tutors.postListing(user.id, dto);
   }
 
-  @Patch('me/listings/:listingId')
+  @Patch('listings/:listingId')
   @HttpCode(HttpStatus.OK)
   @RequireOwnership({
     resource: 'teachingListing',
@@ -81,7 +81,7 @@ export class TutorsController {
     return this.tutors.patchListing(user.id, listingId, dto);
   }
 
-  @Post('me/listings/:listingId/publish')
+  @Post('listings/:listingId/publish')
   @HttpCode(HttpStatus.OK)
   @RequireOwnership({
     resource: 'teachingListing',
@@ -96,7 +96,7 @@ export class TutorsController {
     return this.tutors.postPublishListing(user.id, listingId);
   }
 
-  @Get('me/availability')
+  @Get('availability')
   @HttpCode(HttpStatus.OK)
   //TODO: swagger
   getAvailabilityPrivate(
@@ -106,7 +106,7 @@ export class TutorsController {
     return this.tutors.getAvailabilityPrivate(user.id, query);
   }
 
-  @Post('me/availability')
+  @Post('availability')
   @HttpCode(HttpStatus.CREATED)
   //TODO: swagger
   postAvailability(
@@ -116,7 +116,7 @@ export class TutorsController {
     return this.tutors.postAvailability(user.id, request);
   }
 
-  @Delete('me/availability/:slotId')
+  @Delete('availability/:slotId')
   @HttpCode(HttpStatus.NO_CONTENT)
   @RequireOwnership({
     resource: 'availabilitySlot',
