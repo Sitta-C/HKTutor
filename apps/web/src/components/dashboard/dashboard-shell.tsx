@@ -75,7 +75,7 @@ export function DashboardShell({ user, onLogout, children, headerNavRight }: Das
             </button>
           </div>
 
-          <div className="dash-card dash-side-card" style={{ padding: '1.2rem' }}>
+          <div className="dash-card dash-side-card dash-account-card">
             <div className="dash-user-chip" style={{ marginBottom: '1rem' }}>
               <div className={`dash-avatar dash-avatar-${roleConfig.viewType}`} aria-hidden="true">
                 {userInitial}
