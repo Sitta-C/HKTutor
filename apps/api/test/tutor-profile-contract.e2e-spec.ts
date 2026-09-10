@@ -9,7 +9,7 @@ import { PrismaService } from '@/database/prisma.service';
 import { Role } from '@/generated/prisma/client';
 import { ProfilesController } from '@/profiles/profiles.controller';
 import { ProfilesService } from '@/profiles/profiles.service';
-import { TutorsController } from '@/tutors/tutors.controller';
+import { TutorsPrivateController } from '@/tutors/tutors.controller';
 import { TutorsService } from '@/tutors/tutors.service';
 
 import type { AuthenticatedRequest } from '@/auth/auth.guard';
@@ -71,7 +71,7 @@ describe('Tutor and profile contracts (e2e)', () => {
       user: { findUnique: userFindUnique },
     };
     const moduleFixture: TestingModule = await Test.createTestingModule({
-      controllers: [ProfilesController, TutorsController],
+      controllers: [ProfilesController, TutorsPrivateController],
       providers: [
         ProfilesService,
         ResourceOwnershipGuard,
