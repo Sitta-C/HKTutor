@@ -186,9 +186,10 @@ getListing() {
 The guard queries the resource ID and its owner scope together. For a booking it selects
 `studentUserId` or `tutorProfileId` according to the authenticated role.
 
-Missing records, malformed IDs, and another user's private record all receive the same
-`404 Resource not found` response, so the API does not disclose the existence of another user's
-resource. Enable `allowAdmin` individually per endpoint according to the access matrix.
+Malformed IDs receive `400 INVALID_UUID` before any resource query. Missing records and another
+user's private record receive the same `404 Resource not found` response, so the API does not
+disclose the existence of another user's resource. Enable `allowAdmin` individually per endpoint
+according to the access matrix.
 
 ## Testing through Swagger UI
 

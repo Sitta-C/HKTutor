@@ -1,4 +1,4 @@
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 
 import { CURRENT_PRIVACY_POLICY_VERSION } from '@/auth/auth.constants';
 import { Role } from '@/generated/prisma/client';
@@ -7,6 +7,21 @@ import { ProfilesService } from '@/profiles/profiles.service';
 import type { PrismaService } from '@/database/prisma.service';
 
 describe('ProfilesService', () => {
+  it('returns 404 when the authenticated account no longer exists', async () => {
+    const service = new ProfilesService({
+      user: { findUnique: jest.fn().mockResolvedValue(null) },
+    } as unknown as PrismaService);
+
+    await expect(
+      service.getMine({
+        id: 'student-id',
+        email: 'student@example.com',
+        role: Role.STUDENT,
+        sessionId: 'session-id',
+      }),
+    ).rejects.toThrow(new NotFoundException('Account not found'));
+  });
+
   it('reports a student profile complete only when its private profile row exists', async () => {
     const profile = {
       firstName: 'Suda',

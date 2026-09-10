@@ -82,10 +82,17 @@ describe('student profile Swagger contract', () => {
   it('documents the private profile response and stale-consent error', () => {
     const get = operation('get', '/api/v1/profiles/me');
 
-    for (const status of ['200', '400', '401']) {
+    for (const status of ['200', '400', '401', '404']) {
       expect(get.responses).toHaveProperty(status);
     }
+    const notFoundResponse = get.responses['404'] as {
+      content: { 'application/json': { schema: ReferenceObject } };
+    };
+    expect(notFoundResponse.content['application/json'].schema.$ref).toBe(
+      '#/components/schemas/ApiNotFoundErrorResponseDto',
+    );
     expect(document.components?.schemas).toHaveProperty('MyProfileResponseDto');
+    expect(document.components?.schemas).toHaveProperty('ApiNotFoundErrorResponseDto');
     expect(document.components?.schemas).toHaveProperty('TutorProfileResponseDto');
   });
 

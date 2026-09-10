@@ -17,6 +17,7 @@ interface ApiRequestOptions {
 }
 
 interface ApiErrorBody {
+  code?: string;
   error?: string;
   message?: string | string[];
   statusCode?: number;

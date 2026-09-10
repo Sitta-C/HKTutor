@@ -16,27 +16,30 @@ import {
   AvailabilityPostRequestDto,
   AvailabilityPostResponseDto,
   AvailabilityState,
-  type AvailabilityQueryDto,
-  type AvailabilityPrivateResponseDto,
-  type ListingPatchRequestDto,
-  type ListingPostRequestDto,
-  type ListingQueryDto,
-  type ListingResponseDto,
   AvailabilityPublicResponseDto,
 } from '@/tutors/tutors.dto';
 
 import type { Prisma } from '@/generated/prisma/client';
+import type {
+  ListingPatchRequestDto,
+  ListingPostRequestDto,
+  ListingQueryDto,
+  ListingResponseDto,
+  ListingStatusRequestDto,
+  AvailabilityQueryDto,
+  AvailabilityPrivateResponseDto,
+} from '@/tutors/tutors.dto';
 
 const listingSelect = {
+  createdAt: true,
   description: true,
   gradeLevel: {
     select: {
       active: true,
       code: true,
-      createdAt: true,
       id: true,
       name: true,
-      updatedAt: true,
+      sortOrder: true,
     },
   },
   id: true,
@@ -47,10 +50,8 @@ const listingSelect = {
     select: {
       active: true,
       code: true,
-      createdAt: true,
       id: true,
       name: true,
-      updatedAt: true,
     },
   },
   updatedAt: true,
@@ -83,7 +84,7 @@ export class TutorsService {
   }
 
   async getListing(userId: string, listingId: string): Promise<ListingResponseDto> {
-    const listing: SelectedListing = await this.prisma.teachingListing.findUniqueOrThrow({
+    const listing = await this.prisma.teachingListing.findFirst({
       select: listingSelect,
       where: {
         id: listingId,
@@ -92,6 +93,7 @@ export class TutorsService {
       },
     });
 
+    if (!listing) throw new NotFoundException('Listing not found');
     return mapListing(listing);
   }
 
@@ -159,6 +161,36 @@ export class TutorsService {
         data: {
           publicationStatus: ListingPublicationStatus.PUBLISHED,
           publishedAt: new Date(),
+        },
+        select: listingSelect,
+      });
+
+      return mapListing(listing);
+    } catch (error) {
+      if (isRecordNotFound(error)) throw new NotFoundException('Listing not found');
+      throw error;
+    }
+  }
+
+  async updateListingStatus(
+    userId: string,
+    listingId: string,
+    publicationStatus: ListingStatusRequestDto['publicationStatus'],
+  ): Promise<ListingResponseDto> {
+    if (publicationStatus === ListingPublicationStatus.PUBLISHED) {
+      return this.postPublishListing(userId, listingId);
+    }
+
+    try {
+      const listing = await this.prisma.teachingListing.update({
+        where: {
+          id: listingId,
+          tutorProfileId: userId,
+          deletedAt: null,
+        },
+        data: {
+          publicationStatus,
+          ...(publicationStatus === ListingPublicationStatus.DRAFT ? { publishedAt: null } : {}),
         },
         select: listingSelect,
       });
@@ -327,9 +359,10 @@ export class TutorsService {
 
 function mapListing(listing: SelectedListing): ListingResponseDto {
   return {
+    createdAt: listing.createdAt,
     description: listing.description,
     gradeLevel: listing.gradeLevel,
-    listingId: listing.id,
+    id: listing.id,
     pricePerHour: listing.pricePerHour.toNumber(),
     publicationStatus: listing.publicationStatus,
     publishedAt: listing.publishedAt,

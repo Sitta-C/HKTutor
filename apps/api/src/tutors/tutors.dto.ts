@@ -10,11 +10,13 @@ import {
   MaxLength,
   MinDate,
   MinLength,
+  registerDecorator,
 } from 'class-validator';
 
 import { ListingPublicationStatus } from '@/generated/prisma/client';
 
 import type { TransformFnParams } from 'class-transformer';
+import type { ValidationArguments, ValidationOptions } from 'class-validator';
 
 const trimString = ({ value }: TransformFnParams): unknown =>
   typeof value === 'string' ? value.trim() : value;
@@ -27,7 +29,13 @@ export class ListingQueryDto {
   publicationStatus?: ListingPublicationStatus;
 }
 
-class CatalogValueResponseDto {
+export class ListingStatusRequestDto {
+  @ApiProperty({ enum: ListingPublicationStatus, enumName: 'ListingPublicationStatus' })
+  @IsEnum(ListingPublicationStatus)
+  publicationStatus!: ListingPublicationStatus;
+}
+
+class SubjectOptionResponseDto {
   @ApiProperty({ example: '30000000-0000-4000-8000-000000000001', format: 'uuid' })
   id!: string;
 
@@ -39,23 +47,22 @@ class CatalogValueResponseDto {
 
   @ApiProperty({ example: true })
   active!: boolean;
+}
 
-  @ApiProperty({ example: '2026-08-17T00:00:00.000Z', format: 'date-time' })
-  createdAt!: Date;
-
-  @ApiProperty({ example: '2026-08-17T00:00:00.000Z', format: 'date-time' })
-  updatedAt!: Date;
+class GradeLevelOptionResponseDto extends SubjectOptionResponseDto {
+  @ApiProperty({ example: 10, minimum: 0, type: Number })
+  sortOrder!: number;
 }
 
 export class ListingResponseDto {
   @ApiProperty({ example: '10000000-0000-4000-8000-000000000001', format: 'uuid' })
-  listingId!: string;
+  id!: string;
 
-  @ApiProperty({ type: CatalogValueResponseDto })
-  subject!: CatalogValueResponseDto;
+  @ApiProperty({ type: SubjectOptionResponseDto })
+  subject!: SubjectOptionResponseDto;
 
-  @ApiProperty({ type: CatalogValueResponseDto })
-  gradeLevel!: CatalogValueResponseDto;
+  @ApiProperty({ type: GradeLevelOptionResponseDto })
+  gradeLevel!: GradeLevelOptionResponseDto;
 
   @ApiProperty({ example: 450.5, minimum: 0, type: Number })
   pricePerHour!: number;
@@ -68,6 +75,9 @@ export class ListingResponseDto {
 
   @ApiProperty({ example: null, format: 'date-time', nullable: true, type: String })
   publishedAt!: Date | null;
+
+  @ApiProperty({ example: '2026-08-17T00:00:00.000Z', format: 'date-time' })
+  createdAt!: Date;
 
   @ApiProperty({ example: '2026-08-17T00:00:00.000Z', format: 'date-time' })
   updatedAt!: Date;
@@ -96,6 +106,9 @@ export class ListingPostRequestDto {
   description!: string;
 }
 
+@AtLeastOneOf(['subjectId', 'gradeLevelId', 'pricePerHour', 'description'], {
+  message: 'At least one of subjectId, gradeLevelId, pricePerHour, or description must be provided',
+})
 export class ListingPatchRequestDto {
   @ApiPropertyOptional({ example: '30000000-0000-4000-8000-000000000001', format: 'uuid' })
   @IsOptional()
@@ -204,4 +217,23 @@ export class AvailabilityPostResponseDto {
 
   @ApiProperty({ example: '2026-08-17T00:00:00.000Z', format: 'date-time' })
   endAtUtc!: Date;
+}
+
+function AtLeastOneOf(properties: readonly string[], options?: ValidationOptions): ClassDecorator {
+  return (target) => {
+    registerDecorator({
+      constraints: [properties],
+      name: 'atLeastOneOf',
+      ...(options === undefined ? {} : { options }),
+      propertyName: '',
+      target,
+      validator: {
+        validate(_value: unknown, args: ValidationArguments): boolean {
+          const [fields] = args.constraints as [readonly string[]];
+          const object = args.object as Record<string, unknown>;
+          return fields.some((field) => object[field] !== undefined);
+        },
+      },
+    });
+  };
 }

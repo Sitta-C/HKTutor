@@ -29,14 +29,17 @@ import {
   ListingQueryDto,
   ListingResponseDto,
   AvailabilityPublicResponseDto,
+  ListingStatusRequestDto,
 } from '@/tutors/tutors.dto';
 import { TutorsService } from '@/tutors/tutors.service';
 import {
   GetMyListingsDoc,
+  GetMyListingDoc,
   PatchListingDoc,
   PostListingDoc,
   PublishListingDoc,
   TutorsControllerDoc,
+  UpdateListingStatusDoc,
 } from '@/tutors/tutors.swagger';
 
 import type { AuthenticatedUser } from '@/auth/auth.guard';
@@ -65,7 +68,7 @@ export class TutorsPrivateController {
     idParam: 'listingId',
     allowAdmin: true,
   })
-  //TODO: swagger
+  @GetMyListingDoc()
   getListing(
     @CurrentUser() user: AuthenticatedUser,
     @Param('listingId') listingId: string,
@@ -99,7 +102,23 @@ export class TutorsPrivateController {
     return this.tutors.patchListing(user.id, listingId, dto);
   }
 
-  @Post('listings/:listingId/publish')
+  @Patch('me/listings/:listingId/status')
+  @HttpCode(HttpStatus.OK)
+  @RequireOwnership({
+    resource: 'teachingListing',
+    idParam: 'listingId',
+    allowAdmin: true,
+  })
+  @UpdateListingStatusDoc()
+  updateListingStatus(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('listingId') listingId: string,
+    @Body() dto: ListingStatusRequestDto,
+  ): Promise<ListingResponseDto> {
+    return this.tutors.updateListingStatus(user.id, listingId, dto.publicationStatus);
+  }
+
+  @Post('me/listings/:listingId/publish')
   @HttpCode(HttpStatus.OK)
   @RequireOwnership({
     resource: 'teachingListing',
