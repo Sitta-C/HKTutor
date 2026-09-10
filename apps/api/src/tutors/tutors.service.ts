@@ -221,6 +221,7 @@ export class TutorsService {
       },
       data: {
         publicationStatus: 'PUBLISHED',
+        publishedAt: new Date(),
       },
     });
 

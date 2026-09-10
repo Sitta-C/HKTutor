@@ -12,6 +12,8 @@ import {
 } from '@nestjs/common';
 
 import { JwtAuthGuard } from '@/auth/auth.guard';
+import { RequireOwnership } from '@/auth/ownership.decorator';
+import { ResourceOwnershipGuard } from '@/auth/ownership.guard';
 import { Roles } from '@/auth/roles.decorator';
 import { RolesGuard } from '@/auth/roles.guard';
 import { Role } from '@/generated/prisma/client';
@@ -33,7 +35,7 @@ import { GetUser } from '@/user/get-user.decorator';
 
 @TutorsControllerDoc()
 @Controller('api/tutors')
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, RolesGuard, ResourceOwnershipGuard)
 @Roles(Role.TUTOR)
 export class TutorsController {
   constructor(private readonly tutorsService: TutorsService) {}
@@ -69,6 +71,11 @@ export class TutorsController {
 
   @Patch('me/listings/:listingId')
   @HttpCode(HttpStatus.OK)
+  @RequireOwnership({
+    resource: 'teachingListing',
+    idParam: 'listingId',
+    allowAdmin: true,
+  })
   @PatchListingDoc()
   async patchListing(
     @GetUser('userId') userId: string,
@@ -87,6 +94,11 @@ export class TutorsController {
 
   @Post('me/listings/:listingId/publish')
   @HttpCode(HttpStatus.OK)
+  @RequireOwnership({
+    resource: 'teachingListing',
+    idParam: 'listingId',
+    allowAdmin: true,
+  })
   @PublishListingDoc()
   async postPublishListing(
     @GetUser('userId') userId: string,
