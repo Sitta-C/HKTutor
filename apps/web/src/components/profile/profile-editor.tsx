@@ -164,9 +164,26 @@ export default function ProfileEditor({ mode }: ProfileEditorProps) {
       setIsSaving(true);
       try {
         await acceptCurrentPrivacyNotice();
-        window.location.reload();
+        const result = await getMyProfile();
+        setConsentCurrent(result.consentCurrent);
+        setAcceptedNotice(false);
+        setConsentError(null);
+
+        if (user.role === 'STUDENT' && result.profile && 'school' in result.profile) {
+          setStudent(result.profile);
+          setInitialStudent(result.profile);
+        }
+        if (user.role === 'TUTOR' && result.profile && 'displayName' in result.profile) {
+          const form = toTutorForm(result.profile);
+          setTutor(form);
+          setInitialTutor(form);
+          setTutorMeta(result.profile);
+        }
+
+        if (mode === 'onboarding' && result.profileComplete) router.replace('/dashboard');
       } catch (caught: unknown) {
         setError(caught instanceof Error ? caught.message : text.saveError);
+      } finally {
         setIsSaving(false);
       }
       return;
