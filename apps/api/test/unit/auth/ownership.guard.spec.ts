@@ -14,6 +14,7 @@ const USER_ID = '20000000-0000-4000-8000-000000000001';
 
 describe('ResourceOwnershipGuard', () => {
   const getAllAndOverride = jest.fn();
+  const studentProfileFindFirst = jest.fn();
   const tutorProfileFindFirst = jest.fn();
   const teachingListingFindFirst = jest.fn();
   const availabilitySlotFindFirst = jest.fn();
@@ -21,6 +22,7 @@ describe('ResourceOwnershipGuard', () => {
   const prisma = {
     availabilitySlot: { findFirst: availabilitySlotFindFirst },
     booking: { findFirst: bookingFindFirst },
+    studentProfile: { findFirst: studentProfileFindFirst },
     teachingListing: { findFirst: teachingListingFindFirst },
     tutorProfile: { findFirst: tutorProfileFindFirst },
   } as unknown as PrismaService;
@@ -53,6 +55,28 @@ describe('ResourceOwnershipGuard', () => {
       where: { id: RESOURCE_ID, deletedAt: null, tutorProfileId: USER_ID },
       select: { id: true },
     });
+  });
+
+  it('allows a student to load their own student profile', async () => {
+    ownershipRule({ resource: 'studentProfile', idParam: 'userId' });
+    studentProfileFindFirst.mockResolvedValue({ userId: USER_ID });
+
+    await expect(
+      guard.canActivate(createContext(authenticatedUser(Role.STUDENT), { userId: USER_ID })),
+    ).resolves.toBe(true);
+    expect(studentProfileFindFirst).toHaveBeenCalledWith({
+      where: { userId: USER_ID },
+      select: { userId: true },
+    });
+  });
+
+  it("rejects another user's student profile without querying it", async () => {
+    ownershipRule({ resource: 'studentProfile', idParam: 'userId' });
+
+    await expect(
+      guard.canActivate(createContext(authenticatedUser(Role.STUDENT), { userId: RESOURCE_ID })),
+    ).rejects.toThrow(new NotFoundException('Resource not found'));
+    expect(studentProfileFindFirst).not.toHaveBeenCalled();
   });
 
   it('returns the same generic 404 for another owner and for a malformed ID', async () => {
