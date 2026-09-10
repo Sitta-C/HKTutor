@@ -235,6 +235,39 @@ export class TutorsService {
 
     return response;
   }
+
+  async deleteAvailability(userId: string, slotId: string) {
+    const availability = await this.prisma.availabilitySlot.findUniqueOrThrow({
+      select: {
+        tutorProfileId: true,
+        bookings: {
+          select: {
+            status: true,
+          }
+        }
+      },
+      where: {
+        id: slotId,
+      },
+    });
+
+    if(availability.tutorProfileId != userId) {
+      throw new NotFoundException(`Not-owned`);
+    }
+
+    if(availability.bookings !== undefined && availability.bookings.length > 0 && (availability.bookings.at(0)?.status === BookingStatus.CONFIRMED || availability.bookings.at(0)?.status === BookingStatus.PENDING)) {
+      throw new ConflictException(`Active pending/confirmed Booking exists`);
+    }
+
+    await this.prisma.availabilitySlot.update({
+      where: {
+        id: slotId,
+      },
+      data: {
+        deletedAt: new Date(),
+      },
+    });
+  }
 }
 
 function mapListing(listing: SelectedListing): ListingResponseDto {

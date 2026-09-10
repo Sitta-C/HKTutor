@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   HttpStatus,
@@ -113,5 +114,20 @@ export class TutorsController {
     @Body() request: AvailabilityPostRequestDto,
   ): Promise<AvailabilityPostResponseDto> {
     return this.tutors.postAvailability(user.id, request);
+  }
+
+  @Delete('me/availability/:slotId')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @RequireOwnership({
+    resource: 'availabilitySlot',
+    idParam: 'slotId',
+    allowAdmin: true,
+  })
+  //TODO: swagger
+  deleteAvailability(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('slotId') slotId: string,
+  ) {
+    return this.tutors.deleteAvailability(user.id, slotId);
   }
 }
