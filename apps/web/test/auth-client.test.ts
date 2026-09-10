@@ -127,4 +127,16 @@ describe('authentication API client', () => {
     expect(new Headers(request.headers).has('Authorization')).toBe(false);
     expect(fetchMock).toHaveBeenCalledTimes(3);
   });
+
+  it('clears the access token when logout fails', async () => {
+    setAccessToken('access-token');
+    fetchMock.mockResolvedValueOnce(jsonResponse({ message: 'session unavailable' }, 401));
+
+    await expect(logoutSession()).rejects.toMatchObject({ status: 401 });
+
+    fetchMock.mockResolvedValueOnce(jsonResponse({ profileComplete: true }));
+    await authenticatedFetch('/profiles/me');
+    const request = fetchMock.mock.calls[1]?.[1] as RequestInit;
+    expect(new Headers(request.headers).has('Authorization')).toBe(false);
+  });
 });
