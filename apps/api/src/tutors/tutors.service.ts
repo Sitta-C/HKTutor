@@ -28,7 +28,7 @@ export class TutorsService {
     request: ListingQueryDto,
   ): Promise<ListingResponseDto[] | null> {
     const listingsToSearch = {
-      userid: userid,
+      tutorProfileId: userid,
       deletedAt: null,
       ...(request.publicationStatus !== undefined && {
         publicationStatus: request.publicationStatus,
