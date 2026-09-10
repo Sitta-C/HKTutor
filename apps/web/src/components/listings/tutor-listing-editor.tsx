@@ -368,7 +368,7 @@ export default function TutorListingEditor({ listingId }: TutorListingEditorProp
                   aria-invalid={Boolean(errors.subjectId)}
                   aria-describedby={errors.subjectId ? 'listing-subject-error' : undefined}
                 >
-                  <option value="">{copy.selectSubject}</option>
+                  {!form.subjectId && <option value="">{copy.selectSubject}</option>}
                   {subjects.map((subject) => (
                     <option key={subject.id} value={subject.id}>
                       {subject.name}
@@ -385,7 +385,7 @@ export default function TutorListingEditor({ listingId }: TutorListingEditorProp
                   aria-invalid={Boolean(errors.gradeLevelId)}
                   aria-describedby={errors.gradeLevelId ? 'listing-grade-error' : undefined}
                 >
-                  <option value="">{copy.selectGrade}</option>
+                  {!form.gradeLevelId && <option value="">{copy.selectGrade}</option>}
                   {gradeLevels.map((grade) => (
                     <option key={grade.id} value={grade.id}>
                       {grade.name}
