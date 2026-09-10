@@ -57,10 +57,14 @@ describe('ProfilesService', () => {
       createdAt,
       updatedAt,
     };
-    const findUnique = jest.fn().mockResolvedValue({
-      policyVersion: CURRENT_PRIVACY_POLICY_VERSION,
-      studentProfile: null,
-      tutorProfile,
+    let profileQuery: unknown;
+    const findUnique = jest.fn().mockImplementation((query: unknown) => {
+      profileQuery = query;
+      return Promise.resolve({
+        policyVersion: CURRENT_PRIVACY_POLICY_VERSION,
+        studentProfile: null,
+        tutorProfile,
+      });
     });
     const service = new ProfilesService({ user: { findUnique } } as unknown as PrismaService);
 
@@ -77,15 +81,17 @@ describe('ProfilesService', () => {
       role: Role.TUTOR,
     });
 
-    expect(findUnique).toHaveBeenCalledWith(
-      expect.objectContaining({
-        select: expect.objectContaining({
-          tutorProfile: {
-            select: expect.objectContaining({ createdAt: true, updatedAt: true }),
-          },
-        }),
-      }),
-    );
+    const typedProfileQuery = profileQuery as {
+      select?: {
+        tutorProfile?: {
+          select?: { createdAt?: boolean; updatedAt?: boolean };
+        };
+      };
+    };
+    expect(typedProfileQuery.select?.tutorProfile?.select).toMatchObject({
+      createdAt: true,
+      updatedAt: true,
+    });
   });
 
   it('blocks profile writes until the current notice has been accepted', async () => {
