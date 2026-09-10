@@ -3,6 +3,8 @@ export interface SeedEnvironment {
   adminPassword: string;
   tutorEmail: string;
   tutorPassword: string;
+  studentEmail: string;
+  studentPassword: string;
 }
 
 function readRequiredValue(value: string | undefined, errorMessage: string): string {
@@ -30,12 +32,20 @@ export function readSeedEnvironment(env: NodeJS.ProcessEnv): SeedEnvironment {
     env['SEED_TUTOR_PASSWORD'],
     'Tutor seed environment is incomplete',
   );
+  const studentEmail = readEmail(
+    env['SEED_STUDENT_EMAIL'],
+    'Student seed environment is incomplete',
+  );
+  const studentPassword = readRequiredValue(
+    env['SEED_STUDENT_PASSWORD'],
+    'Student seed environment is incomplete',
+  );
 
-  if (adminEmail === tutorEmail) {
-    throw new Error('Admin and tutor seed emails must be different');
+  if (new Set([adminEmail, tutorEmail, studentEmail]).size !== 3) {
+    throw new Error('Admin, tutor, and student seed emails must all be different');
   }
 
-  if (adminPassword.length < 10 || tutorPassword.length < 10) {
+  if (adminPassword.length < 10 || tutorPassword.length < 10 || studentPassword.length < 10) {
     throw new Error('Seed passwords must be at least 10 characters');
   }
 
@@ -44,5 +54,7 @@ export function readSeedEnvironment(env: NodeJS.ProcessEnv): SeedEnvironment {
     adminPassword,
     tutorEmail,
     tutorPassword,
+    studentEmail,
+    studentPassword,
   };
 }
