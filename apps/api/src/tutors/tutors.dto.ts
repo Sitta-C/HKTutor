@@ -135,7 +135,7 @@ export const AvailabilityState = {
 
 export type AvailabilityState = (typeof AvailabilityState)[keyof typeof AvailabilityState];
 
-export class AvailabilityPrivateQueryDto {
+export class AvailabilityQueryDto {
   @IsOptional()
   @ApiProperty({ example: '2026-08-17T00:00:00.000Z', format: 'date-time' })
   from?: Date;

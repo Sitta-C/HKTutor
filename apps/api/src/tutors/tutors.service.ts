@@ -14,7 +14,7 @@ import {
   AvailabilityPostRequestDto,
   AvailabilityPostResponseDto,
   AvailabilityState,
-  type AvailabilityPrivateQueryDto,
+  type AvailabilityQueryDto,
   type AvailabilityPrivateResponseDto,
   type ListingPatchRequestDto,
   type ListingPostRequestDto,
@@ -173,7 +173,7 @@ export class TutorsService {
   }
 
   //Availability
-  async getAvailabilityPrivate(userId: string, query: AvailabilityPrivateQueryDto): Promise<AvailabilityPrivateResponseDto[]> {
+  async getAvailabilityPrivate(userId: string, query: AvailabilityQueryDto): Promise<AvailabilityPrivateResponseDto[]> {
     const availabilities = await this.prisma.availabilitySlot.findMany({
       select: {
         id: true,

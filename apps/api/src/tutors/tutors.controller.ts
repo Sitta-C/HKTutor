@@ -22,7 +22,7 @@ import { Role } from '@/generated/prisma/client';
 import {
   AvailabilityPostRequestDto,
   AvailabilityPostResponseDto,
-  AvailabilityPrivateQueryDto,
+  AvailabilityQueryDto,
   AvailabilityPrivateResponseDto,
   ListingPatchRequestDto,
   ListingPostRequestDto,
@@ -101,7 +101,7 @@ export class TutorsPrivateController {
   //TODO: swagger
   getAvailabilityPrivate(
     @CurrentUser() user: AuthenticatedUser,
-    @Query() query: AvailabilityPrivateQueryDto,
+    @Query() query: AvailabilityQueryDto,
   ): Promise<AvailabilityPrivateResponseDto[]> {
     return this.tutors.getAvailabilityPrivate(user.id, query);
   }
