@@ -36,7 +36,7 @@ under the workspace convention; product screens must support EN/TH.
 
 The tutor profile editor follows the supplied reference image as a visual direction: a dark,
 quiet navigation rail; a light workspace with a clear page title; a compact horizontal section
-navigation; and an information-first two-column layout. HKTutor keeps its own blue tutor accent and
+navigation presented as a floating bubble; and an information-first two-column layout. HKTutor keeps its own blue tutor accent and
 uses familiar labels rather than copying the reference product's employee terminology.
 
 The left column is a concise identity and account summary. The right column is the editable profile
