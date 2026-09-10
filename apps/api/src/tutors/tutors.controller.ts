@@ -102,7 +102,7 @@ export class TutorsPrivateController {
     return this.tutors.patchListing(user.id, listingId, dto);
   }
 
-  @Patch('me/listings/:listingId/status')
+  @Patch('listings/:listingId/status')
   @HttpCode(HttpStatus.OK)
   @RequireOwnership({
     resource: 'teachingListing',
@@ -118,7 +118,7 @@ export class TutorsPrivateController {
     return this.tutors.updateListingStatus(user.id, listingId, dto.publicationStatus);
   }
 
-  @Post('me/listings/:listingId/publish')
+  @Post('listings/:listingId/publish')
   @HttpCode(HttpStatus.OK)
   @RequireOwnership({
     resource: 'teachingListing',
