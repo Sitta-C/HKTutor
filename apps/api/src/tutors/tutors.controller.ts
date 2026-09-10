@@ -105,8 +105,8 @@ export class TutorsController {
     return this.tutors.getAvailabilityPrivate(user.id, query);
   }
 
-  @Get('me/availability')
-  @HttpCode(HttpStatus.OK)
+  @Post('me/availability')
+  @HttpCode(HttpStatus.CREATED)
   //TODO: swagger
   postAvailability(
     @CurrentUser() user: AuthenticatedUser,
