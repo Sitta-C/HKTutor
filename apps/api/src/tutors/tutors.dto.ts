@@ -164,6 +164,18 @@ export class AvailabilityPrivateResponseDto {
   state!: AvailabilityState;
 }
 
+export class AvailabilityPublicResponseDto {
+  @ApiProperty({ example: '30000000-0000-4000-8000-000000000001', format: 'uuid' })
+  @IsUUID()
+  id!: string;
+
+  @ApiProperty({ example: '2026-08-17T00:00:00.000Z', format: 'date-time' })
+  startAtUtc!: Date;
+
+  @ApiProperty({ example: '2026-08-17T00:00:00.000Z', format: 'date-time' })
+  endAtUtc!: Date;
+}
+
 export class AvailabilityPostRequestDto {
   @ApiProperty({ example: '2026-08-17T00:00:00.000Z', format: 'date-time' })
   @MinDate(() => new Date(), {

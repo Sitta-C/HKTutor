@@ -20,6 +20,7 @@ import {
   type ListingPostRequestDto,
   type ListingQueryDto,
   type ListingResponseDto,
+  AvailabilityPublicResponseDto,
 } from '@/tutors/tutors.dto';
 
 const listingSelect = {
@@ -205,6 +206,14 @@ export class TutorsService {
       endAtUtc: availability.endAtUtc,
       createdAt: availability.createdAt,
       state: (availability.bookings && availability.bookings.length > 0 && availability.bookings.at(0)?.status === BookingStatus.CONFIRMED)? AvailabilityState.RESERVED : AvailabilityState.OPEN,
+    }));
+  }
+
+  async getAvailabilityPublic(userId: string, query: AvailabilityQueryDto): Promise<AvailabilityPublicResponseDto[]> {
+    return (await this.getAvailabilityPrivate(userId, query)).filter(availability => availability.state === AvailabilityState.OPEN).map((availability) => ({
+      id: availability.id,
+      startAtUtc: availability.startAtUtc,
+      endAtUtc: availability.endAtUtc,
     }));
   }
 

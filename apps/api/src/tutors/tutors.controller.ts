@@ -28,6 +28,7 @@ import {
   ListingPostRequestDto,
   ListingQueryDto,
   ListingResponseDto,
+  AvailabilityPublicResponseDto,
 } from '@/tutors/tutors.dto';
 import { TutorsService } from '@/tutors/tutors.service';
 import {
@@ -129,5 +130,22 @@ export class TutorsPrivateController {
     @Param('slotId') slotId: string,
   ) {
     return this.tutors.deleteAvailability(user.id, slotId);
+  }
+}
+
+//TODO: swagger
+@UseGuards(JwtAuthGuard)
+@Controller('tutors')
+export class TutorsPublicController {
+  constructor(private readonly tutors: TutorsService) {}
+
+  @Get(':tutorId/availability')
+  @HttpCode(HttpStatus.OK)
+  //TODO: swagger
+  getAvailabilityPublic(
+    @Param('tutorId') tutorId: string,
+    @Query() query: AvailabilityQueryDto,
+  ): Promise<AvailabilityPublicResponseDto[]> {
+    return this.tutors.getAvailabilityPublic(tutorId, query);
   }
 }
