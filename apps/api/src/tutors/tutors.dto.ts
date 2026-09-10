@@ -1,6 +1,14 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
-import { IsNumber, IsOptional, IsString, IsDefined, IsPositive, Length } from 'class-validator';
+import {
+  IsDefined,
+  IsIn,
+  IsNumber,
+  IsOptional,
+  IsPositive,
+  IsString,
+  Length,
+} from 'class-validator';
 
 import type { TransformFnParams } from 'class-transformer';
 
@@ -9,6 +17,7 @@ export type PublicationStatus = 'DRAFT' | 'PUBLISHED' | 'ARCHIVED';
 
 export class ListingQueryDto {
   @IsOptional()
+  @IsIn(['DRAFT', 'PUBLISHED', 'ARCHIVED'])
   publicationStatus?: PublicationStatus;
 }
 
