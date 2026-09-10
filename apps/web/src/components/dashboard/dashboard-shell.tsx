@@ -239,6 +239,8 @@ export function DashboardShell({
 
 type NotificationMenuCopy = {
   notifications: string;
+  notificationClose: string;
+  notificationNow: string;
   notificationsUnread: string;
   markAllNotificationsRead: string;
   noNotifications: string;
@@ -255,6 +257,7 @@ type NotificationItem = {
   href: string;
   title: string;
   body: string;
+  icon: 'profile' | 'listing' | 'privacy';
 };
 
 function NotificationMenu({
@@ -294,12 +297,14 @@ function NotificationMenu({
             href: '/dashboard/profile',
             title: copy.profileNotificationTitle,
             body: copy.profileNotificationBody,
+            icon: 'profile',
           },
           {
             id: 'listing',
             href: '/dashboard/listings/new',
             title: copy.listingNotificationTitle,
             body: copy.listingNotificationBody,
+            icon: 'listing',
           },
         ]
       : [
@@ -308,12 +313,14 @@ function NotificationMenu({
             href: '/dashboard/profile',
             title: copy.profileNotificationTitle,
             body: copy.profileNotificationBody,
+            icon: 'profile',
           },
           {
             id: 'privacy',
             href: '/dashboard/profile#privacy',
             title: copy.privacyNotificationTitle,
             body: copy.privacyNotificationBody,
+            icon: 'privacy',
           },
         ];
 
@@ -344,18 +351,45 @@ function NotificationMenu({
       </button>
 
       {isOpen && (
-        <div className="dash-notification-popover" id="dashboard-notifications" role="dialog">
+        <div
+          className="dash-notification-popover"
+          id="dashboard-notifications"
+          role="dialog"
+          aria-labelledby="dashboard-notifications-title"
+        >
           <div className="dash-notification-head">
             <div>
-              <h2>{copy.notifications}</h2>
+              <div className="dash-notification-title-row">
+                <span className="dash-notification-header-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                    <path d="M18 9a6 6 0 0 0-12 0c0 7-3 7-3 8.5h18C21 16 18 16 18 9Z" />
+                    <path d="M10 21h4" />
+                  </svg>
+                </span>
+                <h2 id="dashboard-notifications-title">{copy.notifications}</h2>
+              </div>
               <p>{unreadCount ? unreadLabel : copy.noNotifications}</p>
             </div>
-            {unreadCount > 0 && (
+            <button
+              type="button"
+              className="dash-notification-close"
+              aria-label={copy.notificationClose}
+              onClick={() => setIsOpen(false)}
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                <path d="m6 6 12 12M18 6 6 18" />
+              </svg>
+            </button>
+          </div>
+
+          {unreadCount > 0 && (
+            <div className="dash-notification-actions">
+              <span>{unreadLabel}</span>
               <button type="button" onClick={() => setHasUnread(false)}>
                 {copy.markAllNotificationsRead}
               </button>
-            )}
-          </div>
+            </div>
+          )}
 
           <div className="dash-notification-list">
             {items.length > 0 ? (
@@ -364,13 +398,22 @@ function NotificationMenu({
                   key={item.id}
                   href={item.href}
                   className={`dash-notification-item${hasUnread ? ' is-unread' : ''}`}
-                  onClick={() => setIsOpen(false)}
+                  onClick={() => {
+                    setHasUnread(false);
+                    setIsOpen(false);
+                  }}
                 >
-                  <span className="dash-notification-item-dot" aria-hidden="true" />
-                  <span>
-                    <strong>{item.title}</strong>
-                    <span>{item.body}</span>
+                  <span className="dash-notification-item-icon" aria-hidden="true">
+                    <NotificationItemIcon name={item.icon} />
                   </span>
+                  <span className="dash-notification-item-content">
+                    <span className="dash-notification-item-title-row">
+                      <strong>{item.title}</strong>
+                      <time>{copy.notificationNow}</time>
+                    </span>
+                    <span className="dash-notification-item-body">{item.body}</span>
+                  </span>
+                  <span className="dash-notification-item-dot" aria-hidden="true" />
                 </Link>
               ))
             ) : (
@@ -380,6 +423,33 @@ function NotificationMenu({
         </div>
       )}
     </div>
+  );
+}
+
+function NotificationItemIcon({ name }: { name: NotificationItem['icon'] }) {
+  if (name === 'listing') {
+    return (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+        <path d="M6 4.5h12v15H6z" />
+        <path d="M9 8h6M9 11.5h6M9 15h4" />
+      </svg>
+    );
+  }
+
+  if (name === 'privacy') {
+    return (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+        <path d="m12 3.5 7 2.7v5.1c0 4.5-2.7 7.6-7 9.2-4.3-1.6-7-4.7-7-9.2V6.2z" />
+        <path d="M9.5 11.5 11.3 13l3.4-3.5" />
+      </svg>
+    );
+  }
+
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+      <circle cx="12" cy="8" r="3" />
+      <path d="M5.5 20c.7-3.1 3.1-4.8 6.5-4.8s5.8 1.7 6.5 4.8" />
+    </svg>
   );
 }
 
