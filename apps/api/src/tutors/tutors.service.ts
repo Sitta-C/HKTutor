@@ -198,6 +198,7 @@ export class TutorsService {
         ...(query.from !== undefined && {startAtUtc: { gte: query.from }}),
         ...(query.to !== undefined && {endAtUtc: { lte: query.to }}),
       },
+      orderBy: { startAtUtc: 'desc', endAtUtc: 'desc' },
     });
 
     return availabilities.map((availability) => ({
