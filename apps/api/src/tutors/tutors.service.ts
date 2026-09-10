@@ -6,14 +6,17 @@ import {
 } from '@nestjs/common';
 
 import { PrismaService } from '@/database/prisma.service';
-import { ListingPublicationStatus, TutorVerificationStatus } from '@/generated/prisma/client';
+import { BookingStatus, ListingPublicationStatus, TutorVerificationStatus } from '@/generated/prisma/client';
 
 import type { Prisma } from '@/generated/prisma/client';
-import type {
-  ListingPatchRequestDto,
-  ListingPostRequestDto,
-  ListingQueryDto,
-  ListingResponseDto,
+import {
+  AvailabilityState,
+  type AvailabilityPrivateQueryDto,
+  type AvailabilityPrivateResponseDto,
+  type ListingPatchRequestDto,
+  type ListingPostRequestDto,
+  type ListingQueryDto,
+  type ListingResponseDto,
 } from '@/tutors/tutors.dto';
 
 const listingSelect = {
@@ -54,6 +57,7 @@ const isRecordNotFound = (error: unknown): boolean =>
 export class TutorsService {
   constructor(private readonly prisma: PrismaService) {}
 
+  //Listing
   async getListings(userId: string, query: ListingQueryDto): Promise<ListingResponseDto[]> {
     const listings = await this.prisma.teachingListing.findMany({
       select: listingSelect,
@@ -163,6 +167,38 @@ export class TutorsService {
 
     if (!subject) throw new BadRequestException('subjectId is invalid');
     if (!gradeLevel) throw new BadRequestException('gradeLevelId is invalid');
+  }
+
+  //Availability
+  async getAvailabilityPrivate(userId: string, query: AvailabilityPrivateQueryDto): Promise<AvailabilityPrivateResponseDto[]> {
+    const availabilities = await this.prisma.availabilitySlot.findMany({
+      select: {
+        id: true,
+        startAtUtc: true,
+        endAtUtc: true,
+        createdAt: true,
+        bookings: {
+          select: {
+            id: true,
+            status: true,
+          }
+        }
+      },
+      where: {
+        tutorProfileId: userId,
+        deletedAt: null,
+        ...(query.from !== undefined && {startAtUtc: { gte: query.from }}),
+        ...(query.to !== undefined && {endAtUtc: { lte: query.to }}),
+      },
+    });
+
+    return availabilities.map((availability) => ({
+      id: availability.id,
+      startAtUtc: availability.startAtUtc,
+      endAtUtc: availability.endAtUtc,
+      createdAt: availability.createdAt,
+      state: (availability.bookings && availability.bookings.length > 0 && availability.bookings.at(0)?.status === BookingStatus.CONFIRMED)? AvailabilityState.RESERVED : AvailabilityState.OPEN,
+    }));
   }
 }
 

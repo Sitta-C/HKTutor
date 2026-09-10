@@ -18,6 +18,7 @@ import type { TransformFnParams } from 'class-transformer';
 const trimString = ({ value }: TransformFnParams): unknown =>
   typeof value === 'string' ? value.trim() : value;
 
+//Listing
 export class ListingQueryDto {
   @ApiPropertyOptional({ enum: ListingPublicationStatus, enumName: 'ListingPublicationStatus' })
   @IsOptional()
@@ -123,4 +124,41 @@ export class ListingPatchRequestDto {
   @MinLength(20)
   @MaxLength(1000)
   description?: string;
+}
+
+//Availability
+export const AvailabilityState = {
+  OPEN: "OPEN",
+  RESERVED: "RESERVED",
+} as const
+
+export type AvailabilityState = (typeof AvailabilityState)[keyof typeof AvailabilityState];
+
+export class AvailabilityPrivateQueryDto {
+  @IsOptional()
+  @ApiProperty({ example: '2026-08-17T00:00:00.000Z', format: 'date-time' })
+  from?: Date;
+
+  @IsOptional()
+  @ApiProperty({ example: '2026-08-17T00:00:00.000Z', format: 'date-time' })
+  to?: Date;
+}
+
+export class AvailabilityPrivateResponseDto {
+  @ApiProperty({ example: '30000000-0000-4000-8000-000000000001', format: 'uuid' })
+  @IsUUID()
+  id!: string;
+
+  @ApiProperty({ example: '2026-08-17T00:00:00.000Z', format: 'date-time' })
+  startAtUtc!: Date;
+
+  @ApiProperty({ example: '2026-08-17T00:00:00.000Z', format: 'date-time' })
+  endAtUtc!: Date;
+
+  @ApiProperty({ example: '2026-08-17T00:00:00.000Z', format: 'date-time' })
+  createdAt!: Date;
+
+  @ApiPropertyOptional({ enum: AvailabilityState, enumName: 'AvailabilityState' })
+  @IsEnum(AvailabilityState)
+  state!: AvailabilityState;
 }
