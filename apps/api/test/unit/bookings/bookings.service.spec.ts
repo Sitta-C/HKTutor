@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ConflictException,
   ForbiddenException,
+  NotFoundException,
 } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 
@@ -13,6 +14,7 @@ import {
   BookingStatus,
   ListingPublicationStatus,
   Role,
+  TutorVerificationStatus,
 } from '@/generated/prisma/enums';
 
 import type { BookingResponseDto } from '@/bookings/bookings.dto';
@@ -25,7 +27,8 @@ type TransactionCallback = (
   tx: {
     $queryRaw?: jest.Mock;
     booking?: { create?: jest.Mock; findFirst?: jest.Mock };
-    teachingListing?: { findFirst?: jest.Mock; findUnique?: jest.Mock };
+    teachingListing?: { findUnique?: jest.Mock };
+    tutorProfile?: { findUnique?: jest.Mock };
     user?: { findUnique?: jest.Mock };
   },
 ) => Promise<unknown>;
@@ -53,6 +56,18 @@ describe('BookingsService', () => {
     return { bookingId, listingId, slotId, studentUserId, tutorUserId };
   };
 
+  const futureSlot = (slotId: string, tutorUserId: string) => ({
+    deletedAt: null,
+    endAtUtc: new Date(Date.now() + 2 * 60 * 60 * 1000),
+    id: slotId,
+    startAtUtc: new Date(Date.now() + 60 * 60 * 1000),
+    tutorProfileId: tutorUserId,
+  });
+
+  const verifiedTutorProfile = {
+    verificationStatus: TutorVerificationStatus.VERIFIED,
+  };
+
   beforeEach(async () => {
     jest.clearAllMocks();
 
@@ -74,14 +89,9 @@ describe('BookingsService', () => {
       const { bookingId, listingId, slotId, studentUserId, tutorUserId } =
         createTestData();
       const pricePerHour = 500;
+      const createdAt = new Date('2026-09-10T09:04:31.001Z');
 
-      const mockSlot = {
-        deletedAt: null,
-        endAtUtc: new Date('2026-09-10T10:00:00Z'),
-        id: slotId,
-        startAtUtc: new Date('2026-09-10T09:00:00Z'),
-        tutorProfileId: tutorUserId,
-      };
+      const mockSlot = futureSlot(slotId, tutorUserId);
 
       const mockStudent = {
         accountStatus: AccountStatus.ACTIVE,
@@ -99,6 +109,7 @@ describe('BookingsService', () => {
       };
 
       const mockBooking = {
+        createdAt,
         currency: 'THB',
         discountAmount: new Prisma.Decimal(0),
         id: bookingId,
@@ -119,8 +130,10 @@ describe('BookingsService', () => {
             findFirst: jest.fn().mockResolvedValue(null),
           },
           teachingListing: {
-            findFirst: jest.fn().mockResolvedValue(mockListing),
             findUnique: jest.fn().mockResolvedValue(mockListing),
+          },
+          tutorProfile: {
+            findUnique: jest.fn().mockResolvedValue(verifiedTutorProfile),
           },
           user: {
             findUnique: jest.fn().mockResolvedValue(mockStudent),
@@ -138,16 +151,15 @@ describe('BookingsService', () => {
       const result = await service.create(input);
 
       expect(result).toEqual<BookingResponseDto>({
+        createdAt: createdAt.toISOString(),
         currency: 'THB',
-        discountAmount: 0,
+        discountAmount: '0.00',
         id: bookingId,
         listingId,
-        netAmount: pricePerHour,
+        netAmount: '500.00',
         slotId,
         status: BookingStatus.PENDING,
-        studentUserId,
-        subtotalAmount: pricePerHour,
-        tutorProfileId: tutorUserId,
+        subtotalAmount: '500.00',
       });
 
       expect(mockPrismaService.$transaction).toHaveBeenCalledTimes(1);
@@ -170,13 +182,7 @@ describe('BookingsService', () => {
     it('should throw ForbiddenException when student does not exist', async () => {
       const { listingId, slotId, studentUserId, tutorUserId } = createTestData();
 
-      const mockSlot = {
-        deletedAt: null,
-        endAtUtc: new Date('2026-09-10T10:00:00Z'),
-        id: slotId,
-        startAtUtc: new Date('2026-09-10T09:00:00Z'),
-        tutorProfileId: tutorUserId,
-      };
+      const mockSlot = futureSlot(slotId, tutorUserId);
 
       mockPrismaService.$transaction.mockImplementation(async (callback: TransactionCallback) => {
         const tx = {
@@ -205,13 +211,7 @@ describe('BookingsService', () => {
     it('should throw ForbiddenException when student role is not STUDENT', async () => {
       const { listingId, slotId, studentUserId, tutorUserId } = createTestData();
 
-      const mockSlot = {
-        deletedAt: null,
-        endAtUtc: new Date('2026-09-10T10:00:00Z'),
-        id: slotId,
-        startAtUtc: new Date('2026-09-10T09:00:00Z'),
-        tutorProfileId: tutorUserId,
-      };
+      const mockSlot = futureSlot(slotId, tutorUserId);
 
       const mockStudent = {
         accountStatus: AccountStatus.ACTIVE,
@@ -247,13 +247,7 @@ describe('BookingsService', () => {
     it('should throw ForbiddenException when student accountStatus is not ACTIVE', async () => {
       const { listingId, slotId, studentUserId, tutorUserId } = createTestData();
 
-      const mockSlot = {
-        deletedAt: null,
-        endAtUtc: new Date('2026-09-10T10:00:00Z'),
-        id: slotId,
-        startAtUtc: new Date('2026-09-10T09:00:00Z'),
-        tutorProfileId: tutorUserId,
-      };
+      const mockSlot = futureSlot(slotId, tutorUserId);
 
       const mockStudent = {
         accountStatus: AccountStatus.SUSPENDED,
@@ -289,13 +283,7 @@ describe('BookingsService', () => {
     it('should throw ForbiddenException when student is soft deleted', async () => {
       const { listingId, slotId, studentUserId, tutorUserId } = createTestData();
 
-      const mockSlot = {
-        deletedAt: null,
-        endAtUtc: new Date('2026-09-10T10:00:00Z'),
-        id: slotId,
-        startAtUtc: new Date('2026-09-10T09:00:00Z'),
-        tutorProfileId: tutorUserId,
-      };
+      const mockSlot = futureSlot(slotId, tutorUserId);
 
       const mockStudent = {
         accountStatus: AccountStatus.ACTIVE,
@@ -328,17 +316,40 @@ describe('BookingsService', () => {
       );
     });
 
-    it('should throw ForbiddenException when tutor tries to book their own slot', async () => {
-      const { listingId, slotId, tutorUserId } = createTestData();
-      const pricePerHour = 500;
+    it('should throw BadRequestException when the slot has already started', async () => {
+      const { listingId, slotId, studentUserId, tutorUserId } = createTestData();
 
       const mockSlot = {
         deletedAt: null,
-        endAtUtc: new Date('2026-09-10T10:00:00Z'),
+        endAtUtc: new Date(Date.now() - 30 * 60 * 1000),
         id: slotId,
-        startAtUtc: new Date('2026-09-10T09:00:00Z'),
+        startAtUtc: new Date(Date.now() - 60 * 60 * 1000),
         tutorProfileId: tutorUserId,
       };
+
+      mockPrismaService.$transaction.mockImplementation(async (callback: TransactionCallback) => {
+        const tx = {
+          $queryRaw: jest.fn().mockResolvedValue([mockSlot]),
+        };
+        return await callback(tx);
+      });
+
+      const input: CreateBookingInput = {
+        listingId,
+        slotId,
+        studentUserId,
+      };
+
+      await expect(service.create(input)).rejects.toThrow(
+        new BadRequestException('The selected slot has already started or is in the past.'),
+      );
+    });
+
+    it('should throw BadRequestException when a tutor tries to book their own slot', async () => {
+      const { listingId, slotId, tutorUserId } = createTestData();
+      const pricePerHour = 500;
+
+      const mockSlot = futureSlot(slotId, tutorUserId);
 
       const mockStudent = {
         accountStatus: AccountStatus.ACTIVE,
@@ -362,8 +373,10 @@ describe('BookingsService', () => {
             findFirst: jest.fn().mockResolvedValue(null),
           },
           teachingListing: {
-            findFirst: jest.fn().mockResolvedValue(mockListing),
             findUnique: jest.fn().mockResolvedValue(mockListing),
+          },
+          tutorProfile: {
+            findUnique: jest.fn().mockResolvedValue(verifiedTutorProfile),
           },
           user: {
             findUnique: jest.fn().mockResolvedValue(mockStudent),
@@ -379,11 +392,11 @@ describe('BookingsService', () => {
       };
 
       await expect(service.create(input)).rejects.toThrow(
-        new ForbiddenException('Tutors cannot book their own slots.'),
+        new BadRequestException('Tutors cannot book their own slots.'),
       );
     });
 
-    it('should throw ConflictException when slot does not exist', async () => {
+    it('should throw NotFoundException when slot does not exist', async () => {
       const { listingId, slotId, studentUserId } = createTestData();
 
       mockPrismaService.$transaction.mockImplementation(async (callback: TransactionCallback) => {
@@ -400,20 +413,14 @@ describe('BookingsService', () => {
       };
 
       await expect(service.create(input)).rejects.toThrow(
-        new ConflictException('The selected slot does not exist.'),
+        new NotFoundException('The selected slot does not exist.'),
       );
     });
 
     it('should throw ConflictException when slot is unavailable or already booked', async () => {
       const { listingId, slotId, studentUserId, tutorUserId } = createTestData();
 
-      const mockSlot = {
-        deletedAt: null,
-        endAtUtc: new Date('2026-09-10T10:00:00Z'),
-        id: slotId,
-        startAtUtc: new Date('2026-09-10T09:00:00Z'),
-        tutorProfileId: tutorUserId,
-      };
+      const mockSlot = futureSlot(slotId, tutorUserId);
 
       const mockExistingBooking = {
         id: 'existing-booking-id',
@@ -445,9 +452,9 @@ describe('BookingsService', () => {
 
       const mockSlot = {
         deletedAt: new Date('2026-09-01T00:00:00Z'),
-        endAtUtc: new Date('2026-09-10T10:00:00Z'),
+        endAtUtc: new Date(Date.now() + 2 * 60 * 60 * 1000),
         id: slotId,
-        startAtUtc: new Date('2026-09-10T09:00:00Z'),
+        startAtUtc: new Date(Date.now() + 60 * 60 * 1000),
         tutorProfileId: tutorUserId,
       };
 
@@ -469,16 +476,10 @@ describe('BookingsService', () => {
       );
     });
 
-    it('should throw ConflictException when no published listing exists for tutor', async () => {
-      const { slotId, studentUserId, tutorUserId } = createTestData();
+    it('should throw NotFoundException when listing does not exist', async () => {
+      const { listingId, slotId, studentUserId, tutorUserId } = createTestData();
 
-      const mockSlot = {
-        deletedAt: null,
-        endAtUtc: new Date('2026-09-10T10:00:00Z'),
-        id: slotId,
-        startAtUtc: new Date('2026-09-10T09:00:00Z'),
-        tutorProfileId: tutorUserId,
-      };
+      const mockSlot = futureSlot(slotId, tutorUserId);
 
       const mockStudent = {
         accountStatus: AccountStatus.ACTIVE,
@@ -494,7 +495,7 @@ describe('BookingsService', () => {
             findFirst: jest.fn().mockResolvedValue(null),
           },
           teachingListing: {
-            findFirst: jest.fn().mockResolvedValue(null),
+            findUnique: jest.fn().mockResolvedValue(null),
           },
           user: {
             findUnique: jest.fn().mockResolvedValue(mockStudent),
@@ -504,25 +505,20 @@ describe('BookingsService', () => {
       });
 
       const input: CreateBookingInput = {
+        listingId,
         slotId,
         studentUserId,
       };
 
       await expect(service.create(input)).rejects.toThrow(
-        new ConflictException('No published listing is available for this slot.'),
+        new NotFoundException('The selected listing does not exist.'),
       );
     });
 
     it('should throw ConflictException when listing is not available or not published', async () => {
       const { listingId, slotId, studentUserId, tutorUserId } = createTestData();
 
-      const mockSlot = {
-        deletedAt: null,
-        endAtUtc: new Date('2026-09-10T10:00:00Z'),
-        id: slotId,
-        startAtUtc: new Date('2026-09-10T09:00:00Z'),
-        tutorProfileId: tutorUserId,
-      };
+      const mockSlot = futureSlot(slotId, tutorUserId);
 
       const mockStudent = {
         accountStatus: AccountStatus.ACTIVE,
@@ -546,7 +542,6 @@ describe('BookingsService', () => {
             findFirst: jest.fn().mockResolvedValue(null),
           },
           teachingListing: {
-            findFirst: jest.fn().mockResolvedValue(mockListing),
             findUnique: jest.fn().mockResolvedValue(mockListing),
           },
           user: {
@@ -571,13 +566,7 @@ describe('BookingsService', () => {
       const { listingId, slotId, studentUserId, tutorUserId } = createTestData();
       const differentTutorId = '0000b6be-ebb5-40b7-b5bd-1c1fcfe26857';
 
-      const mockSlot = {
-        deletedAt: null,
-        endAtUtc: new Date('2026-09-10T10:00:00Z'),
-        id: slotId,
-        startAtUtc: new Date('2026-09-10T09:00:00Z'),
-        tutorProfileId: tutorUserId,
-      };
+      const mockSlot = futureSlot(slotId, tutorUserId);
 
       const mockStudent = {
         accountStatus: AccountStatus.ACTIVE,
@@ -601,7 +590,6 @@ describe('BookingsService', () => {
             findFirst: jest.fn().mockResolvedValue(null),
           },
           teachingListing: {
-            findFirst: jest.fn().mockResolvedValue(null),
             findUnique: jest.fn().mockResolvedValue(mockListing),
           },
           user: {
@@ -619,6 +607,58 @@ describe('BookingsService', () => {
 
       await expect(service.create(input)).rejects.toThrow(
         new ConflictException('The selected slot does not belong to the selected listing.'),
+      );
+    });
+
+    it('should throw ConflictException when the tutor is not verified', async () => {
+      const { listingId, slotId, studentUserId, tutorUserId } = createTestData();
+
+      const mockSlot = futureSlot(slotId, tutorUserId);
+
+      const mockStudent = {
+        accountStatus: AccountStatus.ACTIVE,
+        deletedAt: null,
+        id: studentUserId,
+        role: Role.STUDENT,
+      };
+
+      const mockListing = {
+        deletedAt: null,
+        id: listingId,
+        pricePerHour: 500,
+        publicationStatus: ListingPublicationStatus.PUBLISHED,
+        tutorProfileId: tutorUserId,
+      };
+
+      mockPrismaService.$transaction.mockImplementation(async (callback: TransactionCallback) => {
+        const tx = {
+          $queryRaw: jest.fn().mockResolvedValue([mockSlot]),
+          booking: {
+            findFirst: jest.fn().mockResolvedValue(null),
+          },
+          teachingListing: {
+            findUnique: jest.fn().mockResolvedValue(mockListing),
+          },
+          tutorProfile: {
+            findUnique: jest.fn().mockResolvedValue({
+              verificationStatus: TutorVerificationStatus.PENDING,
+            }),
+          },
+          user: {
+            findUnique: jest.fn().mockResolvedValue(mockStudent),
+          },
+        };
+        return await callback(tx);
+      });
+
+      const input: CreateBookingInput = {
+        listingId,
+        slotId,
+        studentUserId,
+      };
+
+      await expect(service.create(input)).rejects.toThrow(
+        new ConflictException('The selected listing is not currently available for booking.'),
       );
     });
 
@@ -660,88 +700,13 @@ describe('BookingsService', () => {
       await expect(service.create(input)).rejects.toThrow('Unexpected database error');
     });
 
-    it('should auto-fetch published listing when listingId is not provided', async () => {
-      const { bookingId, slotId, studentUserId, tutorUserId } = createTestData();
-      const autoFetchedListingId = 'auto-fetched-listing-id';
-      const pricePerHour = 500;
-
-      const mockSlot = {
-        deletedAt: null,
-        endAtUtc: new Date('2026-09-10T10:00:00Z'),
-        id: slotId,
-        startAtUtc: new Date('2026-09-10T09:00:00Z'),
-        tutorProfileId: tutorUserId,
-      };
-
-      const mockStudent = {
-        accountStatus: AccountStatus.ACTIVE,
-        deletedAt: null,
-        id: studentUserId,
-        role: Role.STUDENT,
-      };
-
-      const mockAutoFetchedListing = {
-        deletedAt: null,
-        id: autoFetchedListingId,
-        pricePerHour: pricePerHour,
-        publicationStatus: ListingPublicationStatus.PUBLISHED,
-        tutorProfileId: tutorUserId,
-      };
-
-      const mockBooking = {
-        currency: 'THB',
-        discountAmount: new Prisma.Decimal(0),
-        id: bookingId,
-        listingId: autoFetchedListingId,
-        netAmount: new Prisma.Decimal(pricePerHour),
-        slotId,
-        status: BookingStatus.PENDING,
-        studentUserId,
-        subtotalAmount: new Prisma.Decimal(pricePerHour),
-        tutorProfileId: tutorUserId,
-      };
-
-      mockPrismaService.$transaction.mockImplementation(async (callback: TransactionCallback) => {
-        const tx = {
-          $queryRaw: jest.fn().mockResolvedValue([mockSlot]),
-          booking: {
-            create: jest.fn().mockResolvedValue(mockBooking),
-            findFirst: jest.fn().mockResolvedValue(null),
-          },
-          teachingListing: {
-            findFirst: jest.fn().mockResolvedValue(mockAutoFetchedListing),
-            findUnique: jest.fn().mockResolvedValue(mockAutoFetchedListing),
-          },
-          user: {
-            findUnique: jest.fn().mockResolvedValue(mockStudent),
-          },
-        };
-        return await callback(tx);
-      });
-
-      const input: CreateBookingInput = {
-        slotId,
-        studentUserId,
-      };
-
-      const result = await service.create(input);
-
-      expect(result.listingId).toBe(autoFetchedListingId);
-      expect(mockPrismaService.$transaction).toHaveBeenCalledTimes(1);
-    });
-
-    it('should convert Decimal amounts to numbers in response', async () => {
+    it('should format Decimal amounts as fixed-2 decimal strings in the response', async () => {
       const { bookingId, listingId, slotId, studentUserId, tutorUserId } =
         createTestData();
       const pricePerHour = 1250.75;
+      const createdAt = new Date('2026-09-10T09:04:31.001Z');
 
-      const mockSlot = {
-        deletedAt: null,
-        endAtUtc: new Date('2026-09-10T10:00:00Z'),
-        id: slotId,
-        startAtUtc: new Date('2026-09-10T09:00:00Z'),
-        tutorProfileId: tutorUserId,
-      };
+      const mockSlot = futureSlot(slotId, tutorUserId);
 
       const mockStudent = {
         accountStatus: AccountStatus.ACTIVE,
@@ -759,6 +724,7 @@ describe('BookingsService', () => {
       };
 
       const mockBooking = {
+        createdAt,
         currency: 'THB',
         discountAmount: new Prisma.Decimal(0),
         id: bookingId,
@@ -779,8 +745,10 @@ describe('BookingsService', () => {
             findFirst: jest.fn().mockResolvedValue(null),
           },
           teachingListing: {
-            findFirst: jest.fn().mockResolvedValue(mockListing),
             findUnique: jest.fn().mockResolvedValue(mockListing),
+          },
+          tutorProfile: {
+            findUnique: jest.fn().mockResolvedValue(verifiedTutorProfile),
           },
           user: {
             findUnique: jest.fn().mockResolvedValue(mockStudent),
@@ -797,11 +765,13 @@ describe('BookingsService', () => {
 
       const result = await service.create(input);
 
-      expect(typeof result.subtotalAmount).toBe('number');
-      expect(typeof result.discountAmount).toBe('number');
-      expect(typeof result.netAmount).toBe('number');
-      expect(result.subtotalAmount).toBe(pricePerHour);
-      expect(result.netAmount).toBe(pricePerHour);
+      expect(typeof result.subtotalAmount).toBe('string');
+      expect(typeof result.discountAmount).toBe('string');
+      expect(typeof result.netAmount).toBe('string');
+      expect(result.subtotalAmount).toBe('1250.75');
+      expect(result.netAmount).toBe('1250.75');
+      expect(result.discountAmount).toBe('0.00');
+      expect(result.createdAt).toBe(createdAt.toISOString());
     });
   });
 });

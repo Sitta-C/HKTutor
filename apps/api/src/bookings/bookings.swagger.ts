@@ -6,6 +6,7 @@ import {
   ApiCreatedResponse,
   ApiExtraModels,
   ApiForbiddenResponse,
+  ApiNotFoundResponse,
   ApiOperation,
   ApiUnauthorizedResponse,
   getSchemaPath,
@@ -23,23 +24,23 @@ export function CreateBookingDoc(): MethodDecorator {
       description: 'The slot was reserved for the student in a single transaction',
       schema: {
         example: {
+          createdAt: '2026-09-10T09:04:31.001Z',
           currency: 'THB',
-          discountAmount: 0,
+          discountAmount: '0.00',
           id: '3c54a0d6-e3f3-4a38-bd55-3b4011ee31ae',
           listingId: 'a22c4b4d-4f8e-4de6-9b3d-faae7db5eb6d',
-          netAmount: 500,
+          netAmount: '450.00',
           slotId: '7a0f9ab0-8f25-4d80-bb00-67b3a0c7d3d5',
-          status: 'pending',
-          studentUserId: '70e1232d-3c06-4d5d-b3d2-6026df5ff315',
-          subtotalAmount: 500,
-          tutorProfileId: '6bb01222-1fce-4bc3-a69d-3d90db2fdf57',
+          status: 'PENDING',
+          subtotalAmount: '450.00',
         },
         items: { $ref: getSchemaPath(BookingResponseDto) },
         type: 'object',
       },
     }),
     ApiBadRequestResponse({
-      description: 'A required booking field failed validation',
+      description:
+        'A required booking field failed validation, the slot has already started, or the tutor tried to book their own slot',
       schema: {
         example: {
           error: 'Bad Request',
@@ -61,8 +62,19 @@ export function CreateBookingDoc(): MethodDecorator {
         type: 'object',
       },
     }),
+    ApiNotFoundResponse({
+      description: 'The referenced listing or slot does not exist',
+      schema: {
+        example: {
+          error: 'Not Found',
+          message: 'The selected slot does not exist.',
+          statusCode: 404,
+        },
+        type: 'object',
+      },
+    }),
     ApiConflictResponse({
-      description: 'The requested slot is already booked or no longer available',
+      description: 'The requested slot is already booked, unavailable, or the listing/slot tutor mismatch',
       schema: {
         example: {
           error: 'Conflict',

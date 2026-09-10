@@ -3,6 +3,7 @@ import {
   ConflictException,
   ForbiddenException,
   Injectable,
+  NotFoundException,
 } from '@nestjs/common';
 
 import { BookingResponseDto, CreateBookingDto } from '@/bookings/bookings.dto';
@@ -12,6 +13,7 @@ import {
   BookingStatus,
   ListingPublicationStatus,
   Role,
+  TutorVerificationStatus,
 } from '@/generated/prisma/enums';
 
 export type CreateBookingInput = CreateBookingDto & { studentUserId: string };
@@ -42,11 +44,15 @@ export class BookingsService {
 
         const slot = rows[0];
         if (!slot) {
-          throw new ConflictException('The selected slot does not exist.');
+          throw new NotFoundException('The selected slot does not exist.');
         }
 
         if (slot.deletedAt) {
           throw new ConflictException('The selected slot is no longer available.');
+        }
+
+        if (slot.startAtUtc.getTime() <= Date.now()) {
+          throw new BadRequestException('The selected slot has already started or is in the past.');
         }
 
         const activeBooking = await tx.booking.findFirst({
@@ -75,31 +81,19 @@ export class BookingsService {
           throw new ForbiddenException('Only active students can create bookings.');
         }
 
-        const listingSelect = {
-          deletedAt: true,
-          id: true,
-          pricePerHour: true,
-          publicationStatus: true,
-          tutorProfileId: true,
-        } as const;
-
-        const listing = input.listingId
-          ? await tx.teachingListing.findUnique({
-              where: { id: input.listingId },
-              select: listingSelect,
-            })
-          : await tx.teachingListing.findFirst({
-              where: {
-                deletedAt: null,
-                publicationStatus: ListingPublicationStatus.PUBLISHED,
-                tutorProfileId: slot.tutorProfileId,
-              },
-              orderBy: { createdAt: 'desc' },
-              select: listingSelect,
-            });
+        const listing = await tx.teachingListing.findUnique({
+          where: { id: input.listingId },
+          select: {
+            deletedAt: true,
+            id: true,
+            pricePerHour: true,
+            publicationStatus: true,
+            tutorProfileId: true,
+          },
+        });
 
         if (!listing) {
-          throw new ConflictException('No published listing is available for this slot.');
+          throw new NotFoundException('The selected listing does not exist.');
         }
 
         if (listing.deletedAt || listing.publicationStatus !== ListingPublicationStatus.PUBLISHED) {
@@ -110,8 +104,17 @@ export class BookingsService {
           throw new ConflictException('The selected slot does not belong to the selected listing.');
         }
 
+        const tutorProfile = await tx.tutorProfile.findUnique({
+          where: { userId: listing.tutorProfileId },
+          select: { verificationStatus: true },
+        });
+
+        if (!tutorProfile || tutorProfile.verificationStatus !== TutorVerificationStatus.VERIFIED) {
+          throw new ConflictException('The selected listing is not currently available for booking.');
+        }
+
         if (student.id === slot.tutorProfileId) {
-          throw new ForbiddenException('Tutors cannot book their own slots.');
+          throw new BadRequestException('Tutors cannot book their own slots.');
         }
 
         const booking = await tx.booking.create({
@@ -129,16 +132,15 @@ export class BookingsService {
         });
 
         return {
+          createdAt: booking.createdAt.toISOString(),
           currency: booking.currency,
-          discountAmount: booking.discountAmount.toNumber(),
+          discountAmount: booking.discountAmount.toFixed(2),
           id: booking.id,
           listingId: booking.listingId,
-          netAmount: booking.netAmount.toNumber(),
+          netAmount: booking.netAmount.toFixed(2),
           slotId: booking.slotId,
           status: booking.status,
-          studentUserId: booking.studentUserId,
-          subtotalAmount: booking.subtotalAmount.toNumber(),
-          tutorProfileId: booking.tutorProfileId,
+          subtotalAmount: booking.subtotalAmount.toFixed(2),
         };
       });
 

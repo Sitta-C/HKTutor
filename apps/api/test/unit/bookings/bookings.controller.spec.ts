@@ -25,7 +25,10 @@ describe('BookingsController', () => {
       role: Role.STUDENT,
       sessionId: 'session-1',
     };
-    const dto = { slotId: '7a0f9ab0-8f25-4d80-bb00-67b3a0c7d3d5' };
+    const dto = {
+      listingId: 'a22c4b4d-4f8e-4de6-9b3d-faae7db5eb6d',
+      slotId: '7a0f9ab0-8f25-4d80-bb00-67b3a0c7d3d5',
+    };
     const expected = {} as BookingResponseDto;
     create.mockResolvedValue(expected);
 
@@ -92,16 +95,15 @@ describe('BookingsController OpenAPI contract', () => {
         'application/json': {
           schema: {
             example: {
+              createdAt: '2026-09-10T09:04:31.001Z',
               currency: 'THB',
-              discountAmount: 0,
+              discountAmount: '0.00',
               id: '3c54a0d6-e3f3-4a38-bd55-3b4011ee31ae',
               listingId: 'a22c4b4d-4f8e-4de6-9b3d-faae7db5eb6d',
-              netAmount: 500,
+              netAmount: '450.00',
               slotId: '7a0f9ab0-8f25-4d80-bb00-67b3a0c7d3d5',
-              status: 'pending',
-              studentUserId: '70e1232d-3c06-4d5d-b3d2-6026df5ff315',
-              subtotalAmount: 500,
-              tutorProfileId: '6bb01222-1fce-4bc3-a69d-3d90db2fdf57',
+              status: 'PENDING',
+              subtotalAmount: '450.00',
             },
           },
         },
@@ -110,17 +112,20 @@ describe('BookingsController OpenAPI contract', () => {
     expect(operation?.responses['400']).toBeDefined();
     expect(operation?.responses['401']).toBeDefined();
     expect(operation?.responses['403']).toBeDefined();
+    expect(operation?.responses['404']).toBeDefined();
     expect(operation?.responses['409']).toBeDefined();
     expect(operation?.security).toEqual([{ [JWT_BEARER_AUTH]: [] }]);
   });
 
-  it('requires slotId in the request body schema and no longer accepts studentUserId', () => {
+  it('requires listingId and slotId in the request body schema and no longer accepts studentUserId', () => {
     const schema = document.components?.schemas?.['CreateBookingDto'] as
       | { properties?: Record<string, unknown>; required?: string[] }
       | undefined;
 
     expect(schema?.properties?.['slotId']).toBeDefined();
+    expect(schema?.properties?.['listingId']).toBeDefined();
     expect(schema?.required).toContain('slotId');
+    expect(schema?.required).toContain('listingId');
     expect(schema?.properties?.['studentUserId']).toBeUndefined();
   });
 });
