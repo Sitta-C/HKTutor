@@ -1,11 +1,11 @@
 'use client';
 
 import { apiFetch, authenticatedFetch } from '@/lib/api/client';
-import { ApiError } from '@/lib/api/error';
 
 import type {
   GradeLevelOption,
   ListingPublicationStatus,
+  PatchTeachingListingPayload,
   SaveTeachingListingPayload,
   SubjectOption,
   TeachingListing,
@@ -13,11 +13,6 @@ import type {
 
 interface CatalogResponse<T> {
   items: T[];
-}
-
-interface ListingCollectionResponse {
-  items: TeachingListing[];
-  total: number;
 }
 
 export async function getListingCatalogs(): Promise<{
@@ -35,54 +30,42 @@ export async function getListingCatalogs(): Promise<{
   };
 }
 
-export async function getTutorListings(
+export function getTutorListings(
   publicationStatus?: ListingPublicationStatus,
 ): Promise<TeachingListing[]> {
   const query = publicationStatus
     ? `?${new URLSearchParams({ publicationStatus }).toString()}`
     : '';
-  const response = await authenticatedFetch<TeachingListing[] | ListingCollectionResponse>(
-    `/tutors/me/listings${query}`,
-  );
-
-  return Array.isArray(response) ? response : response.items;
+  return authenticatedFetch(`/tutors/me/listings${query}`);
 }
 
 export function getTutorListing(listingId: string): Promise<TeachingListing> {
-  return getTutorListings().then((listings) => {
-    const listing = listings.find((item) => item.listingId === listingId);
-    if (!listing) throw new ApiError('Listing not found', 404);
-    return listing;
-  });
+  return authenticatedFetch(`/tutors/me/listings/${encodeURIComponent(listingId)}`);
 }
 
 export async function createTutorListing(payload: SaveTeachingListingPayload): Promise<string> {
-  const response = await authenticatedFetch<string | TeachingListing>('/tutors/me/listings', {
-    method: 'POST',
+  const listing = await authenticatedFetch<TeachingListing>('/tutors/me/listings', {
     body: JSON.stringify(payload),
+    method: 'POST',
   });
 
-  return typeof response === 'string' ? response : response.listingId;
+  return listing.id;
 }
 
 export function updateTutorListing(
   listingId: string,
-  payload: SaveTeachingListingPayload,
+  payload: PatchTeachingListingPayload,
 ): Promise<TeachingListing> {
-  return authenticatedFetch<TeachingListing>(
-    `/tutors/me/listings/${encodeURIComponent(listingId)}`,
-    {
-      method: 'PATCH',
-      body: JSON.stringify(payload),
-    },
-  );
+  return authenticatedFetch(`/tutors/me/listings/${encodeURIComponent(listingId)}`, {
+    body: JSON.stringify(payload),
+    method: 'PATCH',
+  });
 }
 
 export function publishTutorListing(listingId: string): Promise<TeachingListing> {
-  return authenticatedFetch<TeachingListing>(
-    `/tutors/me/listings/${encodeURIComponent(listingId)}/publish`,
-    { method: 'POST' },
-  );
+  return authenticatedFetch(`/tutors/me/listings/${encodeURIComponent(listingId)}/publish`, {
+    method: 'POST',
+  });
 }
 
 export function archiveTutorListing(listingId: string): Promise<TeachingListing> {
@@ -95,13 +78,10 @@ export function restoreTutorListing(listingId: string): Promise<TeachingListing>
 
 export function updateTutorListingStatus(
   listingId: string,
-  publicationStatus: Extract<ListingPublicationStatus, 'DRAFT' | 'PUBLISHED' | 'ARCHIVED'>,
+  publicationStatus: ListingPublicationStatus,
 ): Promise<TeachingListing> {
-  return authenticatedFetch<TeachingListing>(
-    `/tutors/me/listings/${encodeURIComponent(listingId)}/status`,
-    {
-      method: 'PATCH',
-      body: JSON.stringify({ publicationStatus }),
-    },
-  );
+  return authenticatedFetch(`/tutors/me/listings/${encodeURIComponent(listingId)}/status`, {
+    body: JSON.stringify({ publicationStatus }),
+    method: 'PATCH',
+  });
 }

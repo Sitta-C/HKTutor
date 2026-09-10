@@ -10,7 +10,12 @@ import { TutorsController } from '@/tutors/tutors.controller';
 import { TutorsService } from '@/tutors/tutors.service';
 
 import type { INestApplication } from '@nestjs/common';
-import type { OpenAPIObject, OperationObject, ReferenceObject } from '@nestjs/swagger';
+import type {
+  OpenAPIObject,
+  OperationObject,
+  ReferenceObject,
+  SchemaObject,
+} from '@nestjs/swagger';
 
 describe('tutor listing Swagger contract', () => {
   let app: INestApplication;
@@ -78,10 +83,39 @@ describe('tutor listing Swagger contract', () => {
     expect(responseSchema.content['application/json'].schema.$ref).toBe(
       '#/components/schemas/ListingResponseDto',
     );
+
+    const listingSchema = document.components?.schemas?.['ListingResponseDto'] as SchemaObject;
+    expect(listingSchema.required).toEqual(
+      expect.arrayContaining([
+        'id',
+        'subject',
+        'gradeLevel',
+        'pricePerHour',
+        'description',
+        'publicationStatus',
+        'publishedAt',
+        'createdAt',
+        'updatedAt',
+      ]),
+    );
+    expect(listingSchema.properties).toMatchObject({
+      createdAt: { format: 'date-time', type: 'string' },
+      id: { format: 'uuid', type: 'string' },
+      updatedAt: { format: 'date-time', type: 'string' },
+    });
+
+    const gradeLevelSchema = document.components?.schemas?.[
+      'GradeLevelOptionResponseDto'
+    ] as SchemaObject;
+    expect(gradeLevelSchema.properties).toMatchObject({
+      sortOrder: { minimum: 0, type: 'number' },
+    });
   });
 
   it.each([
+    ['get', '/api/v1/tutors/me/listings/{listingId}'],
     ['patch', '/api/v1/tutors/me/listings/{listingId}'],
+    ['patch', '/api/v1/tutors/me/listings/{listingId}/status'],
     ['post', '/api/v1/tutors/me/listings/{listingId}/publish'],
   ])('documents %s %s with owner-safe not-found behavior', (method, path) => {
     const endpoint = operation(method, path);
@@ -95,7 +129,58 @@ describe('tutor listing Swagger contract', () => {
         }),
       ]),
     );
+    expect(endpoint.responses).toHaveProperty('400');
     expect(endpoint.responses).toHaveProperty('404');
+  });
+
+  it('documents that listing PATCH requires at least one property', () => {
+    const patch = operation('patch', '/api/v1/tutors/me/listings/{listingId}');
+    const requestSchema = patch.requestBody as {
+      content: { 'application/json': { schema: SchemaObject } };
+    };
+
+    expect(requestSchema.content['application/json'].schema).toMatchObject({
+      allOf: [{ $ref: '#/components/schemas/ListingPatchRequestDto' }],
+      minProperties: 1,
+    });
+  });
+
+  it('documents the listing status request enum', () => {
+    const patch = operation('patch', '/api/v1/tutors/me/listings/{listingId}/status');
+    const requestSchema = patch.requestBody as {
+      content: { 'application/json': { schema: ReferenceObject } };
+    };
+
+    expect(requestSchema.content['application/json'].schema.$ref).toBe(
+      '#/components/schemas/ListingStatusRequestDto',
+    );
+    const statusSchema = document.components?.schemas?.['ListingStatusRequestDto'] as SchemaObject;
+    expect(statusSchema.required).toContain('publicationStatus');
+  });
+
+  it('uses one listing response schema for all listing endpoints', () => {
+    const listResponse = operation('get', '/api/v1/tutors/me/listings').responses['200'] as {
+      content: { 'application/json': { schema: SchemaObject } };
+    };
+    expect(listResponse.content['application/json'].schema).toMatchObject({
+      items: { $ref: '#/components/schemas/ListingResponseDto' },
+      type: 'array',
+    });
+
+    for (const [method, path, status] of [
+      ['get', '/api/v1/tutors/me/listings/{listingId}', '200'],
+      ['post', '/api/v1/tutors/me/listings', '201'],
+      ['patch', '/api/v1/tutors/me/listings/{listingId}', '200'],
+      ['patch', '/api/v1/tutors/me/listings/{listingId}/status', '200'],
+      ['post', '/api/v1/tutors/me/listings/{listingId}/publish', '200'],
+    ]) {
+      const response = operation(method, path).responses[status] as {
+        content: { 'application/json': { schema: ReferenceObject } };
+      };
+      expect(response.content['application/json'].schema.$ref).toBe(
+        '#/components/schemas/ListingResponseDto',
+      );
+    }
   });
 
   function operation(method: string, path: string): OperationObject {

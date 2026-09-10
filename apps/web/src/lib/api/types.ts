@@ -56,14 +56,14 @@ export interface GradeLevelOption extends SubjectOption {
 }
 
 export interface TeachingListing {
-  listingId: string;
+  id: string;
   subject: SubjectOption;
   gradeLevel: GradeLevelOption;
   pricePerHour: number;
   description: string;
   publicationStatus: ListingPublicationStatus;
   publishedAt: string | null;
-  createdAt?: string;
+  createdAt: string;
   updatedAt: string;
 }
 
@@ -74,6 +74,10 @@ export interface SaveTeachingListingPayload {
   description: string;
 }
 
+export type PatchTeachingListingPayload = {
+  [Field in keyof SaveTeachingListingPayload]: Pick<SaveTeachingListingPayload, Field> &
+    Partial<Omit<SaveTeachingListingPayload, Field>>;
+}[keyof SaveTeachingListingPayload];
 export interface MyProfileResponse {
   role: UserRole;
   consentCurrent: boolean;

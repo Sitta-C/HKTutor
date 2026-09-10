@@ -111,9 +111,7 @@ export default function TutorListingsPage() {
     setError(null);
     try {
       const updated = await publishTutorListing(listingId);
-      setListings((current) =>
-        current.map((item) => (item.listingId === listingId ? updated : item)),
-      );
+      setListings((current) => current.map((item) => (item.id === listingId ? updated : item)));
     } catch (caught: unknown) {
       setError(readListingError(caught, copy.actionError));
     } finally {
@@ -126,9 +124,7 @@ export default function TutorListingsPage() {
     setError(null);
     try {
       const updated = await restoreTutorListing(listingId);
-      setListings((current) =>
-        current.map((item) => (item.listingId === listingId ? updated : item)),
-      );
+      setListings((current) => current.map((item) => (item.id === listingId ? updated : item)));
     } catch (caught: unknown) {
       setError(readListingError(caught, copy.actionError));
     } finally {
@@ -141,9 +137,7 @@ export default function TutorListingsPage() {
     setError(null);
     try {
       const updated = await archiveTutorListing(listingId);
-      setListings((current) =>
-        current.map((item) => (item.listingId === listingId ? updated : item)),
-      );
+      setListings((current) => current.map((item) => (item.id === listingId ? updated : item)));
       setArchiveCandidate(null);
     } catch (caught: unknown) {
       setError(readListingError(caught, copy.actionError));
@@ -317,7 +311,7 @@ export default function TutorListingsPage() {
               <div className="grid gap-4 lg:grid-cols-2">
                 {visibleListings.map((listing) => (
                   <article
-                    key={listing.listingId}
+                    key={listing.id}
                     className="listing-card flex min-h-[21rem] min-w-0 flex-col rounded-[1.15rem] border border-[#ebe6dd] bg-white p-5 transition hover:-translate-y-0.5 hover:border-[#d9d2c6] hover:shadow-[0_2px_4px_rgba(46,39,25,0.08),0_26px_55px_-14px_rgba(46,39,25,0.18)] sm:p-6"
                   >
                     <div className="flex items-start justify-between gap-3">
@@ -375,7 +369,7 @@ export default function TutorListingsPage() {
 
                     <div className="mt-auto flex flex-col gap-2 pt-4 sm:flex-row sm:items-center">
                       <Link
-                        href={`/dashboard/listings/${listing.listingId}/edit`}
+                        href={`/dashboard/listings/${listing.id}/edit`}
                         className="listing-secondary-action inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-md border border-[#d9d2c6] bg-white px-3.5 text-sm font-extrabold text-[#3e342c] transition hover:border-[#bba990] hover:bg-[#faf5ed]"
                       >
                         <ListingIcon name="edit" />
@@ -384,23 +378,23 @@ export default function TutorListingsPage() {
                       {listing.publicationStatus === 'DRAFT' && (
                         <button
                           type="button"
-                          disabled={!isVerified || busyId === listing.listingId}
-                          onClick={() => void handlePublish(listing.listingId)}
+                          disabled={!isVerified || busyId === listing.id}
+                          onClick={() => void handlePublish(listing.id)}
                           className="listing-primary-action min-h-11 flex-1 rounded-md bg-[#34271e] px-3.5 text-sm font-extrabold text-white transition hover:bg-[#4b3729] disabled:cursor-not-allowed disabled:opacity-45"
                         >
-                          {busyId === listing.listingId ? copy.working : copy.publish}
+                          {busyId === listing.id ? copy.working : copy.publish}
                         </button>
                       )}
                       {listing.publicationStatus === 'PUBLISHED' &&
-                        (archiveCandidate === listing.listingId ? (
+                        (archiveCandidate === listing.id ? (
                           <div className="flex min-h-11 flex-1 items-center gap-2 rounded-md border border-[#e6c0b7] bg-[#fff4f1] p-1.5">
                             <span className="min-w-0 flex-1 px-1 text-xs font-bold text-[#91493d]">
                               {copy.archiveConfirm}
                             </span>
                             <button
                               type="button"
-                              disabled={busyId === listing.listingId}
-                              onClick={() => void handleArchive(listing.listingId)}
+                              disabled={busyId === listing.id}
+                              onClick={() => void handleArchive(listing.id)}
                               className="listing-danger-action min-h-11 rounded-sm bg-[#9b4e40] px-3 text-xs font-extrabold text-white"
                             >
                               {copy.confirm}
@@ -416,7 +410,7 @@ export default function TutorListingsPage() {
                         ) : (
                           <button
                             type="button"
-                            onClick={() => setArchiveCandidate(listing.listingId)}
+                            onClick={() => setArchiveCandidate(listing.id)}
                             className="listing-danger-action inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-md border border-[#ead7d1] px-3 text-sm font-extrabold text-[#985043] transition hover:bg-[#fff0ec]"
                           >
                             <ListingIcon name="archive" />
@@ -427,19 +421,19 @@ export default function TutorListingsPage() {
                         <>
                           <button
                             type="button"
-                            disabled={busyId === listing.listingId}
-                            onClick={() => void handleRestoreDraft(listing.listingId)}
+                            disabled={busyId === listing.id}
+                            onClick={() => void handleRestoreDraft(listing.id)}
                             className="listing-secondary-action min-h-11 flex-1 rounded-md border border-[#d9d2c6] bg-white px-3.5 text-sm font-extrabold text-[#3e342c] transition hover:border-[#bba990] hover:bg-[#faf5ed] disabled:cursor-wait disabled:opacity-50"
                           >
-                            {busyId === listing.listingId ? copy.working : copy.restoreDraft}
+                            {busyId === listing.id ? copy.working : copy.restoreDraft}
                           </button>
                           <button
                             type="button"
-                            disabled={!isVerified || busyId === listing.listingId}
-                            onClick={() => void handlePublish(listing.listingId)}
+                            disabled={!isVerified || busyId === listing.id}
+                            onClick={() => void handlePublish(listing.id)}
                             className="listing-primary-action min-h-11 flex-1 rounded-md bg-[#34271e] px-3.5 text-sm font-extrabold text-white transition hover:bg-[#4b3729] disabled:cursor-not-allowed disabled:opacity-45"
                           >
-                            {busyId === listing.listingId ? copy.working : copy.publish}
+                            {busyId === listing.id ? copy.working : copy.publish}
                           </button>
                         </>
                       )}
