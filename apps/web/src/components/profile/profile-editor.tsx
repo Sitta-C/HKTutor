@@ -347,14 +347,24 @@ export default function ProfileEditor({ mode }: ProfileEditorProps) {
               <h2>{copy.about}</h2>
               <div className="profile-summary-list">
                 <div className="profile-summary-item">
-                  <span aria-hidden="true">✉</span>
+                  <span className="profile-meta-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                      <rect x="3.5" y="5.5" width="17" height="13" rx="2" />
+                      <path d="m5 7 7 5 7-5" />
+                    </svg>
+                  </span>
                   <span>
                     <strong>{copy.accountEmail}</strong>
                     {user.email}
                   </span>
                 </div>
                 <div className="profile-summary-item">
-                  <span aria-hidden="true">✓</span>
+                  <span className="profile-meta-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                      <circle cx="12" cy="12" r="8.5" />
+                      <path d="m8.5 12 2.3 2.3 4.7-4.7" />
+                    </svg>
+                  </span>
                   <span>
                     <strong>{copy.verification}</strong>
                     {verificationLabel}
@@ -363,7 +373,16 @@ export default function ProfileEditor({ mode }: ProfileEditorProps) {
                 {user.role === 'TUTOR' && (
                   <>
                     <div className="profile-summary-item">
-                      <span aria-hidden="true">★</span>
+                      <span className="profile-meta-icon" aria-hidden="true">
+                        <svg
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="1.8"
+                        >
+                          <path d="m12 4 2.5 5.1 5.6.8-4 4 1 5.6-5.1-2.7-5.1 2.7 1-5.6-4-4 5.6-.8z" />
+                        </svg>
+                      </span>
                       <span>
                         <strong>{copy.rating}</strong>
                         {profileSummary?.ratingAverage && profileSummary.reviewCount > 0
@@ -372,7 +391,17 @@ export default function ProfileEditor({ mode }: ProfileEditorProps) {
                       </span>
                     </div>
                     <div className="profile-summary-item">
-                      <span aria-hidden="true">▤</span>
+                      <span className="profile-meta-icon" aria-hidden="true">
+                        <svg
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="1.8"
+                        >
+                          <path d="M5 6.5h14M5 11.5h14M5 16.5h9" />
+                          <circle cx="18" cy="16.5" r="1.5" />
+                        </svg>
+                      </span>
                       <span>
                         <strong>{copy.reviews}</strong>
                         {profileSummary?.reviewCount ?? 0}

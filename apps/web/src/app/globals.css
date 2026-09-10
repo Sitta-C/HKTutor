@@ -181,6 +181,7 @@ input {
   background: #e9f2f8;
   color: #071522;
   box-shadow: none;
+  border-radius: 0.35rem;
 }
 
 .dash-app-profile .dash-sb-close {
@@ -189,6 +190,7 @@ input {
   color: #e7eef4;
   min-width: 44px;
   min-height: 44px;
+  border-radius: 0.35rem;
 }
 
 .dash-app-profile .dash-sb-close:hover {
@@ -201,9 +203,20 @@ input {
   box-shadow: none;
 }
 
+.dash-app-profile .dash-profile-nav-card {
+  padding: 0 !important;
+}
+
+.dash-app-profile .dash-profile-nav-card .dash-user-chip {
+  margin: 0 0 1rem !important;
+  padding: 0.9rem 1rem;
+  border-radius: 0.35rem;
+}
+
 .dash-app-profile .dash-user-chip {
   background: #13283a;
   border-color: #2a4358;
+  border-radius: 0.35rem;
 }
 
 .dash-app-profile .dash-user-chip b,
@@ -215,6 +228,7 @@ input {
 .dash-app-profile .dash-side-nav button {
   color: #c9d6df;
   min-height: 44px;
+  border-radius: 0.35rem;
 }
 
 .dash-app-profile .dash-side-nav a:hover,
@@ -235,6 +249,12 @@ input {
 .dash-app-profile .dash-side-nav .ico {
   background: #173247;
   box-shadow: none;
+  border-radius: 0.35rem;
+}
+
+.dash-side-nav .ico svg {
+  width: 1.05rem;
+  height: 1.05rem;
 }
 
 .dash-app-profile .dash-side-nav .danger {
@@ -254,12 +274,22 @@ input {
   background: #0a1b2a;
   background-image: none;
   color: #fff;
+  min-height: 44px;
+  border-radius: 0.35rem;
   box-shadow: none;
 }
 
 .dash-app-profile .dash-cta:hover {
   background: #173a55;
   box-shadow: none;
+}
+
+.dash-app-profile .dash-lang-btn {
+  border-radius: 0.35rem;
+}
+
+.dash-app-profile .dash-avatar {
+  border-radius: 0.4rem;
 }
 
 .dash-app-profile .dash-main {
@@ -301,7 +331,7 @@ input {
   align-items: center;
   justify-content: center;
   gap: 0.45rem;
-  border-radius: 0.65rem;
+  border-radius: 0.35rem;
   padding: 0.7rem 1rem;
   background: #0a1b2a;
   color: #fff;
@@ -376,7 +406,7 @@ input {
 .profile-form-card,
 .profile-preview-card {
   border: 1px solid #dfe6ec;
-  border-radius: 0.75rem;
+  border-radius: 0.35rem;
   background: #fff;
   box-shadow: 0 8px 24px rgba(30, 55, 75, 0.06);
 }
@@ -400,7 +430,7 @@ input {
   align-items: center;
   justify-content: center;
   flex: 0 0 auto;
-  border-radius: 0.9rem;
+  border-radius: 0.45rem;
   background: linear-gradient(135deg, #45b8ee, #0877be);
   color: #fff;
   font-size: 1.25rem;
@@ -447,6 +477,19 @@ input {
   line-height: 1.4;
 }
 
+.profile-meta-icon {
+  display: inline-flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 0.1rem;
+  color: #248cc7;
+}
+
+.profile-meta-icon svg {
+  width: 1.05rem;
+  height: 1.05rem;
+}
+
 .profile-summary-item strong {
   display: block;
   color: #243746;
@@ -477,7 +520,7 @@ input {
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
-  border-radius: 999px;
+  border-radius: 0.3rem;
   padding: 0.35rem 0.65rem;
   background: #e8f7ef;
   color: #237343;
@@ -518,7 +561,7 @@ input {
 .profile-form-card textarea {
   min-height: 46px;
   border-color: #cfd9e1;
-  border-radius: 0.55rem;
+  border-radius: 0.35rem;
   background: #fbfcfd;
   box-shadow: none;
 }
@@ -550,7 +593,7 @@ input {
   align-items: center;
   justify-content: center;
   border: 1px solid #cfd9e1;
-  border-radius: 0.65rem;
+  border-radius: 0.35rem;
   padding: 0.7rem 1rem;
   color: #304555;
   font-size: 0.88rem;
@@ -573,7 +616,7 @@ input {
   margin-top: 1rem;
   padding: 1.1rem;
   border: 1px solid #d9e6ef;
-  border-radius: 0.65rem;
+  border-radius: 0.35rem;
   background: #f6fbfe;
 }
 

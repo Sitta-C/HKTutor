@@ -86,7 +86,7 @@ export function DashboardShell({
             </button>
           </div>
 
-          <div className="dash-card dash-side-card dash-account-card">
+          <div className="dash-card dash-side-card dash-account-card dash-profile-nav-card">
             <div className="dash-user-chip" style={{ marginBottom: '1rem' }}>
               <div className={`dash-avatar dash-avatar-${roleConfig.viewType}`} aria-hidden="true">
                 {userInitial}
@@ -114,7 +114,7 @@ export function DashboardShell({
                     >
                       <span className="flex items-center gap-2.5">
                         <span className="ico" aria-hidden="true">
-                          {item.icon}
+                          <DashboardNavIcon name={item.icon} />
                         </span>
                         <span>{item.label}</span>
                       </span>
@@ -127,7 +127,7 @@ export function DashboardShell({
                     <button key={item.id} type="button" onClick={() => setPrivacyNoticeOpen(true)}>
                       <span className="flex items-center gap-2.5">
                         <span className="ico" aria-hidden="true">
-                          {item.icon}
+                          <DashboardNavIcon name={item.icon} />
                         </span>
                         <span>{item.label}</span>
                       </span>
@@ -147,7 +147,7 @@ export function DashboardShell({
                   >
                     <span className="flex items-center gap-2.5">
                       <span className="ico" aria-hidden="true">
-                        {item.icon}
+                        <DashboardNavIcon name={item.icon} />
                       </span>
                       <span>{item.label}</span>
                     </span>
@@ -235,3 +235,83 @@ export function DashboardShell({
 }
 
 export default DashboardShell;
+
+function DashboardNavIcon({ name }: { name: string }) {
+  const common = {
+    fill: 'none',
+    stroke: 'currentColor',
+    strokeLinecap: 'round' as const,
+    strokeLinejoin: 'round' as const,
+    strokeWidth: 1.8,
+  };
+
+  if (name === 'profile') {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true" {...common}>
+        <circle cx="12" cy="8" r="3.2" />
+        <path d="M5.5 20c.7-3.1 3.1-4.8 6.5-4.8s5.8 1.7 6.5 4.8" />
+      </svg>
+    );
+  }
+
+  if (name === 'listings') {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true" {...common}>
+        <path d="M5 5.5A2.5 2.5 0 0 1 7.5 3H19v17H7.5A2.5 2.5 0 0 1 5 17.5z" />
+        <path d="M8 3v17M11.5 7h4.5M11.5 10.5h4.5" />
+      </svg>
+    );
+  }
+
+  if (name === 'availability') {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true" {...common}>
+        <rect x="4" y="5.5" width="16" height="15" rx="2" />
+        <path d="M8 3.5v4M16 3.5v4M4 9.5h16M8 13h3M8 16.5h3M14 13h2" />
+      </svg>
+    );
+  }
+
+  if (name === 'bookings') {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true" {...common}>
+        <rect x="5" y="4.5" width="14" height="16" rx="2" />
+        <path d="M9 4.5V3h6v1.5M9 10h6M9 13.5h6M9 17h3" />
+      </svg>
+    );
+  }
+
+  if (name === 'settings') {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true" {...common}>
+        <path d="m12 3 1.1 1.9 2.2.5 1.8-1 1.5 1.5-1 1.8.5 2.2L20 11v2l-1.9 1.1-.5 2.2 1 1.8-1.5 1.5-1.8-1-2.2.5L12 21l-1.1-1.9-2.2-.5-1.8 1-1.5-1.5 1-1.8-.5-2.2L4 13v-2l1.9-1.1.5-2.2-1-1.8L6.9 4.4l1.8 1 2.2-.5z" />
+        <circle cx="12" cy="12" r="2.7" />
+      </svg>
+    );
+  }
+
+  if (name === 'support') {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true" {...common}>
+        <path d="M4 13v-1a8 8 0 0 1 16 0v1" />
+        <path d="M4 13h3v5H5.5A1.5 1.5 0 0 1 4 16.5zM20 13h-3v5h1.5a1.5 1.5 0 0 0 1.5-1.5zM17 18c0 1.1-.9 2-2 2h-2" />
+      </svg>
+    );
+  }
+
+  if (name === 'privacy') {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true" {...common}>
+        <path d="M12 3.5 19 6v5.3c0 4.5-2.7 7.6-7 9.2-4.3-1.6-7-4.7-7-9.2V6z" />
+        <rect x="9.2" y="10.5" width="5.6" height="5" rx="1" />
+        <path d="M10.5 10.5V9.3a1.5 1.5 0 0 1 3 0v1.2" />
+      </svg>
+    );
+  }
+
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" {...common}>
+      <path d="M14 5h4.5A1.5 1.5 0 0 1 20 6.5v11a1.5 1.5 0 0 1-1.5 1.5H14M10 8l-4 4 4 4M6 12h9" />
+    </svg>
+  );
+}
