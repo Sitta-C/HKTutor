@@ -177,3 +177,70 @@ export class MyBookingsResponseDto {
   @ApiProperty({ example: 1 })
   total!: number;
 }
+
+export class BookingDetailResponseDto extends BookingViewDto {
+  @ApiProperty({ example: '2026-09-10T09:04:31.001Z' })
+  updatedAt!: string;
+}
+
+export class GetTutorBookingsQueryDto {
+  @ApiPropertyOptional({ enum: BookingStatus, example: BookingStatus.CONFIRMED })
+  @IsOptional()
+  @IsEnum(BookingStatus)
+  status?: BookingStatus;
+
+  @ApiPropertyOptional({ example: '2026-09-01T00:00:00.000Z' })
+  @IsOptional()
+  @IsISO8601()
+  from?: string;
+
+  @ApiPropertyOptional({ example: '2026-09-30T23:59:59.999Z' })
+  @IsOptional()
+  @IsISO8601()
+  to?: string;
+}
+
+export class TutorBookingStudentDto {
+  @ApiProperty({ example: 'Nan', nullable: true, type: String })
+  nickname!: string | null;
+}
+
+export class TutorBookingViewDto {
+  @ApiProperty({ example: '3c54a0d6-e3f3-4a38-bd55-3b4011ee31ae' })
+  id!: string;
+
+  @ApiProperty({ example: 'PENDING' })
+  status!: string;
+
+  @ApiProperty({ type: BookingQuoteListingDto })
+  listing!: BookingQuoteListingDto;
+
+  @ApiProperty({ type: BookingQuoteSlotDto })
+  slot!: BookingQuoteSlotDto;
+
+  @ApiProperty({ type: TutorBookingStudentDto })
+  student!: TutorBookingStudentDto;
+
+  @ApiProperty({ example: '450.00' })
+  subtotalAmount!: string;
+
+  @ApiProperty({ example: '0.00' })
+  discountAmount!: string;
+
+  @ApiProperty({ example: '450.00' })
+  netAmount!: string;
+
+  @ApiProperty({ example: 'THB' })
+  currency!: string;
+
+  @ApiProperty({ example: '2026-09-10T09:04:31.001Z' })
+  createdAt!: string;
+}
+
+export class TutorBookingsResponseDto {
+  @ApiProperty({ type: [TutorBookingViewDto] })
+  items!: TutorBookingViewDto[];
+
+  @ApiProperty({ example: 1 })
+  total!: number;
+}

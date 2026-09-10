@@ -7,12 +7,15 @@ import {
 } from '@nestjs/common';
 
 import {
+  BookingDetailResponseDto,
   BookingQuoteResponseDto,
   BookingResponseDto,
   CreateBookingDto,
   GetBookingQuoteQueryDto,
   GetMyBookingsQueryDto,
+  GetTutorBookingsQueryDto,
   MyBookingsResponseDto,
+  TutorBookingsResponseDto,
 } from '@/bookings/bookings.dto';
 import { PrismaService } from '@/database/prisma.service';
 import {
@@ -28,6 +31,11 @@ import type { Prisma } from '@/generated/prisma/client';
 export type CreateBookingInput = CreateBookingDto & { studentUserId: string };
 export type GetBookingQuoteInput = GetBookingQuoteQueryDto & { studentUserId: string };
 export type GetMyBookingsInput = GetMyBookingsQueryDto & { studentUserId: string };
+export interface GetMyBookingDetailInput {
+  bookingId: string;
+  studentUserId: string;
+}
+export type GetTutorBookingsInput = GetTutorBookingsQueryDto & { tutorUserId: string };
 
 @Injectable()
 export class BookingsService {
@@ -350,6 +358,147 @@ export class BookingsService {
           displayName: booking.tutorProfile.displayName,
           tutorId: booking.tutorProfile.userId,
         },
+      })),
+      total,
+    };
+  }
+
+  async getMyBookingById(input: GetMyBookingDetailInput): Promise<BookingDetailResponseDto> {
+    const booking = await this.prisma.booking.findFirst({
+      select: {
+        createdAt: true,
+        currency: true,
+        discountAmount: true,
+        id: true,
+        listing: {
+          select: {
+            description: true,
+            gradeLevel: { select: { id: true, name: true } },
+            id: true,
+            pricePerHour: true,
+            subject: { select: { id: true, name: true } },
+          },
+        },
+        netAmount: true,
+        slot: { select: { endAtUtc: true, id: true, startAtUtc: true } },
+        status: true,
+        subtotalAmount: true,
+        tutorProfile: { select: { displayName: true, userId: true } },
+        updatedAt: true,
+      },
+      where: { id: input.bookingId, studentUserId: input.studentUserId },
+    });
+
+    if (!booking) {
+      throw new NotFoundException('Booking not found');
+    }
+
+    return {
+      createdAt: booking.createdAt.toISOString(),
+      currency: booking.currency,
+      discountAmount: booking.discountAmount.toFixed(2),
+      id: booking.id,
+      listing: {
+        description: booking.listing.description,
+        gradeLevelId: booking.listing.gradeLevel.id,
+        gradeLevelName: booking.listing.gradeLevel.name,
+        id: booking.listing.id,
+        pricePerHour: booking.listing.pricePerHour.toFixed(2),
+        subjectId: booking.listing.subject.id,
+        subjectName: booking.listing.subject.name,
+      },
+      netAmount: booking.netAmount.toFixed(2),
+      slot: {
+        endAtUtc: booking.slot.endAtUtc.toISOString(),
+        id: booking.slot.id,
+        startAtUtc: booking.slot.startAtUtc.toISOString(),
+      },
+      status: booking.status,
+      subtotalAmount: booking.subtotalAmount.toFixed(2),
+      tutor: {
+        displayName: booking.tutorProfile.displayName,
+        tutorId: booking.tutorProfile.userId,
+      },
+      updatedAt: booking.updatedAt.toISOString(),
+    };
+  }
+
+  async getTutorBookings(input: GetTutorBookingsInput): Promise<TutorBookingsResponseDto> {
+    if (!input.tutorUserId) {
+      throw new BadRequestException('tutorUserId is required to list bookings');
+    }
+
+    if (input.from && input.to && new Date(input.from).getTime() > new Date(input.to).getTime()) {
+      throw new BadRequestException('from must not be later than to');
+    }
+
+    const where: Prisma.BookingWhereInput = {
+      tutorProfileId: input.tutorUserId,
+      ...(input.status ? { status: input.status } : {}),
+      ...(input.from || input.to
+        ? {
+            slot: {
+              startAtUtc: {
+                ...(input.from ? { gte: new Date(input.from) } : {}),
+                ...(input.to ? { lte: new Date(input.to) } : {}),
+              },
+            },
+          }
+        : {}),
+    };
+
+    const [bookings, total] = await Promise.all([
+      this.prisma.booking.findMany({
+        orderBy: { createdAt: 'desc' },
+        select: {
+          createdAt: true,
+          currency: true,
+          discountAmount: true,
+          id: true,
+          listing: {
+            select: {
+              description: true,
+              gradeLevel: { select: { id: true, name: true } },
+              id: true,
+              pricePerHour: true,
+              subject: { select: { id: true, name: true } },
+            },
+          },
+          netAmount: true,
+          slot: { select: { endAtUtc: true, id: true, startAtUtc: true } },
+          status: true,
+          student: { select: { studentProfile: { select: { nickname: true } } } },
+          subtotalAmount: true,
+        },
+        where,
+      }),
+      this.prisma.booking.count({ where }),
+    ]);
+
+    return {
+      items: bookings.map((booking) => ({
+        createdAt: booking.createdAt.toISOString(),
+        currency: booking.currency,
+        discountAmount: booking.discountAmount.toFixed(2),
+        id: booking.id,
+        listing: {
+          description: booking.listing.description,
+          gradeLevelId: booking.listing.gradeLevel.id,
+          gradeLevelName: booking.listing.gradeLevel.name,
+          id: booking.listing.id,
+          pricePerHour: booking.listing.pricePerHour.toFixed(2),
+          subjectId: booking.listing.subject.id,
+          subjectName: booking.listing.subject.name,
+        },
+        netAmount: booking.netAmount.toFixed(2),
+        slot: {
+          endAtUtc: booking.slot.endAtUtc.toISOString(),
+          id: booking.slot.id,
+          startAtUtc: booking.slot.startAtUtc.toISOString(),
+        },
+        status: booking.status,
+        student: { nickname: booking.student.studentProfile?.nickname ?? null },
+        subtotalAmount: booking.subtotalAmount.toFixed(2),
       })),
       total,
     };

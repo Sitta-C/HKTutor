@@ -1098,4 +1098,224 @@ describe('BookingsService', () => {
       expect(result).toEqual({ items: [], total: 0 });
     });
   });
+
+  describe('getMyBookingById', () => {
+    const mockBookingRow = (overrides: Partial<Record<string, unknown>> = {}) => ({
+      createdAt: new Date('2026-09-10T09:04:31.001Z'),
+      currency: 'THB',
+      discountAmount: new Prisma.Decimal(0),
+      id: '3c54a0d6-e3f3-4a38-bd55-3b4011ee31ae',
+      listing: {
+        description: 'One-on-one algebra and calculus tutoring.',
+        gradeLevel: { id: 'grade-id', name: 'Grade 10' },
+        id: 'a22c4b4d-4f8e-4de6-9b3d-faae7db5eb6d',
+        pricePerHour: new Prisma.Decimal(450),
+        subject: { id: 'subject-id', name: 'Mathematics' },
+      },
+      netAmount: new Prisma.Decimal(450),
+      slot: {
+        endAtUtc: new Date('2026-09-15T11:04:06.784Z'),
+        id: '7a0f9ab0-8f25-4d80-bb00-67b3a0c7d3d5',
+        startAtUtc: new Date('2026-09-15T10:04:06.784Z'),
+      },
+      status: BookingStatus.PENDING,
+      subtotalAmount: new Prisma.Decimal(450),
+      tutorProfile: { displayName: 'Anan Suksawat', userId: '1772b6be-ebb5-40b7-b5bd-1c1fcfe26857' },
+      updatedAt: new Date('2026-09-11T00:00:00.000Z'),
+      ...overrides,
+    });
+
+    it('lets the owning student reload their booking with amounts from the booking snapshot', async () => {
+      const { studentUserId, bookingId } = createTestData();
+      const row = mockBookingRow({ id: bookingId });
+
+      mockPrismaService.booking.findFirst.mockResolvedValue(row);
+
+      const result = await service.getMyBookingById({ bookingId, studentUserId });
+
+      expect(mockPrismaService.booking.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id: bookingId, studentUserId } }),
+      );
+      expect(result).toEqual({
+        createdAt: row.createdAt.toISOString(),
+        currency: 'THB',
+        discountAmount: '0.00',
+        id: row.id,
+        listing: {
+          description: 'One-on-one algebra and calculus tutoring.',
+          gradeLevelId: 'grade-id',
+          gradeLevelName: 'Grade 10',
+          id: row.listing.id,
+          pricePerHour: '450.00',
+          subjectId: 'subject-id',
+          subjectName: 'Mathematics',
+        },
+        netAmount: '450.00',
+        slot: {
+          endAtUtc: row.slot.endAtUtc.toISOString(),
+          id: row.slot.id,
+          startAtUtc: row.slot.startAtUtc.toISOString(),
+        },
+        status: BookingStatus.PENDING,
+        subtotalAmount: '450.00',
+        tutor: { displayName: 'Anan Suksawat', tutorId: row.tutorProfile.userId },
+        updatedAt: row.updatedAt.toISOString(),
+      });
+    });
+
+    it('returns an ownership-safe 404 when the booking belongs to another student', async () => {
+      const { bookingId } = createTestData();
+      const anotherStudentId = '11111111-1111-4111-8111-111111111111';
+
+      mockPrismaService.booking.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.getMyBookingById({ bookingId, studentUserId: anotherStudentId }),
+      ).rejects.toThrow(new NotFoundException('Booking not found'));
+      expect(mockPrismaService.booking.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: bookingId, studentUserId: anotherStudentId },
+        }),
+      );
+    });
+
+    it('returns the same ownership-safe 404 when the booking does not exist at all', async () => {
+      const { studentUserId } = createTestData();
+      const missingBookingId = '22222222-2222-4222-8222-222222222222';
+
+      mockPrismaService.booking.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.getMyBookingById({ bookingId: missingBookingId, studentUserId }),
+      ).rejects.toThrow(new NotFoundException('Booking not found'));
+    });
+  });
+
+  describe('getTutorBookings', () => {
+    const mockTutorBookingRow = (overrides: Partial<Record<string, unknown>> = {}) => ({
+      createdAt: new Date('2026-09-10T09:04:31.001Z'),
+      currency: 'THB',
+      discountAmount: new Prisma.Decimal(0),
+      id: '3c54a0d6-e3f3-4a38-bd55-3b4011ee31ae',
+      listing: {
+        description: 'One-on-one algebra and calculus tutoring.',
+        gradeLevel: { id: 'grade-id', name: 'Grade 10' },
+        id: 'a22c4b4d-4f8e-4de6-9b3d-faae7db5eb6d',
+        pricePerHour: new Prisma.Decimal(450),
+        subject: { id: 'subject-id', name: 'Mathematics' },
+      },
+      netAmount: new Prisma.Decimal(450),
+      slot: {
+        endAtUtc: new Date('2026-09-15T11:04:06.784Z'),
+        id: '7a0f9ab0-8f25-4d80-bb00-67b3a0c7d3d5',
+        startAtUtc: new Date('2026-09-15T10:04:06.784Z'),
+      },
+      status: BookingStatus.PENDING,
+      student: { studentProfile: { nickname: 'Nan' } },
+      subtotalAmount: new Prisma.Decimal(450),
+      ...overrides,
+    });
+
+    it('throws BadRequestException when tutorUserId is missing', async () => {
+      await expect(service.getTutorBookings({ tutorUserId: '' })).rejects.toThrow(
+        new BadRequestException('tutorUserId is required to list bookings'),
+      );
+    });
+
+    it('throws BadRequestException when from is later than to', async () => {
+      const { tutorUserId } = createTestData();
+
+      await expect(
+        service.getTutorBookings({
+          from: '2026-09-30T00:00:00.000Z',
+          to: '2026-09-01T00:00:00.000Z',
+          tutorUserId,
+        }),
+      ).rejects.toThrow(new BadRequestException('from must not be later than to'));
+    });
+
+    it('scopes the query to the authenticated tutor and projects only the student nickname', async () => {
+      const { tutorUserId } = createTestData();
+      const row = mockTutorBookingRow();
+
+      mockPrismaService.booking.findMany.mockResolvedValue([row]);
+      mockPrismaService.booking.count.mockResolvedValue(1);
+
+      const result = await service.getTutorBookings({ tutorUserId });
+
+      expect(mockPrismaService.booking.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { tutorProfileId: tutorUserId } }),
+      );
+      expect(result.items).toEqual([
+        expect.objectContaining({ student: { nickname: 'Nan' } }),
+      ]);
+      expect(result.items[0]).not.toHaveProperty('tutor');
+      expect(Object.keys(result.items[0] as object)).not.toContain('legalName');
+    });
+
+    it('projects a null nickname when the student has no profile', async () => {
+      const { tutorUserId } = createTestData();
+      const row = mockTutorBookingRow({ student: { studentProfile: null } });
+
+      mockPrismaService.booking.findMany.mockResolvedValue([row]);
+      mockPrismaService.booking.count.mockResolvedValue(1);
+
+      const result = await service.getTutorBookings({ tutorUserId });
+
+      expect(result.items[0]?.student).toEqual({ nickname: null });
+    });
+
+    it('combines the status filter with the where clause', async () => {
+      const { tutorUserId } = createTestData();
+
+      mockPrismaService.booking.findMany.mockResolvedValue([]);
+      mockPrismaService.booking.count.mockResolvedValue(0);
+
+      await service.getTutorBookings({ status: BookingStatus.CONFIRMED, tutorUserId });
+
+      expect(mockPrismaService.booking.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { status: BookingStatus.CONFIRMED, tutorProfileId: tutorUserId },
+        }),
+      );
+    });
+
+    it('combines the from/to date range filter with the where clause', async () => {
+      const { tutorUserId } = createTestData();
+
+      mockPrismaService.booking.findMany.mockResolvedValue([]);
+      mockPrismaService.booking.count.mockResolvedValue(0);
+
+      await service.getTutorBookings({
+        from: '2026-09-01T00:00:00.000Z',
+        to: '2026-09-30T23:59:59.999Z',
+        tutorUserId,
+      });
+
+      expect(mockPrismaService.booking.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            slot: {
+              startAtUtc: {
+                gte: new Date('2026-09-01T00:00:00.000Z'),
+                lte: new Date('2026-09-30T23:59:59.999Z'),
+              },
+            },
+            tutorProfileId: tutorUserId,
+          },
+        }),
+      );
+    });
+
+    it('returns a deterministic empty result when the tutor has no bookings', async () => {
+      const { tutorUserId } = createTestData();
+
+      mockPrismaService.booking.findMany.mockResolvedValue([]);
+      mockPrismaService.booking.count.mockResolvedValue(0);
+
+      const result = await service.getTutorBookings({ tutorUserId });
+
+      expect(result).toEqual({ items: [], total: 0 });
+    });
+  });
 });
