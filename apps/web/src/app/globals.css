@@ -765,6 +765,10 @@ input {
   z-index: 20;
 }
 
+.dash-sidebar-backdrop {
+  display: none;
+}
+
 .dash-app.sb-collapsed .dash-sidebar {
   flex-basis: 0;
   width: 0;
@@ -924,15 +928,51 @@ input {
 
 @media (max-width: 960px) {
   .dash-app {
-    flex-direction: column;
+    display: block;
   }
+
   .dash-sidebar {
-    position: static;
-    height: auto;
-    width: 100% !important;
+    position: fixed;
+    inset: 0 auto 0 0;
+    width: min(320px, calc(100vw - 3rem)) !important;
     flex-basis: auto;
+    height: 100dvh;
+    min-height: 100dvh;
+    padding: 1.25rem 1rem;
+    overflow-y: auto;
+    border-right: 1px solid rgba(23, 23, 20, 0.12);
+    opacity: 1;
+    transform: translateX(0);
+    visibility: visible;
+    transition:
+      transform 0.22s ease,
+      visibility 0.22s ease;
+    z-index: 50;
   }
+
   .dash-app.sb-collapsed .dash-sidebar {
+    display: flex;
+    width: min(320px, calc(100vw - 3rem)) !important;
+    padding: 1.25rem 1rem;
+    overflow-y: auto;
+    border-right: 1px solid rgba(23, 23, 20, 0.12);
+    opacity: 1;
+    transform: translateX(-105%);
+    visibility: hidden;
+  }
+
+  .dash-sidebar-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 45;
+    display: block;
+    border: 0;
+    background: rgba(31, 23, 17, 0.42);
+    backdrop-filter: blur(2px);
+    cursor: pointer;
+  }
+
+  .dash-app.sb-collapsed .dash-sidebar-backdrop {
     display: none;
   }
 }

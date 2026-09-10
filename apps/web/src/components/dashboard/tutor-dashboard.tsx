@@ -20,8 +20,8 @@ export function TutorDashboard({ user, onLogout }: TutorDashboardProps) {
 
   const headerNav = (
     <>
-      <Link href="#listings">{copy.dashboard.header.myListingsNav}</Link>
-      <Link href="#new-listing" className="dash-cta">
+      <Link href="/dashboard/listings">{copy.dashboard.header.myListingsNav}</Link>
+      <Link href="/dashboard/listings/new" className="dash-cta">
         {copy.dashboard.header.newListingCta}
       </Link>
     </>
@@ -108,7 +108,7 @@ export function TutorDashboard({ user, onLogout }: TutorDashboardProps) {
               <span>{tutorCopy.quickActions}</span>
             </h2>
             <div className="dash-qa dash-qa-tutor">
-              <Link href="#new-listing">
+              <Link href="/dashboard/listings/new">
                 <span className="ico" aria-hidden="true">
                   ＋
                 </span>
@@ -201,7 +201,7 @@ export function TutorDashboard({ user, onLogout }: TutorDashboardProps) {
                 0
               </span>
             </h2>
-            <Link href="#new-listing" className="dash-btn-dark">
+            <Link href="/dashboard/listings/new" className="dash-btn-dark">
               <span className="ico">＋</span>
               <span>{tutorCopy.newListingAction}</span>
             </Link>

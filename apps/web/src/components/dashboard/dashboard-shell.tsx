@@ -34,6 +34,7 @@ export function DashboardShell({
   const { language, copy, toggleLanguage } = useLanguage();
   const pathname = usePathname();
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [isMobileSidebar, setIsMobileSidebar] = useState(false);
   const [privacyNoticeOpen, setPrivacyNoticeOpen] = useState(false);
 
   const roleConfig = getDashboardRoleConfig(user.role, copy);
@@ -44,6 +45,36 @@ export function DashboardShell({
   const toggleSidebar = () => {
     setIsSidebarCollapsed((prev) => !prev);
   };
+
+  useEffect(() => {
+    const media = window.matchMedia('(max-width: 960px)');
+    const syncSidebar = () => {
+      setIsMobileSidebar(media.matches);
+      setIsSidebarCollapsed(media.matches);
+    };
+
+    syncSidebar();
+    media.addEventListener('change', syncSidebar);
+    return () => media.removeEventListener('change', syncSidebar);
+  }, []);
+
+  useEffect(() => {
+    if (!isMobileSidebar || isSidebarCollapsed) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [isMobileSidebar, isSidebarCollapsed]);
+
+  useEffect(() => {
+    if (!isMobileSidebar || isSidebarCollapsed) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setIsSidebarCollapsed(true);
+    };
+    document.addEventListener('keydown', closeOnEscape);
+    return () => document.removeEventListener('keydown', closeOnEscape);
+  }, [isMobileSidebar, isSidebarCollapsed]);
 
   return (
     <div className="dash-root">
@@ -57,6 +88,13 @@ export function DashboardShell({
       <div
         className={`dash-app ${isSidebarCollapsed ? 'sb-collapsed' : ''} ${visualVariant === 'profile' ? 'dash-app-profile' : ''}`}
       >
+        <button
+          type="button"
+          className="dash-sidebar-backdrop"
+          aria-label={copy.dashboard.sidebar.closeSidebar}
+          tabIndex={isMobileSidebar && !isSidebarCollapsed ? 0 : -1}
+          onClick={() => setIsSidebarCollapsed(true)}
+        />
         {/* Sticky left sidebar */}
         <aside
           className="dash-sidebar"
@@ -139,11 +177,7 @@ export function DashboardShell({
                   <Link
                     key={item.id}
                     href={item.href}
-                    className={
-                      item.id === 'profile' && pathname === '/dashboard/profile'
-                        ? 'is-active'
-                        : undefined
-                    }
+                    className={isDashboardNavActive(item.id, pathname) ? 'is-active' : undefined}
                   >
                     <span className="flex items-center gap-2.5">
                       <span className="ico" aria-hidden="true">
@@ -235,6 +269,12 @@ export function DashboardShell({
       <PrivacyNoticeModal open={privacyNoticeOpen} onClose={() => setPrivacyNoticeOpen(false)} />
     </div>
   );
+}
+
+function isDashboardNavActive(itemId: string, pathname: string): boolean {
+  if (itemId === 'profile') return pathname === '/dashboard/profile';
+  if (itemId === 'listings') return pathname.startsWith('/dashboard/listings');
+  return false;
 }
 
 type NotificationMenuCopy = {

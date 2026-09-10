@@ -129,10 +129,9 @@ export function getDashboardNavItems(role: UserRole, copy: Translation): Dashboa
       },
       {
         id: 'listings',
-        href: '#listings',
+        href: '/dashboard/listings',
         icon: 'listings',
         label: navCopy.myListings,
-        badge: '0',
       },
       {
         id: 'availability',

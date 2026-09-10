@@ -60,3 +60,35 @@ export interface SaveTutorProfilePayload {
   bio: string;
   experienceYears: number;
 }
+
+export type ListingPublicationStatus = 'DRAFT' | 'PUBLISHED' | 'ARCHIVED';
+
+export interface SubjectOption {
+  id: string;
+  code: string;
+  name: string;
+  active: boolean;
+}
+
+export interface GradeLevelOption extends SubjectOption {
+  sortOrder: number;
+}
+
+export interface TeachingListing {
+  listingId: string;
+  subject: SubjectOption;
+  gradeLevel: GradeLevelOption;
+  pricePerHour: number;
+  description: string;
+  publicationStatus: ListingPublicationStatus;
+  publishedAt: string | null;
+  createdAt?: string;
+  updatedAt: string;
+}
+
+export interface SaveTeachingListingPayload {
+  subjectId: string;
+  gradeLevelId: string;
+  pricePerHour: number;
+  description: string;
+}

@@ -1,0 +1,691 @@
+'use client';
+
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { useEffect, useMemo, useState } from 'react';
+
+import DashboardShell from '@/components/dashboard/dashboard-shell';
+import {
+  ListingPageState,
+  ListingStatusBadge,
+  listingFieldClass,
+} from '@/components/listings/listing-ui';
+import { ApiError } from '@/lib/api/error';
+import {
+  createTutorListing,
+  getListingCatalogs,
+  getTutorListing,
+  publishTutorListing,
+  updateTutorListing,
+} from '@/lib/api/listings';
+import { getMyProfile } from '@/lib/api/profiles';
+import { useAuth } from '@/lib/auth-context';
+import { useLanguage } from '@/lib/i18n';
+
+import type {
+  GradeLevelOption,
+  ListingPublicationStatus,
+  SaveTeachingListingPayload,
+  SubjectOption,
+  TeachingListing,
+  TutorProfile,
+} from '@/lib/api/types';
+import type { FormEvent } from 'react';
+
+interface TutorListingEditorProps {
+  listingId?: string;
+}
+
+interface ListingFormData {
+  subjectId: string;
+  gradeLevelId: string;
+  pricePerHour: string;
+  description: string;
+}
+
+type FormErrors = Partial<Record<keyof ListingFormData, string>>;
+
+const emptyForm: ListingFormData = {
+  subjectId: '',
+  gradeLevelId: '',
+  pricePerHour: '',
+  description: '',
+};
+
+export default function TutorListingEditor({ listingId }: TutorListingEditorProps) {
+  const { isLoading: authLoading, logout, user } = useAuth();
+  const { language } = useLanguage();
+  const router = useRouter();
+  const copy = language === 'th' ? thaiCopy : englishCopy;
+  const [form, setForm] = useState<ListingFormData>(emptyForm);
+  const [initialForm, setInitialForm] = useState<ListingFormData>(emptyForm);
+  const [subjects, setSubjects] = useState<SubjectOption[]>([]);
+  const [gradeLevels, setGradeLevels] = useState<GradeLevelOption[]>([]);
+  const [profile, setProfile] = useState<TutorProfile | null>(null);
+  const [listing, setListing] = useState<TeachingListing | null>(null);
+  const [errors, setErrors] = useState<FormErrors>({});
+  const [pageError, setPageError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [submitAction, setSubmitAction] = useState<'save' | 'publish' | null>(null);
+
+  const isEditing = Boolean(listingId);
+  const isVerified = profile?.verificationStatus === 'VERIFIED';
+  const isArchived = listing?.publicationStatus === 'ARCHIVED';
+  const isDirty = JSON.stringify(form) !== JSON.stringify(initialForm);
+
+  useEffect(() => {
+    if (authLoading) return;
+    if (!user) {
+      router.replace('/');
+      return;
+    }
+    if (user.role !== 'TUTOR') {
+      router.replace('/dashboard');
+      return;
+    }
+
+    let active = true;
+    Promise.all([
+      getListingCatalogs(),
+      getMyProfile(),
+      listingId ? getTutorListing(listingId) : Promise.resolve(null),
+    ])
+      .then(([catalogs, profileResult, currentListing]) => {
+        if (!active) return;
+        const tutorProfile =
+          profileResult.profile && 'verificationStatus' in profileResult.profile
+            ? profileResult.profile
+            : null;
+        if (!tutorProfile) {
+          router.replace('/onboarding/profile');
+          return;
+        }
+
+        let subjectOptions = catalogs.subjects;
+        let gradeOptions = catalogs.gradeLevels;
+        if (currentListing) {
+          if (!subjectOptions.some((item) => item.id === currentListing.subject.id)) {
+            subjectOptions = [...subjectOptions, currentListing.subject];
+          }
+          if (!gradeOptions.some((item) => item.id === currentListing.gradeLevel.id)) {
+            gradeOptions = [...gradeOptions, currentListing.gradeLevel];
+          }
+        }
+
+        setSubjects(subjectOptions);
+        setGradeLevels(gradeOptions);
+        setProfile(tutorProfile);
+        setListing(currentListing);
+
+        if (currentListing) {
+          const loadedForm = {
+            subjectId: currentListing.subject.id,
+            gradeLevelId: currentListing.gradeLevel.id,
+            pricePerHour: String(currentListing.pricePerHour),
+            description: currentListing.description,
+          };
+          setForm(loadedForm);
+          setInitialForm(loadedForm);
+        }
+      })
+      .catch((caught: unknown) => {
+        if (!active) return;
+        setPageError(readEditorError(caught, copy.loadError, copy.notFound));
+      })
+      .finally(() => {
+        if (active) setIsLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [authLoading, copy.loadError, copy.notFound, listingId, router, user]);
+
+  useEffect(() => {
+    if (!isDirty) return;
+    const warnBeforeLeaving = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+    };
+    window.addEventListener('beforeunload', warnBeforeLeaving);
+    return () => window.removeEventListener('beforeunload', warnBeforeLeaving);
+  }, [isDirty]);
+
+  const selectedSubject = useMemo(
+    () => subjects.find((subject) => subject.id === form.subjectId),
+    [form.subjectId, subjects],
+  );
+  const selectedGrade = useMemo(
+    () => gradeLevels.find((grade) => grade.id === form.gradeLevelId),
+    [form.gradeLevelId, gradeLevels],
+  );
+
+  const updateField = <Key extends keyof ListingFormData>(
+    key: Key,
+    value: ListingFormData[Key],
+  ) => {
+    setForm((current) => ({ ...current, [key]: value }));
+    setErrors((current) => ({ ...current, [key]: undefined }));
+    setSuccess(null);
+  };
+
+  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    void saveListing('save');
+  };
+
+  const saveListing = async (action: 'save' | 'publish') => {
+    const nextErrors = validateForm(form, copy);
+    setErrors(nextErrors);
+    setPageError(null);
+    setSuccess(null);
+    if (Object.keys(nextErrors).length > 0) return;
+
+    if (action === 'publish' && !isVerified) {
+      setPageError(copy.verificationError);
+      return;
+    }
+    if (action === 'publish' && isArchived) {
+      setPageError(copy.archivedError);
+      return;
+    }
+
+    const payload: SaveTeachingListingPayload = {
+      subjectId: form.subjectId,
+      gradeLevelId: form.gradeLevelId,
+      pricePerHour: Number(form.pricePerHour),
+      description: form.description.trim(),
+    };
+
+    setSubmitAction(action);
+    let savedListingId = listingId;
+    try {
+      if (savedListingId) {
+        const updated = await updateTutorListing(savedListingId, payload);
+        setListing(updated);
+      } else {
+        savedListingId = await createTutorListing(payload);
+      }
+
+      if (action === 'publish') await publishTutorListing(savedListingId);
+
+      setInitialForm({ ...form, description: payload.description });
+      if (!listingId || action === 'publish') {
+        router.push('/dashboard/listings');
+      } else {
+        setForm((current) => ({ ...current, description: payload.description }));
+        setSuccess(copy.savedSuccess);
+      }
+    } catch (caught: unknown) {
+      if (!listingId && savedListingId) {
+        router.replace(`/dashboard/listings/${savedListingId}/edit`);
+      }
+      setPageError(readEditorError(caught, copy.saveError, copy.notFound));
+    } finally {
+      setSubmitAction(null);
+    }
+  };
+
+  const handleCancel = () => {
+    if (!isDirty || window.confirm(copy.discardConfirm)) router.push('/dashboard/listings');
+  };
+
+  const handleLogout = async () => {
+    await logout();
+    router.replace('/');
+  };
+
+  if (authLoading || isLoading || !user) {
+    return <ListingPageState>{copy.loading}</ListingPageState>;
+  }
+  if (user.role !== 'TUTOR') return null;
+
+  const status = listing?.publicationStatus ?? 'DRAFT';
+  const statusLabels: Record<ListingPublicationStatus, string> = {
+    DRAFT: copy.draft,
+    PUBLISHED: copy.published,
+    ARCHIVED: copy.archived,
+  };
+
+  return (
+    <DashboardShell
+      user={profile?.displayName ? { ...user, displayName: profile.displayName } : user}
+      onLogout={handleLogout}
+      visualVariant="profile"
+    >
+      <div className="min-w-0 py-5 pb-12 sm:py-8">
+        <header className="border-b border-[#ded8ce] pb-7">
+          <Link
+            href="/dashboard/listings"
+            className="inline-flex min-h-10 items-center gap-2 text-sm font-extrabold text-[#6a5542] underline decoration-[#d18b43] underline-offset-4"
+          >
+            <span aria-hidden="true">←</span> {copy.back}
+          </Link>
+          <div className="mt-4 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <p className="text-[0.7rem] font-extrabold uppercase tracking-[0.22em] text-[#b87434]">
+                {copy.eyebrow}
+              </p>
+              <h1 className="mt-2 text-[clamp(2rem,5vw,2.8rem)] font-black leading-none tracking-[-0.055em] text-[#241a14]">
+                {isEditing ? copy.editTitle : copy.createTitle}
+              </h1>
+              <p className="mt-3 max-w-2xl text-[0.95rem] leading-7 text-[#665f57]">
+                {copy.subtitle}
+              </p>
+            </div>
+            <ListingStatusBadge status={status} labels={statusLabels} />
+          </div>
+        </header>
+
+        {pageError && (
+          <div
+            role="alert"
+            className="mt-6 rounded-md border border-[#e2b7ae] bg-[#fff4f1] p-4 text-sm text-[#a34334]"
+          >
+            {pageError}
+          </div>
+        )}
+        {success && (
+          <div
+            role="status"
+            className="mt-6 rounded-md border border-[#b8decf] bg-[#edf8f3] p-4 text-sm font-bold text-[#246b51]"
+          >
+            {success}
+          </div>
+        )}
+
+        <div className="mt-6 grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1.45fr)_minmax(300px,.75fr)]">
+          <form
+            noValidate
+            onSubmit={handleSubmit}
+            className="min-w-0 rounded-md border border-[#e1dbd1] bg-white shadow-[0_14px_35px_-24px_rgba(67,45,25,0.45)]"
+          >
+            <div className="border-b border-[#ebe6dd] p-5 sm:p-6">
+              <h2 className="text-xl font-black tracking-[-0.025em] text-[#241a14]">
+                {copy.detailsTitle}
+              </h2>
+              <p className="mt-1 text-sm leading-6 text-[#6b645c]">{copy.detailsBody}</p>
+            </div>
+
+            <div className="grid gap-5 p-5 sm:grid-cols-2 sm:p-6">
+              <Field label={copy.subject} error={errors.subjectId} id="listing-subject-error">
+                <select
+                  value={form.subjectId}
+                  onChange={(event) => updateField('subjectId', event.target.value)}
+                  className={listingFieldClass}
+                  aria-invalid={Boolean(errors.subjectId)}
+                  aria-describedby={errors.subjectId ? 'listing-subject-error' : undefined}
+                >
+                  <option value="">{copy.selectSubject}</option>
+                  {subjects.map((subject) => (
+                    <option key={subject.id} value={subject.id}>
+                      {subject.name}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+
+              <Field label={copy.gradeLevel} error={errors.gradeLevelId} id="listing-grade-error">
+                <select
+                  value={form.gradeLevelId}
+                  onChange={(event) => updateField('gradeLevelId', event.target.value)}
+                  className={listingFieldClass}
+                  aria-invalid={Boolean(errors.gradeLevelId)}
+                  aria-describedby={errors.gradeLevelId ? 'listing-grade-error' : undefined}
+                >
+                  <option value="">{copy.selectGrade}</option>
+                  {gradeLevels.map((grade) => (
+                    <option key={grade.id} value={grade.id}>
+                      {grade.name}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+
+              <Field label={copy.price} error={errors.pricePerHour} id="listing-price-error">
+                <div className="relative">
+                  <input
+                    type="number"
+                    min="0.01"
+                    step="0.01"
+                    inputMode="decimal"
+                    value={form.pricePerHour}
+                    onChange={(event) => updateField('pricePerHour', event.target.value)}
+                    placeholder="450"
+                    className={`${listingFieldClass} pr-16`}
+                    aria-invalid={Boolean(errors.pricePerHour)}
+                    aria-describedby={
+                      errors.pricePerHour ? 'listing-price-error' : 'listing-price-help'
+                    }
+                  />
+                  <span className="pointer-events-none absolute right-4 top-1/2 mt-1 -translate-y-1/2 text-sm font-bold text-[#746c63]">
+                    THB
+                  </span>
+                </div>
+                {!errors.pricePerHour && (
+                  <p id="listing-price-help" className="mt-2 text-xs leading-5 text-[#827a72]">
+                    {copy.priceHelp}
+                  </p>
+                )}
+              </Field>
+
+              <div className="rounded-md border border-[#e8dfd2] bg-[#fbf7f0] p-4">
+                <p className="text-sm font-extrabold text-[#42362c]">{copy.publishRule}</p>
+                <p className="mt-2 text-xs leading-5 text-[#746b62]">
+                  {isVerified ? copy.canPublish : copy.cannotPublish}
+                </p>
+              </div>
+
+              <Field
+                label={copy.description}
+                error={errors.description}
+                id="listing-description-error"
+                className="sm:col-span-2"
+                trailing={`${form.description.length} / 1000`}
+              >
+                <textarea
+                  value={form.description}
+                  onChange={(event) => updateField('description', event.target.value)}
+                  rows={8}
+                  maxLength={1000}
+                  placeholder={copy.descriptionPlaceholder}
+                  className={`${listingFieldClass} min-h-44 resize-y py-3 leading-6`}
+                  aria-invalid={Boolean(errors.description)}
+                  aria-describedby={
+                    errors.description ? 'listing-description-error' : 'listing-description-help'
+                  }
+                />
+                {!errors.description && (
+                  <p
+                    id="listing-description-help"
+                    className="mt-2 text-xs leading-5 text-[#827a72]"
+                  >
+                    {copy.descriptionHelp}
+                  </p>
+                )}
+              </Field>
+            </div>
+
+            <div className="flex flex-col-reverse gap-3 border-t border-[#ebe6dd] bg-[#fdfbf7] p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
+              <div className="flex items-center gap-2 text-xs font-semibold text-[#7b736b]">
+                <span
+                  className={`h-2 w-2 rounded-full ${isDirty ? 'bg-[#d18b43]' : 'bg-[#77a88f]'}`}
+                  aria-hidden="true"
+                />
+                {isDirty ? copy.unsaved : copy.upToDate}
+              </div>
+              <div className="flex flex-col-reverse gap-2 sm:flex-row">
+                <button
+                  type="button"
+                  onClick={handleCancel}
+                  className="min-h-12 rounded-md border border-[#d9d2c6] bg-white px-4 text-sm font-extrabold text-[#544a41] transition hover:bg-[#f7f2ea]"
+                >
+                  {copy.cancel}
+                </button>
+                <button
+                  type="submit"
+                  disabled={submitAction !== null}
+                  className="min-h-12 rounded-md border border-[#3b3027] bg-white px-4 text-sm font-extrabold text-[#34271e] transition hover:bg-[#f4eee6] disabled:cursor-wait disabled:opacity-50"
+                >
+                  {submitAction === 'save'
+                    ? copy.saving
+                    : isEditing
+                      ? copy.saveChanges
+                      : copy.saveDraft}
+                </button>
+                {status !== 'PUBLISHED' && (
+                  <button
+                    type="button"
+                    disabled={!isVerified || isArchived || submitAction !== null}
+                    onClick={() => void saveListing('publish')}
+                    className="min-h-12 rounded-md bg-[#34271e] px-5 text-sm font-extrabold text-white shadow-[0_8px_18px_-10px_rgba(43,31,22,0.85)] transition hover:-translate-y-0.5 hover:bg-[#4b3729] disabled:cursor-not-allowed disabled:translate-y-0 disabled:opacity-45"
+                  >
+                    {submitAction === 'publish' ? copy.publishing : copy.publish}
+                  </button>
+                )}
+              </div>
+            </div>
+          </form>
+
+          <aside className="min-w-0 xl:sticky xl:top-5 xl:self-start">
+            <section className="rounded-md border border-[#e1dbd1] bg-white shadow-[0_14px_35px_-24px_rgba(67,45,25,0.45)]">
+              <div className="border-b border-[#ebe6dd] p-5">
+                <h2 className="text-lg font-black text-[#241a14]">{copy.previewTitle}</h2>
+                <p className="mt-1 text-xs leading-5 text-[#786f67]">{copy.previewBody}</p>
+              </div>
+              <div className="p-5">
+                <div className="flex items-center gap-3">
+                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md bg-gradient-to-br from-[#ffc57d] to-[#d18b43] text-sm font-black text-[#2f2117]">
+                    {(profile?.displayName || user.email).charAt(0).toUpperCase()}
+                  </span>
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-black text-[#30251d]">
+                      {profile?.displayName || user.email}
+                    </p>
+                    <p className="mt-0.5 text-xs text-[#7a7269]">
+                      {profile?.experienceYears ?? 0} {copy.yearsExperience}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="mt-5 border-y border-[#ebe6dd] py-5">
+                  <p className="text-xs font-extrabold uppercase tracking-[0.14em] text-[#b87434]">
+                    {selectedSubject?.name || copy.subjectFallback}
+                  </p>
+                  <h3 className="mt-1 text-xl font-black tracking-[-0.025em] text-[#241a14]">
+                    {selectedSubject?.name || copy.subjectFallback} ·{' '}
+                    {selectedGrade?.name || copy.gradeFallback}
+                  </h3>
+                  <p className="mt-4 whitespace-pre-wrap text-sm leading-6 text-[#696158]">
+                    {form.description.trim() || copy.descriptionFallback}
+                  </p>
+                </div>
+
+                <div className="mt-5 flex flex-wrap items-end justify-between gap-3">
+                  <div>
+                    <strong className="text-2xl font-black tracking-[-0.04em] text-[#241a14]">
+                      {form.pricePerHour && Number(form.pricePerHour) > 0
+                        ? formatPrice(Number(form.pricePerHour), language)
+                        : '—'}
+                    </strong>
+                    <span className="ml-1 text-sm text-[#6c655d]">/{copy.hour}</span>
+                  </div>
+                  <ListingStatusBadge status={status} labels={statusLabels} />
+                </div>
+              </div>
+            </section>
+
+            <section className="mt-4 rounded-md border border-[#e8c99f] bg-[#fff8ed] p-4 text-sm leading-6 text-[#775026]">
+              <strong className="block text-[#553719]">{copy.qualityTitle}</strong>
+              <ul className="mt-2 space-y-1.5 text-xs">
+                <li>• {copy.qualityOne}</li>
+                <li>• {copy.qualityTwo}</li>
+                <li>• {copy.qualityThree}</li>
+              </ul>
+            </section>
+          </aside>
+        </div>
+      </div>
+    </DashboardShell>
+  );
+}
+
+function Field({
+  children,
+  className = '',
+  error,
+  id,
+  label,
+  trailing,
+}: {
+  children: React.ReactNode;
+  className?: string;
+  error?: string | undefined;
+  id: string;
+  label: string;
+  trailing?: string;
+}) {
+  return (
+    <label className={`block min-w-0 text-sm font-extrabold text-[#42362c] ${className}`}>
+      <span className="flex items-center justify-between gap-3">
+        <span>{label}</span>
+        {trailing && <span className="text-xs font-semibold text-[#8a8178]">{trailing}</span>}
+      </span>
+      {children}
+      {error && (
+        <span id={id} className="mt-2 block text-xs font-semibold leading-5 text-[#b04839]">
+          {error}
+        </span>
+      )}
+    </label>
+  );
+}
+
+function validateForm(form: ListingFormData, copy: typeof englishCopy): FormErrors {
+  const errors: FormErrors = {};
+  const price = Number(form.pricePerHour);
+  if (!form.subjectId) errors.subjectId = copy.subjectError;
+  if (!form.gradeLevelId) errors.gradeLevelId = copy.gradeError;
+  if (
+    !form.pricePerHour ||
+    !Number.isFinite(price) ||
+    price <= 0 ||
+    !/^\d+(\.\d{1,2})?$/.test(form.pricePerHour)
+  ) {
+    errors.pricePerHour = copy.priceError;
+  }
+  const descriptionLength = form.description.trim().length;
+  if (descriptionLength < 20 || descriptionLength > 1000) {
+    errors.description = copy.descriptionError;
+  }
+  return errors;
+}
+
+function readEditorError(error: unknown, fallback: string, notFound: string) {
+  if (error instanceof ApiError && error.status === 404) return notFound;
+  if (error instanceof ApiError && error.status === 403) return fallback;
+  return error instanceof Error ? error.message : fallback;
+}
+
+function formatPrice(value: number, language: 'en' | 'th') {
+  return new Intl.NumberFormat(language === 'th' ? 'th-TH' : 'en-US', {
+    style: 'currency',
+    currency: 'THB',
+    maximumFractionDigits: value % 1 === 0 ? 0 : 2,
+  }).format(value);
+}
+
+const englishCopy = {
+  eyebrow: 'Teaching listing',
+  createTitle: 'Create a clear teaching offer',
+  editTitle: 'Edit teaching listing',
+  subtitle:
+    'One subject, one grade level, a transparent hourly rate, and a useful description are all students need to compare confidently.',
+  back: 'Back to listings',
+  detailsTitle: 'Course details',
+  detailsBody: 'Required fields are saved as a draft until you choose to publish.',
+  subject: 'Subject',
+  selectSubject: 'Select a subject',
+  subjectError: 'Choose a subject.',
+  gradeLevel: 'Grade level',
+  selectGrade: 'Select a grade level',
+  gradeError: 'Choose a grade level.',
+  price: 'Price per hour',
+  priceHelp: 'Enter Thai baht with up to two decimal places.',
+  priceError: 'Enter a price greater than zero with no more than two decimal places.',
+  publishRule: 'Publication eligibility',
+  canPublish: 'Your verified tutor profile can publish this listing.',
+  cannotPublish: 'Save a draft now. Publishing unlocks after tutor verification.',
+  description: 'Listing description',
+  descriptionPlaceholder:
+    'Explain what students will learn, your teaching approach, and who this course suits.',
+  descriptionHelp: 'Write 20–1,000 characters. Use specific outcomes and plain language.',
+  descriptionError: 'Write between 20 and 1,000 characters after trimming.',
+  previewTitle: 'Student preview',
+  previewBody: 'This preview updates while you edit.',
+  subjectFallback: 'Subject',
+  gradeFallback: 'Grade level',
+  descriptionFallback: 'Your course description will appear here.',
+  yearsExperience: 'years experience',
+  hour: 'hour',
+  draft: 'Draft',
+  published: 'Published',
+  archived: 'Archived',
+  saveDraft: 'Save draft',
+  saveChanges: 'Save changes',
+  publish: 'Save & publish',
+  saving: 'Saving…',
+  publishing: 'Publishing…',
+  cancel: 'Cancel',
+  unsaved: 'Unsaved changes',
+  upToDate: 'All changes saved',
+  savedSuccess: 'Your listing changes have been saved.',
+  verificationError: 'Your tutor profile must be verified before this listing can be published.',
+  archivedError: 'Archived listings cannot be published.',
+  discardConfirm: 'Discard your unsaved changes?',
+  qualityTitle: 'A strong listing is easy to scan',
+  qualityOne: 'State the learning outcome in the first sentence.',
+  qualityTwo: 'Describe your teaching approach with a concrete example.',
+  qualityThree: 'Avoid contact details and promises of guaranteed results.',
+  loading: 'Loading the listing editor…',
+  loadError: 'Unable to load the listing editor.',
+  saveError: 'Unable to save this listing. Check the details and try again.',
+  notFound: 'This listing was not found or you do not have access to it.',
+};
+
+const thaiCopy: typeof englishCopy = {
+  eyebrow: 'ประกาศสอน',
+  createTitle: 'สร้างประกาศสอนที่ชัดเจน',
+  editTitle: 'แก้ไขประกาศสอน',
+  subtitle:
+    'ระบุหนึ่งวิชา หนึ่งระดับชั้น ราคาต่อชั่วโมงที่ชัดเจน และคำอธิบายที่ช่วยให้นักเรียนตัดสินใจได้อย่างมั่นใจ',
+  back: 'กลับไปคอร์สของฉัน',
+  detailsTitle: 'รายละเอียดคอร์ส',
+  detailsBody: 'ข้อมูลที่กรอกจะบันทึกเป็นฉบับร่างจนกว่าคุณจะเลือกเผยแพร่',
+  subject: 'รายวิชา',
+  selectSubject: 'เลือกรายวิชา',
+  subjectError: 'กรุณาเลือกรายวิชา',
+  gradeLevel: 'ระดับชั้น',
+  selectGrade: 'เลือกระดับชั้น',
+  gradeError: 'กรุณาเลือกระดับชั้น',
+  price: 'ราคาต่อชั่วโมง',
+  priceHelp: 'กรอกราคาเป็นเงินบาทและมีทศนิยมได้ไม่เกินสองตำแหน่ง',
+  priceError: 'กรุณากรอกราคามากกว่าศูนย์และมีทศนิยมไม่เกินสองตำแหน่ง',
+  publishRule: 'สิทธิ์ในการเผยแพร่',
+  canPublish: 'โปรไฟล์ติวเตอร์ของคุณผ่านการยืนยันและเผยแพร่ประกาศนี้ได้',
+  cannotPublish: 'บันทึกฉบับร่างได้ทันที การเผยแพร่จะเปิดเมื่อโปรไฟล์ผ่านการยืนยัน',
+  description: 'คำอธิบายคอร์ส',
+  descriptionPlaceholder: 'อธิบายว่านักเรียนจะได้เรียนรู้อะไร แนวทางการสอน และคอร์สนี้เหมาะกับใคร',
+  descriptionHelp: 'เขียน 20–1,000 ตัวอักษร ระบุผลลัพธ์ที่ชัดเจนและใช้ภาษาที่เข้าใจง่าย',
+  descriptionError: 'กรุณาเขียนระหว่าง 20 ถึง 1,000 ตัวอักษรหลังตัดช่องว่างหัวท้าย',
+  previewTitle: 'ตัวอย่างสำหรับนักเรียน',
+  previewBody: 'ตัวอย่างจะเปลี่ยนตามข้อมูลที่คุณกรอก',
+  subjectFallback: 'รายวิชา',
+  gradeFallback: 'ระดับชั้น',
+  descriptionFallback: 'คำอธิบายคอร์สของคุณจะแสดงที่นี่',
+  yearsExperience: 'ปีของประสบการณ์',
+  hour: 'ชั่วโมง',
+  draft: 'ฉบับร่าง',
+  published: 'เผยแพร่แล้ว',
+  archived: 'เก็บถาวร',
+  saveDraft: 'บันทึกฉบับร่าง',
+  saveChanges: 'บันทึกการแก้ไข',
+  publish: 'บันทึกและเผยแพร่',
+  saving: 'กำลังบันทึก…',
+  publishing: 'กำลังเผยแพร่…',
+  cancel: 'ยกเลิก',
+  unsaved: 'มีการเปลี่ยนแปลงที่ยังไม่ได้บันทึก',
+  upToDate: 'บันทึกข้อมูลล่าสุดแล้ว',
+  savedSuccess: 'บันทึกการแก้ไขประกาศแล้ว',
+  verificationError: 'โปรไฟล์ติวเตอร์ต้องผ่านการยืนยันก่อนเผยแพร่ประกาศ',
+  archivedError: 'ไม่สามารถเผยแพร่ประกาศที่เก็บถาวรแล้ว',
+  discardConfirm: 'ยกเลิกการเปลี่ยนแปลงที่ยังไม่ได้บันทึกหรือไม่?',
+  qualityTitle: 'ประกาศที่ดีควรอ่านเข้าใจได้เร็ว',
+  qualityOne: 'บอกผลลัพธ์การเรียนรู้ตั้งแต่ประโยคแรก',
+  qualityTwo: 'อธิบายแนวทางการสอนพร้อมตัวอย่างที่ชัดเจน',
+  qualityThree: 'ไม่ใส่ข้อมูลติดต่อหรือรับประกันผลลัพธ์',
+  loading: 'กำลังโหลดตัวแก้ไขประกาศ…',
+  loadError: 'ไม่สามารถโหลดตัวแก้ไขประกาศได้',
+  saveError: 'ไม่สามารถบันทึกประกาศได้ โปรดตรวจสอบข้อมูลแล้วลองอีกครั้ง',
+  notFound: 'ไม่พบประกาศนี้หรือคุณไม่มีสิทธิ์เข้าถึง',
+};

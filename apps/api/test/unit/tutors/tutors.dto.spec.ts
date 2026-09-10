@@ -5,13 +5,17 @@ import {
   ListingPatchRequestDto,
   ListingPostRequestDto,
   ListingQueryDto,
+  ListingStatusRequestDto,
 } from '@/tutors/tutors.dto';
 
 describe('tutor listing DTOs', () => {
+  const subjectId = '30000000-0000-4000-8000-000000000001';
+  const gradeLevelId = '40000000-0000-4000-8000-000000000001';
+
   it('accepts a valid create request and transforms a numeric price string', async () => {
     const dto = plainToInstance(ListingPostRequestDto, {
-      subjectId: '30000000-0000-4000-8000-000000000001',
-      gradeLevelId: '40000000-0000-4000-8000-000000000001',
+      subjectId,
+      gradeLevelId,
       pricePerHour: '450.50',
       description: 'Experienced mathematics tutor.',
     });
@@ -28,8 +32,8 @@ describe('tutor listing DTOs', () => {
     ['short description', { description: 'Too short' }],
   ])('rejects a create request with %s', async (_label, override) => {
     const dto = plainToInstance(ListingPostRequestDto, {
-      subjectId: '30000000-0000-4000-8000-000000000001',
-      gradeLevelId: '40000000-0000-4000-8000-000000000001',
+      subjectId,
+      gradeLevelId,
       pricePerHour: 450.5,
       description: 'Experienced mathematics tutor.',
       ...override,
@@ -48,6 +52,18 @@ describe('tutor listing DTOs', () => {
     expect(await validate(invalid)).not.toHaveLength(0);
   });
 
+  it('trims listing descriptions before validating and storing them', async () => {
+    const dto = plainToInstance(ListingPostRequestDto, {
+      subjectId,
+      gradeLevelId,
+      pricePerHour: 450,
+      description: '  Experienced mathematics tutor.  ',
+    });
+
+    await expect(validate(dto)).resolves.toHaveLength(0);
+    expect(dto.description).toBe('Experienced mathematics tutor.');
+  });
+
   it.each(['DRAFT', 'PUBLISHED', 'ARCHIVED'])('accepts the %s listing filter', async (status) => {
     const dto = plainToInstance(ListingQueryDto, { publicationStatus: status });
 
@@ -58,5 +74,17 @@ describe('tutor listing DTOs', () => {
     const dto = plainToInstance(ListingQueryDto, { publicationStatus: 'UNKNOWN' });
 
     expect(await validate(dto)).not.toHaveLength(0);
+  });
+
+  it('accepts publish and archive status changes only', async () => {
+    await expect(
+      validate(plainToInstance(ListingStatusRequestDto, { publicationStatus: 'PUBLISHED' })),
+    ).resolves.toHaveLength(0);
+    await expect(
+      validate(plainToInstance(ListingStatusRequestDto, { publicationStatus: 'ARCHIVED' })),
+    ).resolves.toHaveLength(0);
+    expect(
+      await validate(plainToInstance(ListingStatusRequestDto, { publicationStatus: 'DRAFT' })),
+    ).not.toHaveLength(0);
   });
 });
