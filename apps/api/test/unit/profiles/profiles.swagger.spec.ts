@@ -87,6 +87,11 @@ describe('student profile Swagger contract', () => {
     }
     expect(document.components?.schemas).toHaveProperty('MyProfileResponseDto');
     expect(document.components?.schemas).toHaveProperty('TutorProfileResponseDto');
+    const tutorSchema = document.components?.schemas?.['TutorProfileResponseDto'] as SchemaObject;
+    expect(tutorSchema.properties).toMatchObject({
+      createdAt: { format: 'date-time', type: 'string' },
+      updatedAt: { format: 'date-time', type: 'string' },
+    });
   });
 
   function operation(method: string, path: string): OperationObject {

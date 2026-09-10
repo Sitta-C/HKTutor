@@ -41,6 +41,53 @@ describe('ProfilesService', () => {
     });
   });
 
+  it('returns tutor profile lifecycle metadata with the editable profile', async () => {
+    const createdAt = new Date('2026-08-01T00:00:00.000Z');
+    const updatedAt = new Date('2026-08-02T00:00:00.000Z');
+    const tutorProfile = {
+      firstName: 'Anan',
+      lastName: 'Sukjai',
+      nickname: 'Anan',
+      displayName: 'Kru Anan',
+      bio: 'Mathematics tutor',
+      experienceYears: 5,
+      verificationStatus: 'VERIFIED',
+      ratingAverage: 4.8,
+      reviewCount: 24,
+      createdAt,
+      updatedAt,
+    };
+    const findUnique = jest.fn().mockResolvedValue({
+      policyVersion: CURRENT_PRIVACY_POLICY_VERSION,
+      studentProfile: null,
+      tutorProfile,
+    });
+    const service = new ProfilesService({ user: { findUnique } } as unknown as PrismaService);
+
+    await expect(
+      service.getMine({
+        id: 'tutor-id',
+        email: 'tutor@example.com',
+        role: Role.TUTOR,
+        sessionId: 'session-id',
+      }),
+    ).resolves.toMatchObject({
+      profile: { createdAt, updatedAt },
+      profileComplete: true,
+      role: Role.TUTOR,
+    });
+
+    expect(findUnique).toHaveBeenCalledWith(
+      expect.objectContaining({
+        select: expect.objectContaining({
+          tutorProfile: {
+            select: expect.objectContaining({ createdAt: true, updatedAt: true }),
+          },
+        }),
+      }),
+    );
+  });
+
   it('blocks profile writes until the current notice has been accepted', async () => {
     const studentUpsert = jest.fn();
     const service = new ProfilesService({

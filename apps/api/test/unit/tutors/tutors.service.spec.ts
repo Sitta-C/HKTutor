@@ -328,6 +328,28 @@ describe('TutorsService', () => {
   });
 
   describe('updateListingStatus', () => {
+    it('restores an archived listing to draft and clears the active publication timestamp', async () => {
+      const prisma = createPrisma();
+      prisma.teachingListing.update.mockResolvedValue(
+        listing({ publicationStatus: 'DRAFT', publishedAt: null }),
+      );
+      prisma.subject.findFirstOrThrow.mockResolvedValue(subject);
+      prisma.gradeLevel.findFirstOrThrow.mockResolvedValue(gradeLevel);
+      const service = new TutorsService(prisma as unknown as PrismaService);
+
+      await expect(
+        service.updateListingStatus(USER_ID, LISTING_ID, 'DRAFT'),
+      ).resolves.toMatchObject({
+        listingId: LISTING_ID,
+        publicationStatus: 'DRAFT',
+        publishedAt: null,
+      });
+      expect(prisma.teachingListing.update).toHaveBeenCalledWith({
+        where: { tutorProfileId: USER_ID, id: LISTING_ID, deletedAt: null },
+        data: { publicationStatus: 'DRAFT', publishedAt: null },
+      });
+    });
+
     it('archives an owned listing while retaining publication history', async () => {
       const prisma = createPrisma();
       const publishedAt = new Date('2026-09-01T00:00:00.000Z');

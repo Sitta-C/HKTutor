@@ -76,15 +76,15 @@ describe('tutor listing DTOs', () => {
     expect(await validate(dto)).not.toHaveLength(0);
   });
 
-  it('accepts publish and archive status changes only', async () => {
+  it('accepts draft, publish, and archive status changes', async () => {
+    await expect(
+      validate(plainToInstance(ListingStatusRequestDto, { publicationStatus: 'DRAFT' })),
+    ).resolves.toHaveLength(0);
     await expect(
       validate(plainToInstance(ListingStatusRequestDto, { publicationStatus: 'PUBLISHED' })),
     ).resolves.toHaveLength(0);
     await expect(
       validate(plainToInstance(ListingStatusRequestDto, { publicationStatus: 'ARCHIVED' })),
     ).resolves.toHaveLength(0);
-    expect(
-      await validate(plainToInstance(ListingStatusRequestDto, { publicationStatus: 'DRAFT' })),
-    ).not.toHaveLength(0);
   });
 });

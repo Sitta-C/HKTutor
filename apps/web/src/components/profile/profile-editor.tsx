@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import DashboardShell from '@/components/dashboard/dashboard-shell';
 import PrivacyConsent from '@/components/privacy-consent';
@@ -41,20 +41,25 @@ interface TutorFormData {
   experienceYears: string;
 }
 
+type ProfileFieldErrors = Partial<Record<keyof StudentFormData | keyof TutorFormData, string>>;
+
 interface ProfileCopy {
   accountEmail: string;
   about: string;
   back: string;
   bio: string;
   bioHint: string;
+  bioError: string;
   cancel: string;
   consentRequired: string;
   continue: string;
   displayName: string;
   displayNameHint: string;
+  displayNameError: string;
   editEyebrow: string;
   editTitle: string;
   experienceYears: string;
+  experienceError: string;
   firstName: string;
   gradeLevel: string;
   lastName: string;
@@ -68,15 +73,19 @@ interface ProfileCopy {
   overview: string;
   phone: string;
   phoneHint: string;
+  phoneError: string;
   previewHint: string;
   previewTitle: string;
   profileDetails: string;
   profileDetailsHint: string;
   profileTitle: string;
   profileSubtitle: string;
+  created: string;
+  lastUpdated: string;
   privacy: string;
   rating: string;
   reviews: string;
+  requiredField: string;
   save: string;
   saveError: string;
   saveSuccess: string;
@@ -125,9 +134,11 @@ export default function ProfileEditor({ mode }: ProfileEditorProps) {
   const [acceptedNotice, setAcceptedNotice] = useState(false);
   const [consentError, setConsentError] = useState<string | null>(null);
   const [profileSummary, setProfileSummary] = useState<TutorProfile | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<ProfileFieldErrors>({});
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sectionMenuOpen, setSectionMenuOpen] = useState(false);
+  const formRef = useRef<HTMLFormElement>(null);
 
   const copy = language === 'th' ? thaiCopy : englishCopy;
 
@@ -206,8 +217,19 @@ export default function ProfileEditor({ mode }: ProfileEditorProps) {
       return;
     }
 
+    const nextFieldErrors =
+      user.role === 'STUDENT' ? validateStudentForm(student, copy) : validateTutorForm(tutor, copy);
+    if (Object.keys(nextFieldErrors).length > 0) {
+      setFieldErrors(nextFieldErrors);
+      window.requestAnimationFrame(() => {
+        formRef.current?.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus();
+      });
+      return;
+    }
+
     setError(null);
     setConsentError(null);
+    setFieldErrors({});
     setSaved(false);
     setIsSaving(true);
 
@@ -258,6 +280,18 @@ export default function ProfileEditor({ mode }: ProfileEditorProps) {
   const handleLogout = async () => {
     await logout();
     router.replace('/');
+  };
+
+  const updateStudent = (data: StudentFormData) => {
+    setStudent(data);
+    setFieldErrors({});
+    setSaved(false);
+  };
+
+  const updateTutor = (data: TutorFormData) => {
+    setTutor(data);
+    setFieldErrors({});
+    setSaved(false);
   };
 
   if (authLoading || isLoading || !user) {
@@ -473,6 +507,12 @@ export default function ProfileEditor({ mode }: ProfileEditorProps) {
               <div>
                 <h2 id="profile-details-title">{copy.profileDetails}</h2>
                 <p>{copy.profileDetailsHint}</p>
+                {user.role === 'TUTOR' && profileSummary && (
+                  <p className="mt-2 text-xs font-semibold text-[#827a72]">
+                    {copy.lastUpdated} {formatProfileDate(profileSummary.updatedAt, language)} ·{' '}
+                    {copy.created} {formatProfileDate(profileSummary.createdAt, language)}
+                  </p>
+                )}
               </div>
               {user.role === 'TUTOR' && (
                 <span className="profile-status-pill">{verificationLabel}</span>
@@ -490,12 +530,22 @@ export default function ProfileEditor({ mode }: ProfileEditorProps) {
               </p>
             )}
 
-            <form onSubmit={handleSubmit}>
+            <form ref={formRef} onSubmit={handleSubmit}>
               {consentCurrent &&
                 (user.role === 'STUDENT' ? (
-                  <StudentFields data={student} copy={copy} onChange={setStudent} />
+                  <StudentFields
+                    data={student}
+                    copy={copy}
+                    errors={fieldErrors}
+                    onChange={updateStudent}
+                  />
                 ) : (
-                  <TutorFields data={tutor} copy={copy} onChange={setTutor} />
+                  <TutorFields
+                    data={tutor}
+                    copy={copy}
+                    errors={fieldErrors}
+                    onChange={updateTutor}
+                  />
                 ))}
 
               {!consentCurrent && (
@@ -551,38 +601,52 @@ export default function ProfileEditor({ mode }: ProfileEditorProps) {
 function StudentFields({
   data,
   copy,
+  errors,
   onChange,
 }: {
   data: StudentFormData;
   copy: ProfileCopy;
+  errors: ProfileFieldErrors;
   onChange: (data: StudentFormData) => void;
 }) {
   return (
     <>
-      <NameFields data={data} copy={copy} onChange={onChange} />
+      <NameFields data={data} copy={copy} errors={errors} onChange={onChange} />
       <div className="grid gap-5 sm:grid-cols-2">
-        <Field label={copy.school}>
+        <Field label={copy.school} error={errors.school} errorId="profile-school-error">
           <input
+            id="profile-school"
             required
             maxLength={160}
             value={data.school}
             onChange={(event) => onChange({ ...data, school: event.target.value })}
             className={fieldClass}
             autoComplete="organization"
+            aria-invalid={Boolean(errors.school)}
+            aria-describedby={errors.school ? 'profile-school-error' : undefined}
           />
         </Field>
-        <Field label={copy.gradeLevel}>
+        <Field label={copy.gradeLevel} error={errors.gradeLevel} errorId="profile-grade-error">
           <input
+            id="profile-grade"
             required
             maxLength={80}
             value={data.gradeLevel}
             onChange={(event) => onChange({ ...data, gradeLevel: event.target.value })}
             className={fieldClass}
+            aria-invalid={Boolean(errors.gradeLevel)}
+            aria-describedby={errors.gradeLevel ? 'profile-grade-error' : undefined}
           />
         </Field>
       </div>
-      <Field label={copy.phone} hint={copy.phoneHint}>
+      <Field
+        label={copy.phone}
+        hint={copy.phoneHint}
+        error={errors.phone}
+        errorId="profile-phone-error"
+      >
         <input
+          id="profile-phone"
           required
           type="tel"
           minLength={8}
@@ -592,6 +656,8 @@ function StudentFields({
           onChange={(event) => onChange({ ...data, phone: event.target.value })}
           className={fieldClass}
           autoComplete="tel"
+          aria-invalid={Boolean(errors.phone)}
+          aria-describedby={errors.phone ? 'profile-phone-error' : undefined}
         />
       </Field>
     </>
@@ -601,46 +667,70 @@ function StudentFields({
 function TutorFields({
   data,
   copy,
+  errors,
   onChange,
 }: {
   data: TutorFormData;
   copy: ProfileCopy;
+  errors: ProfileFieldErrors;
   onChange: (data: TutorFormData) => void;
 }) {
   return (
     <>
-      <NameFields data={data} copy={copy} onChange={onChange} />
-      <Field label={copy.displayName} hint={copy.displayNameHint}>
+      <NameFields data={data} copy={copy} errors={errors} onChange={onChange} />
+      <Field
+        label={copy.displayName}
+        hint={copy.displayNameHint}
+        error={errors.displayName}
+        errorId="profile-display-name-error"
+      >
         <input
+          id="profile-display-name"
           required
-          maxLength={60}
+          maxLength={100}
           value={data.displayName}
           onChange={(event) => onChange({ ...data, displayName: event.target.value })}
           className={fieldClass}
+          aria-invalid={Boolean(errors.displayName)}
+          aria-describedby={errors.displayName ? 'profile-display-name-error' : undefined}
         />
       </Field>
-      <Field label={copy.bio} hint={`${copy.bioHint} ${data.bio.length}/500`}>
+      <Field
+        label={copy.bio}
+        hint={`${copy.bioHint} ${data.bio.trim().length}/2000`}
+        error={errors.bio}
+        errorId="profile-bio-error"
+      >
         <textarea
+          id="profile-bio"
           required
-          minLength={20}
-          maxLength={500}
-          rows={6}
+          minLength={1}
+          maxLength={2000}
+          rows={8}
           value={data.bio}
           onChange={(event) => onChange({ ...data, bio: event.target.value })}
           className={`${fieldClass} h-auto py-3`}
+          aria-invalid={Boolean(errors.bio)}
+          aria-describedby={errors.bio ? 'profile-bio-error' : undefined}
         />
       </Field>
-      <Field label={copy.experienceYears}>
+      <Field
+        label={copy.experienceYears}
+        error={errors.experienceYears}
+        errorId="profile-experience-error"
+      >
         <input
+          id="profile-experience"
           required
           type="number"
           min={0}
-          max={80}
           step={1}
           value={data.experienceYears}
           onChange={(event) => onChange({ ...data, experienceYears: event.target.value })}
           className={fieldClass}
           inputMode="numeric"
+          aria-invalid={Boolean(errors.experienceYears)}
+          aria-describedby={errors.experienceYears ? 'profile-experience-error' : undefined}
         />
       </Field>
     </>
@@ -650,49 +740,72 @@ function TutorFields({
 function NameFields<T extends Pick<StudentFormData, 'firstName' | 'lastName' | 'nickname'>>({
   data,
   copy,
+  errors,
   onChange,
 }: {
   data: T;
   copy: ProfileCopy;
+  errors: ProfileFieldErrors;
   onChange: (data: T) => void;
 }) {
   return (
     <div className="grid gap-5 sm:grid-cols-2">
-      <Field label={copy.firstName}>
+      <Field label={copy.firstName} error={errors.firstName} errorId="profile-first-name-error">
         <input
+          id="profile-first-name"
           required
           maxLength={100}
           value={data.firstName}
           onChange={(event) => onChange({ ...data, firstName: event.target.value })}
           className={fieldClass}
           autoComplete="given-name"
+          aria-invalid={Boolean(errors.firstName)}
+          aria-describedby={errors.firstName ? 'profile-first-name-error' : undefined}
         />
       </Field>
-      <Field label={copy.lastName}>
+      <Field label={copy.lastName} error={errors.lastName} errorId="profile-last-name-error">
         <input
+          id="profile-last-name"
           required
           maxLength={100}
           value={data.lastName}
           onChange={(event) => onChange({ ...data, lastName: event.target.value })}
           className={fieldClass}
           autoComplete="family-name"
+          aria-invalid={Boolean(errors.lastName)}
+          aria-describedby={errors.lastName ? 'profile-last-name-error' : undefined}
         />
       </Field>
-      <Field label={copy.nickname}>
+      <Field label={copy.nickname} error={errors.nickname} errorId="profile-nickname-error">
         <input
+          id="profile-nickname"
           required
           maxLength={60}
           value={data.nickname}
           onChange={(event) => onChange({ ...data, nickname: event.target.value })}
           className={fieldClass}
           autoComplete="nickname"
+          aria-invalid={Boolean(errors.nickname)}
+          aria-describedby={errors.nickname ? 'profile-nickname-error' : undefined}
         />
       </Field>
     </div>
   );
 }
 
-function Field({ label, hint, children }: { label: string; hint?: string; children: ReactNode }) {
+function Field({
+  children,
+  error,
+  errorId,
+  hint,
+  label,
+}: {
+  children: ReactNode;
+  error?: string | undefined;
+  errorId?: string;
+  hint?: string;
+  label: string;
+}) {
   return (
     <label className="block text-sm font-bold text-[#34332e]">
       {label}
@@ -700,8 +813,58 @@ function Field({ label, hint, children }: { label: string; hint?: string; childr
         <span className="mt-1 block text-xs font-normal leading-5 text-[#77736b]">{hint}</span>
       )}
       {children}
+      {error && (
+        <span id={errorId} role="alert" className="mt-2 block text-xs font-semibold text-[#b04839]">
+          {error}
+        </span>
+      )}
     </label>
   );
+}
+
+function validateStudentForm(data: StudentFormData, copy: ProfileCopy): ProfileFieldErrors {
+  const errors: ProfileFieldErrors = {};
+  const required = (value: string, field: string, key: keyof ProfileFieldErrors) => {
+    if (!value.trim()) errors[key] = copy.requiredField.replace('{field}', field);
+  };
+
+  required(data.firstName, copy.firstName, 'firstName');
+  required(data.lastName, copy.lastName, 'lastName');
+  required(data.nickname, copy.nickname, 'nickname');
+  required(data.school, copy.school, 'school');
+  required(data.gradeLevel, copy.gradeLevel, 'gradeLevel');
+  if (!/^[+0-9][0-9 ()-]{7,31}$/.test(data.phone.trim())) {
+    errors.phone = copy.phoneError;
+  }
+  return errors;
+}
+
+function validateTutorForm(data: TutorFormData, copy: ProfileCopy): ProfileFieldErrors {
+  const errors: ProfileFieldErrors = {};
+  const required = (value: string, field: string, key: keyof ProfileFieldErrors) => {
+    if (!value.trim()) errors[key] = copy.requiredField.replace('{field}', field);
+  };
+
+  required(data.firstName, copy.firstName, 'firstName');
+  required(data.lastName, copy.lastName, 'lastName');
+  required(data.nickname, copy.nickname, 'nickname');
+  required(data.displayName, copy.displayName, 'displayName');
+  if (data.bio.trim().length < 1 || data.bio.trim().length > 2000) {
+    errors.bio = copy.bioError;
+  }
+  if (!/^\d+$/.test(data.experienceYears.trim()) || Number(data.experienceYears) < 0) {
+    errors.experienceYears = copy.experienceError;
+  }
+  return errors;
+}
+
+function formatProfileDate(value: string, language: 'en' | 'th') {
+  return new Intl.DateTimeFormat(language === 'th' ? 'th-TH' : 'en-GB', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    timeZone: 'Asia/Bangkok',
+  }).format(new Date(value));
 }
 
 const englishCopy: ProfileCopy = {
@@ -709,15 +872,18 @@ const englishCopy: ProfileCopy = {
   about: 'About',
   back: 'Back to dashboard',
   bio: 'Biography',
-  bioHint: '20–500 characters.',
+  bioHint: '1–2,000 characters.',
+  bioError: 'Write between 1 and 2,000 characters.',
   cancel: 'Cancel',
   consentRequired: 'Accept the updated privacy notice before saving your profile.',
   continue: 'Save and continue',
   displayName: 'Public tutor name',
   displayNameHint: 'This is the name students and visitors can see.',
+  displayNameError: 'Enter a public tutor name.',
   editEyebrow: 'Account',
   editTitle: 'Edit your profile',
   experienceYears: 'Years of tutoring experience',
+  experienceError: 'Enter a whole number of years, zero or more.',
   firstName: 'First name',
   gradeLevel: 'Grade level / class',
   lastName: 'Last name',
@@ -732,6 +898,7 @@ const englishCopy: ProfileCopy = {
   phone: 'Emergency telephone number',
   phoneHint:
     'Private. Used by authorised project administrators only for urgent class, safety, or service incidents.',
+  phoneError: 'Enter 8–32 valid phone-number characters.',
   previewHint: 'This is the information students can see on your HKTutor profile.',
   previewTitle: 'Student view',
   privacy: 'Privacy',
@@ -739,8 +906,11 @@ const englishCopy: ProfileCopy = {
   profileDetailsHint: 'Keep your public information clear and up to date.',
   profileSubtitle: 'Manage what students see and tell them how you can help.',
   profileTitle: 'Profile',
+  created: 'Created',
+  lastUpdated: 'Updated',
   rating: 'Rating',
   reviews: 'Reviews',
+  requiredField: 'Enter {field}.',
   save: 'Save changes',
   saveError: 'Unable to save your profile.',
   saveSuccess: 'Profile saved successfully.',
@@ -761,15 +931,18 @@ const thaiCopy: ProfileCopy = {
   about: 'เกี่ยวกับคุณ',
   back: 'กลับไปแดชบอร์ด',
   bio: 'ประวัติแนะนำตัว',
-  bioHint: '20–500 ตัวอักษร',
+  bioHint: '1–2,000 ตัวอักษร',
+  bioError: 'กรุณาเขียนระหว่าง 1 ถึง 2,000 ตัวอักษร',
   cancel: 'ยกเลิก',
   consentRequired: 'โปรดยอมรับประกาศความเป็นส่วนตัวฉบับล่าสุดก่อนบันทึกโปรไฟล์',
   continue: 'บันทึกและดำเนินการต่อ',
   displayName: 'ชื่อสาธารณะของติวเตอร์',
   displayNameHint: 'นักเรียนและผู้เยี่ยมชมจะมองเห็นชื่อนี้',
+  displayNameError: 'กรุณากรอกชื่อสาธารณะของติวเตอร์',
   editEyebrow: 'บัญชี',
   editTitle: 'แก้ไขโปรไฟล์',
   experienceYears: 'จำนวนปีที่มีประสบการณ์สอน',
+  experienceError: 'กรุณากรอกจำนวนปีเป็นเลขจำนวนเต็มตั้งแต่ 0 ขึ้นไป',
   firstName: 'ชื่อจริง',
   gradeLevel: 'ชั้นเรียน',
   lastName: 'นามสกุล',
@@ -784,6 +957,7 @@ const thaiCopy: ProfileCopy = {
   phone: 'เบอร์โทรศัพท์สำหรับกรณีฉุกเฉิน',
   phoneHint:
     'เป็นข้อมูลส่วนตัว ผู้ดูแลโครงการที่ได้รับอนุญาตจะใช้เฉพาะเหตุเร่งด่วนเกี่ยวกับชั้นเรียน ความปลอดภัย หรือการให้บริการ',
+  phoneError: 'กรุณากรอกเบอร์โทรศัพท์ที่ถูกต้อง 8–32 ตัวอักษร',
   previewHint: 'ข้อมูลนี้คือสิ่งที่นักเรียนจะเห็นบนโปรไฟล์ HKTutor ของคุณ',
   previewTitle: 'มุมมองนักเรียน',
   privacy: 'ความเป็นส่วนตัว',
@@ -791,8 +965,11 @@ const thaiCopy: ProfileCopy = {
   profileDetailsHint: 'กรอกข้อมูลที่นักเรียนเข้าใจง่ายและอัปเดตให้เป็นปัจจุบัน',
   profileSubtitle: 'จัดการข้อมูลที่นักเรียนเห็น และบอกให้พวกเขารู้ว่าคุณช่วยอะไรได้บ้าง',
   profileTitle: 'โปรไฟล์',
+  created: 'สร้างเมื่อ',
+  lastUpdated: 'อัปเดตล่าสุด',
   rating: 'คะแนน',
   reviews: 'รีวิว',
+  requiredField: 'กรุณากรอก{field}',
   save: 'บันทึกการเปลี่ยนแปลง',
   saveError: 'ไม่สามารถบันทึกโปรไฟล์ได้',
   saveSuccess: 'บันทึกโปรไฟล์เรียบร้อยแล้ว',

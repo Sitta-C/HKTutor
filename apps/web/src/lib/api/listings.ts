@@ -82,11 +82,22 @@ export function publishTutorListing(listingId: string): Promise<void> {
 }
 
 export function archiveTutorListing(listingId: string): Promise<TeachingListing> {
+  return updateTutorListingStatus(listingId, 'ARCHIVED');
+}
+
+export function restoreTutorListing(listingId: string): Promise<TeachingListing> {
+  return updateTutorListingStatus(listingId, 'DRAFT');
+}
+
+export function updateTutorListingStatus(
+  listingId: string,
+  publicationStatus: Extract<ListingPublicationStatus, 'DRAFT' | 'PUBLISHED' | 'ARCHIVED'>,
+): Promise<TeachingListing> {
   return authenticatedFetch<TeachingListing>(
     `/tutors/me/listings/${encodeURIComponent(listingId)}/status`,
     {
       method: 'PATCH',
-      body: JSON.stringify({ publicationStatus: 'ARCHIVED' }),
+      body: JSON.stringify({ publicationStatus }),
     },
   );
 }

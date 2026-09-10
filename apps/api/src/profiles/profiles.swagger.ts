@@ -60,6 +60,12 @@ class TutorProfileResponseDto {
 
   @ApiProperty({ example: 12, minimum: 0, type: Number })
   reviewCount!: number;
+
+  @ApiProperty({ example: '2026-09-10T01:00:00.000Z', format: 'date-time' })
+  createdAt!: Date;
+
+  @ApiProperty({ example: '2026-09-10T01:00:00.000Z', format: 'date-time' })
+  updatedAt!: Date;
 }
 
 class MyProfileResponseDto {

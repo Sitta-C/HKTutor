@@ -12,7 +12,12 @@ import {
   ListingStatusBadge,
 } from '@/components/listings/listing-ui';
 import { ApiError } from '@/lib/api/error';
-import { archiveTutorListing, getTutorListings, publishTutorListing } from '@/lib/api/listings';
+import {
+  archiveTutorListing,
+  getTutorListings,
+  restoreTutorListing,
+  updateTutorListingStatus,
+} from '@/lib/api/listings';
 import { getMyProfile } from '@/lib/api/profiles';
 import { useAuth } from '@/lib/auth-context';
 import { useLanguage } from '@/lib/i18n';
@@ -105,13 +110,24 @@ export default function TutorListingsPage() {
     setBusyId(listingId);
     setError(null);
     try {
-      await publishTutorListing(listingId);
+      const updated = await updateTutorListingStatus(listingId, 'PUBLISHED');
       setListings((current) =>
-        current.map((item) =>
-          item.listingId === listingId
-            ? { ...item, publicationStatus: 'PUBLISHED', publishedAt: new Date().toISOString() }
-            : item,
-        ),
+        current.map((item) => (item.listingId === listingId ? updated : item)),
+      );
+    } catch (caught: unknown) {
+      setError(readListingError(caught, copy.actionError));
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const handleRestoreDraft = async (listingId: string) => {
+    setBusyId(listingId);
+    setError(null);
+    try {
+      const updated = await restoreTutorListing(listingId);
+      setListings((current) =>
+        current.map((item) => (item.listingId === listingId ? updated : item)),
       );
     } catch (caught: unknown) {
       setError(readListingError(caught, copy.actionError));
@@ -413,6 +429,26 @@ export default function TutorListingsPage() {
                             {copy.archive}
                           </button>
                         ))}
+                      {listing.publicationStatus === 'ARCHIVED' && (
+                        <>
+                          <button
+                            type="button"
+                            disabled={busyId === listing.listingId}
+                            onClick={() => void handleRestoreDraft(listing.listingId)}
+                            className="min-h-11 flex-1 rounded-md border border-[#d9d2c6] bg-white px-3.5 text-sm font-extrabold text-[#3e342c] transition hover:border-[#bba990] hover:bg-[#faf5ed] disabled:cursor-wait disabled:opacity-50"
+                          >
+                            {busyId === listing.listingId ? copy.working : copy.restoreDraft}
+                          </button>
+                          <button
+                            type="button"
+                            disabled={!isVerified || busyId === listing.listingId}
+                            onClick={() => void handlePublish(listing.listingId)}
+                            className="min-h-11 flex-1 rounded-md bg-[#34271e] px-3.5 text-sm font-extrabold text-white transition hover:bg-[#4b3729] disabled:cursor-not-allowed disabled:opacity-45"
+                          >
+                            {busyId === listing.listingId ? copy.working : copy.publish}
+                          </button>
+                        </>
+                      )}
                     </div>
                   </article>
                 ))}
@@ -487,6 +523,7 @@ const englishCopy = {
   publishedOn: 'Published',
   edit: 'Edit',
   publish: 'Publish',
+  restoreDraft: 'Restore draft',
   archive: 'Archive',
   archiveConfirm: 'Archive this?',
   confirm: 'Confirm',
@@ -536,6 +573,7 @@ const thaiCopy: typeof englishCopy = {
   publishedOn: 'เผยแพร่เมื่อ',
   edit: 'แก้ไข',
   publish: 'เผยแพร่',
+  restoreDraft: 'คืนเป็นฉบับร่าง',
   archive: 'เก็บถาวร',
   archiveConfirm: 'เก็บรายการนี้?',
   confirm: 'ยืนยัน',

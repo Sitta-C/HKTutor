@@ -308,7 +308,7 @@ export class TutorsService {
   async updateListingStatus(
     userid: string,
     listingid: string,
-    publicationStatus: 'PUBLISHED' | 'ARCHIVED',
+    publicationStatus: 'DRAFT' | 'PUBLISHED' | 'ARCHIVED',
   ): Promise<ListingResponseDto> {
     if (publicationStatus === 'PUBLISHED') {
       return this.postPublishListing(userid, listingid);
@@ -316,7 +316,10 @@ export class TutorsService {
 
     const updatedListing = await this.prisma.teachingListing.update({
       where: { tutorProfileId: userid, id: listingid, deletedAt: null },
-      data: { publicationStatus: 'ARCHIVED' },
+      data:
+        publicationStatus === 'DRAFT'
+          ? { publicationStatus: 'DRAFT', publishedAt: null }
+          : { publicationStatus: 'ARCHIVED' },
     });
 
     if (!updatedListing) {

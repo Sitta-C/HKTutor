@@ -40,6 +40,8 @@ export interface TutorProfile {
   verificationStatus: 'PENDING' | 'VERIFIED' | 'REJECTED';
   ratingAverage: string | null;
   reviewCount: number;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface MyProfileResponse {

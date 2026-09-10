@@ -19,6 +19,7 @@ const studentProfileSelect: Prisma.StudentProfileSelect = {
 
 const tutorProfileSelect: Prisma.TutorProfileSelect = {
   bio: true,
+  createdAt: true,
   displayName: true,
   experienceYears: true,
   firstName: true,
@@ -26,6 +27,7 @@ const tutorProfileSelect: Prisma.TutorProfileSelect = {
   nickname: true,
   ratingAverage: true,
   reviewCount: true,
+  updatedAt: true,
   verificationStatus: true,
 };
 

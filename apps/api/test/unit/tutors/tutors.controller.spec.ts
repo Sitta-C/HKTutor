@@ -126,6 +126,17 @@ describe('TutorsController', () => {
     expect(service.updateListingStatus).toHaveBeenCalledWith(USER_ID, LISTING_ID, 'ARCHIVED');
   });
 
+  it('accepts restoring an archived listing to draft', async () => {
+    const { controller, service } = createController();
+    const response = { listingId: LISTING_ID, publicationStatus: 'DRAFT' } as ListingResponseDto;
+    service.updateListingStatus.mockResolvedValue(response);
+
+    await expect(
+      controller.updateListingStatus(USER, LISTING_ID, { publicationStatus: 'DRAFT' }),
+    ).resolves.toBe(response);
+    expect(service.updateListingStatus).toHaveBeenCalledWith(USER_ID, LISTING_ID, 'DRAFT');
+  });
+
   it.each([
     ['getListing', (controller: TutorsController) => controller.getListing(USER, '')],
     ['patchListing', (controller: TutorsController) => controller.patchListing(USER, '', {})],

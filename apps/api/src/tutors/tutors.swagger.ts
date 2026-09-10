@@ -47,7 +47,7 @@ export function PublishListingDoc(): MethodDecorator {
 
 export function UpdateListingStatusDoc(): MethodDecorator {
   return applyDecorators(
-    ApiOperation({ summary: 'Publish or archive a listing owned by the current tutor' }),
+    ApiOperation({ summary: 'Restore, publish, or archive a listing owned by the current tutor' }),
     ApiOkResponse({ description: 'Listing with its updated publication status returned' }),
   );
 }

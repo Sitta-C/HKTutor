@@ -72,10 +72,10 @@ export class ListingResponseDto {
 }
 
 export class ListingStatusRequestDto {
-  @ApiProperty({ enum: ['PUBLISHED', 'ARCHIVED'] })
+  @ApiProperty({ enum: ['DRAFT', 'PUBLISHED', 'ARCHIVED'] })
   @IsDefined()
-  @IsIn(['PUBLISHED', 'ARCHIVED'])
-  publicationStatus!: Extract<PublicationStatus, 'PUBLISHED' | 'ARCHIVED'>;
+  @IsIn(['DRAFT', 'PUBLISHED', 'ARCHIVED'])
+  publicationStatus!: Extract<PublicationStatus, 'DRAFT' | 'PUBLISHED' | 'ARCHIVED'>;
 }
 
 export class ListingPostRequestDto {
