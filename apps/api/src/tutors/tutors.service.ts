@@ -78,6 +78,19 @@ export class TutorsService {
     return listings.map(mapListing);
   }
 
+  async getListing(userId: string, listingId: string): Promise<ListingResponseDto> {
+    const listing: SelectedListing = await this.prisma.teachingListing.findUniqueOrThrow({
+      select: listingSelect,
+      where: {
+        id: listingId,
+        tutorProfileId: userId,
+        deletedAt: null,
+      }
+    })
+
+    return mapListing(listing);
+  }
+
   async postListing(userId: string, dto: ListingPostRequestDto): Promise<ListingResponseDto> {
     await this.ensureCatalogValues(dto.subjectId, dto.gradeLevelId);
 

@@ -49,6 +49,7 @@ export class TutorsPrivateController {
   constructor(private readonly tutors: TutorsService) {}
 
   @Get('listings')
+  @HttpCode(HttpStatus.OK)
   @GetMyListingsDoc()
   getListings(
     @CurrentUser() user: AuthenticatedUser,
@@ -57,7 +58,23 @@ export class TutorsPrivateController {
     return this.tutors.getListings(user.id, query);
   }
 
+  @Get('listings/:listingId')
+  @HttpCode(HttpStatus.OK)
+  @RequireOwnership({
+    resource: 'teachingListing',
+    idParam: 'listingId',
+    allowAdmin: true,
+  })
+  //TODO: swagger
+  getListing(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('listingId') listingId: string,
+  ): Promise<ListingResponseDto> {
+    return this.tutors.getListing(user.id, listingId);
+  }
+
   @Post('listings')
+  @HttpCode(HttpStatus.CREATED)
   @PostListingDoc()
   postListing(
     @CurrentUser() user: AuthenticatedUser,
