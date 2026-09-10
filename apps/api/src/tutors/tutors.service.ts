@@ -8,8 +8,6 @@ import {
 
 import { PrismaService } from '@/database/prisma.service';
 import { BookingStatus, ListingPublicationStatus, TutorVerificationStatus } from '@/generated/prisma/client';
-
-import type { Prisma } from '@/generated/prisma/client';
 import {
   AvailabilityPostRequestDto,
   AvailabilityPostResponseDto,
@@ -22,6 +20,8 @@ import {
   type ListingResponseDto,
   AvailabilityPublicResponseDto,
 } from '@/tutors/tutors.dto';
+
+import type { Prisma } from '@/generated/prisma/client';
 
 const listingSelect = {
   description: true,
@@ -278,7 +278,7 @@ export class TutorsService {
       },
     });
 
-    if(availability.tutorProfileId != userId) {
+    if(availability.tutorProfileId !== userId) {
       throw new NotFoundException(`Not-owned`);
     }
 

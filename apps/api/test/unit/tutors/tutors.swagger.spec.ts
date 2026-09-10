@@ -6,7 +6,7 @@ import { JwtAuthGuard } from '@/auth/auth.guard';
 import { JWT_BEARER_AUTH } from '@/auth/auth.swagger';
 import { ResourceOwnershipGuard } from '@/auth/ownership.guard';
 import { RolesGuard } from '@/auth/roles.guard';
-import { TutorsController } from '@/tutors/tutors.controller';
+import { TutorsPrivateController } from '@/tutors/tutors.controller';
 import { TutorsService } from '@/tutors/tutors.service';
 
 import type { INestApplication } from '@nestjs/common';
@@ -18,7 +18,7 @@ describe('tutor listing Swagger contract', () => {
 
   beforeAll(async () => {
     const moduleFixture = await Test.createTestingModule({
-      controllers: [TutorsController],
+      controllers: [TutorsPrivateController],
       providers: [{ provide: TutorsService, useValue: {} }],
     })
       .overrideGuard(JwtAuthGuard)

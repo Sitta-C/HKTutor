@@ -1,7 +1,7 @@
 import { OWNERSHIP_KEY } from '@/auth/ownership.decorator';
 import { ROLES_KEY } from '@/auth/roles.decorator';
 import { Role } from '@/generated/prisma/client';
-import { TutorsController } from '@/tutors/tutors.controller';
+import { TutorsPrivateController } from '@/tutors/tutors.controller';
 
 import type { AuthenticatedUser } from '@/auth/auth.guard';
 import type { OwnershipRule } from '@/auth/ownership.decorator';
@@ -26,21 +26,21 @@ function createController() {
   };
 
   return {
-    controller: new TutorsController(service as unknown as TutorsService),
+    controller: new TutorsPrivateController(service as unknown as TutorsService),
     service,
   };
 }
 
-describe('TutorsController', () => {
+describe('TutorsPrivateController', () => {
   it('requires the tutor role at controller level', () => {
-    expect(Reflect.getMetadata(ROLES_KEY, TutorsController)).toEqual([Role.TUTOR]);
+    expect(Reflect.getMetadata(ROLES_KEY, TutorsPrivateController)).toEqual([Role.TUTOR]);
   });
 
   it.each([
     ['patchListing', 'listingId'],
     ['postPublishListing', 'listingId'],
   ])('declares ownership protection on %s', (methodName, idParam) => {
-    const handler = Object.getOwnPropertyDescriptor(TutorsController.prototype, methodName)
+    const handler = Object.getOwnPropertyDescriptor(TutorsPrivateController.prototype, methodName)
       ?.value as object | undefined;
     const ownership = handler
       ? (Reflect.getMetadata(OWNERSHIP_KEY, handler) as OwnershipRule | undefined)
