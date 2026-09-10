@@ -23,6 +23,7 @@ import {
   ListingPostRequestDto,
   ListingQueryDto,
   ListingResponseDto,
+  ListingStatusRequestDto,
 } from '@/tutors/tutors.dto';
 import { TutorsService } from '@/tutors/tutors.service';
 import {
@@ -32,6 +33,7 @@ import {
   PostListingDoc,
   PublishListingDoc,
   TutorsControllerDoc,
+  UpdateListingStatusDoc,
 } from '@/tutors/tutors.swagger';
 
 import type { AuthenticatedUser } from '@/auth/auth.guard';
@@ -89,6 +91,22 @@ export class TutorsController {
     @Body() dto: ListingPatchRequestDto,
   ): Promise<ListingResponseDto> {
     return this.tutors.patchListing(user.id, listingId, dto);
+  }
+
+  @Patch('me/listings/:listingId/status')
+  @HttpCode(HttpStatus.OK)
+  @RequireOwnership({
+    resource: 'teachingListing',
+    idParam: 'listingId',
+    allowAdmin: true,
+  })
+  @UpdateListingStatusDoc()
+  updateListingStatus(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('listingId') listingId: string,
+    @Body() dto: ListingStatusRequestDto,
+  ): Promise<ListingResponseDto> {
+    return this.tutors.updateListingStatus(user.id, listingId, dto.publicationStatus);
   }
 
   @Post('me/listings/:listingId/publish')

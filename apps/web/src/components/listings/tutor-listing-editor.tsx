@@ -18,6 +18,7 @@ import {
   getTutorListing,
   publishTutorListing,
   updateTutorListing,
+  updateTutorListingStatus,
 } from '@/lib/api/listings';
 import { getMyProfile } from '@/lib/api/profiles';
 import { useAuth } from '@/lib/auth-context';
@@ -68,10 +69,11 @@ export default function TutorListingEditor({ listingId }: TutorListingEditorProp
   const [pageError, setPageError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [submitAction, setSubmitAction] = useState<'save' | 'publish' | null>(null);
+  const [submitAction, setSubmitAction] = useState<'save' | 'publish' | 'restore' | null>(null);
 
   const isEditing = Boolean(listingId);
   const isVerified = profile?.verificationStatus === 'VERIFIED';
+  const isArchived = listing?.publicationStatus === 'ARCHIVED';
   const isDirty = JSON.stringify(form) !== JSON.stringify(initialForm);
 
   useEffect(() => {
@@ -236,6 +238,22 @@ export default function TutorListingEditor({ listingId }: TutorListingEditorProp
       if (!listingId && savedListingId) {
         router.replace(`/dashboard/listings/${savedListingId}/edit`);
       }
+      setPageError(readEditorError(caught, copy.saveError, copy.notFound));
+    } finally {
+      setSubmitAction(null);
+    }
+  };
+
+  const restoreDraft = async () => {
+    if (!listingId) return;
+    setSubmitAction('restore');
+    setPageError(null);
+    setSuccess(null);
+    try {
+      const restoredListing = await updateTutorListingStatus(listingId, 'DRAFT');
+      setListing(restoredListing);
+      setSuccess(copy.restoredSuccess);
+    } catch (caught: unknown) {
       setPageError(readEditorError(caught, copy.saveError, copy.notFound));
     } finally {
       setSubmitAction(null);
@@ -483,6 +501,16 @@ export default function TutorListingEditor({ listingId }: TutorListingEditorProp
                       ? copy.saveChanges
                       : copy.saveDraft}
                 </button>
+                {isArchived && (
+                  <button
+                    type="button"
+                    disabled={submitAction !== null}
+                    onClick={() => void restoreDraft()}
+                    className="listing-secondary-action profile-ghost-button min-h-12 rounded-md border border-[#d9d2c6] bg-white px-4 text-sm font-extrabold text-[#34271e] transition hover:bg-[#f4eee6] disabled:cursor-wait disabled:opacity-50"
+                  >
+                    {submitAction === 'restore' ? copy.saving : copy.restoreDraft}
+                  </button>
+                )}
                 {status !== 'PUBLISHED' && (
                   <button
                     type="button"
@@ -694,6 +722,8 @@ const englishCopy = {
   saveDraft: 'Save draft',
   saveChanges: 'Save changes',
   publish: 'Save & publish',
+  restoreDraft: 'Restore draft',
+  restoredSuccess: 'Listing restored to draft.',
   saving: 'Saving…',
   publishing: 'Publishing…',
   cancel: 'Cancel',
@@ -764,6 +794,8 @@ const thaiCopy: typeof englishCopy = {
   saveDraft: 'บันทึกฉบับร่าง',
   saveChanges: 'บันทึกการแก้ไข',
   publish: 'บันทึกและเผยแพร่',
+  restoreDraft: 'กู้กลับเป็นฉบับร่าง',
+  restoredSuccess: 'กู้ประกาศกลับเป็นฉบับร่างแล้ว',
   saving: 'กำลังบันทึก…',
   publishing: 'กำลังเผยแพร่…',
   cancel: 'ยกเลิก',

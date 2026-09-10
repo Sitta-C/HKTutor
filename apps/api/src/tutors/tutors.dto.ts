@@ -27,6 +27,12 @@ export class ListingQueryDto {
   publicationStatus?: ListingPublicationStatus;
 }
 
+export class ListingStatusRequestDto {
+  @ApiProperty({ enum: ListingPublicationStatus, enumName: 'ListingPublicationStatus' })
+  @IsEnum(ListingPublicationStatus)
+  publicationStatus!: ListingPublicationStatus;
+}
+
 class SubjectOptionResponseDto {
   @ApiProperty({ example: '30000000-0000-4000-8000-000000000001', format: 'uuid' })
   id!: string;

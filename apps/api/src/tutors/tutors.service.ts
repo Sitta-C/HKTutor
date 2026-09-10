@@ -14,6 +14,7 @@ import type {
   ListingPostRequestDto,
   ListingQueryDto,
   ListingResponseDto,
+  ListingStatusRequestDto,
 } from '@/tutors/tutors.dto';
 
 const listingSelect = {
@@ -146,6 +147,36 @@ export class TutorsService {
         data: {
           publicationStatus: ListingPublicationStatus.PUBLISHED,
           publishedAt: new Date(),
+        },
+        select: listingSelect,
+      });
+
+      return mapListing(listing);
+    } catch (error) {
+      if (isRecordNotFound(error)) throw new NotFoundException('Listing not found');
+      throw error;
+    }
+  }
+
+  async updateListingStatus(
+    userId: string,
+    listingId: string,
+    publicationStatus: ListingStatusRequestDto['publicationStatus'],
+  ): Promise<ListingResponseDto> {
+    if (publicationStatus === ListingPublicationStatus.PUBLISHED) {
+      return this.postPublishListing(userId, listingId);
+    }
+
+    try {
+      const listing = await this.prisma.teachingListing.update({
+        where: {
+          id: listingId,
+          tutorProfileId: userId,
+          deletedAt: null,
+        },
+        data: {
+          publicationStatus,
+          ...(publicationStatus === ListingPublicationStatus.DRAFT ? { publishedAt: null } : {}),
         },
         select: listingSelect,
       });

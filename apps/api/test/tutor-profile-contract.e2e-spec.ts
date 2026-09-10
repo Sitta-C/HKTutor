@@ -161,6 +161,35 @@ describe('Tutor and profile contracts (e2e)', () => {
     expect(response.body).toMatchObject({ id: LISTING_ID, pricePerHour: 500 });
   });
 
+  it('archives an owned listing through the status endpoint', async () => {
+    teachingListingFindFirst.mockResolvedValue({ id: LISTING_ID });
+    teachingListingUpdate.mockResolvedValue({
+      ...listing(),
+      publicationStatus: 'ARCHIVED',
+    });
+
+    const response = await request(app.getHttpServer())
+      .patch(`/api/v1/tutors/me/listings/${LISTING_ID}/status`)
+      .send({ publicationStatus: 'ARCHIVED' })
+      .expect(200);
+
+    expect(response.body).toMatchObject({ id: LISTING_ID, publicationStatus: 'ARCHIVED' });
+    expect(teachingListingUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { publicationStatus: 'ARCHIVED' } }),
+    );
+  });
+
+  it('rejects an invalid listing status before updating the database', async () => {
+    teachingListingFindFirst.mockResolvedValue({ id: LISTING_ID });
+
+    await request(app.getHttpServer())
+      .patch(`/api/v1/tutors/me/listings/${LISTING_ID}/status`)
+      .send({ publicationStatus: 'DELETED' })
+      .expect(400);
+
+    expect(teachingListingUpdate).not.toHaveBeenCalled();
+  });
+
   it('returns 400 INVALID_UUID for malformed listing IDs without a resource query', async () => {
     const response = await request(app.getHttpServer())
       .get('/api/v1/tutors/me/listings/not-a-uuid')

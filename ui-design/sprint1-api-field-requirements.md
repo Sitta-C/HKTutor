@@ -355,8 +355,18 @@ error UX, the Tutor subject label, and Tutor certificates require the follow-up 
 - Errors: `400 INVALID_UUID` or incomplete listing, `401`, `403` wrong role or unverified tutor,
   `404 LISTING_NOT_FOUND`, `409` invalid transition.
 
-Trello has no Sprint 1 endpoint for archiving or restoring a listing. Frontend must not add those
-actions until a separate contract is assigned.
+### `PATCH /tutors/me/listings/:listingId/status`
+
+| Input field         | Type                                    | Required | Rule                        |
+| ------------------- | --------------------------------------- | -------- | --------------------------- |
+| `listingId`         | UUID (path)                             | Yes      | Must be an owned listing    |
+| `publicationStatus` | `DRAFT \| PUBLISHED \| ARCHIVED` (body) | Yes      | Unknown values return `400` |
+
+- Behavior: `ARCHIVED` hides the listing without deleting it; `DRAFT` restores it and clears
+  `publishedAt`; `PUBLISHED` uses the same verified-Tutor requirement as the publish endpoint.
+- Output `200`: complete updated `TeachingListing`.
+- Errors: `400 INVALID_UUID` or invalid body, `401`, `403` wrong role or unverified publish,
+  `404 LISTING_NOT_FOUND` for missing and cross-owner listings.
 
 ### `GET /subjects`
 

@@ -24,6 +24,7 @@ function createController() {
     patchListing: jest.fn(),
     postListing: jest.fn(),
     postPublishListing: jest.fn(),
+    updateListingStatus: jest.fn(),
   };
 
   return {
@@ -41,6 +42,7 @@ describe('TutorsController', () => {
     ['getListing', 'listingId'],
     ['patchListing', 'listingId'],
     ['postPublishListing', 'listingId'],
+    ['updateListingStatus', 'listingId'],
   ])('declares ownership protection on %s', (methodName, idParam) => {
     const handler = Object.getOwnPropertyDescriptor(TutorsController.prototype, methodName)
       ?.value as object | undefined;
@@ -107,5 +109,16 @@ describe('TutorsController', () => {
 
     await expect(controller.postPublishListing(user, LISTING_ID)).resolves.toBe(response);
     expect(service.postPublishListing).toHaveBeenCalledWith(USER_ID, LISTING_ID);
+  });
+
+  it('updates an owned listing status through the service', async () => {
+    const { controller, service } = createController();
+    const response = { id: LISTING_ID, publicationStatus: 'ARCHIVED' } as ListingResponseDto;
+    service.updateListingStatus.mockResolvedValue(response);
+
+    await expect(
+      controller.updateListingStatus(user, LISTING_ID, { publicationStatus: 'ARCHIVED' }),
+    ).resolves.toBe(response);
+    expect(service.updateListingStatus).toHaveBeenCalledWith(USER_ID, LISTING_ID, 'ARCHIVED');
   });
 });

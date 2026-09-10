@@ -299,4 +299,67 @@ describe('TutorsService', () => {
       );
     });
   });
+
+  describe('updateListingStatus', () => {
+    it('archives an owned listing while preserving its publish timestamp', async () => {
+      const prisma = createPrisma();
+      const publishedAt = new Date('2026-09-10T01:00:00.000Z');
+      prisma.teachingListing.update.mockResolvedValue(
+        listing({ publicationStatus: 'ARCHIVED', publishedAt }),
+      );
+      const service = new TutorsService(prisma as unknown as PrismaService);
+
+      await expect(
+        service.updateListingStatus(USER_ID, LISTING_ID, 'ARCHIVED'),
+      ).resolves.toMatchObject({ id: LISTING_ID, publicationStatus: 'ARCHIVED', publishedAt });
+      expect(prisma.teachingListing.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: { publicationStatus: 'ARCHIVED' },
+          where: { deletedAt: null, id: LISTING_ID, tutorProfileId: USER_ID },
+        }),
+      );
+    });
+
+    it('restores a listing to draft and clears its publish timestamp', async () => {
+      const prisma = createPrisma();
+      prisma.teachingListing.update.mockResolvedValue(listing());
+      const service = new TutorsService(prisma as unknown as PrismaService);
+
+      await service.updateListingStatus(USER_ID, LISTING_ID, 'DRAFT');
+
+      expect(prisma.teachingListing.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: { publicationStatus: 'DRAFT', publishedAt: null },
+        }),
+      );
+    });
+
+    it('uses the verified publish flow when the requested status is published', async () => {
+      const prisma = createPrisma();
+      prisma.tutorProfile.findUnique.mockResolvedValue({ verificationStatus: 'VERIFIED' });
+      prisma.teachingListing.update.mockResolvedValue(
+        listing({ publicationStatus: 'PUBLISHED', publishedAt: new Date() }),
+      );
+      const service = new TutorsService(prisma as unknown as PrismaService);
+
+      await service.updateListingStatus(USER_ID, LISTING_ID, 'PUBLISHED');
+
+      expect(prisma.tutorProfile.findUnique).toHaveBeenCalled();
+      expect(prisma.teachingListing.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ publicationStatus: 'PUBLISHED' }) as object,
+        }),
+      );
+    });
+
+    it('maps a missing listing to a stable 404', async () => {
+      const prisma = createPrisma();
+      prisma.teachingListing.update.mockRejectedValue(recordNotFoundError());
+      const service = new TutorsService(prisma as unknown as PrismaService);
+
+      await expect(service.updateListingStatus(USER_ID, LISTING_ID, 'ARCHIVED')).rejects.toThrow(
+        new NotFoundException('Listing not found'),
+      );
+    });
+  });
 });

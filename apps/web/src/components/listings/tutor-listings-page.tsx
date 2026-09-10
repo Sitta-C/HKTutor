@@ -12,7 +12,12 @@ import {
   ListingStatusBadge,
 } from '@/components/listings/listing-ui';
 import { ApiError } from '@/lib/api/error';
-import { getTutorListings, publishTutorListing } from '@/lib/api/listings';
+import {
+  archiveTutorListing,
+  getTutorListings,
+  publishTutorListing,
+  restoreTutorListing,
+} from '@/lib/api/listings';
 import { getMyProfile } from '@/lib/api/profiles';
 import { useAuth } from '@/lib/auth-context';
 import { useLanguage } from '@/lib/i18n';
@@ -31,6 +36,7 @@ export default function TutorListingsPage() {
   const [search, setSearch] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [archiveCandidate, setArchiveCandidate] = useState<string | null>(null);
   const [isVerified, setIsVerified] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -106,6 +112,33 @@ export default function TutorListingsPage() {
     try {
       const updated = await publishTutorListing(listingId);
       setListings((current) => current.map((item) => (item.id === listingId ? updated : item)));
+    } catch (caught: unknown) {
+      setError(readListingError(caught, copy.actionError));
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const handleRestoreDraft = async (listingId: string) => {
+    setBusyId(listingId);
+    setError(null);
+    try {
+      const updated = await restoreTutorListing(listingId);
+      setListings((current) => current.map((item) => (item.id === listingId ? updated : item)));
+    } catch (caught: unknown) {
+      setError(readListingError(caught, copy.actionError));
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const handleArchive = async (listingId: string) => {
+    setBusyId(listingId);
+    setError(null);
+    try {
+      const updated = await archiveTutorListing(listingId);
+      setListings((current) => current.map((item) => (item.id === listingId ? updated : item)));
+      setArchiveCandidate(null);
     } catch (caught: unknown) {
       setError(readListingError(caught, copy.actionError));
     } finally {
@@ -342,7 +375,7 @@ export default function TutorListingsPage() {
                         <ListingIcon name="edit" />
                         {copy.edit}
                       </Link>
-                      {listing.publicationStatus !== 'PUBLISHED' && (
+                      {listing.publicationStatus === 'DRAFT' && (
                         <button
                           type="button"
                           disabled={!isVerified || busyId === listing.id}
@@ -351,6 +384,58 @@ export default function TutorListingsPage() {
                         >
                           {busyId === listing.id ? copy.working : copy.publish}
                         </button>
+                      )}
+                      {listing.publicationStatus === 'PUBLISHED' &&
+                        (archiveCandidate === listing.id ? (
+                          <div className="flex min-h-11 flex-1 items-center gap-2 rounded-md border border-[#e6c0b7] bg-[#fff4f1] p-1.5">
+                            <span className="min-w-0 flex-1 px-1 text-xs font-bold text-[#91493d]">
+                              {copy.archiveConfirm}
+                            </span>
+                            <button
+                              type="button"
+                              disabled={busyId === listing.id}
+                              onClick={() => void handleArchive(listing.id)}
+                              className="listing-danger-action min-h-11 rounded-sm bg-[#9b4e40] px-3 text-xs font-extrabold text-white"
+                            >
+                              {copy.confirm}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setArchiveCandidate(null)}
+                              className="listing-secondary-action min-h-11 rounded-sm px-2 text-xs font-extrabold text-[#5e5a52]"
+                            >
+                              {copy.cancel}
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => setArchiveCandidate(listing.id)}
+                            className="listing-danger-action inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-md border border-[#ead7d1] px-3 text-sm font-extrabold text-[#985043] transition hover:bg-[#fff0ec]"
+                          >
+                            <ListingIcon name="archive" />
+                            {copy.archive}
+                          </button>
+                        ))}
+                      {listing.publicationStatus === 'ARCHIVED' && (
+                        <>
+                          <button
+                            type="button"
+                            disabled={busyId === listing.id}
+                            onClick={() => void handleRestoreDraft(listing.id)}
+                            className="listing-secondary-action min-h-11 flex-1 rounded-md border border-[#d9d2c6] bg-white px-3.5 text-sm font-extrabold text-[#3e342c] transition hover:border-[#bba990] hover:bg-[#faf5ed] disabled:cursor-wait disabled:opacity-50"
+                          >
+                            {busyId === listing.id ? copy.working : copy.restoreDraft}
+                          </button>
+                          <button
+                            type="button"
+                            disabled={!isVerified || busyId === listing.id}
+                            onClick={() => void handlePublish(listing.id)}
+                            className="listing-primary-action min-h-11 flex-1 rounded-md bg-[#34271e] px-3.5 text-sm font-extrabold text-white transition hover:bg-[#4b3729] disabled:cursor-not-allowed disabled:opacity-45"
+                          >
+                            {busyId === listing.id ? copy.working : copy.publish}
+                          </button>
+                        </>
                       )}
                     </div>
                   </article>
@@ -427,6 +512,11 @@ const englishCopy = {
   publishedOn: 'Published',
   edit: 'Edit',
   publish: 'Publish',
+  restoreDraft: 'Restore draft',
+  archive: 'Archive',
+  archiveConfirm: 'Archive this?',
+  confirm: 'Confirm',
+  cancel: 'Cancel',
   working: 'Working…',
   loading: 'Loading your teaching listings…',
   loadError: 'Unable to load your teaching listings.',
@@ -473,6 +563,11 @@ const thaiCopy: typeof englishCopy = {
   publishedOn: 'เผยแพร่เมื่อ',
   edit: 'แก้ไข',
   publish: 'เผยแพร่',
+  restoreDraft: 'คืนเป็นฉบับร่าง',
+  archive: 'เก็บถาวร',
+  archiveConfirm: 'เก็บรายการนี้?',
+  confirm: 'ยืนยัน',
+  cancel: 'ยกเลิก',
   working: 'กำลังดำเนินการ…',
   loading: 'กำลังโหลดประกาศสอน…',
   loadError: 'ไม่สามารถโหลดประกาศสอนได้',

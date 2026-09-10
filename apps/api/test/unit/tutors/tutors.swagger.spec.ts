@@ -115,6 +115,7 @@ describe('tutor listing Swagger contract', () => {
   it.each([
     ['get', '/api/v1/tutors/me/listings/{listingId}'],
     ['patch', '/api/v1/tutors/me/listings/{listingId}'],
+    ['patch', '/api/v1/tutors/me/listings/{listingId}/status'],
     ['post', '/api/v1/tutors/me/listings/{listingId}/publish'],
   ])('documents %s %s with owner-safe not-found behavior', (method, path) => {
     const endpoint = operation(method, path);
@@ -144,7 +145,20 @@ describe('tutor listing Swagger contract', () => {
     });
   });
 
-  it('uses one listing response schema for list, detail, create, patch, and publish', () => {
+  it('documents the listing status request enum', () => {
+    const patch = operation('patch', '/api/v1/tutors/me/listings/{listingId}/status');
+    const requestSchema = patch.requestBody as {
+      content: { 'application/json': { schema: ReferenceObject } };
+    };
+
+    expect(requestSchema.content['application/json'].schema.$ref).toBe(
+      '#/components/schemas/ListingStatusRequestDto',
+    );
+    const statusSchema = document.components?.schemas?.['ListingStatusRequestDto'] as SchemaObject;
+    expect(statusSchema.required).toContain('publicationStatus');
+  });
+
+  it('uses one listing response schema for all listing endpoints', () => {
     const listResponse = operation('get', '/api/v1/tutors/me/listings').responses['200'] as {
       content: { 'application/json': { schema: SchemaObject } };
     };
@@ -157,6 +171,7 @@ describe('tutor listing Swagger contract', () => {
       ['get', '/api/v1/tutors/me/listings/{listingId}', '200'],
       ['post', '/api/v1/tutors/me/listings', '201'],
       ['patch', '/api/v1/tutors/me/listings/{listingId}', '200'],
+      ['patch', '/api/v1/tutors/me/listings/{listingId}/status', '200'],
       ['post', '/api/v1/tutors/me/listings/{listingId}/publish', '200'],
     ]) {
       const response = operation(method, path).responses[status] as {

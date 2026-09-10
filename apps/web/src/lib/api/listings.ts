@@ -67,3 +67,21 @@ export function publishTutorListing(listingId: string): Promise<TeachingListing>
     method: 'POST',
   });
 }
+
+export function archiveTutorListing(listingId: string): Promise<TeachingListing> {
+  return updateTutorListingStatus(listingId, 'ARCHIVED');
+}
+
+export function restoreTutorListing(listingId: string): Promise<TeachingListing> {
+  return updateTutorListingStatus(listingId, 'DRAFT');
+}
+
+export function updateTutorListingStatus(
+  listingId: string,
+  publicationStatus: ListingPublicationStatus,
+): Promise<TeachingListing> {
+  return authenticatedFetch(`/tutors/me/listings/${encodeURIComponent(listingId)}/status`, {
+    body: JSON.stringify({ publicationStatus }),
+    method: 'PATCH',
+  });
+}

@@ -5,6 +5,7 @@ import {
   ListingPatchRequestDto,
   ListingPostRequestDto,
   ListingQueryDto,
+  ListingStatusRequestDto,
 } from '@/tutors/tutors.dto';
 
 describe('tutor listing DTOs', () => {
@@ -74,4 +75,19 @@ describe('tutor listing DTOs', () => {
 
     expect(await validate(dto)).not.toHaveLength(0);
   });
+
+  it.each(['DRAFT', 'PUBLISHED', 'ARCHIVED'])('accepts the %s status mutation', async (status) => {
+    const dto = plainToInstance(ListingStatusRequestDto, { publicationStatus: status });
+
+    await expect(validate(dto)).resolves.toHaveLength(0);
+  });
+
+  it.each([{}, { publicationStatus: 'UNKNOWN' }])(
+    'rejects an invalid status mutation (%p)',
+    async (payload) => {
+      const dto = plainToInstance(ListingStatusRequestDto, payload);
+
+      expect(await validate(dto)).not.toHaveLength(0);
+    },
+  );
 });

@@ -24,6 +24,7 @@ import {
   ListingPatchRequestDto,
   ListingPostRequestDto,
   ListingResponseDto,
+  ListingStatusRequestDto,
 } from '@/tutors/tutors.dto';
 
 class ApiErrorResponseDto {
@@ -57,6 +58,7 @@ export function TutorsControllerDoc(): ClassDecorator {
       ListingPatchRequestDto,
       ListingPostRequestDto,
       ListingResponseDto,
+      ListingStatusRequestDto,
     ),
   );
 }
@@ -153,6 +155,29 @@ export function PublishListingDoc(): MethodDecorator {
       type: ApiErrorResponseDto,
     }),
     ApiNotFoundResponse({ description: 'Listing not found', type: ApiErrorResponseDto }),
+  );
+}
+
+export function UpdateListingStatusDoc(): MethodDecorator {
+  return applyDecorators(
+    ApiOperation({ summary: 'Change the publication status of a tutor-owned listing' }),
+    listingIdParam(),
+    ApiBody({ type: ListingStatusRequestDto }),
+    ApiOkResponse({ description: 'Listing status updated', type: ListingResponseDto }),
+    ApiBadRequestResponse({
+      description: 'The publication status or listing ID is invalid (INVALID_UUID for UUID syntax)',
+      type: ApiErrorResponseDto,
+    }),
+    ApiUnauthorizedResponse({ description: unauthorizedDescription, type: ApiErrorResponseDto }),
+    ApiForbiddenResponse({
+      description:
+        'The account is not a tutor, or its tutor profile is not verified when publishing',
+      type: ApiErrorResponseDto,
+    }),
+    ApiNotFoundResponse({
+      description: 'Listing not found or owned by another tutor',
+      type: ApiErrorResponseDto,
+    }),
   );
 }
 

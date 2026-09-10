@@ -20,19 +20,23 @@ test('keeps tutor listing routes and API client wired', async () => {
   assert.match(api, /return listing\.id/);
 });
 
-test('uses assigned detail and publish APIs without unsupported listing status mutations', async () => {
+test('uses detail, publish, archive, and restore listing APIs', async () => {
   const page = await read('apps/web/src/components/listings/tutor-listings-page.tsx');
   const editor = await read('apps/web/src/components/listings/tutor-listing-editor.tsx');
   const api = await read('apps/web/src/lib/api/listings.ts');
 
   assert.match(api, /getTutorListing[\s\S]*\/tutors\/me\/listings\/\$\{/);
-  assert.doesNotMatch(api, /\/status|archiveTutorListing|restoreTutorListing/);
-  assert.doesNotMatch(page, /handleArchive|handleRestoreDraft/);
+  assert.match(api, /\/status/);
+  assert.match(api, /archiveTutorListing/);
+  assert.match(api, /restoreTutorListing/);
+  assert.match(page, /handleArchive/);
+  assert.match(page, /handleRestoreDraft/);
   assert.match(page, /publishTutorListing\(listingId\)/);
   assert.match(page, /publicationStatus === 'ARCHIVED'/);
   assert.match(page, /listing\.id/);
   assert.match(editor, /publishTutorListing\(savedListingId\)/);
-  assert.doesNotMatch(editor, /updateTutorListingStatus|restoreDraft/);
+  assert.match(editor, /updateTutorListingStatus/);
+  assert.match(editor, /restoreDraft/);
 });
 
 test('keeps listing form feedback accessible and within the API contract', async () => {
