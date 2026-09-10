@@ -1,113 +1,126 @@
-import { ApiProperty } from '@nestjs/swagger';
-import { Transform } from 'class-transformer';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { Transform, Type } from 'class-transformer';
 import {
-  IsDefined,
-  IsIn,
+  IsEnum,
   IsNumber,
   IsOptional,
   IsPositive,
   IsString,
-  Length,
+  IsUUID,
+  MaxLength,
+  MinLength,
 } from 'class-validator';
+
+import { ListingPublicationStatus } from '@/generated/prisma/client';
 
 import type { TransformFnParams } from 'class-transformer';
 
-//Listing
-export type PublicationStatus = 'DRAFT' | 'PUBLISHED' | 'ARCHIVED';
+const trimString = ({ value }: TransformFnParams): unknown =>
+  typeof value === 'string' ? value.trim() : value;
 
 export class ListingQueryDto {
+  @ApiPropertyOptional({ enum: ListingPublicationStatus, enumName: 'ListingPublicationStatus' })
   @IsOptional()
-  @IsIn(['DRAFT', 'PUBLISHED', 'ARCHIVED'])
-  publicationStatus?: PublicationStatus;
+  @IsEnum(ListingPublicationStatus)
+  publicationStatus?: ListingPublicationStatus;
+}
+
+class CatalogValueResponseDto {
+  @ApiProperty({ example: '30000000-0000-4000-8000-000000000001', format: 'uuid' })
+  id!: string;
+
+  @ApiProperty({ example: 'MATH' })
+  code!: string;
+
+  @ApiProperty({ example: 'Mathematics' })
+  name!: string;
+
+  @ApiProperty({ example: true })
+  active!: boolean;
+
+  @ApiProperty({ example: '2026-08-17T00:00:00.000Z', format: 'date-time' })
+  createdAt!: Date;
+
+  @ApiProperty({ example: '2026-08-17T00:00:00.000Z', format: 'date-time' })
+  updatedAt!: Date;
 }
 
 export class ListingResponseDto {
-  @ApiProperty({ example: '<uuid>' })
+  @ApiProperty({ example: '10000000-0000-4000-8000-000000000001', format: 'uuid' })
   listingId!: string;
 
-  @ApiProperty({
-    example: `{id: <uuid>, code: <code>, name: math, active: true, createdAt: ${new Date('2026-08-17').toISOString()}, updatedAt: ${new Date('2026-08-17').toISOString()}}`,
-  })
-  subject!: {
-    id: string;
-    code: string;
-    name: string;
-    active: boolean;
-    createdAt: Date;
-    updatedAt: Date;
-  };
+  @ApiProperty({ type: CatalogValueResponseDto })
+  subject!: CatalogValueResponseDto;
 
-  @ApiProperty({
-    example: `{id: <uuid>, code: <code>, name: <name>, active: true, createdAt: ${new Date('2026-08-17').toISOString()}, updatedAt: ${new Date('2026-08-17').toISOString()}}`,
-  })
-  gradeLevel!: {
-    id: string;
-    code: string;
-    name: string;
-    active: boolean;
-    createdAt: Date;
-    updatedAt: Date;
-  };
+  @ApiProperty({ type: CatalogValueResponseDto })
+  gradeLevel!: CatalogValueResponseDto;
 
-  @IsNumber({ maxDecimalPlaces: 2 })
-  @ApiProperty({ example: 199.0 })
+  @ApiProperty({ example: 450.5, minimum: 0, type: Number })
   pricePerHour!: number;
 
-  @ApiProperty({ example: '...' })
+  @ApiProperty({ example: 'Experienced mathematics tutor.' })
   description!: string;
 
-  @ApiProperty({ example: 'DRAFT' })
-  publicationStatus!: PublicationStatus;
+  @ApiProperty({ enum: ListingPublicationStatus, enumName: 'ListingPublicationStatus' })
+  publicationStatus!: ListingPublicationStatus;
 
-  @ApiProperty({ example: new Date('2026-08-17') })
-  publishedAt?: Date | null;
+  @ApiProperty({ example: null, format: 'date-time', nullable: true, type: String })
+  publishedAt!: Date | null;
 
-  @ApiProperty({ example: new Date('2026-08-17') })
+  @ApiProperty({ example: '2026-08-17T00:00:00.000Z', format: 'date-time' })
   updatedAt!: Date;
 }
 
 export class ListingPostRequestDto {
-  @IsDefined()
+  @ApiProperty({ example: '30000000-0000-4000-8000-000000000001', format: 'uuid' })
+  @IsUUID()
   subjectId!: string;
 
-  @IsDefined()
+  @ApiProperty({ example: '40000000-0000-4000-8000-000000000001', format: 'uuid' })
+  @IsUUID()
   gradeLevelId!: string;
 
-  @IsDefined()
-  @Transform(toNumberWhenPresent)
+  @ApiProperty({ example: 450.5, exclusiveMinimum: true, minimum: 0, type: Number })
+  @Type(() => Number)
   @IsNumber({ maxDecimalPlaces: 2 })
   @IsPositive({ message: 'pricePerHour must be more than 0' })
   pricePerHour!: number;
 
-  @IsDefined()
+  @ApiProperty({ example: 'Experienced mathematics tutor.', maxLength: 1000, minLength: 20 })
+  @Transform(trimString)
   @IsString()
-  @Length(20, 1000)
+  @MinLength(20)
+  @MaxLength(1000)
   description!: string;
 }
 
 export class ListingPatchRequestDto {
+  @ApiPropertyOptional({ example: '30000000-0000-4000-8000-000000000001', format: 'uuid' })
   @IsOptional()
+  @IsUUID()
   subjectId?: string;
 
+  @ApiPropertyOptional({ example: '40000000-0000-4000-8000-000000000001', format: 'uuid' })
   @IsOptional()
+  @IsUUID()
   gradeLevelId?: string;
 
+  @ApiPropertyOptional({ example: 450.5, exclusiveMinimum: true, minimum: 0, type: Number })
   @IsOptional()
-  @Transform(toNumberWhenPresent)
+  @Type(() => Number)
   @IsNumber({ maxDecimalPlaces: 2 })
   @IsPositive({ message: 'pricePerHour must be more than 0' })
   pricePerHour?: number;
 
+  @ApiPropertyOptional({
+    example: 'Experienced mathematics tutor.',
+    maxLength: 1000,
+    minLength: 20,
+  })
   @IsOptional()
+  @Transform(trimString)
   @IsString()
-  @Length(20, 1000)
+  @MinLength(20)
+  @MaxLength(1000)
   description?: string;
-}
-
-function toNumberWhenPresent({ value }: TransformFnParams): unknown {
-  if (typeof value !== 'string' || value.trim() === '') {
-    return value;
-  }
-
-  return Number(value);
 }
