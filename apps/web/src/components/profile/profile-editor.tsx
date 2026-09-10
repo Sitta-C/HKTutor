@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
+import { DashboardIcon, type DashboardIconName } from '@/components/dashboard/dashboard-icon';
 import DashboardShell from '@/components/dashboard/dashboard-shell';
 import PrivacyConsent from '@/components/privacy-consent';
 import { ApiError } from '@/lib/api/error';
@@ -303,7 +304,9 @@ export default function ProfileEditor({ mode }: ProfileEditorProps) {
             </div>
             {mode === 'onboarding' && (
               <div className={`profile-onboarding-note ${studentRole ? 'student' : 'tutor'}`}>
-                <span>✓</span>
+                <span className="profile-inline-icon" aria-hidden="true">
+                  <DashboardIcon name="check" className="h-4 w-4" />
+                </span>
                 <p>{text.onboardingBody}</p>
               </div>
             )}
@@ -355,7 +358,12 @@ export default function ProfileEditor({ mode }: ProfileEditorProps) {
                 {text.cancel}
               </button>
               {dirty && <span className="profile-dirty">{text.unsaved}</span>}
-              {saved && <span className="profile-saved">✓ {text.saved}</span>}
+              {saved && (
+                <span className="profile-saved">
+                  <DashboardIcon name="check" className="h-3.5 w-3.5" />
+                  {text.saved}
+                </span>
+              )}
             </div>
           </form>
           {studentRole ? (
@@ -367,7 +375,8 @@ export default function ProfileEditor({ mode }: ProfileEditorProps) {
       )}
       {saved && (
         <div className="profile-toast" role="status" aria-live="polite">
-          ✓ {text.saved}
+          <DashboardIcon name="check" className="h-4 w-4" />
+          {text.saved}
         </div>
       )}
     </DashboardShell>
@@ -642,17 +651,19 @@ function SystemInfo({
         <>
           <ReadOnly
             label={text.profileStatus}
-            value={complete ? `● ${text.complete}` : text.incomplete}
-            status
+            value={complete ? text.complete : text.incomplete}
+            status={complete}
+            statusIcon={complete ? 'check' : 'info'}
           />
-          <ReadOnly label={text.privacyNotice} value={`● ${text.current}`} status />
+          <ReadOnly label={text.privacyNotice} value={text.current} status statusIcon="check" />
         </>
       ) : (
         <>
           <ReadOnly
             label={text.verification}
-            value={`● ${text.status[tutorMeta.verificationStatus]}`}
+            value={text.status[tutorMeta.verificationStatus]}
             status
+            statusIcon={tutorMeta.verificationStatus === 'VERIFIED' ? 'check' : 'info'}
           />
           <ReadOnly label={text.rating} value={tutorMeta.ratingAverage ?? text.newTutor} />
           <ReadOnly label={text.reviews} value={String(tutorMeta.reviewCount)} />
@@ -667,7 +678,7 @@ function StudentSummary({ data, language }: { data: StudentForm; language: 'en' 
   const nickname = data.nickname.trim() || text.nickname;
   return (
     <aside className="dash-card profile-preview-card">
-      <PreviewTitle icon="👤" title={text.accountSummary} body={text.accountSummaryBody} />
+      <PreviewTitle icon="profile" title={text.accountSummary} body={text.accountSummaryBody} />
       <div className="profile-public-card student">
         <Identity
           name={nickname}
@@ -701,14 +712,15 @@ function TutorPreview({
   const name = data.displayName.trim() || text.displayName;
   return (
     <aside className="dash-card profile-preview-card">
-      <PreviewTitle icon="👁" title={text.studentView} body={text.studentViewBody} />
+      <PreviewTitle icon="eye" title={text.studentView} body={text.studentViewBody} />
       <div className="profile-public-card tutor">
         <Identity
           name={name}
           detail={`${data.experienceYears || '0'} ${text.yearsExperience}`}
           initials={initials(name, 'T')}
           role="tutor"
-          badge={`● ${text.status[status]}`}
+          badge={text.status[status]}
+          badgeIcon={status === 'VERIFIED' ? 'check' : 'info'}
         />
         <p className="profile-bio-preview">{data.bio.trim() || text.bioHint}</p>
       </div>
@@ -720,11 +732,21 @@ function TutorPreview({
   );
 }
 
-function PreviewTitle({ icon, title, body }: { icon: string; title: string; body: string }) {
+function PreviewTitle({
+  icon,
+  title,
+  body,
+}: {
+  icon: DashboardIconName;
+  title: string;
+  body: string;
+}) {
   return (
     <>
       <div className="profile-preview-title">
-        <span>{icon}</span>
+        <span aria-hidden="true">
+          <DashboardIcon name={icon} className="h-4 w-4" />
+        </span>
         <h2>{title}</h2>
       </div>
       <p className="profile-preview-subtitle">{body}</p>
@@ -737,12 +759,14 @@ function Identity({
   initials: letters,
   role,
   badge,
+  badgeIcon,
 }: {
   name: string;
   detail: string;
   initials: string;
   role: 'student' | 'tutor';
   badge?: string;
+  badgeIcon?: DashboardIconName;
 }) {
   return (
     <div className="profile-identity">
@@ -750,16 +774,34 @@ function Identity({
       <div>
         <h3>{name}</h3>
         <p>{detail}</p>
-        {badge && <span className="profile-verified">{badge}</span>}
+        {badge && (
+          <span className="profile-verified">
+            {badgeIcon && <DashboardIcon name={badgeIcon} className="h-3 w-3" />}
+            {badge}
+          </span>
+        )}
       </div>
     </div>
   );
 }
-function ReadOnly({ label, value, status }: { label: string; value: string; status?: boolean }) {
+function ReadOnly({
+  label,
+  value,
+  status,
+  statusIcon,
+}: {
+  label: string;
+  value: string;
+  status?: boolean;
+  statusIcon?: DashboardIconName;
+}) {
   return (
     <div className="profile-read-only">
       <span>{label}</span>
-      <b className={status ? 'status' : undefined}>{value}</b>
+      <b className={status ? 'status' : undefined}>
+        {statusIcon && <DashboardIcon name={statusIcon} className="profile-read-only-icon" />}
+        {value}
+      </b>
     </div>
   );
 }

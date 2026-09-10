@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 
+import { DashboardIcon } from '@/components/dashboard/dashboard-icon';
 import DashboardShell from '@/components/dashboard/dashboard-shell';
 import { getUserDisplayName } from '@/lib/dashboard-navigation';
 import { useLanguage } from '@/lib/i18n';
@@ -20,8 +21,8 @@ export function TutorDashboard({ user, onLogout }: TutorDashboardProps) {
 
   const headerNav = (
     <>
-      <Link href="#listings">{copy.dashboard.header.myListingsNav}</Link>
-      <Link href="#new-listing" className="dash-cta">
+      <Link href="/dashboard/listings">{copy.dashboard.header.myListingsNav}</Link>
+      <Link href="/dashboard/listings/new" className="dash-cta">
         {copy.dashboard.header.newListingCta}
       </Link>
     </>
@@ -108,21 +109,21 @@ export function TutorDashboard({ user, onLogout }: TutorDashboardProps) {
               <span>{tutorCopy.quickActions}</span>
             </h2>
             <div className="dash-qa dash-qa-tutor">
-              <Link href="#new-listing">
+              <Link href="/dashboard/listings/new">
                 <span className="ico" aria-hidden="true">
-                  ＋
+                  <DashboardIcon name="plus" />
                 </span>
                 <span>{tutorCopy.newListingAction}</span>
               </Link>
               <Link href="#availability">
                 <span className="ico" aria-hidden="true">
-                  🗓
+                  <DashboardIcon name="calendar" />
                 </span>
                 <span>{tutorCopy.openSlotsAction}</span>
               </Link>
               <Link href="/dashboard/profile">
                 <span className="ico" aria-hidden="true">
-                  👤
+                  <DashboardIcon name="profile" />
                 </span>
                 <span>{tutorCopy.editProfileAction}</span>
               </Link>
@@ -171,7 +172,9 @@ export function TutorDashboard({ user, onLogout }: TutorDashboardProps) {
                 />
               </label>
               <Link href="#calendar" className="dash-btn-dark">
-                <span className="ico">📅</span>
+                <span className="ico" aria-hidden="true">
+                  <DashboardIcon name="calendar" />
+                </span>
                 <span>{tutorCopy.openCalendar}</span>
               </Link>
             </div>
@@ -180,7 +183,9 @@ export function TutorDashboard({ user, onLogout }: TutorDashboardProps) {
           <div className="rounded-2xl border border-dashed border-[#ebe6dd] bg-[#faf8f4] p-8 text-center">
             <p className="text-base font-bold text-[#1a1916]">{tutorCopy.noBookingRequestsYet}</p>
             <div className="mx-auto mt-3 max-w-md rounded-xl border border-[#f1ddc4] bg-[#fffaf4] p-3 text-xs text-[#c07a2e]">
-              <span className="mr-1.5 font-bold">ℹ️</span>
+              <span className="mr-1.5 inline-flex align-middle" aria-hidden="true">
+                <DashboardIcon name="info" className="h-4 w-4" />
+              </span>
               <span>{copy.dashboard.common.domainApiNotice}</span>
             </div>
           </div>
@@ -201,8 +206,10 @@ export function TutorDashboard({ user, onLogout }: TutorDashboardProps) {
                 0
               </span>
             </h2>
-            <Link href="#new-listing" className="dash-btn-dark">
-              <span className="ico">＋</span>
+            <Link href="/dashboard/listings/new" className="dash-btn-dark">
+              <span className="ico" aria-hidden="true">
+                <DashboardIcon name="plus" />
+              </span>
               <span>{tutorCopy.newListingAction}</span>
             </Link>
           </div>
