@@ -167,6 +167,9 @@ input {
   background: #071522;
   border-right-color: #1f3345;
   color: #e7eef4;
+  height: auto;
+  min-height: 100vh;
+  align-self: stretch;
 }
 
 .dash-app-profile .dash-logo,
@@ -688,6 +691,7 @@ input {
 
   .dash-app-profile .dash-sidebar {
     padding: 0.9rem 0.75rem;
+    min-height: 0;
   }
 
   .dash-app-profile .dash-profile-nav-card .dash-side-nav {
