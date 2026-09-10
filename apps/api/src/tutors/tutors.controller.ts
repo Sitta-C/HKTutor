@@ -1,16 +1,17 @@
 import {
+  Body,
   Controller,
   Get,
-  UseGuards,
-  HttpStatus,
   HttpCode,
-  Body,
-  BadRequestException,
-  Post,
-  Patch,
+  HttpStatus,
   Param,
+  Patch,
+  Post,
+  Query,
+  UseGuards,
 } from '@nestjs/common';
 
+import { CurrentUser } from '@/auth/auth.decorator';
 import { JwtAuthGuard } from '@/auth/auth.guard';
 import { RequireOwnership } from '@/auth/ownership.decorator';
 import { ResourceOwnershipGuard } from '@/auth/ownership.guard';
@@ -31,42 +32,32 @@ import {
   PublishListingDoc,
   TutorsControllerDoc,
 } from '@/tutors/tutors.swagger';
-import { GetUser } from '@/user/get-user.decorator';
+
+import type { AuthenticatedUser } from '@/auth/auth.guard';
 
 @TutorsControllerDoc()
-@Controller('api/tutors')
 @UseGuards(JwtAuthGuard, RolesGuard, ResourceOwnershipGuard)
 @Roles(Role.TUTOR)
+@Controller('tutors')
 export class TutorsController {
-  constructor(private readonly tutorsService: TutorsService) {}
+  constructor(private readonly tutors: TutorsService) {}
 
-  //Listing
   @Get('me/listings')
-  @HttpCode(HttpStatus.OK)
   @GetMyListingsDoc()
-  async getListings(
-    @GetUser('userId') userId: string,
-    @Body() request: ListingQueryDto,
+  getListings(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query() query: ListingQueryDto,
   ): Promise<ListingResponseDto[]> {
-    if (!userId) {
-      throw new BadRequestException(`userId missing`);
-    }
-    const response = await this.tutorsService.getListings(userId, request);
-    return response ? response : [];
+    return this.tutors.getListings(user.id, query);
   }
 
   @Post('me/listings')
-  @HttpCode(HttpStatus.CREATED)
   @PostListingDoc()
-  async postListing(
-    @GetUser('userId') userId: string,
-    @Body() request: ListingPostRequestDto,
-  ): Promise<string> {
-    if (!userId) {
-      throw new BadRequestException(`userId missing`);
-    }
-    const response = await this.tutorsService.postListing(userId, request);
-    return response;
+  postListing(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: ListingPostRequestDto,
+  ): Promise<ListingResponseDto> {
+    return this.tutors.postListing(user.id, dto);
   }
 
   @Patch('me/listings/:listingId')
@@ -77,19 +68,12 @@ export class TutorsController {
     allowAdmin: true,
   })
   @PatchListingDoc()
-  async patchListing(
-    @GetUser('userId') userId: string,
+  patchListing(
+    @CurrentUser() user: AuthenticatedUser,
     @Param('listingId') listingId: string,
-    @Body() request: ListingPatchRequestDto,
+    @Body() dto: ListingPatchRequestDto,
   ): Promise<ListingResponseDto> {
-    if (!userId) {
-      throw new BadRequestException(`userId missing`);
-    }
-    if (!listingId) {
-      throw new BadRequestException(`listingId missing`);
-    }
-    const response = await this.tutorsService.patchListing(userId, listingId, request);
-    return response;
+    return this.tutors.patchListing(user.id, listingId, dto);
   }
 
   @Post('me/listings/:listingId/publish')
@@ -100,17 +84,10 @@ export class TutorsController {
     allowAdmin: true,
   })
   @PublishListingDoc()
-  async postPublishListing(
-    @GetUser('userId') userId: string,
+  postPublishListing(
+    @CurrentUser() user: AuthenticatedUser,
     @Param('listingId') listingId: string,
-  ) {
-    if (!userId) {
-      throw new BadRequestException(`userId missing`);
-    }
-    if (!listingId) {
-      throw new BadRequestException(`listingId missing`);
-    }
-    await this.tutorsService.postPublishListing(userId, listingId);
-    return;
+  ): Promise<ListingResponseDto> {
+    return this.tutors.postPublishListing(user.id, listingId);
   }
 }

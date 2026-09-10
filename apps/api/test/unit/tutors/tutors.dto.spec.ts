@@ -10,8 +10,8 @@ import {
 describe('tutor listing DTOs', () => {
   it('accepts a valid create request and transforms a numeric price string', async () => {
     const dto = plainToInstance(ListingPostRequestDto, {
-      subjectId: 'subject-id',
-      gradeLevelId: 'grade-level-id',
+      subjectId: '30000000-0000-4000-8000-000000000001',
+      gradeLevelId: '40000000-0000-4000-8000-000000000001',
       pricePerHour: '450.50',
       description: 'Experienced mathematics tutor.',
     });
@@ -28,8 +28,8 @@ describe('tutor listing DTOs', () => {
     ['short description', { description: 'Too short' }],
   ])('rejects a create request with %s', async (_label, override) => {
     const dto = plainToInstance(ListingPostRequestDto, {
-      subjectId: 'subject-id',
-      gradeLevelId: 'grade-level-id',
+      subjectId: '30000000-0000-4000-8000-000000000001',
+      gradeLevelId: '40000000-0000-4000-8000-000000000001',
       pricePerHour: 450.5,
       description: 'Experienced mathematics tutor.',
       ...override,
