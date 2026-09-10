@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
+import DashboardShell from '@/components/dashboard/dashboard-shell';
 import PrivacyConsent from '@/components/privacy-consent';
 import { ApiError } from '@/lib/api/error';
 import {
@@ -15,60 +16,26 @@ import {
 import { useAuth } from '@/lib/auth-context';
 import { useLanguage } from '@/lib/i18n';
 
-import type { FormEvent, ReactNode } from 'react';
+import type { AuthUser, StudentProfile, TutorProfile } from '@/lib/api/types';
+import type { FormEvent, InputHTMLAttributes, ReactNode } from 'react';
 
 interface ProfileEditorProps {
   mode: 'onboarding' | 'edit';
 }
 
-interface StudentFormData {
-  firstName: string;
-  lastName: string;
-  nickname: string;
-  school: string;
-  gradeLevel: string;
-  phone: string;
-}
-
-interface TutorFormData {
-  firstName: string;
-  lastName: string;
-  nickname: string;
-  displayName: string;
+type StudentForm = StudentProfile;
+interface TutorForm {
   bio: string;
-  experienceYears: string;
-}
-
-interface ProfileCopy {
-  back: string;
-  bio: string;
-  consentRequired: string;
-  continue: string;
   displayName: string;
-  displayNameHint: string;
-  editEyebrow: string;
-  editTitle: string;
   experienceYears: string;
   firstName: string;
-  gradeLevel: string;
   lastName: string;
-  loadError: string;
-  loading: string;
   nickname: string;
-  onboardingEyebrow: string;
-  onboardingTitle: string;
-  phone: string;
-  phoneHint: string;
-  save: string;
-  saveError: string;
-  saving: string;
-  school: string;
-  signOut: string;
-  subtitle: string;
-  updatedNotice: string;
 }
+type FieldName = keyof StudentForm | keyof TutorForm;
+type FieldErrors = Partial<Record<FieldName, string>>;
 
-const emptyStudent: StudentFormData = {
+const emptyStudent: StudentForm = {
   firstName: '',
   gradeLevel: '',
   lastName: '',
@@ -76,8 +43,7 @@ const emptyStudent: StudentFormData = {
   phone: '',
   school: '',
 };
-
-const emptyTutor: TutorFormData = {
+const emptyTutor: TutorForm = {
   bio: '',
   displayName: '',
   experienceYears: '',
@@ -85,24 +51,45 @@ const emptyTutor: TutorFormData = {
   lastName: '',
   nickname: '',
 };
-
-const fieldClass =
-  'mt-2 h-12 w-full rounded-xl border border-[#dedbd3] bg-white px-4 text-[#171714] outline-none transition-colors placeholder:text-[#9a968d] focus:border-[#171714] focus:ring-2 focus:ring-[#171714]/10';
+const emptyTutorMeta = {
+  ratingAverage: null,
+  reviewCount: 0,
+  verificationStatus: 'PENDING',
+} satisfies Pick<TutorProfile, 'ratingAverage' | 'reviewCount' | 'verificationStatus'>;
+const phonePattern = /^[+0-9][0-9 ()-]{7,31}$/;
+const fields: FieldName[] = [
+  'firstName',
+  'lastName',
+  'nickname',
+  'school',
+  'gradeLevel',
+  'phone',
+  'displayName',
+  'bio',
+  'experienceYears',
+];
 
 export default function ProfileEditor({ mode }: ProfileEditorProps) {
   const { isLoading: authLoading, logout, user } = useAuth();
   const { language } = useLanguage();
   const router = useRouter();
-  const [student, setStudent] = useState<StudentFormData>(emptyStudent);
-  const [tutor, setTutor] = useState<TutorFormData>(emptyTutor);
+  const text = copy[language];
+  const [student, setStudent] = useState<StudentForm>(emptyStudent);
+  const [initialStudent, setInitialStudent] = useState<StudentForm>(emptyStudent);
+  const [tutor, setTutor] = useState<TutorForm>(emptyTutor);
+  const [initialTutor, setInitialTutor] = useState<TutorForm>(emptyTutor);
+  const [tutorMeta, setTutorMeta] =
+    useState<Pick<TutorProfile, 'ratingAverage' | 'reviewCount' | 'verificationStatus'>>(
+      emptyTutorMeta,
+    );
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
   const [consentCurrent, setConsentCurrent] = useState(true);
   const [acceptedNotice, setAcceptedNotice] = useState(false);
   const [consentError, setConsentError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-
-  const copy = language === 'th' ? thaiCopy : englishCopy;
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
 
   useEffect(() => {
     if (authLoading) return;
@@ -120,21 +107,16 @@ export default function ProfileEditor({ mode }: ProfileEditorProps) {
       .then((result) => {
         if (!active) return;
         setConsentCurrent(result.consentCurrent);
-
         if (user.role === 'STUDENT' && result.profile && 'school' in result.profile) {
           setStudent(result.profile);
+          setInitialStudent(result.profile);
         }
         if (user.role === 'TUTOR' && result.profile && 'displayName' in result.profile) {
-          setTutor({
-            bio: result.profile.bio,
-            displayName: result.profile.displayName,
-            experienceYears: String(result.profile.experienceYears),
-            firstName: result.profile.firstName ?? '',
-            lastName: result.profile.lastName ?? '',
-            nickname: result.profile.nickname ?? '',
-          });
+          const form = toTutorForm(result.profile);
+          setTutor(form);
+          setInitialTutor(form);
+          setTutorMeta(result.profile);
         }
-
         if (mode === 'onboarding' && result.profileComplete && result.consentCurrent) {
           router.replace('/dashboard');
           return;
@@ -145,379 +127,932 @@ export default function ProfileEditor({ mode }: ProfileEditorProps) {
         if (!active) return;
         if (caught instanceof ApiError && caught.status === 400) {
           setConsentCurrent(false);
-          setError(null);
-          setIsLoading(false);
-          return;
+        } else {
+          setError(caught instanceof Error ? caught.message : text.loadError);
         }
-        setError(caught instanceof Error ? caught.message : copy.loadError);
         setIsLoading(false);
       });
-
     return () => {
       active = false;
     };
-  }, [authLoading, copy.loadError, mode, router, user]);
+  }, [authLoading, mode, router, text.loadError, user]);
+
+  const studentRole = user?.role === 'STUDENT';
+  const dirty = studentRole
+    ? JSON.stringify(student) !== JSON.stringify(initialStudent)
+    : JSON.stringify(tutor) !== JSON.stringify(initialTutor);
+
+  const clearFieldError = (field: FieldName) => {
+    setSaved(false);
+    setFieldErrors((current) => {
+      if (!current[field]) return current;
+      const next = { ...current };
+      delete next[field];
+      return next;
+    });
+  };
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!user || user.role === 'ADMIN') return;
 
-    if (!consentCurrent && !acceptedNotice) {
-      setConsentError(copy.consentRequired);
-      return;
-    }
-
-    setError(null);
-    setConsentError(null);
-    setIsSaving(true);
-
-    try {
-      if (!consentCurrent) {
+    if (!consentCurrent) {
+      if (!acceptedNotice) {
+        setConsentError(text.consentRequired);
+        return;
+      }
+      setIsSaving(true);
+      try {
         await acceptCurrentPrivacyNotice();
         const result = await getMyProfile();
         setConsentCurrent(result.consentCurrent);
         setAcceptedNotice(false);
+        setConsentError(null);
 
         if (user.role === 'STUDENT' && result.profile && 'school' in result.profile) {
           setStudent(result.profile);
+          setInitialStudent(result.profile);
         }
         if (user.role === 'TUTOR' && result.profile && 'displayName' in result.profile) {
-          setTutor({
-            bio: result.profile.bio,
-            displayName: result.profile.displayName,
-            experienceYears: String(result.profile.experienceYears),
-            firstName: result.profile.firstName ?? '',
-            lastName: result.profile.lastName ?? '',
-            nickname: result.profile.nickname ?? '',
-          });
+          const form = toTutorForm(result.profile);
+          setTutor(form);
+          setInitialTutor(form);
+          setTutorMeta(result.profile);
         }
 
         if (mode === 'onboarding' && result.profileComplete) router.replace('/dashboard');
-        return;
+      } catch (caught: unknown) {
+        setError(caught instanceof Error ? caught.message : text.saveError);
+      } finally {
+        setIsSaving(false);
       }
+      return;
+    }
 
+    const validationErrors = studentRole
+      ? validateStudent(student, language)
+      : validateTutor(tutor, language);
+    if (Object.keys(validationErrors).length) {
+      setFieldErrors(validationErrors);
+      focusFirstError(validationErrors);
+      return;
+    }
+
+    setError(null);
+    setFieldErrors({});
+    setSaved(false);
+    setIsSaving(true);
+    try {
       if (user.role === 'STUDENT') {
-        await saveStudentProfile(student);
+        const result = await saveStudentProfile(trimForm(student));
+        setStudent(result);
+        setInitialStudent(result);
       } else {
-        await saveTutorProfile({
-          ...tutor,
-          experienceYears: Number(tutor.experienceYears),
+        const normalized = trimForm(tutor);
+        const result = await saveTutorProfile({
+          ...normalized,
+          experienceYears: Number(normalized.experienceYears),
         });
+        const form = toTutorForm(result);
+        setTutor(form);
+        setInitialTutor(form);
+        setTutorMeta(result);
       }
-      router.replace('/dashboard');
+      if (mode === 'onboarding') router.replace('/dashboard');
+      else setSaved(true);
     } catch (caught: unknown) {
-      setError(caught instanceof Error ? caught.message : copy.saveError);
+      const apiErrors = apiFieldErrors(caught);
+      setFieldErrors(apiErrors);
+      if (Object.keys(apiErrors).length) focusFirstError(apiErrors);
+      setError(caught instanceof Error ? caught.message : text.saveError);
     } finally {
       setIsSaving(false);
     }
   };
 
+  const handleCancel = () => {
+    if (studentRole) setStudent(initialStudent);
+    else setTutor(initialTutor);
+    setFieldErrors({});
+    setError(null);
+    setSaved(false);
+  };
   const handleLogout = async () => {
     await logout();
     router.replace('/');
   };
 
-  if (authLoading || isLoading || !user) {
-    return (
-      <main className="flex min-h-dvh items-center justify-center bg-[#fbfaf7] p-6">
-        <p role="status" className="text-sm font-semibold text-[#5e5a52]">
-          {copy.loading}
-        </p>
-      </main>
+  if (authLoading || isLoading || !user) return <Loading label={text.loading} />;
+
+  const shellName = studentRole ? student.nickname.trim() : tutor.nickname.trim();
+  const shellUser: AuthUser = shellName ? { ...user, displayName: shellName } : { ...user };
+  const headerNav =
+    mode === 'edit' ? (
+      <Link href="/dashboard" className="dash-cta">
+        {text.back}
+      </Link>
+    ) : (
+      <button className="profile-header-button" type="button" onClick={() => void handleLogout()}>
+        {text.signOut}
+      </button>
     );
-  }
 
   return (
-    <main className="min-h-dvh bg-[#fbfaf7] px-5 py-8 text-[#171714] sm:px-8 sm:py-12">
-      <div className="mx-auto max-w-3xl">
-        <header className="mb-7 flex items-center justify-between gap-4">
-          <Link href="/dashboard" className="text-xl font-black tracking-[-0.07em]">
-            HKTutor
-          </Link>
-          {mode === 'edit' ? (
-            <Link
-              href="/dashboard"
-              className="rounded-xl border border-[#dedbd3] bg-white px-4 py-2.5 text-sm font-bold hover:bg-[#f7f4ec]"
-            >
-              {copy.back}
-            </Link>
-          ) : (
-            <button
-              type="button"
-              onClick={() => void handleLogout()}
-              className="rounded-xl border border-[#dedbd3] bg-white px-4 py-2.5 text-sm font-bold hover:bg-[#f7f4ec]"
-            >
-              {copy.signOut}
-            </button>
-          )}
-        </header>
+    <DashboardShell user={shellUser} onLogout={handleLogout} headerNavRight={headerNav}>
+      <div className="dash-greeting">
+        <p className="dash-eyebrow">{mode === 'onboarding' ? text.lastStep : text.account}</p>
+        <h1>
+          <span>{studentRole ? text.studentTitle : text.tutorTitle}</span>
+          <span
+            className={`dash-role-chip ${studentRole ? 'dash-role-chip-student' : 'dash-role-chip-tutor'}`}
+          >
+            {studentRole ? text.student : text.tutor}
+          </span>
+        </h1>
+        <p>
+          {mode === 'onboarding'
+            ? text.onboardingBody
+            : studentRole
+              ? text.studentSubtitle
+              : text.tutorSubtitle}
+        </p>
+      </div>
 
-        <section className="rounded-[2rem] bg-white p-6 shadow-[0_22px_65px_rgba(46,39,25,0.08)] sm:p-10">
-          <p className="text-[0.68rem] font-bold uppercase tracking-[0.24em] text-[#d18b43]">
-            {mode === 'onboarding' ? copy.onboardingEyebrow : copy.editEyebrow}
-          </p>
-          <h1 className="mt-2 text-3xl font-bold tracking-[-0.05em]">
-            {mode === 'onboarding' ? copy.onboardingTitle : copy.editTitle}
-          </h1>
-          <p className="mt-3 max-w-2xl leading-7 text-[#5e5a52]">{copy.subtitle}</p>
-
-          <form onSubmit={handleSubmit} className="mt-8 space-y-7">
-            {error && (
-              <p role="alert" className="rounded-xl bg-red-50 p-4 text-sm text-[#c04f40]">
-                {error}
-              </p>
-            )}
-
-            {consentCurrent &&
-              (user.role === 'STUDENT' ? (
-                <StudentFields data={student} copy={copy} onChange={setStudent} />
-              ) : (
-                <TutorFields data={tutor} copy={copy} onChange={setTutor} />
-              ))}
-
-            {!consentCurrent && (
-              <div className="rounded-xl border border-[#f1d5ad] bg-[#fff9ef] p-4">
-                <p className="mb-3 text-sm font-semibold text-[#5e5a52]">{copy.updatedNotice}</p>
-                <PrivacyConsent
-                  accepted={acceptedNotice}
-                  onAcceptedChange={(accepted) => {
-                    setAcceptedNotice(accepted);
-                    if (accepted) setConsentError(null);
-                  }}
-                  error={consentError}
-                />
+      {!consentCurrent ? (
+        <form className="dash-card profile-consent-card" onSubmit={handleSubmit}>
+          {error && <Alert>{error}</Alert>}
+          <p>{text.updatedNotice}</p>
+          <PrivacyConsent
+            accepted={acceptedNotice}
+            onAcceptedChange={(accepted) => {
+              setAcceptedNotice(accepted);
+              if (accepted) setConsentError(null);
+            }}
+            error={consentError}
+          />
+          <button className="profile-primary-button" disabled={isSaving} type="submit">
+            {isSaving ? text.saving : text.continue}
+          </button>
+        </form>
+      ) : (
+        <div className="profile-grid">
+          <form className="dash-card profile-form-card" noValidate onSubmit={handleSubmit}>
+            <div className="profile-card-head">
+              <h2>{text.profileInformation}</h2>
+              <p>{studentRole ? text.allRequired : text.tutorVisibility}</p>
+            </div>
+            {mode === 'onboarding' && (
+              <div className={`profile-onboarding-note ${studentRole ? 'student' : 'tutor'}`}>
+                <span>✓</span>
+                <p>{text.onboardingBody}</p>
               </div>
             )}
+            {error && <Alert>{error}</Alert>}
+            {studentRole ? (
+              <StudentFields
+                data={student}
+                errors={fieldErrors}
+                language={language}
+                onChange={(field, value) => {
+                  setStudent((current) => ({ ...current, [field]: value }));
+                  clearFieldError(field);
+                }}
+              />
+            ) : (
+              <TutorFields
+                data={tutor}
+                errors={fieldErrors}
+                language={language}
+                onChange={(field, value) => {
+                  setTutor((current) => ({ ...current, [field]: value }));
+                  clearFieldError(field);
+                }}
+              />
+            )}
 
-            <button
-              type="submit"
-              disabled={isSaving}
-              className="flex h-13 w-full items-center justify-center rounded-xl bg-[#ffc57d] px-5 text-base font-bold text-[#171714] transition-colors hover:bg-[#ffbd6c] disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {isSaving
-                ? copy.saving
-                : !consentCurrent || mode === 'onboarding'
-                  ? copy.continue
-                  : copy.save}
-            </button>
+            <SystemInfo
+              email={user.email}
+              language={language}
+              student={studentRole}
+              complete={studentRole ? studentComplete(student) : tutorComplete(tutor)}
+              tutorMeta={tutorMeta}
+            />
+            {!studentRole && (
+              <p className="profile-listing-note">
+                {text.listingNote} <Link href="/dashboard#listings">{text.myListings}</Link>.
+              </p>
+            )}
+            <div className="profile-form-actions">
+              <button className="profile-primary-button" disabled={isSaving} type="submit">
+                {isSaving ? text.saving : mode === 'onboarding' ? text.continue : text.save}
+              </button>
+              <button
+                className="profile-ghost-button"
+                disabled={!dirty || isSaving}
+                onClick={handleCancel}
+                type="button"
+              >
+                {text.cancel}
+              </button>
+              {dirty && <span className="profile-dirty">{text.unsaved}</span>}
+              {saved && <span className="profile-saved">✓ {text.saved}</span>}
+            </div>
           </form>
-        </section>
-      </div>
-    </main>
+          {studentRole ? (
+            <StudentSummary data={student} language={language} />
+          ) : (
+            <TutorPreview data={tutor} language={language} status={tutorMeta.verificationStatus} />
+          )}
+        </div>
+      )}
+      {saved && (
+        <div className="profile-toast" role="status" aria-live="polite">
+          ✓ {text.saved}
+        </div>
+      )}
+    </DashboardShell>
   );
 }
 
 function StudentFields({
   data,
-  copy,
+  errors,
+  language,
   onChange,
 }: {
-  data: StudentFormData;
-  copy: ProfileCopy;
-  onChange: (data: StudentFormData) => void;
+  data: StudentForm;
+  errors: FieldErrors;
+  language: 'en' | 'th';
+  onChange: (field: keyof StudentForm, value: string) => void;
 }) {
+  const text = copy[language];
   return (
-    <>
-      <NameFields data={data} copy={copy} onChange={onChange} />
-      <div className="grid gap-5 sm:grid-cols-2">
-        <Field label={copy.school}>
-          <input
-            required
-            maxLength={160}
-            value={data.school}
-            onChange={(event) => onChange({ ...data, school: event.target.value })}
-            className={fieldClass}
-            autoComplete="organization"
-          />
-        </Field>
-        <Field label={copy.gradeLevel}>
-          <input
-            required
-            maxLength={80}
-            value={data.gradeLevel}
-            onChange={(event) => onChange({ ...data, gradeLevel: event.target.value })}
-            className={fieldClass}
-          />
-        </Field>
-      </div>
-      <Field label={copy.phone} hint={copy.phoneHint}>
-        <input
-          required
-          type="tel"
-          minLength={8}
-          maxLength={32}
-          pattern="[+0-9][0-9 ()-]{7,31}"
-          value={data.phone}
-          onChange={(event) => onChange({ ...data, phone: event.target.value })}
-          className={fieldClass}
-          autoComplete="tel"
-        />
-      </Field>
-    </>
+    <div className="profile-fields">
+      <Section title={text.identity} hint={text.ownerOnly} />
+      <TextField
+        id="firstName"
+        label={text.firstName}
+        value={data.firstName}
+        maxLength={100}
+        autoComplete="given-name"
+        error={errors.firstName}
+        onChange={onChange}
+      />
+      <TextField
+        id="lastName"
+        label={text.lastName}
+        value={data.lastName}
+        maxLength={100}
+        autoComplete="family-name"
+        error={errors.lastName}
+        onChange={onChange}
+      />
+      <TextField
+        id="nickname"
+        label={text.nickname}
+        value={data.nickname}
+        maxLength={60}
+        autoComplete="nickname"
+        hint={text.studentNicknameHint}
+        error={errors.nickname}
+        onChange={onChange}
+      />
+      <Section title={text.learningInformation} hint={text.privateProfile} />
+      <TextField
+        id="school"
+        label={text.school}
+        value={data.school}
+        maxLength={160}
+        autoComplete="organization"
+        error={errors.school}
+        onChange={onChange}
+      />
+      <TextField
+        id="gradeLevel"
+        label={text.gradeLevel}
+        value={data.gradeLevel}
+        maxLength={80}
+        error={errors.gradeLevel}
+        onChange={onChange}
+      />
+      <TextField
+        id="phone"
+        label={text.phone}
+        value={data.phone}
+        type="tel"
+        minLength={8}
+        maxLength={32}
+        autoComplete="tel"
+        hint={text.phoneHint}
+        error={errors.phone}
+        full
+        onChange={onChange}
+      />
+    </div>
   );
 }
 
 function TutorFields({
   data,
-  copy,
+  errors,
+  language,
   onChange,
 }: {
-  data: TutorFormData;
-  copy: ProfileCopy;
-  onChange: (data: TutorFormData) => void;
+  data: TutorForm;
+  errors: FieldErrors;
+  language: 'en' | 'th';
+  onChange: (field: keyof TutorForm, value: string) => void;
 }) {
+  const text = copy[language];
   return (
-    <>
-      <NameFields data={data} copy={copy} onChange={onChange} />
-      <Field label={copy.displayName} hint={copy.displayNameHint}>
-        <input
-          required
-          maxLength={100}
-          value={data.displayName}
-          onChange={(event) => onChange({ ...data, displayName: event.target.value })}
-          className={fieldClass}
-        />
-      </Field>
-      <Field label={copy.bio}>
+    <div className="profile-fields">
+      <Section title={text.privateIdentity} hint={text.privateIdentityHint} />
+      <TextField
+        id="firstName"
+        label={text.firstName}
+        value={data.firstName ?? ''}
+        maxLength={100}
+        autoComplete="given-name"
+        error={errors.firstName}
+        onChange={onChange}
+      />
+      <TextField
+        id="lastName"
+        label={text.lastName}
+        value={data.lastName ?? ''}
+        maxLength={100}
+        autoComplete="family-name"
+        error={errors.lastName}
+        onChange={onChange}
+      />
+      <TextField
+        id="nickname"
+        label={text.nickname}
+        value={data.nickname ?? ''}
+        maxLength={60}
+        autoComplete="nickname"
+        hint={text.nicknameHint}
+        error={errors.nickname}
+        onChange={onChange}
+      />
+      <Section title={text.publicProfile} hint={text.shownToStudents} />
+      <TextField
+        id="displayName"
+        label={text.displayName}
+        value={data.displayName}
+        maxLength={100}
+        hint={text.displayNameHint}
+        error={errors.displayName}
+        onChange={onChange}
+      />
+      <TextField
+        id="experienceYears"
+        label={text.experience}
+        value={data.experienceYears}
+        type="number"
+        min={0}
+        step={1}
+        inputMode="numeric"
+        hint={text.experienceHint}
+        error={errors.experienceYears}
+        onChange={onChange}
+      />
+      <Field
+        id="bio"
+        label={text.bio}
+        hint={text.bioHint}
+        error={errors.bio}
+        count={`${data.bio.length} / 2000`}
+        full
+      >
         <textarea
-          required
-          maxLength={2000}
+          id="bio"
           rows={6}
+          maxLength={2000}
           value={data.bio}
-          onChange={(event) => onChange({ ...data, bio: event.target.value })}
-          className={`${fieldClass} h-auto py-3`}
-        />
-      </Field>
-      <Field label={copy.experienceYears}>
-        <input
-          required
-          type="number"
-          min={0}
-          step={1}
-          value={data.experienceYears}
-          onChange={(event) => onChange({ ...data, experienceYears: event.target.value })}
-          className={fieldClass}
-          inputMode="numeric"
-        />
-      </Field>
-    </>
-  );
-}
-
-function NameFields<T extends Pick<StudentFormData, 'firstName' | 'lastName' | 'nickname'>>({
-  data,
-  copy,
-  onChange,
-}: {
-  data: T;
-  copy: ProfileCopy;
-  onChange: (data: T) => void;
-}) {
-  return (
-    <div className="grid gap-5 sm:grid-cols-2">
-      <Field label={copy.firstName}>
-        <input
-          required
-          maxLength={100}
-          value={data.firstName}
-          onChange={(event) => onChange({ ...data, firstName: event.target.value })}
-          className={fieldClass}
-          autoComplete="given-name"
-        />
-      </Field>
-      <Field label={copy.lastName}>
-        <input
-          required
-          maxLength={100}
-          value={data.lastName}
-          onChange={(event) => onChange({ ...data, lastName: event.target.value })}
-          className={fieldClass}
-          autoComplete="family-name"
-        />
-      </Field>
-      <Field label={copy.nickname}>
-        <input
-          required
-          maxLength={60}
-          value={data.nickname}
-          onChange={(event) => onChange({ ...data, nickname: event.target.value })}
-          className={fieldClass}
-          autoComplete="nickname"
+          aria-invalid={Boolean(errors.bio)}
+          aria-describedby={descriptionId('bio', errors.bio, text.bioHint)}
+          onChange={(event) => onChange('bio', event.target.value)}
         />
       </Field>
     </div>
   );
 }
 
-function Field({ label, hint, children }: { label: string; hint?: string; children: ReactNode }) {
+function TextField<T extends FieldName>({
+  id,
+  label,
+  value,
+  hint,
+  error,
+  full,
+  onChange,
+  ...props
+}: {
+  id: T;
+  label: string;
+  value: string;
+  hint?: string | undefined;
+  error?: string | undefined;
+  full?: boolean | undefined;
+  onChange: (field: T, value: string) => void;
+} & Omit<InputHTMLAttributes<HTMLInputElement>, 'id' | 'onChange' | 'value'>) {
   return (
-    <label className="block text-sm font-bold text-[#34332e]">
-      {label}
-      {hint && (
-        <span className="mt-1 block text-xs font-normal leading-5 text-[#77736b]">{hint}</span>
-      )}
-      {children}
-    </label>
+    <Field id={id} label={label} hint={hint} error={error} full={full}>
+      <input
+        {...props}
+        id={id}
+        value={value}
+        aria-invalid={Boolean(error)}
+        aria-describedby={descriptionId(id, error, hint)}
+        onChange={(event) => onChange(id, event.target.value)}
+      />
+    </Field>
   );
 }
 
-const englishCopy: ProfileCopy = {
-  back: 'Back to dashboard',
-  bio: 'Biography',
-  consentRequired: 'Accept the updated privacy notice before saving your profile.',
-  continue: 'Save and continue',
-  displayName: 'Public tutor name',
-  displayNameHint: 'This is the name students and visitors can see.',
-  editEyebrow: 'Account',
-  editTitle: 'Edit your profile',
-  experienceYears: 'Years of tutoring experience',
-  firstName: 'First name',
-  gradeLevel: 'Grade level / class',
-  lastName: 'Last name',
-  loadError: 'Unable to load your profile.',
-  loading: 'Loading profile…',
-  nickname: 'Nickname',
-  onboardingEyebrow: 'One last step',
-  onboardingTitle: 'Complete your profile',
-  phone: 'Emergency telephone number',
-  phoneHint:
-    'Private. Used by authorised project administrators only for urgent class, safety, or service incidents.',
-  save: 'Save changes',
-  saveError: 'Unable to save your profile.',
-  saving: 'Saving…',
-  school: 'School',
-  signOut: 'Sign out',
-  subtitle: 'Keep this information accurate. You can update it later from your dashboard.',
-  updatedNotice: 'The privacy notice has changed because the profile now collects personal data.',
-};
+function Field({
+  id,
+  label,
+  hint,
+  error,
+  full,
+  count,
+  children,
+}: {
+  id: FieldName;
+  label: string;
+  hint?: string | undefined;
+  error?: string | undefined;
+  full?: boolean | undefined;
+  count?: string | undefined;
+  children: ReactNode;
+}) {
+  return (
+    <div className={`profile-field ${full ? 'full' : ''} ${error ? 'invalid' : ''}`}>
+      <div className="profile-label-row">
+        <label htmlFor={id}>{label}</label>
+        {count && <span>{count}</span>}
+      </div>
+      {children}
+      {hint && !error && (
+        <p className="profile-help" id={`${id}-hint`}>
+          {hint}
+        </p>
+      )}
+      {error && (
+        <p className="profile-error" id={`${id}-error`} role="alert">
+          {error}
+        </p>
+      )}
+    </div>
+  );
+}
 
-const thaiCopy: ProfileCopy = {
-  back: 'กลับไปแดชบอร์ด',
-  bio: 'ประวัติแนะนำตัว',
-  consentRequired: 'โปรดยอมรับประกาศความเป็นส่วนตัวฉบับล่าสุดก่อนบันทึกโปรไฟล์',
-  continue: 'บันทึกและดำเนินการต่อ',
-  displayName: 'ชื่อสาธารณะของติวเตอร์',
-  displayNameHint: 'นักเรียนและผู้เยี่ยมชมจะมองเห็นชื่อนี้',
-  editEyebrow: 'บัญชี',
-  editTitle: 'แก้ไขโปรไฟล์',
-  experienceYears: 'จำนวนปีที่มีประสบการณ์สอน',
-  firstName: 'ชื่อจริง',
-  gradeLevel: 'ชั้นเรียน',
-  lastName: 'นามสกุล',
-  loadError: 'ไม่สามารถโหลดโปรไฟล์ได้',
-  loading: 'กำลังโหลดโปรไฟล์…',
-  nickname: 'ชื่อเล่น',
-  onboardingEyebrow: 'ขั้นตอนสุดท้าย',
-  onboardingTitle: 'กรอกข้อมูลโปรไฟล์',
-  phone: 'เบอร์โทรศัพท์สำหรับกรณีฉุกเฉิน',
-  phoneHint:
-    'เป็นข้อมูลส่วนตัว ผู้ดูแลโครงการที่ได้รับอนุญาตจะใช้เฉพาะเหตุเร่งด่วนเกี่ยวกับชั้นเรียน ความปลอดภัย หรือการให้บริการ',
-  save: 'บันทึกการเปลี่ยนแปลง',
-  saveError: 'ไม่สามารถบันทึกโปรไฟล์ได้',
-  saving: 'กำลังบันทึก…',
-  school: 'โรงเรียน',
-  signOut: 'ออกจากระบบ',
-  subtitle: 'กรุณากรอกข้อมูลให้ถูกต้อง คุณสามารถกลับมาแก้ไขได้ภายหลังจากแดชบอร์ด',
-  updatedNotice:
-    'ประกาศความเป็นส่วนตัวมีการปรับปรุง เนื่องจากโปรไฟล์จะเก็บข้อมูลส่วนบุคคลเพิ่มขึ้น',
-};
+function Section({ title, hint }: { title: string; hint: string }) {
+  return (
+    <div className="profile-section-label">
+      <strong>{title}</strong>
+      <span>{hint}</span>
+    </div>
+  );
+}
+
+function SystemInfo({
+  email,
+  language,
+  student,
+  complete,
+  tutorMeta,
+}: {
+  email: string;
+  language: 'en' | 'th';
+  student: boolean;
+  complete: boolean;
+  tutorMeta: Pick<TutorProfile, 'ratingAverage' | 'reviewCount' | 'verificationStatus'>;
+}) {
+  const text = copy[language];
+  return (
+    <div
+      className={`profile-system-info ${student ? 'student' : 'tutor'}`}
+      aria-label={text.profileStatus}
+    >
+      <ReadOnly label={text.accountEmail} value={email} />
+      {student ? (
+        <>
+          <ReadOnly
+            label={text.profileStatus}
+            value={complete ? `● ${text.complete}` : text.incomplete}
+            status
+          />
+          <ReadOnly label={text.privacyNotice} value={`● ${text.current}`} status />
+        </>
+      ) : (
+        <>
+          <ReadOnly
+            label={text.verification}
+            value={`● ${text.status[tutorMeta.verificationStatus]}`}
+            status
+          />
+          <ReadOnly label={text.rating} value={tutorMeta.ratingAverage ?? text.newTutor} />
+          <ReadOnly label={text.reviews} value={String(tutorMeta.reviewCount)} />
+        </>
+      )}
+    </div>
+  );
+}
+
+function StudentSummary({ data, language }: { data: StudentForm; language: 'en' | 'th' }) {
+  const text = copy[language];
+  const nickname = data.nickname.trim() || text.nickname;
+  return (
+    <aside className="dash-card profile-preview-card">
+      <PreviewTitle icon="👤" title={text.accountSummary} body={text.accountSummaryBody} />
+      <div className="profile-public-card student">
+        <Identity
+          name={nickname}
+          detail={text.studentAccount}
+          initials={initials(nickname, 'S')}
+          role="student"
+        />
+        <div className="profile-summary-list">
+          <ReadOnly label={text.school} value={data.school.trim() || '—'} />
+          <ReadOnly label={text.classLabel} value={data.gradeLevel.trim() || '—'} />
+        </div>
+      </div>
+      <div className="profile-tip student">
+        <b>{text.whatTutorsSee}</b>
+        <p>{text.whatTutorsSeeBody}</p>
+      </div>
+    </aside>
+  );
+}
+
+function TutorPreview({
+  data,
+  language,
+  status,
+}: {
+  data: TutorForm;
+  language: 'en' | 'th';
+  status: TutorProfile['verificationStatus'];
+}) {
+  const text = copy[language];
+  const name = data.displayName.trim() || text.displayName;
+  return (
+    <aside className="dash-card profile-preview-card">
+      <PreviewTitle icon="👁" title={text.studentView} body={text.studentViewBody} />
+      <div className="profile-public-card tutor">
+        <Identity
+          name={name}
+          detail={`${data.experienceYears || '0'} ${text.yearsExperience}`}
+          initials={initials(name, 'T')}
+          role="tutor"
+          badge={`● ${text.status[status]}`}
+        />
+        <p className="profile-bio-preview">{data.bio.trim() || text.bioHint}</p>
+      </div>
+      <div className="profile-tip tutor">
+        <b>{text.standOut}</b>
+        <p>{text.standOutBody}</p>
+      </div>
+    </aside>
+  );
+}
+
+function PreviewTitle({ icon, title, body }: { icon: string; title: string; body: string }) {
+  return (
+    <>
+      <div className="profile-preview-title">
+        <span>{icon}</span>
+        <h2>{title}</h2>
+      </div>
+      <p className="profile-preview-subtitle">{body}</p>
+    </>
+  );
+}
+function Identity({
+  name,
+  detail,
+  initials: letters,
+  role,
+  badge,
+}: {
+  name: string;
+  detail: string;
+  initials: string;
+  role: 'student' | 'tutor';
+  badge?: string;
+}) {
+  return (
+    <div className="profile-identity">
+      <div className={`profile-avatar ${role}`}>{letters}</div>
+      <div>
+        <h3>{name}</h3>
+        <p>{detail}</p>
+        {badge && <span className="profile-verified">{badge}</span>}
+      </div>
+    </div>
+  );
+}
+function ReadOnly({ label, value, status }: { label: string; value: string; status?: boolean }) {
+  return (
+    <div className="profile-read-only">
+      <span>{label}</span>
+      <b className={status ? 'status' : undefined}>{value}</b>
+    </div>
+  );
+}
+function Alert({ children }: { children: ReactNode }) {
+  return (
+    <p className="profile-alert" role="alert">
+      {children}
+    </p>
+  );
+}
+function Loading({ label }: { label: string }) {
+  return (
+    <main className="profile-loading">
+      <span />
+      <p role="status">{label}</p>
+    </main>
+  );
+}
+
+function toTutorForm(profile: TutorProfile): TutorForm {
+  return {
+    bio: profile.bio,
+    displayName: profile.displayName,
+    experienceYears: String(profile.experienceYears),
+    firstName: profile.firstName ?? '',
+    lastName: profile.lastName ?? '',
+    nickname: profile.nickname ?? '',
+  };
+}
+function trimForm<T extends object>(data: T): T {
+  return Object.fromEntries(
+    Object.entries(data).map(([key, value]) => [key, value?.trim() ?? '']),
+  ) as T;
+}
+function studentComplete(data: StudentForm) {
+  return Object.values(data).every((value) => value.trim()) && phonePattern.test(data.phone.trim());
+}
+function tutorComplete(data: TutorForm) {
+  const years = Number(data.experienceYears);
+  return (
+    [data.firstName, data.lastName, data.nickname, data.displayName, data.bio].every((value) =>
+      value?.trim(),
+    ) &&
+    data.experienceYears !== '' &&
+    Number.isInteger(years) &&
+    years >= 0
+  );
+}
+function validateRequired(data: StudentForm | TutorForm, language: 'en' | 'th') {
+  const errors: FieldErrors = {};
+  for (const [field, value] of Object.entries(data) as [FieldName, string | null][])
+    if (!value?.trim()) errors[field] = requiredMessage(field, language);
+  return errors;
+}
+function validateStudent(data: StudentForm, language: 'en' | 'th') {
+  const errors = validateRequired(data, language);
+  if (data.phone.trim() && !phonePattern.test(data.phone.trim()))
+    errors.phone = copy[language].invalidPhone;
+  return errors;
+}
+function validateTutor(data: TutorForm, language: 'en' | 'th') {
+  const errors = validateRequired(data, language);
+  const years = Number(data.experienceYears);
+  if (data.experienceYears.trim() && (!Number.isInteger(years) || years < 0))
+    errors.experienceYears = copy[language].invalidYears;
+  return errors;
+}
+function requiredMessage(field: FieldName, language: 'en' | 'th') {
+  const label = copy[language].fieldLabels[field];
+  return language === 'th' ? `กรุณากรอก${label}` : `Enter your ${label.toLowerCase()}.`;
+}
+function apiFieldErrors(error: unknown) {
+  if (!(error instanceof ApiError) || !error.details || typeof error.details !== 'object')
+    return {};
+  const value = (error.details as { message?: unknown }).message;
+  const messages = Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === 'string')
+    : typeof value === 'string'
+      ? [value]
+      : [];
+  const errors: FieldErrors = {};
+  for (const field of fields) {
+    const matchingMessage = messages.find((message) =>
+      message.toLowerCase().includes(field.toLowerCase()),
+    );
+    if (matchingMessage) errors[field] = matchingMessage;
+  }
+  return errors;
+}
+function focusFirstError(errors: FieldErrors) {
+  const field = Object.keys(errors)[0];
+  if (field) requestAnimationFrame(() => document.getElementById(field)?.focus());
+}
+function descriptionId(id: FieldName, error?: string, hint?: string) {
+  return error ? `${id}-error` : hint ? `${id}-hint` : undefined;
+}
+function initials(value: string, fallback: string) {
+  return (
+    value
+      .trim()
+      .split(/\s+/)
+      .slice(0, 2)
+      .map((part) => part[0] ?? '')
+      .join('')
+      .toUpperCase() || fallback
+  );
+}
+
+const copy = {
+  en: {
+    account: 'Account',
+    accountEmail: 'Account email',
+    accountSummary: 'Account summary',
+    accountSummaryBody: 'A quick check of the information used around your account.',
+    allRequired: 'All fields are required by the Student Profile API.',
+    back: 'Back to dashboard',
+    bio: 'Bio',
+    bioHint: 'Share your teaching style, subjects, and what students can expect.',
+    cancel: 'Cancel',
+    classLabel: 'Class',
+    complete: 'Complete',
+    consentRequired: 'Accept the updated privacy notice before continuing.',
+    continue: 'Save and continue',
+    current: 'Current',
+    displayName: 'Public tutor name',
+    displayNameHint: 'This is how students will see you on HKTutor.',
+    experience: 'Experience (years)',
+    experienceHint: 'Use a whole number. Zero is allowed.',
+    firstName: 'First name',
+    gradeLevel: 'Grade level / class',
+    identity: 'Identity',
+    incomplete: 'Incomplete',
+    invalidPhone: 'Enter 8–32 valid phone-number characters.',
+    invalidYears: 'Enter a whole number of zero or more.',
+    lastName: 'Last name',
+    lastStep: 'One last step',
+    learningInformation: 'Learning information',
+    listingNote: 'Subject, grade level, hourly price, and listing description are managed under',
+    loadError: 'Unable to load your profile.',
+    loading: 'Loading profile…',
+    myListings: 'My listings',
+    newTutor: 'New tutor',
+    nickname: 'Nickname',
+    nicknameHint: 'Used for your account greeting.',
+    onboardingBody: 'Complete every required field before continuing to your dashboard.',
+    ownerOnly: 'Owner-only personal information',
+    phone: 'Emergency telephone number',
+    phoneHint:
+      'Private. Used by authorised administrators only for urgent class, safety, or service incidents.',
+    privacyNotice: 'Privacy notice',
+    privateIdentity: 'Private identity',
+    privateIdentityHint: 'Visible only to you and authorised administrators',
+    privateProfile: 'Kept in your private profile',
+    profileInformation: 'Profile information',
+    profileStatus: 'Profile status',
+    publicProfile: 'Public tutor profile',
+    rating: 'Rating',
+    reviews: 'Reviews',
+    save: 'Save profile',
+    saveError: 'Unable to save your profile.',
+    saved: 'Profile saved successfully',
+    saving: 'Saving…',
+    school: 'School',
+    shownToStudents: 'Shown to students',
+    signOut: 'Sign out',
+    standOut: 'Make your profile stand out',
+    standOutBody: 'Highlight your teaching style and what makes your lessons valuable.',
+    student: 'Student',
+    studentAccount: 'Student account',
+    studentNicknameHint:
+      'Used for dashboard greetings and shown only to a tutor linked to your booking.',
+    studentSubtitle: 'Keep your learning and contact information accurate.',
+    studentTitle: 'Your student profile',
+    studentView: 'Student view',
+    studentViewBody: 'This is how your profile appears to students.',
+    tutor: 'Tutor',
+    tutorSubtitle: 'Tell students about your teaching experience.',
+    tutorTitle: 'Your tutor profile',
+    tutorVisibility:
+      'Private identity stays on your account. Only the public tutor section appears to students.',
+    unsaved: 'Unsaved changes',
+    updatedNotice: 'The privacy notice has changed because the profile collects personal data.',
+    verification: 'Verification',
+    whatTutorsSee: 'What tutors can see',
+    whatTutorsSeeBody:
+      'Only your nickname may appear to a tutor linked to your booking. Your legal name, school, class, telephone, and email stay hidden.',
+    yearsExperience: 'years experience',
+    status: { PENDING: 'Pending review', REJECTED: 'Not verified', VERIFIED: 'Verified tutor' },
+    fieldLabels: {
+      bio: 'Tutor biography',
+      displayName: 'Public tutor name',
+      experienceYears: 'Years of experience',
+      firstName: 'First name',
+      gradeLevel: 'Grade level or class',
+      lastName: 'Last name',
+      nickname: 'Nickname',
+      phone: 'Emergency telephone number',
+      school: 'School',
+    },
+  },
+  th: {
+    account: 'บัญชี',
+    accountEmail: 'อีเมลบัญชี',
+    accountSummary: 'สรุปบัญชี',
+    accountSummaryBody: 'ตรวจสอบข้อมูลที่ใช้ภายในบัญชีของคุณอย่างรวดเร็ว',
+    allRequired: 'API โปรไฟล์นักเรียนกำหนดให้กรอกข้อมูลทุกช่อง',
+    back: 'กลับไปแดชบอร์ด',
+    bio: 'แนะนำตัว',
+    bioHint: 'แชร์รูปแบบการสอน วิชา และสิ่งที่นักเรียนจะได้รับ',
+    cancel: 'ยกเลิก',
+    classLabel: 'ชั้นเรียน',
+    complete: 'ข้อมูลครบ',
+    consentRequired: 'โปรดยอมรับประกาศความเป็นส่วนตัวฉบับล่าสุดก่อนดำเนินการต่อ',
+    continue: 'บันทึกและดำเนินการต่อ',
+    current: 'เป็นฉบับล่าสุด',
+    displayName: 'ชื่อสาธารณะของติวเตอร์',
+    displayNameHint: 'นี่คือชื่อที่นักเรียนจะเห็นบน HKTutor',
+    experience: 'ประสบการณ์ (ปี)',
+    experienceHint: 'กรอกเป็นจำนวนเต็ม โดยสามารถกรอกศูนย์ได้',
+    firstName: 'ชื่อจริง',
+    gradeLevel: 'ชั้นเรียน',
+    identity: 'ข้อมูลประจำตัว',
+    incomplete: 'ข้อมูลยังไม่ครบ',
+    invalidPhone: 'กรุณากรอกเบอร์โทรศัพท์ที่ถูกต้อง 8–32 ตัวอักษร',
+    invalidYears: 'กรุณากรอกจำนวนเต็มตั้งแต่ศูนย์ขึ้นไป',
+    lastName: 'นามสกุล',
+    lastStep: 'ขั้นตอนสุดท้าย',
+    learningInformation: 'ข้อมูลการเรียน',
+    listingNote: 'วิชา ระดับชั้น ราคาต่อชั่วโมง และรายละเอียดประกาศ จัดการได้ที่',
+    loadError: 'ไม่สามารถโหลดโปรไฟล์ได้',
+    loading: 'กำลังโหลดโปรไฟล์…',
+    myListings: 'คอร์สของฉัน',
+    newTutor: 'ติวเตอร์ใหม่',
+    nickname: 'ชื่อเล่น',
+    nicknameHint: 'ใช้เป็นชื่อทักทายในบัญชีของคุณ',
+    onboardingBody: 'กรอกข้อมูลที่จำเป็นให้ครบก่อนเข้าสู่แดชบอร์ด',
+    ownerOnly: 'ข้อมูลส่วนตัวสำหรับเจ้าของบัญชี',
+    phone: 'เบอร์โทรศัพท์สำหรับกรณีฉุกเฉิน',
+    phoneHint:
+      'เป็นข้อมูลส่วนตัว ผู้ดูแลที่ได้รับอนุญาตจะใช้เฉพาะเหตุเร่งด่วนเกี่ยวกับชั้นเรียน ความปลอดภัย หรือการให้บริการ',
+    privacyNotice: 'ประกาศความเป็นส่วนตัว',
+    privateIdentity: 'ข้อมูลส่วนตัว',
+    privateIdentityHint: 'เห็นได้เฉพาะคุณและผู้ดูแลที่ได้รับอนุญาต',
+    privateProfile: 'เก็บไว้ในโปรไฟล์ส่วนตัว',
+    profileInformation: 'ข้อมูลโปรไฟล์',
+    profileStatus: 'สถานะโปรไฟล์',
+    publicProfile: 'โปรไฟล์ติวเตอร์สาธารณะ',
+    rating: 'คะแนน',
+    reviews: 'รีวิว',
+    save: 'บันทึกโปรไฟล์',
+    saveError: 'ไม่สามารถบันทึกโปรไฟล์ได้',
+    saved: 'บันทึกโปรไฟล์สำเร็จ',
+    saving: 'กำลังบันทึก…',
+    school: 'โรงเรียน',
+    shownToStudents: 'แสดงให้นักเรียนเห็น',
+    signOut: 'ออกจากระบบ',
+    standOut: 'ทำให้โปรไฟล์ของคุณโดดเด่น',
+    standOutBody: 'เน้นรูปแบบการสอนและสิ่งที่ทำให้บทเรียนของคุณมีคุณค่า',
+    student: 'นักเรียน',
+    studentAccount: 'บัญชีนักเรียน',
+    studentNicknameHint:
+      'ใช้เป็นชื่อทักทายในแดชบอร์ด และแสดงเฉพาะติวเตอร์ที่เกี่ยวข้องกับการจองของคุณ',
+    studentSubtitle: 'กรอกข้อมูลการเรียนและข้อมูลติดต่อของคุณให้ถูกต้อง',
+    studentTitle: 'โปรไฟล์นักเรียนของคุณ',
+    studentView: 'มุมมองนักเรียน',
+    studentViewBody: 'โปรไฟล์ของคุณจะแสดงต่อนักเรียนแบบนี้',
+    tutor: 'ติวเตอร์',
+    tutorSubtitle: 'บอกนักเรียนเกี่ยวกับประสบการณ์การสอนของคุณ',
+    tutorTitle: 'โปรไฟล์ติวเตอร์ของคุณ',
+    tutorVisibility:
+      'ข้อมูลส่วนตัวจะอยู่ในบัญชีของคุณ เฉพาะส่วนโปรไฟล์สาธารณะเท่านั้นที่นักเรียนมองเห็น',
+    unsaved: 'มีการเปลี่ยนแปลงที่ยังไม่ได้บันทึก',
+    updatedNotice: 'ประกาศความเป็นส่วนตัวมีการปรับปรุง เนื่องจากโปรไฟล์เก็บข้อมูลส่วนบุคคล',
+    verification: 'การยืนยัน',
+    whatTutorsSee: 'ข้อมูลที่ติวเตอร์มองเห็น',
+    whatTutorsSeeBody:
+      'เฉพาะชื่อเล่นเท่านั้นที่อาจแสดงให้ติวเตอร์ซึ่งเกี่ยวข้องกับการจองเห็น ชื่อจริง โรงเรียน ชั้นเรียน เบอร์โทรศัพท์ และอีเมลจะไม่แสดง',
+    yearsExperience: 'ปีของประสบการณ์',
+    status: {
+      PENDING: 'รอตรวจสอบ',
+      REJECTED: 'ยังไม่ผ่านการยืนยัน',
+      VERIFIED: 'ติวเตอร์ที่ยืนยันแล้ว',
+    },
+    fieldLabels: {
+      bio: 'ประวัติแนะนำตัว',
+      displayName: 'ชื่อสาธารณะของติวเตอร์',
+      experienceYears: 'จำนวนปีที่มีประสบการณ์',
+      firstName: 'ชื่อจริง',
+      gradeLevel: 'ชั้นเรียน',
+      lastName: 'นามสกุล',
+      nickname: 'ชื่อเล่น',
+      phone: 'เบอร์โทรศัพท์สำหรับกรณีฉุกเฉิน',
+      school: 'โรงเรียน',
+    },
+  },
+} as const;
