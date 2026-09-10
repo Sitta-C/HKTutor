@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { useState } from 'react';
 
 import PrivacyNoticeModal from '@/components/privacy-notice-modal';
@@ -20,10 +21,18 @@ export interface DashboardShellProps {
   onLogout: () => Promise<void>;
   children: ReactNode;
   headerNavRight?: ReactNode;
+  visualVariant?: 'default' | 'profile';
 }
 
-export function DashboardShell({ user, onLogout, children, headerNavRight }: DashboardShellProps) {
+export function DashboardShell({
+  user,
+  onLogout,
+  children,
+  headerNavRight,
+  visualVariant = 'default',
+}: DashboardShellProps) {
   const { language, copy, toggleLanguage } = useLanguage();
+  const pathname = usePathname();
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [privacyNoticeOpen, setPrivacyNoticeOpen] = useState(false);
 
@@ -45,7 +54,9 @@ export function DashboardShell({ user, onLogout, children, headerNavRight }: Das
         <div className={`blob dash-b3-${roleConfig.viewType}`} />
       </div>
 
-      <div className={`dash-app ${isSidebarCollapsed ? 'sb-collapsed' : ''}`}>
+      <div
+        className={`dash-app ${isSidebarCollapsed ? 'sb-collapsed' : ''} ${visualVariant === 'profile' ? 'dash-app-profile' : ''}`}
+      >
         {/* Sticky left sidebar */}
         <aside
           className="dash-sidebar"
@@ -125,7 +136,15 @@ export function DashboardShell({ user, onLogout, children, headerNavRight }: Das
                 }
 
                 return (
-                  <Link key={item.id} href={item.href}>
+                  <Link
+                    key={item.id}
+                    href={item.href}
+                    className={
+                      item.id === 'profile' && pathname === '/dashboard/profile'
+                        ? 'is-active'
+                        : undefined
+                    }
+                  >
                     <span className="flex items-center gap-2.5">
                       <span className="ico" aria-hidden="true">
                         {item.icon}
