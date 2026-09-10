@@ -46,6 +46,10 @@ export class ProfilesService {
     if (!account) throw new NotFoundException('Account not found');
 
     const consentCurrent = account.policyVersion === CURRENT_PRIVACY_POLICY_VERSION;
+    if (user.role !== Role.ADMIN && !consentCurrent) {
+      throw new BadRequestException('Accept the current privacy notice before viewing a profile');
+    }
+
     if (user.role === Role.STUDENT) {
       return {
         consentCurrent,

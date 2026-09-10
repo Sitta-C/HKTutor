@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
 import PrivacyConsent from '@/components/privacy-consent';
+import { ApiError } from '@/lib/api/error';
 import {
   acceptCurrentPrivacyNotice,
   getMyProfile,
@@ -142,6 +143,12 @@ export default function ProfileEditor({ mode }: ProfileEditorProps) {
       })
       .catch((caught: unknown) => {
         if (!active) return;
+        if (caught instanceof ApiError && caught.status === 400) {
+          setConsentCurrent(false);
+          setError(null);
+          setIsLoading(false);
+          return;
+        }
         setError(caught instanceof Error ? caught.message : copy.loadError);
         setIsLoading(false);
       });
@@ -165,7 +172,29 @@ export default function ProfileEditor({ mode }: ProfileEditorProps) {
     setIsSaving(true);
 
     try {
-      if (!consentCurrent) await acceptCurrentPrivacyNotice();
+      if (!consentCurrent) {
+        await acceptCurrentPrivacyNotice();
+        const result = await getMyProfile();
+        setConsentCurrent(result.consentCurrent);
+        setAcceptedNotice(false);
+
+        if (user.role === 'STUDENT' && result.profile && 'school' in result.profile) {
+          setStudent(result.profile);
+        }
+        if (user.role === 'TUTOR' && result.profile && 'displayName' in result.profile) {
+          setTutor({
+            bio: result.profile.bio,
+            displayName: result.profile.displayName,
+            experienceYears: String(result.profile.experienceYears),
+            firstName: result.profile.firstName ?? '',
+            lastName: result.profile.lastName ?? '',
+            nickname: result.profile.nickname ?? '',
+          });
+        }
+
+        if (mode === 'onboarding' && result.profileComplete) router.replace('/dashboard');
+        return;
+      }
 
       if (user.role === 'STUDENT') {
         await saveStudentProfile(student);
@@ -239,11 +268,12 @@ export default function ProfileEditor({ mode }: ProfileEditorProps) {
               </p>
             )}
 
-            {user.role === 'STUDENT' ? (
-              <StudentFields data={student} copy={copy} onChange={setStudent} />
-            ) : (
-              <TutorFields data={tutor} copy={copy} onChange={setTutor} />
-            )}
+            {consentCurrent &&
+              (user.role === 'STUDENT' ? (
+                <StudentFields data={student} copy={copy} onChange={setStudent} />
+              ) : (
+                <TutorFields data={tutor} copy={copy} onChange={setTutor} />
+              ))}
 
             {!consentCurrent && (
               <div className="rounded-xl border border-[#f1d5ad] bg-[#fff9ef] p-4">
@@ -264,7 +294,11 @@ export default function ProfileEditor({ mode }: ProfileEditorProps) {
               disabled={isSaving}
               className="flex h-13 w-full items-center justify-center rounded-xl bg-[#ffc57d] px-5 text-base font-bold text-[#171714] transition-colors hover:bg-[#ffbd6c] disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {isSaving ? copy.saving : mode === 'onboarding' ? copy.continue : copy.save}
+              {isSaving
+                ? copy.saving
+                : !consentCurrent || mode === 'onboarding'
+                  ? copy.continue
+                  : copy.save}
             </button>
           </form>
         </section>
