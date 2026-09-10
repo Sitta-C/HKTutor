@@ -57,6 +57,15 @@ export class ResourceOwnershipGuard implements CanActivate {
     const adminAccess = rule.allowAdmin === true && user.role === Role.ADMIN;
 
     switch (rule.resource) {
+      case 'studentProfile':
+        if (!adminAccess && resourceId !== user.id) return false;
+
+        return Boolean(
+          await this.prisma.studentProfile.findFirst({
+            where: { userId: resourceId },
+            select: { userId: true },
+          }),
+        );
       case 'tutorProfile':
         if (!adminAccess && resourceId !== user.id) return false;
 

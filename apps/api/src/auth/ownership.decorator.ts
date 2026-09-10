@@ -2,7 +2,8 @@ import { SetMetadata } from '@nestjs/common';
 
 export const OWNERSHIP_KEY = 'auth:ownership';
 
-export type OwnedResource = 'availabilitySlot' | 'booking' | 'teachingListing' | 'tutorProfile';
+export type OwnedResource =
+  'availabilitySlot' | 'booking' | 'studentProfile' | 'teachingListing' | 'tutorProfile';
 
 export interface OwnershipRule {
   resource: OwnedResource;
