@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   CanActivate,
   ExecutionContext,
   Injectable,
@@ -39,7 +40,12 @@ export class ResourceOwnershipGuard implements CanActivate {
 
     const resourceId = request.params[rule.idParam ?? 'id'];
     if (typeof resourceId !== 'string' || !UUID_PATTERN.test(resourceId)) {
-      throw new NotFoundException(RESOURCE_NOT_FOUND);
+      throw new BadRequestException({
+        code: 'INVALID_UUID',
+        error: 'Bad Request',
+        message: `${rule.idParam ?? 'id'} must be a valid UUID`,
+        statusCode: 400,
+      });
     }
 
     if (!(await this.canAccess(rule, resourceId, request.auth))) {

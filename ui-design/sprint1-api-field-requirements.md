@@ -57,23 +57,22 @@ task ownership listed in `sprint1-ui-api-map.md`.
 | Trello create-booking returns IDs and amount fields, not a complete joined `BookingView`                                       | Accept the create response shape and require read endpoints for reloadable views | Immediate success can reuse selected client data, but refresh/detail/history cannot reconstruct the full card |
 | The new model has `StudentProfile.nickname`; the Tutor participant projection was previously undefined                         | S1-T24/API-05 now returns only `student: { nickname }` to the owning Tutor       | Tutor booking rows can use the intended label once API-05 is implemented                                      |
 
-### Current `design/ui` code audit
+### Current code audit
 
-Rechecked against `main` and local `design/ui` at `de95d0b` on 2026-09-10. S1-T31 profile DTOs,
-Swagger schemas, profile completion behavior, and Frontend field handling are merged. Tutor listing
-code now validates the publication-status enum and applies ownership guards to edit/publish, but
-these remaining conflicts must be resolved before Frontend treats it as the final contract:
+Rechecked against the S1-T15 contract alignment on 2026-09-10. The owner-profile and Tutor-listing
+runtime, Swagger, tests, and Web types now share these decisions:
 
-| Current code conflict                                                                                           | Required resolution                                                                                       | UI effect until resolved                                                                                                 |
-| --------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| `TutorsController` declares `@Controller('api/tutors')` while the app already applies global prefix `api/v1`    | Change the controller prefix to `tutors`, so the runtime path is `/api/v1/tutors/...`                     | Every listing request documented here otherwise returns 404 because the current runtime path is `/api/v1/api/tutors/...` |
-| `GET me/listings` binds `ListingQueryDto` with `@Body()`                                                        | Bind the optional filter from `@Query()` and document it in Swagger                                       | Browser clients do not reliably send a GET body; the status filter cannot be integrated safely                           |
-| `ListingQueryDto.publicationStatus` has runtime enum validation but no discoverable query binding/schema        | Keep validation and expose the filter through `@Query()` plus Swagger query metadata                      | Generated API clients cannot discover or send the filter reliably                                                        |
-| `POST me/listings` returns only the new listing ID string                                                       | Return the complete created `TeachingListing`, as required below                                          | The create page cannot render the saved listing without an extra request                                                 |
-| `POST .../:listingId/publish` returns no response body                                                          | Return the updated `TeachingListing`                                                                      | The page cannot update publication state without an extra reload                                                         |
-| `ListingResponseDto` exposes `listingId`, omits `createdAt`, and embeds catalog timestamps not used by the page | Align one response shape with `TeachingListing` below, or update this document and all consumers together | List, create, edit, and publish currently disagree about field names and available metadata                              |
-| No `GET /tutors/me/listings/:listingId` method exists                                                           | Implement S1-T15/API-08 before direct edit routes ship                                                    | Reloading or directly visiting an edit URL cannot reconstruct the form                                                   |
-| No availability, public search/catalog, or booking controller is registered in `AppModule`                      | Keep those contracts marked Proposed until their owning tasks merge                                       | Related drafts are design-ready but cannot be wired to live data yet                                                     |
+| Contract area        | Aligned behavior                                                                                      |
+| -------------------- | ----------------------------------------------------------------------------------------------------- |
+| Listing identity     | Every listing response uses `id`; path parameters continue to use `listingId`                         |
+| Listing metadata     | Every response includes `createdAt` and `updatedAt`; grade-level options include `sortOrder`          |
+| Listing endpoints    | List, detail, create, partial update, and publish use the same `TeachingListing` response             |
+| Partial update       | PATCH requires at least one editable field and rejects undeclared fields                              |
+| Resource identifiers | Malformed UUID syntax returns `400 INVALID_UUID`; missing and cross-owner resources share generic 404 |
+| Owner profile        | The runtime and Swagger both expose the possible missing-account 404                                  |
+
+Availability, public search/catalog, and booking controllers remain owned by their separate Sprint 1
+tasks and stay marked Proposed until those tasks merge.
 
 ## Shared output objects
 
@@ -324,7 +323,7 @@ error UX, the Tutor subject label, and Tutor certificates require the follow-up 
 - Trello task: S1-T15/API-08.
 - Input: path `listingId: UUID`.
 - Output `200`: `TeachingListing`.
-- Errors: `400` invalid UUID, `401`, `403`, `404 LISTING_NOT_FOUND`. Use the same `404` for a
+- Errors: `400 INVALID_UUID`, `401`, `403`, `404 LISTING_NOT_FOUND`. Use the same `404` for a
   missing listing and a listing owned by someone else.
 
 ### `POST /tutors/me/listings`
@@ -347,13 +346,13 @@ error UX, the Tutor subject label, and Tutor certificates require the follow-up 
   `pricePerHour`, and `description`.
 - Behavior: update only an owned listing. Saving fields must not publish it implicitly.
 - Output `200`: complete updated `TeachingListing`.
-- Errors: `400`, `401`, `403`, `404 LISTING_NOT_FOUND`.
+- Errors: `400 INVALID_UUID` or invalid body, `401`, `403`, `404 LISTING_NOT_FOUND`.
 
 ### `POST /tutors/me/listings/:listingId/publish`
 
 - Input: path `listingId: UUID`; no body.
 - Output `200`: complete updated `TeachingListing`.
-- Errors: `400` incomplete listing, `401`, `403` wrong role or unverified tutor,
+- Errors: `400 INVALID_UUID` or incomplete listing, `401`, `403` wrong role or unverified tutor,
   `404 LISTING_NOT_FOUND`, `409` invalid transition.
 
 Trello has no Sprint 1 endpoint for archiving or restoring a listing. Frontend must not add those

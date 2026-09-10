@@ -11,9 +11,11 @@ import {
   ApiOperation,
   ApiParam,
   ApiProperty,
+  ApiPropertyOptional,
   ApiQuery,
   ApiUnauthorizedResponse,
   ApiTags,
+  getSchemaPath,
 } from '@nestjs/swagger';
 
 import { JWT_BEARER_AUTH } from '@/auth/auth.swagger';
@@ -38,6 +40,9 @@ class ApiErrorResponseDto {
 
   @ApiProperty({ example: 'Bad Request' })
   error!: string;
+
+  @ApiPropertyOptional({ example: 'INVALID_UUID' })
+  code?: string;
 }
 
 const unauthorizedDescription = 'A valid access token and active verified session are required';
@@ -78,6 +83,24 @@ export function GetMyListingsDoc(): MethodDecorator {
   );
 }
 
+export function GetMyListingDoc(): MethodDecorator {
+  return applyDecorators(
+    ApiOperation({ summary: 'Get one non-deleted listing owned by the current tutor' }),
+    listingIdParam(),
+    ApiOkResponse({ description: 'Tutor-owned listing', type: ListingResponseDto }),
+    ApiBadRequestResponse({
+      description: 'The listing ID is not a valid UUID (INVALID_UUID)',
+      type: ApiErrorResponseDto,
+    }),
+    ApiUnauthorizedResponse({ description: unauthorizedDescription, type: ApiErrorResponseDto }),
+    ApiForbiddenResponse({ description: forbiddenDescription, type: ApiErrorResponseDto }),
+    ApiNotFoundResponse({
+      description: 'Listing not found or owned by another tutor',
+      type: ApiErrorResponseDto,
+    }),
+  );
+}
+
 export function PostListingDoc(): MethodDecorator {
   return applyDecorators(
     ApiOperation({ summary: 'Create a draft listing for the current tutor' }),
@@ -96,10 +119,17 @@ export function PatchListingDoc(): MethodDecorator {
   return applyDecorators(
     ApiOperation({ summary: 'Update a non-deleted listing owned by the current tutor' }),
     listingIdParam(),
-    ApiBody({ type: ListingPatchRequestDto }),
+    ApiBody({
+      description: 'At least one editable listing field is required',
+      schema: {
+        allOf: [{ $ref: getSchemaPath(ListingPatchRequestDto) }],
+        minProperties: 1,
+      },
+    }),
     ApiOkResponse({ description: 'Listing updated', type: ListingResponseDto }),
     ApiBadRequestResponse({
-      description: 'The request or selected catalog value is invalid',
+      description:
+        'The request, selected catalog value, or listing ID is invalid (INVALID_UUID for UUID syntax)',
       type: ApiErrorResponseDto,
     }),
     ApiUnauthorizedResponse({ description: unauthorizedDescription, type: ApiErrorResponseDto }),
@@ -113,6 +143,10 @@ export function PublishListingDoc(): MethodDecorator {
     ApiOperation({ summary: 'Publish a non-deleted listing owned by the current tutor' }),
     listingIdParam(),
     ApiOkResponse({ description: 'Listing published', type: ListingResponseDto }),
+    ApiBadRequestResponse({
+      description: 'The listing ID is not a valid UUID (INVALID_UUID)',
+      type: ApiErrorResponseDto,
+    }),
     ApiUnauthorizedResponse({ description: unauthorizedDescription, type: ApiErrorResponseDto }),
     ApiForbiddenResponse({
       description: 'The account is not a tutor or its tutor profile is not verified',

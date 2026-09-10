@@ -5,6 +5,7 @@ import {
   ApiBody,
   ApiExtraModels,
   ApiForbiddenResponse,
+  ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
   ApiProperty,
@@ -30,6 +31,17 @@ class ApiErrorResponseDto {
   message!: string | string[];
 
   @ApiProperty({ example: 'Bad Request' })
+  error!: string;
+}
+
+class ApiNotFoundErrorResponseDto {
+  @ApiProperty({ example: 404, type: Number })
+  statusCode!: number;
+
+  @ApiProperty({ example: 'Account not found' })
+  message!: string;
+
+  @ApiProperty({ example: 'Not Found' })
   error!: string;
 }
 
@@ -94,6 +106,7 @@ export function ProfilesControllerDoc(): ClassDecorator {
     ApiBearerAuth(JWT_BEARER_AUTH),
     ApiExtraModels(
       ApiErrorResponseDto,
+      ApiNotFoundErrorResponseDto,
       MyProfileResponseDto,
       SaveStudentProfileDto,
       SaveTutorProfileDto,
@@ -111,6 +124,10 @@ export function GetMyProfileDoc(): MethodDecorator {
     }),
     ApiBadRequestResponse({ description: consentDescription, type: ApiErrorResponseDto }),
     ApiUnauthorizedResponse({ description: unauthorizedDescription, type: ApiErrorResponseDto }),
+    ApiNotFoundResponse({
+      description: 'Authenticated account not found',
+      type: ApiNotFoundErrorResponseDto,
+    }),
   );
 }
 

@@ -12,23 +12,21 @@ const GRADE_LEVEL_ID = '40000000-0000-4000-8000-000000000001';
 const subject = {
   active: true,
   code: 'MATH',
-  createdAt: new Date('2026-08-01T00:00:00.000Z'),
   id: SUBJECT_ID,
   name: 'Mathematics',
-  updatedAt: new Date('2026-08-02T00:00:00.000Z'),
 };
 
 const gradeLevel = {
   active: true,
   code: 'G10',
-  createdAt: new Date('2026-08-03T00:00:00.000Z'),
   id: GRADE_LEVEL_ID,
   name: 'Grade 10',
-  updatedAt: new Date('2026-08-04T00:00:00.000Z'),
+  sortOrder: 10,
 };
 
 function listing(overrides: Record<string, unknown> = {}) {
   return {
+    createdAt: new Date('2026-08-01T00:00:00.000Z'),
     description: 'Experienced mathematics tutor.',
     gradeLevel,
     id: LISTING_ID,
@@ -48,6 +46,7 @@ function createPrisma() {
     teachingListing: {
       create: jest.fn(),
       findMany: jest.fn(),
+      findFirst: jest.fn(),
       update: jest.fn(),
     },
     tutorProfile: { findUnique: jest.fn() },
@@ -77,6 +76,12 @@ describe('TutorsService', () => {
       expect(prisma.teachingListing.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
           orderBy: { updatedAt: 'desc' },
+          select: expect.objectContaining({
+            createdAt: true,
+            gradeLevel: {
+              select: expect.objectContaining({ sortOrder: true }) as object,
+            },
+          }) as object,
           where: {
             deletedAt: null,
             publicationStatus: 'PUBLISHED',
@@ -86,9 +91,10 @@ describe('TutorsService', () => {
       );
       expect(result).toEqual([
         {
+          createdAt: new Date('2026-08-01T00:00:00.000Z'),
           description: 'Experienced mathematics tutor.',
           gradeLevel,
-          listingId: LISTING_ID,
+          id: LISTING_ID,
           pricePerHour: 450.5,
           publicationStatus: 'PUBLISHED',
           publishedAt,
@@ -106,6 +112,35 @@ describe('TutorsService', () => {
       await expect(service.getListings(USER_ID, {})).resolves.toEqual([]);
       expect(prisma.teachingListing.findMany).toHaveBeenCalledWith(
         expect.objectContaining({ where: { deletedAt: null, tutorProfileId: USER_ID } }),
+      );
+    });
+  });
+
+  describe('getListing', () => {
+    it('loads one non-deleted listing scoped to the current tutor', async () => {
+      const prisma = createPrisma();
+      prisma.teachingListing.findFirst.mockResolvedValue(listing());
+      const service = new TutorsService(prisma as unknown as PrismaService);
+
+      await expect(service.getListing(USER_ID, LISTING_ID)).resolves.toMatchObject({
+        id: LISTING_ID,
+        gradeLevel,
+        subject,
+      });
+      expect(prisma.teachingListing.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { deletedAt: null, id: LISTING_ID, tutorProfileId: USER_ID },
+        }),
+      );
+    });
+
+    it('returns 404 when the owned listing does not exist', async () => {
+      const prisma = createPrisma();
+      prisma.teachingListing.findFirst.mockResolvedValue(null);
+      const service = new TutorsService(prisma as unknown as PrismaService);
+
+      await expect(service.getListing(USER_ID, LISTING_ID)).rejects.toThrow(
+        new NotFoundException('Listing not found'),
       );
     });
   });
@@ -150,7 +185,7 @@ describe('TutorsService', () => {
       const service = new TutorsService(prisma as unknown as PrismaService);
 
       await expect(service.postListing(USER_ID, dto)).resolves.toMatchObject({
-        listingId: LISTING_ID,
+        id: LISTING_ID,
         subject,
         gradeLevel,
       });
@@ -193,7 +228,7 @@ describe('TutorsService', () => {
       expect(result).toMatchObject({
         description: dto.description,
         gradeLevel,
-        listingId: LISTING_ID,
+        id: LISTING_ID,
         subject,
       });
     });
@@ -247,7 +282,7 @@ describe('TutorsService', () => {
         }),
       );
       expect(result).toMatchObject({
-        listingId: LISTING_ID,
+        id: LISTING_ID,
         publicationStatus: 'PUBLISHED',
         publishedAt,
       });

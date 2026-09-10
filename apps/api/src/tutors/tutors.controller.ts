@@ -27,6 +27,7 @@ import {
 import { TutorsService } from '@/tutors/tutors.service';
 import {
   GetMyListingsDoc,
+  GetMyListingDoc,
   PatchListingDoc,
   PostListingDoc,
   PublishListingDoc,
@@ -49,6 +50,20 @@ export class TutorsController {
     @Query() query: ListingQueryDto,
   ): Promise<ListingResponseDto[]> {
     return this.tutors.getListings(user.id, query);
+  }
+
+  @Get('me/listings/:listingId')
+  @RequireOwnership({
+    resource: 'teachingListing',
+    idParam: 'listingId',
+    allowAdmin: true,
+  })
+  @GetMyListingDoc()
+  getListing(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('listingId') listingId: string,
+  ): Promise<ListingResponseDto> {
+    return this.tutors.getListing(user.id, listingId);
   }
 
   @Post('me/listings')

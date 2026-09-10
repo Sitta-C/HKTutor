@@ -17,15 +17,15 @@ import type {
 } from '@/tutors/tutors.dto';
 
 const listingSelect = {
+  createdAt: true,
   description: true,
   gradeLevel: {
     select: {
       active: true,
       code: true,
-      createdAt: true,
       id: true,
       name: true,
-      updatedAt: true,
+      sortOrder: true,
     },
   },
   id: true,
@@ -36,10 +36,8 @@ const listingSelect = {
     select: {
       active: true,
       code: true,
-      createdAt: true,
       id: true,
       name: true,
-      updatedAt: true,
     },
   },
   updatedAt: true,
@@ -68,6 +66,20 @@ export class TutorsService {
     });
 
     return listings.map(mapListing);
+  }
+
+  async getListing(userId: string, listingId: string): Promise<ListingResponseDto> {
+    const listing = await this.prisma.teachingListing.findFirst({
+      select: listingSelect,
+      where: {
+        id: listingId,
+        tutorProfileId: userId,
+        deletedAt: null,
+      },
+    });
+
+    if (!listing) throw new NotFoundException('Listing not found');
+    return mapListing(listing);
   }
 
   async postListing(userId: string, dto: ListingPostRequestDto): Promise<ListingResponseDto> {
@@ -168,9 +180,10 @@ export class TutorsService {
 
 function mapListing(listing: SelectedListing): ListingResponseDto {
   return {
+    createdAt: listing.createdAt,
     description: listing.description,
     gradeLevel: listing.gradeLevel,
-    listingId: listing.id,
+    id: listing.id,
     pricePerHour: listing.pricePerHour.toNumber(),
     publicationStatus: listing.publicationStatus,
     publishedAt: listing.publishedAt,

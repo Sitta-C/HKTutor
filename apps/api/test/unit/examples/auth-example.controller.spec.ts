@@ -132,12 +132,13 @@ describe('AuthExampleController OpenAPI contract', () => {
     expect(operation?.responses['403']).toBeDefined();
   });
 
-  it('documents the private listing ownership example and its 404 response', () => {
+  it('documents the private listing ownership example and its ID/ownership errors', () => {
     const operation = document.paths['/api/v1/examples/private-listings/{listingId}']?.get;
 
     expect(operation?.summary).toBe('Example of owner-scoped access to a private teaching listing');
     expect(operation?.security).toEqual([{ [JWT_BEARER_AUTH]: [] }]);
     expect(operation?.responses['200']).toBeDefined();
+    expect(operation?.responses['400']).toBeDefined();
     expect(operation?.responses['401']).toBeDefined();
     expect(operation?.responses['403']).toBeDefined();
     expect(operation?.responses['404']).toBeDefined();

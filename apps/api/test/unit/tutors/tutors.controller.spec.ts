@@ -19,6 +19,7 @@ const user: AuthenticatedUser = {
 
 function createController() {
   const service = {
+    getListing: jest.fn(),
     getListings: jest.fn(),
     patchListing: jest.fn(),
     postListing: jest.fn(),
@@ -37,6 +38,7 @@ describe('TutorsController', () => {
   });
 
   it.each([
+    ['getListing', 'listingId'],
     ['patchListing', 'listingId'],
     ['postPublishListing', 'listingId'],
   ])('declares ownership protection on %s', (methodName, idParam) => {
@@ -55,13 +57,22 @@ describe('TutorsController', () => {
 
   it('passes the authenticated user id and query to the service', async () => {
     const { controller, service } = createController();
-    const response = [{ listingId: LISTING_ID }] as ListingResponseDto[];
+    const response = [{ id: LISTING_ID }] as ListingResponseDto[];
     service.getListings.mockResolvedValue(response);
 
     await expect(controller.getListings(user, { publicationStatus: 'DRAFT' })).resolves.toBe(
       response,
     );
     expect(service.getListings).toHaveBeenCalledWith(USER_ID, { publicationStatus: 'DRAFT' });
+  });
+
+  it('loads one owned listing through the service', async () => {
+    const { controller, service } = createController();
+    const response = { id: LISTING_ID } as ListingResponseDto;
+    service.getListing.mockResolvedValue(response);
+
+    await expect(controller.getListing(user, LISTING_ID)).resolves.toBe(response);
+    expect(service.getListing).toHaveBeenCalledWith(USER_ID, LISTING_ID);
   });
 
   it('creates a listing using the authenticated user as owner', async () => {
@@ -72,7 +83,7 @@ describe('TutorsController', () => {
       pricePerHour: 450,
       subjectId: '30000000-0000-4000-8000-000000000001',
     };
-    const response = { listingId: LISTING_ID } as ListingResponseDto;
+    const response = { id: LISTING_ID } as ListingResponseDto;
     service.postListing.mockResolvedValue(response);
 
     await expect(controller.postListing(user, dto)).resolves.toBe(response);
@@ -82,7 +93,7 @@ describe('TutorsController', () => {
   it('patches an owned listing through the service', async () => {
     const { controller, service } = createController();
     const dto = { pricePerHour: 500 };
-    const response = { listingId: LISTING_ID } as ListingResponseDto;
+    const response = { id: LISTING_ID } as ListingResponseDto;
     service.patchListing.mockResolvedValue(response);
 
     await expect(controller.patchListing(user, LISTING_ID, dto)).resolves.toBe(response);
@@ -91,7 +102,7 @@ describe('TutorsController', () => {
 
   it('returns the published listing from the service', async () => {
     const { controller, service } = createController();
-    const response = { listingId: LISTING_ID } as ListingResponseDto;
+    const response = { id: LISTING_ID } as ListingResponseDto;
     service.postPublishListing.mockResolvedValue(response);
 
     await expect(controller.postPublishListing(user, LISTING_ID)).resolves.toBe(response);

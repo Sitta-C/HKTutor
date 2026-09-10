@@ -38,14 +38,29 @@ describe('tutor listing DTOs', () => {
     expect(await validate(dto)).not.toHaveLength(0);
   });
 
-  it('accepts an empty patch and validates fields that are present', async () => {
-    await expect(validate(plainToInstance(ListingPatchRequestDto, {}))).resolves.toHaveLength(0);
+  it('rejects an empty patch and validates fields that are present', async () => {
+    expect(await validate(plainToInstance(ListingPatchRequestDto, {}))).not.toHaveLength(0);
 
     const invalid = plainToInstance(ListingPatchRequestDto, {
       pricePerHour: '-10',
       description: 'Too short',
     });
     expect(await validate(invalid)).not.toHaveLength(0);
+  });
+
+  it('accepts one valid partial field', async () => {
+    const dto = plainToInstance(ListingPatchRequestDto, { pricePerHour: '500.00' });
+
+    await expect(validate(dto)).resolves.toHaveLength(0);
+    expect(dto.pricePerHour).toBe(500);
+  });
+
+  it('rejects an unknown patch field', async () => {
+    const dto = plainToInstance(ListingPatchRequestDto, { title: 'Not part of the contract' });
+
+    const errors = await validate(dto, { forbidNonWhitelisted: true, whitelist: true });
+    expect(errors).not.toHaveLength(0);
+    expect(errors.some((error) => error.property === 'title')).toBe(true);
   });
 
   it.each(['DRAFT', 'PUBLISHED', 'ARCHIVED'])('accepts the %s listing filter', async (status) => {
