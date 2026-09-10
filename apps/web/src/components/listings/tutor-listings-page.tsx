@@ -7,6 +7,7 @@ import { useEffect, useMemo, useState } from 'react';
 import DashboardShell from '@/components/dashboard/dashboard-shell';
 import {
   ListingIcon,
+  ListingMetric,
   ListingPageState,
   ListingStatusBadge,
 } from '@/components/listings/listing-ui';
@@ -80,6 +81,12 @@ export default function TutorListingsPage() {
     }),
     [listings],
   );
+
+  const nextStep = useMemo(() => {
+    if (!isVerified) return copy.verifyProfile;
+    if (counts.DRAFT > 0) return copy.reviewDrafts;
+    return copy.keepTeaching;
+  }, [copy.keepTeaching, copy.reviewDrafts, copy.verifyProfile, counts.DRAFT, isVerified]);
 
   const visibleListings = useMemo(() => {
     const query = search.trim().toLocaleLowerCase(language === 'th' ? 'th' : 'en');
@@ -172,13 +179,34 @@ export default function TutorListingsPage() {
           </div>
         </header>
 
+        <section className="mt-6 grid gap-3 sm:grid-cols-3" aria-label={copy.overviewLabel}>
+          <ListingMetric
+            icon="listing"
+            label={copy.totalListings}
+            value={String(counts.ALL)}
+            detail={copy.totalListingsDetail}
+          />
+          <ListingMetric
+            icon="check"
+            label={copy.published}
+            value={String(counts.PUBLISHED)}
+            detail={copy.publishedDetail}
+          />
+          <ListingMetric
+            icon={isVerified ? 'check' : 'info'}
+            label={copy.nextStep}
+            value={nextStep}
+            detail={isVerified ? copy.verifiedDetail : copy.unverifiedDetail}
+          />
+        </section>
+
         {!isVerified && (
-          <div className="mt-6 flex gap-3 rounded-md border border-[#e8c99f] bg-[#fff8ed] p-4 text-sm leading-6 text-[#7e5428]">
+          <div className="mt-5 flex gap-3 rounded-md border border-[#e8c99f] bg-[#fff8ed] p-4 text-sm leading-6 text-[#7e5428]">
             <span
-              className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-[#f5dfbd] font-black"
+              className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-[#f5dfbd] text-[#9b6531]"
               aria-hidden="true"
             >
-              i
+              <ListingIcon name="info" />
             </span>
             <div>
               <strong className="block text-[#573819]">{copy.verificationTitle}</strong>
@@ -202,7 +230,7 @@ export default function TutorListingsPage() {
           </div>
         )}
 
-        <section className="mt-6 rounded-md border border-[#e1dbd1] bg-white shadow-[0_14px_35px_-24px_rgba(67,45,25,0.45)]">
+        <section className="mt-5 rounded-md border border-[#e1dbd1] bg-white shadow-[0_14px_35px_-24px_rgba(67,45,25,0.45)]">
           <div className="flex flex-col gap-4 border-b border-[#ebe6dd] p-4 sm:p-5 lg:flex-row lg:items-center lg:justify-between">
             <div className="hidden flex-wrap gap-2 sm:flex" aria-label={copy.filterLabel}>
               {(['ALL', 'PUBLISHED', 'DRAFT', 'ARCHIVED'] as const).map((value) => (
@@ -280,7 +308,7 @@ export default function TutorListingsPage() {
                 {visibleListings.map((listing) => (
                   <article
                     key={listing.listingId}
-                    className="flex min-w-0 flex-col rounded-md border border-[#e4ded4] bg-[#fffdf9] p-5 transition hover:border-[#cdbfae] hover:shadow-[0_15px_30px_-24px_rgba(59,39,21,0.55)]"
+                    className="flex min-h-[21rem] min-w-0 flex-col rounded-md border border-[#e4ded4] bg-[#fffdf9] p-5 transition hover:border-[#cdbfae] hover:shadow-[0_15px_30px_-24px_rgba(59,39,21,0.55)] sm:p-6"
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
@@ -297,72 +325,94 @@ export default function TutorListingsPage() {
                       />
                     </div>
 
-                    <p className="mt-4 line-clamp-3 min-h-[4.5rem] whitespace-pre-wrap text-sm leading-6 text-[#686158]">
-                      {listing.description}
-                    </p>
+                    <div className="mt-4 min-h-[5.5rem]">
+                      <p className="text-[0.68rem] font-extrabold uppercase tracking-[0.13em] text-[#8a8178]">
+                        {copy.studentDescription}
+                      </p>
+                      <p className="mt-2 line-clamp-3 whitespace-pre-wrap text-sm leading-6 text-[#686158]">
+                        {listing.description}
+                      </p>
+                    </div>
 
-                    <div className="mt-5 flex flex-wrap items-end justify-between gap-3 border-t border-[#ebe6dd] pt-4">
+                    <div className="mt-5 grid grid-cols-2 gap-3 border-y border-[#ebe6dd] py-4">
                       <div>
-                        <strong className="text-2xl font-black tracking-[-0.04em] text-[#241a14]">
+                        <p className="text-[0.68rem] font-extrabold uppercase tracking-[0.12em] text-[#8a8178]">
+                          {copy.rate}
+                        </p>
+                        <p className="mt-1 text-lg font-black tracking-[-0.03em] text-[#241a14]">
                           {formatPrice(listing.pricePerHour, language)}
-                        </strong>
-                        <span className="ml-1 text-sm text-[#6c655d]">/{copy.hour}</span>
-                        <p className="mt-1 text-xs text-[#8a8178]">
-                          {copy.updated} {formatDate(listing.updatedAt, language)}
+                          <span className="ml-1 text-xs font-semibold text-[#6c655d]">
+                            /{copy.hour}
+                          </span>
                         </p>
                       </div>
+                      <div>
+                        <p className="text-[0.68rem] font-extrabold uppercase tracking-[0.12em] text-[#8a8178]">
+                          {listing.publicationStatus === 'PUBLISHED' && listing.publishedAt
+                            ? copy.publishedOn
+                            : copy.updated}
+                        </p>
+                        <p className="mt-1 text-sm font-bold text-[#4e443b]">
+                          {formatDate(
+                            listing.publicationStatus === 'PUBLISHED' && listing.publishedAt
+                              ? listing.publishedAt
+                              : listing.updatedAt,
+                            language,
+                          )}
+                        </p>
+                      </div>
+                    </div>
 
-                      <div className="flex flex-wrap justify-end gap-2">
-                        <Link
-                          href={`/dashboard/listings/${listing.listingId}/edit`}
-                          className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md border border-[#d9d2c6] bg-white px-3.5 text-sm font-extrabold text-[#3e342c] transition hover:border-[#bba990] hover:bg-[#faf5ed]"
+                    <div className="mt-auto flex flex-col gap-2 pt-4 sm:flex-row sm:items-center">
+                      <Link
+                        href={`/dashboard/listings/${listing.listingId}/edit`}
+                        className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-md border border-[#d9d2c6] bg-white px-3.5 text-sm font-extrabold text-[#3e342c] transition hover:border-[#bba990] hover:bg-[#faf5ed]"
+                      >
+                        <ListingIcon name="edit" />
+                        {copy.edit}
+                      </Link>
+                      {listing.publicationStatus === 'DRAFT' && (
+                        <button
+                          type="button"
+                          disabled={!isVerified || busyId === listing.listingId}
+                          onClick={() => void handlePublish(listing.listingId)}
+                          className="min-h-11 flex-1 rounded-md bg-[#34271e] px-3.5 text-sm font-extrabold text-white transition hover:bg-[#4b3729] disabled:cursor-not-allowed disabled:opacity-45"
                         >
-                          <ListingIcon name="edit" />
-                          {copy.edit}
-                        </Link>
-                        {listing.publicationStatus === 'DRAFT' && (
-                          <button
-                            type="button"
-                            disabled={!isVerified || busyId === listing.listingId}
-                            onClick={() => void handlePublish(listing.listingId)}
-                            className="min-h-11 rounded-md bg-[#34271e] px-3.5 text-sm font-extrabold text-white transition hover:bg-[#4b3729] disabled:cursor-not-allowed disabled:opacity-45"
-                          >
-                            {busyId === listing.listingId ? copy.working : copy.publish}
-                          </button>
-                        )}
-                        {listing.publicationStatus === 'PUBLISHED' &&
-                          (archiveCandidate === listing.listingId ? (
-                            <div className="flex items-center gap-2 rounded-md border border-[#e6c0b7] bg-[#fff4f1] p-1.5">
-                              <span className="px-1 text-xs font-bold text-[#91493d]">
-                                {copy.archiveConfirm}
-                              </span>
-                              <button
-                                type="button"
-                                disabled={busyId === listing.listingId}
-                                onClick={() => void handleArchive(listing.listingId)}
-                                className="min-h-9 rounded-sm bg-[#9b4e40] px-3 text-xs font-extrabold text-white"
-                              >
-                                {copy.confirm}
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => setArchiveCandidate(null)}
-                                className="min-h-9 rounded-sm px-2 text-xs font-extrabold text-[#5e5a52]"
-                              >
-                                {copy.cancel}
-                              </button>
-                            </div>
-                          ) : (
+                          {busyId === listing.listingId ? copy.working : copy.publish}
+                        </button>
+                      )}
+                      {listing.publicationStatus === 'PUBLISHED' &&
+                        (archiveCandidate === listing.listingId ? (
+                          <div className="flex min-h-11 flex-1 items-center gap-2 rounded-md border border-[#e6c0b7] bg-[#fff4f1] p-1.5">
+                            <span className="min-w-0 flex-1 px-1 text-xs font-bold text-[#91493d]">
+                              {copy.archiveConfirm}
+                            </span>
                             <button
                               type="button"
-                              onClick={() => setArchiveCandidate(listing.listingId)}
-                              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md px-3 text-sm font-extrabold text-[#985043] transition hover:bg-[#fff0ec]"
+                              disabled={busyId === listing.listingId}
+                              onClick={() => void handleArchive(listing.listingId)}
+                              className="min-h-11 rounded-sm bg-[#9b4e40] px-3 text-xs font-extrabold text-white"
                             >
-                              <ListingIcon name="archive" />
-                              {copy.archive}
+                              {copy.confirm}
                             </button>
-                          ))}
-                      </div>
+                            <button
+                              type="button"
+                              onClick={() => setArchiveCandidate(null)}
+                              className="min-h-11 rounded-sm px-2 text-xs font-extrabold text-[#5e5a52]"
+                            >
+                              {copy.cancel}
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => setArchiveCandidate(listing.listingId)}
+                            className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-md border border-[#ead7d1] px-3 text-sm font-extrabold text-[#985043] transition hover:bg-[#fff0ec]"
+                          >
+                            <ListingIcon name="archive" />
+                            {copy.archive}
+                          </button>
+                        ))}
                     </div>
                   </article>
                 ))}
@@ -403,6 +453,16 @@ const englishCopy = {
   subtitle:
     'Create focused listings that tell students exactly what you teach, for whom, and at what price.',
   newListing: 'New listing',
+  overviewLabel: 'Listing overview',
+  totalListings: 'All listings',
+  totalListingsDetail: 'Drafts and published offers in your workspace',
+  publishedDetail: 'Visible to students after profile verification',
+  nextStep: 'Next step',
+  verifyProfile: 'Verify profile',
+  reviewDrafts: 'Review drafts',
+  keepTeaching: 'Keep teaching',
+  verifiedDetail: 'Your profile is ready to publish',
+  unverifiedDetail: 'Complete verification to go live',
   verificationTitle: 'Publishing is currently unavailable',
   verificationBody:
     'You can create and edit drafts now. Complete tutor verification before publishing.',
@@ -420,8 +480,11 @@ const englishCopy = {
   noResultsTitle: 'No listings match this view',
   noResultsBody: 'Try another status or clear the search field.',
   createFirst: 'Create first listing',
+  studentDescription: 'Student-facing description',
+  rate: 'Rate',
   hour: 'hour',
   updated: 'Updated',
+  publishedOn: 'Published',
   edit: 'Edit',
   publish: 'Publish',
   archive: 'Archive',
@@ -440,6 +503,16 @@ const thaiCopy: typeof englishCopy = {
   subtitle:
     'สร้างประกาศที่ชัดเจน เพื่อให้นักเรียนเข้าใจทันทีว่าคุณสอนอะไร เหมาะกับใคร และราคาเท่าไร',
   newListing: 'สร้างประกาศใหม่',
+  overviewLabel: 'ภาพรวมประกาศสอน',
+  totalListings: 'ประกาศทั้งหมด',
+  totalListingsDetail: 'รวมฉบับร่างและประกาศที่เผยแพร่แล้ว',
+  publishedDetail: 'นักเรียนจะมองเห็นเมื่อโปรไฟล์ผ่านการยืนยัน',
+  nextStep: 'ขั้นตอนถัดไป',
+  verifyProfile: 'ยืนยันโปรไฟล์',
+  reviewDrafts: 'ตรวจฉบับร่าง',
+  keepTeaching: 'สร้างต่อได้เลย',
+  verifiedDetail: 'โปรไฟล์พร้อมเผยแพร่แล้ว',
+  unverifiedDetail: 'ยืนยันโปรไฟล์เพื่อเผยแพร่',
   verificationTitle: 'ยังไม่สามารถเผยแพร่ได้',
   verificationBody:
     'คุณสร้างและแก้ไขฉบับร่างได้ทันที และเผยแพร่ได้เมื่อโปรไฟล์ติวเตอร์ผ่านการยืนยัน',
@@ -456,8 +529,11 @@ const thaiCopy: typeof englishCopy = {
   noResultsTitle: 'ไม่พบประกาศในมุมมองนี้',
   noResultsBody: 'ลองเลือกสถานะอื่นหรือล้างคำค้นหา',
   createFirst: 'สร้างประกาศแรก',
+  studentDescription: 'คำอธิบายที่นักเรียนจะเห็น',
+  rate: 'ราคา',
   hour: 'ชั่วโมง',
   updated: 'แก้ไข',
+  publishedOn: 'เผยแพร่เมื่อ',
   edit: 'แก้ไข',
   publish: 'เผยแพร่',
   archive: 'เก็บถาวร',

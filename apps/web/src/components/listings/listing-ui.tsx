@@ -4,7 +4,11 @@ import type { ReactNode } from 'react';
 export const listingFieldClass =
   'mt-2 min-h-12 w-full rounded-md border border-[#d9d2c6] bg-[#fffdf9] px-4 text-[0.95rem] text-[#171714] outline-none transition placeholder:text-[#8a857b] hover:border-[#b9b3a8] focus:border-[#d18b43] focus:ring-4 focus:ring-[#d18b43]/10 disabled:cursor-not-allowed disabled:bg-[#f1eee7]';
 
-export function ListingIcon({ name }: { name: 'add' | 'archive' | 'edit' | 'listing' | 'search' }) {
+export function ListingIcon({
+  name,
+}: {
+  name: 'add' | 'archive' | 'check' | 'edit' | 'info' | 'listing' | 'search' | 'star';
+}) {
   const paths: Record<typeof name, ReactNode> = {
     add: <path d="M12 5v14M5 12h14" />,
     archive: (
@@ -13,10 +17,22 @@ export function ListingIcon({ name }: { name: 'add' | 'archive' | 'edit' | 'list
         <path d="M9 11h6" />
       </>
     ),
+    check: (
+      <>
+        <circle cx="12" cy="12" r="8.5" />
+        <path d="m8.5 12 2.3 2.3 4.7-4.7" />
+      </>
+    ),
     edit: (
       <>
         <path d="m14.5 5.5 4 4M5 19l1-4 9.5-9.5a1.4 1.4 0 0 1 2 0l1 1a1.4 1.4 0 0 1 0 2L9 18z" />
         <path d="M13.5 7.5l3 3" />
+      </>
+    ),
+    info: (
+      <>
+        <circle cx="12" cy="12" r="8.5" />
+        <path d="M12 10.5v5M12 7.7h.01" />
       </>
     ),
     listing: (
@@ -31,6 +47,7 @@ export function ListingIcon({ name }: { name: 'add' | 'archive' | 'edit' | 'list
         <path d="m15 15 4 4" />
       </>
     ),
+    star: <path d="m12 4 2.4 4.9 5.4.8-3.9 3.8.9 5.4-4.8-2.5-4.8 2.5.9-5.4-3.9-3.8 5.4-.8z" />,
   };
 
   return (
@@ -46,6 +63,35 @@ export function ListingIcon({ name }: { name: 'add' | 'archive' | 'edit' | 'list
     >
       {paths[name]}
     </svg>
+  );
+}
+
+export function ListingMetric({
+  detail,
+  icon,
+  label,
+  value,
+}: {
+  detail: string;
+  icon: 'check' | 'info' | 'listing' | 'search';
+  label: string;
+  value: string;
+}) {
+  return (
+    <div className="flex min-h-[7rem] items-start gap-3 rounded-md border border-[#e1dbd1] bg-white p-4 shadow-[0_12px_28px_-24px_rgba(67,45,25,0.5)] sm:p-5">
+      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-[#f6e8d7] text-[#9b6531]">
+        <ListingIcon name={icon} />
+      </span>
+      <div className="min-w-0">
+        <p className="text-[0.68rem] font-extrabold uppercase tracking-[0.13em] text-[#8a8178]">
+          {label}
+        </p>
+        <p className="mt-1 truncate text-xl font-black tracking-[-0.03em] text-[#241a14]">
+          {value}
+        </p>
+        <p className="mt-1 text-xs leading-5 text-[#6b645c]">{detail}</p>
+      </div>
+    </div>
   );
 }
 

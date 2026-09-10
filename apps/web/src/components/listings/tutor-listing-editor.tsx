@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState } from 'react';
 
 import DashboardShell from '@/components/dashboard/dashboard-shell';
 import {
+  ListingIcon,
   ListingPageState,
   ListingStatusBadge,
   listingFieldClass,
@@ -159,6 +160,24 @@ export default function TutorListingEditor({ listingId }: TutorListingEditorProp
     () => gradeLevels.find((grade) => grade.id === form.gradeLevelId),
     [form.gradeLevelId, gradeLevels],
   );
+  const descriptionLength = form.description.trim().length;
+  const publishChecks = [
+    { complete: Boolean(form.subjectId), label: copy.checkSubject },
+    { complete: Boolean(form.gradeLevelId), label: copy.checkGrade },
+    {
+      complete:
+        Boolean(form.pricePerHour) &&
+        Number.isFinite(Number(form.pricePerHour)) &&
+        Number(form.pricePerHour) > 0 &&
+        /^\d+(\.\d{1,2})?$/.test(form.pricePerHour),
+      label: copy.checkPrice,
+    },
+    {
+      complete: descriptionLength >= 20 && descriptionLength <= 1000,
+      label: copy.checkDescription,
+    },
+  ];
+  const completedChecks = publishChecks.filter((check) => check.complete).length;
 
   const updateField = <Key extends keyof ListingFormData>(
     key: Key,
@@ -257,7 +276,7 @@ export default function TutorListingEditor({ listingId }: TutorListingEditorProp
         <header className="border-b border-[#ded8ce] pb-7">
           <Link
             href="/dashboard/listings"
-            className="inline-flex min-h-10 items-center gap-2 text-sm font-extrabold text-[#6a5542] underline decoration-[#d18b43] underline-offset-4"
+            className="inline-flex min-h-11 items-center gap-2 text-sm font-extrabold text-[#6a5542] underline decoration-[#d18b43] underline-offset-4"
           >
             <span aria-hidden="true">←</span> {copy.back}
           </Link>
@@ -305,6 +324,30 @@ export default function TutorListingEditor({ listingId }: TutorListingEditorProp
                 {copy.detailsTitle}
               </h2>
               <p className="mt-1 text-sm leading-6 text-[#6b645c]">{copy.detailsBody}</p>
+            </div>
+
+            <div className="border-b border-[#ebe6dd] bg-[#fffbf5] px-5 py-4 sm:px-6">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-sm font-extrabold text-[#42362c]">{copy.readinessTitle}</p>
+                <span className="text-xs font-bold text-[#7b736b]">
+                  {completedChecks}/{publishChecks.length} {copy.readyLabel}
+                </span>
+              </div>
+              <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                {publishChecks.map((check) => (
+                  <div
+                    key={check.label}
+                    className={`flex min-h-10 items-center gap-2 rounded-md border px-3 text-xs font-bold ${
+                      check.complete
+                        ? 'border-[#c7dfd3] bg-[#f2faf5] text-[#28654c]'
+                        : 'border-[#e7dfd4] bg-white text-[#766d64]'
+                    }`}
+                  >
+                    <ListingIcon name={check.complete ? 'check' : 'info'} />
+                    <span>{check.label}</span>
+                  </div>
+                ))}
+              </div>
             </div>
 
             <div className="grid gap-5 p-5 sm:grid-cols-2 sm:p-6">
@@ -381,7 +424,7 @@ export default function TutorListingEditor({ listingId }: TutorListingEditorProp
                 error={errors.description}
                 id="listing-description-error"
                 className="sm:col-span-2"
-                trailing={`${form.description.length} / 1000`}
+                trailing={`${descriptionLength} / 1000`}
               >
                 <textarea
                   value={form.description}
@@ -403,6 +446,22 @@ export default function TutorListingEditor({ listingId }: TutorListingEditorProp
                     {copy.descriptionHelp}
                   </p>
                 )}
+                <div className="mt-3" aria-label={copy.descriptionProgress}>
+                  <div className="h-1.5 overflow-hidden rounded-full bg-[#eee7dd]">
+                    <div
+                      className={`h-full rounded-full transition-[width] ${
+                        descriptionLength < 20 ? 'bg-[#d18b43]' : 'bg-[#77a88f]'
+                      }`}
+                      style={{ width: `${Math.min(100, Math.max(0, descriptionLength / 10))}%` }}
+                    />
+                  </div>
+                  <div className="mt-1.5 flex items-center justify-between gap-3 text-xs font-semibold">
+                    <span className={descriptionLength < 20 ? 'text-[#a5662d]' : 'text-[#4d8068]'}>
+                      {descriptionLength < 20 ? copy.descriptionTooShort : copy.descriptionGood}
+                    </span>
+                    <span className="text-[#827a72]">{descriptionLength} / 1000</span>
+                  </div>
+                </div>
               </Field>
             </div>
 
@@ -466,6 +525,19 @@ export default function TutorListingEditor({ listingId }: TutorListingEditorProp
                       {profile?.experienceYears ?? 0} {copy.yearsExperience}
                     </p>
                   </div>
+                </div>
+
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <span className="inline-flex min-h-7 items-center gap-1.5 rounded-md border border-[#d9e8df] bg-[#f1faf4] px-2.5 text-xs font-bold text-[#28654c]">
+                    <ListingIcon name={isVerified ? 'check' : 'info'} />
+                    {isVerified ? copy.verified : copy.verificationPending}
+                  </span>
+                  <span className="inline-flex min-h-7 items-center gap-1.5 rounded-md border border-[#e8dfd2] bg-[#fbf7f0] px-2.5 text-xs font-bold text-[#6c5b4b]">
+                    <ListingIcon name="star" />
+                    {profile?.ratingAverage
+                      ? `${profile.ratingAverage} · ${profile.reviewCount} ${copy.reviews}`
+                      : copy.noReviews}
+                  </span>
                 </div>
 
                 <div className="mt-5 border-y border-[#ebe6dd] py-5">
@@ -584,6 +656,12 @@ const englishCopy = {
   back: 'Back to listings',
   detailsTitle: 'Course details',
   detailsBody: 'Required fields are saved as a draft until you choose to publish.',
+  readinessTitle: 'Publication readiness',
+  readyLabel: 'ready',
+  checkSubject: 'Subject selected',
+  checkGrade: 'Grade level selected',
+  checkPrice: 'Hourly rate is valid',
+  checkDescription: 'Description is ready',
   subject: 'Subject',
   selectSubject: 'Select a subject',
   subjectError: 'Choose a subject.',
@@ -601,12 +679,19 @@ const englishCopy = {
     'Explain what students will learn, your teaching approach, and who this course suits.',
   descriptionHelp: 'Write 20–1,000 characters. Use specific outcomes and plain language.',
   descriptionError: 'Write between 20 and 1,000 characters after trimming.',
+  descriptionProgress: 'Description completeness',
+  descriptionTooShort: 'Add a little more detail for students.',
+  descriptionGood: 'Clear enough to publish.',
   previewTitle: 'Student preview',
   previewBody: 'This preview updates while you edit.',
   subjectFallback: 'Subject',
   gradeFallback: 'Grade level',
   descriptionFallback: 'Your course description will appear here.',
   yearsExperience: 'years experience',
+  verified: 'Verified tutor',
+  verificationPending: 'Verification pending',
+  reviews: 'reviews',
+  noReviews: 'No reviews yet',
   hour: 'hour',
   draft: 'Draft',
   published: 'Published',
@@ -642,6 +727,12 @@ const thaiCopy: typeof englishCopy = {
   back: 'กลับไปคอร์สของฉัน',
   detailsTitle: 'รายละเอียดคอร์ส',
   detailsBody: 'ข้อมูลที่กรอกจะบันทึกเป็นฉบับร่างจนกว่าคุณจะเลือกเผยแพร่',
+  readinessTitle: 'ความพร้อมก่อนเผยแพร่',
+  readyLabel: 'รายการพร้อม',
+  checkSubject: 'เลือกรายวิชาแล้ว',
+  checkGrade: 'เลือกระดับชั้นแล้ว',
+  checkPrice: 'ราคาต่อชั่วโมงถูกต้อง',
+  checkDescription: 'คำอธิบายพร้อมเผยแพร่',
   subject: 'รายวิชา',
   selectSubject: 'เลือกรายวิชา',
   subjectError: 'กรุณาเลือกรายวิชา',
@@ -658,12 +749,19 @@ const thaiCopy: typeof englishCopy = {
   descriptionPlaceholder: 'อธิบายว่านักเรียนจะได้เรียนรู้อะไร แนวทางการสอน และคอร์สนี้เหมาะกับใคร',
   descriptionHelp: 'เขียน 20–1,000 ตัวอักษร ระบุผลลัพธ์ที่ชัดเจนและใช้ภาษาที่เข้าใจง่าย',
   descriptionError: 'กรุณาเขียนระหว่าง 20 ถึง 1,000 ตัวอักษรหลังตัดช่องว่างหัวท้าย',
+  descriptionProgress: 'ความครบถ้วนของคำอธิบาย',
+  descriptionTooShort: 'เพิ่มรายละเอียดอีกนิดเพื่อช่วยนักเรียนตัดสินใจ',
+  descriptionGood: 'คำอธิบายพร้อมเผยแพร่แล้ว',
   previewTitle: 'ตัวอย่างสำหรับนักเรียน',
   previewBody: 'ตัวอย่างจะเปลี่ยนตามข้อมูลที่คุณกรอก',
   subjectFallback: 'รายวิชา',
   gradeFallback: 'ระดับชั้น',
   descriptionFallback: 'คำอธิบายคอร์สของคุณจะแสดงที่นี่',
   yearsExperience: 'ปีของประสบการณ์',
+  verified: 'ติวเตอร์ยืนยันแล้ว',
+  verificationPending: 'รอการยืนยัน',
+  reviews: 'รีวิว',
+  noReviews: 'ยังไม่มีรีวิว',
   hour: 'ชั่วโมง',
   draft: 'ฉบับร่าง',
   published: 'เผยแพร่แล้ว',
