@@ -174,6 +174,10 @@ export class TutorsService {
 
   //Availability
   async getAvailabilityPrivate(userId: string, query: AvailabilityQueryDto): Promise<AvailabilityPrivateResponseDto[]> {
+    if(query.from !== undefined && query.to !== undefined && query.to <= query.from) {
+      throw new BadRequestException(`Invalid range`);
+    }
+
     const availabilities = await this.prisma.availabilitySlot.findMany({
       select: {
         id: true,
