@@ -8,6 +8,7 @@ import {
   IsString,
   IsUUID,
   MaxLength,
+  MinDate,
   MinLength,
 } from 'class-validator';
 
@@ -161,4 +162,34 @@ export class AvailabilityPrivateResponseDto {
   @ApiPropertyOptional({ enum: AvailabilityState, enumName: 'AvailabilityState' })
   @IsEnum(AvailabilityState)
   state!: AvailabilityState;
+}
+
+export class AvailabilityPostRequestDto {
+  @ApiProperty({ example: '2026-08-17T00:00:00.000Z', format: 'date-time' })
+  @MinDate(() => new Date(), {
+    message: 'The date cannot be in the past.',
+  })
+  startAtUtc!: Date;
+
+  @ApiProperty({ example: '2026-08-17T00:00:00.000Z', format: 'date-time' })
+  @MinDate(() => new Date(), {
+    message: 'The date cannot be in the past.',
+  })
+  endAtUtc!: Date;
+}
+
+export class AvailabilityPostResponseDto {
+  @ApiProperty({ example: '30000000-0000-4000-8000-000000000001', format: 'uuid' })
+  @IsUUID()
+  id!: string;
+
+  @ApiProperty({ example: '30000000-0000-4000-8000-000000000001', format: 'uuid' })
+  @IsUUID()
+  tutorProfileId!: string;
+
+  @ApiProperty({ example: '2026-08-17T00:00:00.000Z', format: 'date-time' })
+  startAtUtc!: Date;
+
+  @ApiProperty({ example: '2026-08-17T00:00:00.000Z', format: 'date-time' })
+  endAtUtc!: Date;
 }

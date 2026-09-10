@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Injectable,
   NotFoundException,
@@ -10,6 +11,8 @@ import { BookingStatus, ListingPublicationStatus, TutorVerificationStatus } from
 
 import type { Prisma } from '@/generated/prisma/client';
 import {
+  AvailabilityPostRequestDto,
+  AvailabilityPostResponseDto,
   AvailabilityState,
   type AvailabilityPrivateQueryDto,
   type AvailabilityPrivateResponseDto,
@@ -199,6 +202,38 @@ export class TutorsService {
       createdAt: availability.createdAt,
       state: (availability.bookings && availability.bookings.length > 0 && availability.bookings.at(0)?.status === BookingStatus.CONFIRMED)? AvailabilityState.RESERVED : AvailabilityState.OPEN,
     }));
+  }
+
+  async postAvailability(userId: string, request: AvailabilityPostRequestDto): Promise<AvailabilityPostResponseDto> {
+    if(request.endAtUtc <= request.startAtUtc) {
+      throw new BadRequestException(`inverted/equal interval`)
+    }
+
+    if(await this.prisma.availabilitySlot.count({
+      where:{
+        tutorProfileId: userId,
+        startAtUtc: { lte: request.endAtUtc },
+        endAtUtc: { gte: request.startAtUtc },
+      }}) > 0) {
+      throw new ConflictException(`Availability slot is overlapping to the others`);
+    }
+
+    const availability = await this.prisma.availabilitySlot.create({
+      data: {
+        tutorProfileId: userId,
+        startAtUtc: request.startAtUtc,
+        endAtUtc: request.endAtUtc,
+      }
+    });
+
+    const response: AvailabilityPostResponseDto = {
+      id: availability.id,
+      tutorProfileId: availability.tutorProfileId,
+      startAtUtc: availability.startAtUtc,
+      endAtUtc: availability.endAtUtc,
+    };
+
+    return response;
   }
 }
 

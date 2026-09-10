@@ -19,6 +19,8 @@ import { Roles } from '@/auth/roles.decorator';
 import { RolesGuard } from '@/auth/roles.guard';
 import { Role } from '@/generated/prisma/client';
 import {
+  AvailabilityPostRequestDto,
+  AvailabilityPostResponseDto,
   AvailabilityPrivateQueryDto,
   AvailabilityPrivateResponseDto,
   ListingPatchRequestDto,
@@ -101,5 +103,15 @@ export class TutorsController {
     @Query() query: AvailabilityPrivateQueryDto,
   ): Promise<AvailabilityPrivateResponseDto[]> {
     return this.tutors.getAvailabilityPrivate(user.id, query);
+  }
+
+  @Get('me/availability')
+  @HttpCode(HttpStatus.OK)
+  //TODO: swagger
+  postAvailability(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() request: AvailabilityPostRequestDto,
+  ): Promise<AvailabilityPostResponseDto> {
+    return this.tutors.postAvailability(user.id, request);
   }
 }
