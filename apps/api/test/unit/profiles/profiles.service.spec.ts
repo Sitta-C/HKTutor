@@ -42,9 +42,10 @@ describe('ProfilesService', () => {
   });
 
   it('blocks profile writes until the current notice has been accepted', async () => {
+    const studentUpsert = jest.fn();
     const service = new ProfilesService({
       user: { findUnique: jest.fn().mockResolvedValue({ policyVersion: '2026-09-08' }) },
-      studentProfile: { upsert: jest.fn() },
+      studentProfile: { upsert: studentUpsert },
     } as unknown as PrismaService);
 
     await expect(
@@ -59,6 +60,70 @@ describe('ProfilesService', () => {
     ).rejects.toThrow(
       new BadRequestException('Accept the current privacy notice before saving a profile'),
     );
+    expect(studentUpsert).not.toHaveBeenCalled();
+  });
+
+  it('does not return a private profile until the current notice has been accepted', async () => {
+    const service = new ProfilesService({
+      user: {
+        findUnique: jest.fn().mockResolvedValue({
+          policyVersion: '2026-09-08',
+          studentProfile: {
+            firstName: 'Suda',
+            lastName: 'Dee',
+            nickname: 'Da',
+            school: 'Demo School',
+            gradeLevel: 'Grade 10',
+            phone: '0812345678',
+          },
+          tutorProfile: null,
+        }),
+      },
+    } as unknown as PrismaService);
+
+    await expect(
+      service.getMine({
+        id: 'student-id',
+        email: 'student@example.com',
+        role: Role.STUDENT,
+        sessionId: 'session-id',
+      }),
+    ).rejects.toThrow(
+      new BadRequestException('Accept the current privacy notice before viewing a profile'),
+    );
+  });
+
+  it('upserts a student profile under the authenticated user id', async () => {
+    const input = {
+      firstName: 'Suda',
+      lastName: 'Dee',
+      nickname: 'Da',
+      school: 'Demo School',
+      gradeLevel: 'Grade 10',
+      phone: '0812345678',
+    };
+    const studentUpsert = jest.fn().mockResolvedValue(input);
+    const service = new ProfilesService({
+      user: {
+        findUnique: jest.fn().mockResolvedValue({ policyVersion: CURRENT_PRIVACY_POLICY_VERSION }),
+      },
+      studentProfile: { upsert: studentUpsert },
+    } as unknown as PrismaService);
+
+    await expect(service.saveStudent('student-id', input)).resolves.toEqual(input);
+    expect(studentUpsert).toHaveBeenCalledWith({
+      where: { userId: 'student-id' },
+      update: input,
+      create: { userId: 'student-id', ...input },
+      select: {
+        firstName: true,
+        gradeLevel: true,
+        lastName: true,
+        nickname: true,
+        phone: true,
+        school: true,
+      },
+    });
   });
 
   it('upserts only tutor-editable fields while server-controlled review fields remain untouched', async () => {

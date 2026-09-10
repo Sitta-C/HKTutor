@@ -50,7 +50,7 @@ test('creates the student profile table with bounded nonempty data and restricti
   assert.match(sql, /ALTER TABLE "TutorProfile"[\s\S]*ADD COLUMN "firstName" TEXT/);
 });
 
-test('exposes owner-only profile onboarding APIs and requires current consent before writes', async () => {
+test('exposes owner-only profile APIs and requires current consent for private reads and writes', async () => {
   const controller = await read('apps/api/src/profiles/profiles.controller.ts');
   const service = await read('apps/api/src/profiles/profiles.service.ts');
 
@@ -60,6 +60,7 @@ test('exposes owner-only profile onboarding APIs and requires current consent be
   assert.match(controller, /@Put\('tutor'\)[\s\S]*@Roles\(Role\.TUTOR\)/);
   assert.match(service, /ensureCurrentConsent/);
   assert.match(service, /CURRENT_PRIVACY_POLICY_VERSION/);
+  assert.match(service, /Accept the current privacy notice before viewing a profile/);
   assert.doesNotMatch(service, /select:\s*{[^}]*passwordHash/s);
 });
 
@@ -82,6 +83,7 @@ test('adds profile onboarding/edit pages and redirects verified users to onboard
     assert.match(editor, new RegExp(`\\b${field}\\b`));
   }
   assert.match(editor, /acceptCurrentPrivacyNotice/);
+  assert.match(editor, /await acceptCurrentPrivacyNotice\(\);[\s\S]*await getMyProfile\(\)/);
   assert.match(verify, /replace\('\/onboarding\/profile'\)/);
   assert.match(navigation, /href: '\/dashboard\/profile'/);
 });
