@@ -7,7 +7,11 @@ import {
 } from '@nestjs/common';
 
 import { PrismaService } from '@/database/prisma.service';
-import { BookingStatus, ListingPublicationStatus, TutorVerificationStatus } from '@/generated/prisma/client';
+import {
+  BookingStatus,
+  ListingPublicationStatus,
+  TutorVerificationStatus,
+} from '@/generated/prisma/client';
 import {
   AvailabilityPostRequestDto,
   AvailabilityPostResponseDto,
@@ -85,8 +89,8 @@ export class TutorsService {
         id: listingId,
         tutorProfileId: userId,
         deletedAt: null,
-      }
-    })
+      },
+    });
 
     return mapListing(listing);
   }
@@ -187,8 +191,11 @@ export class TutorsService {
   }
 
   //Availability
-  async getAvailabilityPrivate(userId: string, query: AvailabilityQueryDto): Promise<AvailabilityPrivateResponseDto[]> {
-    if(query.from !== undefined && query.to !== undefined && query.to <= query.from) {
+  async getAvailabilityPrivate(
+    userId: string,
+    query: AvailabilityQueryDto,
+  ): Promise<AvailabilityPrivateResponseDto[]> {
+    if (query.from !== undefined && query.to !== undefined && query.to <= query.from) {
       throw new BadRequestException(`Invalid range`);
     }
 
@@ -202,14 +209,14 @@ export class TutorsService {
           select: {
             id: true,
             status: true,
-          }
-        }
+          },
+        },
       },
       where: {
         tutorProfileId: userId,
         deletedAt: null,
-        ...(query.from !== undefined && {startAtUtc: { gte: query.from }}),
-        ...(query.to !== undefined && {endAtUtc: { lte: query.to }}),
+        ...(query.from !== undefined && { startAtUtc: { gte: query.from } }),
+        ...(query.to !== undefined && { endAtUtc: { lte: query.to } }),
       },
       orderBy: { startAtUtc: 'desc', endAtUtc: 'desc' },
     });
@@ -219,29 +226,45 @@ export class TutorsService {
       startAtUtc: availability.startAtUtc,
       endAtUtc: availability.endAtUtc,
       createdAt: availability.createdAt,
-      state: (availability.bookings && availability.bookings.length > 0 && availability.bookings.at(0)?.status === BookingStatus.CONFIRMED)? AvailabilityState.RESERVED : AvailabilityState.OPEN,
+      state:
+        availability.bookings &&
+        availability.bookings.length > 0 &&
+        availability.bookings.at(0)?.status === BookingStatus.CONFIRMED
+          ? AvailabilityState.RESERVED
+          : AvailabilityState.OPEN,
     }));
   }
 
-  async getAvailabilityPublic(userId: string, query: AvailabilityQueryDto): Promise<AvailabilityPublicResponseDto[]> {
-    return (await this.getAvailabilityPrivate(userId, query)).filter(availability => availability.state === AvailabilityState.OPEN).map((availability) => ({
-      id: availability.id,
-      startAtUtc: availability.startAtUtc,
-      endAtUtc: availability.endAtUtc,
-    }));
+  async getAvailabilityPublic(
+    userId: string,
+    query: AvailabilityQueryDto,
+  ): Promise<AvailabilityPublicResponseDto[]> {
+    return (await this.getAvailabilityPrivate(userId, query))
+      .filter((availability) => availability.state === AvailabilityState.OPEN)
+      .map((availability) => ({
+        id: availability.id,
+        startAtUtc: availability.startAtUtc,
+        endAtUtc: availability.endAtUtc,
+      }));
   }
 
-  async postAvailability(userId: string, request: AvailabilityPostRequestDto): Promise<AvailabilityPostResponseDto> {
-    if(request.endAtUtc <= request.startAtUtc) {
-      throw new BadRequestException(`inverted/equal interval`)
+  async postAvailability(
+    userId: string,
+    request: AvailabilityPostRequestDto,
+  ): Promise<AvailabilityPostResponseDto> {
+    if (request.endAtUtc <= request.startAtUtc) {
+      throw new BadRequestException(`inverted/equal interval`);
     }
 
-    if(await this.prisma.availabilitySlot.count({
-      where:{
-        tutorProfileId: userId,
-        startAtUtc: { lte: request.endAtUtc },
-        endAtUtc: { gte: request.startAtUtc },
-      }}) > 0) {
+    if (
+      (await this.prisma.availabilitySlot.count({
+        where: {
+          tutorProfileId: userId,
+          startAtUtc: { lte: request.endAtUtc },
+          endAtUtc: { gte: request.startAtUtc },
+        },
+      })) > 0
+    ) {
       throw new ConflictException(`Availability slot is overlapping to the others`);
     }
 
@@ -250,7 +273,7 @@ export class TutorsService {
         tutorProfileId: userId,
         startAtUtc: request.startAtUtc,
         endAtUtc: request.endAtUtc,
-      }
+      },
     });
 
     const response: AvailabilityPostResponseDto = {
@@ -270,19 +293,24 @@ export class TutorsService {
         bookings: {
           select: {
             status: true,
-          }
-        }
+          },
+        },
       },
       where: {
         id: slotId,
       },
     });
 
-    if(availability.tutorProfileId !== userId) {
+    if (availability.tutorProfileId !== userId) {
       throw new NotFoundException(`Not-owned`);
     }
 
-    if(availability.bookings !== undefined && availability.bookings.length > 0 && (availability.bookings.at(0)?.status === BookingStatus.CONFIRMED || availability.bookings.at(0)?.status === BookingStatus.PENDING)) {
+    if (
+      availability.bookings !== undefined &&
+      availability.bookings.length > 0 &&
+      (availability.bookings.at(0)?.status === BookingStatus.CONFIRMED ||
+        availability.bookings.at(0)?.status === BookingStatus.PENDING)
+    ) {
       throw new ConflictException(`Active pending/confirmed Booking exists`);
     }
 

@@ -142,10 +142,7 @@ export class TutorsPrivateController {
     allowAdmin: true,
   })
   //TODO: swagger
-  deleteAvailability(
-    @CurrentUser() user: AuthenticatedUser,
-    @Param('slotId') slotId: string,
-  ) {
+  deleteAvailability(@CurrentUser() user: AuthenticatedUser, @Param('slotId') slotId: string) {
     return this.tutors.deleteAvailability(user.id, slotId);
   }
 }

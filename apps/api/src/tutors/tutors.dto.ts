@@ -129,9 +129,9 @@ export class ListingPatchRequestDto {
 
 //Availability
 export const AvailabilityState = {
-  OPEN: "OPEN",
-  RESERVED: "RESERVED",
-} as const
+  OPEN: 'OPEN',
+  RESERVED: 'RESERVED',
+} as const;
 
 export type AvailabilityState = (typeof AvailabilityState)[keyof typeof AvailabilityState];
 
