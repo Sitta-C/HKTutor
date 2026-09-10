@@ -7,9 +7,14 @@ import { ROLES_KEY } from '@/auth/roles.decorator';
 import { BookingsController } from '@/bookings/bookings.controller';
 import { PrismaService } from '@/database/prisma.service';
 import { Role } from '@/generated/prisma/client';
+import { BookingStatus } from '@/generated/prisma/enums';
 
 import type { AuthenticatedUser } from '@/auth/auth.guard';
-import type { BookingResponseDto } from '@/bookings/bookings.dto';
+import type {
+  BookingQuoteResponseDto,
+  BookingResponseDto,
+  MyBookingsResponseDto,
+} from '@/bookings/bookings.dto';
 import type { BookingsService } from '@/bookings/bookings.service';
 import type { INestApplication, Type } from '@nestjs/common';
 import type { OpenAPIObject } from '@nestjs/swagger';
@@ -40,6 +45,69 @@ describe('BookingsController', () => {
 
   it('restricts booking creation to students', () => {
     const handler = Object.getOwnPropertyDescriptor(BookingsController.prototype, 'create')
+      ?.value as object | undefined;
+    const roles = handler
+      ? (Reflect.getMetadata(ROLES_KEY, handler) as Role[] | undefined)
+      : undefined;
+
+    expect(roles).toEqual([Role.STUDENT]);
+  });
+
+  it('derives studentUserId for a quote from the authenticated user, not the query', async () => {
+    const getQuote = jest.fn();
+    const bookingsService = { getQuote } as unknown as BookingsService;
+    const controller = new BookingsController(bookingsService);
+    const user: AuthenticatedUser = {
+      email: 'student@example.com',
+      id: '70e1232d-3c06-4d5d-b3d2-6026df5ff315',
+      role: Role.STUDENT,
+      sessionId: 'session-1',
+    };
+    const query = {
+      listingId: 'a22c4b4d-4f8e-4de6-9b3d-faae7db5eb6d',
+      slotId: '7a0f9ab0-8f25-4d80-bb00-67b3a0c7d3d5',
+    };
+    const expected = {} as BookingQuoteResponseDto;
+    getQuote.mockResolvedValue(expected);
+
+    const result = await controller.getQuote(query, user);
+
+    expect(getQuote).toHaveBeenCalledWith({ ...query, studentUserId: user.id });
+    expect(result).toBe(expected);
+  });
+
+  it('restricts the quote endpoint to students', () => {
+    const handler = Object.getOwnPropertyDescriptor(BookingsController.prototype, 'getQuote')
+      ?.value as object | undefined;
+    const roles = handler
+      ? (Reflect.getMetadata(ROLES_KEY, handler) as Role[] | undefined)
+      : undefined;
+
+    expect(roles).toEqual([Role.STUDENT]);
+  });
+
+  it('derives studentUserId for listing own bookings from the authenticated user, not the query', async () => {
+    const getMyBookings = jest.fn();
+    const bookingsService = { getMyBookings } as unknown as BookingsService;
+    const controller = new BookingsController(bookingsService);
+    const user: AuthenticatedUser = {
+      email: 'student@example.com',
+      id: '70e1232d-3c06-4d5d-b3d2-6026df5ff315',
+      role: Role.STUDENT,
+      sessionId: 'session-1',
+    };
+    const query = { status: BookingStatus.CONFIRMED };
+    const expected = {} as MyBookingsResponseDto;
+    getMyBookings.mockResolvedValue(expected);
+
+    const result = await controller.getMyBookings(query, user);
+
+    expect(getMyBookings).toHaveBeenCalledWith({ ...query, studentUserId: user.id });
+    expect(result).toBe(expected);
+  });
+
+  it('restricts the own-bookings endpoint to students', () => {
+    const handler = Object.getOwnPropertyDescriptor(BookingsController.prototype, 'getMyBookings')
       ?.value as object | undefined;
     const roles = handler
       ? (Reflect.getMetadata(ROLES_KEY, handler) as Role[] | undefined)
@@ -127,5 +195,42 @@ describe('BookingsController OpenAPI contract', () => {
     expect(schema?.required).toContain('slotId');
     expect(schema?.required).toContain('listingId');
     expect(schema?.properties?.['studentUserId']).toBeUndefined();
+  });
+
+  it('publishes the booking-quote contract', () => {
+    const operation = document.paths[`/${API_GLOBAL_PREFIX}/bookings/quote`]?.get;
+
+    expect(operation?.summary).toBe('Get an authoritative booking quote');
+    expect(operation?.responses['200']).toBeDefined();
+    expect(operation?.responses['400']).toBeDefined();
+    expect(operation?.responses['401']).toBeDefined();
+    expect(operation?.responses['403']).toBeDefined();
+    expect(operation?.responses['404']).toBeDefined();
+    expect(operation?.responses['409']).toBeDefined();
+    expect(operation?.security).toEqual([{ [JWT_BEARER_AUTH]: [] }]);
+    expect(operation?.parameters).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ name: 'listingId', required: true }),
+        expect.objectContaining({ name: 'slotId', required: true }),
+      ]),
+    );
+  });
+
+  it('publishes the my-bookings contract', () => {
+    const operation = document.paths[`/${API_GLOBAL_PREFIX}/bookings/me`]?.get;
+
+    expect(operation?.summary).toBe("List the authenticated student's bookings");
+    expect(operation?.responses['200']).toBeDefined();
+    expect(operation?.responses['400']).toBeDefined();
+    expect(operation?.responses['401']).toBeDefined();
+    expect(operation?.responses['403']).toBeDefined();
+    expect(operation?.security).toEqual([{ [JWT_BEARER_AUTH]: [] }]);
+    expect(operation?.parameters).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ name: 'status', required: false }),
+        expect.objectContaining({ name: 'from', required: false }),
+        expect.objectContaining({ name: 'to', required: false }),
+      ]),
+    );
   });
 });
