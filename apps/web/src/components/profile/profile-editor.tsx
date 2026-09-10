@@ -308,11 +308,6 @@ export default function ProfileEditor({ mode }: ProfileEditorProps) {
             <h1 className="profile-page-title">{copy.profileTitle}</h1>
             <p className="profile-page-subtitle">{copy.profileSubtitle}</p>
           </div>
-          {user.role === 'TUTOR' && (
-            <Link href="/dashboard/listings/new" className="profile-primary-action">
-              + {copy.newListing}
-            </Link>
-          )}
         </div>
 
         <nav className="profile-tabs" aria-label={copy.profileTitle}>
