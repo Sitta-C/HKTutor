@@ -6,6 +6,7 @@ import test from 'node:test';
 const schemaPath = 'apps/api/prisma/schema.prisma';
 const migrationsRoot = 'apps/api/prisma/migrations';
 const migrationSuffix = '_add_booking_foundation';
+const expiryMigrationSuffix = '_add_expired_booking_status';
 
 async function readBookingMigration() {
   const entries = await fs.readdir(migrationsRoot, { withFileTypes: true });
@@ -14,6 +15,17 @@ async function readBookingMigration() {
     .map((entry) => entry.name);
 
   assert.equal(migrations.length, 1, 'S1-T23 migration must exist exactly once');
+
+  return fs.readFile(path.join(migrationsRoot, migrations[0], 'migration.sql'), 'utf8');
+}
+
+async function readBookingExpiryMigration() {
+  const entries = await fs.readdir(migrationsRoot, { withFileTypes: true });
+  const migrations = entries
+    .filter((entry) => entry.isDirectory() && entry.name.endsWith(expiryMigrationSuffix))
+    .map((entry) => entry.name);
+
+  assert.equal(migrations.length, 1, 'Booking expiry migration must exist exactly once');
 
   return fs.readFile(path.join(migrationsRoot, migrations[0], 'migration.sql'), 'utf8');
 }
@@ -41,7 +53,8 @@ test('defines the S1-T23 Booking Prisma boundary', async () => {
   assert.match(bookingStatus, /CONFIRMED\s+@map\("confirmed"\)/);
   assert.match(bookingStatus, /COMPLETED\s+@map\("completed"\)/);
   assert.match(bookingStatus, /CANCELED\s+@map\("canceled"\)/);
-  assert.equal([...bookingStatus.matchAll(/@map\(/g)].length, 4);
+  assert.match(bookingStatus, /EXPIRED\s+@map\("expired"\)/);
+  assert.equal([...bookingStatus.matchAll(/@map\(/g)].length, 5);
 
   assert.match(user, /studentBookings\s+Booking\[\]\s+@relation\("BookingStudent"\)/);
   assert.match(tutorProfile, /bookings\s+Booking\[\]/);
@@ -93,6 +106,16 @@ test('defines the S1-T23 Booking Prisma boundary', async () => {
   );
   assert.doesNotMatch(schema, /model (RescheduleRequest|Review|AuditLog|Notification)\s*{/);
   assert.doesNotMatch(slot, /\b(available|reserved|status|state)\b/i);
+});
+
+test('adds the Booking expiry status and pending cleanup index', async () => {
+  const sql = await readBookingExpiryMigration();
+
+  assert.match(sql, /ALTER TYPE "BookingStatus" ADD VALUE 'expired'/i);
+  assert.match(
+    sql,
+    /CREATE INDEX "Booking_pending_createdAt_idx"\s+ON "Booking"\s*\("createdAt"\)\s+WHERE "status" = 'pending'/i,
+  );
 });
 
 test('adds the forward-only S1-T23 database invariants', async () => {

@@ -6,7 +6,7 @@ import { JwtAuthGuard } from '@/auth/auth.guard';
 import { JWT_BEARER_AUTH } from '@/auth/auth.swagger';
 import { ResourceOwnershipGuard } from '@/auth/ownership.guard';
 import { RolesGuard } from '@/auth/roles.guard';
-import { TutorsController } from '@/tutors/tutors.controller';
+import { TutorsPrivateController, TutorsPublicController } from '@/tutors/tutors.controller';
 import { TutorsService } from '@/tutors/tutors.service';
 
 import type { INestApplication } from '@nestjs/common';
@@ -17,13 +17,13 @@ import type {
   SchemaObject,
 } from '@nestjs/swagger';
 
-describe('tutor listing Swagger contract', () => {
+describe('tutor Swagger contract', () => {
   let app: INestApplication;
   let document: OpenAPIObject;
 
   beforeAll(async () => {
     const moduleFixture = await Test.createTestingModule({
-      controllers: [TutorsController],
+      controllers: [TutorsPrivateController, TutorsPublicController],
       providers: [{ provide: TutorsService, useValue: {} }],
     })
       .overrideGuard(JwtAuthGuard)
@@ -181,6 +181,116 @@ describe('tutor listing Swagger contract', () => {
         '#/components/schemas/ListingResponseDto',
       );
     }
+  });
+
+  it('documents private availability list, validation, state, and authentication', () => {
+    const get = operation('get', '/api/v1/tutors/me/availability');
+
+    expect(get.security).toEqual([{ [JWT_BEARER_AUTH]: [] }]);
+    expect(get.parameters).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ in: 'query', name: 'from', required: false }),
+        expect.objectContaining({ in: 'query', name: 'to', required: false }),
+      ]),
+    );
+    for (const status of ['200', '400', '401', '403']) {
+      expect(get.responses).toHaveProperty(status);
+    }
+
+    const response = get.responses['200'] as {
+      content: { 'application/json': { schema: SchemaObject } };
+    };
+    expect(response.content['application/json'].schema).toMatchObject({
+      items: { $ref: '#/components/schemas/AvailabilityPrivateResponseDto' },
+      type: 'array',
+    });
+    const schema = document.components?.schemas?.['AvailabilityPrivateResponseDto'] as SchemaObject;
+    expect(schema.required).toEqual(
+      expect.arrayContaining(['id', 'startAtUtc', 'endAtUtc', 'createdAt', 'state']),
+    );
+    expect(schema.properties?.['state']).toMatchObject({
+      allOf: [{ $ref: '#/components/schemas/AvailabilityState' }],
+    });
+    expect(document.components?.schemas?.['AvailabilityState']).toMatchObject({
+      enum: ['OPEN', 'RESERVED'],
+      type: 'string',
+    });
+  });
+
+  it('documents availability creation with contract input names and conflict response', () => {
+    const post = operation('post', '/api/v1/tutors/me/availability');
+    const request = post.requestBody as {
+      content: { 'application/json': { schema: ReferenceObject } };
+    };
+    const response = post.responses['201'] as {
+      content: { 'application/json': { schema: ReferenceObject } };
+    };
+
+    expect(request.content['application/json'].schema.$ref).toBe(
+      '#/components/schemas/AvailabilityPostRequestDto',
+    );
+    expect(response.content['application/json'].schema.$ref).toBe(
+      '#/components/schemas/AvailabilityPostResponseDto',
+    );
+    for (const status of ['201', '400', '401', '403', '409']) {
+      expect(post.responses).toHaveProperty(status);
+    }
+
+    const requestSchema = document.components?.schemas?.[
+      'AvailabilityPostRequestDto'
+    ] as SchemaObject;
+    expect(requestSchema.required).toEqual(['startAt', 'endAt']);
+    expect(requestSchema.properties).toMatchObject({
+      endAt: { format: 'date-time', type: 'string' },
+      startAt: { format: 'date-time', type: 'string' },
+    });
+    expect(requestSchema.properties).not.toHaveProperty('startAtUtc');
+    expect(requestSchema.properties).not.toHaveProperty('endAtUtc');
+  });
+
+  it('documents availability deletion and its reserved-slot response', () => {
+    const remove = operation('delete', '/api/v1/tutors/me/availability/{slotId}');
+
+    expect(remove.parameters).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          in: 'path',
+          name: 'slotId',
+          schema: expect.objectContaining({ format: 'uuid' }) as object,
+        }),
+      ]),
+    );
+    for (const status of ['204', '400', '401', '403', '404', '409']) {
+      expect(remove.responses).toHaveProperty(status);
+    }
+  });
+
+  it('documents public availability without bearer security', () => {
+    const get = operation('get', '/api/v1/tutors/{tutorId}/availability');
+
+    expect(get.security).toBeUndefined();
+    expect(get.parameters).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          in: 'path',
+          name: 'tutorId',
+          schema: expect.objectContaining({ format: 'uuid' }) as object,
+        }),
+        expect.objectContaining({ in: 'query', name: 'from', required: false }),
+        expect.objectContaining({ in: 'query', name: 'to', required: false }),
+      ]),
+    );
+    for (const status of ['200', '400', '404']) {
+      expect(get.responses).toHaveProperty(status);
+    }
+
+    const response = get.responses['200'] as {
+      content: { 'application/json': { schema: SchemaObject } };
+    };
+    expect(response.content['application/json'].schema).toMatchObject({
+      items: { $ref: '#/components/schemas/AvailabilityPublicResponseDto' },
+      type: 'array',
+    });
   });
 
   function operation(method: string, path: string): OperationObject {

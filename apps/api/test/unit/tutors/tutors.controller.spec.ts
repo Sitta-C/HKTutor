@@ -1,15 +1,23 @@
+import { GUARDS_METADATA } from '@nestjs/common/constants';
+
 import { OWNERSHIP_KEY } from '@/auth/ownership.decorator';
 import { ROLES_KEY } from '@/auth/roles.decorator';
 import { Role } from '@/generated/prisma/client';
-import { TutorsController } from '@/tutors/tutors.controller';
+import { TutorsPrivateController, TutorsPublicController } from '@/tutors/tutors.controller';
 
 import type { AuthenticatedUser } from '@/auth/auth.guard';
 import type { OwnershipRule } from '@/auth/ownership.decorator';
-import type { ListingResponseDto } from '@/tutors/tutors.dto';
+import type {
+  AvailabilityPostRequestDto,
+  AvailabilityPrivateResponseDto,
+  AvailabilityPublicResponseDto,
+  ListingResponseDto,
+} from '@/tutors/tutors.dto';
 import type { TutorsService } from '@/tutors/tutors.service';
 
 const USER_ID = '20000000-0000-4000-8000-000000000001';
 const LISTING_ID = '10000000-0000-4000-8000-000000000001';
+const SLOT_ID = '50000000-0000-4000-8000-000000000001';
 const user: AuthenticatedUser = {
   email: 'tutor@example.com',
   id: USER_ID,
@@ -19,23 +27,27 @@ const user: AuthenticatedUser = {
 
 function createController() {
   const service = {
+    deleteAvailability: jest.fn(),
+    getAvailabilityPrivate: jest.fn(),
+    getAvailabilityPublic: jest.fn(),
     getListing: jest.fn(),
     getListings: jest.fn(),
     patchListing: jest.fn(),
     postListing: jest.fn(),
+    postAvailability: jest.fn(),
     postPublishListing: jest.fn(),
     updateListingStatus: jest.fn(),
   };
 
   return {
-    controller: new TutorsController(service as unknown as TutorsService),
+    controller: new TutorsPrivateController(service as unknown as TutorsService),
     service,
   };
 }
 
-describe('TutorsController', () => {
+describe('TutorsPrivateController', () => {
   it('requires the tutor role at controller level', () => {
-    expect(Reflect.getMetadata(ROLES_KEY, TutorsController)).toEqual([Role.TUTOR]);
+    expect(Reflect.getMetadata(ROLES_KEY, TutorsPrivateController)).toEqual([Role.TUTOR]);
   });
 
   it.each([
@@ -44,7 +56,7 @@ describe('TutorsController', () => {
     ['postPublishListing', 'listingId'],
     ['updateListingStatus', 'listingId'],
   ])('declares ownership protection on %s', (methodName, idParam) => {
-    const handler = Object.getOwnPropertyDescriptor(TutorsController.prototype, methodName)
+    const handler = Object.getOwnPropertyDescriptor(TutorsPrivateController.prototype, methodName)
       ?.value as object | undefined;
     const ownership = handler
       ? (Reflect.getMetadata(OWNERSHIP_KEY, handler) as OwnershipRule | undefined)
@@ -54,6 +66,19 @@ describe('TutorsController', () => {
       allowAdmin: true,
       idParam,
       resource: 'teachingListing',
+    });
+  });
+
+  it('declares availability ownership protection on deletion', () => {
+    const handler = Object.getOwnPropertyDescriptor(
+      TutorsPrivateController.prototype,
+      'deleteAvailability',
+    )?.value as object | undefined;
+
+    expect(Reflect.getMetadata(OWNERSHIP_KEY, handler as object)).toEqual({
+      allowAdmin: true,
+      idParam: 'slotId',
+      resource: 'availabilitySlot',
     });
   });
 
@@ -120,5 +145,43 @@ describe('TutorsController', () => {
       controller.updateListingStatus(user, LISTING_ID, { publicationStatus: 'ARCHIVED' }),
     ).resolves.toBe(response);
     expect(service.updateListingStatus).toHaveBeenCalledWith(USER_ID, LISTING_ID, 'ARCHIVED');
+  });
+
+  it('passes private availability operations to the service with the authenticated owner', async () => {
+    const { controller, service } = createController();
+    const query = { from: new Date('2026-10-17T00:00:00.000Z') };
+    const request: AvailabilityPostRequestDto = {
+      endAt: new Date('2026-10-17T09:00:00.000Z'),
+      startAt: new Date('2026-10-17T08:00:00.000Z'),
+    };
+    const slots = [{ id: SLOT_ID }] as AvailabilityPrivateResponseDto[];
+    const created = { id: SLOT_ID };
+    service.getAvailabilityPrivate.mockResolvedValue(slots);
+    service.postAvailability.mockResolvedValue(created);
+    service.deleteAvailability.mockResolvedValue(undefined);
+
+    await expect(controller.getAvailabilityPrivate(user, query)).resolves.toBe(slots);
+    await expect(controller.postAvailability(user, request)).resolves.toBe(created);
+    await expect(controller.deleteAvailability(user, SLOT_ID)).resolves.toBeUndefined();
+    expect(service.getAvailabilityPrivate).toHaveBeenCalledWith(USER_ID, query);
+    expect(service.postAvailability).toHaveBeenCalledWith(USER_ID, request);
+    expect(service.deleteAvailability).toHaveBeenCalledWith(USER_ID, SLOT_ID);
+  });
+});
+
+describe('TutorsPublicController', () => {
+  it('does not apply authentication guards at controller level', () => {
+    expect(Reflect.getMetadata(GUARDS_METADATA, TutorsPublicController)).toBeUndefined();
+  });
+
+  it('loads public availability for the requested tutor', async () => {
+    const service = { getAvailabilityPublic: jest.fn() };
+    const controller = new TutorsPublicController(service as unknown as TutorsService);
+    const query = { from: new Date('2026-10-17T00:00:00.000Z') };
+    const slots = [{ id: SLOT_ID }] as AvailabilityPublicResponseDto[];
+    service.getAvailabilityPublic.mockResolvedValue(slots);
+
+    await expect(controller.getAvailabilityPublic(USER_ID, query)).resolves.toBe(slots);
+    expect(service.getAvailabilityPublic).toHaveBeenCalledWith(USER_ID, query);
   });
 });
