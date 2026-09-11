@@ -887,6 +887,23 @@ describe('BookingsService', () => {
       );
     });
 
+    it('throws BadRequestException when the slot has already started', async () => {
+      const { listingId, slotId, studentUserId, tutorUserId } = createTestData();
+
+      mockPrismaService.availabilitySlot.findUnique.mockResolvedValue({
+        deletedAt: null,
+        endAtUtc: new Date(Date.now() - 30 * 60 * 1000),
+        id: slotId,
+        startAtUtc: new Date(Date.now() - 60 * 60 * 1000),
+        tutorProfileId: tutorUserId,
+      });
+
+      await expect(service.getQuote({ listingId, slotId, studentUserId })).rejects.toThrow(
+        new BadRequestException('The selected slot has already started or is in the past.'),
+      );
+      expect(mockPrismaService.booking.findFirst).not.toHaveBeenCalled();
+    });
+
     it('throws NotFoundException when the listing does not exist', async () => {
       const { listingId, slotId, studentUserId, tutorUserId } = createTestData();
 
