@@ -22,7 +22,7 @@ export function StudentDashboard({ user, onLogout }: StudentDashboardProps) {
   const headerNav = (
     <>
       <Link href="#bookings">{copy.dashboard.header.myBookingsNav}</Link>
-      <Link href="#find-tutor" className="dash-cta">
+      <Link href="/tutors" className="dash-cta">
         {copy.dashboard.header.findTutorCta}
       </Link>
     </>
@@ -85,7 +85,7 @@ export function StudentDashboard({ user, onLogout }: StudentDashboardProps) {
               <span>{studentCopy.quickActions}</span>
             </h2>
             <div className="dash-qa dash-qa-student">
-              <Link href="#find-tutor">
+              <Link href="/tutors">
                 <span className="ico" aria-hidden="true">
                   <DashboardIcon name="search" />
                 </span>
@@ -157,7 +157,7 @@ export function StudentDashboard({ user, onLogout }: StudentDashboardProps) {
                   disabled
                 />
               </label>
-              <Link href="#find-tutor" className="dash-btn-dark">
+              <Link href="/tutors" className="dash-btn-dark">
                 <span className="ico" aria-hidden="true">
                   <DashboardIcon name="plus" />
                 </span>
@@ -191,7 +191,7 @@ export function StudentDashboard({ user, onLogout }: StudentDashboardProps) {
                 <span className="text-xs text-[#5e5a52]">{studentCopy.cantFindTutorSub}</span>
               </div>
             </div>
-            <Link href="#find-tutor" className="dash-btn-dark">
+            <Link href="/tutors" className="dash-btn-dark">
               <span>{studentCopy.browseAllTutors}</span>
             </Link>
           </div>

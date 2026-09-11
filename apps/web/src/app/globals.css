@@ -2672,6 +2672,86 @@ input {
   color: var(--ink-2);
 }
 
+/* Public Tutor search keeps the dashboard palette while remaining usable without a session. */
+.tutor-search-page {
+  background: transparent;
+}
+
+.tutor-search-control {
+  width: 100%;
+  min-height: 3rem;
+  border: 1px solid var(--border-strong);
+  border-radius: 0.85rem;
+  background: #fff;
+  color: var(--ink);
+  padding: 0.7rem 0.85rem;
+  outline: none;
+  transition:
+    border-color 0.2s,
+    box-shadow 0.2s;
+}
+
+.tutor-search-control:focus {
+  border-color: var(--student-deep);
+  box-shadow: 0 0 0 4px var(--student-soft);
+}
+
+.tutor-search-control:disabled {
+  cursor: not-allowed;
+  background: #f5f1e9;
+  color: var(--ink-3);
+}
+
+.tutor-search-control-error {
+  border-color: var(--error);
+  box-shadow: 0 0 0 4px rgba(192, 79, 64, 0.1);
+}
+
+.tutor-search-primary-button,
+.tutor-search-secondary-button {
+  display: inline-flex;
+  min-height: 2.75rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  padding: 0.7rem 1.1rem;
+  font-size: 0.875rem;
+  font-weight: 800;
+  transition:
+    transform 0.2s,
+    background 0.2s,
+    border-color 0.2s;
+}
+
+.tutor-search-primary-button {
+  border: 0;
+  background: linear-gradient(135deg, #2a2822, #151410);
+  color: #fff;
+  box-shadow: var(--shadow-btn);
+}
+
+.tutor-search-primary-button:hover:not(:disabled) {
+  transform: translateY(-2px);
+  background: linear-gradient(135deg, #3a372e, #1d1c18);
+}
+
+.tutor-search-primary-button:disabled {
+  cursor: wait;
+  opacity: 0.55;
+}
+
+.tutor-search-secondary-button {
+  border: 1px solid var(--border-strong);
+  background: #fffdf9;
+  color: var(--ink-2);
+}
+
+.tutor-search-secondary-button:hover {
+  transform: translateY(-2px);
+  border-color: var(--accent);
+  color: var(--ink);
+}
+
 .listing-page .listing-secondary-action:hover:not(:disabled),
 .listing-page .profile-ghost-button:hover:not(:disabled) {
   border-color: #b9b3a8;
