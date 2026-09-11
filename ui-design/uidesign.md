@@ -1,6 +1,6 @@
 # HKTutor — UI design and page-to-data mapping
 
-Updated 2026-09-10 from the complete first-party Markdown/TSX inventory and the project workbook.
+Updated 2026-09-11 from the complete first-party Markdown/TSX inventory and the project workbook.
 This document defines what each screen should show, which model supplies it, who may act, and
 what remains to design. It is a design plan, not a claim that the proposed pages or APIs exist.
 
@@ -8,8 +8,8 @@ For the page-by-page API dependency, see
 [`sprint1-ui-api-map.md`](./sprint1-ui-api-map.md). Frontend field requirements for Backend are in
 [`sprint1-api-field-requirements.md`](./sprint1-api-field-requirements.md).
 
-Current design worktree: `HKTutor-design-ui/`, local branch `design/ui`, fast-forwarded to current
-`main` at `de95d0b`. The main checkout is `HKTutor/` at the same commit.
+Current implementation checkout: `HKTutor/`, local branch `main`, reviewed through `8da9c1e` plus
+the profile-form and prototype-shell synchronization recorded in this revision.
 
 ## Sources and reading scope
 
@@ -159,16 +159,22 @@ dashboard references. The production stylesheet includes Student, Tutor, and Adm
 
 **Layout skeleton (both dashboards):**
 
-- Sticky left sidebar (`300px`, gradient `#fbf9f3→#f4efe4`, full viewport height, collapsible
-  with the current logo/burger transition): logo, `user-chip` (gradient avatar +
-  name + email), `side-nav` (icon + EN/TH label, optional count `chip` or `ln` outline pill,
-  `danger` item last), small `side-card` promo/tip.
+- Sticky left sidebar (`300px`, gradient `#fbf9f3→#f4efe4`, full viewport height): the expanded
+  logo links to `/dashboard`, and the top-right `<` button collapses it to a `4.75rem` icon rail.
+  The rail keeps the existing HK logo visible; hovering the logo reveals a hamburger and clicking
+  it expands the sidebar. Navigation icons remain operable in both states, the current route uses
+  the role-tinted active card, and the preference is stored in
+  `localStorage['hktutor-sidebar-collapsed']`.
+- Expanded content includes the `user-chip` (gradient avatar + name + email), `side-nav` (icon +
+  EN/TH label, optional count `chip` or `ln` outline pill, `danger` item last), and small
+  `side-card` promo/tip. No duplicate logo or hamburger sits outside the sidebar.
 - Main column (`min(1200px, …)`): greeting block (eyebrow pill, `h1` with role chip,
   subtitle) → **row 1: 4 summary cards** (5px role-gradient top bar, soft corner circle,
   icon-dot headings, `.big` stat + `.sub`) → **row 2: one wide panel** (search/filter head +
   table/list) → supporting panels per role.
-- Header: logo (HK monogram in dark rounded square, gradient), nav, lang toggle (role-colored
-  dot), amber CTA pill.
+- Header: contextual navigation, language toggle (role-colored dot), and an amber CTA pill. The
+  profile editor uses a single Back to dashboard action and leaves all shell controls in the
+  sidebar.
 - Decorative `BackgroundArtwork`: fixed blurred radial blobs (2 warm + 1 role-tinted) + radial
   highlight — subtler than auth page artwork.
 
@@ -188,8 +194,8 @@ dashboard references. The production stylesheet includes Student, Tutor, and Adm
 - i18n in drafts: `data-en`/`data-th` attributes + `html[lang]` CSS switch (drafts) — real
   implementation still uses `copy.<section>.<key>` from `lib/i18n.tsx`.
 - Accessibility: same conventions as auth (sr-only labels, `aria-label` on icon buttons,
-  `role="alert"` errors, `aria-hidden` artwork) + collapsible sidebar keeps a visible close
-  button and a fixed reopen pill.
+  `role="alert"` errors, `aria-hidden` artwork). The expanded sidebar keeps a labelled close
+  button; the collapsed logo/hamburger and each rail icon retain a label, focus style and route.
 
 ### Typography
 
@@ -279,17 +285,17 @@ ui-design/
 
 ## 7. Page drafts index
 
-| Draft file                     | Real route                                  | Owning task | Status                                                                                                                |
-| ------------------------------ | ------------------------------------------- | ----------- | --------------------------------------------------------------------------------------------------------------------- |
-| `index.html`                   | — (gallery)                                 | —           | ✅ scaffold                                                                                                           |
-| `pages/dashboard-student.html` | `/dashboard` (student view)                 | S1-T09      | ✅ **shell implemented in T09** — accepted visual reference; domain data/actions still pending                        |
-| `pages/dashboard-tutor.html`   | `/dashboard` (tutor view)                   | S1-T09      | ✅ **shell implemented in T09** — accepted blue theme; booking, listing, availability and earnings data still pending |
-| `pages/tutor-profile.html`     | `/dashboard/profile` (tutor view)           | S1-T16      | ✅ basic profile ported to production — six inputs, private/public separation, API status and live preview            |
-| `pages/student-profile.html`   | `/onboarding/profile`, `/dashboard/profile` | S1-T32      | ✅ ported to production — six inputs, privacy scope, inline validation, onboarding/edit, summary and API save states  |
-| `pages/listing-form.html`      | listing form + cards                        | S1-T16      | 🟡 interactive draft — complete data, validation, preview and status filters; awaiting visual review                  |
-| `pages/availability.html`      | availability manager (Bangkok time UTC+7)   | S1-T19      | 🟡 interactive draft — complete slot data, derived status, create/delete and conflict states; awaiting visual review  |
-| `pages/search.html`            | tutor search + filters + no-match state     | S1-T22      | 🟡 interactive draft — complete listing data, four filters and exact no-match state; awaiting visual review           |
-| `pages/booking.html`           | booking confirmation + student booking list | S1-T25      | 🟡 interactive draft — complete request summary, booking states and slot-conflict state; awaiting visual review       |
+| Draft file                     | Real route                                  | Owning task | Status                                                                                                                          |
+| ------------------------------ | ------------------------------------------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `index.html`                   | — (gallery)                                 | —           | ✅ scaffold                                                                                                                     |
+| `pages/dashboard-student.html` | `/dashboard` (student view)                 | S1-T09      | ✅ **shell implemented in T09** — accepted visual reference; domain data/actions still pending                                  |
+| `pages/dashboard-tutor.html`   | `/dashboard` (tutor view)                   | S1-T09      | ✅ **shell implemented in T09** — accepted blue theme; booking, listing, availability and earnings data still pending           |
+| `pages/tutor-profile.html`     | `/dashboard/profile` (tutor view)           | S1-T16      | ✅ production form and current sidebar/header synchronized — six inputs, private/public separation, API status and live preview |
+| `pages/student-profile.html`   | `/onboarding/profile`, `/dashboard/profile` | S1-T32      | ✅ production form and current sidebar/header synchronized — six inputs, privacy scope, inline validation and API save states   |
+| `pages/listing-form.html`      | listing form + cards                        | S1-T16      | 🟡 interactive draft — complete data, validation, preview and status filters; awaiting visual review                            |
+| `pages/availability.html`      | availability manager (Bangkok time UTC+7)   | S1-T19      | 🟡 interactive draft — complete slot data, derived status, create/delete and conflict states; awaiting visual review            |
+| `pages/search.html`            | tutor search + filters + no-match state     | S1-T22      | 🟡 interactive draft — complete listing data, four filters and exact no-match state; awaiting visual review                     |
+| `pages/booking.html`           | booking confirmation + student booking list | S1-T25      | 🟡 interactive draft — complete request summary, booking states and slot-conflict state; awaiting visual review                 |
 
 ## 8. Acceptance flow (draft → real page)
 
@@ -343,8 +349,13 @@ finish this form before continuing to the dashboard.
 | Profile state     | `profileComplete`, `consentCurrent`, current policy version | `GET /api/v1/profiles/me`                                                  | Loading, missing profile, updated-consent requirement, save error, saved state and incomplete-profile redirect         |
 
 Draft: `pages/student-profile.html` covers all six fields, exact current DTO limits, EN/TH copy,
-live owner summary, validation, save/cancel feedback and the Student dashboard shell. The legal
-name, school, grade level, phone and email are never presented as tutor-visible data.
+live owner summary, validation, save/cancel feedback and the current Student dashboard shell. The
+production form uses the draft's `1.35fr / minmax(290px, .75fr)` grid, persistent onboarding/edit
+note, stacked School/Class summary rows, corner artwork, compact status dots and Student teal field
+focus/action treatment. The legal name, school, grade level, phone and email are never presented as
+tutor-visible data. The draft status strip shows only Account email and Profile status because
+current privacy consent is already enforced before this screen; the wider email cell wraps long
+addresses instead of truncating them.
 
 ### 9.3 Student dashboard
 
@@ -401,11 +412,15 @@ documents as a separate, clearly scoped section when Sprint 2 is enabled.
 | Document list        | Filename/type/size, status, uploaded/reviewed dates, review note         | Planned `TutorDocument.status/uploadedAt/reviewedAt/reviewNote`                                           | Own documents only; Pending/Verified/Rejected; show rejection feedback and permitted resubmission                  |
 | View document        | Short-lived authorized viewer/download action                            | Planned server-issued signed URL from private `objectPath`                                                | URL is transient, not a public profile field; handle expiry and denied access                                      |
 
-Draft review: `pages/tutor-profile.html` now matches the six current Tutor profile inputs and keeps
-private identity separate from the public preview. It also allows removal of document rows.
-Removing a locally queued file is safe draft behavior; persisted document deletion needs an explicit
-API/RBAC contract (the sheet grants tutor create/read, not delete). Public profile verification
-must use the aggregate profile status; it cannot be inferred from one document being approved.
+Draft review: `pages/tutor-profile.html` now matches the six current Tutor profile inputs, current
+dashboard shell and blue Tutor form treatment while keeping private identity separate from the
+public preview. Production uses the draft's `1.4fr / minmax(300px, .82fr)` grid, preview hierarchy,
+corner artwork and four-column account-status strip with compact status dots. Its certificate
+section remains a Sprint 2 interaction concept and is deliberately absent from the production
+Sprint 1 form. Removing a locally queued file is safe draft behavior; persisted document deletion
+needs an explicit API/RBAC contract (the sheet grants tutor create/read, not delete). Public profile
+verification must use the aggregate profile status; it cannot be inferred from one document being
+approved. The draft gives Account email the widest status column and wraps long addresses.
 
 ### 9.6 Teaching listings: list, create and edit
 
@@ -541,8 +556,8 @@ Planned Booking fields absent from current Prisma: `couponId`, `paymentStatus`, 
 | Time                                  | Store/compare UTC, display Asia/Bangkok and explicit date/time; use the same boundary for cards, filters and reports. Do not rely on browser-local timezone or change timezone when switching EN/TH.                                                                     |
 | Money                                 | THB; distinguish hourly rate, quoted lesson total and persisted booking amounts; show subtotal − discount = net. Use server decimal values; do not recompute historical amounts from current rate.                                                                       |
 | Identity fallback                     | Initial avatar is derived decoration. Public tutor name uses profile; tutor-facing student identity uses only the API-allowed `StudentProfile.nickname`. Do not expose or invent other personal profile data.                                                            |
-| Responsive layout                     | Preserve 300px desktop rail and current collapsible behavior. Stack forms/cards on narrow screens; present booking rows as readable cards or bounded tables; retain core time/status/action visibility.                                                                  |
-| Keyboard and language                 | EN/TH labels, placeholders, errors and empty states; labelled icon buttons, focus visibility, aria-live status, inert collapsed navigation. New designs must remain usable with zoom and reduced motion.                                                                 |
+| Responsive layout                     | Preserve the 300px expanded sidebar and 4.75rem collapsed rail. Stack forms/cards on narrow screens; present booking rows as readable cards or bounded tables; retain core time/status/action visibility.                                                                |
+| Keyboard and language                 | EN/TH labels, placeholders, errors and empty states; labelled icon buttons, focus visibility, aria-live status and operable collapsed-rail navigation. New designs must remain usable with zoom and reduced motion.                                                      |
 | Reusable building blocks              | Existing AuthShell/DashboardShell; proposed StatusBadge, Tutor/ListingCard, BookingSummary, BangkokTimeRange, MoneyBreakdown, CatalogSelect, Empty/ErrorState, DocumentRow and confirmation dialog. These names describe proposed components, not files already present. |
 
 ## 12. Contract gaps and source conflicts to resolve
@@ -557,7 +572,7 @@ nickname and do not expose the student's legal name or other private profile fie
 | Finding                                     | Evidence / effect                                                                                                                                                             | Design decision for now                                                                                                                           |
 | ------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Dashboard documentation lag                 | Root README and old UI inventory call it a stub; TSX and T09 Done show role shells                                                                                            | Mark shells implemented, domain data pending. Do not redesign completed auth/session work                                                         |
-| Current domain coverage                     | `main` and `design/ui` at `de95d0b` include profile and Tutor listing code; availability, search/catalog and booking controllers are absent                                   | Use profile APIs now; keep absent domain APIs proposed and verify each dependency again when it merges                                            |
+| Current domain coverage                     | `main` reviewed through `8da9c1e` includes profile and Tutor listing code; availability, search/catalog and booking controllers are absent                                    | Use profile APIs now; keep absent domain APIs proposed and verify each dependency again when it merges                                            |
 | Tutor listing route/response conflicts      | The controller still declares `api/tutors` under global `api/v1`, GET filtering uses a body, and create/publish responses lack fields required by UI                          | Do not connect listing drafts until Backend resolves the exact items recorded in `sprint1-api-field-requirements.md`                              |
 | API prefix differed                         | Trello titles were aligned with the application, Swagger and same-origin web client on `/api/v1` on 2026-09-09                                                                | Resolved; Frontend and Backend now use the same request prefix                                                                                    |
 | Search response was too small               | T21/API-01 now defines tutor ID, description, review count, experience and next availability required by search cards                                                         | Contract is aligned; the View times flow remains blocked only until the endpoint is implemented                                                   |
@@ -587,6 +602,8 @@ nickname and do not expose the student's legal name or other private profile fie
 
 1. Maintain `pages/student-profile.html` under S1-T32 and `pages/tutor-profile.html` under S1-T16:
    keep all current role-specific profile fields, privacy boundaries and shared role shells aligned.
+   The shell includes the dashboard-linked expanded logo, `<` collapse control, hover-to-hamburger
+   compact logo, active-route card and navigation in both expanded and collapsed states.
 2. Draft `pages/listing-form.html`: listing management cards, create/edit states and publication
    eligibility; reuse Subject/Grade selectors and price/description validation.
 3. Draft `pages/availability.html`: Bangkok-time empty/populated list/calendar, add range,
@@ -608,5 +625,7 @@ tutor, no reviews, no listings, no slots, inactive catalog, reserved slot, pendi
 conflicting submission. A frontend-ready handoff additionally requires verified request/response
 types, authoritative permission checks and agreed business transitions.
 
-This update changes documentation only. No TSX, runtime behavior, schema, shared database or
-Google Sheet is modified by this design mapping.
+This revision synchronizes the production profile grids, role styling and preview-card hierarchy
+with the accepted drafts, and updates both profile prototypes to the current production
+sidebar/header behavior. It does not change the profile API, schema, shared database or Google
+Sheet.

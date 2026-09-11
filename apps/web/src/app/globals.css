@@ -1285,9 +1285,16 @@ input {
 
 .profile-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1.4fr) minmax(300px, 0.82fr);
   gap: 1.25rem;
   align-items: start;
+}
+
+.profile-grid.student {
+  grid-template-columns: minmax(0, 1.35fr) minmax(290px, 0.75fr);
+}
+
+.profile-grid.tutor {
+  grid-template-columns: minmax(0, 1.4fr) minmax(300px, 0.82fr);
 }
 
 .profile-form-card,
@@ -1317,15 +1324,23 @@ input {
 }
 
 .profile-card-head p {
-  max-width: 270px;
   text-align: right;
   color: var(--ink-3);
   font-size: 0.76rem;
   line-height: 1.45;
 }
 
+.profile-form-card.student .profile-card-head p {
+  max-width: 260px;
+}
+
+.profile-form-card.tutor .profile-card-head p {
+  max-width: 250px;
+}
+
 .profile-onboarding-note {
   display: flex;
+  align-items: flex-start;
   gap: 0.7rem;
   margin-top: 1.2rem;
   padding: 0.85rem 1rem;
@@ -1335,8 +1350,10 @@ input {
 }
 
 .profile-onboarding-note.student {
+  gap: 0.75rem;
+  border: 1px solid rgba(34, 196, 154, 0.22);
+  border-radius: 1rem;
   background: var(--student-softer);
-  color: var(--student-deep);
 }
 
 .profile-onboarding-note.tutor {
@@ -1356,8 +1373,28 @@ input {
   font-weight: 900;
 }
 
-.profile-inline-icon svg,
-.profile-read-only-icon,
+.profile-onboarding-note.student span {
+  width: 1.8rem;
+  height: 1.8rem;
+  flex-basis: 1.8rem;
+  border-radius: 0.55rem;
+  background: var(--student-soft);
+  color: var(--student-deep);
+}
+
+.profile-onboarding-copy b {
+  display: block;
+  color: var(--ink);
+  font-size: 0.76rem;
+}
+
+.profile-onboarding-copy p {
+  margin-top: 0.2rem;
+  color: var(--ink-2);
+  font-size: 0.7rem;
+  line-height: 1.5;
+}
+
 .profile-verified svg,
 .profile-saved svg,
 .profile-toast svg {
@@ -1383,11 +1420,19 @@ input {
   justify-content: space-between;
   gap: 1rem;
   padding-top: 0.25rem;
-  color: var(--accent);
+  color: var(--ink-2);
   font-size: 0.7rem;
   font-weight: 800;
   letter-spacing: 0.08em;
   text-transform: uppercase;
+}
+
+.profile-form-card.student .profile-section-label {
+  color: var(--student-deep);
+}
+
+.profile-form-card.tutor .profile-section-label {
+  color: var(--tutor-deep);
 }
 
 .profile-section-label:not(:first-child) {
@@ -1432,6 +1477,10 @@ input {
   color: var(--ink-3);
 }
 
+.profile-help {
+  line-height: 1.45;
+}
+
 .profile-field input,
 .profile-field textarea {
   width: 100%;
@@ -1456,11 +1505,18 @@ input {
   border-color: #b9b3a8;
 }
 
-.profile-field input:focus,
-.profile-field textarea:focus {
+.profile-form-card.student .profile-field input:focus,
+.profile-form-card.student .profile-field textarea:focus {
   outline: none;
-  border-color: var(--accent);
-  box-shadow: 0 0 0 4px rgba(209, 139, 67, 0.14);
+  border-color: var(--student);
+  box-shadow: 0 0 0 4px var(--student-soft);
+}
+
+.profile-form-card.tutor .profile-field input:focus,
+.profile-form-card.tutor .profile-field textarea:focus {
+  outline: none;
+  border-color: var(--tutor);
+  box-shadow: 0 0 0 4px var(--tutor-soft);
 }
 
 .profile-field.invalid input,
@@ -1492,11 +1548,11 @@ input {
 }
 
 .profile-system-info.student {
-  grid-template-columns: 1.45fr 1fr 1fr;
+  grid-template-columns: 1.3fr 1fr 1fr;
 }
 
 .profile-system-info.tutor {
-  grid-template-columns: 1.45fr 1fr 1fr 0.75fr;
+  grid-template-columns: 1.45fr 1fr 1fr 1fr;
 }
 
 .profile-read-only {
@@ -1525,7 +1581,6 @@ input {
   white-space: nowrap;
 }
 
-.profile-read-only .status,
 .profile-saved {
   color: var(--student-deep);
 }
@@ -1534,6 +1589,31 @@ input {
   display: flex;
   align-items: center;
   gap: 0.35rem;
+}
+
+.profile-read-only b.status.student {
+  color: var(--student-deep);
+}
+
+.profile-read-only b.status.tutor {
+  color: var(--tutor-deep);
+}
+
+.profile-read-only b.status.pending {
+  color: var(--accent-hover);
+}
+
+.profile-read-only b.status.error {
+  color: var(--error);
+}
+
+.profile-status-dot {
+  display: block;
+  width: 0.4rem;
+  height: 0.4rem;
+  flex: 0 0 0.4rem;
+  border-radius: 50%;
+  background: currentColor;
 }
 
 .profile-listing-note {
@@ -1577,6 +1657,11 @@ input {
   background: linear-gradient(135deg, #2a2822, #151410);
   color: #fff;
   box-shadow: var(--shadow-btn);
+}
+
+.profile-form-card.student .profile-primary-button {
+  background: linear-gradient(135deg, var(--student-grad-1), var(--student-grad-2));
+  box-shadow: 0 4px 12px rgba(34, 196, 154, 0.3);
 }
 
 .profile-ghost-button {
@@ -1627,6 +1712,20 @@ input {
   background: var(--warn-bg);
 }
 
+.profile-preview-card.student .profile-preview-title span {
+  width: 1.7rem;
+  height: 1.7rem;
+  background: var(--student-soft);
+  color: var(--student-deep);
+}
+
+.profile-preview-card.tutor .profile-preview-title span {
+  width: 1.7rem;
+  height: 1.7rem;
+  background: var(--tutor-soft);
+  color: var(--tutor-deep);
+}
+
 .profile-preview-subtitle {
   margin-bottom: 1rem;
   color: var(--ink-3);
@@ -1643,6 +1742,7 @@ input {
 }
 
 .profile-public-card.student {
+  padding: 1.15rem;
   background: linear-gradient(145deg, #fff 55%, var(--student-softer));
 }
 
@@ -1650,7 +1750,27 @@ input {
   background: linear-gradient(145deg, #fff 55%, var(--tutor-softer));
 }
 
+.profile-public-card::after {
+  content: '';
+  position: absolute;
+  top: -3.7rem;
+  right: -3.7rem;
+  width: 8.5rem;
+  height: 8.5rem;
+  border-radius: 50%;
+}
+
+.profile-public-card.student::after {
+  background: var(--student-softer);
+}
+
+.profile-public-card.tutor::after {
+  background: var(--tutor-softer);
+}
+
 .profile-identity {
+  position: relative;
+  z-index: 1;
   display: flex;
   align-items: center;
   gap: 0.8rem;
@@ -1703,12 +1823,33 @@ input {
 
 .profile-summary-list {
   display: grid;
-  grid-template-columns: 1fr 1fr;
   gap: 0.6rem;
   margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border);
+  position: relative;
+  z-index: 1;
+}
+
+.profile-summary-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  font-size: 0.75rem;
+}
+
+.profile-summary-row dt {
+  color: var(--ink-3);
+}
+
+.profile-summary-row dd {
+  font-weight: 700;
+  text-align: right;
 }
 
 .profile-bio-preview {
+  position: relative;
+  z-index: 1;
   margin-top: 1rem;
   padding-top: 1rem;
   border-top: 1px solid var(--border);
@@ -1817,7 +1958,8 @@ input {
 }
 
 @media (max-width: 1060px) {
-  .profile-grid {
+  .profile-grid.student,
+  .profile-grid.tutor {
     grid-template-columns: 1fr;
   }
 

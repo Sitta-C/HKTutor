@@ -296,18 +296,25 @@ export default function ProfileEditor({ mode }: ProfileEditorProps) {
           </button>
         </form>
       ) : (
-        <div className="profile-grid">
-          <form className="dash-card profile-form-card" noValidate onSubmit={handleSubmit}>
+        <div className={`profile-grid ${studentRole ? 'student' : 'tutor'}`}>
+          <form
+            className={`dash-card profile-form-card ${studentRole ? 'student' : 'tutor'}`}
+            noValidate
+            onSubmit={handleSubmit}
+          >
             <div className="profile-card-head">
               <h2>{text.profileInformation}</h2>
               <p>{studentRole ? text.allRequired : text.tutorVisibility}</p>
             </div>
-            {mode === 'onboarding' && (
-              <div className={`profile-onboarding-note ${studentRole ? 'student' : 'tutor'}`}>
+            {studentRole && (
+              <div className="profile-onboarding-note student">
                 <span className="profile-inline-icon" aria-hidden="true">
-                  <DashboardIcon name="check" className="h-4 w-4" />
+                  ✓
                 </span>
-                <p>{text.onboardingBody}</p>
+                <div className="profile-onboarding-copy">
+                  <b>{text.onboardingNoteTitle}</b>
+                  <p>{text.onboardingNoteBody}</p>
+                </div>
               </div>
             )}
             {error && <Alert>{error}</Alert>}
@@ -652,18 +659,22 @@ function SystemInfo({
           <ReadOnly
             label={text.profileStatus}
             value={complete ? text.complete : text.incomplete}
-            status={complete}
-            statusIcon={complete ? 'check' : 'info'}
+            statusTone={complete ? 'student' : 'pending'}
           />
-          <ReadOnly label={text.privacyNotice} value={text.current} status statusIcon="check" />
+          <ReadOnly label={text.privacyNotice} value={text.current} statusTone="student" />
         </>
       ) : (
         <>
           <ReadOnly
             label={text.verification}
             value={text.status[tutorMeta.verificationStatus]}
-            status
-            statusIcon={tutorMeta.verificationStatus === 'VERIFIED' ? 'check' : 'info'}
+            statusTone={
+              tutorMeta.verificationStatus === 'VERIFIED'
+                ? 'tutor'
+                : tutorMeta.verificationStatus === 'REJECTED'
+                  ? 'error'
+                  : 'pending'
+            }
           />
           <ReadOnly label={text.rating} value={tutorMeta.ratingAverage ?? text.newTutor} />
           <ReadOnly label={text.reviews} value={String(tutorMeta.reviewCount)} />
@@ -677,7 +688,7 @@ function StudentSummary({ data, language }: { data: StudentForm; language: 'en' 
   const text = copy[language];
   const nickname = data.nickname.trim() || text.nickname;
   return (
-    <aside className="dash-card profile-preview-card">
+    <aside className="dash-card profile-preview-card student">
       <PreviewTitle icon="profile" title={text.accountSummary} body={text.accountSummaryBody} />
       <div className="profile-public-card student">
         <Identity
@@ -686,10 +697,16 @@ function StudentSummary({ data, language }: { data: StudentForm; language: 'en' 
           initials={initials(nickname, 'S')}
           role="student"
         />
-        <div className="profile-summary-list">
-          <ReadOnly label={text.school} value={data.school.trim() || '—'} />
-          <ReadOnly label={text.classLabel} value={data.gradeLevel.trim() || '—'} />
-        </div>
+        <dl className="profile-summary-list">
+          <div className="profile-summary-row">
+            <dt>{text.school}</dt>
+            <dd>{data.school.trim() || '—'}</dd>
+          </div>
+          <div className="profile-summary-row">
+            <dt>{text.classLabel}</dt>
+            <dd>{data.gradeLevel.trim() || '—'}</dd>
+          </div>
+        </dl>
       </div>
       <div className="profile-tip student">
         <b>{text.whatTutorsSee}</b>
@@ -711,12 +728,13 @@ function TutorPreview({
   const text = copy[language];
   const name = data.displayName.trim() || text.displayName;
   return (
-    <aside className="dash-card profile-preview-card">
+    <aside className="dash-card profile-preview-card tutor">
       <PreviewTitle icon="eye" title={text.studentView} body={text.studentViewBody} />
       <div className="profile-public-card tutor">
         <Identity
           name={name}
-          detail={`${data.experienceYears || '0'} ${text.yearsExperience}`}
+          detail={text.tutor}
+          secondaryDetail={`${data.experienceYears || '0'} ${text.yearsExperience}`}
           initials={initials(name, 'T')}
           role="tutor"
           badge={text.status[status]}
@@ -756,6 +774,7 @@ function PreviewTitle({
 function Identity({
   name,
   detail,
+  secondaryDetail,
   initials: letters,
   role,
   badge,
@@ -763,6 +782,7 @@ function Identity({
 }: {
   name: string;
   detail: string;
+  secondaryDetail?: string;
   initials: string;
   role: 'student' | 'tutor';
   badge?: string;
@@ -774,6 +794,7 @@ function Identity({
       <div>
         <h3>{name}</h3>
         <p>{detail}</p>
+        {secondaryDetail && <p>{secondaryDetail}</p>}
         {badge && (
           <span className="profile-verified">
             {badgeIcon && <DashboardIcon name={badgeIcon} className="h-3 w-3" />}
@@ -787,19 +808,17 @@ function Identity({
 function ReadOnly({
   label,
   value,
-  status,
-  statusIcon,
+  statusTone,
 }: {
   label: string;
   value: string;
-  status?: boolean;
-  statusIcon?: DashboardIconName;
+  statusTone?: 'student' | 'tutor' | 'pending' | 'error';
 }) {
   return (
     <div className="profile-read-only">
       <span>{label}</span>
-      <b className={status ? 'status' : undefined}>
-        {statusIcon && <DashboardIcon name={statusIcon} className="profile-read-only-icon" />}
+      <b className={statusTone ? `status ${statusTone}` : undefined}>
+        {statusTone && <i className="profile-status-dot" aria-hidden="true" />}
         {value}
       </b>
     </div>
@@ -947,6 +966,9 @@ const copy = {
     nickname: 'Nickname',
     nicknameHint: 'Used for your account greeting.',
     onboardingBody: 'Complete every required field before continuing to your dashboard.',
+    onboardingNoteBody:
+      'After email verification, an incomplete profile returns here before the dashboard. A completed profile can be edited from My profile.',
+    onboardingNoteTitle: 'Used for onboarding and later edits',
     ownerOnly: 'Owner-only personal information',
     phone: 'Emergency telephone number',
     phoneHint:
@@ -1038,6 +1060,9 @@ const copy = {
     nickname: 'ชื่อเล่น',
     nicknameHint: 'ใช้เป็นชื่อทักทายในบัญชีของคุณ',
     onboardingBody: 'กรอกข้อมูลที่จำเป็นให้ครบก่อนเข้าสู่แดชบอร์ด',
+    onboardingNoteBody:
+      'หลังยืนยันอีเมล หากข้อมูลยังไม่ครบ ระบบจะพากลับมาหน้านี้ก่อนเข้าแดชบอร์ด เมื่อกรอกครบแล้วสามารถแก้ไขได้จากโปรไฟล์ของฉัน',
+    onboardingNoteTitle: 'ใช้ได้ทั้งตอนเริ่มต้นและแก้ไขภายหลัง',
     ownerOnly: 'ข้อมูลส่วนตัวสำหรับเจ้าของบัญชี',
     phone: 'เบอร์โทรศัพท์สำหรับกรณีฉุกเฉิน',
     phoneHint:

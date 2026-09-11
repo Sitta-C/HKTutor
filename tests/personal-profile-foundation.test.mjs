@@ -67,6 +67,7 @@ test('exposes owner-only profile APIs and requires current consent for private r
 test('adds profile onboarding/edit pages and redirects verified users to onboarding', async () => {
   const dashboard = await read('apps/web/src/app/dashboard/page.tsx');
   const editor = await read('apps/web/src/components/profile/profile-editor.tsx');
+  const styles = await read('apps/web/src/app/globals.css');
   const verify = await read('apps/web/src/components/verify.tsx');
   const navigation = await read('apps/web/src/lib/dashboard-navigation.ts');
 
@@ -91,4 +92,45 @@ test('adds profile onboarding/edit pages and redirects verified users to onboard
   );
   assert.match(verify, /replace\('\/onboarding\/profile'\)/);
   assert.match(navigation, /href: '\/dashboard\/profile'/);
+  assert.match(editor, /profile-form-card \$\{studentRole \? 'student' : 'tutor'\}/);
+  assert.match(editor, /profile-grid \$\{studentRole \? 'student' : 'tutor'\}/);
+  assert.match(editor, /className="profile-summary-row"/);
+  assert.match(editor, /onboardingNoteTitle/);
+  assert.match(editor, /secondaryDetail/);
+  assert.match(editor, /className="profile-status-dot"/);
+  assert.doesNotMatch(editor, /className="profile-read-only-icon"/);
+  assert.match(
+    styles,
+    /\.profile-grid\.student\s*{[\s\S]*?minmax\(0, 1\.35fr\) minmax\(290px, 0\.75fr\)/,
+  );
+  assert.match(
+    styles,
+    /\.profile-grid\.tutor\s*{[\s\S]*?minmax\(0, 1\.4fr\) minmax\(300px, 0\.82fr\)/,
+  );
+  assert.match(styles, /\.profile-public-card::after/);
+  assert.match(styles, /\.profile-summary-row\s*{/);
+  assert.match(styles, /\.profile-status-dot\s*{/);
+  assert.match(styles, /\.profile-form-card\.student \.profile-field input:focus/);
+  assert.match(styles, /\.profile-form-card\.tutor \.profile-field input:focus/);
+});
+
+test('keeps profile prototypes aligned with the production sidebar controls', async () => {
+  for (const role of ['student', 'tutor']) {
+    const prototype = await read(`ui-design/pages/${role}-profile.html`);
+
+    assert.match(prototype, /class="rail-toggle"/);
+    assert.match(prototype, /class="sidebar-backdrop"/);
+    assert.match(prototype, /hktutor-sidebar-collapsed/);
+    assert.match(prototype, new RegExp(`href="dashboard-${role}\\.html"`));
+    assert.match(prototype, /\.system-info>\.read-only:first-child b{[^}]*overflow-wrap:anywhere/);
+    assert.doesNotMatch(prototype, /<header><a class="logo reopen-logo"/);
+  }
+
+  const studentPrototype = await read('ui-design/pages/student-profile.html');
+  const studentStatusStrip = studentPrototype.match(
+    /<div class="system-info"[\s\S]*?<div class="form-actions">/,
+  )?.[0];
+  assert.ok(studentStatusStrip, 'student status strip must exist');
+  assert.doesNotMatch(studentStatusStrip, /Privacy notice/);
+  assert.match(studentPrototype, /\.system-info{grid-template-columns:minmax\(0,2fr\)/);
 });
