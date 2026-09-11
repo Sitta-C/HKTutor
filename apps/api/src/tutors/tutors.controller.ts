@@ -167,7 +167,6 @@ export class TutorsPrivateController {
 }
 
 //TODO: swagger
-@UseGuards(JwtAuthGuard)
 @Controller('tutors')
 export class TutorsPublicController {
   constructor(private readonly tutors: TutorsService) {}
