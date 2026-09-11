@@ -42,7 +42,9 @@ describe('authentication API client', () => {
     const expired = vi.fn();
     const unsubscribe = onSessionExpired(expired);
     fetchMock
-      .mockResolvedValueOnce(jsonResponse({ message: 'Invalid or expired authentication token' }, 401))
+      .mockResolvedValueOnce(
+        jsonResponse({ message: 'Invalid or expired authentication token' }, 401),
+      )
       .mockResolvedValueOnce(jsonResponse({ message: 'Invalid or expired refresh token' }, 401));
 
     await expect(authenticatedFetch('/profiles/me')).rejects.toMatchObject({ status: 401 });
@@ -63,8 +65,12 @@ describe('authentication API client', () => {
   it('uses the rotated access token after a successful refresh', async () => {
     setAccessToken('expired-access-token');
     fetchMock
-      .mockResolvedValueOnce(jsonResponse({ message: 'Invalid or expired authentication token' }, 401))
-      .mockResolvedValueOnce(jsonResponse({ accessToken: 'rotated-access-token', expiresIn: 900, user }))
+      .mockResolvedValueOnce(
+        jsonResponse({ message: 'Invalid or expired authentication token' }, 401),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse({ accessToken: 'rotated-access-token', expiresIn: 900, user }),
+      )
       .mockResolvedValueOnce(jsonResponse({ profileComplete: true }));
 
     await expect(authenticatedFetch('/profiles/me')).resolves.toEqual({ profileComplete: true });
@@ -95,7 +101,9 @@ describe('authentication API client', () => {
   });
 
   it('surfaces a 400 admin-registration rejection without creating an authenticated request', async () => {
-    fetchMock.mockResolvedValueOnce(jsonResponse({ message: 'role must be one of student, tutor' }, 400));
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({ message: 'role must be one of student, tutor' }, 400),
+    );
 
     await expect(
       registerAccount({

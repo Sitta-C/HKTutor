@@ -100,7 +100,9 @@ describe('AuthController HTTP contract (e2e)', () => {
     expect(auth.refresh).toHaveBeenCalledWith('old-refresh-token');
     expect(response.body).toMatchObject({ accessToken: 'rotated-access-token', expiresIn: 900 });
     expect(response.headers['set-cookie']).toEqual(
-      expect.arrayContaining([expect.stringContaining(`${REFRESH_COOKIE_NAME}=rotated-refresh-token`)]),
+      expect.arrayContaining([
+        expect.stringContaining(`${REFRESH_COOKIE_NAME}=rotated-refresh-token`),
+      ]),
     );
   });
 
