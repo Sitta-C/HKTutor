@@ -1010,7 +1010,7 @@ const copy = {
     whatTutorsSeeBody:
       'Only your nickname may appear to a tutor linked to your booking. Your legal name, school, class, telephone, and email stay hidden.',
     yearsExperience: 'years experience',
-    status: { PENDING: 'Pending review', REJECTED: 'Not verified', VERIFIED: 'Verified tutor' },
+    status: { PENDING: 'Pending review', REJECTED: 'Not verified', VERIFIED: 'Verified' },
     fieldLabels: {
       bio: 'Tutor biography',
       displayName: 'Public tutor name',
@@ -1105,7 +1105,7 @@ const copy = {
     status: {
       PENDING: 'รอตรวจสอบ',
       REJECTED: 'ยังไม่ผ่านการยืนยัน',
-      VERIFIED: 'ติวเตอร์ที่ยืนยันแล้ว',
+      VERIFIED: 'ยืนยันแล้ว',
     },
     fieldLabels: {
       bio: 'ประวัติแนะนำตัว',
