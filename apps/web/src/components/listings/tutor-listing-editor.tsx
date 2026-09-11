@@ -133,7 +133,9 @@ export default function TutorListingEditor({ listingId }: TutorListingEditorProp
       })
       .catch((caught: unknown) => {
         if (!active) return;
-        setPageError(readEditorError(caught, copy.loadError, copy.notFound));
+        setPageError(
+          readEditorError(caught, copy.loadError, listingId ? copy.notFound : undefined),
+        );
       })
       .finally(() => {
         if (active) setIsLoading(false);
@@ -273,6 +275,9 @@ export default function TutorListingEditor({ listingId }: TutorListingEditorProp
     return <ListingPageState>{copy.loading}</ListingPageState>;
   }
   if (user.role !== 'TUTOR') return null;
+  if (!profile) {
+    return <ListingPageState>{pageError ?? copy.loading}</ListingPageState>;
+  }
 
   const status = listing?.publicationStatus ?? 'DRAFT';
   const statusLabels: Record<ListingPublicationStatus, string> = {
@@ -280,12 +285,11 @@ export default function TutorListingEditor({ listingId }: TutorListingEditorProp
     PUBLISHED: copy.published,
     ARCHIVED: copy.archived,
   };
+  const profileDisplayName = profile.displayName.trim();
+  const shellUser = { ...user, displayName: profileDisplayName };
 
   return (
-    <DashboardShell
-      user={profile?.displayName ? { ...user, displayName: profile.displayName } : user}
-      onLogout={handleLogout}
-    >
+    <DashboardShell user={shellUser} onLogout={handleLogout}>
       <div className="listing-page min-w-0 pb-12">
         <Link
           href="/dashboard/listings"
@@ -537,11 +541,11 @@ export default function TutorListingEditor({ listingId }: TutorListingEditorProp
               <div className="listing-preview-content">
                 <div className="flex items-center gap-3">
                   <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md bg-gradient-to-br from-[#ffc57d] to-[#d18b43] text-sm font-black text-[#2f2117]">
-                    {(profile?.displayName || user.email).charAt(0).toUpperCase()}
+                    {profileDisplayName.charAt(0).toUpperCase()}
                   </span>
                   <div className="min-w-0">
                     <p className="truncate text-sm font-black text-[#30251d]">
-                      {profile?.displayName || user.email}
+                      {profileDisplayName}
                     </p>
                     <p className="mt-0.5 text-xs text-[#7a7269]">
                       {profile?.experienceYears ?? 0} {copy.yearsExperience}
@@ -655,8 +659,8 @@ function validateForm(form: ListingFormData, copy: typeof englishCopy): FormErro
   return errors;
 }
 
-function readEditorError(error: unknown, fallback: string, notFound: string) {
-  if (error instanceof ApiError && error.status === 404) return notFound;
+function readEditorError(error: unknown, fallback: string, notFound?: string) {
+  if (error instanceof ApiError && error.status === 404) return notFound ?? fallback;
   if (error instanceof ApiError && error.status === 403) return fallback;
   return error instanceof Error ? error.message : fallback;
 }

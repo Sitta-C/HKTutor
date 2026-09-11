@@ -245,8 +245,12 @@ export default function ProfileEditor({ mode }: ProfileEditorProps) {
 
   if (authLoading || isLoading || !user) return <Loading label={text.loading} />;
 
-  const shellName = studentRole ? student.nickname.trim() : tutor.nickname.trim();
-  const shellUser: AuthUser = shellName ? { ...user, displayName: shellName } : { ...user };
+  const savedShellName = studentRole
+    ? initialStudent.nickname.trim()
+    : initialTutor.displayName.trim();
+  const shellUser: AuthUser = savedShellName
+    ? { ...user, displayName: savedShellName }
+    : { ...user };
   const headerNav =
     mode === 'edit' ? (
       <Link href="/dashboard" className="dash-cta">

@@ -38,6 +38,7 @@ export default function TutorListingsPage() {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [archiveCandidate, setArchiveCandidate] = useState<string | null>(null);
   const [isVerified, setIsVerified] = useState(false);
+  const [profileDisplayName, setProfileDisplayName] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -53,16 +54,15 @@ export default function TutorListingsPage() {
 
     let active = true;
     Promise.all([getTutorListings(), getMyProfile()])
-      .then(([items, profile]) => {
+      .then(([items, profileResult]) => {
         if (!active) return;
+        const tutorProfile =
+          profileResult.profile && 'displayName' in profileResult.profile
+            ? profileResult.profile
+            : null;
         setListings(items);
-        setIsVerified(
-          Boolean(
-            profile.profile &&
-            'verificationStatus' in profile.profile &&
-            profile.profile.verificationStatus === 'VERIFIED',
-          ),
-        );
+        setProfileDisplayName(tutorProfile?.displayName.trim() || null);
+        setIsVerified(tutorProfile?.verificationStatus === 'VERIFIED');
       })
       .catch((caught: unknown) => {
         if (!active) return;
@@ -156,16 +156,20 @@ export default function TutorListingsPage() {
   }
 
   if (user.role !== 'TUTOR') return null;
+  if (!profileDisplayName) {
+    return <ListingPageState>{error ?? copy.loadError}</ListingPageState>;
+  }
 
   const statusLabels = {
     DRAFT: copy.draft,
     PUBLISHED: copy.published,
     ARCHIVED: copy.archived,
   };
+  const shellUser = { ...user, displayName: profileDisplayName };
 
   return (
     <DashboardShell
-      user={user}
+      user={shellUser}
       onLogout={handleLogout}
       headerNavRight={
         <Link href="/dashboard/listings/new" className="dash-cta">
