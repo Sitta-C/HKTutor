@@ -1,8 +1,7 @@
 # HKTutor web application
 
-Follow the workspace-wide instructions in [`../../../AGENTS.md`](../../../AGENTS.md). Keep this file
-limited to stable web-specific framework guidance; personal assignments and temporary work notes
-belong outside tracked shared documentation.
+Keep this tracked guide limited to stable web-specific framework guidance. Personal assignments,
+temporary work notes, local machine paths, and account details belong outside the repository.
 
 <!-- BEGIN:nextjs-agent-rules -->
 
