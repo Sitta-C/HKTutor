@@ -1,17 +1,12 @@
 import { Module } from '@nestjs/common';
 
 import { CatalogController } from '@/tutors/catalog.controller';
-import { PublicTutorsController } from '@/tutors/public-tutors.controller';
-import { TutorsPrivateController, TutorsPublicController } from '@/tutors/tutors.controller';
+import { TutorsPrivateController } from '@/tutors/tutors-private.controller';
+import { TutorsPublicController } from '@/tutors/tutors-public.controller';
 import { TutorsService } from '@/tutors/tutors.service';
 
 @Module({
-  controllers: [
-    CatalogController,
-    PublicTutorsController,
-    TutorsPrivateController,
-    TutorsPublicController,
-  ],
+  controllers: [CatalogController, TutorsPrivateController, TutorsPublicController],
   providers: [TutorsService],
 })
 export class TutorsModule {}

@@ -20,8 +20,8 @@ export async function getListingCatalogs(): Promise<{
   gradeLevels: GradeLevelOption[];
 }> {
   const [subjects, gradeLevels] = await Promise.all([
-    apiFetch<CatalogResponse<SubjectOption>>('/catalogs/subjects'),
-    apiFetch<CatalogResponse<GradeLevelOption>>('/catalogs/grade-levels'),
+    apiFetch<CatalogResponse<SubjectOption>>('/subjects'),
+    apiFetch<CatalogResponse<GradeLevelOption>>('/grade-levels'),
   ]);
 
   return {

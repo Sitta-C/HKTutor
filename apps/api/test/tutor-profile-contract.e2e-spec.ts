@@ -9,7 +9,7 @@ import { PrismaService } from '@/database/prisma.service';
 import { Role } from '@/generated/prisma/client';
 import { ProfilesController } from '@/profiles/profiles.controller';
 import { ProfilesService } from '@/profiles/profiles.service';
-import { TutorsPrivateController } from '@/tutors/tutors.controller';
+import { TutorsPrivateController } from '@/tutors/tutors-private.controller';
 import { TutorsService } from '@/tutors/tutors.service';
 
 import type { AuthenticatedRequest } from '@/auth/auth.guard';

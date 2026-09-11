@@ -18,7 +18,6 @@ import { RequireOwnership } from '@/auth/ownership.decorator';
 import { ResourceOwnershipGuard } from '@/auth/ownership.guard';
 import { Roles } from '@/auth/roles.decorator';
 import { RolesGuard } from '@/auth/roles.guard';
-import { UuidParamPipe } from '@/common/pipes/uuid-param.pipe';
 import { Role } from '@/generated/prisma/client';
 import {
   AvailabilityPostRequestDto,
@@ -29,7 +28,6 @@ import {
   ListingPostRequestDto,
   ListingQueryDto,
   ListingResponseDto,
-  AvailabilityPublicResponseDto,
   ListingStatusRequestDto,
 } from '@/tutors/tutors.dto';
 import { TutorsService } from '@/tutors/tutors.service';
@@ -38,13 +36,11 @@ import {
   GetMyAvailabilityDoc,
   GetMyListingsDoc,
   GetMyListingDoc,
-  GetTutorAvailabilityDoc,
   PatchListingDoc,
   PostAvailabilityDoc,
   PostListingDoc,
   PublishListingDoc,
   TutorsControllerDoc,
-  TutorsPublicControllerDoc,
   UpdateListingStatusDoc,
 } from '@/tutors/tutors.swagger';
 
@@ -172,21 +168,5 @@ export class TutorsPrivateController {
     @Param('slotId') slotId: string,
   ): Promise<void> {
     return this.tutors.deleteAvailability(user.id, slotId);
-  }
-}
-
-@TutorsPublicControllerDoc()
-@Controller('tutors')
-export class TutorsPublicController {
-  constructor(private readonly tutors: TutorsService) {}
-
-  @Get(':tutorId/availability')
-  @HttpCode(HttpStatus.OK)
-  @GetTutorAvailabilityDoc()
-  getAvailabilityPublic(
-    @Param('tutorId', UuidParamPipe) tutorId: string,
-    @Query() query: AvailabilityQueryDto,
-  ): Promise<AvailabilityPublicResponseDto[]> {
-    return this.tutors.getAvailabilityPublic(tutorId, query);
   }
 }

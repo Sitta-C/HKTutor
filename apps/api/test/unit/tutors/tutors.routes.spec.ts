@@ -6,7 +6,8 @@ import { JwtAuthGuard } from '@/auth/auth.guard';
 import { ResourceOwnershipGuard } from '@/auth/ownership.guard';
 import { RolesGuard } from '@/auth/roles.guard';
 import { Role } from '@/generated/prisma/client';
-import { TutorsPrivateController, TutorsPublicController } from '@/tutors/tutors.controller';
+import { TutorsPrivateController } from '@/tutors/tutors-private.controller';
+import { TutorsPublicController } from '@/tutors/tutors-public.controller';
 import { TutorsService } from '@/tutors/tutors.service';
 
 import type { AuthenticatedRequest } from '@/auth/auth.guard';

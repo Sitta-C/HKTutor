@@ -82,11 +82,12 @@ export function TutorsControllerDoc(): ClassDecorator {
   );
 }
 
-export function PublicTutorsControllerDoc(): ClassDecorator {
+export function TutorsPublicControllerDoc(): ClassDecorator {
   return applyDecorators(
     ApiTags('tutors'),
     ApiExtraModels(
       ApiErrorResponseDto,
+      AvailabilityPublicResponseDto,
       PublicTeachingListingDto,
       PublicTutorDetailResponseDto,
       PublicTutorProfileDto,
@@ -206,13 +207,6 @@ export function GetGradeLevelCatalogDoc(): MethodDecorator {
       description: 'GradeLevel catalog is temporarily unavailable',
       type: ApiErrorResponseDto,
     }),
-  );
-}
-
-export function TutorsPublicControllerDoc(): ClassDecorator {
-  return applyDecorators(
-    ApiTags('tutors'),
-    ApiExtraModels(ApiErrorResponseDto, AvailabilityPublicResponseDto),
   );
 }
 

@@ -1,15 +1,15 @@
 import { GUARDS_METADATA, PATH_METADATA } from '@nestjs/common/constants';
 
 import { CatalogController } from '@/tutors/catalog.controller';
-import { PublicTutorsController } from '@/tutors/public-tutors.controller';
+import { TutorsPublicController } from '@/tutors/tutors-public.controller';
 
 import type { TutorsService } from '@/tutors/tutors.service';
 
 describe('public Tutor controllers', () => {
   it('are plain public controllers without authentication guards', () => {
-    expect(Reflect.getMetadata(GUARDS_METADATA, PublicTutorsController)).toBeUndefined();
+    expect(Reflect.getMetadata(GUARDS_METADATA, TutorsPublicController)).toBeUndefined();
     expect(Reflect.getMetadata(GUARDS_METADATA, CatalogController)).toBeUndefined();
-    expect(Reflect.getMetadata(PATH_METADATA, PublicTutorsController)).toBe('tutors');
+    expect(Reflect.getMetadata(PATH_METADATA, TutorsPublicController)).toBe('tutors');
     expect(Reflect.getMetadata(PATH_METADATA, CatalogController)).toBe('/');
   });
 
@@ -18,7 +18,7 @@ describe('public Tutor controllers', () => {
       getPublicTutor: jest.fn(),
       searchPublicTutors: jest.fn(),
     };
-    const controller = new PublicTutorsController(service as unknown as TutorsService);
+    const controller = new TutorsPublicController(service as unknown as TutorsService);
     const query = { maxPrice: 500 };
     const results = [{ listingId: 'listing', tutorId: 'tutor' }];
     const detail = { listings: [], tutor: { tutorId: 'tutor' } };
