@@ -1,6 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
 import {
+  IsDate,
   IsEnum,
   IsNumber,
   IsOptional,
@@ -10,6 +11,7 @@ import {
   Max,
   MaxLength,
   Min,
+  MinDate,
   MinLength,
   registerDecorator,
 } from 'class-validator';
@@ -28,6 +30,7 @@ const transformOptionalNumber = ({ value }: TransformFnParams): unknown => {
   return typeof value === 'number' ? value : Number(value);
 };
 
+//Listing
 export class ListingQueryDto {
   @ApiPropertyOptional({ enum: ListingPublicationStatus, enumName: 'ListingPublicationStatus' })
   @IsOptional()
@@ -318,6 +321,93 @@ export class ListingPatchRequestDto {
   @MinLength(20)
   @MaxLength(1000)
   description?: string;
+}
+
+//Availability
+export const AvailabilityState = {
+  OPEN: 'OPEN',
+  RESERVED: 'RESERVED',
+} as const;
+
+export type AvailabilityState = (typeof AvailabilityState)[keyof typeof AvailabilityState];
+
+export class AvailabilityQueryDto {
+  @ApiPropertyOptional({ example: '2026-08-17T00:00:00.000Z', format: 'date-time' })
+  @IsOptional()
+  @Type(() => Date)
+  @IsDate()
+  from?: Date;
+
+  @ApiPropertyOptional({ example: '2026-08-17T23:59:59.999Z', format: 'date-time' })
+  @IsOptional()
+  @Type(() => Date)
+  @IsDate()
+  to?: Date;
+}
+
+export class AvailabilityPrivateResponseDto {
+  @ApiProperty({ example: '30000000-0000-4000-8000-000000000001', format: 'uuid' })
+  @IsUUID()
+  id!: string;
+
+  @ApiProperty({ example: '2026-08-17T00:00:00.000Z', format: 'date-time' })
+  startAtUtc!: Date;
+
+  @ApiProperty({ example: '2026-08-17T00:00:00.000Z', format: 'date-time' })
+  endAtUtc!: Date;
+
+  @ApiProperty({ example: '2026-08-17T00:00:00.000Z', format: 'date-time' })
+  createdAt!: Date;
+
+  @ApiProperty({ enum: AvailabilityState, enumName: 'AvailabilityState' })
+  @IsEnum(AvailabilityState)
+  state!: AvailabilityState;
+}
+
+export class AvailabilityPublicResponseDto {
+  @ApiProperty({ example: '30000000-0000-4000-8000-000000000001', format: 'uuid' })
+  @IsUUID()
+  id!: string;
+
+  @ApiProperty({ example: '2026-08-17T00:00:00.000Z', format: 'date-time' })
+  startAtUtc!: Date;
+
+  @ApiProperty({ example: '2026-08-17T00:00:00.000Z', format: 'date-time' })
+  endAtUtc!: Date;
+}
+
+export class AvailabilityPostRequestDto {
+  @ApiProperty({ example: '2026-10-17T08:00:00.000Z', format: 'date-time' })
+  @Type(() => Date)
+  @IsDate()
+  @MinDate(() => new Date(), {
+    message: 'startAt must be in the future',
+  })
+  startAt!: Date;
+
+  @ApiProperty({ example: '2026-10-17T09:00:00.000Z', format: 'date-time' })
+  @Type(() => Date)
+  @IsDate()
+  @MinDate(() => new Date(), {
+    message: 'endAt must be in the future',
+  })
+  endAt!: Date;
+}
+
+export class AvailabilityPostResponseDto {
+  @ApiProperty({ example: '30000000-0000-4000-8000-000000000001', format: 'uuid' })
+  @IsUUID()
+  id!: string;
+
+  @ApiProperty({ example: '30000000-0000-4000-8000-000000000001', format: 'uuid' })
+  @IsUUID()
+  tutorProfileId!: string;
+
+  @ApiProperty({ example: '2026-08-17T00:00:00.000Z', format: 'date-time' })
+  startAtUtc!: Date;
+
+  @ApiProperty({ example: '2026-08-17T00:00:00.000Z', format: 'date-time' })
+  endAtUtc!: Date;
 }
 
 function AtLeastOneOf(properties: readonly string[], options?: ValidationOptions): ClassDecorator {

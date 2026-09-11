@@ -36,6 +36,7 @@ enum BookingStatus {
   CONFIRMED @map("confirmed")
   COMPLETED @map("completed")
   CANCELED  @map("canceled")
+  EXPIRED   @map("expired")
 }
 
 model User {
@@ -188,6 +189,7 @@ model Booking {
   discountAmount Decimal          @default(0) @db.Decimal(10, 2)
   netAmount      Decimal          @db.Decimal(10, 2)
   currency       String           @default("THB") @db.Char(3)
+  /// A partial index on createdAt for PENDING bookings is migration-managed.
   createdAt      DateTime         @default(now()) @db.Timestamptz(3)
   updatedAt      DateTime         @updatedAt @db.Timestamptz(3)
   student        User             @relation("BookingStudent", fields: [studentUserId], references: [id], onDelete: Restrict, onUpdate: Cascade)
