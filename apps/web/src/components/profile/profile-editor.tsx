@@ -655,14 +655,11 @@ function SystemInfo({
     >
       <ReadOnly label={text.accountEmail} value={email} />
       {student ? (
-        <>
-          <ReadOnly
-            label={text.profileStatus}
-            value={complete ? text.complete : text.incomplete}
-            statusTone={complete ? 'student' : 'pending'}
-          />
-          <ReadOnly label={text.privacyNotice} value={text.current} statusTone="student" />
-        </>
+        <ReadOnly
+          label={text.profileStatus}
+          value={complete ? text.complete : text.incomplete}
+          statusTone={complete ? 'student' : 'pending'}
+        />
       ) : (
         <>
           <ReadOnly
@@ -944,7 +941,6 @@ const copy = {
     complete: 'Complete',
     consentRequired: 'Accept the updated privacy notice before continuing.',
     continue: 'Save and continue',
-    current: 'Current',
     displayName: 'Public tutor name',
     displayNameHint: 'This is how students will see you on HKTutor.',
     experience: 'Experience (years)',
@@ -973,7 +969,6 @@ const copy = {
     phone: 'Emergency telephone number',
     phoneHint:
       'Private. Used by authorised administrators only for urgent class, safety, or service incidents.',
-    privacyNotice: 'Privacy notice',
     privateIdentity: 'Private identity',
     privateIdentityHint: 'Visible only to you and authorised administrators',
     privateProfile: 'Kept in your private profile',
@@ -1038,7 +1033,6 @@ const copy = {
     complete: 'ข้อมูลครบ',
     consentRequired: 'โปรดยอมรับประกาศความเป็นส่วนตัวฉบับล่าสุดก่อนดำเนินการต่อ',
     continue: 'บันทึกและดำเนินการต่อ',
-    current: 'เป็นฉบับล่าสุด',
     displayName: 'ชื่อสาธารณะของติวเตอร์',
     displayNameHint: 'นี่คือชื่อที่นักเรียนจะเห็นบน HKTutor',
     experience: 'ประสบการณ์ (ปี)',
@@ -1067,7 +1061,6 @@ const copy = {
     phone: 'เบอร์โทรศัพท์สำหรับกรณีฉุกเฉิน',
     phoneHint:
       'เป็นข้อมูลส่วนตัว ผู้ดูแลที่ได้รับอนุญาตจะใช้เฉพาะเหตุเร่งด่วนเกี่ยวกับชั้นเรียน ความปลอดภัย หรือการให้บริการ',
-    privacyNotice: 'ประกาศความเป็นส่วนตัว',
     privateIdentity: 'ข้อมูลส่วนตัว',
     privateIdentityHint: 'เห็นได้เฉพาะคุณและผู้ดูแลที่ได้รับอนุญาต',
     privateProfile: 'เก็บไว้ในโปรไฟล์ส่วนตัว',

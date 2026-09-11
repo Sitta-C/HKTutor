@@ -1548,11 +1548,11 @@ input {
 }
 
 .profile-system-info.student {
-  grid-template-columns: 1.3fr 1fr 1fr;
+  grid-template-columns: minmax(0, 2fr) minmax(180px, 1fr);
 }
 
 .profile-system-info.tutor {
-  grid-template-columns: 1.45fr 1fr 1fr 1fr;
+  grid-template-columns: minmax(220px, 1.8fr) repeat(3, minmax(110px, 1fr));
 }
 
 .profile-read-only {
@@ -1579,6 +1579,14 @@ input {
   font-size: 0.76rem;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.profile-system-info > .profile-read-only:first-child b {
+  overflow: visible;
+  overflow-wrap: anywhere;
+  line-height: 1.4;
+  text-overflow: clip;
+  white-space: normal;
 }
 
 .profile-saved {
@@ -1969,9 +1977,14 @@ input {
 }
 
 @media (max-width: 720px) {
-  .profile-system-info.student,
   .profile-system-info.tutor {
     grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 680px) {
+  .profile-system-info.student {
+    grid-template-columns: 1fr;
   }
 }
 

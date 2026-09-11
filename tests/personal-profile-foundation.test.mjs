@@ -99,6 +99,7 @@ test('adds profile onboarding/edit pages and redirects verified users to onboard
   assert.match(editor, /secondaryDetail/);
   assert.match(editor, /className="profile-status-dot"/);
   assert.doesNotMatch(editor, /className="profile-read-only-icon"/);
+  assert.doesNotMatch(editor, /label={text\.privacyNotice}/);
   assert.match(
     styles,
     /\.profile-grid\.student\s*{[\s\S]*?minmax\(0, 1\.35fr\) minmax\(290px, 0\.75fr\)/,
@@ -110,6 +111,18 @@ test('adds profile onboarding/edit pages and redirects verified users to onboard
   assert.match(styles, /\.profile-public-card::after/);
   assert.match(styles, /\.profile-summary-row\s*{/);
   assert.match(styles, /\.profile-status-dot\s*{/);
+  assert.match(
+    styles,
+    /\.profile-system-info\.student\s*{[\s\S]*?minmax\(0, 2fr\) minmax\(180px, 1fr\)/,
+  );
+  assert.match(
+    styles,
+    /\.profile-system-info\.tutor\s*{[\s\S]*?minmax\(220px, 1\.8fr\)[\s\S]*?repeat\(3, minmax\(110px, 1fr\)\)/,
+  );
+  assert.match(
+    styles,
+    /\.profile-system-info > \.profile-read-only:first-child b\s*{[\s\S]*?overflow-wrap: anywhere/,
+  );
   assert.match(styles, /\.profile-form-card\.student \.profile-field input:focus/);
   assert.match(styles, /\.profile-form-card\.tutor \.profile-field input:focus/);
 });
