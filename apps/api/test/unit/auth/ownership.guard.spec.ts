@@ -1,4 +1,4 @@
-import { NotFoundException, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, NotFoundException, UnauthorizedException } from '@nestjs/common';
 
 import { ResourceOwnershipGuard } from '@/auth/ownership.guard';
 import { Role } from '@/generated/prisma/client';
@@ -14,6 +14,7 @@ const USER_ID = '20000000-0000-4000-8000-000000000001';
 
 describe('ResourceOwnershipGuard', () => {
   const getAllAndOverride = jest.fn();
+  const studentProfileFindFirst = jest.fn();
   const tutorProfileFindFirst = jest.fn();
   const teachingListingFindFirst = jest.fn();
   const availabilitySlotFindFirst = jest.fn();
@@ -21,6 +22,7 @@ describe('ResourceOwnershipGuard', () => {
   const prisma = {
     availabilitySlot: { findFirst: availabilitySlotFindFirst },
     booking: { findFirst: bookingFindFirst },
+    studentProfile: { findFirst: studentProfileFindFirst },
     teachingListing: { findFirst: teachingListingFindFirst },
     tutorProfile: { findFirst: tutorProfileFindFirst },
   } as unknown as PrismaService;
@@ -55,17 +57,50 @@ describe('ResourceOwnershipGuard', () => {
     });
   });
 
-  it('returns the same generic 404 for another owner and for a malformed ID', async () => {
+  it('allows a student to load their own student profile', async () => {
+    ownershipRule({ resource: 'studentProfile', idParam: 'userId' });
+    studentProfileFindFirst.mockResolvedValue({ userId: USER_ID });
+
+    await expect(
+      guard.canActivate(createContext(authenticatedUser(Role.STUDENT), { userId: USER_ID })),
+    ).resolves.toBe(true);
+    expect(studentProfileFindFirst).toHaveBeenCalledWith({
+      where: { userId: USER_ID },
+      select: { userId: true },
+    });
+  });
+
+  it("rejects another user's student profile without querying it", async () => {
+    ownershipRule({ resource: 'studentProfile', idParam: 'userId' });
+
+    await expect(
+      guard.canActivate(createContext(authenticatedUser(Role.STUDENT), { userId: RESOURCE_ID })),
+    ).rejects.toThrow(new NotFoundException('Resource not found'));
+    expect(studentProfileFindFirst).not.toHaveBeenCalled();
+  });
+
+  it('returns 400 INVALID_UUID for a malformed ID without querying the resource', async () => {
+    ownershipRule({ resource: 'availabilitySlot', idParam: 'slotId' });
+    await expect(
+      guard.canActivate(createContext(authenticatedUser(Role.TUTOR), { slotId: 'not-a-uuid' })),
+    ).rejects.toMatchObject(
+      new BadRequestException({
+        code: 'INVALID_UUID',
+        error: 'Bad Request',
+        message: 'slotId must be a valid UUID',
+        statusCode: 400,
+      }),
+    );
+    expect(availabilitySlotFindFirst).not.toHaveBeenCalled();
+  });
+
+  it('returns the same generic 404 for a missing record and another owner', async () => {
     ownershipRule({ resource: 'availabilitySlot', idParam: 'slotId' });
     availabilitySlotFindFirst.mockResolvedValue(null);
-    const expected = new NotFoundException('Resource not found');
 
     await expect(
       guard.canActivate(createContext(authenticatedUser(Role.TUTOR), { slotId: RESOURCE_ID })),
-    ).rejects.toThrow(expected);
-    await expect(
-      guard.canActivate(createContext(authenticatedUser(Role.TUTOR), { slotId: 'not-a-uuid' })),
-    ).rejects.toThrow(expected);
+    ).rejects.toThrow(new NotFoundException('Resource not found'));
   });
 
   it.each([

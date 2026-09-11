@@ -335,59 +335,14 @@
   .strength i { display: block; height: 100%; width: 72%; border-radius: 99px;
     background: linear-gradient(90deg, var(--tutor-grad-1), var(--tutor-grad-2)); }
 </style>
+<link rel="stylesheet" href="../shared/prototype.css">
+<link rel="stylesheet" href="../../apps/web/src/app/globals.css">
 </head>
 
 <body>
-  <div class="art" aria-hidden="true"><div class="blob b1"></div><div class="blob b2"></div><div class="blob b3"></div></div>
+  <div id="app"></div>
 
-<div class="app">
-<aside class="sidebar" id="sidebar">
-        <div class="sb-head">
-          <a class="logo sb-logo" href="#" onclick="toggleSidebar(); return false" title="Close sidebar">
-            <span class="mono">HK</span><span>HKTutor</span>
-          </a>
-          <button class="sb-close" type="button" onclick="toggleSidebar()" aria-label="Close sidebar">✕</button>
-        </div>
-        <div class="card side-card" style="padding:1.2rem">
-          <div class="user-chip" style="margin-bottom:1rem">
-            <div class="avatar">P</div>
-            <div><b>Pim</b><span>pim@example.com</span></div>
-          </div>
-          <nav class="side-nav">
-            <a href="#"><span class="nav-left"><span class="ico">👤</span><span data-en="My profile" data-th="โปรไฟล์ของฉัน">My profile</span></span></a>
-            <a href="#" class="hint-r"><span class="nav-left"><span class="ico">📚</span><span data-en="My listings" data-th="คอร์สของฉัน">My listings</span></span><span class="chip">2</span></a>
-            <a href="#"><span class="nav-left"><span class="ico">📅</span><span data-en="Availability" data-th="ตารางว่าง">Availability</span></span></a>
-            <a href="#"><span class="nav-left"><span class="ico">⚙️</span><span data-en="Settings" data-th="การตั้งค่า">Settings</span></span></a>
-            <a href="#"><span class="nav-left"><span class="ico">🛟</span><span data-en="Support" data-th="ฝ่ายช่วยเหลือ">Support</span></span></a>
-            <a href="#"><span class="nav-left"><span class="ico">🔒</span><span data-en="Privacy" data-th="ความเป็นส่วนตัว">Privacy</span></span></a>
-            <a href="#" class="danger"><span class="nav-left"><span class="ico">↩</span><span data-en="Sign out" data-th="ออกจากระบบ">Sign out</span></span></a>
-          </nav>
-        </div>
-
-        <div class="card side-card">
-          <h2 data-en="Need help?" data-th="ต้องการความช่วยเหลือ?">Need help?</h2>
-          <p data-en="Read how HKTutor handles your data, or reach support anytime." data-th="อ่านรายละเอียดการจัดการข้อมูลส่วนบุคคล หรือติดต่อทีมสนับสนุนได้ตลอดเวลา">
-            Read how HKTutor handles your data, or reach support anytime.</p>
-          <a class="link" href="#" data-en="Privacy notice" data-th="ประกาศความเป็นส่วนตัว">Privacy notice</a>
-        </div>
-      </aside>
-
-  <div class="main-wrap">
-  <header>
-    <a class="logo reopen-logo" href="#" onclick="toggleSidebar(); return false" aria-label="Open sidebar" title="Open sidebar">
-      <span class="mono">HK</span><span class="reopen-txt">HKTutor</span><span class="burger" aria-hidden="true"><i></i><i></i><i></i></span>
-    </a>
-    <nav>
-      <button class="lang-btn" type="button" onclick="toggleLang()" aria-pressed="false">
-        <span class="dot"></span>
-        <span id="langLabel">EN</span>
-      </button>
-      <a href="#" data-en="My listings" data-th="คอร์สของฉัน">My listings</a>
-      <a href="#" class="cta" data-en="New listing" data-th="สร้างคอร์สใหม่">New listing</a>
-    </nav>
-  </header>
-
-  <main>
+  <template id="page-content">
     <div class="greeting">
       <p class="eyebrow" data-en="Dashboard" data-th="แดชบอร์ด">Dashboard</p>
       <h1>
@@ -512,40 +467,17 @@
           </div>
         </div>
       </section>
-    </main>
-  <footer>
-    <span>© 2026 <span data-en="HKTutor. All rights reserved." data-th="HKTutor สงวนลิขสิทธิ์">HKTutor. All rights reserved.</span></span>
-    <span class="sep">|</span>
-    <a href="#" style="color:inherit" data-en="Privacy & Support" data-th="ความเป็นส่วนตัวและการช่วยเหลือ">Privacy & Support</a>
-  </footer>
-  </div>
-</div>
 
-<script>
-  function toggleLang() {
-    const html = document.documentElement;
-    const next = html.lang === 'th' ? 'en' : 'th';
-    html.lang = next;
-    document.getElementById('langLabel').textContent = next.toUpperCase();
-    document.querySelector('.lang-btn').setAttribute('aria-pressed', String(next === 'th'));
-    applyLang();
-  }
-  function applyLang() {
-    const th = document.documentElement.lang === 'th';
-    document.querySelectorAll('[data-en]').forEach(el => {
-      if (el.children.length === 0) {
-        const v = th ? el.getAttribute('data-th') : el.getAttribute('data-en');
-        if (v) el.textContent = v;
-      }
-    });
-    document.querySelectorAll('[data-ph-en]').forEach(el => {
-      el.placeholder = th ? el.getAttribute('data-ph-th') : el.getAttribute('data-ph-en');
-    });
-  }
-  function toggleSidebar() {
-    document.body.classList.toggle('sb-collapsed');
-  }
-  applyLang();
-</script>
+  </template>
+
+  <script src="../shared/prototype-shell.js"></script>
+  <script>
+      HKTutorPrototype.mount({
+        role: 'tutor',
+        active: 'dashboard',
+        headerSecondary: { en: 'My listings', th: 'คอร์สของฉัน', href: 'listing-form.html' },
+        headerPrimary: { en: 'New listing', th: 'สร้างคอร์สใหม่', href: 'listing-form.html#listingForm' },
+      });
+  </script>
 </body>
 </html>

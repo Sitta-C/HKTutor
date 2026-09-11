@@ -42,6 +42,42 @@ export interface TutorProfile {
   reviewCount: number;
 }
 
+export type ListingPublicationStatus = 'DRAFT' | 'PUBLISHED' | 'ARCHIVED';
+
+export interface SubjectOption {
+  id: string;
+  code: string;
+  name: string;
+  active: boolean;
+}
+
+export interface GradeLevelOption extends SubjectOption {
+  sortOrder: number;
+}
+
+export interface TeachingListing {
+  id: string;
+  subject: SubjectOption;
+  gradeLevel: GradeLevelOption;
+  pricePerHour: number;
+  description: string;
+  publicationStatus: ListingPublicationStatus;
+  publishedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SaveTeachingListingPayload {
+  subjectId: string;
+  gradeLevelId: string;
+  pricePerHour: number;
+  description: string;
+}
+
+export type PatchTeachingListingPayload = {
+  [Field in keyof SaveTeachingListingPayload]: Pick<SaveTeachingListingPayload, Field> &
+    Partial<Omit<SaveTeachingListingPayload, Field>>;
+}[keyof SaveTeachingListingPayload];
 export interface MyProfileResponse {
   role: UserRole;
   consentCurrent: boolean;

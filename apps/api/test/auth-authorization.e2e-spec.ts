@@ -94,6 +94,20 @@ describe('Authentication and authorization guards (e2e)', () => {
     });
   });
 
+  it('returns 400 INVALID_UUID before querying ownership for malformed resource IDs', async () => {
+    authenticateAs(Role.TUTOR);
+
+    const response = await authorizedRequest('not-a-uuid').expect(400);
+
+    expect(response.body).toMatchObject({
+      code: 'INVALID_UUID',
+      error: 'Bad Request',
+      message: 'listingId must be a valid UUID',
+      statusCode: 400,
+    });
+    expect(teachingListingFindFirst).not.toHaveBeenCalled();
+  });
+
   it('allows the tutor who owns the private record', async () => {
     authenticateAs(Role.TUTOR);
     teachingListingFindFirst.mockResolvedValue({ id: RESOURCE_ID });

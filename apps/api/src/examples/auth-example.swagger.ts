@@ -1,5 +1,6 @@
 import { applyDecorators } from '@nestjs/common';
 import {
+  ApiBadRequestResponse,
   ApiBearerAuth,
   ApiForbiddenResponse,
   ApiNotFoundResponse,
@@ -32,6 +33,7 @@ const errorResponseSchema = {
     statusCode: 401,
   },
   properties: {
+    code: { type: 'string' },
     error: { type: 'string' },
     message: { type: 'string' },
     statusCode: { type: 'number' },
@@ -96,6 +98,18 @@ export function GetOwnedListingExampleDoc(): MethodDecorator {
     ApiOkResponse({
       description: 'The authenticated tutor owns the listing, or admin access was allowed',
       type: OwnedListingExampleResponseDto,
+    }),
+    ApiBadRequestResponse({
+      description: 'The listing ID is not a valid UUID',
+      schema: {
+        ...errorResponseSchema,
+        example: {
+          code: 'INVALID_UUID',
+          error: 'Bad Request',
+          message: 'listingId must be a valid UUID',
+          statusCode: 400,
+        },
+      },
     }),
     ApiUnauthorizedResponse({
       description:

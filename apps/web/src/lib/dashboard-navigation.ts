@@ -79,40 +79,46 @@ export function getDashboardNavItems(role: UserRole, copy: Translation): Dashboa
   if (role === 'STUDENT') {
     return [
       {
+        id: 'dashboard',
+        href: '/dashboard',
+        icon: 'dashboard',
+        label: copy.dashboard.common.eyebrow,
+      },
+      {
         id: 'profile',
         href: '/dashboard/profile',
-        icon: '👤',
+        icon: 'profile',
         label: navCopy.myProfile,
       },
       {
         id: 'bookings',
         href: '#bookings',
-        icon: '📅',
+        icon: 'bookings',
         label: navCopy.myBookings,
         badge: '0',
       },
       {
         id: 'settings',
         href: '#settings',
-        icon: '⚙️',
+        icon: 'settings',
         label: navCopy.settings,
       },
       {
         id: 'support',
         href: '#support',
-        icon: '🛟',
+        icon: 'support',
         label: navCopy.support,
       },
       {
         id: 'privacy',
         href: '#privacy',
-        icon: '🔒',
+        icon: 'privacy',
         label: navCopy.privacy,
       },
       {
         id: 'signout',
         href: '#signout',
-        icon: '↩',
+        icon: 'signout',
         label: navCopy.signOut,
         isDanger: true,
       },
@@ -122,46 +128,51 @@ export function getDashboardNavItems(role: UserRole, copy: Translation): Dashboa
   if (role === 'TUTOR') {
     return [
       {
+        id: 'dashboard',
+        href: '/dashboard',
+        icon: 'dashboard',
+        label: copy.dashboard.common.eyebrow,
+      },
+      {
         id: 'profile',
         href: '/dashboard/profile',
-        icon: '👤',
+        icon: 'profile',
         label: navCopy.myProfile,
       },
       {
         id: 'listings',
-        href: '#listings',
-        icon: '📚',
+        href: '/dashboard/listings',
+        icon: 'listings',
         label: navCopy.myListings,
-        badge: '0',
       },
       {
         id: 'availability',
         href: '#availability',
-        icon: '📅',
+        icon: 'availability',
         label: navCopy.availability,
       },
       {
         id: 'settings',
         href: '#settings',
-        icon: '⚙️',
+        icon: 'settings',
         label: navCopy.settings,
       },
       {
         id: 'support',
         href: '#support',
-        icon: '🛟',
+        icon: 'support',
         label: navCopy.support,
       },
       {
         id: 'privacy',
         href: '#privacy',
-        icon: '🔒',
+        icon: 'privacy',
         label: navCopy.privacy,
       },
       {
         id: 'signout',
         href: '#signout',
-        icon: '↩',
+        icon: 'signout',
         label: navCopy.signOut,
         isDanger: true,
       },
@@ -171,15 +182,21 @@ export function getDashboardNavItems(role: UserRole, copy: Translation): Dashboa
   // Explicit safe ADMIN navigation: no student or tutor items
   return [
     {
+      id: 'dashboard',
+      href: '/dashboard',
+      icon: 'dashboard',
+      label: copy.dashboard.common.eyebrow,
+    },
+    {
       id: 'privacy',
       href: '#privacy',
-      icon: '🔒',
+      icon: 'privacy',
       label: navCopy.privacy,
     },
     {
       id: 'signout',
       href: '#signout',
-      icon: '↩',
+      icon: 'signout',
       label: navCopy.signOut,
       isDanger: true,
     },

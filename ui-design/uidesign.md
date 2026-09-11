@@ -1,79 +1,80 @@
 # HKTutor — UI design and page-to-data mapping
 
-Updated 2026-09-09 from the complete first-party Markdown/TSX inventory and the project workbook.
-This document defines what each screen should show, which model supplies it, who may act, and
-what remains to design. It is a design plan, not a claim that the proposed pages or APIs exist.
+Updated 2026-09-11 from the tracked application, API, tests, and profile prototypes.
+This document defines what each screen shows, which model supplies it, who may act, and what
+remains to design. Current production code and tests are authoritative for implemented behavior;
+future-looking rows are explicitly labelled proposed.
 
 For the page-by-page API dependency, see
 [`sprint1-ui-api-map.md`](./sprint1-ui-api-map.md). Frontend field requirements for Backend are in
 [`sprint1-api-field-requirements.md`](./sprint1-api-field-requirements.md).
 
-Documentation worktree: `HKTutor-sprint1-ui-api-map/`, branch `docs/sprint1-ui-api-map`, created
-from `origin/main` at `b571d0f`. The original mapping baseline was `ead6751`; its design work was
-later merged through UI design PR #29. The main checkout is `HKTutor/`.
-
 ## Sources and reading scope
 
-| Source                                                                                                                                              | Scope and use                                                                                                                                                                            |
-| --------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [Sprint 1 Backlog](https://docs.google.com/spreadsheets/d/17RMTjXa26ho7blv-TK5pbJFbHxVHJEBRPKCXk9x5AE0/edit?gid=1146751862#gid=1146751862)          | Rows 2–30: task status, owners and dependencies. Snapshot: 16 Done, 5 In Progress, 8 To do.                                                                                              |
-| [Data Model](https://docs.google.com/spreadsheets/d/17RMTjXa26ho7blv-TK5pbJFbHxVHJEBRPKCXk9x5AE0/edit?gid=1191524122#gid=1191524122)                | Rows 2–19: all 18 entities; rows 23–36: business rules; rows 41–75: constraints/conventions; rows 79–93: state transitions.                                                              |
-| [Role-Based Access Control](https://docs.google.com/spreadsheets/d/17RMTjXa26ho7blv-TK5pbJFbHxVHJEBRPKCXk9x5AE0/edit?gid=1973937976#gid=1973937976) | Rows 6–27: public, participant, owner and admin access.                                                                                                                                  |
-| Product Backlog tab in the same workbook                                                                                                            | Rows 4–86: UI acceptance criteria and Sprint 1–3 boundaries, including exact filtering, chat, classes, rescheduling, documents, reports, reviews and coupons.                            |
-| `apps/api/prisma/schema.prisma` and migrations                                                                                                      | Actual persisted fields and database constraints. A sheet field is not necessarily implemented.                                                                                          |
-| `apps/api/src/app.module.ts`, controllers, auth DTO/client and root foundation tests                                                                | Actual HTTP surface, identity contract and implemented safeguards. Production domain controllers are absent at this commit.                                                              |
-| All repository Markdown files present at the baseline                                                                                               | Root README, API README, auth example README, web README, web AGENTS/CLAUDE and this file. Read once after confirming copies in both checkouts were byte-identical.                      |
-| Workspace `AGENT.md`, `t09progress.md`, three `.hermes/plans/*.md` files                                                                            | Working conventions and history. Old Clerk/onboarding plans and pre-merge progress wording are historical.                                                                               |
-| All 19 first-party `apps/web/src/**/*.tsx` files                                                                                                    | Seven route pages, root layout, nine components, auth context and i18n. Both checkouts were byte-identical before this documentation change. Generated output/dependencies are excluded. |
-| `dashboard-navigation.ts`, `globals.css`, `ui-design/index.html` and prototype references                                                           | Navigation targets, theme and existing design conventions.                                                                                                                               |
+| Source                                                                                                                                              | Scope and use                                                                                                                                                        |
+| --------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [Trello Sprint 1 board](https://trello.com/b/5rez0fNO/hktutor-sprint-1-backlog)                                                                     | Planning IDs and proposed API decisions. Tracker state is not used as evidence that code exists.                                                                     |
+| [Sprint 1 Backlog](https://docs.google.com/spreadsheets/d/17RMTjXa26ho7blv-TK5pbJFbHxVHJEBRPKCXk9x5AE0/edit?gid=1146751862#gid=1146751862)          | Product scope and dependencies. Assignee names and mutable progress snapshots stay out of this shared design reference.                                              |
+| [Data Model](https://docs.google.com/spreadsheets/d/17RMTjXa26ho7blv-TK5pbJFbHxVHJEBRPKCXk9x5AE0/edit?gid=1191524122#gid=1191524122)                | Rows 2–19: all 18 entities; rows 23–36: business rules; rows 41–75: constraints/conventions; rows 79–93: state transitions.                                          |
+| [Role-Based Access Control](https://docs.google.com/spreadsheets/d/17RMTjXa26ho7blv-TK5pbJFbHxVHJEBRPKCXk9x5AE0/edit?gid=1973937976#gid=1973937976) | Rows 6–27: public, participant, owner and admin access.                                                                                                              |
+| Product Backlog tab in the same workbook                                                                                                            | Rows 4–86: UI acceptance criteria and Sprint 1–3 boundaries, including exact filtering, chat, classes, rescheduling, documents, reports, reviews and coupons.        |
+| `apps/api/prisma/schema.prisma` and migrations                                                                                                      | Actual persisted fields and database constraints. A sheet field is not necessarily implemented.                                                                      |
+| `apps/api/src/app.module.ts`, controllers, DTOs, services and contract tests                                                                        | Actual HTTP surface, identity contract and implemented safeguards. Profile and Tutor-listing controllers exist; availability, search and booking controllers do not. |
+| Tracked repository Markdown                                                                                                                         | Root/API/web READMEs, `apps/web/AGENTS.md`, contract references and this document. Historical local task logs are not sources of truth.                              |
+| All tracked first-party `apps/web/src/**/*.{ts,tsx}` files                                                                                          | Eleven route pages, shared components, API clients, auth context and i18n. Generated output and dependencies are excluded.                                           |
+| `dashboard-navigation.ts`, `globals.css`, `ui-design/index.html` and prototype references                                                           | Navigation targets, theme and existing design conventions.                                                                                                           |
 
-Source priority: merged code describes current implementation; the workbook describes intended
-product behavior and task ownership; this document proposes screen structure and routes. Resolve
-the specific conflicts in §12 before implementing dependent behavior. Documents stay in English
-under the workspace convention; product screens must support EN/TH.
+Source priority: tracked production code and tests describe current implementation; current API
+controllers/DTOs describe callable contracts; planning tools describe future intent. This document
+must not override implemented routes, fields, permissions, or validation. Product screens support
+EN/TH; shared engineering documents stay free of personal work logs, local paths, secrets, and
+assignee-specific instructions.
 
 ## 1. Existing UI and actual readiness
 
-| Route / shared surface  | TSX files under `apps/web/src/`                                                                                          | Current behavior                                                                        | Data available now                                                       |
-| ----------------------- | ------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
-| `/`                     | `app/page.tsx`, `components/login.tsx`                                                                                   | Working email/password login; redirects signed-in users to dashboard                    | Auth identity/session                                                    |
-| `/register`             | `app/register/page.tsx`, `components/register.tsx`, `components/privacy-consent.tsx`                                     | Student/tutor choice, password confirmation, explicit privacy consent                   | Registration creates User and sends email; it does not start a session   |
-| `/register/verify`      | `app/register/verify/page.tsx`, `components/verify.tsx`                                                                  | Waiting, link verification, resend, cross-tab completion/fallback                       | Token verification and session creation                                  |
-| `/register/verifypage`  | `app/register/verifypage/page.tsx`                                                                                       | Legacy alias using the same Verify component                                            | No separate design needed                                                |
-| `/onboarding/profile`   | `app/onboarding/profile/page.tsx`, `components/profile/profile-editor.tsx`                                               | Role-specific personal-profile onboarding after email verification                      | Owner-only `StudentProfile`/`TutorProfile` API                           |
-| `/dashboard`            | `app/dashboard/page.tsx`, `components/dashboard/{dashboard-shell,student-dashboard,tutor-dashboard,admin-dashboard}.tsx` | T09 role selection and responsive shell are implemented; domain panels are placeholders | Auth identity plus owner profile; counts, lists and revenue are not live |
-| `/dashboard/profile`    | `app/dashboard/profile/page.tsx`, `components/profile/profile-editor.tsx`                                                | Student/tutor can update the same fields collected during onboarding                    | Owner-only profile upsert                                                |
-| Privacy modal           | `components/privacy-notice-modal.tsx`, `lib/privacy-notice.ts`                                                           | Closable modal opened from registration and dashboard                                   | Versioned notice content, no separate route                              |
-| `/about-me`             | `app/about-me/page.tsx`                                                                                                  | Static EN/TH informational page                                                         | `copy.aboutMe`; not a user profile                                       |
-| Shared layout/auth/i18n | `app/layout.tsx`, `components/auth-shell.tsx`, `lib/auth-context.tsx`, `lib/i18n.tsx`                                    | Auth/session bootstrap, theme, language persistence                                     | Auth refresh response; local language preference                         |
+| Route / shared surface                 | TSX files under `apps/web/src/`                                                                                          | Current behavior                                                                                                                     | Data available now                                                       |
+| -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------ |
+| `/`                                    | `app/page.tsx`, `components/login.tsx`                                                                                   | Working email/password login; redirects signed-in users to dashboard                                                                 | Auth identity/session                                                    |
+| `/register`                            | `app/register/page.tsx`, `components/register.tsx`, `components/privacy-consent.tsx`                                     | Student/tutor choice, password confirmation, explicit privacy consent                                                                | Registration creates User and sends email; it does not start a session   |
+| `/register/verify`                     | `app/register/verify/page.tsx`, `components/verify.tsx`                                                                  | Waiting, link verification, resend, cross-tab completion/fallback                                                                    | Token verification and session creation                                  |
+| `/register/verifypage`                 | `app/register/verifypage/page.tsx`                                                                                       | Legacy alias using the same Verify component                                                                                         | No separate design needed                                                |
+| `/onboarding/profile`                  | `app/onboarding/profile/page.tsx`, `components/profile/profile-editor.tsx`                                               | Role-specific personal-profile onboarding after email verification                                                                   | Owner-only `StudentProfile`/`TutorProfile` API                           |
+| `/dashboard`                           | `app/dashboard/page.tsx`, `components/dashboard/{dashboard-shell,student-dashboard,tutor-dashboard,admin-dashboard}.tsx` | T09 role selection and responsive shell are implemented; domain panels are placeholders                                              | Auth identity plus owner profile; counts, lists and revenue are not live |
+| `/dashboard/profile`                   | `app/dashboard/profile/page.tsx`, `components/profile/profile-editor.tsx`                                                | Student/tutor can update the same fields collected during onboarding                                                                 | Owner-only profile upsert                                                |
+| `/dashboard/listings`                  | `app/dashboard/listings/page.tsx`, `components/listings/tutor-listings-page.tsx`                                         | Tutor-owned listing cards, filters and publication-state actions                                                                     | Authenticated Tutor listing API                                          |
+| `/dashboard/listings/new`              | `app/dashboard/listings/new/page.tsx`, `components/listings/tutor-listing-editor.tsx`                                    | Editor remains visible when T21 catalogs are unavailable; affected selectors and create actions are disabled with an explicit status | Tutor listing mutation exists; selector catalogs are unavailable         |
+| `/dashboard/listings/[listingId]/edit` | `app/dashboard/listings/[listingId]/edit/page.tsx`, `components/listings/tutor-listing-editor.tsx`                       | Owned listing still loads when T21 catalogs are unavailable; existing subject/grade remain visible but locked                        | Ownership-checked listing API exists; selector catalogs are unavailable  |
+| Privacy modal                          | `components/privacy-notice-modal.tsx`, `lib/privacy-notice.ts`                                                           | Closable modal opened from registration and dashboard                                                                                | Versioned notice content, no separate route                              |
+| `/about-me`                            | `app/about-me/page.tsx`                                                                                                  | Static EN/TH informational page                                                                                                      | `copy.aboutMe`; not a user profile                                       |
+| Shared layout/auth/i18n                | `app/layout.tsx`, `components/auth-shell.tsx`, `lib/auth-context.tsx`, `lib/i18n.tsx`                                    | Auth/session bootstrap, theme, language persistence                                                                                  | Auth refresh response; local language preference                         |
 
-There are **7 existing routes**, including one legacy alias. Student, Tutor and Admin dashboards
+There are **11 existing route pages**, including one legacy alias and one dynamic listing route.
+Student, Tutor and Admin dashboards
 share one route. The Admin view is a safe placeholder, not a completed admin console.
 
-Most dashboard navigation still uses hashes such as `#profile`, `#bookings`, `#find-tutor`,
-`#new-listing`, `#availability`, `#calendar`, `#settings` and `#support`. These are not completed
-domain destinations. Replace them with agreed routes when those screens are implemented.
+Profile and Tutor-listing navigation use real routes. Bookings, availability, settings, support and
+privacy entries still use hashes or modal actions where the corresponding domain page does not
+exist.
 
 ## 2. Remaining Sprint 1 screens and proposed navigation
 
 Routes below are **proposals**, not existing routes or agreed API URLs. A detail screen may be a
 drawer instead of a new route if it preserves the same information and deep-link behavior.
 
-| Screen                                 | Proposed route                                                                           | Task / owner                    | Sheet status and dependencies                                   | Design scope                                                                         |
-| -------------------------------------- | ---------------------------------------------------------------------------------------- | ------------------------------- | --------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
-| Tutor profile editor                   | `/dashboard/profile`                                                                     | S1-T16, First/P                 | To do; T15 In Progress; T13/T14 Done                            | Basic profile and preview; existing v4 draft; documents deferred to Sprint 2         |
-| My listings + create/edit              | `/dashboard/listings`, `/dashboard/listings/new`, `/dashboard/listings/[listingId]/edit` | S1-T16, First/P                 | To do; T15 In Progress                                          | Reuse one form for create/edit, cards and publication state                          |
-| Availability manager                   | `/dashboard/availability`                                                                | S1-T19, Korpai/Tonnam           | To do; T18 In Progress; T13/T17 Done                            | Bangkok-time list/calendar and add/delete flow                                       |
-| Tutor search                           | `/tutors`                                                                                | S1-T22, Model                   | To do; T21 To do, depending on T15 and completed T20            | Subject, level, maximum budget, minimum rating; exact results/no match               |
-| Listing/tutor details + slot selection | `/tutors/[tutorProfileId]?listingId=…`                                                   | Proposed shared T22/T25 handoff | Search/profile/listing query and slot query required            | Explicitly connect a selected listing to a slot from the same tutor; can be a drawer |
-| Booking review and submitted result    | `/dashboard/bookings/new?listingId=…&slotId=…`, `/dashboard/bookings/[bookingId]`        | S1-T25, Model                   | To do; T22 and T24 required; T24 In Progress                    | Review details, submit once, display actual returned PENDING booking                 |
-| Student booking list                   | `/dashboard/bookings`                                                                    | S1-T25, Model                   | Same dependencies; list/detail query contract must be confirmed | Own bookings, status/time filtering and detail navigation                            |
+| Screen                                 | Proposed route                                                                    | Current code boundary                                     | Design scope                                                           |
+| -------------------------------------- | --------------------------------------------------------------------------------- | --------------------------------------------------------- | ---------------------------------------------------------------------- |
+| Availability manager                   | `/dashboard/availability`                                                         | Static draft only; no web route or API controller         | Bangkok-time list/calendar and add/delete flow                         |
+| Tutor search                           | `/tutors`                                                                         | Static draft only; no web route or search controller      | Subject, level, maximum budget, minimum rating; exact results/no match |
+| Listing/tutor details + slot selection | `/tutors/[tutorId]?listingId=…`                                                   | Proposed; needs public listing and availability contracts | Connect a selected listing to a slot from the same tutor               |
+| Booking review and submitted result    | `/dashboard/bookings/new?listingId=…&slotId=…`, `/dashboard/bookings/[bookingId]` | Static draft only; no web route or booking controller     | Review details, submit once, display actual returned PENDING booking   |
+| Student booking list                   | `/dashboard/bookings`                                                             | Static draft only; no web route or booking controller     | Own bookings, status/time filtering and detail navigation              |
 
-These are seven design surfaces, not seven mandatory new routes. Forms, detail drawers and
-confirmation states can share screens; do not use the old approximate page count as a requirement.
+These are design surfaces rather than mandatory route count. Forms, detail drawers and
+confirmation states may share screens when they preserve the same data and navigation behavior.
 
-Student navigation proposal: Dashboard → Find a tutor → My bookings → Account → Privacy → Sign out.
-Tutor: Dashboard → My profile → My listings → Availability → Bookings → Privacy → Sign out.
+Current production Student navigation: Dashboard → My profile → My bookings → Settings → Support →
+Privacy → Sign out. Current Tutor navigation: Dashboard → My profile → My listings → Availability →
+Settings → Support → Privacy → Sign out.
 The tutor booking-management actions arrive in Sprint 2. Account can remain read-only using the
 existing identity contract. Settings/support have no dedicated storage or workflow contract yet.
 Guest search is allowed by RBAC; use a public header without private dashboard identity.
@@ -81,12 +82,12 @@ Guest search is allowed by RBAC; use a public header without private dashboard i
 ## 3. Dependency and implementation boundaries
 
 ```text
-T06 + T08 (Done) -> T09 (Done): auth/session + role-aware dashboard shell
-T13 + T14 (Done) -> T15 (In Progress) -> T16: profile/listing UI
-T13 + T17 (Done) -> T18 (In Progress) -> T19: availability UI
-T15 + T20 (Done) -> T21 (To do) -> T22: search UI
-T18 + T23 (Done) -> T24 (In Progress) + T22 -> T25: booking flow
-T09 + T16 + T19 + T25 -> T26 integration; T13 + T24 -> T27 regression
+Implemented: auth/session -> role-aware dashboard shell -> Student/Tutor profile editor
+Implemented: Tutor listing API/client -> listing list and mutation contracts; create/edit UI exists
+Blocked: listing create/edit selectors -> catalog APIs assigned to S1-T21/API-03 and API-04
+Missing: availability API + route
+Missing: public search/catalog API + route
+Missing: booking quote/create/list/detail API + routes
 ```
 
 Static design can proceed with clearly fictional data. API-backed implementation must inspect the
@@ -96,14 +97,22 @@ task or infer a production resource API from the private-listing authorization e
 Available authentication URLs use `/api/v1/auth`: `register`, `verify-email`,
 `resend-verification`, `login`, `refresh`, `logout`, and `me`. `AuthUser` contains only
 `id`, `email`, and uppercase `role`. Profile fields and account metadata need separate contracts.
-The remaining sections specify data needs without inventing domain HTTP endpoints.
+Owner profile URLs are implemented under `/api/v1/profiles/me`. Tutor listing methods exist on the
+tracked API under `/api/v1/tutors/me/listings`, including list, detail, create, patch, publication
+status update and publish actions. The listing editor still depends on catalog reads that have no
+matching production controller. A catalog failure does not hide the editor: it produces an
+explicit unavailable status, locks the affected selectors, and blocks creation until the assigned
+catalog service exists. Other domain sections specify proposed contracts and must remain labelled
+as unavailable until matching controllers and clients exist.
 
 ---
 
-## 4. Visual style guide (verified against the current UI, 2026-09-09)
+## 4. Visual style guide (verified against the current UI, 2026-09-11)
 
 Read from: `auth-shell.tsx`, `register.tsx`, `verify.tsx`, `privacy-consent.tsx`, `globals.css`,
-`layout.tsx`. **Drafts must reuse these exact tokens** so accepted drafts port 1:1 into Tailwind.
+`layout.tsx`, `dashboard-shell.tsx`. Profile drafts load `apps/web/src/app/globals.css` directly and
+use the production `dash-*` shell classes, keeping the sidebar and header tied to the implemented
+source rather than maintaining a second visual copy.
 
 ### Color palette (warm cream/ivory theme — NOT default Tailwind grays)
 
@@ -132,11 +141,11 @@ Read from: `auth-shell.tsx`, `register.tsx`, `verify.tsx`, `privacy-consent.tsx`
 | `--color-student` | `#1cd5b0` | Student-role accent (teal/mint) — drafts deepen to `#22c49a` / `#0e8a73` |
 | `--color-tutor`   | `#0e8eea` | Tutor-role accent (blue) — drafts deepen to `#0b6db0`                    |
 
-### Logged-in (dashboard) design language — established by the v3 dashboard drafts
+### Logged-in dashboard design language — implemented by `DashboardShell`
 
-Extracted from `pages/dashboard-student.html` + `pages/dashboard-tutor.html` (v3 polished).
-**Reuse the existing logged-in tokens** from `apps/web/src/app/globals.css` and the accepted
-dashboard references. The production stylesheet includes Student, Tutor, and Admin accents:
+`apps/web/src/components/dashboard/dashboard-shell.tsx` and `apps/web/src/app/globals.css` are the
+source of truth. Static profile prototypes use the same `dash-*` structure and load that stylesheet
+directly. The production stylesheet includes Student, Tutor, and Admin accents:
 
 | Token           | Value                                                                                  | Used for                                                                                  |
 | --------------- | -------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
@@ -153,16 +162,23 @@ dashboard references. The production stylesheet includes Student, Tutor, and Adm
 
 **Layout skeleton (both dashboards):**
 
-- Sticky left sidebar (`300px`, gradient `#fbf9f3→#f4efe4`, full viewport height, collapsible
-  with the current logo/burger transition): logo, `user-chip` (gradient avatar +
-  name + email), `side-nav` (icon + EN/TH label, optional count `chip` or `ln` outline pill,
-  `danger` item last), small `side-card` promo/tip.
+- Sticky left sidebar (`300px`, full viewport height): the default dashboard uses the warm light
+  gradient and profile pages use the production `dash-app-profile` coffee surface. The expanded
+  logo links to `/dashboard`, and the top-right `<` button collapses it to a `4.75rem` icon rail.
+  The rail keeps the existing HK logo visible; hovering the logo reveals a hamburger and clicking
+  it expands the sidebar. Navigation icons remain operable in both states, the current route uses
+  the role-tinted active card, and the preference is stored in
+  `localStorage['hktutor-sidebar-collapsed']`.
+- Expanded content includes the `user-chip` (gradient avatar + name + email), `side-nav` (icon +
+  EN/TH label, optional count `chip` or `ln` outline pill, `danger` item last), and small
+  `side-card` promo/tip. No duplicate logo or hamburger sits outside the sidebar.
 - Main column (`min(1200px, …)`): greeting block (eyebrow pill, `h1` with role chip,
   subtitle) → **row 1: 4 summary cards** (5px role-gradient top bar, soft corner circle,
   icon-dot headings, `.big` stat + `.sub`) → **row 2: one wide panel** (search/filter head +
   table/list) → supporting panels per role.
-- Header: logo (HK monogram in dark rounded square, gradient), nav, lang toggle (role-colored
-  dot), amber CTA pill.
+- Header: profile pages show the notification trigger, language toggle and Back to dashboard CTA in
+  that order. Notification popover, unread badge, close behavior and keyboard Escape handling follow
+  `DashboardShell`.
 - Decorative `BackgroundArtwork`: fixed blurred radial blobs (2 warm + 1 role-tinted) + radial
   highlight — subtler than auth page artwork.
 
@@ -182,8 +198,8 @@ dashboard references. The production stylesheet includes Student, Tutor, and Adm
 - i18n in drafts: `data-en`/`data-th` attributes + `html[lang]` CSS switch (drafts) — real
   implementation still uses `copy.<section>.<key>` from `lib/i18n.tsx`.
 - Accessibility: same conventions as auth (sr-only labels, `aria-label` on icon buttons,
-  `role="alert"` errors, `aria-hidden` artwork) + collapsible sidebar keeps a visible close
-  button and a fixed reopen pill.
+  `role="alert"` errors, `aria-hidden` artwork). The expanded sidebar keeps a labelled close
+  button; the collapsed logo/hamburger and each rail icon retain a label, focus style and route.
 
 ### Typography
 
@@ -234,10 +250,9 @@ dashboard references. The production stylesheet includes Student, Tutor, and Adm
 - Logged-in look is now ESTABLISHED by the v3 dashboard drafts (§4 "Logged-in design
   language") — new pages must reuse those tokens, not invent new ones.
 - No animation library — only Tailwind `transition-*` + small hover transforms.
-- **Motion rule:** UI design prototypes must not apply `prefers-reduced-motion`; transitions need
-  to remain visible so reviewers can assess them. Production UI must implement
-  `@media (prefers-reduced-motion: reduce)` and remove or shorten non-essential motion for users
-  whose operating system requests reduced motion.
+- **Motion rule:** profile prototypes inherit production `prefers-reduced-motion` behavior from
+  `globals.css`. Other prototypes must preserve the same reduced-motion contract when their shell is
+  synchronized.
 
 ---
 
@@ -247,16 +262,15 @@ dashboard references. The production stylesheet includes Student, Tutor, and Adm
 ui-design/
 ├── uidesign.md          ← this file
 ├── pages/               ← one draft per page/route (e.g. pages/dashboard-tutor.html)
-├── shared/              ← shared CSS/TS used by multiple drafts (e.g. shared/theme.css)
 └── index.html           ← gallery linking every draft (open in browser to navigate)
 ```
 
 ## 6. Draft conventions
 
-1. **Stack per draft:** a single `.html` entry file. Shared logged-in pages use
-   `shared/prototype.css` and `shared/prototype-shell.js` so the header, sidebar, tokens and
-   responsive behavior remain identical. No build step or framework is required; drafts must
-   open from the gallery or a small local static server.
+1. **Stack per draft:** a single `.html` entry file with mock-only page behavior. Profile drafts
+   load `../../apps/web/src/app/globals.css` and use production `dash-*` classes for the shell so
+   sidebar/header changes have one styling source. Drafts open from the gallery or a local static
+   server rooted at the repository parent.
 2. **TypeScript:** if a draft needs logic, keep a sibling `.ts` file and compile with the
    workspace's `typescript` package (`npx tsc <file>.ts --outFile ...`), or use `<script type="module">`
    with plain typed-notation JS for pure layout mocks. Compiled output stays next to the source.
@@ -267,22 +281,23 @@ ui-design/
    are not needed here.
 5. **No real data.** Mock data only (tutor names/prices may copy the seed fixtures: Pim THB 450,
    Mali THB 350 Mathematics). No secrets, no Clerk IDs, no connection strings — ever.
-6. **Not a spec of record.** Sections 1–3 and 9–13 define the page/data design plan; merged API contracts remain authoritative for implementation; the draft
-   index (§7) is exploration tracking. When a draft is accepted, mark it in §7 and implement
-   in `apps/web` on the owning task's branch.
+6. **Not a spec of record.** Sections 1–3 and 9–13 map the page/data design. Production code,
+   DTOs and tests remain authoritative. Do not record personal assignments, local branch state,
+   machine paths or individual progress notes here.
 
 ## 7. Page drafts index
 
-| Draft file                     | Real route                                  | Owning task | Status                                                                                                                |
-| ------------------------------ | ------------------------------------------- | ----------- | --------------------------------------------------------------------------------------------------------------------- |
-| `index.html`                   | — (gallery)                                 | —           | ✅ scaffold                                                                                                           |
-| `pages/dashboard-student.html` | `/dashboard` (student view)                 | S1-T09      | ✅ **shell implemented in T09** — accepted visual reference; domain data/actions still pending                        |
-| `pages/dashboard-tutor.html`   | `/dashboard` (tutor view)                   | S1-T09      | ✅ **shell implemented in T09** — accepted blue theme; booking, listing, availability and earnings data still pending |
-| `pages/tutor-profile.html`     | profile form                                | S1-T16      | 🟡 **draft v4** — basic profile belongs to Sprint 1; document upload/review belongs to Sprint 2; see §9.4 and §12     |
-| `pages/listing-form.html`      | listing form + cards                        | S1-T16      | 🟡 interactive draft — complete data, validation, preview and status filters; awaiting visual review                  |
-| `pages/availability.html`      | availability manager (Bangkok time UTC+7)   | S1-T19      | 🟡 interactive draft — complete slot data, derived status, create/delete and conflict states; awaiting visual review  |
-| `pages/search.html`            | tutor search + filters + no-match state     | S1-T22      | 🟡 interactive draft — complete listing data, four filters and exact no-match state; awaiting visual review           |
-| `pages/booking.html`           | booking confirmation + student booking list | S1-T25      | 🟡 interactive draft — complete request summary, booking states and slot-conflict state; awaiting visual review       |
+| Draft file                     | Real route                                  | Current relationship to production                                                                |
+| ------------------------------ | ------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| `index.html`                   | — (gallery)                                 | Draft gallery                                                                                     |
+| `pages/dashboard-student.html` | `/dashboard` (Student view)                 | Historical visual reference; production `DashboardShell` and `StudentDashboard` are authoritative |
+| `pages/dashboard-tutor.html`   | `/dashboard` (Tutor view)                   | Historical visual reference; production `DashboardShell` and `TutorDashboard` are authoritative   |
+| `pages/tutor-profile.html`     | `/dashboard/profile` (Tutor view)           | Profile content reference using the production profile shell classes and stylesheet               |
+| `pages/student-profile.html`   | `/onboarding/profile`, `/dashboard/profile` | Profile content reference using the production profile shell classes and stylesheet               |
+| `pages/listing-form.html`      | `/dashboard/listings*`                      | Older interactive reference; production listing pages/components are authoritative                |
+| `pages/availability.html`      | Proposed availability manager               | Interactive draft only; no production route or controller                                         |
+| `pages/search.html`            | Proposed tutor search                       | Interactive draft only; no production route or controller                                         |
+| `pages/booking.html`           | Proposed booking flow                       | Interactive draft only; no production route or controller                                         |
 
 ## 8. Acceptance flow (draft → real page)
 
@@ -290,8 +305,8 @@ ui-design/
    copy the dashboard `:root` token block and reuse the component patterns; do not invent
    new tokens.
 2. Review in chat; iterate until agreed.
-3. Hand to the owning task's TDD branch in `apps/web` (read `apps/web/node_modules/next/dist/docs/`
-   first — Next 16 breaking changes).
+3. Implement in `apps/web` after reading `apps/web/AGENTS.md` and the relevant Next 16 guide under
+   `apps/web/node_modules/next/dist/docs/`.
 4. Mark the draft row in §7 ✅ implemented (keep the draft; don't delete).
 
 ---
@@ -320,7 +335,31 @@ public tutor name. No avatar/photo URL, date of birth, goals, or language prefer
 The `/about-me` page stays informational. OAuth, password reset, email change and session management
 UI are outside the current auth scope despite unused social-button exports/copy.
 
-### 9.2 Student dashboard
+### 9.2 Student profile onboarding and editor
+
+The same form supports required onboarding at `/onboarding/profile` and later edits at
+`/dashboard/profile`. After email verification, a Student whose `profileComplete` is false must
+finish this form before continuing to the dashboard.
+
+| Control / block   | Fields                                                      | Source and visibility                                                      | Validation / state                                                                                                     |
+| ----------------- | ----------------------------------------------------------- | -------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| Legal identity    | `firstName`, `lastName`                                     | `StudentProfile`; owner and authorised administrators only                 | Required trimmed strings, 1–100 characters each                                                                        |
+| Account label     | `nickname`                                                  | `StudentProfile`; owner UI and participant-scoped tutor booking label only | Required trimmed string, 1–60 characters; never replace it with email or legal name in tutor-facing UI                 |
+| Learning context  | `school`, `gradeLevel`                                      | `StudentProfile`; owner and authorised administrators only                 | Required trimmed strings; school 1–160 and grade level 1–80 characters                                                 |
+| Emergency contact | `phone`                                                     | `StudentProfile`; owner and authorised administrators only                 | Required 8–32 phone-number characters matching the API DTO; never expose through public tutor/search/booking responses |
+| Account summary   | Nickname, school and grade level                            | Local preview of the same owner-only form data                             | Clearly label it as an account summary rather than a public profile preview                                            |
+| Profile state     | `profileComplete`, `consentCurrent`, current policy version | `GET /api/v1/profiles/me`                                                  | Loading, missing profile, updated-consent requirement, save error, saved state and incomplete-profile redirect         |
+
+Draft: `pages/student-profile.html` covers all six fields, exact current DTO limits, EN/TH copy,
+live owner summary, validation, save/cancel feedback and the current Student dashboard shell. The
+production form uses the draft's `1.35fr / minmax(290px, .75fr)` grid, persistent onboarding/edit
+note, stacked School/Class summary rows, corner artwork, compact status dots and Student teal field
+focus/action treatment. The legal name, school, grade level, phone and email are never presented as
+tutor-visible data. The draft status strip shows only Account email and Profile status because
+current privacy consent is already enforced before this screen; the wider email cell wraps long
+addresses instead of truncating them.
+
+### 9.3 Student dashboard
 
 Preserve the existing shell and ordering: greeting → four summary cards → Your tutors panel.
 
@@ -338,7 +377,7 @@ There is no saved-tutor/favorite table. “Your tutors” must be derived from b
 feature is agreed. The current Thai empty copy implies saved tutors; change that wording when
 connecting the panel. Do not use a list page's item count as an all-record total.
 
-### 9.3 Tutor dashboard
+### 9.4 Tutor dashboard
 
 | Block                 | Required visible data                                                              | Source / derivation                                                 | Action and Sprint                                                                                                             |
 | --------------------- | ---------------------------------------------------------------------------------- | ------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
@@ -356,16 +395,17 @@ The existing `0`, `0฿`, `0%`, PAID label and empty panels are static placehold
 must distinguish unavailable data from a successful zero-result response. Preserve the visual
 space while using an unavailable state or hiding a later-Sprint block.
 
-### 9.4 Tutor profile editor and documents
+### 9.5 Tutor profile editor and documents
 
 Suggested layout: basic profile form beside public preview; verification/read-only summary below;
 documents as a separate, clearly scoped section when Sprint 2 is enabled.
 
 | Control / block      | Fields                                                                   | Source and mutability                                                                                     | Validation / state                                                                                                 |
 | -------------------- | ------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| Public name          | `displayName`                                                            | Current `TutorProfile`; owner editable                                                                    | Required nonblank text; final length limit comes from T15 DTO                                                      |
-| Introduction         | `bio`                                                                    | Current `TutorProfile`; owner editable                                                                    | Required content; a listing's 20–1000 rule must not automatically be applied to bio                                |
-| Experience           | `experienceYears`                                                        | Current `TutorProfile`; owner editable                                                                    | Integer ≥ 0; zero is valid; no model-backed maximum of 80                                                          |
+| Private identity     | `firstName`, `lastName`, `nickname`                                      | Current `TutorProfile`; owner editable; never part of the public tutor preview                            | Required trimmed strings; first/last 1–100 characters and nickname 1–60                                            |
+| Public name          | `displayName`                                                            | Current `TutorProfile`; owner editable and publicly visible                                               | Required trimmed text, 1–100 characters                                                                            |
+| Introduction         | `bio`                                                                    | Current `TutorProfile`; owner editable and publicly visible                                               | Required trimmed content, 1–2000 characters                                                                        |
+| Experience           | `experienceYears`                                                        | Current `TutorProfile`; owner editable and publicly visible                                               | Integer ≥ 0; zero is valid; the API has no maximum of 80                                                           |
 | Public preview       | Name, bio, experience, verification badge, rating/count if returned      | Same current profile fields; local unsaved preview labelled accordingly                                   | No public email, private documents, IDs or review notes; a preview cannot self-assign Verified                     |
 | Verification summary | `verificationStatus`                                                     | Current profile; server/admin-controlled                                                                  | Pending/Verified/Rejected; email verification does not satisfy tutor verification                                  |
 | Rating summary       | `ratingAverage`, `reviewCount`                                           | Current cached fields; read-only                                                                          | Null/0 → New tutor; seeded values are demo data, not genuine review evidence                                       |
@@ -374,61 +414,68 @@ documents as a separate, clearly scoped section when Sprint 2 is enabled.
 | Document list        | Filename/type/size, status, uploaded/reviewed dates, review note         | Planned `TutorDocument.status/uploadedAt/reviewedAt/reviewNote`                                           | Own documents only; Pending/Verified/Rejected; show rejection feedback and permitted resubmission                  |
 | View document        | Short-lived authorized viewer/download action                            | Planned server-issued signed URL from private `objectPath`                                                | URL is transient, not a public profile field; handle expiry and denied access                                      |
 
-Draft review: `pages/tutor-profile.html` currently assumes bio length and experience limits and
-allows removal of document rows. Those are prototype behaviors, not confirmed DTO/storage rules.
-Removing a locally queued file is safe draft behavior; persisted document deletion needs an explicit
-API/RBAC contract (the sheet grants tutor create/read, not delete). Public profile verification
-must use the aggregate profile status; it cannot be inferred from one document being approved.
+Draft review: `pages/tutor-profile.html` now matches the six current Tutor profile inputs, current
+dashboard shell and blue Tutor form treatment while keeping private identity separate from the
+public preview. Production uses the draft's `1.4fr / minmax(300px, .82fr)` grid, preview hierarchy,
+corner artwork and four-column account-status strip with compact status dots. Its certificate
+section remains a Sprint 2 interaction concept and is deliberately absent from the production
+Sprint 1 form. Removing a locally queued file is safe draft behavior; persisted document deletion
+needs an explicit API/RBAC contract (the sheet grants tutor create/read, not delete). Public profile
+verification must use the aggregate profile status; it cannot be inferred from one document being
+approved. The draft gives Account email the widest status column and wraps long addresses.
 
-### 9.5 Teaching listings: list, create and edit
+### 9.6 Teaching listings: list, create and edit
 
-| Control / block               | Fields / joins                                                                         | Data ownership                                | Validation / behavior                                                                                                                                         |
-| ----------------------------- | -------------------------------------------------------------------------------------- | --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Subject selector              | `subjectId` → `Subject.id/code/name/active`                                            | Catalog lookup; selected ID stored on listing | Offer active options; keep historical inactive labels readable; no free-text spelling variants                                                                |
-| Grade selector                | `gradeLevelId` → `GradeLevel.id/code/name/sortOrder/active`                            | Catalog lookup                                | Sort by `sortOrder`; inactive existing value needs an explicit edit policy                                                                                    |
-| Price per hour                | `pricePerHour`                                                                         | Owner input; current decimal field            | THB/hour, strictly > 0, two-decimal money handling; not a lesson total                                                                                        |
-| Description                   | `description`                                                                          | Owner input                                   | Trimmed 20–1000 characters; counter and inline error                                                                                                          |
-| Publication                   | `publicationStatus`, `publishedAt`                                                     | Server-controlled lifecycle                   | Draft/Published/Archived. Publish requires verified tutor; saving a draft must not imply publishing                                                           |
-| Listing card                  | Subject + grade title, tutor name where useful, rate, excerpt, status and updated date | Listing + catalogs + profile                  | There is no listing `title`, image, duration, capacity, location or teaching-mode field; derive the title                                                     |
-| Save / edit / publish actions | Listing ID for selection; owner derived from session                                   | T15 contract pending                          | Disable while saving, keep form values on failure, show success from returned record; publishing and unpublishing/archive semantics must match the merged API |
+| Control / block              | Fields / joins                                                                         | Data ownership                                | Validation / behavior                                                                                                           |
+| ---------------------------- | -------------------------------------------------------------------------------------- | --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| Subject selector             | `subjectId` → `Subject.id/code/name/active`                                            | Catalog lookup; selected ID stored on listing | Offer active options; keep historical inactive labels readable; no free-text spelling variants                                  |
+| Grade selector               | `gradeLevelId` → `GradeLevel.id/code/name/sortOrder/active`                            | Catalog lookup                                | Sort by `sortOrder`; inactive existing value needs an explicit edit policy                                                      |
+| Price per hour               | `pricePerHour`                                                                         | Owner input; current decimal field            | THB/hour, strictly > 0, two-decimal money handling; not a lesson total                                                          |
+| Description                  | `description`                                                                          | Owner input                                   | Trimmed 20–1000 characters; counter and inline error                                                                            |
+| Publication                  | `publicationStatus`, `publishedAt`                                                     | Server-controlled lifecycle                   | Draft/Published/Archived. Publish requires verified tutor; saving a draft must not imply publishing                             |
+| Listing card                 | Subject + grade title, tutor name where useful, rate, excerpt, status and updated date | Listing + catalogs + profile                  | There is no listing `title`, image, duration, capacity, location or teaching-mode field; derive the title                       |
+| Save / edit / status actions | Listing ID for selection; owner derived from session                                   | Current Tutor listing controller and client   | Disable while saving, keep form values on failure, and use the implemented create, patch, publish, archive, and restore actions |
 
 One listing selects one subject and one grade. Multiple offerings require multiple listings.
 Availability belongs to a tutor, not a listing. Do not add per-listing calendars without a schema
 change. Archived and soft-deleted are different states; preserve historical booking references.
+The production form must not substitute catalog request failures as missing listings. Keep the
+selector flow unavailable until S1-T21 provides the contracted catalog endpoints; do not substitute
+hardcoded IDs or infer a complete catalog from a Tutor's existing listings.
 
-### 9.6 Availability manager and student slot picker
+### 9.7 Availability manager and student slot picker
 
-| Block              | Visible input / data                                                  | Model / derivation                                | Rules                                                                                                              |
-| ------------------ | --------------------------------------------------------------------- | ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| Date navigation    | Selected day/week, Bangkok timezone label                             | Transient date filter                             | Explicit Asia/Bangkok regardless of browser timezone                                                               |
-| Add range          | Local date, start time, end time                                      | Convert to `AvailabilitySlot.startAtUtc/endAtUtc` | Future range; start < end. Preview the date as well as time if it crosses midnight; no recurring-rule model exists |
-| Slot list/calendar | Start/end, duration, Open/Reserved; own linked booking when permitted | Current slot + active Booking                     | Derived duration; reserved when a PENDING or CONFIRMED booking exists; no stored slot status                       |
-| Delete slot        | Selected `slot.id`                                                    | Owner API performs soft delete                    | Only unreserved slots; handle 409 if reserved in the meantime; do not cascade-remove booking history               |
-| Student selection  | Future open times for the chosen tutor, selected range summary        | Eligible slots returned by API                    | View-only, then select `slotId` for booking; show no other students' identity or booking details                   |
+| Block              | Visible input / data                                                  | Model / derivation                                                                         | Rules                                                                                                              |
+| ------------------ | --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------ |
+| Date navigation    | Selected day/week, Bangkok timezone label                             | Transient date filter                                                                      | Explicit Asia/Bangkok regardless of browser timezone                                                               |
+| Add range          | Local date, start time, end time                                      | Convert to UTC and send Trello fields `startAt/endAt`; response uses `startAtUtc/endAtUtc` | Future range; start < end. Preview the date as well as time if it crosses midnight; no recurring-rule model exists |
+| Slot list/calendar | Start/end, duration, Open/Reserved; own linked booking when permitted | Current slot + active Booking                                                              | Derived duration; reserved when a PENDING or CONFIRMED booking exists; no stored slot status                       |
+| Delete slot        | Selected `slot.id`                                                    | Owner API performs soft delete                                                             | Only unreserved slots; handle 409 if reserved in the meantime; do not cascade-remove booking history               |
+| Student selection  | Future open times for the chosen tutor, selected range summary        | Eligible slots returned by API                                                             | View-only, then select `slotId` for booking; show no other students' identity or booking details                   |
 
 Examples: 2026-09-10 18:00–19:00 Bangkok is 11:00–12:00 UTC. An adjacent 19:00–20:00
 slot is valid; 18:30–19:30 conflicts. A future slot with only canceled/completed history is not
 reserved, but past times are never new booking options. Display loading, no slots, save conflict,
 past/inverted range, reserved-delete conflict and retryable service error states.
 
-### 9.7 Tutor search and public detail
+### 9.8 Tutor search and public detail
 
-| Block                 | Fields                                                                                                                                                                      | Rule / action                                                                                                                                                           |
-| --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Filters               | Subject ID/code, grade ID/code, maximum budget, minimum rating                                                                                                              | Map labels to canonical catalogs and eventual T21 parameter names; optional filters combine with AND; inclusive price maximum and rating minimum                        |
-| Result card           | `TutorProfile.userId/displayName/experienceYears/verificationStatus/ratingAverage/reviewCount`; selected `TeachingListing.id/pricePerHour/description`; subject/grade names | Only eligible published listings of verified tutors; exclude deleted/unavailable public records through server query                                                    |
-| Result grouping       | Tutor + matching listing(s)                                                                                                                                                 | Proposal: display one card per matching listing or explicitly group matching offerings; never pair the lowest price from a different offering with the selected subject |
-| Rating                | Cached average and count                                                                                                                                                    | No reviews → New tutor and 0 reviews; minimum-rating filtering must not invent a score for null; demo seed ratings are labelled as demo                                 |
-| Detail overview       | Name, bio, experience, Verified badge, rating/count and public offerings                                                                                                    | Same profile/listing joins; public allowlist excludes email, consent, account internals and document files                                                              |
-| Offering and schedule | Selected listing description/rate/subject/grade; next eligible slot when allowed                                                                                            | Change listing only within the selected tutor; slot query must belong to the same tutor; full slot access for guests needs RBAC clarification (§12)                     |
-| Search states         | Loading, exact results/count, no exact matches, invalid filter, service error, pagination if supported                                                                      | Retain filters and offer Clear filters; do not substitute unrelated tutors for an empty exact result                                                                    |
-| Calls to action       | View details; sign in/register to book for guest; choose slot/book for Student                                                                                              | Tutor/Admin can browse but cannot create bookings; no role-switch-to-student control                                                                                    |
+| Block                 | Fields                                                                                                                                                                       | Rule / action                                                                                                                                                           |
+| --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Filters               | Subject label, grade label, maximum budget, minimum rating                                                                                                                   | Send Trello query names `subject`, `grade`, `maxPrice`, and `minimumRating`; optional filters combine with AND; omit minimum rating for Any                             |
+| Result card           | API returns listing `listingId`, `tutorId`, `displayName`, `subject`, `grade`, `pricePerHour`, `ratingAverage`, description, review count, experience, and next availability | Only eligible published listings of verified tutors; one card represents one matching listing                                                                           |
+| Result grouping       | Tutor + matching listing(s)                                                                                                                                                  | Proposal: display one card per matching listing or explicitly group matching offerings; never pair the lowest price from a different offering with the selected subject |
+| Rating                | Cached average and count                                                                                                                                                     | No reviews → New tutor and 0 reviews; minimum-rating filtering must not invent a score for null; demo seed ratings are labelled as demo                                 |
+| Detail overview       | Name, bio, experience, Verified badge, rating/count and public offerings                                                                                                     | Same profile/listing joins; public allowlist excludes email, consent, account internals and document files                                                              |
+| Offering and schedule | Selected listing description/rate/subject/grade; next eligible slot when allowed                                                                                             | Change listing only within the selected tutor; slot query must belong to the same tutor; full slot access for guests needs RBAC clarification (§12)                     |
+| Search states         | Loading, exact results/count, no exact matches, invalid filter, service error, pagination if supported                                                                       | Retain filters and offer Clear filters; do not substitute unrelated tutors for an empty exact result                                                                    |
+| Calls to action       | View details; sign in/register to book for guest; choose slot/book for Student                                                                                               | Tutor/Admin can browse but cannot create bookings; no role-switch-to-student control                                                                                    |
 
 Do not add name free-text search, a lower-price bound or sorting parameters as an existing T21
 contract. They need confirmation. Sprint 2 US1-2 adds deterministic ranking by lowest price,
 highest rating or earliest availability plus honest reason tags. Sprint 3 US10 adds comparison.
 
-### 9.8 Booking review, submitted result and booking list
+### 9.9 Booking review, submitted result and booking list
 
 Suggested flow: search → public detail/selected offering → available slot → review booking →
 submit → persisted booking detail → My bookings. “Request submitted” is distinct from “Tutor
@@ -440,7 +487,7 @@ confirmed”; Sprint 1 booking creation returns PENDING.
 | Create request     | Selected `listingId`, `slotId` and contract-required inputs                                                                              | Server derives student/owner identity, verifies same tutor and reserves atomically; never trust client-entered price/owner IDs                                                                 |
 | Submitted result   | `Booking.status/createdAt`, tutor, listing, time, `subtotalAmount/discountAmount/netAmount/currency`; internal `id` for navigation only  | Render returned PENDING record; do not display a fabricated short reference                                                                                                                    |
 | Student list       | Tutor, subject/grade, Bangkok time, status, net amount; internal `id` for navigation                                                     | Owner-scoped `studentUserId`; filter status/date and paginate when supported; empty vs error vs unavailable states                                                                             |
-| Detail             | All list data plus full description as permitted, amount breakdown, last update                                                          | Join through `listingId`, `slotId`, `tutorProfileId`; amount snapshots are authoritative, not today's listing rate                                                                             |
+| Detail             | All list data plus full description as permitted, amount breakdown, last update                                                          | Join through `listingId`, `slotId`, `tutorId`; amount snapshots are authoritative, not today's listing rate                                                                                    |
 | Tutor booking list | Same core details with approved student label, incoming status and amount                                                                | Owner-scoped `tutorProfileId`; no unrelated student account data; management actions in Sprint 2                                                                                               |
 | Failure / race     | Validation, unauthorized, missing resource, slot conflict, stale quote, uncertain network result                                         | On 409 reload available slots and allow reselection. On an uncertain submit outcome, reconcile with server state before repeating a mutation; idempotency support is not currently established |
 
@@ -514,63 +561,71 @@ Planned Booking fields absent from current Prisma: `couponId`, `paymentStatus`, 
 | Time                                  | Store/compare UTC, display Asia/Bangkok and explicit date/time; use the same boundary for cards, filters and reports. Do not rely on browser-local timezone or change timezone when switching EN/TH.                                                                     |
 | Money                                 | THB; distinguish hourly rate, quoted lesson total and persisted booking amounts; show subtotal − discount = net. Use server decimal values; do not recompute historical amounts from current rate.                                                                       |
 | Identity fallback                     | Initial avatar is derived decoration. Public tutor name uses profile; tutor-facing student identity uses only the API-allowed `StudentProfile.nickname`. Do not expose or invent other personal profile data.                                                            |
-| Responsive layout                     | Preserve 300px desktop rail and current collapsible behavior. Stack forms/cards on narrow screens; present booking rows as readable cards or bounded tables; retain core time/status/action visibility.                                                                  |
-| Keyboard and language                 | EN/TH labels, placeholders, errors and empty states; labelled icon buttons, focus visibility, aria-live status, inert collapsed navigation. New designs must remain usable with zoom and reduced motion.                                                                 |
+| Responsive layout                     | Preserve the 300px expanded sidebar and 4.75rem collapsed rail. Stack forms/cards on narrow screens; present booking rows as readable cards or bounded tables; retain core time/status/action visibility.                                                                |
+| Keyboard and language                 | EN/TH labels, placeholders, errors and empty states; labelled icon buttons, focus visibility, aria-live status and operable collapsed-rail navigation. New designs must remain usable with zoom and reduced motion.                                                      |
 | Reusable building blocks              | Existing AuthShell/DashboardShell; proposed StatusBadge, Tutor/ListingCard, BookingSummary, BangkokTimeRange, MoneyBreakdown, CatalogSelect, Empty/ErrorState, DocumentRow and confirmation dialog. These names describe proposed components, not files already present. |
 
 ## 12. Contract gaps and source conflicts to resolve
 
-These items do not prevent static design. They must be settled with the owning API task before
-shipping the corresponding controls or query logic.
+These items do not prevent static design. They require matching production contracts before the
+corresponding controls or query logic can ship.
 
 Confirmed Sprint 1 decision: Booking has no public reference in the UI. Its UUID is used internally
 for API calls and routes only. Tutor-facing booking and lesson rows use the API-allowed student
 nickname and do not expose the student's legal name or other private profile fields.
 
-| Finding                                     | Evidence / effect                                                                                                                              | Design decision for now                                                                                                                           |
-| ------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Dashboard documentation lag                 | Root README and old UI inventory call it a stub; TSX and T09 Done show role shells                                                             | Mark shells implemented, domain data pending. Do not redesign completed auth/session work                                                         |
-| No production domain API on main            | `AppModule` includes auth, health and examples only                                                                                            | Confirm actual DTOs, list/detail queries, pagination, filters and error codes after merge; no invented endpoint names                             |
-| Emergency telephone visibility              | `StudentProfile.phone` is collected for urgent class, safety or service incidents                                                              | Owner and authorised administrators only; never include it in public search or ordinary tutor booking responses                                   |
-| Profile draft validation differs from model | v4 bio/experience limits are prototype-only; database only fixes nonnegative integer experience                                                | Do not transfer 20–1000 listing constraints or maximum 80 experience to profile without T15 approval                                              |
-| Document scope and removal                  | TutorDocument is Sprint 2; tutor RBAC grants upload/read, not persisted deletion                                                               | Split basic profile and document designs; queue removal only until a delete contract exists                                                       |
-| Verification aggregation                    | Sheet mentions document review affecting profile, but no rule for multiple accepted/rejected documents                                         | Display aggregate `TutorProfile.verificationStatus`; do not compute it client-side or treat email verification as qualification approval          |
-| Listing unpublish/archive                   | Workbook enum has draft/published/archived; explicit transition table only specifies draft → published                                         | Design state variants; confirm available archive/unpublish/re-publish actions and their effects on booked lessons                                 |
-| Guest availability / individual reviews     | RBAC permits guest listing search but has no guest slot or review access; future comparison uses next availability                             | Keep public profile basics and cached public search rating; require sign-in for protected slot/review detail until API allowlist resolves scope   |
-| Slot mutations                              | RBAC lists update, but S1-T18 is create/list/delete                                                                                            | Do not promise drag-to-reschedule, recurring schedules or direct slot editing in Sprint 1                                                         |
-| Lesson pricing and history                  | Sheet requires server amount snapshot; slots can have variable duration; listing text/time snapshots are not in schema                         | Confirm duration billing/rounding and whether booked listing/slot edits are prevented or snapshotted; use persisted amounts for existing bookings |
-| Confirm wording                             | Product Backlog US12-4 calls confirm/reject final, while Data Model rows 26/80–84 allow confirmed → completed/canceled                         | Use explicit Data Model lifecycle; only canceled/completed are terminal                                                                           |
-| Reschedule target wording                   | Product Backlog row 39 says rejected target stays unavailable; Data Model rows 28/85–87 say target is never held and rejection changes no slot | Follow no-hold model: original booking stays; target availability remains independently derived; flag wording for tracker correction              |
-| Attendance permission                       | RBAC row 16 is broad; US4-2 specifically permits owning tutor marking                                                                          | Student reads attendance only in proposed design; no student marking control                                                                      |
-| Reminder wording                            | US3-2 has broad paid exclusion but explicit example/model preserves paid class reminders                                                       | Paid skips payment reminder only; canceled/ineligible states follow scheduler contract                                                            |
-| Public/privacy language and copy            | Consent controls are EN/TH; the full modal notice remains English; some auth errors and nav aria labels are literal English                    | Add reviewed Thai notice copy before claiming that the legal notice is fully localised                                                            |
-| Unsupported dashboard metrics               | PAID/earnings/reschedule/profile-strength placeholders lack complete data contracts                                                            | Gate later features; agree report period and checklist/count definitions before populating cards                                                  |
-| Settings, support and admin console         | Hash links/safe admin placeholder do not establish backend workflows                                                                           | Keep read-only account/real privacy links; future admin screens follow explicit admin endpoints; no invented support-ticket model                 |
+| Finding                                 | Evidence / effect                                                                                                                                                             | Design decision for now                                                                                                                           |
+| --------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Current domain coverage                 | Profile and Tutor-listing controllers, clients and pages exist; availability, public search/catalog and booking controllers are absent                                        | Use implemented profile/listing APIs; keep other domain UI clearly proposed until code exists                                                     |
+| Public search contract                  | Planning material lists the card fields needed by search, but no production search controller or client exists                                                                | Do not connect the search draft or present its mock results as live                                                                               |
+| Booking read/write APIs                 | Planning material describes quote/create/list/detail shapes, but no production booking controller or client exists                                                            | Keep booking history, detail and dashboard booking data unavailable                                                                               |
+| Catalog APIs                            | The listing editor calls legacy `/catalogs/subjects` and `/catalogs/grade-levels`, but no matching controller exists; T21 assigns `/subjects` and `/grade-levels`             | Keep selectors blocked until S1-T21/API-03 and API-04 merge; do not hardcode options or implement T21 as part of an unrelated UI fix              |
+| Availability field names differ         | T18/API-02 accepts `startAt/endAt` and returns `startAtUtc/endAtUtc`; the earlier handoff used UTC suffixes in both directions                                                | Convert Bangkok inputs to UTC, send the Trello request names, and render the returned UTC fields                                                  |
+| Student booking label and privacy scope | `StudentProfile` has first name, last name, nickname, school, grade level and phone; T24/API-05 now defines the participant projection                                        | Tutor-facing booking rows use only `student.nickname`; never expose phone, school, grade profile, legal name, email or account ID                 |
+| Emergency telephone visibility          | `StudentProfile.phone` is collected for urgent class, safety or service incidents                                                                                             | Owner and authorised administrators only; never include it in public search or ordinary tutor booking responses                                   |
+| Profile field-error mapping             | API validation returns `message: string \| string[]` without a stable field key; production has exact inline client validation and property-name matching for server messages | Request stable field/code metadata before relying on server-error mapping; always retain the form-level API message                               |
+| Tutor preview subject label             | `TutorProfile` has no subject field; the draft currently shows “English tutor”                                                                                                | Derive it from a selected/published listing and Subject join, or use generic Tutor copy until listing data is available                           |
+| Document scope and removal              | TutorDocument is Sprint 2; tutor RBAC grants upload/read, not persisted deletion                                                                                              | Split basic profile and document designs; queue removal only until a delete contract exists                                                       |
+| Verification aggregation                | Sheet mentions document review affecting profile, but no rule for multiple accepted/rejected documents                                                                        | Display aggregate `TutorProfile.verificationStatus`; do not compute it client-side or treat email verification as qualification approval          |
+| Guest availability / individual reviews | Trello T18/API-04 explicitly permits public future free slots; no individual-review endpoint is assigned                                                                      | Allow guest slot viewing without booking; keep review detail out until an API contract exists                                                     |
+| Slot mutations                          | RBAC lists update, but S1-T18 is create/list/delete                                                                                                                           | Do not promise drag-to-reschedule, recurring schedules or direct slot editing in Sprint 1                                                         |
+| Lesson pricing and history              | Sheet requires server amount snapshot; slots can have variable duration; listing text/time snapshots are not in schema                                                        | Confirm duration billing/rounding and whether booked listing/slot edits are prevented or snapshotted; use persisted amounts for existing bookings |
+| Confirm wording                         | Product Backlog US12-4 calls confirm/reject final, while Data Model rows 26/80–84 allow confirmed → completed/canceled                                                        | Use explicit Data Model lifecycle; only canceled/completed are terminal                                                                           |
+| Reschedule target wording               | Product Backlog row 39 says rejected target stays unavailable; Data Model rows 28/85–87 say target is never held and rejection changes no slot                                | Follow no-hold model: original booking stays; target availability remains independently derived; flag wording for tracker correction              |
+| Attendance permission                   | RBAC row 16 is broad; US4-2 specifically permits owning tutor marking                                                                                                         | Student reads attendance only in proposed design; no student marking control                                                                      |
+| Reminder wording                        | US3-2 has broad paid exclusion but explicit example/model preserves paid class reminders                                                                                      | Paid skips payment reminder only; canceled/ineligible states follow scheduler contract                                                            |
+| Public/privacy language and copy        | Consent controls are EN/TH; the full modal notice remains English; some auth errors and nav aria labels are literal English                                                   | Add reviewed Thai notice copy before claiming that the legal notice is fully localised                                                            |
+| Unsupported dashboard metrics           | PAID/earnings/reschedule/profile-strength placeholders lack complete data contracts                                                                                           | Gate later features; agree report period and checklist/count definitions before populating cards                                                  |
+| Settings, support and admin console     | Hash links/safe admin placeholder do not establish backend workflows                                                                                                          | Keep read-only account/real privacy links; future admin screens follow explicit admin endpoints; no invented support-ticket model                 |
 
 ## 13. Design order and handoff checklist
 
-1. Refine `pages/tutor-profile.html`: map only basic profile in Sprint 1 and separate document
-   states for Sprint 2. Preserve the current Tutor shell and public preview.
-2. Draft `pages/listing-form.html`: listing management cards, create/edit states and publication
-   eligibility; reuse Subject/Grade selectors and price/description validation.
+1. Maintain `pages/student-profile.html` and `pages/tutor-profile.html` against production
+   `DashboardShell`, `globals.css` and `profile-editor.tsx`. The shell includes the dashboard-linked
+   expanded logo, `<` collapse control, hover-to-hamburger compact logo, SVG navigation,
+   active-route state, notification menu, language control and responsive rail.
+2. Treat `pages/listing-form.html` as a historical design reference. Maintain its presentation and
+   validation against the production list/create/edit components. Keep selector integration blocked
+   until the assigned T21 catalog contracts are implemented.
 3. Draft `pages/availability.html`: Bangkok-time empty/populated list/calendar, add range,
    overlap conflict and reserved-delete refusal; include the Student picker variant.
 4. Draft `pages/search.html`: four required filters, results, no matches, public detail/selected
    offering and entry into slot selection. Include guest and Student action differences.
 5. Draft `pages/booking.html`: review, submitting, PENDING submitted result, 409 conflict, own
    list and detail. Reuse the summary in both dashboards.
-6. Connect the existing dashboard design to those agreed destinations and data definitions.
-   Complete API-backed implementation only after dependencies and list/query contracts are merged.
+6. Connect dashboard navigation only when matching routes, clients and server contracts exist.
 7. Design Sprint 2: tutor actions/classes/mock payment, cancellation/reschedule, documents/admin
    verification, chat and notifications. Then Sprint 3: reports, detailed reviews, coupons,
    comparison, realtime chat and reminders.
 
 For each draft, record: role, entry/exit route, primary action, exact displayed/input fields,
-source entity or derived rule, dependency task, EN/TH copy, empty/loading/error/conflict/success
+source entity or derived rule, dependency contract, EN/TH copy, empty/loading/error/conflict/success
 states, mobile layout, and fields deliberately deferred. Use fictional data covering unverified
 tutor, no reviews, no listings, no slots, inactive catalog, reserved slot, pending booking and
 conflicting submission. A frontend-ready handoff additionally requires verified request/response
 types, authoritative permission checks and agreed business transitions.
 
-This update changes documentation only. No TSX, runtime behavior, schema, shared database or
-Google Sheet is modified by this design mapping.
+This revision makes the production profile shell authoritative for both profile prototypes. The
+drafts use the production `dash-*` element structure and load the production stylesheet for the
+sidebar/header, while keeping fictional page data and mock-only form behavior. It does not change
+the profile API or database schema.

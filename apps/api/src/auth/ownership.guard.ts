@@ -8,13 +8,13 @@ import {
 import { Reflector } from '@nestjs/core';
 
 import { OWNERSHIP_KEY } from '@/auth/ownership.decorator';
+import { invalidUuidException, isUuid } from '@/common/pipes/uuid-param.pipe';
 import { PrismaService } from '@/database/prisma.service';
 import { Role } from '@/generated/prisma/client';
 
 import type { AuthenticatedRequest, AuthenticatedUser } from '@/auth/auth.guard';
 import type { OwnershipRule } from '@/auth/ownership.decorator';
 
-const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const RESOURCE_NOT_FOUND = 'Resource not found';
 
 @Injectable()
@@ -38,9 +38,7 @@ export class ResourceOwnershipGuard implements CanActivate {
     }
 
     const resourceId = request.params[rule.idParam ?? 'id'];
-    if (typeof resourceId !== 'string' || !UUID_PATTERN.test(resourceId)) {
-      throw new NotFoundException(RESOURCE_NOT_FOUND);
-    }
+    if (!isUuid(resourceId)) throw invalidUuidException(rule.idParam ?? 'id');
 
     if (!(await this.canAccess(rule, resourceId, request.auth))) {
       throw new NotFoundException(RESOURCE_NOT_FOUND);
@@ -57,6 +55,15 @@ export class ResourceOwnershipGuard implements CanActivate {
     const adminAccess = rule.allowAdmin === true && user.role === Role.ADMIN;
 
     switch (rule.resource) {
+      case 'studentProfile':
+        if (!adminAccess && resourceId !== user.id) return false;
+
+        return Boolean(
+          await this.prisma.studentProfile.findFirst({
+            where: { userId: resourceId },
+            select: { userId: true },
+          }),
+        );
       case 'tutorProfile':
         if (!adminAccess && resourceId !== user.id) return false;
 
