@@ -182,7 +182,7 @@ test('keeps profile prototypes aligned with the production sidebar controls', as
     assert.doesNotMatch(prototype, /document\.body\.classList\.toggle\('sb-collapsed'/);
     assert.doesNotMatch(prototype, /dash-app-profile|dash-notification/);
     assert.doesNotMatch(sidebar, /class="(?:sidebar|sb-head|logo|rail-toggle|sb-close|side-nav)\b/);
-    assert.doesNotMatch(sidebar, /<span class="ico">[▦👤📅⚙️🛟🔒↩]/u);
+    assert.doesNotMatch(sidebar, /<span class="ico">(?:▦|👤|📅|⚙️|🛟|🔒|↩)/u);
   }
 
   const studentPrototype = await read('ui-design/pages/student-profile.html');
