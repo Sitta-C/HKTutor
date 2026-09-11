@@ -79,6 +79,12 @@ export function getDashboardNavItems(role: UserRole, copy: Translation): Dashboa
   if (role === 'STUDENT') {
     return [
       {
+        id: 'dashboard',
+        href: '/dashboard',
+        icon: 'dashboard',
+        label: copy.dashboard.common.eyebrow,
+      },
+      {
         id: 'profile',
         href: '/dashboard/profile',
         icon: 'profile',
@@ -121,6 +127,12 @@ export function getDashboardNavItems(role: UserRole, copy: Translation): Dashboa
 
   if (role === 'TUTOR') {
     return [
+      {
+        id: 'dashboard',
+        href: '/dashboard',
+        icon: 'dashboard',
+        label: copy.dashboard.common.eyebrow,
+      },
       {
         id: 'profile',
         href: '/dashboard/profile',
@@ -169,6 +181,12 @@ export function getDashboardNavItems(role: UserRole, copy: Translation): Dashboa
 
   // Explicit safe ADMIN navigation: no student or tutor items
   return [
+    {
+      id: 'dashboard',
+      href: '/dashboard',
+      icon: 'dashboard',
+      label: copy.dashboard.common.eyebrow,
+    },
     {
       id: 'privacy',
       href: '#privacy',
