@@ -1,6 +1,6 @@
 # HKTutor web application
 
-Follow the repository-wide instructions in [`../../AGENTS.md`](../../AGENTS.md). Keep this file
+Follow the workspace-wide instructions in [`../../../AGENTS.md`](../../../AGENTS.md). Keep this file
 limited to stable web-specific framework guidance; personal assignments and temporary work notes
 belong outside tracked shared documentation.
 
