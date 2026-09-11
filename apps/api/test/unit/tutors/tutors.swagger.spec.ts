@@ -6,7 +6,9 @@ import { JwtAuthGuard } from '@/auth/auth.guard';
 import { JWT_BEARER_AUTH } from '@/auth/auth.swagger';
 import { ResourceOwnershipGuard } from '@/auth/ownership.guard';
 import { RolesGuard } from '@/auth/roles.guard';
-import { TutorsPrivateController, TutorsPublicController } from '@/tutors/tutors.controller';
+import { CatalogController } from '@/tutors/catalog.controller';
+import { TutorsPrivateController } from '@/tutors/tutors-private.controller';
+import { TutorsPublicController } from '@/tutors/tutors-public.controller';
 import { TutorsService } from '@/tutors/tutors.service';
 
 import type { INestApplication } from '@nestjs/common';
@@ -23,7 +25,7 @@ describe('tutor Swagger contract', () => {
 
   beforeAll(async () => {
     const moduleFixture = await Test.createTestingModule({
-      controllers: [TutorsPrivateController, TutorsPublicController],
+      controllers: [CatalogController, TutorsPrivateController, TutorsPublicController],
       providers: [{ provide: TutorsService, useValue: {} }],
     })
       .overrideGuard(JwtAuthGuard)
@@ -183,6 +185,53 @@ describe('tutor Swagger contract', () => {
     }
   });
 
+  it('documents the public search contract without bearer security', () => {
+    const search = operation('get', '/api/v1/tutors');
+
+    expect(search.security).toBeUndefined();
+    expect(search.parameters).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ in: 'query', name: 'subject', required: false }),
+        expect.objectContaining({ in: 'query', name: 'grade', required: false }),
+        expect.objectContaining({ in: 'query', name: 'maxPrice', required: false }),
+        expect.objectContaining({ in: 'query', name: 'minimumRating', required: false }),
+      ]),
+    );
+    expect(search.responses).toHaveProperty('200');
+    expect(search.responses).toHaveProperty('400');
+
+    const response = search.responses['200'] as {
+      content: { 'application/json': { schema: SchemaObject } };
+    };
+    expect(response.content['application/json'].schema).toMatchObject({
+      items: { $ref: '#/components/schemas/TutorSearchResultDto' },
+      type: 'array',
+    });
+
+    const resultSchema = document.components?.schemas?.['TutorSearchResultDto'] as SchemaObject;
+    expect(resultSchema.required).toEqual(
+      expect.arrayContaining([
+        'listingId',
+        'tutorId',
+        'displayName',
+        'description',
+        'experienceYears',
+        'subject',
+        'grade',
+        'pricePerHour',
+        'ratingAverage',
+        'reviewCount',
+        'nextAvailableAt',
+      ]),
+    );
+    expect(resultSchema.properties).not.toHaveProperty('id');
+    expect(resultSchema.properties?.['nextAvailableAt']).toMatchObject({
+      format: 'date-time',
+      nullable: true,
+      type: 'string',
+    });
+  });
+
   it('documents private availability list, validation, state, and authentication', () => {
     const get = operation('get', '/api/v1/tutors/me/availability');
 
@@ -291,6 +340,30 @@ describe('tutor Swagger contract', () => {
       items: { $ref: '#/components/schemas/AvailabilityPublicResponseDto' },
       type: 'array',
     });
+  });
+
+  it('documents public detail and both active catalogs', () => {
+    const detail = operation('get', '/api/v1/tutors/{tutorId}');
+    expect(detail.security).toBeUndefined();
+    expect(detail.parameters).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          in: 'path',
+          name: 'tutorId',
+          schema: expect.objectContaining({ format: 'uuid' }) as object,
+        }),
+      ]),
+    );
+    expect(detail.responses).toHaveProperty('200');
+    expect(detail.responses).toHaveProperty('400');
+    expect(detail.responses).toHaveProperty('404');
+
+    for (const path of ['/api/v1/subjects', '/api/v1/grade-levels']) {
+      const catalog = operation('get', path);
+      expect(catalog.security).toBeUndefined();
+      expect(catalog.responses).toHaveProperty('200');
+      expect(catalog.responses).toHaveProperty('503');
+    }
   });
 
   function operation(method: string, path: string): OperationObject {

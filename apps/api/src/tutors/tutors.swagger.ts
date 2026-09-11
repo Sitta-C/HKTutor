@@ -15,6 +15,7 @@ import {
   ApiProperty,
   ApiPropertyOptional,
   ApiQuery,
+  ApiServiceUnavailableResponse,
   ApiUnauthorizedResponse,
   ApiTags,
   getSchemaPath,
@@ -31,6 +32,15 @@ import {
   ListingPostRequestDto,
   ListingResponseDto,
   ListingStatusRequestDto,
+  GradeLevelCatalogItemDto,
+  GradeLevelCatalogResponseDto,
+  PublicTeachingListingDto,
+  PublicTutorDetailResponseDto,
+  PublicTutorProfileDto,
+  SubjectCatalogItemDto,
+  SubjectCatalogResponseDto,
+  TutorSearchQueryDto,
+  TutorSearchResultDto,
 } from '@/tutors/tutors.dto';
 
 class ApiErrorResponseDto {
@@ -75,7 +85,128 @@ export function TutorsControllerDoc(): ClassDecorator {
 export function TutorsPublicControllerDoc(): ClassDecorator {
   return applyDecorators(
     ApiTags('tutors'),
-    ApiExtraModels(ApiErrorResponseDto, AvailabilityPublicResponseDto),
+    ApiExtraModels(
+      ApiErrorResponseDto,
+      AvailabilityPublicResponseDto,
+      PublicTeachingListingDto,
+      PublicTutorDetailResponseDto,
+      PublicTutorProfileDto,
+      TutorSearchQueryDto,
+      TutorSearchResultDto,
+    ),
+  );
+}
+
+export function CatalogControllerDoc(): ClassDecorator {
+  return applyDecorators(
+    ApiTags('catalog'),
+    ApiExtraModels(
+      ApiErrorResponseDto,
+      GradeLevelCatalogItemDto,
+      GradeLevelCatalogResponseDto,
+      SubjectCatalogItemDto,
+      SubjectCatalogResponseDto,
+    ),
+  );
+}
+
+export function SearchPublicTutorsDoc(): MethodDecorator {
+  return applyDecorators(
+    ApiOperation({
+      description:
+        'Returns one item per published listing owned by a verified, active Tutor. All supplied filters are ANDed.',
+      summary: 'Search published verified tutors',
+    }),
+    ApiQuery({
+      description: 'Case-insensitive exact active Subject name',
+      example: 'Mathematics',
+      name: 'subject',
+      required: false,
+      type: String,
+    }),
+    ApiQuery({
+      description: 'Exact active GradeLevel name',
+      example: 'Grade 10',
+      name: 'grade',
+      required: false,
+      type: String,
+    }),
+    ApiQuery({
+      description: 'Inclusive maximum hourly price in THB',
+      example: 500,
+      name: 'maxPrice',
+      required: false,
+      type: Number,
+    }),
+    ApiQuery({
+      description: 'Inclusive minimum rating from 1 to 5; null ratings do not match',
+      example: 4,
+      name: 'minimumRating',
+      required: false,
+      type: Number,
+    }),
+    ApiOkResponse({
+      description: 'Matching public listings, or an empty array when there are no matches',
+      type: [TutorSearchResultDto],
+    }),
+    ApiBadRequestResponse({
+      description: 'A numeric filter is invalid or subject/grade is not an active catalog value',
+      type: ApiErrorResponseDto,
+    }),
+  );
+}
+
+export function GetPublicTutorDoc(): MethodDecorator {
+  return applyDecorators(
+    ApiOperation({
+      description:
+        "Returns a verified Tutor and only that Tutor's published, non-deleted listings.",
+      summary: 'Get public Tutor detail',
+    }),
+    ApiParam({
+      description: 'Tutor User ID',
+      example: '20000000-0000-4000-8000-000000000001',
+      format: 'uuid',
+      name: 'tutorId',
+      type: String,
+    }),
+    ApiOkResponse({ description: 'Public Tutor detail', type: PublicTutorDetailResponseDto }),
+    ApiBadRequestResponse({
+      description: 'The Tutor ID is not a valid UUID',
+      type: ApiErrorResponseDto,
+    }),
+    ApiNotFoundResponse({
+      description: 'Tutor is not publicly available',
+      type: ApiErrorResponseDto,
+    }),
+  );
+}
+
+export function GetSubjectCatalogDoc(): MethodDecorator {
+  return applyDecorators(
+    ApiOperation({ summary: 'Get active Subject catalog' }),
+    ApiOkResponse({
+      description: 'Active Subjects ordered deterministically',
+      type: SubjectCatalogResponseDto,
+    }),
+    ApiServiceUnavailableResponse({
+      description: 'Subject catalog is temporarily unavailable',
+      type: ApiErrorResponseDto,
+    }),
+  );
+}
+
+export function GetGradeLevelCatalogDoc(): MethodDecorator {
+  return applyDecorators(
+    ApiOperation({ summary: 'Get active GradeLevel catalog' }),
+    ApiOkResponse({
+      description: 'Active GradeLevels ordered by sortOrder ascending',
+      type: GradeLevelCatalogResponseDto,
+    }),
+    ApiServiceUnavailableResponse({
+      description: 'GradeLevel catalog is temporarily unavailable',
+      type: ApiErrorResponseDto,
+    }),
   );
 }
 

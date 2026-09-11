@@ -4,17 +4,20 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 
 import { PrismaService } from '@/database/prisma.service';
 import {
+  AccountStatus,
   BookingStatus,
   ListingPublicationStatus,
+  Prisma,
+  Role,
   TutorVerificationStatus,
 } from '@/generated/prisma/client';
 import { AvailabilityState } from '@/tutors/tutors.dto';
 
-import type { Prisma } from '@/generated/prisma/client';
 import type {
   AvailabilityPostRequestDto,
   AvailabilityPostResponseDto,
@@ -26,6 +29,12 @@ import type {
   ListingQueryDto,
   ListingResponseDto,
   ListingStatusRequestDto,
+  GradeLevelCatalogResponseDto,
+  PublicTeachingListingDto,
+  PublicTutorDetailResponseDto,
+  SubjectCatalogResponseDto,
+  TutorSearchQueryDto,
+  TutorSearchResultDto,
 } from '@/tutors/tutors.dto';
 
 const listingSelect = {
@@ -56,6 +65,114 @@ const listingSelect = {
 } satisfies Prisma.TeachingListingSelect;
 
 type SelectedListing = Prisma.TeachingListingGetPayload<{ select: typeof listingSelect }>;
+
+const publicTutorWhere = {
+  verificationStatus: TutorVerificationStatus.VERIFIED,
+  user: {
+    accountStatus: AccountStatus.ACTIVE,
+    deletedAt: null,
+    role: Role.TUTOR,
+  },
+} satisfies Prisma.TutorProfileWhereInput;
+
+const publicListingWhere = {
+  deletedAt: null,
+  publishedAt: { not: null },
+  publicationStatus: ListingPublicationStatus.PUBLISHED,
+} satisfies Prisma.TeachingListingWhereInput;
+
+const publicSubjectSelect = {
+  active: true,
+  code: true,
+  id: true,
+  name: true,
+} satisfies Prisma.SubjectSelect;
+
+const publicGradeLevelSelect = {
+  active: true,
+  code: true,
+  id: true,
+  name: true,
+  sortOrder: true,
+} satisfies Prisma.GradeLevelSelect;
+
+const publicListingSelect = {
+  description: true,
+  gradeLevel: { select: { name: true } },
+  id: true,
+  pricePerHour: true,
+  subject: { select: { name: true } },
+} satisfies Prisma.TeachingListingSelect;
+
+const publicTutorSelect = {
+  bio: true,
+  displayName: true,
+  experienceYears: true,
+  listings: {
+    orderBy: [{ publishedAt: 'desc' }, { id: 'asc' }],
+    select: publicListingSelect,
+    where: publicListingWhere,
+  },
+  ratingAverage: true,
+  reviewCount: true,
+  userId: true,
+  verificationStatus: true,
+} satisfies Prisma.TutorProfileSelect;
+
+const publicSearchSelect = (now: Date) =>
+  ({
+    description: true,
+    gradeLevel: { select: { name: true } },
+    id: true,
+    pricePerHour: true,
+    subject: { select: { name: true } },
+    tutorProfile: {
+      select: {
+        availabilitySlots: {
+          orderBy: { startAtUtc: 'asc' },
+          take: 1,
+          where: {
+            bookings: {
+              none: { status: { in: [BookingStatus.PENDING, BookingStatus.CONFIRMED] } },
+            },
+            deletedAt: null,
+            startAtUtc: { gt: now },
+          },
+        },
+        displayName: true,
+        experienceYears: true,
+        ratingAverage: true,
+        reviewCount: true,
+        userId: true,
+      },
+    },
+  }) satisfies Prisma.TeachingListingSelect;
+
+type SelectedPublicSearchListing = Prisma.TeachingListingGetPayload<{
+  select: ReturnType<typeof publicSearchSelect>;
+}>;
+
+type SelectedPublicTutor = Prisma.TutorProfileGetPayload<{ select: typeof publicTutorSelect }>;
+
+function isCatalogDatabaseError(error: unknown): boolean {
+  if (error instanceof Prisma.PrismaClientInitializationError) return true;
+  if (error instanceof Prisma.PrismaClientKnownRequestError) {
+    return true;
+  }
+
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'code' in error &&
+    typeof error.code === 'string' &&
+    error.code.startsWith('P')
+  );
+}
+
+function throwCatalogUnavailable(error: unknown, message: string): never {
+  if (isCatalogDatabaseError(error)) throw new ServiceUnavailableException(message);
+  throw error;
+}
 
 const isRecordNotFound = (error: unknown): boolean =>
   typeof error === 'object' && error !== null && 'code' in error && error.code === 'P2025';
@@ -120,6 +237,92 @@ const isConstraintViolation = (error: unknown): boolean => {
 @Injectable()
 export class TutorsService {
   constructor(private readonly prisma: PrismaService) {}
+
+  async searchPublicTutors(query: TutorSearchQueryDto): Promise<TutorSearchResultDto[]> {
+    const [subject, gradeLevel] = await Promise.all([
+      query.subject === undefined
+        ? Promise.resolve(null)
+        : this.prisma.subject.findFirst({
+            where: { active: true, name: { equals: query.subject, mode: 'insensitive' } },
+            select: { id: true },
+          }),
+      query.grade === undefined
+        ? Promise.resolve(null)
+        : this.prisma.gradeLevel.findFirst({
+            where: { active: true, name: { equals: query.grade, mode: 'insensitive' } },
+            select: { id: true },
+          }),
+    ]);
+
+    if (query.subject !== undefined && !subject) {
+      throw new BadRequestException('subject is not a supported active catalog value');
+    }
+    if (query.grade !== undefined && !gradeLevel) {
+      throw new BadRequestException('grade is not a supported active catalog value');
+    }
+
+    const now = new Date();
+    const listings = await this.prisma.teachingListing.findMany({
+      select: publicSearchSelect(now),
+      where: {
+        ...publicListingWhere,
+        ...(subject === null ? {} : { subjectId: subject.id }),
+        ...(gradeLevel === null ? {} : { gradeLevelId: gradeLevel.id }),
+        ...(query.maxPrice === undefined ? {} : { pricePerHour: { lte: query.maxPrice } }),
+        tutorProfile: {
+          ...publicTutorWhere,
+          ...(query.minimumRating === undefined
+            ? {}
+            : { ratingAverage: { gte: query.minimumRating } }),
+        },
+      },
+      orderBy: [{ publishedAt: 'desc' }, { id: 'asc' }],
+    });
+
+    return listings.map(mapPublicSearchListing);
+  }
+
+  async getPublicTutor(tutorId: string): Promise<PublicTutorDetailResponseDto> {
+    const tutor = await this.prisma.tutorProfile.findFirst({
+      select: publicTutorSelect,
+      where: { ...publicTutorWhere, userId: tutorId },
+    });
+
+    if (!tutor) throw new NotFoundException('Tutor not found');
+
+    return {
+      listings: tutor.listings.map(mapPublicDetailListing),
+      tutor: mapPublicTutor(tutor),
+    };
+  }
+
+  async getActiveSubjects(): Promise<SubjectCatalogResponseDto> {
+    try {
+      const items = await this.prisma.subject.findMany({
+        orderBy: [{ name: 'asc' }, { id: 'asc' }],
+        select: publicSubjectSelect,
+        where: { active: true },
+      });
+
+      return { items };
+    } catch (error) {
+      throwCatalogUnavailable(error, 'Subject catalog is temporarily unavailable');
+    }
+  }
+
+  async getActiveGradeLevels(): Promise<GradeLevelCatalogResponseDto> {
+    try {
+      const items = await this.prisma.gradeLevel.findMany({
+        orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }],
+        select: publicGradeLevelSelect,
+        where: { active: true },
+      });
+
+      return { items };
+    } catch (error) {
+      throwCatalogUnavailable(error, 'GradeLevel catalog is temporarily unavailable');
+    }
+  }
 
   //Listing
   async getListings(userId: string, query: ListingQueryDto): Promise<ListingResponseDto[]> {
@@ -459,5 +662,47 @@ function mapListing(listing: SelectedListing): ListingResponseDto {
     publishedAt: listing.publishedAt,
     subject: listing.subject,
     updatedAt: listing.updatedAt,
+  };
+}
+
+function mapPublicSearchListing(listing: SelectedPublicSearchListing): TutorSearchResultDto {
+  const tutor = listing.tutorProfile;
+
+  return {
+    description: listing.description,
+    displayName: tutor.displayName,
+    experienceYears: tutor.experienceYears,
+    grade: listing.gradeLevel.name,
+    listingId: listing.id,
+    nextAvailableAt: tutor.availabilitySlots[0]?.startAtUtc ?? null,
+    pricePerHour: listing.pricePerHour.toNumber(),
+    ratingAverage: tutor.ratingAverage?.toNumber() ?? null,
+    reviewCount: tutor.reviewCount,
+    subject: listing.subject.name,
+    tutorId: tutor.userId,
+  };
+}
+
+function mapPublicTutor(tutor: SelectedPublicTutor): PublicTutorDetailResponseDto['tutor'] {
+  return {
+    bio: tutor.bio,
+    displayName: tutor.displayName,
+    experienceYears: tutor.experienceYears,
+    ratingAverage: tutor.ratingAverage?.toNumber() ?? null,
+    reviewCount: tutor.reviewCount,
+    tutorId: tutor.userId,
+    verificationStatus: 'VERIFIED',
+  };
+}
+
+function mapPublicDetailListing(
+  listing: SelectedPublicTutor['listings'][number],
+): PublicTeachingListingDto {
+  return {
+    description: listing.description,
+    grade: listing.gradeLevel.name,
+    listingId: listing.id,
+    pricePerHour: listing.pricePerHour.toNumber(),
+    subject: listing.subject.name,
   };
 }

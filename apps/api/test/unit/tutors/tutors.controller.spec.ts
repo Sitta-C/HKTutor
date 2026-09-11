@@ -3,7 +3,8 @@ import { GUARDS_METADATA } from '@nestjs/common/constants';
 import { OWNERSHIP_KEY } from '@/auth/ownership.decorator';
 import { ROLES_KEY } from '@/auth/roles.decorator';
 import { Role } from '@/generated/prisma/client';
-import { TutorsPrivateController, TutorsPublicController } from '@/tutors/tutors.controller';
+import { TutorsPrivateController } from '@/tutors/tutors-private.controller';
+import { TutorsPublicController } from '@/tutors/tutors-public.controller';
 
 import type { AuthenticatedUser } from '@/auth/auth.guard';
 import type { OwnershipRule } from '@/auth/ownership.decorator';

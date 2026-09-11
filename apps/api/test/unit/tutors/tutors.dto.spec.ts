@@ -8,6 +8,7 @@ import {
   ListingPostRequestDto,
   ListingQueryDto,
   ListingStatusRequestDto,
+  TutorSearchQueryDto,
 } from '@/tutors/tutors.dto';
 
 describe('tutor listing DTOs', () => {
@@ -92,6 +93,39 @@ describe('tutor listing DTOs', () => {
       expect(await validate(dto)).not.toHaveLength(0);
     },
   );
+
+  it('accepts optional search filters and transforms numeric query strings', async () => {
+    const dto = plainToInstance(TutorSearchQueryDto, {
+      grade: 'Grade 10',
+      maxPrice: '500',
+      minimumRating: '4.00',
+      subject: 'mathematics',
+    });
+
+    await expect(validate(dto)).resolves.toHaveLength(0);
+    expect(dto.maxPrice).toBe(500);
+    expect(dto.minimumRating).toBe(4);
+  });
+
+  it.each([
+    ['negative price', { maxPrice: -1 }],
+    ['rating below one', { minimumRating: 0 }],
+    ['rating above five', { minimumRating: 6 }],
+    ['non-numeric price', { maxPrice: 'not-a-number' }],
+    ['infinite rating', { minimumRating: 'Infinity' }],
+    ['blank price', { maxPrice: ' ' }],
+  ])('rejects invalid public search filter: %s', async (_label, override) => {
+    const dto = plainToInstance(TutorSearchQueryDto, override);
+
+    expect(await validate(dto)).not.toHaveLength(0);
+  });
+
+  it('rejects unknown search query fields when the global pipe whitelist is applied', async () => {
+    const dto = plainToInstance(TutorSearchQueryDto, { unexpected: 'value' });
+
+    const errors = await validate(dto, { forbidNonWhitelisted: true, whitelist: true });
+    expect(errors.some((error) => error.property === 'unexpected')).toBe(true);
+  });
 });
 
 describe('availability DTOs', () => {
