@@ -3,10 +3,12 @@ import {
   ApiBadRequestResponse,
   ApiBearerAuth,
   ApiBody,
+  ApiConflictResponse,
   ApiCreatedResponse,
   ApiExtraModels,
   ApiForbiddenResponse,
   ApiNotFoundResponse,
+  ApiNoContentResponse,
   ApiOkResponse,
   ApiOperation,
   ApiParam,
@@ -21,6 +23,10 @@ import {
 import { JWT_BEARER_AUTH } from '@/auth/auth.swagger';
 import { ListingPublicationStatus } from '@/generated/prisma/client';
 import {
+  AvailabilityPostRequestDto,
+  AvailabilityPostResponseDto,
+  AvailabilityPrivateResponseDto,
+  AvailabilityPublicResponseDto,
   ListingPatchRequestDto,
   ListingPostRequestDto,
   ListingResponseDto,
@@ -55,11 +61,21 @@ export function TutorsControllerDoc(): ClassDecorator {
     ApiBearerAuth(JWT_BEARER_AUTH),
     ApiExtraModels(
       ApiErrorResponseDto,
+      AvailabilityPostRequestDto,
+      AvailabilityPostResponseDto,
+      AvailabilityPrivateResponseDto,
       ListingPatchRequestDto,
       ListingPostRequestDto,
       ListingResponseDto,
       ListingStatusRequestDto,
     ),
+  );
+}
+
+export function TutorsPublicControllerDoc(): ClassDecorator {
+  return applyDecorators(
+    ApiTags('tutors'),
+    ApiExtraModels(ApiErrorResponseDto, AvailabilityPublicResponseDto),
   );
 }
 
@@ -179,6 +195,117 @@ export function UpdateListingStatusDoc(): MethodDecorator {
       type: ApiErrorResponseDto,
     }),
   );
+}
+
+export function GetMyAvailabilityDoc(): MethodDecorator {
+  return applyDecorators(
+    ApiOperation({ summary: 'Get the current tutor’s availability slots' }),
+    ...availabilityRangeQueries(),
+    ApiOkResponse({
+      description: 'Tutor-owned slots ordered by start time with their derived reservation state',
+      type: [AvailabilityPrivateResponseDto],
+    }),
+    ApiBadRequestResponse({
+      description: 'The date range is invalid (INVALID_TIME_RANGE)',
+      type: ApiErrorResponseDto,
+    }),
+    ApiUnauthorizedResponse({ description: unauthorizedDescription, type: ApiErrorResponseDto }),
+    ApiForbiddenResponse({ description: forbiddenDescription, type: ApiErrorResponseDto }),
+  );
+}
+
+export function PostAvailabilityDoc(): MethodDecorator {
+  return applyDecorators(
+    ApiOperation({ summary: 'Create a future availability slot for the current tutor' }),
+    ApiBody({ type: AvailabilityPostRequestDto }),
+    ApiCreatedResponse({
+      description: 'Availability slot created',
+      type: AvailabilityPostResponseDto,
+    }),
+    ApiBadRequestResponse({
+      description: 'The timestamps are invalid or inverted (INVALID_TIME_RANGE)',
+      type: ApiErrorResponseDto,
+    }),
+    ApiUnauthorizedResponse({ description: unauthorizedDescription, type: ApiErrorResponseDto }),
+    ApiForbiddenResponse({ description: forbiddenDescription, type: ApiErrorResponseDto }),
+    ApiConflictResponse({
+      description: 'The requested range overlaps an existing slot (AVAILABILITY_OVERLAP)',
+      type: ApiErrorResponseDto,
+    }),
+  );
+}
+
+export function DeleteAvailabilityDoc(): MethodDecorator {
+  return applyDecorators(
+    ApiOperation({ summary: 'Soft-delete a free availability slot owned by the current tutor' }),
+    ApiParam({
+      description: 'Tutor-owned availability slot ID',
+      format: 'uuid',
+      name: 'slotId',
+      type: String,
+    }),
+    ApiNoContentResponse({ description: 'Availability slot deleted' }),
+    ApiBadRequestResponse({
+      description: 'The slot ID is not a valid UUID (INVALID_UUID)',
+      type: ApiErrorResponseDto,
+    }),
+    ApiUnauthorizedResponse({ description: unauthorizedDescription, type: ApiErrorResponseDto }),
+    ApiForbiddenResponse({ description: forbiddenDescription, type: ApiErrorResponseDto }),
+    ApiNotFoundResponse({
+      description: 'Slot not found or owned by another tutor (SLOT_NOT_FOUND)',
+      type: ApiErrorResponseDto,
+    }),
+    ApiConflictResponse({
+      description: 'The slot has a pending or confirmed booking (SLOT_RESERVED)',
+      type: ApiErrorResponseDto,
+    }),
+  );
+}
+
+export function GetTutorAvailabilityDoc(): MethodDecorator {
+  return applyDecorators(
+    ApiOperation({ summary: 'Get a verified tutor’s future open availability slots' }),
+    ApiParam({
+      description: 'Verified tutor ID',
+      format: 'uuid',
+      name: 'tutorId',
+      type: String,
+    }),
+    ...availabilityRangeQueries(),
+    ApiOkResponse({
+      description: 'Future open slots ordered by start time',
+      type: [AvailabilityPublicResponseDto],
+    }),
+    ApiBadRequestResponse({
+      description: 'The tutor ID or date range is invalid',
+      type: ApiErrorResponseDto,
+    }),
+    ApiNotFoundResponse({
+      description: 'A verified tutor was not found (TUTOR_NOT_FOUND)',
+      type: ApiErrorResponseDto,
+    }),
+  );
+}
+
+function availabilityRangeQueries(): MethodDecorator[] {
+  return [
+    ApiQuery({
+      description: 'Inclusive UTC range start',
+      example: '2026-10-17T00:00:00.000Z',
+      format: 'date-time',
+      name: 'from',
+      required: false,
+      type: String,
+    }),
+    ApiQuery({
+      description: 'Exclusive UTC range end',
+      example: '2026-10-18T00:00:00.000Z',
+      format: 'date-time',
+      name: 'to',
+      required: false,
+      type: String,
+    }),
+  ];
 }
 
 function listingIdParam(): MethodDecorator {

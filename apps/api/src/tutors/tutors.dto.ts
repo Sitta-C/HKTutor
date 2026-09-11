@@ -1,6 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
 import {
+  IsDate,
   IsEnum,
   IsNumber,
   IsOptional,
@@ -149,12 +150,16 @@ export const AvailabilityState = {
 export type AvailabilityState = (typeof AvailabilityState)[keyof typeof AvailabilityState];
 
 export class AvailabilityQueryDto {
+  @ApiPropertyOptional({ example: '2026-08-17T00:00:00.000Z', format: 'date-time' })
   @IsOptional()
-  @ApiProperty({ example: '2026-08-17T00:00:00.000Z', format: 'date-time' })
+  @Type(() => Date)
+  @IsDate()
   from?: Date;
 
+  @ApiPropertyOptional({ example: '2026-08-17T23:59:59.999Z', format: 'date-time' })
   @IsOptional()
-  @ApiProperty({ example: '2026-08-17T00:00:00.000Z', format: 'date-time' })
+  @Type(() => Date)
+  @IsDate()
   to?: Date;
 }
 
@@ -172,7 +177,7 @@ export class AvailabilityPrivateResponseDto {
   @ApiProperty({ example: '2026-08-17T00:00:00.000Z', format: 'date-time' })
   createdAt!: Date;
 
-  @ApiPropertyOptional({ enum: AvailabilityState, enumName: 'AvailabilityState' })
+  @ApiProperty({ enum: AvailabilityState, enumName: 'AvailabilityState' })
   @IsEnum(AvailabilityState)
   state!: AvailabilityState;
 }
@@ -190,17 +195,21 @@ export class AvailabilityPublicResponseDto {
 }
 
 export class AvailabilityPostRequestDto {
-  @ApiProperty({ example: '2026-08-17T00:00:00.000Z', format: 'date-time' })
+  @ApiProperty({ example: '2026-10-17T08:00:00.000Z', format: 'date-time' })
+  @Type(() => Date)
+  @IsDate()
   @MinDate(() => new Date(), {
-    message: 'The date cannot be in the past.',
+    message: 'startAt must be in the future',
   })
-  startAtUtc!: Date;
+  startAt!: Date;
 
-  @ApiProperty({ example: '2026-08-17T00:00:00.000Z', format: 'date-time' })
+  @ApiProperty({ example: '2026-10-17T09:00:00.000Z', format: 'date-time' })
+  @Type(() => Date)
+  @IsDate()
   @MinDate(() => new Date(), {
-    message: 'The date cannot be in the past.',
+    message: 'endAt must be in the future',
   })
-  endAtUtc!: Date;
+  endAt!: Date;
 }
 
 export class AvailabilityPostResponseDto {

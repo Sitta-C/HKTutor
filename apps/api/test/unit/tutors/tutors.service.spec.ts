@@ -1,4 +1,9 @@
-import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  NotFoundException,
+} from '@nestjs/common';
 
 import { TutorsService } from '@/tutors/tutors.service';
 
@@ -8,6 +13,10 @@ const USER_ID = '20000000-0000-4000-8000-000000000001';
 const LISTING_ID = '10000000-0000-4000-8000-000000000001';
 const SUBJECT_ID = '30000000-0000-4000-8000-000000000001';
 const GRADE_LEVEL_ID = '40000000-0000-4000-8000-000000000001';
+const SLOT_ID = '50000000-0000-4000-8000-000000000001';
+const START_AT = new Date('2026-10-17T08:00:00.000Z');
+const END_AT = new Date('2026-10-17T09:00:00.000Z');
+const CREATED_AT = new Date('2026-09-10T00:00:00.000Z');
 
 const subject = {
   active: true,
@@ -39,8 +48,26 @@ function listing(overrides: Record<string, unknown> = {}) {
   };
 }
 
+function availability(bookings: { id: string }[] = []) {
+  return {
+    bookings,
+    createdAt: CREATED_AT,
+    endAtUtc: END_AT,
+    id: SLOT_ID,
+    startAtUtc: START_AT,
+    tutorProfileId: USER_ID,
+  };
+}
+
 function createPrisma() {
   return {
+    availabilitySlot: {
+      count: jest.fn(),
+      create: jest.fn(),
+      findFirst: jest.fn(),
+      findMany: jest.fn(),
+      update: jest.fn(),
+    },
     gradeLevel: { findFirst: jest.fn() },
     subject: { findFirst: jest.fn() },
     teachingListing: {
@@ -49,7 +76,7 @@ function createPrisma() {
       findFirst: jest.fn(),
       update: jest.fn(),
     },
-    tutorProfile: { findUnique: jest.fn() },
+    tutorProfile: { findFirst: jest.fn(), findUnique: jest.fn() },
   };
 }
 
@@ -359,6 +386,272 @@ describe('TutorsService', () => {
 
       await expect(service.updateListingStatus(USER_ID, LISTING_ID, 'ARCHIVED')).rejects.toThrow(
         new NotFoundException('Listing not found'),
+      );
+    });
+  });
+
+  describe('getAvailabilityPrivate', () => {
+    it('queries active bookings only and returns slots in ascending order with derived state', async () => {
+      const prisma = createPrisma();
+      const bookingId = '60000000-0000-4000-8000-000000000001';
+      prisma.availabilitySlot.findMany.mockResolvedValue([
+        availability([{ id: bookingId }]),
+        availability(),
+      ]);
+      const service = new TutorsService(prisma as unknown as PrismaService);
+
+      await expect(service.getAvailabilityPrivate(USER_ID, {})).resolves.toEqual([
+        expect.objectContaining({ id: SLOT_ID, state: 'RESERVED' }),
+        expect.objectContaining({ id: SLOT_ID, state: 'OPEN' }),
+      ]);
+      expect(prisma.availabilitySlot.findMany).toHaveBeenCalledWith({
+        orderBy: [{ startAtUtc: 'asc' }, { endAtUtc: 'asc' }],
+        select: {
+          bookings: {
+            select: { id: true },
+            take: 1,
+            where: { status: { in: ['PENDING', 'CONFIRMED'] } },
+          },
+          createdAt: true,
+          endAtUtc: true,
+          id: true,
+          startAtUtc: true,
+        },
+        where: { deletedAt: null, tutorProfileId: USER_ID },
+      });
+    });
+
+    it('uses an inclusive from and exclusive to boundary on slot start time', async () => {
+      const prisma = createPrisma();
+      prisma.availabilitySlot.findMany.mockResolvedValue([]);
+      const service = new TutorsService(prisma as unknown as PrismaService);
+
+      await service.getAvailabilityPrivate(USER_ID, { from: START_AT, to: END_AT });
+
+      expect(prisma.availabilitySlot.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            deletedAt: null,
+            startAtUtc: { gte: START_AT, lt: END_AT },
+            tutorProfileId: USER_ID,
+          },
+        }),
+      );
+    });
+
+    it('rejects an inverted query range with a stable domain code', async () => {
+      const prisma = createPrisma();
+      const service = new TutorsService(prisma as unknown as PrismaService);
+
+      await expect(
+        service.getAvailabilityPrivate(USER_ID, { from: END_AT, to: START_AT }),
+      ).rejects.toMatchObject(
+        new BadRequestException({
+          code: 'INVALID_TIME_RANGE',
+          error: 'Bad Request',
+          message: 'to must be later than from',
+          statusCode: 400,
+        }),
+      );
+      expect(prisma.availabilitySlot.findMany).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('getAvailabilityPublic', () => {
+    it('returns only future open slots for a verified tutor in ascending order', async () => {
+      jest.useFakeTimers().setSystemTime(new Date('2026-10-17T07:00:00.000Z'));
+      const prisma = createPrisma();
+      prisma.tutorProfile.findFirst.mockResolvedValue({ userId: USER_ID });
+      prisma.availabilitySlot.findMany.mockResolvedValue([
+        { endAtUtc: END_AT, id: SLOT_ID, startAtUtc: START_AT },
+      ]);
+      const service = new TutorsService(prisma as unknown as PrismaService);
+
+      await expect(service.getAvailabilityPublic(USER_ID, {})).resolves.toEqual([
+        { endAtUtc: END_AT, id: SLOT_ID, startAtUtc: START_AT },
+      ]);
+      expect(prisma.tutorProfile.findFirst).toHaveBeenCalledWith({
+        select: { userId: true },
+        where: { userId: USER_ID, verificationStatus: 'VERIFIED' },
+      });
+      expect(prisma.availabilitySlot.findMany).toHaveBeenCalledWith({
+        orderBy: [{ startAtUtc: 'asc' }, { endAtUtc: 'asc' }],
+        select: { endAtUtc: true, id: true, startAtUtc: true },
+        where: {
+          bookings: { none: { status: { in: ['PENDING', 'CONFIRMED'] } } },
+          deletedAt: null,
+          startAtUtc: { gte: new Date('2026-10-17T07:00:00.000Z') },
+          tutorProfileId: USER_ID,
+        },
+      });
+    });
+
+    it('returns TUTOR_NOT_FOUND for a missing or unverified tutor', async () => {
+      const prisma = createPrisma();
+      prisma.tutorProfile.findFirst.mockResolvedValue(null);
+      const service = new TutorsService(prisma as unknown as PrismaService);
+
+      await expect(service.getAvailabilityPublic(USER_ID, {})).rejects.toMatchObject(
+        new NotFoundException({
+          code: 'TUTOR_NOT_FOUND',
+          error: 'Not Found',
+          message: 'Verified tutor not found',
+          statusCode: 404,
+        }),
+      );
+      expect(prisma.availabilitySlot.findMany).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('postAvailability', () => {
+    it('allows adjacent slots and ignores soft-deleted slots in the overlap check', async () => {
+      const adjacentEnd = new Date('2026-10-17T10:00:00.000Z');
+      const prisma = createPrisma();
+      prisma.availabilitySlot.count.mockResolvedValue(0);
+      prisma.availabilitySlot.create.mockResolvedValue({
+        ...availability(),
+        endAtUtc: adjacentEnd,
+        startAtUtc: END_AT,
+      });
+      const service = new TutorsService(prisma as unknown as PrismaService);
+
+      await service.postAvailability(USER_ID, { endAt: adjacentEnd, startAt: END_AT });
+
+      expect(prisma.availabilitySlot.count).toHaveBeenCalledWith({
+        where: {
+          deletedAt: null,
+          endAtUtc: { gt: END_AT },
+          startAtUtc: { lt: adjacentEnd },
+          tutorProfileId: USER_ID,
+        },
+      });
+      expect(prisma.availabilitySlot.create).toHaveBeenCalledWith({
+        data: { endAtUtc: adjacentEnd, startAtUtc: END_AT, tutorProfileId: USER_ID },
+      });
+    });
+
+    it('rejects inverted intervals with INVALID_TIME_RANGE', async () => {
+      const prisma = createPrisma();
+      const service = new TutorsService(prisma as unknown as PrismaService);
+
+      await expect(
+        service.postAvailability(USER_ID, { endAt: START_AT, startAt: END_AT }),
+      ).rejects.toMatchObject(
+        new BadRequestException({
+          code: 'INVALID_TIME_RANGE',
+          error: 'Bad Request',
+          message: 'endAt must be later than startAt',
+          statusCode: 400,
+        }),
+      );
+      expect(prisma.availabilitySlot.count).not.toHaveBeenCalled();
+    });
+
+    it('rejects an existing overlap with AVAILABILITY_OVERLAP', async () => {
+      const prisma = createPrisma();
+      prisma.availabilitySlot.count.mockResolvedValue(1);
+      const service = new TutorsService(prisma as unknown as PrismaService);
+
+      await expect(
+        service.postAvailability(USER_ID, { endAt: END_AT, startAt: START_AT }),
+      ).rejects.toMatchObject(
+        new ConflictException({
+          code: 'AVAILABILITY_OVERLAP',
+          error: 'Conflict',
+          message: 'Availability slot overlaps an existing slot',
+          statusCode: 409,
+        }),
+      );
+      expect(prisma.availabilitySlot.create).not.toHaveBeenCalled();
+    });
+
+    it('maps a concurrent database exclusion violation to AVAILABILITY_OVERLAP', async () => {
+      const prisma = createPrisma();
+      prisma.availabilitySlot.count.mockResolvedValue(0);
+      prisma.availabilitySlot.create.mockRejectedValue(
+        Object.assign(new Error('AvailabilitySlot_no_overlap_excl'), { code: 'P2004' }),
+      );
+      const service = new TutorsService(prisma as unknown as PrismaService);
+
+      await expect(
+        service.postAvailability(USER_ID, { endAt: END_AT, startAt: START_AT }),
+      ).rejects.toMatchObject(
+        new ConflictException({
+          code: 'AVAILABILITY_OVERLAP',
+          error: 'Conflict',
+          message: 'Availability slot overlaps an existing slot',
+          statusCode: 409,
+        }),
+      );
+    });
+  });
+
+  describe('deleteAvailability', () => {
+    it('returns SLOT_NOT_FOUND for a missing, deleted, or cross-owner slot', async () => {
+      const prisma = createPrisma();
+      prisma.availabilitySlot.findFirst.mockResolvedValue(null);
+      const service = new TutorsService(prisma as unknown as PrismaService);
+
+      await expect(service.deleteAvailability(USER_ID, SLOT_ID)).rejects.toMatchObject(
+        new NotFoundException({
+          code: 'SLOT_NOT_FOUND',
+          error: 'Not Found',
+          message: 'Availability slot not found',
+          statusCode: 404,
+        }),
+      );
+      expect(prisma.availabilitySlot.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { deletedAt: null, id: SLOT_ID, tutorProfileId: USER_ID },
+        }),
+      );
+    });
+
+    it('rejects a slot with any pending or confirmed booking', async () => {
+      const prisma = createPrisma();
+      prisma.availabilitySlot.findFirst.mockResolvedValue(availability([{ id: 'booking-id' }]));
+      const service = new TutorsService(prisma as unknown as PrismaService);
+
+      await expect(service.deleteAvailability(USER_ID, SLOT_ID)).rejects.toMatchObject(
+        new ConflictException({
+          code: 'SLOT_RESERVED',
+          error: 'Conflict',
+          message: 'Availability slot has an active booking',
+          statusCode: 409,
+        }),
+      );
+      expect(prisma.availabilitySlot.update).not.toHaveBeenCalled();
+    });
+
+    it('soft-deletes an owned slot without an active booking', async () => {
+      jest.useFakeTimers().setSystemTime(new Date('2026-10-01T00:00:00.000Z'));
+      const prisma = createPrisma();
+      prisma.availabilitySlot.findFirst.mockResolvedValue(availability());
+      prisma.availabilitySlot.update.mockResolvedValue(availability());
+      const service = new TutorsService(prisma as unknown as PrismaService);
+
+      await expect(service.deleteAvailability(USER_ID, SLOT_ID)).resolves.toBeUndefined();
+      expect(prisma.availabilitySlot.update).toHaveBeenCalledWith({
+        data: { deletedAt: new Date('2026-10-01T00:00:00.000Z') },
+        where: { deletedAt: null, id: SLOT_ID, tutorProfileId: USER_ID },
+      });
+    });
+
+    it('maps a booking created during deletion to SLOT_RESERVED', async () => {
+      const prisma = createPrisma();
+      prisma.availabilitySlot.findFirst.mockResolvedValue(availability());
+      prisma.availabilitySlot.update.mockRejectedValue(
+        Object.assign(new Error('AvailabilitySlot_active_booking_delete_check'), { code: 'P2004' }),
+      );
+      const service = new TutorsService(prisma as unknown as PrismaService);
+
+      await expect(service.deleteAvailability(USER_ID, SLOT_ID)).rejects.toMatchObject(
+        new ConflictException({
+          code: 'SLOT_RESERVED',
+          error: 'Conflict',
+          message: 'Availability slot has an active booking',
+          statusCode: 409,
+        }),
       );
     });
   });

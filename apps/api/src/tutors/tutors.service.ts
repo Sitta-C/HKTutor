@@ -12,22 +12,20 @@ import {
   ListingPublicationStatus,
   TutorVerificationStatus,
 } from '@/generated/prisma/client';
-import {
-  AvailabilityPostRequestDto,
-  AvailabilityPostResponseDto,
-  AvailabilityState,
-  AvailabilityPublicResponseDto,
-} from '@/tutors/tutors.dto';
+import { AvailabilityState } from '@/tutors/tutors.dto';
 
 import type { Prisma } from '@/generated/prisma/client';
 import type {
+  AvailabilityPostRequestDto,
+  AvailabilityPostResponseDto,
+  AvailabilityPrivateResponseDto,
+  AvailabilityPublicResponseDto,
+  AvailabilityQueryDto,
   ListingPatchRequestDto,
   ListingPostRequestDto,
   ListingQueryDto,
   ListingResponseDto,
   ListingStatusRequestDto,
-  AvailabilityQueryDto,
-  AvailabilityPrivateResponseDto,
 } from '@/tutors/tutors.dto';
 
 const listingSelect = {
@@ -61,6 +59,63 @@ type SelectedListing = Prisma.TeachingListingGetPayload<{ select: typeof listing
 
 const isRecordNotFound = (error: unknown): boolean =>
   typeof error === 'object' && error !== null && 'code' in error && error.code === 'P2025';
+
+const activeBookingStatuses: BookingStatus[] = [BookingStatus.PENDING, BookingStatus.CONFIRMED];
+const activeBookingWhere = {
+  status: { in: activeBookingStatuses },
+} satisfies Prisma.BookingWhereInput;
+
+const invalidTimeRange = (message: string): BadRequestException =>
+  new BadRequestException({
+    code: 'INVALID_TIME_RANGE',
+    error: 'Bad Request',
+    message,
+    statusCode: 400,
+  });
+
+const availabilityOverlap = (): ConflictException =>
+  new ConflictException({
+    code: 'AVAILABILITY_OVERLAP',
+    error: 'Conflict',
+    message: 'Availability slot overlaps an existing slot',
+    statusCode: 409,
+  });
+
+const slotNotFound = (): NotFoundException =>
+  new NotFoundException({
+    code: 'SLOT_NOT_FOUND',
+    error: 'Not Found',
+    message: 'Availability slot not found',
+    statusCode: 404,
+  });
+
+const slotReserved = (): ConflictException =>
+  new ConflictException({
+    code: 'SLOT_RESERVED',
+    error: 'Conflict',
+    message: 'Availability slot has an active booking',
+    statusCode: 409,
+  });
+
+const tutorNotFound = (): NotFoundException =>
+  new NotFoundException({
+    code: 'TUTOR_NOT_FOUND',
+    error: 'Not Found',
+    message: 'Verified tutor not found',
+    statusCode: 404,
+  });
+
+const isConstraintViolation = (error: unknown): boolean => {
+  if (typeof error !== 'object' || error === null) return false;
+  if ('code' in error && error.code === 'P2004') return true;
+
+  return (
+    'message' in error &&
+    typeof error.message === 'string' &&
+    (error.message.includes('AvailabilitySlot_no_overlap_excl') ||
+      error.message.includes('AvailabilitySlot_active_booking_delete_check'))
+  );
+};
 
 @Injectable()
 export class TutorsService {
@@ -227,9 +282,7 @@ export class TutorsService {
     userId: string,
     query: AvailabilityQueryDto,
   ): Promise<AvailabilityPrivateResponseDto[]> {
-    if (query.from !== undefined && query.to !== undefined && query.to <= query.from) {
-      throw new BadRequestException(`Invalid range`);
-    }
+    this.validateAvailabilityRange(query);
 
     const availabilities = await this.prisma.availabilitySlot.findMany({
       select: {
@@ -238,19 +291,17 @@ export class TutorsService {
         endAtUtc: true,
         createdAt: true,
         bookings: {
-          select: {
-            id: true,
-            status: true,
-          },
+          select: { id: true },
+          take: 1,
+          where: activeBookingWhere,
         },
       },
       where: {
         tutorProfileId: userId,
         deletedAt: null,
-        ...(query.from !== undefined && { startAtUtc: { gte: query.from } }),
-        ...(query.to !== undefined && { endAtUtc: { lte: query.to } }),
+        ...this.availabilityRangeWhere(query),
       },
-      orderBy: { startAtUtc: 'desc', endAtUtc: 'desc' },
+      orderBy: [{ startAtUtc: 'asc' }, { endAtUtc: 'asc' }],
     });
 
     return availabilities.map((availability) => ({
@@ -258,102 +309,142 @@ export class TutorsService {
       startAtUtc: availability.startAtUtc,
       endAtUtc: availability.endAtUtc,
       createdAt: availability.createdAt,
-      state:
-        availability.bookings &&
-        availability.bookings.length > 0 &&
-        availability.bookings.at(0)?.status === BookingStatus.CONFIRMED
-          ? AvailabilityState.RESERVED
-          : AvailabilityState.OPEN,
+      state: availability.bookings.length > 0 ? AvailabilityState.RESERVED : AvailabilityState.OPEN,
     }));
   }
 
   async getAvailabilityPublic(
-    userId: string,
+    tutorId: string,
     query: AvailabilityQueryDto,
   ): Promise<AvailabilityPublicResponseDto[]> {
-    return (await this.getAvailabilityPrivate(userId, query))
-      .filter((availability) => availability.state === AvailabilityState.OPEN)
-      .map((availability) => ({
-        id: availability.id,
-        startAtUtc: availability.startAtUtc,
-        endAtUtc: availability.endAtUtc,
-      }));
+    this.validateAvailabilityRange(query);
+
+    const tutor = await this.prisma.tutorProfile.findFirst({
+      select: { userId: true },
+      where: {
+        userId: tutorId,
+        verificationStatus: TutorVerificationStatus.VERIFIED,
+      },
+    });
+    if (!tutor) throw tutorNotFound();
+
+    const now = new Date();
+    const from = query.from !== undefined && query.from > now ? query.from : now;
+
+    return this.prisma.availabilitySlot.findMany({
+      orderBy: [{ startAtUtc: 'asc' }, { endAtUtc: 'asc' }],
+      select: {
+        endAtUtc: true,
+        id: true,
+        startAtUtc: true,
+      },
+      where: {
+        bookings: { none: activeBookingWhere },
+        deletedAt: null,
+        startAtUtc: {
+          gte: from,
+          ...(query.to !== undefined && { lt: query.to }),
+        },
+        tutorProfileId: tutorId,
+      },
+    });
   }
 
   async postAvailability(
     userId: string,
     request: AvailabilityPostRequestDto,
   ): Promise<AvailabilityPostResponseDto> {
-    if (request.endAtUtc <= request.startAtUtc) {
-      throw new BadRequestException(`inverted/equal interval`);
+    if (request.endAt <= request.startAt) {
+      throw invalidTimeRange('endAt must be later than startAt');
     }
 
     if (
       (await this.prisma.availabilitySlot.count({
         where: {
+          deletedAt: null,
+          endAtUtc: { gt: request.startAt },
+          startAtUtc: { lt: request.endAt },
           tutorProfileId: userId,
-          startAtUtc: { lte: request.endAtUtc },
-          endAtUtc: { gte: request.startAtUtc },
         },
       })) > 0
     ) {
-      throw new ConflictException(`Availability slot is overlapping to the others`);
+      throw availabilityOverlap();
     }
 
-    const availability = await this.prisma.availabilitySlot.create({
-      data: {
-        tutorProfileId: userId,
-        startAtUtc: request.startAtUtc,
-        endAtUtc: request.endAtUtc,
-      },
-    });
+    try {
+      const availability = await this.prisma.availabilitySlot.create({
+        data: {
+          endAtUtc: request.endAt,
+          startAtUtc: request.startAt,
+          tutorProfileId: userId,
+        },
+      });
 
-    const response: AvailabilityPostResponseDto = {
-      id: availability.id,
-      tutorProfileId: availability.tutorProfileId,
-      startAtUtc: availability.startAtUtc,
-      endAtUtc: availability.endAtUtc,
-    };
-
-    return response;
+      return {
+        endAtUtc: availability.endAtUtc,
+        id: availability.id,
+        startAtUtc: availability.startAtUtc,
+        tutorProfileId: availability.tutorProfileId,
+      };
+    } catch (error) {
+      if (isConstraintViolation(error)) throw availabilityOverlap();
+      throw error;
+    }
   }
 
-  async deleteAvailability(userId: string, slotId: string) {
-    const availability = await this.prisma.availabilitySlot.findUniqueOrThrow({
+  async deleteAvailability(userId: string, slotId: string): Promise<void> {
+    const availability = await this.prisma.availabilitySlot.findFirst({
       select: {
-        tutorProfileId: true,
         bookings: {
-          select: {
-            status: true,
-          },
+          select: { id: true },
+          take: 1,
+          where: activeBookingWhere,
         },
       },
       where: {
+        deletedAt: null,
         id: slotId,
+        tutorProfileId: userId,
       },
     });
 
-    if (availability.tutorProfileId !== userId) {
-      throw new NotFoundException(`Not-owned`);
-    }
+    if (!availability) throw slotNotFound();
 
-    if (
-      availability.bookings !== undefined &&
-      availability.bookings.length > 0 &&
-      (availability.bookings.at(0)?.status === BookingStatus.CONFIRMED ||
-        availability.bookings.at(0)?.status === BookingStatus.PENDING)
-    ) {
-      throw new ConflictException(`Active pending/confirmed Booking exists`);
-    }
+    if (availability.bookings.length > 0) throw slotReserved();
 
-    await this.prisma.availabilitySlot.update({
-      where: {
-        id: slotId,
+    try {
+      await this.prisma.availabilitySlot.update({
+        where: {
+          deletedAt: null,
+          id: slotId,
+          tutorProfileId: userId,
+        },
+        data: {
+          deletedAt: new Date(),
+        },
+      });
+    } catch (error) {
+      if (isRecordNotFound(error)) throw slotNotFound();
+      if (isConstraintViolation(error)) throw slotReserved();
+      throw error;
+    }
+  }
+
+  private availabilityRangeWhere(query: AvailabilityQueryDto): Prisma.AvailabilitySlotWhereInput {
+    if (query.from === undefined && query.to === undefined) return {};
+
+    return {
+      startAtUtc: {
+        ...(query.from !== undefined && { gte: query.from }),
+        ...(query.to !== undefined && { lt: query.to }),
       },
-      data: {
-        deletedAt: new Date(),
-      },
-    });
+    };
+  }
+
+  private validateAvailabilityRange(query: AvailabilityQueryDto): void {
+    if (query.from !== undefined && query.to !== undefined && query.to <= query.from) {
+      throw invalidTimeRange('to must be later than from');
+    }
   }
 }
 

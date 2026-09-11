@@ -18,6 +18,7 @@ import { RequireOwnership } from '@/auth/ownership.decorator';
 import { ResourceOwnershipGuard } from '@/auth/ownership.guard';
 import { Roles } from '@/auth/roles.decorator';
 import { RolesGuard } from '@/auth/roles.guard';
+import { UuidParamPipe } from '@/common/pipes/uuid-param.pipe';
 import { Role } from '@/generated/prisma/client';
 import {
   AvailabilityPostRequestDto,
@@ -33,12 +34,17 @@ import {
 } from '@/tutors/tutors.dto';
 import { TutorsService } from '@/tutors/tutors.service';
 import {
+  DeleteAvailabilityDoc,
+  GetMyAvailabilityDoc,
   GetMyListingsDoc,
   GetMyListingDoc,
+  GetTutorAvailabilityDoc,
   PatchListingDoc,
+  PostAvailabilityDoc,
   PostListingDoc,
   PublishListingDoc,
   TutorsControllerDoc,
+  TutorsPublicControllerDoc,
   UpdateListingStatusDoc,
 } from '@/tutors/tutors.swagger';
 
@@ -135,7 +141,7 @@ export class TutorsPrivateController {
 
   @Get('availability')
   @HttpCode(HttpStatus.OK)
-  //TODO: swagger
+  @GetMyAvailabilityDoc()
   getAvailabilityPrivate(
     @CurrentUser() user: AuthenticatedUser,
     @Query() query: AvailabilityQueryDto,
@@ -145,7 +151,7 @@ export class TutorsPrivateController {
 
   @Post('availability')
   @HttpCode(HttpStatus.CREATED)
-  //TODO: swagger
+  @PostAvailabilityDoc()
   postAvailability(
     @CurrentUser() user: AuthenticatedUser,
     @Body() request: AvailabilityPostRequestDto,
@@ -160,22 +166,25 @@ export class TutorsPrivateController {
     idParam: 'slotId',
     allowAdmin: true,
   })
-  //TODO: swagger
-  deleteAvailability(@CurrentUser() user: AuthenticatedUser, @Param('slotId') slotId: string) {
+  @DeleteAvailabilityDoc()
+  deleteAvailability(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('slotId') slotId: string,
+  ): Promise<void> {
     return this.tutors.deleteAvailability(user.id, slotId);
   }
 }
 
-//TODO: swagger
+@TutorsPublicControllerDoc()
 @Controller('tutors')
 export class TutorsPublicController {
   constructor(private readonly tutors: TutorsService) {}
 
   @Get(':tutorId/availability')
   @HttpCode(HttpStatus.OK)
-  //TODO: swagger
+  @GetTutorAvailabilityDoc()
   getAvailabilityPublic(
-    @Param('tutorId') tutorId: string,
+    @Param('tutorId', UuidParamPipe) tutorId: string,
     @Query() query: AvailabilityQueryDto,
   ): Promise<AvailabilityPublicResponseDto[]> {
     return this.tutors.getAvailabilityPublic(tutorId, query);
