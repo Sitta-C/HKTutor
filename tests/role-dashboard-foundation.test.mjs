@@ -75,15 +75,19 @@ test('dashboard shell enforces accessibility, responsive toggle, and visible foc
   assert.match(shellSource, /aria-label={copy\.dashboard\.sidebar\.openSidebar}/);
   assert.match(shellSource, /aria-pressed={language === 'th'}/);
   assert.match(shellSource, /aria-hidden="true"/);
-  assert.match(shellSource, /inert={isSidebarCollapsed \|\| undefined}/);
+  assert.match(shellSource, /className="dash-rail-toggle"/);
+  assert.match(shellSource, /href="\/dashboard"[\s\S]*className="dash-logo"/);
+  assert.doesNotMatch(shellSource, /className="dash-reopen-logo"/);
 
   // Focus visible styles
   assert.match(cssSource, /\.dash-sb-close:focus-visible/);
-  assert.match(cssSource, /\.dash-reopen-logo:focus-visible/);
+  assert.match(cssSource, /\.dash-rail-toggle:focus-visible/);
   assert.match(cssSource, /\.dash-lang-btn:focus-visible/);
 
-  // Responsive sidebar collapse styling
+  // Responsive sidebar rail keeps navigation available while collapsed
   assert.match(cssSource, /\.dash-app\.sb-collapsed \.dash-sidebar/);
+  assert.match(cssSource, /flex-basis:\s*4\.75rem/);
+  assert.match(cssSource, /\.dash-app\.sb-collapsed \.dash-side-nav a/);
   assert.match(cssSource, /@media \(max-width: 960px\)/);
   assert.match(cssSource, /\.dash-header nav > a:not\(\.dash-cta\)/);
   assert.match(cssSource, /white-space:\s*nowrap/);

@@ -33,6 +33,66 @@
   --shadow-button: 0 6px 16px -4px rgba(20, 20, 18, 0.42);
 }
 
+/* Static-draft bridge for Tailwind utility classes emitted by the production DashboardShell. */
+.dash-side-nav .ico svg {
+  width: 1.05rem;
+  height: 1.05rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.dash-side-nav a > span,
+.dash-side-nav button > span {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+}
+
+.dash-user-chip .min-w-0 {
+  min-width: 0;
+}
+
+.dash-user-chip .block {
+  display: block;
+}
+
+.dash-user-chip .truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dash-user-chip .text-sm {
+  font-size: 0.875rem;
+}
+
+.dash-user-chip .text-xs,
+.dash-nav-badge.text-xs {
+  font-size: 0.75rem;
+}
+
+.dash-user-chip .font-extrabold,
+.dash-nav-badge.font-bold {
+  font-weight: 800;
+}
+
+.dash-nav-badge.rounded-full {
+  border-radius: 9999px;
+}
+
+.dash-nav-badge.px-2 {
+  padding-right: 0.5rem;
+  padding-left: 0.5rem;
+}
+
+.dash-nav-badge.py-0\.5 {
+  padding-top: 0.125rem;
+  padding-bottom: 0.125rem;
+}
+
 * {
   box-sizing: border-box;
   margin: 0;

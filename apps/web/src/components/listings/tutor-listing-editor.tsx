@@ -67,6 +67,7 @@ export default function TutorListingEditor({ listingId }: TutorListingEditorProp
   const [listing, setListing] = useState<TeachingListing | null>(null);
   const [errors, setErrors] = useState<FormErrors>({});
   const [pageError, setPageError] = useState<string | null>(null);
+  const [catalogError, setCatalogError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [submitAction, setSubmitAction] = useState<'save' | 'publish' | 'restore' | null>(null);
@@ -74,6 +75,8 @@ export default function TutorListingEditor({ listingId }: TutorListingEditorProp
   const isEditing = Boolean(listingId);
   const isVerified = profile?.verificationStatus === 'VERIFIED';
   const isArchived = listing?.publicationStatus === 'ARCHIVED';
+  const catalogUnavailable = catalogError !== null;
+  const createBlocked = !isEditing && catalogUnavailable;
   const isDirty = JSON.stringify(form) !== JSON.stringify(initialForm);
 
   useEffect(() => {
@@ -89,7 +92,7 @@ export default function TutorListingEditor({ listingId }: TutorListingEditorProp
 
     let active = true;
     Promise.all([
-      getListingCatalogs(),
+      getListingCatalogs().catch(() => null),
       getMyProfile(),
       listingId ? getTutorListing(listingId) : Promise.resolve(null),
     ])
@@ -104,8 +107,8 @@ export default function TutorListingEditor({ listingId }: TutorListingEditorProp
           return;
         }
 
-        let subjectOptions = catalogs.subjects;
-        let gradeOptions = catalogs.gradeLevels;
+        let subjectOptions = catalogs?.subjects ?? [];
+        let gradeOptions = catalogs?.gradeLevels ?? [];
         if (currentListing) {
           if (!subjectOptions.some((item) => item.id === currentListing.subject.id)) {
             subjectOptions = [...subjectOptions, currentListing.subject];
@@ -117,6 +120,7 @@ export default function TutorListingEditor({ listingId }: TutorListingEditorProp
 
         setSubjects(subjectOptions);
         setGradeLevels(gradeOptions);
+        setCatalogError(catalogs ? null : copy.catalogUnavailable);
         setProfile(tutorProfile);
         setListing(currentListing);
 
@@ -133,7 +137,9 @@ export default function TutorListingEditor({ listingId }: TutorListingEditorProp
       })
       .catch((caught: unknown) => {
         if (!active) return;
-        setPageError(readEditorError(caught, copy.loadError, copy.notFound));
+        setPageError(
+          readEditorError(caught, copy.loadError, listingId ? copy.notFound : undefined),
+        );
       })
       .finally(() => {
         if (active) setIsLoading(false);
@@ -142,7 +148,15 @@ export default function TutorListingEditor({ listingId }: TutorListingEditorProp
     return () => {
       active = false;
     };
-  }, [authLoading, copy.loadError, copy.notFound, listingId, router, user]);
+  }, [
+    authLoading,
+    copy.catalogUnavailable,
+    copy.loadError,
+    copy.notFound,
+    listingId,
+    router,
+    user,
+  ]);
 
   useEffect(() => {
     if (!isDirty) return;
@@ -273,6 +287,9 @@ export default function TutorListingEditor({ listingId }: TutorListingEditorProp
     return <ListingPageState>{copy.loading}</ListingPageState>;
   }
   if (user.role !== 'TUTOR') return null;
+  if (!profile) {
+    return <ListingPageState>{pageError ?? copy.loading}</ListingPageState>;
+  }
 
   const status = listing?.publicationStatus ?? 'DRAFT';
   const statusLabels: Record<ListingPublicationStatus, string> = {
@@ -280,12 +297,11 @@ export default function TutorListingEditor({ listingId }: TutorListingEditorProp
     PUBLISHED: copy.published,
     ARCHIVED: copy.archived,
   };
+  const profileDisplayName = profile.displayName.trim();
+  const shellUser = { ...user, displayName: profileDisplayName };
 
   return (
-    <DashboardShell
-      user={profile?.displayName ? { ...user, displayName: profile.displayName } : user}
-      onLogout={handleLogout}
-    >
+    <DashboardShell user={shellUser} onLogout={handleLogout}>
       <div className="listing-page min-w-0 pb-12">
         <Link
           href="/dashboard/listings"
@@ -313,6 +329,14 @@ export default function TutorListingEditor({ listingId }: TutorListingEditorProp
             className="mt-6 rounded-md border border-[#e2b7ae] bg-[#fff4f1] p-4 text-sm text-[#a34334]"
           >
             {pageError}
+          </div>
+        )}
+        {catalogError && (
+          <div
+            role="status"
+            className="mt-6 rounded-md border border-[#e5cfaa] bg-[#fff9eb] p-4 text-sm text-[#795727]"
+          >
+            {catalogError}
           </div>
         )}
         {success && (
@@ -364,6 +388,7 @@ export default function TutorListingEditor({ listingId }: TutorListingEditorProp
                 <select
                   value={form.subjectId}
                   onChange={(event) => updateField('subjectId', event.target.value)}
+                  disabled={catalogUnavailable}
                   className={listingFieldClass}
                   aria-invalid={Boolean(errors.subjectId)}
                   aria-describedby={errors.subjectId ? 'listing-subject-error' : undefined}
@@ -381,6 +406,7 @@ export default function TutorListingEditor({ listingId }: TutorListingEditorProp
                 <select
                   value={form.gradeLevelId}
                   onChange={(event) => updateField('gradeLevelId', event.target.value)}
+                  disabled={catalogUnavailable}
                   className={listingFieldClass}
                   aria-invalid={Boolean(errors.gradeLevelId)}
                   aria-describedby={errors.gradeLevelId ? 'listing-grade-error' : undefined}
@@ -492,7 +518,7 @@ export default function TutorListingEditor({ listingId }: TutorListingEditorProp
                 </button>
                 <button
                   type="submit"
-                  disabled={submitAction !== null}
+                  disabled={createBlocked || submitAction !== null}
                   className="listing-secondary-action profile-ghost-button min-h-12 rounded-md border border-[#3b3027] bg-white px-4 text-sm font-extrabold text-[#34271e] transition hover:bg-[#f4eee6] disabled:cursor-wait disabled:opacity-50"
                 >
                   {submitAction === 'save'
@@ -514,7 +540,7 @@ export default function TutorListingEditor({ listingId }: TutorListingEditorProp
                 {status !== 'PUBLISHED' && (
                   <button
                     type="button"
-                    disabled={!isVerified || submitAction !== null}
+                    disabled={createBlocked || !isVerified || submitAction !== null}
                     onClick={() => void saveListing('publish')}
                     className="listing-primary-action profile-primary-button min-h-12 rounded-md bg-[#34271e] px-5 text-sm font-extrabold text-white shadow-[0_8px_18px_-10px_rgba(43,31,22,0.85)] transition hover:-translate-y-0.5 hover:bg-[#4b3729] disabled:cursor-not-allowed disabled:translate-y-0 disabled:opacity-45"
                   >
@@ -537,11 +563,11 @@ export default function TutorListingEditor({ listingId }: TutorListingEditorProp
               <div className="listing-preview-content">
                 <div className="flex items-center gap-3">
                   <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md bg-gradient-to-br from-[#ffc57d] to-[#d18b43] text-sm font-black text-[#2f2117]">
-                    {(profile?.displayName || user.email).charAt(0).toUpperCase()}
+                    {profileDisplayName.charAt(0).toUpperCase()}
                   </span>
                   <div className="min-w-0">
                     <p className="truncate text-sm font-black text-[#30251d]">
-                      {profile?.displayName || user.email}
+                      {profileDisplayName}
                     </p>
                     <p className="mt-0.5 text-xs text-[#7a7269]">
                       {profile?.experienceYears ?? 0} {copy.yearsExperience}
@@ -655,8 +681,8 @@ function validateForm(form: ListingFormData, copy: typeof englishCopy): FormErro
   return errors;
 }
 
-function readEditorError(error: unknown, fallback: string, notFound: string) {
-  if (error instanceof ApiError && error.status === 404) return notFound;
+function readEditorError(error: unknown, fallback: string, notFound?: string) {
+  if (error instanceof ApiError && error.status === 404) return notFound ?? fallback;
   if (error instanceof ApiError && error.status === 403) return fallback;
   return error instanceof Error ? error.message : fallback;
 }
@@ -738,6 +764,8 @@ const englishCopy = {
   qualityThree: 'Avoid contact details and promises of guaranteed results.',
   loading: 'Loading the listing editor…',
   loadError: 'Unable to load the listing editor.',
+  catalogUnavailable:
+    'Subject and grade options are temporarily unavailable. You can review this page, but creating a listing requires the catalog service.',
   saveError: 'Unable to save this listing. Check the details and try again.',
   notFound: 'This listing was not found or you do not have access to it.',
 };
@@ -810,6 +838,8 @@ const thaiCopy: typeof englishCopy = {
   qualityThree: 'ไม่ใส่ข้อมูลติดต่อหรือรับประกันผลลัพธ์',
   loading: 'กำลังโหลดตัวแก้ไขประกาศ…',
   loadError: 'ไม่สามารถโหลดตัวแก้ไขประกาศได้',
+  catalogUnavailable:
+    'ยังไม่สามารถโหลดรายวิชาและระดับชั้นได้ คุณเปิดดูหน้านี้ได้ แต่ต้องรอบริการข้อมูลหลักสูตรก่อนสร้างประกาศ',
   saveError: 'ไม่สามารถบันทึกประกาศได้ โปรดตรวจสอบข้อมูลแล้วลองอีกครั้ง',
   notFound: 'ไม่พบประกาศนี้หรือคุณไม่มีสิทธิ์เข้าถึง',
 };
