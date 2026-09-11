@@ -9,8 +9,6 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
-import { ApiTags } from '@nestjs/swagger';
-
 import { CurrentUser } from '@/auth/auth.decorator';
 import { JwtAuthGuard } from '@/auth/auth.guard';
 import { RequireOwnership } from '@/auth/ownership.decorator';
@@ -30,6 +28,7 @@ import {
 } from '@/bookings/bookings.dto';
 import { BookingsService } from '@/bookings/bookings.service';
 import {
+  BookingsControllerDoc,
   CreateBookingDoc,
   GetBookingQuoteDoc,
   GetMyBookingDoc,
@@ -40,7 +39,7 @@ import { Role } from '@/generated/prisma/client';
 
 import type { AuthenticatedUser } from '@/auth/auth.guard';
 
-@ApiTags('bookings')
+@BookingsControllerDoc()
 @Controller('bookings')
 @UseGuards(JwtAuthGuard, RolesGuard, ResourceOwnershipGuard)
 export class BookingsController {

@@ -10,6 +10,7 @@ import {
   ApiOkResponse,
   ApiOperation,
   ApiQuery,
+  ApiTags,
   ApiUnauthorizedResponse,
   getSchemaPath,
 } from '@nestjs/swagger';
@@ -27,6 +28,10 @@ import {
   TutorBookingsResponseDto,
 } from '@/bookings/bookings.dto';
 import { BookingStatus } from '@/generated/prisma/enums';
+
+export function BookingsControllerDoc(): ClassDecorator {
+  return applyDecorators(ApiTags('bookings'));
+}
 
 export function CreateBookingDoc(): MethodDecorator {
   return applyDecorators(
