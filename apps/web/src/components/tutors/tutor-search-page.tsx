@@ -136,7 +136,7 @@ export default function TutorSearchPage() {
   const [catalogError, setCatalogError] = useState(false);
   const [results, setResults] = useState<TutorSearchResult[]>([]);
   const [status, setStatus] = useState<SearchStatus>('loading');
-  const [searchError, setSearchError] = useState<string | null>(null);
+  const [searchError, setSearchError] = useState<unknown | null>(null);
   const [fieldErrors, setFieldErrors] = useState<SearchErrors>({});
   const requestId = useRef(0);
   const controller = useRef<AbortController | null>(null);
@@ -163,30 +163,27 @@ export default function TutorSearchPage() {
     };
   }, []);
 
-  const executeSearch = useCallback(
-    async (query: TutorSearchQuery) => {
-      const currentRequest = ++requestId.current;
-      controller.current?.abort();
-      const nextController = new AbortController();
-      controller.current = nextController;
-      setStatus('loading');
-      setSearchError(null);
-      setResults([]);
+  const executeSearch = useCallback(async (query: TutorSearchQuery) => {
+    const currentRequest = ++requestId.current;
+    controller.current?.abort();
+    const nextController = new AbortController();
+    controller.current = nextController;
+    setStatus('loading');
+    setSearchError(null);
+    setResults([]);
 
-      try {
-        const nextResults = await searchTutors(query, { signal: nextController.signal });
-        if (currentRequest !== requestId.current) return;
-        setResults(nextResults);
-        setStatus('success');
-      } catch (error: unknown) {
-        if (nextController.signal.aborted || currentRequest !== requestId.current) return;
-        setResults([]);
-        setStatus('error');
-        setSearchError(readSearchError(error, text.searchError));
-      }
-    },
-    [text.searchError],
-  );
+    try {
+      const nextResults = await searchTutors(query, { signal: nextController.signal });
+      if (currentRequest !== requestId.current) return;
+      setResults(nextResults);
+      setStatus('success');
+    } catch (error: unknown) {
+      if (nextController.signal.aborted || currentRequest !== requestId.current) return;
+      setResults([]);
+      setStatus('error');
+      setSearchError(error);
+    }
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -364,7 +361,14 @@ export default function TutorSearchPage() {
 
               <div className="space-y-4 p-5 sm:p-6">
                 {status === 'error' && (
-                  <SearchState tone="error" message={searchError ?? text.searchError} />
+                  <SearchState
+                    tone="error"
+                    message={
+                      searchError === null
+                        ? text.searchError
+                        : readSearchError(searchError, text.searchError)
+                    }
+                  />
                 )}
                 {status === 'validation' && (
                   <SearchState tone="error" message={text.validationError} />
