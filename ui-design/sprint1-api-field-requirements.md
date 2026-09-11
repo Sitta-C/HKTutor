@@ -467,7 +467,7 @@ only after their later task defines the contract.
 - Input: path `tutorId: UUID`.
 - Authentication: public.
 - Output `200`: `{ tutor: { tutorId, displayName, bio, experienceYears, verificationStatus,
-  ratingAverage, reviewCount }, listings: [{ listingId, subject, grade, pricePerHour, description }] }`.
+ratingAverage, reviewCount }, listings: [{ listingId, subject, grade, pricePerHour, description }] }`.
 - Only public fields, a verified profile, and published listings are returned.
 - Errors: `400`, `404 TUTOR_NOT_FOUND`.
 - Do not return tutor email, consent/account metadata, documents, deleted listings, or drafts.

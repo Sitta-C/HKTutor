@@ -6,7 +6,12 @@ import { TutorsPrivateController, TutorsPublicController } from '@/tutors/tutors
 import { TutorsService } from '@/tutors/tutors.service';
 
 @Module({
-  controllers: [CatalogController, PublicTutorsController, TutorsPrivateController, TutorsPublicController],
+  controllers: [
+    CatalogController,
+    PublicTutorsController,
+    TutorsPrivateController,
+    TutorsPublicController,
+  ],
   providers: [TutorsService],
 })
 export class TutorsModule {}
