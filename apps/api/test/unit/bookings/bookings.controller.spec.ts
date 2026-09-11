@@ -259,8 +259,7 @@ describe('BookingsController OpenAPI contract', () => {
 
   it('requires listingId and slotId in the request body schema and no longer accepts studentUserId', () => {
     const schema = document.components?.schemas?.['CreateBookingDto'] as
-      | { properties?: Record<string, unknown>; required?: string[] }
-      | undefined;
+      { properties?: Record<string, unknown>; required?: string[] } | undefined;
 
     expect(schema?.properties?.['slotId']).toBeDefined();
     expect(schema?.properties?.['listingId']).toBeDefined();

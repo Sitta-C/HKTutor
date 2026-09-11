@@ -139,7 +139,9 @@ async function runConcurrencyCheck(service: BookingsService, prisma: PrismaServi
   });
   assert.equal(activeBookings, 1, 'exactly one active booking must exist for the contested slot');
 
-  console.info('PASS concurrent booking requests against the real endpoint yield one 201 and one 409');
+  console.info(
+    'PASS concurrent booking requests against the real endpoint yield one 201 and one 409',
+  );
 }
 
 async function runRollbackCheck(service: BookingsService, prisma: PrismaService) {

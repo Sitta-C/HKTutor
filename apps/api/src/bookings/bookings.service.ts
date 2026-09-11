@@ -96,7 +96,12 @@ export class BookingsService {
           },
         });
 
-        if (!student || student.role !== Role.STUDENT || student.accountStatus !== AccountStatus.ACTIVE || student.deletedAt) {
+        if (
+          !student ||
+          student.role !== Role.STUDENT ||
+          student.accountStatus !== AccountStatus.ACTIVE ||
+          student.deletedAt
+        ) {
           throw new ForbiddenException('Only active students can create bookings.');
         }
 
@@ -129,7 +134,9 @@ export class BookingsService {
         });
 
         if (!tutorProfile || tutorProfile.verificationStatus !== TutorVerificationStatus.VERIFIED) {
-          throw new ConflictException('The selected listing is not currently available for booking.');
+          throw new ConflictException(
+            'The selected listing is not currently available for booking.',
+          );
         }
 
         if (student.id === slot.tutorProfileId) {

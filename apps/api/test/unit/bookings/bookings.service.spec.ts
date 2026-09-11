@@ -23,15 +23,13 @@ import type { TestingModule } from '@nestjs/testing';
 
 type DatabaseError = Error & { code: string };
 
-type TransactionCallback = (
-  tx: {
-    $queryRaw?: jest.Mock;
-    booking?: { create?: jest.Mock; findFirst?: jest.Mock };
-    teachingListing?: { findUnique?: jest.Mock };
-    tutorProfile?: { findUnique?: jest.Mock };
-    user?: { findUnique?: jest.Mock };
-  },
-) => Promise<unknown>;
+type TransactionCallback = (tx: {
+  $queryRaw?: jest.Mock;
+  booking?: { create?: jest.Mock; findFirst?: jest.Mock };
+  teachingListing?: { findUnique?: jest.Mock };
+  tutorProfile?: { findUnique?: jest.Mock };
+  user?: { findUnique?: jest.Mock };
+}) => Promise<unknown>;
 
 const createDatabaseError = (message: string, code: string): DatabaseError => {
   const error = new Error(message) as DatabaseError;
@@ -91,8 +89,7 @@ describe('BookingsService', () => {
 
   describe('create', () => {
     it('should create a booking successfully when student is active and slot is available', async () => {
-      const { bookingId, listingId, slotId, studentUserId, tutorUserId } =
-        createTestData();
+      const { bookingId, listingId, slotId, studentUserId, tutorUserId } = createTestData();
       const pricePerHour = 500;
       const createdAt = new Date('2026-09-10T09:04:31.001Z');
 
@@ -706,8 +703,7 @@ describe('BookingsService', () => {
     });
 
     it('should format Decimal amounts as fixed-2 decimal strings in the response', async () => {
-      const { bookingId, listingId, slotId, studentUserId, tutorUserId } =
-        createTestData();
+      const { bookingId, listingId, slotId, studentUserId, tutorUserId } = createTestData();
       const pricePerHour = 1250.75;
       const createdAt = new Date('2026-09-10T09:04:31.001Z');
 
@@ -981,7 +977,10 @@ describe('BookingsService', () => {
       },
       status: BookingStatus.PENDING,
       subtotalAmount: new Prisma.Decimal(450),
-      tutorProfile: { displayName: 'Anan Suksawat', userId: '1772b6be-ebb5-40b7-b5bd-1c1fcfe26857' },
+      tutorProfile: {
+        displayName: 'Anan Suksawat',
+        userId: '1772b6be-ebb5-40b7-b5bd-1c1fcfe26857',
+      },
       ...overrides,
     });
 
@@ -1120,7 +1119,10 @@ describe('BookingsService', () => {
       },
       status: BookingStatus.PENDING,
       subtotalAmount: new Prisma.Decimal(450),
-      tutorProfile: { displayName: 'Anan Suksawat', userId: '1772b6be-ebb5-40b7-b5bd-1c1fcfe26857' },
+      tutorProfile: {
+        displayName: 'Anan Suksawat',
+        userId: '1772b6be-ebb5-40b7-b5bd-1c1fcfe26857',
+      },
       updatedAt: new Date('2026-09-11T00:00:00.000Z'),
       ...overrides,
     });
@@ -1246,9 +1248,7 @@ describe('BookingsService', () => {
       expect(mockPrismaService.booking.findMany).toHaveBeenCalledWith(
         expect.objectContaining({ where: { tutorProfileId: tutorUserId } }),
       );
-      expect(result.items).toEqual([
-        expect.objectContaining({ student: { nickname: 'Nan' } }),
-      ]);
+      expect(result.items).toEqual([expect.objectContaining({ student: { nickname: 'Nan' } })]);
       expect(result.items[0]).not.toHaveProperty('tutor');
       expect(Object.keys(result.items[0] as object)).not.toContain('legalName');
     });

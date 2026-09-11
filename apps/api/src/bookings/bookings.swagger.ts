@@ -92,7 +92,8 @@ export function CreateBookingDoc(): MethodDecorator {
       },
     }),
     ApiConflictResponse({
-      description: 'The requested slot is already booked, unavailable, or the listing/slot tutor mismatch',
+      description:
+        'The requested slot is already booked, unavailable, or the listing/slot tutor mismatch',
       schema: {
         example: {
           error: 'Conflict',
