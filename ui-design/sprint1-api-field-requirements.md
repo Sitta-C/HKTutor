@@ -448,10 +448,10 @@ Trello ownership: S1-T21/API-03 for subjects and S1-T21/API-04 for grade levels.
 
 - Authentication: public.
 - Filters combine with AND.
-- Confirmed Trello output `200`: an array whose item contains `id` (listing ID), `tutorId`,
-  `displayName`, `subject`, `grade`, `pricePerHour`, `rating`, `description`, `reviewCount`,
-  `experienceYears`, and `nextAvailableAt`. The verified state may remain implicit because only
-  verified tutors are returned.
+- Confirmed Trello output `200`: an array whose item contains `listingId`, `tutorId`,
+  `displayName`, `subject`, `grade`, `pricePerHour`, `ratingAverage`, `description`,
+  `reviewCount`, `experienceYears`, and `nextAvailableAt`. `nextAvailableAt` is an ISO-8601 UTC
+  string or `null`. The verified state may remain implicit because only verified tutors are returned.
 - Return one result per matching listing. Never combine a subject from one listing with the price
   of another listing owned by the same tutor.
 - Only `VERIFIED` tutors and `PUBLISHED` listings are eligible.
@@ -466,7 +466,8 @@ only after their later task defines the contract.
 - Trello task: S1-T21/API-02.
 - Input: path `tutorId: UUID`.
 - Authentication: public.
-- Output `200`: `{ tutor: TutorProfile, listings: TeachingListing[] }`.
+- Output `200`: `{ tutor: { tutorId, displayName, bio, experienceYears, verificationStatus,
+  ratingAverage, reviewCount }, listings: [{ listingId, subject, grade, pricePerHour, description }] }`.
 - Only public fields, a verified profile, and published listings are returned.
 - Errors: `400`, `404 TUTOR_NOT_FOUND`.
 - Do not return tutor email, consent/account metadata, documents, deleted listings, or drafts.

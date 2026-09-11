@@ -7,7 +7,9 @@ import {
   IsPositive,
   IsString,
   IsUUID,
+  Max,
   MaxLength,
+  Min,
   MinLength,
   registerDecorator,
 } from 'class-validator';
@@ -20,6 +22,12 @@ import type { ValidationArguments, ValidationOptions } from 'class-validator';
 const trimString = ({ value }: TransformFnParams): unknown =>
   typeof value === 'string' ? value.trim() : value;
 
+const transformOptionalNumber = ({ value }: TransformFnParams): unknown => {
+  if (value === undefined) return value;
+  if (typeof value === 'string' && value.trim() === '') return Number.NaN;
+  return typeof value === 'number' ? value : Number(value);
+};
+
 export class ListingQueryDto {
   @ApiPropertyOptional({ enum: ListingPublicationStatus, enumName: 'ListingPublicationStatus' })
   @IsOptional()
@@ -31,6 +39,56 @@ export class ListingStatusRequestDto {
   @ApiProperty({ enum: ListingPublicationStatus, enumName: 'ListingPublicationStatus' })
   @IsEnum(ListingPublicationStatus)
   publicationStatus!: ListingPublicationStatus;
+}
+
+export class TutorSearchQueryDto {
+  @ApiPropertyOptional({
+    description: 'Case-insensitive exact Subject name from the active catalog',
+    example: 'Mathematics',
+  })
+  @IsOptional()
+  @Transform(trimString)
+  @IsString()
+  @MinLength(1)
+  @MaxLength(100)
+  subject?: string;
+
+  @ApiPropertyOptional({
+    description: 'Exact GradeLevel name from the active catalog',
+    example: 'Grade 10',
+  })
+  @IsOptional()
+  @Transform(trimString)
+  @IsString()
+  @MinLength(1)
+  @MaxLength(80)
+  grade?: string;
+
+  @ApiPropertyOptional({
+    description: 'Inclusive maximum price in THB per hour',
+    example: 500,
+    minimum: 0,
+    type: Number,
+  })
+  @IsOptional()
+  @Transform(transformOptionalNumber)
+  @IsNumber({ allowInfinity: false, allowNaN: false, maxDecimalPlaces: 2 })
+  @Min(0)
+  maxPrice?: number;
+
+  @ApiPropertyOptional({
+    description: 'Inclusive minimum rating from 1 to 5; omit to include every rating',
+    example: 4,
+    maximum: 5,
+    minimum: 1,
+    type: Number,
+  })
+  @IsOptional()
+  @Transform(transformOptionalNumber)
+  @IsNumber({ allowInfinity: false, allowNaN: false, maxDecimalPlaces: 2 })
+  @Min(1)
+  @Max(5)
+  minimumRating?: number;
 }
 
 class SubjectOptionResponseDto {
@@ -79,6 +137,130 @@ export class ListingResponseDto {
 
   @ApiProperty({ example: '2026-08-17T00:00:00.000Z', format: 'date-time' })
   updatedAt!: Date;
+}
+
+export class TutorSearchResultDto {
+  @ApiProperty({ example: '10000000-0000-4000-8000-000000000001', format: 'uuid' })
+  listingId!: string;
+
+  @ApiProperty({ example: '20000000-0000-4000-8000-000000000001', format: 'uuid' })
+  tutorId!: string;
+
+  @ApiProperty({ example: 'Kru Anan' })
+  displayName!: string;
+
+  @ApiProperty({ example: 'Experienced mathematics tutor.' })
+  description!: string;
+
+  @ApiProperty({ example: 5, minimum: 0, type: Number })
+  experienceYears!: number;
+
+  @ApiProperty({ example: 'Mathematics' })
+  subject!: string;
+
+  @ApiProperty({ example: 'Grade 10' })
+  grade!: string;
+
+  @ApiProperty({ example: 500, minimum: 0, type: Number })
+  pricePerHour!: number;
+
+  @ApiProperty({ example: 4.8, maximum: 5, minimum: 1, nullable: true, type: Number })
+  ratingAverage!: number | null;
+
+  @ApiProperty({ example: 24, minimum: 0, type: Number })
+  reviewCount!: number;
+
+  @ApiProperty({ example: '2026-09-12T02:00:00.000Z', format: 'date-time', nullable: true })
+  nextAvailableAt!: Date | null;
+}
+
+export class PublicTutorProfileDto {
+  @ApiProperty({ example: '20000000-0000-4000-8000-000000000001', format: 'uuid' })
+  tutorId!: string;
+
+  @ApiProperty({ example: 'Kru Anan' })
+  displayName!: string;
+
+  @ApiProperty({ example: 'Experienced mathematics tutor.' })
+  bio!: string;
+
+  @ApiProperty({ example: 5, minimum: 0, type: Number })
+  experienceYears!: number;
+
+  @ApiProperty({ enum: ['VERIFIED'], example: 'VERIFIED' })
+  verificationStatus!: 'VERIFIED';
+
+  @ApiProperty({ example: 4.8, maximum: 5, minimum: 1, nullable: true, type: Number })
+  ratingAverage!: number | null;
+
+  @ApiProperty({ example: 24, minimum: 0, type: Number })
+  reviewCount!: number;
+}
+
+export class PublicTeachingListingDto {
+  @ApiProperty({ example: '10000000-0000-4000-8000-000000000001', format: 'uuid' })
+  listingId!: string;
+
+  @ApiProperty({ example: 'Mathematics' })
+  subject!: string;
+
+  @ApiProperty({ example: 'Grade 10' })
+  grade!: string;
+
+  @ApiProperty({ example: 500, minimum: 0, type: Number })
+  pricePerHour!: number;
+
+  @ApiProperty({ example: 'Experienced mathematics tutor.' })
+  description!: string;
+}
+
+export class PublicTutorDetailResponseDto {
+  @ApiProperty({ type: PublicTutorProfileDto })
+  tutor!: PublicTutorProfileDto;
+
+  @ApiProperty({ type: [PublicTeachingListingDto] })
+  listings!: PublicTeachingListingDto[];
+}
+
+export class SubjectCatalogItemDto {
+  @ApiProperty({ example: '30000000-0000-4000-8000-000000000001', format: 'uuid' })
+  id!: string;
+
+  @ApiProperty({ example: 'MATH' })
+  code!: string;
+
+  @ApiProperty({ example: 'Mathematics' })
+  name!: string;
+
+  @ApiProperty({ example: true })
+  active!: boolean;
+}
+
+export class SubjectCatalogResponseDto {
+  @ApiProperty({ type: [SubjectCatalogItemDto] })
+  items!: SubjectCatalogItemDto[];
+}
+
+export class GradeLevelCatalogItemDto {
+  @ApiProperty({ example: '40000000-0000-4000-8000-000000000001', format: 'uuid' })
+  id!: string;
+
+  @ApiProperty({ example: 'G10' })
+  code!: string;
+
+  @ApiProperty({ example: 'Grade 10' })
+  name!: string;
+
+  @ApiProperty({ example: 10, minimum: 0, type: Number })
+  sortOrder!: number;
+
+  @ApiProperty({ example: true })
+  active!: boolean;
+}
+
+export class GradeLevelCatalogResponseDto {
+  @ApiProperty({ type: [GradeLevelCatalogItemDto] })
+  items!: GradeLevelCatalogItemDto[];
 }
 
 export class ListingPostRequestDto {
