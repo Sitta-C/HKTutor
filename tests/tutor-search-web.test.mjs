@@ -86,7 +86,7 @@ test('keeps no-match, validation, network-error, and stale-result states separat
 test('keeps the search callback stable when the language changes', async () => {
   const component = await fs.readFile(componentPath, 'utf8');
   const executeSearch = component.match(
-    /const executeSearch = useCallback\(([\s\S]*?\n  \}, \[\]\);)/,
+    /const executeSearch = useCallback\(([\s\S]*?\n {2}\}, \[\]\);)/,
   )?.[1];
 
   assert.ok(executeSearch, 'executeSearch callback must exist');
