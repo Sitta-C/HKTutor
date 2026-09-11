@@ -173,7 +173,12 @@ export class TutorSearchResultDto {
   @ApiProperty({ example: 24, minimum: 0, type: Number })
   reviewCount!: number;
 
-  @ApiProperty({ example: '2026-09-12T02:00:00.000Z', format: 'date-time', nullable: true })
+  @ApiProperty({
+    example: '2026-09-12T02:00:00.000Z',
+    format: 'date-time',
+    nullable: true,
+    type: String,
+  })
   nextAvailableAt!: Date | null;
 }
 

@@ -230,6 +230,11 @@ describe('tutor Swagger contract', () => {
       ]),
     );
     expect(resultSchema.properties).not.toHaveProperty('id');
+    expect(resultSchema.properties?.['nextAvailableAt']).toMatchObject({
+      format: 'date-time',
+      nullable: true,
+      type: 'string',
+    });
   });
 
   it('documents private availability list, validation, state, and authentication', () => {
