@@ -149,6 +149,66 @@ describe('AuthService', () => {
     expect(revokeCalls[0]?.[0].where).toEqual({ id: 'session-id' });
     expect(revokeCalls[0]?.[0].data.revokedAt).toBeInstanceOf(Date);
   });
+
+  it('rejects a missing or invalid refresh token before rotating a session', async () => {
+    const verifyRefreshToken = jest.fn().mockReturnValue(null);
+    const service = createService({ jwtTokens: { verifyRefreshToken } });
+
+    await expect(service.refresh(undefined)).rejects.toThrow(
+      new UnauthorizedException('Missing refresh token'),
+    );
+    await expect(service.refresh('expired-refresh-token')).rejects.toThrow(
+      new UnauthorizedException('Invalid or expired refresh token'),
+    );
+    expect(verifyRefreshToken).toHaveBeenCalledWith('expired-refresh-token');
+  });
+
+  it('rejects refresh when the session has already been revoked', async () => {
+    const verifyRefreshToken = jest.fn().mockReturnValue({
+      sub: 'user-id',
+      sid: 'session-id',
+      role: Role.STUDENT,
+      type: 'refresh',
+    });
+    const findUnique = jest.fn().mockResolvedValue({
+      id: 'session-id',
+      userId: 'user-id',
+      refreshTokenHash: '0'.repeat(64),
+      expiresAt: new Date(Date.now() + 60_000),
+      revokedAt: new Date(),
+      user: {
+        id: 'user-id',
+        email: 'student@example.com',
+        emailVerifiedAt: new Date(),
+        accountStatus: AccountStatus.ACTIVE,
+        deletedAt: null,
+        role: Role.STUDENT,
+      },
+    });
+    const service = createService({
+      prisma: { authSession: { findUnique } },
+      jwtTokens: { verifyRefreshToken },
+    });
+
+    await expect(service.refresh('revoked-refresh-token')).rejects.toThrow(
+      new UnauthorizedException('Invalid or expired refresh token'),
+    );
+  });
+
+  it('makes logout safe for missing and invalid refresh tokens', async () => {
+    const verifyRefreshToken = jest.fn().mockReturnValue(null);
+    const updateMany = jest.fn();
+    const service = createService({
+      prisma: { authSession: { updateMany } },
+      jwtTokens: { verifyRefreshToken },
+    });
+
+    await expect(service.logout(undefined)).resolves.toBeUndefined();
+    await expect(service.logout('invalid-refresh-token')).resolves.toBeUndefined();
+
+    expect(verifyRefreshToken).toHaveBeenCalledWith('invalid-refresh-token');
+    expect(updateMany).not.toHaveBeenCalled();
+  });
 });
 
 function createService(overrides: {

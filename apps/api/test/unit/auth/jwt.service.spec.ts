@@ -43,6 +43,21 @@ describe('JwtTokenService', () => {
     expect(tokens.verifyAccessToken(createToken())).toBeNull();
   });
 
+  it('rejects an expired refresh token', () => {
+    const token = jwt.sign(
+      { jti: 'token-id', role: Role.STUDENT, sid: 'session-id', type: 'refresh' },
+      refreshSecret,
+      {
+        audience: config.audience,
+        expiresIn: -1,
+        issuer: config.issuer,
+        subject: 'user-id',
+      },
+    );
+
+    expect(tokens.verifyRefreshToken(token)).toBeNull();
+  });
+
   it('rejects a correctly signed access token without an expiry', () => {
     const token = jwt.sign(
       { jti: 'token-id', role: Role.STUDENT, sid: 'session-id', type: 'access' },
