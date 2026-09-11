@@ -43,14 +43,19 @@ export function DashboardShell({
   const userInitial = getUserInitial(user);
 
   const toggleSidebar = () => {
-    setIsSidebarCollapsed((prev) => !prev);
+    setIsSidebarCollapsed((prev) => {
+      const next = !prev;
+      window.localStorage.setItem('hktutor-sidebar-collapsed', String(next));
+      return next;
+    });
   };
 
   useEffect(() => {
     const media = window.matchMedia('(max-width: 960px)');
     const syncSidebar = () => {
       setIsMobileSidebar(media.matches);
-      setIsSidebarCollapsed(media.matches);
+      const savedPreference = window.localStorage.getItem('hktutor-sidebar-collapsed');
+      setIsSidebarCollapsed(media.matches ? true : savedPreference === 'true');
     };
 
     syncSidebar();
@@ -100,19 +105,30 @@ export function DashboardShell({
           className="dash-sidebar"
           id="dashboard-sidebar"
           aria-label={copy.dashboard.common.eyebrow}
-          aria-hidden={isSidebarCollapsed || undefined}
-          inert={isSidebarCollapsed || undefined}
         >
           <div className="dash-sb-head">
+            <Link
+              href="/dashboard"
+              className="dash-logo"
+              aria-label={copy.dashboard.common.eyebrow}
+              title={copy.dashboard.common.eyebrow}
+            >
+              <span className="mono">HK</span>
+              <span className="dash-logo-word">HKTutor</span>
+            </Link>
             <button
               type="button"
               onClick={toggleSidebar}
-              className="dash-logo"
-              aria-label={copy.dashboard.sidebar.closeSidebar}
-              title={copy.dashboard.sidebar.closeSidebar}
+              className="dash-rail-toggle"
+              aria-label={copy.dashboard.sidebar.openSidebar}
+              title={copy.dashboard.sidebar.openSidebar}
             >
               <span className="mono">HK</span>
-              <span>HKTutor</span>
+              <span className="burger" aria-hidden="true">
+                <i />
+                <i />
+                <i />
+              </span>
             </button>
             <button
               type="button"
@@ -127,7 +143,7 @@ export function DashboardShell({
                 strokeWidth="2"
                 aria-hidden="true"
               >
-                <path d="m6 6 12 12M18 6 6 18" />
+                <path d="m14.5 5-7 7 7 7" />
               </svg>
             </button>
           </div>
@@ -157,12 +173,13 @@ export function DashboardShell({
                       type="button"
                       onClick={() => void onLogout()}
                       className="danger"
+                      title={item.label}
                     >
                       <span className="flex items-center gap-2.5">
                         <span className="ico" aria-hidden="true">
                           <DashboardNavIcon name={item.icon} />
                         </span>
-                        <span>{item.label}</span>
+                        <span className="dash-nav-label">{item.label}</span>
                       </span>
                     </button>
                   );
@@ -170,12 +187,17 @@ export function DashboardShell({
 
                 if (item.id === 'privacy') {
                   return (
-                    <button key={item.id} type="button" onClick={() => setPrivacyNoticeOpen(true)}>
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => setPrivacyNoticeOpen(true)}
+                      title={item.label}
+                    >
                       <span className="flex items-center gap-2.5">
                         <span className="ico" aria-hidden="true">
                           <DashboardNavIcon name={item.icon} />
                         </span>
-                        <span>{item.label}</span>
+                        <span className="dash-nav-label">{item.label}</span>
                       </span>
                     </button>
                   );
@@ -189,16 +211,17 @@ export function DashboardShell({
                     href={item.href}
                     className={isActive ? 'is-active' : undefined}
                     aria-current={isActive ? 'page' : undefined}
+                    title={item.label}
                   >
                     <span className="flex items-center gap-2.5">
                       <span className="ico" aria-hidden="true">
                         <DashboardNavIcon name={item.icon} />
                       </span>
-                      <span>{item.label}</span>
+                      <span className="dash-nav-label">{item.label}</span>
                     </span>
                     {item.badge !== undefined && (
                       <span
-                        className="rounded-full px-2 py-0.5 text-xs font-bold"
+                        className="dash-nav-badge rounded-full px-2 py-0.5 text-xs font-bold"
                         style={{
                           background: roleConfig.softBg,
                           color: roleConfig.accentDeepColor,
@@ -225,22 +248,6 @@ export function DashboardShell({
         {/* Main Column */}
         <div className="dash-main-wrap">
           <header className="dash-header">
-            <button
-              type="button"
-              onClick={toggleSidebar}
-              className="dash-reopen-logo"
-              aria-label={copy.dashboard.sidebar.openSidebar}
-              title={copy.dashboard.sidebar.openSidebar}
-            >
-              <span className="mono">HK</span>
-              <span className="reopen-txt font-black tracking-[-0.08em]">HKTutor</span>
-              <span className="burger" aria-hidden="true">
-                <i />
-                <i />
-                <i />
-              </span>
-            </button>
-
             <nav aria-label="Dashboard Top Navigation">
               {visualVariant === 'profile' && (
                 <NotificationMenu userRole={user.role} copy={copy.dashboard.header} />
@@ -283,6 +290,7 @@ export function DashboardShell({
 }
 
 function isDashboardNavActive(itemId: string, pathname: string): boolean {
+  if (itemId === 'dashboard') return pathname === '/dashboard';
   if (itemId === 'profile') return pathname === '/dashboard/profile';
   if (itemId === 'listings') return pathname.startsWith('/dashboard/listings');
   return false;
@@ -514,6 +522,17 @@ function DashboardNavIcon({ name }: { name: string }) {
     strokeLinejoin: 'round' as const,
     strokeWidth: 1.8,
   };
+
+  if (name === 'dashboard') {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true" {...common}>
+        <rect x="4" y="4" width="6" height="6" rx="1.5" />
+        <rect x="14" y="4" width="6" height="6" rx="1.5" />
+        <rect x="4" y="14" width="6" height="6" rx="1.5" />
+        <rect x="14" y="14" width="6" height="6" rx="1.5" />
+      </svg>
+    );
+  }
 
   if (name === 'profile') {
     return (
