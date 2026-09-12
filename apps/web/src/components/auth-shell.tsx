@@ -111,7 +111,6 @@ export function AuthSocialButtons() {
 export function BackgroundArtwork() {
   return (
     <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden="true">
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_42%,rgba(255,255,255,0.8),transparent_42%)]" />
       <div className="absolute -left-56 -top-56 h-[38rem] w-[38rem] rounded-full border border-[#e5ded2] bg-[#fbfaf7]/75" />
       <div className="absolute -bottom-52 -right-52 h-[37rem] w-[37rem] rounded-full bg-[#f1ddc4]/70" />
       <div className="absolute left-1/2 top-1/2 h-[min(48rem,82vw)] w-[min(48rem,82vw)] -translate-x-1/2 -translate-y-1/2 rounded-full border border-white/70" />
@@ -208,7 +207,7 @@ export default function AuthShell({ page, children }: { page: AuthPage; children
           </Link>
           <Link
             href={navHref}
-            className="rounded-xl bg-[#ffc57d] px-4 py-3 font-semibold shadow-[0_8px_22px_rgba(206,145,64,0.12)] transition-transform hover:-translate-y-0.5 sm:px-6 sm:py-3.5"
+            className="rounded-xl bg-[#ffc57d] px-4 py-3 font-semibold shadow-[0_3px_10px_rgba(206,145,64,0.12)] transition-transform hover:-translate-y-0.5 sm:px-6 sm:py-3.5"
           >
             {navCopy.cta}
           </Link>

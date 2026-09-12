@@ -82,7 +82,7 @@ export default function Register() {
 
   return (
     <AuthShell page="register">
-      <section className="w-full max-w-[624px] rounded-[2rem] bg-white px-6 py-9 shadow-[0_22px_65px_rgba(46,39,25,0.08)] sm:px-12 sm:py-12 lg:px-[4.25rem] lg:py-14">
+      <section className="w-full max-w-[624px] rounded-[2rem] bg-white px-6 py-9 shadow-[0_10px_28px_rgba(46,39,25,0.06)] sm:px-12 sm:py-12 lg:px-[4.25rem] lg:py-14">
         <div className="mx-auto max-w-[490px]">
           <div>
             <div className="mb-7 text-center sm:mb-8">
@@ -240,7 +240,7 @@ export default function Register() {
               <button
                 type="submit"
                 disabled={isLoading}
-                className="mt-2 flex h-[3.65rem] w-full items-center justify-center rounded-xl bg-[#ffc57d] px-5 text-base font-bold text-[#171714] shadow-[0_8px_18px_rgba(206,145,64,0.14)] transition-all hover:-translate-y-0.5 hover:bg-[#ffbd6c] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#171714]/30 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+                className="mt-2 flex h-[3.65rem] w-full items-center justify-center rounded-xl bg-[#ffc57d] px-5 text-base font-bold text-[#171714] shadow-[0_3px_10px_rgba(206,145,64,0.14)] transition-all hover:-translate-y-0.5 hover:bg-[#ffbd6c] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#171714]/30 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {isLoading ? copy.register.loading : copy.register.submit}
               </button>
