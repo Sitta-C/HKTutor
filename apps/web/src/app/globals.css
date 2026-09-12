@@ -8,6 +8,10 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
+
+  /* Typography configuration: change the English token when its typeface is selected. */
+  --font-thai-family: var(--font-bai-jamjuree);
+  --font-english-family: var(--font-geist-sans);
 }
 
 html {
@@ -26,9 +30,13 @@ body {
   flex-direction: column;
   color: var(--foreground);
   background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-english-family), Arial, Helvetica, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+html:lang(th) body {
+  font-family: var(--font-thai-family), Arial, Helvetica, sans-serif;
 }
 
 button,
