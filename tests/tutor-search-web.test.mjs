@@ -53,8 +53,15 @@ test('renders the public Tutor search route and catalog-backed controls', async 
   assert.match(page, /TutorSearchPage/);
   assert.match(page, /PublicTutorSearchShell/);
   assert.match(shell, /DashboardShell/);
+  assert.match(shell, /getMyProfile/);
+  assert.match(shell, /useAuth/);
+  assert.match(shell, /authLoading/);
+  assert.match(shell, /profileUser\?\.id === user\.id/);
+  assert.match(shell, /user && !profileReady/);
   assert.match(shell, /headerNavRight/);
-  assert.match(shell, /public-search-demo-user/);
+  assert.match(shell, /public-search-guest/);
+  assert.doesNotMatch(shell, /student@example\.com|Somchai/);
+  assert.match(shell, /profile\.nickname/);
   for (const controlId of [
     'tutor-search-subject',
     'tutor-search-grade',
