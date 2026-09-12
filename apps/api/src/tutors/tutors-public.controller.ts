@@ -1,4 +1,4 @@
-import { Controller, Get, HttpCode, HttpStatus, Param, ParseUUIDPipe, Query } from '@nestjs/common';
+import { Controller, Get, HttpCode, HttpStatus, Param, Query } from '@nestjs/common';
 
 import { UuidParamPipe } from '@/common/pipes/uuid-param.pipe';
 import {
@@ -30,7 +30,7 @@ export class TutorsPublicController {
   @Get(':tutorId')
   @GetPublicTutorDoc()
   getPublicTutor(
-    @Param('tutorId', ParseUUIDPipe) tutorId: string,
+    @Param('tutorId', UuidParamPipe) tutorId: string,
   ): Promise<PublicTutorDetailResponseDto> {
     return this.tutors.getPublicTutor(tutorId);
   }
