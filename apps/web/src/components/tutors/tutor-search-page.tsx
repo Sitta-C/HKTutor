@@ -306,7 +306,7 @@ export default function TutorSearchPage() {
                 value={form.maxPrice}
                 onChange={(value) => updateField('maxPrice', value)}
                 min="0"
-                step="0.01"
+                step="50"
                 hint={text.maxPriceHint}
                 error={fieldErrors.maxPrice}
               />

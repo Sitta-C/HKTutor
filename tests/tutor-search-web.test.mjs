@@ -67,6 +67,7 @@ test('renders the public Tutor search route and catalog-backed controls', async 
   assert.match(component, /getGradeLevelCatalog\(\)/);
   assert.match(component, /options=\{subjects\.map/);
   assert.match(component, /options=\{gradeLevels\.map/);
+  assert.match(component, /id="tutor-search-max-price"[\s\S]*?step="50"/);
   assert.match(component, /key=\{result\.listingId\}/);
 });
 
