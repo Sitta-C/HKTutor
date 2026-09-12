@@ -132,6 +132,9 @@ describe('student booking API clients', () => {
     'preserves booking API error status %s for UI handling',
     async (status: number) => {
       fetchMock.mockResolvedValueOnce(jsonResponse({ message: 'booking request failed' }, status));
+      if (status === 401) {
+        fetchMock.mockResolvedValueOnce(jsonResponse({ message: 'refresh failed' }, 401));
+      }
 
       await expect(getBookingQuote('listing-id', 'slot-id')).rejects.toMatchObject({ status });
     },
