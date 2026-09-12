@@ -18,6 +18,7 @@ import {
   TutorBookingsResponseDto,
 } from '@/bookings/bookings.dto';
 import { PrismaService } from '@/database/prisma.service';
+import { Prisma } from '@/generated/prisma/client';
 import {
   AccountStatus,
   BookingStatus,
@@ -25,8 +26,6 @@ import {
   Role,
   TutorVerificationStatus,
 } from '@/generated/prisma/enums';
-
-import type { Prisma } from '@/generated/prisma/client';
 
 export type CreateBookingInput = CreateBookingDto & { studentUserId: string };
 export type GetBookingQuoteInput = GetBookingQuoteQueryDto & { studentUserId: string };
@@ -36,6 +35,10 @@ export interface GetMyBookingDetailInput {
   studentUserId: string;
 }
 export type GetTutorBookingsInput = GetTutorBookingsQueryDto & { tutorUserId: string };
+
+const MILLISECONDS_PER_HOUR = 60 * 60 * 1000;
+const BOOKING_CONFLICT_MESSAGE =
+  'The selected slot could not be booked because its availability changed.';
 
 @Injectable()
 export class BookingsService {
@@ -93,6 +96,7 @@ export class BookingsService {
             deletedAt: true,
             id: true,
             role: true,
+            studentProfile: { select: { nickname: true } },
           },
         });
 
@@ -103,6 +107,12 @@ export class BookingsService {
           student.deletedAt
         ) {
           throw new ForbiddenException('Only active students can create bookings.');
+        }
+
+        if (student.studentProfile === null) {
+          throw new ForbiddenException(
+            'Students must complete their profile before creating a booking.',
+          );
         }
 
         const listing = await tx.teachingListing.findUnique({
@@ -143,16 +153,18 @@ export class BookingsService {
           throw new BadRequestException('Tutors cannot book their own slots.');
         }
 
+        const amounts = deriveBookingAmounts(listing.pricePerHour, slot);
+
         const booking = await tx.booking.create({
           data: {
-            currency: 'THB',
-            discountAmount: 0,
+            currency: amounts.currency,
+            discountAmount: amounts.discountAmount,
             listingId: listing.id,
-            netAmount: listing.pricePerHour,
+            netAmount: amounts.netAmount,
             slotId: input.slotId,
             status: BookingStatus.PENDING,
             studentUserId: input.studentUserId,
-            subtotalAmount: listing.pricePerHour,
+            subtotalAmount: amounts.subtotalAmount,
             tutorProfileId: slot.tutorProfileId,
           },
         });
@@ -173,8 +185,7 @@ export class BookingsService {
       return result;
     } catch (error) {
       if (isDatabaseConflict(error)) {
-        const message = formatDatabaseConflict(error);
-        throw new ConflictException(message);
+        throw new ConflictException(BOOKING_CONFLICT_MESSAGE);
       }
 
       throw error;
@@ -217,7 +228,13 @@ export class BookingsService {
 
     const student = await this.prisma.user.findUnique({
       where: { id: input.studentUserId },
-      select: { accountStatus: true, deletedAt: true, id: true, role: true },
+      select: {
+        accountStatus: true,
+        deletedAt: true,
+        id: true,
+        role: true,
+        studentProfile: { select: { nickname: true } },
+      },
     });
 
     if (
@@ -227,6 +244,12 @@ export class BookingsService {
       student.deletedAt
     ) {
       throw new ForbiddenException('Only active students can request a quote.');
+    }
+
+    if (student.studentProfile === null) {
+      throw new ForbiddenException(
+        'Students must complete their profile before requesting a quote.',
+      );
     }
 
     const listing = await this.prisma.teachingListing.findUnique({
@@ -264,9 +287,11 @@ export class BookingsService {
       throw new ConflictException('The selected listing is not currently available for booking.');
     }
 
+    const amounts = deriveBookingAmounts(listing.pricePerHour, slot);
+
     return {
-      currency: 'THB',
-      discountAmount: (0).toFixed(2),
+      currency: amounts.currency,
+      discountAmount: amounts.discountAmount.toFixed(2),
       listing: {
         description: listing.description,
         gradeLevelId: listing.gradeLevel.id,
@@ -276,13 +301,13 @@ export class BookingsService {
         subjectId: listing.subject.id,
         subjectName: listing.subject.name,
       },
-      netAmount: listing.pricePerHour.toFixed(2),
+      netAmount: amounts.netAmount.toFixed(2),
       slot: {
         endAtUtc: slot.endAtUtc.toISOString(),
         id: slot.id,
         startAtUtc: slot.startAtUtc.toISOString(),
       },
-      subtotalAmount: listing.pricePerHour.toFixed(2),
+      subtotalAmount: amounts.subtotalAmount.toFixed(2),
       tutor: {
         displayName: tutorProfile.displayName,
         tutorId: listing.tutorProfileId,
@@ -508,7 +533,7 @@ export class BookingsService {
           startAtUtc: booking.slot.startAtUtc.toISOString(),
         },
         status: booking.status,
-        student: { nickname: booking.student.studentProfile?.nickname ?? null },
+        student: { nickname: booking.student.studentProfile!.nickname },
         subtotalAmount: booking.subtotalAmount.toFixed(2),
       })),
       total,
@@ -522,18 +547,34 @@ function isDatabaseConflict(error: unknown): boolean {
   }
 
   const code = String((error as { code?: string }).code ?? '');
-  return ['23503', '23505', '23514'].includes(code);
+  return ['P2002', 'P2003', 'P2004', '23503', '23505', '23514'].includes(code);
 }
 
-function formatDatabaseConflict(error: unknown): string {
-  if (!error || typeof error !== 'object') {
-    return 'The selected slot could not be booked.';
+function deriveBookingAmounts(
+  pricePerHour: Prisma.Decimal,
+  slot: { endAtUtc: Date; startAtUtc: Date },
+): {
+  currency: 'THB';
+  discountAmount: Prisma.Decimal;
+  netAmount: Prisma.Decimal;
+  subtotalAmount: Prisma.Decimal;
+} {
+  const durationMs = slot.endAtUtc.getTime() - slot.startAtUtc.getTime();
+
+  if (!Number.isFinite(durationMs) || durationMs <= 0) {
+    throw new ConflictException('The selected slot has an invalid duration.');
   }
 
-  const message = String((error as { message?: string }).message ?? '');
-  if (message) {
-    return message;
-  }
+  const subtotalAmount = new Prisma.Decimal(pricePerHour)
+    .mul(durationMs)
+    .div(MILLISECONDS_PER_HOUR)
+    .toDecimalPlaces(2);
+  const discountAmount = new Prisma.Decimal(0);
 
-  return 'The selected slot could not be booked.';
+  return {
+    currency: 'THB',
+    discountAmount,
+    netAmount: subtotalAmount.minus(discountAmount),
+    subtotalAmount,
+  };
 }

@@ -234,6 +234,7 @@ describe('BookingsController OpenAPI contract', () => {
       content: {
         'application/json': {
           schema: {
+            allOf: [{ $ref: '#/components/schemas/BookingResponseDto' }],
             example: {
               createdAt: '2026-09-10T09:04:31.001Z',
               currency: 'THB',
@@ -272,7 +273,15 @@ describe('BookingsController OpenAPI contract', () => {
     const operation = document.paths[`/${API_GLOBAL_PREFIX}/bookings/quote`]?.get;
 
     expect(operation?.summary).toBe('Get an authoritative booking quote');
-    expect(operation?.responses['200']).toBeDefined();
+    expect(operation?.responses['200']).toMatchObject({
+      content: {
+        'application/json': {
+          schema: {
+            allOf: [{ $ref: '#/components/schemas/BookingQuoteResponseDto' }],
+          },
+        },
+      },
+    });
     expect(operation?.responses['400']).toBeDefined();
     expect(operation?.responses['401']).toBeDefined();
     expect(operation?.responses['403']).toBeDefined();
@@ -291,7 +300,13 @@ describe('BookingsController OpenAPI contract', () => {
     const operation = document.paths[`/${API_GLOBAL_PREFIX}/bookings/me`]?.get;
 
     expect(operation?.summary).toBe("List the authenticated student's bookings");
-    expect(operation?.responses['200']).toBeDefined();
+    expect(operation?.responses['200']).toMatchObject({
+      content: {
+        'application/json': {
+          schema: { allOf: [{ $ref: '#/components/schemas/MyBookingsResponseDto' }] },
+        },
+      },
+    });
     expect(operation?.responses['400']).toBeDefined();
     expect(operation?.responses['401']).toBeDefined();
     expect(operation?.responses['403']).toBeDefined();
@@ -309,7 +324,13 @@ describe('BookingsController OpenAPI contract', () => {
     const operation = document.paths[`/${API_GLOBAL_PREFIX}/bookings/me/{bookingId}`]?.get;
 
     expect(operation?.summary).toBe("Get one of the authenticated student's bookings by ID");
-    expect(operation?.responses['200']).toBeDefined();
+    expect(operation?.responses['200']).toMatchObject({
+      content: {
+        'application/json': {
+          schema: { allOf: [{ $ref: '#/components/schemas/BookingDetailResponseDto' }] },
+        },
+      },
+    });
     expect(operation?.responses['400']).toBeDefined();
     expect(operation?.responses['401']).toBeDefined();
     expect(operation?.responses['403']).toBeDefined();
@@ -324,7 +345,13 @@ describe('BookingsController OpenAPI contract', () => {
     const operation = document.paths[`/${API_GLOBAL_PREFIX}/bookings/tutor`]?.get;
 
     expect(operation?.summary).toBe("List the authenticated tutor's assigned bookings");
-    expect(operation?.responses['200']).toBeDefined();
+    expect(operation?.responses['200']).toMatchObject({
+      content: {
+        'application/json': {
+          schema: { allOf: [{ $ref: '#/components/schemas/TutorBookingsResponseDto' }] },
+        },
+      },
+    });
     expect(operation?.responses['400']).toBeDefined();
     expect(operation?.responses['401']).toBeDefined();
     expect(operation?.responses['403']).toBeDefined();
@@ -336,5 +363,10 @@ describe('BookingsController OpenAPI contract', () => {
         expect.objectContaining({ name: 'to', required: false }),
       ]),
     );
+
+    const studentSchema = document.components?.schemas?.['TutorBookingStudentDto'] as
+      { properties?: { nickname?: { nullable?: boolean; type?: string } } } | undefined;
+    expect(studentSchema?.properties?.nickname).toMatchObject({ type: 'string' });
+    expect(studentSchema?.properties?.nickname?.nullable).not.toBe(true);
   });
 });

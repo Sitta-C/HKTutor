@@ -13,6 +13,7 @@
     "db:migrate:deploy": "pnpm --filter @hktutor/api db:migrate:deploy",
     "db:migrate:status": "pnpm --filter @hktutor/api db:migrate:status",
     "db:seed": "pnpm --filter @hktutor/api db:seed",
+    "db:verify:bookings": "pnpm --filter @hktutor/api db:verify:bookings",
     "db:verify:sprint1": "pnpm --filter @hktutor/api db:verify:sprint1",
     "test": "pnpm -r --if-present test",
     "lint": "pnpm lint:root && pnpm -r --if-present lint",

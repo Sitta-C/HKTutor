@@ -92,8 +92,13 @@ describe('BookingsService', () => {
       const { bookingId, listingId, slotId, studentUserId, tutorUserId } = createTestData();
       const pricePerHour = 500;
       const createdAt = new Date('2026-09-10T09:04:31.001Z');
-
-      const mockSlot = futureSlot(slotId, tutorUserId);
+      const startAtUtc = new Date(Date.now() + 60 * 60 * 1000);
+      const expectedAmount = 750;
+      const mockSlot = {
+        ...futureSlot(slotId, tutorUserId),
+        startAtUtc,
+        endAtUtc: new Date(startAtUtc.getTime() + 90 * 60 * 1000),
+      };
 
       const mockStudent = {
         accountStatus: AccountStatus.ACTIVE,
@@ -116,19 +121,20 @@ describe('BookingsService', () => {
         discountAmount: new Prisma.Decimal(0),
         id: bookingId,
         listingId,
-        netAmount: new Prisma.Decimal(pricePerHour),
+        netAmount: new Prisma.Decimal(expectedAmount),
         slotId,
         status: BookingStatus.PENDING,
         studentUserId,
-        subtotalAmount: new Prisma.Decimal(pricePerHour),
+        subtotalAmount: new Prisma.Decimal(expectedAmount),
         tutorProfileId: tutorUserId,
       };
 
+      const bookingCreate = jest.fn().mockResolvedValue(mockBooking);
       mockPrismaService.$transaction.mockImplementation(async (callback: TransactionCallback) => {
         const tx = {
           $queryRaw: jest.fn().mockResolvedValue([mockSlot]),
           booking: {
-            create: jest.fn().mockResolvedValue(mockBooking),
+            create: bookingCreate,
             findFirst: jest.fn().mockResolvedValue(null),
           },
           teachingListing: {
@@ -158,13 +164,26 @@ describe('BookingsService', () => {
         discountAmount: '0.00',
         id: bookingId,
         listingId,
-        netAmount: '500.00',
+        netAmount: '750.00',
         slotId,
         status: BookingStatus.PENDING,
-        subtotalAmount: '500.00',
+        subtotalAmount: '750.00',
       });
 
       expect(mockPrismaService.$transaction).toHaveBeenCalledTimes(1);
+      expect(bookingCreate).toHaveBeenCalledWith({
+        data: {
+          currency: 'THB',
+          discountAmount: new Prisma.Decimal(0),
+          listingId,
+          netAmount: new Prisma.Decimal(expectedAmount),
+          slotId,
+          status: BookingStatus.PENDING,
+          studentUserId,
+          subtotalAmount: new Prisma.Decimal(expectedAmount),
+          tutorProfileId: tutorUserId,
+        },
+      });
     });
 
     it('should throw BadRequestException when studentUserId is missing', async () => {
@@ -315,6 +334,32 @@ describe('BookingsService', () => {
 
       await expect(service.create(input)).rejects.toThrow(
         new ForbiddenException('Only active students can create bookings.'),
+      );
+    });
+
+    it('should require a completed student profile before creating a booking', async () => {
+      const { listingId, slotId, studentUserId, tutorUserId } = createTestData();
+      const mockSlot = futureSlot(slotId, tutorUserId);
+
+      mockPrismaService.$transaction.mockImplementation(async (callback: TransactionCallback) => {
+        const tx = {
+          $queryRaw: jest.fn().mockResolvedValue([mockSlot]),
+          booking: { findFirst: jest.fn().mockResolvedValue(null) },
+          user: {
+            findUnique: jest.fn().mockResolvedValue({
+              accountStatus: AccountStatus.ACTIVE,
+              deletedAt: null,
+              id: studentUserId,
+              role: Role.STUDENT,
+              studentProfile: null,
+            }),
+          },
+        };
+        return await callback(tx);
+      });
+
+      await expect(service.create({ listingId, slotId, studentUserId })).rejects.toThrow(
+        new ForbiddenException('Students must complete their profile before creating a booking.'),
       );
     });
 
@@ -664,27 +709,31 @@ describe('BookingsService', () => {
       );
     });
 
-    it('should throw ConflictException on unique constraint violation (P2002)', async () => {
-      const { listingId, slotId, studentUserId } = createTestData();
+    it.each(['P2002', '23505'])(
+      'maps database conflict %s to a stable 409 without exposing database details',
+      async (code) => {
+        const { listingId, slotId, studentUserId } = createTestData();
 
-      const databaseError = createDatabaseError(
-        'Unique constraint failed on the fields: (`studentUserId`,`slotId`)',
-        '23505',
-      );
+        const databaseError = createDatabaseError(
+          'Unique constraint failed on the fields: (`studentUserId`,`slotId`)',
+          code,
+        );
 
-      mockPrismaService.$transaction.mockRejectedValue(databaseError);
+        mockPrismaService.$transaction.mockRejectedValue(databaseError);
 
-      const input: CreateBookingInput = {
-        listingId,
-        slotId,
-        studentUserId,
-      };
+        const input: CreateBookingInput = {
+          listingId,
+          slotId,
+          studentUserId,
+        };
 
-      await expect(service.create(input)).rejects.toThrow(ConflictException);
-      await expect(service.create(input)).rejects.toThrow(
-        'Unique constraint failed on the fields: (`studentUserId`,`slotId`)',
-      );
-    });
+        await expect(service.create(input)).rejects.toThrow(
+          new ConflictException(
+            'The selected slot could not be booked because its availability changed.',
+          ),
+        );
+      },
+    );
 
     it('should throw error and rollback transaction on unexpected database error', async () => {
       const { listingId, slotId, studentUserId } = createTestData();
@@ -790,6 +839,7 @@ describe('BookingsService', () => {
       deletedAt: null,
       id: studentUserId,
       role: Role.STUDENT,
+      studentProfile: { nickname: 'Nan' },
     });
 
     const mockListingResult = (listingId: string, tutorUserId: string, pricePerHour: number) => ({
@@ -837,6 +887,32 @@ describe('BookingsService', () => {
       expect(result.discountAmount).toBe('0.00');
       expect(result.netAmount).toBe('450.00');
       expect(result.currency).toBe('THB');
+    });
+
+    it('prorates the authoritative amount from the slot duration and rounds to satang', async () => {
+      const { listingId, slotId, studentUserId, tutorUserId } = createTestData();
+      const startAtUtc = new Date(Date.now() + 60 * 60 * 1000);
+
+      mockPrismaService.availabilitySlot.findUnique.mockResolvedValue({
+        ...mockSlotResult(slotId, tutorUserId),
+        startAtUtc,
+        endAtUtc: new Date(startAtUtc.getTime() + 20 * 60 * 1000),
+      });
+      mockPrismaService.booking.findFirst.mockResolvedValue(null);
+      mockPrismaService.user.findUnique.mockResolvedValue(mockStudentResult(studentUserId));
+      mockPrismaService.teachingListing.findUnique.mockResolvedValue(
+        mockListingResult(listingId, tutorUserId, 100),
+      );
+      mockPrismaService.tutorProfile.findUnique.mockResolvedValue({
+        displayName: 'Anan Suksawat',
+        verificationStatus: TutorVerificationStatus.VERIFIED,
+      });
+
+      const result = await service.getQuote({ listingId, slotId, studentUserId });
+
+      expect(result.subtotalAmount).toBe('33.33');
+      expect(result.discountAmount).toBe('0.00');
+      expect(result.netAmount).toBe('33.33');
     });
 
     it('creates no Booking row', async () => {
@@ -970,6 +1046,24 @@ describe('BookingsService', () => {
       await expect(service.getQuote({ listingId, slotId, studentUserId })).rejects.toThrow(
         new ForbiddenException('Only active students can request a quote.'),
       );
+    });
+
+    it('requires a completed student profile before returning a quote', async () => {
+      const { listingId, slotId, studentUserId, tutorUserId } = createTestData();
+
+      mockPrismaService.availabilitySlot.findUnique.mockResolvedValue(
+        mockSlotResult(slotId, tutorUserId),
+      );
+      mockPrismaService.booking.findFirst.mockResolvedValue(null);
+      mockPrismaService.user.findUnique.mockResolvedValue({
+        ...mockStudentResult(studentUserId),
+        studentProfile: null,
+      });
+
+      await expect(service.getQuote({ listingId, slotId, studentUserId })).rejects.toThrow(
+        new ForbiddenException('Students must complete their profile before requesting a quote.'),
+      );
+      expect(mockPrismaService.teachingListing.findUnique).not.toHaveBeenCalled();
     });
   });
 
@@ -1268,18 +1362,6 @@ describe('BookingsService', () => {
       expect(result.items).toEqual([expect.objectContaining({ student: { nickname: 'Nan' } })]);
       expect(result.items[0]).not.toHaveProperty('tutor');
       expect(Object.keys(result.items[0] as object)).not.toContain('legalName');
-    });
-
-    it('projects a null nickname when the student has no profile', async () => {
-      const { tutorUserId } = createTestData();
-      const row = mockTutorBookingRow({ student: { studentProfile: null } });
-
-      mockPrismaService.booking.findMany.mockResolvedValue([row]);
-      mockPrismaService.booking.count.mockResolvedValue(1);
-
-      const result = await service.getTutorBookings({ tutorUserId });
-
-      expect(result.items[0]?.student).toEqual({ nickname: null });
     });
 
     it('combines the status filter with the where clause', async () => {
