@@ -151,3 +151,81 @@ export interface PublicAvailabilityQuery {
   from?: string | Date;
   to?: string | Date;
 }
+
+export type BookingStatus = 'PENDING' | 'CONFIRMED' | 'COMPLETED' | 'CANCELED' | 'EXPIRED';
+
+export interface CreateBookingPayload {
+  listingId: string;
+  slotId: string;
+}
+
+export interface BookingQuoteTutor {
+  tutorId: string;
+  displayName: string;
+}
+
+export interface BookingQuoteListing {
+  id: string;
+  subjectId: string;
+  subjectName: string;
+  gradeLevelId: string;
+  gradeLevelName: string;
+  pricePerHour: string;
+  description: string;
+}
+
+export interface BookingQuoteSlot {
+  id: string;
+  startAtUtc: string;
+  endAtUtc: string;
+}
+
+export interface BookingQuote {
+  tutor: BookingQuoteTutor;
+  listing: BookingQuoteListing;
+  slot: BookingQuoteSlot;
+  subtotalAmount: string;
+  discountAmount: string;
+  netAmount: string;
+  currency: string;
+}
+
+export interface BookingResponse {
+  id: string;
+  status: BookingStatus;
+  listingId: string;
+  slotId: string;
+  subtotalAmount: string;
+  discountAmount: string;
+  netAmount: string;
+  currency: string;
+  createdAt: string;
+}
+
+export interface BookingView {
+  id: string;
+  status: BookingStatus;
+  tutor: BookingQuoteTutor;
+  listing: BookingQuoteListing;
+  slot: BookingQuoteSlot;
+  subtotalAmount: string;
+  discountAmount: string;
+  netAmount: string;
+  currency: string;
+  createdAt: string;
+}
+
+export interface BookingDetail extends BookingView {
+  updatedAt: string;
+}
+
+export interface MyBookingsResponse {
+  items: BookingView[];
+  total: number;
+}
+
+export interface MyBookingsQuery {
+  status?: BookingStatus;
+  from?: string | Date;
+  to?: string | Date;
+}

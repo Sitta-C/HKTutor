@@ -21,7 +21,7 @@ export function StudentDashboard({ user, onLogout }: StudentDashboardProps) {
 
   const headerNav = (
     <>
-      <Link href="#bookings">{copy.dashboard.header.myBookingsNav}</Link>
+      <Link href="/dashboard/bookings">{copy.dashboard.header.myBookingsNav}</Link>
       <Link href="/tutors" className="dash-cta">
         {copy.dashboard.header.findTutorCta}
       </Link>
@@ -91,7 +91,7 @@ export function StudentDashboard({ user, onLogout }: StudentDashboardProps) {
                 </span>
                 <span>{studentCopy.findTutorAction}</span>
               </Link>
-              <Link href="#bookings">
+              <Link href="/dashboard/bookings">
                 <span className="ico" aria-hidden="true">
                   <DashboardIcon name="calendar" />
                 </span>
