@@ -542,7 +542,7 @@ export default function TutorListingEditor({ listingId }: TutorListingEditorProp
                     type="button"
                     disabled={createBlocked || !isVerified || submitAction !== null}
                     onClick={() => void saveListing('publish')}
-                    className="listing-primary-action profile-primary-button min-h-12 rounded-md bg-[#34271e] px-5 text-sm font-extrabold text-white shadow-[0_8px_18px_-10px_rgba(43,31,22,0.85)] transition hover:-translate-y-0.5 hover:bg-[#4b3729] disabled:cursor-not-allowed disabled:translate-y-0 disabled:opacity-45"
+                    className="listing-primary-action profile-primary-button min-h-12 rounded-md bg-[#34271e] px-5 text-sm font-extrabold text-white shadow-[0_2px_8px_-5px_rgba(43,31,22,0.35)] transition hover:-translate-y-0.5 hover:bg-[#4b3729] disabled:cursor-not-allowed disabled:translate-y-0 disabled:opacity-45"
                   >
                     {submitAction === 'publish' ? copy.publishing : copy.publish}
                   </button>
@@ -562,7 +562,7 @@ export default function TutorListingEditor({ listingId }: TutorListingEditorProp
               <p className="profile-preview-subtitle">{copy.previewBody}</p>
               <div className="listing-preview-content">
                 <div className="flex items-center gap-3">
-                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md bg-gradient-to-br from-[#ffc57d] to-[#d18b43] text-sm font-black text-[#2f2117]">
+                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md bg-[#d18b43] text-sm font-black text-[#2f2117]">
                     {profileDisplayName.charAt(0).toUpperCase()}
                   </span>
                   <div className="min-w-0">

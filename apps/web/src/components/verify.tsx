@@ -160,7 +160,7 @@ function VerifyForm() {
 
   return (
     <AuthShell page="register">
-      <section className="w-full max-w-[624px] rounded-[2rem] bg-white px-6 py-10 shadow-[0_22px_65px_rgba(46,39,25,0.08)] sm:px-12 sm:py-14 lg:px-[4.25rem] lg:py-[4.5rem]">
+      <section className="w-full max-w-[624px] rounded-[2rem] bg-white px-6 py-10 shadow-[0_10px_28px_rgba(46,39,25,0.06)] sm:px-12 sm:py-14 lg:px-[4.25rem] lg:py-[4.5rem]">
         <div className="mx-auto max-w-[490px] text-center">
           <p className="mb-3 text-[0.68rem] font-bold uppercase tracking-[0.24em] text-[#d18b43]">
             {copy.register.otpEyebrow}

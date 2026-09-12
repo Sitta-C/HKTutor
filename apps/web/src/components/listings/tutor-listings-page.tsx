@@ -238,7 +238,7 @@ export default function TutorListingsPage() {
           </div>
         )}
 
-        <section className="listing-panel mt-5 rounded-[1.6rem] border border-[#ebe6dd] bg-white shadow-[0_1px_2px_rgba(46,39,25,0.06),0_18px_40px_-12px_rgba(46,39,25,0.14)]">
+        <section className="listing-panel mt-5 rounded-[1.6rem] border border-[#ebe6dd] bg-white shadow-[0_1px_2px_rgba(46,39,25,0.04),0_8px_22px_-14px_rgba(46,39,25,0.1)]">
           <div className="listing-filter-bar flex flex-col gap-4 border-b border-[#ebe6dd] p-4 sm:p-5 lg:flex-row lg:items-center lg:justify-between">
             <div className="hidden flex-wrap gap-2 sm:flex" aria-label={copy.filterLabel}>
               {(['ALL', 'PUBLISHED', 'DRAFT', 'ARCHIVED'] as const).map((value) => (
@@ -316,7 +316,7 @@ export default function TutorListingsPage() {
                 {visibleListings.map((listing) => (
                   <article
                     key={listing.id}
-                    className="listing-card flex min-h-[21rem] min-w-0 flex-col rounded-[1.15rem] border border-[#ebe6dd] bg-white p-5 transition hover:-translate-y-0.5 hover:border-[#d9d2c6] hover:shadow-[0_2px_4px_rgba(46,39,25,0.08),0_26px_55px_-14px_rgba(46,39,25,0.18)] sm:p-6"
+                    className="listing-card flex min-h-[21rem] min-w-0 flex-col rounded-[1.15rem] border border-[#ebe6dd] bg-white p-5 transition hover:-translate-y-0.5 hover:border-[#d9d2c6] hover:shadow-[0_2px_4px_rgba(46,39,25,0.05),0_12px_26px_-14px_rgba(46,39,25,0.12)] sm:p-6"
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">

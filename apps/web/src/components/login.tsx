@@ -44,7 +44,7 @@ export default function Login() {
 
   return (
     <AuthShell page="login">
-      <section className="w-full max-w-[624px] rounded-[2rem] bg-white px-6 py-10 shadow-[0_22px_65px_rgba(46,39,25,0.08)] sm:px-12 sm:py-14 lg:px-[4.25rem] lg:py-[4.5rem]">
+      <section className="w-full max-w-[624px] rounded-[2rem] bg-white px-6 py-10 shadow-[0_10px_28px_rgba(46,39,25,0.06)] sm:px-12 sm:py-14 lg:px-[4.25rem] lg:py-[4.5rem]">
         <div className="mx-auto max-w-[490px]">
           <div className="mb-8 text-center sm:mb-9">
             <p className="mb-3 text-[0.68rem] font-bold uppercase tracking-[0.24em] text-[#d18b43]">
@@ -111,7 +111,7 @@ export default function Login() {
             <button
               type="submit"
               disabled={isLoading || isAuthLoading}
-              className="mt-2 flex h-[3.9rem] w-full items-center justify-center rounded-xl bg-[#ffc57d] px-5 text-base font-bold text-[#171714] shadow-[0_8px_18px_rgba(206,145,64,0.14)] transition-all hover:-translate-y-0.5 hover:bg-[#ffbd6c] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#171714]/30 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+              className="mt-2 flex h-[3.9rem] w-full items-center justify-center rounded-xl bg-[#ffc57d] px-5 text-base font-bold text-[#171714] shadow-[0_3px_10px_rgba(206,145,64,0.14)] transition-all hover:-translate-y-0.5 hover:bg-[#ffbd6c] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#171714]/30 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {isLoading ? copy.login.loading : copy.login.submit}
             </button>
