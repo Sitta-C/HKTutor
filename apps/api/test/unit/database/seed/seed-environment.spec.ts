@@ -5,6 +5,8 @@ const completeEnvironment = {
   SEED_ADMIN_PASSWORD: 'admin-pass-123',
   SEED_TUTOR_EMAIL: ' Tutor@Example.com ',
   SEED_TUTOR_PASSWORD: 'tutor-pass-123',
+  SEED_STUDENT_EMAIL: ' Student@Example.com ',
+  SEED_STUDENT_PASSWORD: 'student-pass-123',
 };
 
 describe('readSeedEnvironment', () => {
@@ -14,6 +16,8 @@ describe('readSeedEnvironment', () => {
       adminPassword: 'admin-pass-123',
       tutorEmail: 'tutor@example.com',
       tutorPassword: 'tutor-pass-123',
+      studentEmail: 'student@example.com',
+      studentPassword: 'student-pass-123',
     });
   });
 
@@ -24,6 +28,9 @@ describe('readSeedEnvironment', () => {
     expect(() =>
       readSeedEnvironment({ ...completeEnvironment, SEED_TUTOR_EMAIL: undefined }),
     ).toThrow('Tutor seed environment is incomplete');
+    expect(() =>
+      readSeedEnvironment({ ...completeEnvironment, SEED_STUDENT_EMAIL: undefined }),
+    ).toThrow('Student seed environment is incomplete');
   });
 
   it('rejects short passwords', () => {
@@ -35,6 +42,9 @@ describe('readSeedEnvironment', () => {
   it('rejects duplicate emails case-insensitively', () => {
     expect(() =>
       readSeedEnvironment({ ...completeEnvironment, SEED_TUTOR_EMAIL: 'ADMIN@example.com' }),
-    ).toThrow('Admin and tutor seed emails must be different');
+    ).toThrow('Admin, tutor, and student seed emails must all be different');
+    expect(() =>
+      readSeedEnvironment({ ...completeEnvironment, SEED_STUDENT_EMAIL: 'TUTOR@example.com' }),
+    ).toThrow('Admin, tutor, and student seed emails must all be different');
   });
 });
