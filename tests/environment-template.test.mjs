@@ -37,6 +37,8 @@ test('documents the required server-only and intentionally public environment va
     'RESEND_API_KEY',
     'SEED_ADMIN_EMAIL',
     'SEED_ADMIN_PASSWORD',
+    'SEED_STUDENT_EMAIL',
+    'SEED_STUDENT_PASSWORD',
     'SEED_TUTOR_EMAIL',
     'SEED_TUTOR_PASSWORD',
     'SUPABASE_SECRET_KEY',
@@ -53,6 +55,8 @@ test('documents the required server-only and intentionally public environment va
   assert.equal(template.SEED_ADMIN_PASSWORD, '[ADMIN_PASSWORD_AT_LEAST_10_CHARACTERS]');
   assert.equal(template.SEED_TUTOR_EMAIL, '[TUTOR_EMAIL]');
   assert.equal(template.SEED_TUTOR_PASSWORD, '[TUTOR_PASSWORD_AT_LEAST_10_CHARACTERS]');
+  assert.equal(template.SEED_STUDENT_EMAIL, '[STUDENT_EMAIL]');
+  assert.equal(template.SEED_STUDENT_PASSWORD, '[STUDENT_PASSWORD_AT_LEAST_10_CHARACTERS]');
   assert.equal(template.JWT_ACCESS_SECRET, '[JWT_ACCESS_SECRET_AT_LEAST_32_CHARACTERS]');
   assert.equal(template.JWT_REFRESH_SECRET, '[JWT_REFRESH_SECRET_AT_LEAST_32_CHARACTERS]');
   assert.equal(template.RESEND_API_KEY, '[RESEND_API_KEY]');

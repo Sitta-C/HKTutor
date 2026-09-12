@@ -17,9 +17,20 @@ jobs:
   check:
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    env:
-      CLERK_SECRET_KEY: sk_test_placeholder
-      NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: pk_test_Y2xlcmsuZXhhbXBsZS50ZXN0JA==
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: hktutor_ci
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_USER: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d hktutor_ci"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     steps:
       - name: Check out repository
         uses: actions/checkout@v6
@@ -44,3 +55,19 @@ jobs:
 
       - name: Run workspace checks
         run: pnpm check
+
+      - name: Verify concurrent booking requests against PostgreSQL
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/hktutor_ci?schema=public
+          HKTUTOR_ALLOW_DISPOSABLE_DB_VERIFY: '1'
+          NODE_ENV: test
+          SEED_ADMIN_EMAIL: admin@hktutor.test
+          SEED_ADMIN_PASSWORD: admin-pass-123
+          SEED_STUDENT_EMAIL: student@hktutor.test
+          SEED_STUDENT_PASSWORD: student-pass-123
+          SEED_TUTOR_EMAIL: tutor@hktutor.test
+          SEED_TUTOR_PASSWORD: tutor-pass-123
+        run: |
+          pnpm db:migrate:deploy
+          pnpm db:seed
+          pnpm db:verify:bookings

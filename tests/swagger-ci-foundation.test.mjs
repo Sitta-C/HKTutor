@@ -31,7 +31,7 @@ test('keeps Swagger implementation out of controller files', async () => {
   }
 });
 
-test('CI runs the complete workspace check with the pinned toolchain', async () => {
+test('CI runs the complete workspace check and booking race verification', async () => {
   const workflow = await fs.readFile('.github/workflows/ci.yml', 'utf8');
 
   assert.match(workflow, /^permissions:\s*\n\s+contents: read$/m);
@@ -42,7 +42,13 @@ test('CI runs the complete workspace check with the pinned toolchain', async () 
   assert.match(workflow, /version: ['"]?11\.19\.0['"]?/);
   assert.match(workflow, /pnpm install --frozen-lockfile/);
   assert.match(workflow, /pnpm check/);
-  assert.doesNotMatch(workflow, /DATABASE_URL|SUPABASE_(?:SECRET|SERVICE_ROLE)_KEY/);
+  assert.match(workflow, /image: postgres:17-alpine/);
+  assert.match(
+    workflow,
+    /DATABASE_URL: postgresql:\/\/postgres:postgres@127\.0\.0\.1:5432\/hktutor_ci\?schema=public/,
+  );
+  assert.match(workflow, /pnpm db:verify:bookings/);
+  assert.doesNotMatch(workflow, /SUPABASE_(?:SECRET|SERVICE_ROLE)_KEY/);
 });
 
 test('workspace check generates Prisma Client before linting', async () => {
