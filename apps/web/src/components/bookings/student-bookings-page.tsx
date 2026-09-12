@@ -37,15 +37,19 @@ export default function StudentBookingsPage() {
   const [reloadKey, setReloadKey] = useState(0);
 
   const reload = () => {
-    setIsLoading(true);
-    setError(null);
     setReloadKey((value) => value + 1);
   };
 
   useEffect(() => {
     let active = true;
 
-    getMyBookings(filter === 'ALL' ? {} : { status: filter })
+    const fetchBookings = () => {
+      setIsLoading(true);
+      setError(null);
+      return getMyBookings(filter === 'ALL' ? {} : { status: filter });
+    };
+
+    fetchBookings()
       .then((response) => {
         if (!active) return;
         setItems(response.items);
@@ -93,11 +97,7 @@ export default function StudentBookingsPage() {
                   : 'border-[#ebe6dd] bg-white text-[#625b53] hover:bg-[#f8f5ef]'
               }`}
               aria-pressed={filter === item}
-              onClick={() => {
-                setIsLoading(true);
-                setError(null);
-                setFilter(item);
-              }}
+              onClick={() => setFilter(item)}
             >
               {getFilterLabel(item, text)}
             </button>

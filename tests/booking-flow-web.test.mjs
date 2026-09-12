@@ -62,3 +62,13 @@ test('renders Student-owned list/detail states and an explicit empty state', asy
   assert.match(detail, /getBookingErrorMessage/);
   assert.match(detail, /dashboard\/bookings/);
 });
+
+test('starts booking-list loading only when a fetch effect runs', async () => {
+  const list = await fs.readFile(listPath, 'utf8');
+
+  assert.match(list, /useEffect\(\(\) => \{[\s\S]*?setIsLoading\(true\);[\s\S]*?getMyBookings\(/);
+  assert.match(list, /getMyBookings\(filter === 'ALL' \? \{\} : \{ status: filter \}\)/);
+  assert.match(list, /\}, \[filter, reloadKey\]\);/);
+  assert.match(list, /onClick=\{\(\) => setFilter\(item\)\}/);
+  assert.doesNotMatch(list, /onClick=\{\(\) => \{[\s\S]*?setIsLoading\(true\)/);
+});
