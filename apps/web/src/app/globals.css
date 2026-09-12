@@ -47,8 +47,7 @@ input {
 /* --- Logged-in Dashboard tokens & component classes (ui-design/uidesign.md §4) --- */
 :root {
   --bg: #f4f0e8;
-  --bg-grad-1: #f7f4ec;
-  --bg-grad-2: #f3ecdf;
+  --bg-light: #f7f4ec;
   --card: #ffffff;
   --ink: #1a1916;
   --ink-2: #5e5a52;
@@ -61,14 +60,10 @@ input {
   --cta-deep: #f0a04e;
   --student: #22c49a;
   --student-deep: #0e8a73;
-  --student-grad-1: #3fd8b3;
-  --student-grad-2: #0c9a7c;
   --student-soft: rgba(34, 196, 154, 0.14);
   --student-softer: rgba(34, 196, 154, 0.07);
   --tutor: #0e8eea;
   --tutor-deep: #0b6db0;
-  --tutor-grad-1: #4ab4f5;
-  --tutor-grad-2: #0a6fbc;
   --tutor-soft: rgba(14, 142, 234, 0.14);
   --tutor-softer: rgba(14, 142, 234, 0.07);
   --admin: #d18b43;
@@ -78,14 +73,14 @@ input {
   --warn-bg: rgba(209, 139, 67, 0.14);
   --warn-fg: #c07a2e;
   --error: #c04f40;
-  --shadow-card: 0 1px 2px rgba(46, 39, 25, 0.06), 0 18px 40px -12px rgba(46, 39, 25, 0.14);
-  --shadow-card-hover: 0 2px 4px rgba(46, 39, 25, 0.08), 0 26px 55px -14px rgba(46, 39, 25, 0.18);
-  --shadow-cta: 0 0 0 0.5px rgba(0, 0, 0, 0), 0 6px 16px -4px rgba(240, 160, 78, 0.5);
-  --shadow-btn: 0 1px 2px rgba(20, 20, 18, 0.5);
+  --shadow-card: 0 1px 2px rgba(46, 39, 25, 0.04), 0 8px 24px -16px rgba(46, 39, 25, 0.12);
+  --shadow-card-hover: 0 2px 4px rgba(46, 39, 25, 0.05), 0 14px 28px -16px rgba(46, 39, 25, 0.14);
+  --shadow-cta: 0 2px 8px -6px rgba(240, 160, 78, 0.24);
+  --shadow-btn: 0 1px 2px rgba(20, 20, 18, 0.22);
 }
 
 .dash-root {
-  background: linear-gradient(160deg, var(--bg-grad-1), var(--bg-grad-2));
+  background: var(--bg);
   min-height: 100dvh;
   color: var(--ink);
   display: flex;
@@ -105,7 +100,7 @@ input {
   content: '';
   position: absolute;
   inset: 0;
-  background: radial-gradient(circle at 78% 8%, rgba(255, 255, 255, 0.5), transparent 40%);
+  background: rgba(255, 255, 255, 0.3);
 }
 
 .dash-art .blob {
@@ -119,11 +114,7 @@ input {
   top: -12rem;
   width: 34rem;
   height: 34rem;
-  background: radial-gradient(
-    circle at 30% 30%,
-    rgba(255, 252, 246, 0.9),
-    rgba(235, 224, 205, 0.4)
-  );
+  background: rgba(235, 224, 205, 0.4);
 }
 
 .dash-art .b2 {
@@ -131,11 +122,7 @@ input {
   bottom: -14rem;
   width: 36rem;
   height: 36rem;
-  background: radial-gradient(
-    circle at 50% 50%,
-    rgba(246, 224, 198, 0.75),
-    rgba(241, 221, 196, 0.25)
-  );
+  background: rgba(241, 221, 196, 0.25);
 }
 
 .dash-art .b3-student {
@@ -143,7 +130,7 @@ input {
   bottom: 6%;
   width: 16rem;
   height: 16rem;
-  background: radial-gradient(circle at 40% 40%, rgba(34, 196, 154, 0.1), transparent 80%);
+  background: rgba(34, 196, 154, 0.1);
 }
 
 .dash-art .b3-tutor {
@@ -151,7 +138,7 @@ input {
   bottom: 6%;
   width: 16rem;
   height: 16rem;
-  background: radial-gradient(circle at 40% 40%, rgba(14, 142, 234, 0.1), transparent 80%);
+  background: rgba(14, 142, 234, 0.1);
 }
 
 .dash-art .b3-admin {
@@ -159,7 +146,7 @@ input {
   bottom: 6%;
   width: 16rem;
   height: 16rem;
-  background: radial-gradient(circle at 40% 40%, rgba(209, 139, 67, 0.1), transparent 80%);
+  background: rgba(209, 139, 67, 0.1);
 }
 
 .dash-app {
@@ -184,7 +171,7 @@ input {
   flex-direction: column;
   gap: 1.25rem;
   padding: 1.5rem 1.25rem;
-  background: linear-gradient(180deg, #fbf9f3, #f4efe4);
+  background: #f4efe4;
   border-right: 1px solid rgba(23, 23, 20, 0.07);
   transition:
     flex-basis 0.3s ease,
@@ -238,7 +225,7 @@ input {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 2px 8px rgba(23, 23, 20, 0.08);
+  box-shadow: 0 1px 4px rgba(23, 23, 20, 0.05);
   transition:
     background 0.2s,
     color 0.2s,
@@ -424,9 +411,9 @@ input {
   align-items: center;
   justify-content: center;
   border-radius: 0.6rem;
-  background: linear-gradient(135deg, #2a2822, #14130f);
+  background: #14130f;
   box-shadow: var(--shadow-btn);
-  color: var(--bg-grad-1);
+  color: var(--bg-light);
   font-size: 0.72rem;
   font-weight: 800;
   letter-spacing: -0.04em;
@@ -439,7 +426,7 @@ input {
   padding: 0.85rem;
   border: 1px solid var(--border);
   border-radius: 1rem;
-  background: linear-gradient(135deg, #fff, #fbf8f1);
+  background: #fbf8f1;
 }
 
 .dash-account-card {
@@ -460,18 +447,18 @@ input {
 }
 
 .dash-avatar-student {
-  background: linear-gradient(135deg, var(--student-grad-1), var(--student-grad-2));
-  box-shadow: 0 2px 6px rgba(34, 196, 154, 0.3);
+  background: var(--student-deep);
+  box-shadow: 0 1px 3px rgba(34, 196, 154, 0.16);
 }
 
 .dash-avatar-tutor {
-  background: linear-gradient(135deg, var(--tutor-grad-1), var(--tutor-grad-2));
-  box-shadow: 0 2px 6px rgba(14, 142, 234, 0.3);
+  background: var(--tutor-deep);
+  box-shadow: 0 1px 3px rgba(14, 142, 234, 0.16);
 }
 
 .dash-avatar-admin {
-  background: linear-gradient(135deg, #ffc57d, #f0a04e);
-  box-shadow: 0 2px 6px rgba(240, 160, 78, 0.3);
+  background: var(--admin-deep);
+  box-shadow: 0 1px 3px rgba(240, 160, 78, 0.16);
 }
 
 .dash-side-nav {
@@ -558,7 +545,7 @@ input {
   justify-content: center;
   border-radius: 0.55rem;
   background: #fff;
-  box-shadow: 0 1px 3px rgba(46, 39, 25, 0.15);
+  box-shadow: 0 1px 2px rgba(46, 39, 25, 0.08);
   flex-shrink: 0;
 }
 
@@ -585,7 +572,7 @@ input {
 }
 
 .dash-side-nav a.is-active .ico {
-  box-shadow: 0 2px 7px rgba(46, 39, 25, 0.1);
+  box-shadow: none;
 }
 
 .dash-side-nav .danger {
@@ -638,7 +625,7 @@ input {
 }
 
 .dash-app.sb-collapsed .dash-side-nav a.is-active {
-  box-shadow: 0 5px 14px rgba(46, 39, 25, 0.14);
+  box-shadow: none;
 }
 
 .dash-app.sb-collapsed .dash-side-nav a.is-active .ico {
@@ -798,7 +785,6 @@ input {
   border-radius: 999px;
   box-shadow: var(--shadow-cta);
   text-decoration: none;
-  background-image: linear-gradient(135deg, var(--cta), var(--cta-deep));
   transition:
     transform 0.15s,
     box-shadow 0.15s;
@@ -806,7 +792,7 @@ input {
 
 .dash-cta:hover {
   transform: translateY(-2px);
-  box-shadow: 0 10px 22px -6px rgba(240, 160, 78, 0.55);
+  box-shadow: 0 4px 10px -6px rgba(240, 160, 78, 0.2);
 }
 
 .dash-cta:focus-visible {
@@ -871,18 +857,18 @@ input {
 }
 
 .dash-role-chip-student {
-  background: linear-gradient(135deg, var(--student-grad-1), var(--student-grad-2));
-  box-shadow: 0 2px 8px rgba(34, 196, 154, 0.35);
+  background: var(--student-deep);
+  box-shadow: 0 1px 4px rgba(34, 196, 154, 0.18);
 }
 
 .dash-role-chip-tutor {
-  background: linear-gradient(135deg, var(--tutor-grad-1), var(--tutor-grad-2));
-  box-shadow: 0 2px 8px rgba(14, 142, 234, 0.35);
+  background: var(--tutor-deep);
+  box-shadow: 0 1px 4px rgba(14, 142, 234, 0.18);
 }
 
 .dash-role-chip-admin {
-  background: linear-gradient(135deg, #ffc57d, #f0a04e);
-  box-shadow: 0 2px 8px rgba(240, 160, 78, 0.35);
+  background: var(--admin-deep);
+  box-shadow: 0 1px 4px rgba(240, 160, 78, 0.18);
 }
 
 .dash-greeting p {
@@ -954,7 +940,7 @@ input {
   top: 0;
   right: 0;
   height: 5px;
-  background: linear-gradient(90deg, var(--student-grad-1), var(--student-grad-2));
+  background: var(--student);
 }
 
 .dash-summary-student .dash-card::after {
@@ -975,7 +961,7 @@ input {
   top: 0;
   right: 0;
   height: 5px;
-  background: linear-gradient(90deg, var(--tutor-grad-1), var(--tutor-grad-2));
+  background: var(--tutor);
 }
 
 .dash-summary-tutor .dash-card::after {
@@ -1123,13 +1109,13 @@ input {
   font-weight: 700;
   font-size: 0.88rem;
   color: #fff;
-  background: linear-gradient(135deg, #2a2822, #151410);
+  background: #2a2822;
   border: 0;
   border-radius: 999px;
   padding: 0.72rem 1.35rem;
   cursor: pointer;
   text-decoration: none;
-  box-shadow: 0 2px 10px rgba(25, 24, 20, 0.35);
+  box-shadow: 0 1px 3px rgba(25, 24, 20, 0.18);
   transition:
     transform 0.15s,
     box-shadow 0.15s,
@@ -1138,7 +1124,7 @@ input {
 
 .dash-btn-dark:hover {
   transform: translateY(-2px);
-  box-shadow: 0 6px 16px rgba(25, 24, 20, 0.4);
+  box-shadow: 0 3px 8px rgba(25, 24, 20, 0.22);
   opacity: 0.95;
 }
 
@@ -1185,14 +1171,14 @@ input {
 .dash-qa-student button:hover {
   background: var(--student-soft);
   transform: translateX(3px);
-  box-shadow: 0 2px 8px rgba(34, 196, 154, 0.18);
+  box-shadow: none;
 }
 
 .dash-qa-tutor a:hover,
 .dash-qa-tutor button:hover {
   background: var(--tutor-soft);
   transform: translateX(3px);
-  box-shadow: 0 2px 8px rgba(14, 142, 234, 0.18);
+  box-shadow: none;
 }
 
 .dash-qa .ico {
@@ -1276,7 +1262,7 @@ input {
   display: block;
   height: 100%;
   border-radius: 99px;
-  background: linear-gradient(90deg, var(--tutor-grad-1), var(--tutor-grad-2));
+  background: var(--tutor);
 }
 
 /* --- Student and Tutor profile editor --- */
@@ -1670,14 +1656,14 @@ input {
 
 .profile-primary-button {
   border: 0;
-  background: linear-gradient(135deg, #2a2822, #151410);
+  background: #2a2822;
   color: #fff;
   box-shadow: var(--shadow-btn);
 }
 
 .profile-form-card.student .profile-primary-button {
-  background: linear-gradient(135deg, var(--student-grad-1), var(--student-grad-2));
-  box-shadow: 0 4px 12px rgba(34, 196, 154, 0.3);
+  background: var(--student);
+  box-shadow: 0 2px 6px rgba(34, 196, 154, 0.16);
 }
 
 .profile-ghost-button {
@@ -1759,11 +1745,11 @@ input {
 
 .profile-public-card.student {
   padding: 1.15rem;
-  background: linear-gradient(145deg, #fff 55%, var(--student-softer));
+  background: var(--student-softer);
 }
 
 .profile-public-card.tutor {
-  background: linear-gradient(145deg, #fff 55%, var(--tutor-softer));
+  background: var(--tutor-softer);
 }
 
 .profile-public-card::after {
@@ -1806,11 +1792,11 @@ input {
 }
 
 .profile-avatar.student {
-  background: linear-gradient(135deg, var(--student-grad-1), var(--student-grad-2));
+  background: var(--student-deep);
 }
 
 .profile-avatar.tutor {
-  background: linear-gradient(135deg, var(--tutor-grad-1), var(--tutor-grad-2));
+  background: var(--tutor-deep);
 }
 
 .profile-identity h3 {
@@ -1924,7 +1910,7 @@ input {
   background: #1d1c18;
   padding: 0.8rem 1rem;
   color: #fff;
-  box-shadow: 0 18px 45px rgba(20, 20, 18, 0.28);
+  box-shadow: 0 10px 24px rgba(20, 20, 18, 0.18);
   font-size: 0.76rem;
   font-weight: 700;
   display: inline-flex;
@@ -1938,7 +1924,7 @@ input {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  background: var(--bg-grad-1);
+  background: var(--bg-light);
   color: var(--ink-2);
   font-size: 0.85rem;
   font-weight: 700;
@@ -2047,7 +2033,7 @@ input {
   --profile-apricot: #ffc57d;
   --profile-caramel: #d18b43;
   --profile-border: #ebe6dd;
-  background: linear-gradient(160deg, #f7f4ec, #f3ecdf);
+  background: var(--bg);
 }
 
 .dash-app-profile .dash-sidebar {
@@ -2116,8 +2102,8 @@ input {
 }
 
 .dash-app-profile .dash-avatar-tutor {
-  background: linear-gradient(135deg, var(--profile-apricot), var(--profile-caramel));
-  box-shadow: 0 2px 8px rgba(240, 160, 78, 0.32);
+  background: var(--profile-caramel);
+  box-shadow: 0 1px 3px rgba(240, 160, 78, 0.12);
 }
 
 .dash-app-profile .dash-side-nav a,
@@ -2140,7 +2126,7 @@ input {
 }
 
 .dash-app-profile.sb-collapsed .dash-side-nav a.is-active {
-  box-shadow: 0 5px 16px rgba(10, 7, 5, 0.28);
+  box-shadow: none;
 }
 
 .dash-app-profile .dash-side-nav .ico {
@@ -2190,14 +2176,13 @@ input {
   min-height: 44px;
   border-radius: 0.35rem;
   background: var(--profile-apricot);
-  background-image: none;
   color: var(--ink);
-  box-shadow: 0 6px 16px -4px rgba(240, 160, 78, 0.42);
+  box-shadow: 0 3px 8px -5px rgba(240, 160, 78, 0.18);
 }
 
 .dash-app-profile .dash-cta:hover {
   background: #ffbd6c;
-  box-shadow: 0 9px 20px -5px rgba(240, 160, 78, 0.46);
+  box-shadow: 0 4px 10px -5px rgba(240, 160, 78, 0.22);
 }
 
 .dash-app-profile .dash-main {
@@ -2258,7 +2243,7 @@ input {
   height: 1.15rem;
   align-items: center;
   justify-content: center;
-  border: 2px solid var(--bg-grad-1);
+  border: 2px solid var(--bg-light);
   border-radius: 999px;
   background: var(--error);
   color: #fff;
@@ -2277,7 +2262,7 @@ input {
   border: 1px solid var(--border);
   border-radius: 0.7rem;
   background: #fff;
-  box-shadow: 0 22px 50px rgba(46, 39, 25, 0.18);
+  box-shadow: 0 12px 28px rgba(46, 39, 25, 0.12);
 }
 
 .dash-notification-head {
@@ -2537,7 +2522,7 @@ input {
 }
 
 .listing-page .listing-filter-bar button[aria-pressed='true'] {
-  box-shadow: 0 5px 12px -8px rgba(42, 40, 34, 0.65);
+  box-shadow: none;
 }
 
 .listing-page .listing-search {
@@ -2548,7 +2533,7 @@ input {
 
 .listing-page .listing-empty-state {
   border-radius: 1.15rem;
-  background: var(--bg-grad-1);
+  background: var(--bg-light);
 }
 
 .listing-page .listing-empty-icon {
@@ -2568,7 +2553,7 @@ input {
   right: 0;
   left: 0;
   height: 5px;
-  background: linear-gradient(90deg, var(--tutor-grad-1), var(--tutor-grad-2));
+  background: var(--tutor);
   content: '';
 }
 
@@ -2662,14 +2647,14 @@ input {
 .listing-page .listing-primary-action,
 .listing-page .profile-primary-button {
   border: 0;
-  background: linear-gradient(135deg, #2a2822, #151410);
+  background: #2a2822;
   color: #fff;
   box-shadow: var(--shadow-btn);
 }
 
 .listing-page .listing-primary-action:hover:not(:disabled),
 .listing-page .profile-primary-button:hover:not(:disabled) {
-  background: linear-gradient(135deg, #3a372e, #1d1c18);
+  background: #3a372e;
   transform: translateY(-2px);
 }
 
@@ -2733,14 +2718,14 @@ input {
 
 .tutor-search-primary-button {
   border: 0;
-  background: linear-gradient(135deg, #2a2822, #151410);
+  background: #2a2822;
   color: #fff;
   box-shadow: var(--shadow-btn);
 }
 
 .tutor-search-primary-button:hover:not(:disabled) {
   transform: translateY(-2px);
-  background: linear-gradient(135deg, #3a372e, #1d1c18);
+  background: #3a372e;
 }
 
 .tutor-search-primary-button:disabled {
@@ -2794,7 +2779,7 @@ input {
 
 .listing-page .listing-preview-content > div:first-child > span:first-child {
   border-radius: 50%;
-  background: linear-gradient(135deg, var(--tutor-grad-1), var(--tutor-grad-2));
+  background: var(--tutor-deep);
   color: #fff;
 }
 

@@ -242,7 +242,7 @@ export default function TutorSearchPage() {
           </p>
           <h1 className="flex flex-wrap items-center gap-3 text-4xl font-black tracking-[-0.06em] sm:text-5xl">
             <span>{text.title}</span>
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-gradient-to-br from-[#3fd8b3] to-[#0c9a7c] px-3 py-1.5 text-xs font-extrabold tracking-[0.04em] text-white">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-[#0c9a7c] px-3 py-1.5 text-xs font-extrabold tracking-[0.04em] text-white">
               <span className="h-1.5 w-1.5 rounded-full bg-[#eafff7]" aria-hidden="true" />
               {text.student}
             </span>
@@ -253,7 +253,7 @@ export default function TutorSearchPage() {
         <div className="grid gap-6 lg:grid-cols-[minmax(18rem,22rem)_minmax(0,1fr)]">
           <aside
             id="tutor-search-filters"
-            className="h-fit rounded-[1.5rem] border border-[#ebe6dd] bg-white p-5 shadow-[0_18px_40px_-12px_rgba(46,39,25,0.14)] sm:p-6"
+            className="h-fit rounded-[1.5rem] border border-[#ebe6dd] bg-white p-5 shadow-[0_8px_20px_-12px_rgba(46,39,25,0.1)] sm:p-6"
           >
             <div className="mb-5 flex items-start justify-between gap-3">
               <div>
@@ -343,7 +343,7 @@ export default function TutorSearchPage() {
           </aside>
 
           <section aria-live="polite">
-            <div className="overflow-hidden rounded-[1.5rem] border border-[#ebe6dd] bg-white shadow-[0_18px_40px_-12px_rgba(46,39,25,0.14)]">
+            <div className="overflow-hidden rounded-[1.5rem] border border-[#ebe6dd] bg-white shadow-[0_8px_20px_-12px_rgba(46,39,25,0.1)]">
               <div className="flex flex-wrap items-end justify-between gap-3 border-b border-[#f0ebe3] px-5 py-5 sm:px-6">
                 <div>
                   <h2 className="text-2xl font-extrabold tracking-[-0.04em]">
@@ -525,10 +525,10 @@ function TutorResultCard({
     : text.noFutureSlots;
 
   return (
-    <article className="flex flex-col gap-5 rounded-[1.35rem] border border-[#ebe6dd] bg-white p-5 shadow-[0_12px_28px_-16px_rgba(46,39,25,0.3)] transition hover:-translate-y-0.5 hover:shadow-[0_18px_34px_-16px_rgba(46,39,25,0.35)] sm:p-6 lg:flex-row lg:items-center">
+    <article className="flex flex-col gap-5 rounded-[1.35rem] border border-[#ebe6dd] bg-white p-5 shadow-[0_6px_16px_-12px_rgba(46,39,25,0.18)] transition hover:-translate-y-0.5 hover:shadow-[0_10px_22px_-14px_rgba(46,39,25,0.2)] sm:p-6 lg:flex-row lg:items-center">
       <div className="flex min-w-0 flex-1 gap-4">
         <div
-          className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-[#3fd8b3] to-[#0c9a7c] text-lg font-black text-white shadow-sm"
+          className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-[#0c9a7c] text-lg font-black text-white shadow-sm"
           aria-hidden="true"
         >
           {getInitials(result.displayName)}

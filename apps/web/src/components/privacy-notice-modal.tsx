@@ -26,7 +26,7 @@ export default function PrivacyNoticeModal({ open, onClose }: PrivacyNoticeModal
       aria-describedby="privacy-notice-summary"
       aria-labelledby="privacy-notice-title"
       onClose={onClose}
-      className="m-auto max-h-[88dvh] w-[min(92vw,760px)] rounded-[1.75rem] bg-white p-0 text-[#171714] shadow-[0_30px_100px_rgba(23,23,20,0.28)] backdrop:bg-black/45"
+      className="m-auto max-h-[88dvh] w-[min(92vw,760px)] rounded-[1.75rem] bg-white p-0 text-[#171714] shadow-[0_16px_40px_rgba(23,23,20,0.16)] backdrop:bg-black/45"
     >
       <div className="sticky top-0 z-10 flex items-start justify-between gap-5 border-b border-[#e2dfd8] bg-white px-6 py-5 sm:px-8">
         <div>
