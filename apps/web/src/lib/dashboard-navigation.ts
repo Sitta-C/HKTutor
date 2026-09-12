@@ -147,7 +147,7 @@ export function getDashboardNavItems(role: UserRole, copy: Translation): Dashboa
       },
       {
         id: 'availability',
-        href: '#availability',
+        href: '/dashboard/availability',
         icon: 'availability',
         label: navCopy.availability,
       },

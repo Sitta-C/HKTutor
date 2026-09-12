@@ -293,6 +293,7 @@ function isDashboardNavActive(itemId: string, pathname: string): boolean {
   if (itemId === 'dashboard') return pathname === '/dashboard';
   if (itemId === 'profile') return pathname === '/dashboard/profile';
   if (itemId === 'listings') return pathname.startsWith('/dashboard/listings');
+  if (itemId === 'availability') return pathname.startsWith('/dashboard/availability');
   return false;
 }
 
