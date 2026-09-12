@@ -1,6 +1,7 @@
 'use client';
 
-import { apiFetch, authenticatedFetch } from '@/lib/api/client';
+import { authenticatedFetch } from '@/lib/api/client';
+import { getGradeLevelCatalog, getSubjectCatalog } from '@/lib/api/tutors';
 
 import type {
   GradeLevelOption,
@@ -11,23 +12,13 @@ import type {
   TeachingListing,
 } from '@/lib/api/types';
 
-interface CatalogResponse<T> {
-  items: T[];
-}
-
 export async function getListingCatalogs(): Promise<{
   subjects: SubjectOption[];
   gradeLevels: GradeLevelOption[];
 }> {
-  const [subjects, gradeLevels] = await Promise.all([
-    apiFetch<CatalogResponse<SubjectOption>>('/subjects'),
-    apiFetch<CatalogResponse<GradeLevelOption>>('/grade-levels'),
-  ]);
+  const [subjects, gradeLevels] = await Promise.all([getSubjectCatalog(), getGradeLevelCatalog()]);
 
-  return {
-    subjects: subjects.items.filter((item) => item.active),
-    gradeLevels: gradeLevels.items.filter((item) => item.active),
-  };
+  return { subjects, gradeLevels };
 }
 
 export function getTutorListings(

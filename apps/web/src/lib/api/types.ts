@@ -96,3 +96,58 @@ export interface SaveTutorProfilePayload {
   bio: string;
   experienceYears: number;
 }
+
+export interface TutorSearchQuery {
+  subject?: string;
+  grade?: string;
+  maxPrice?: number;
+  minimumRating?: number;
+}
+
+export interface TutorSearchResult {
+  listingId: string;
+  tutorId: string;
+  displayName: string;
+  description: string;
+  experienceYears: number;
+  subject: string;
+  grade: string;
+  pricePerHour: number;
+  ratingAverage: number | null;
+  reviewCount: number;
+  nextAvailableAt: string | null;
+}
+
+export interface PublicTutorProfile {
+  tutorId: string;
+  displayName: string;
+  bio: string;
+  experienceYears: number;
+  verificationStatus: 'VERIFIED';
+  ratingAverage: number | null;
+  reviewCount: number;
+}
+
+export interface PublicTeachingListing {
+  listingId: string;
+  subject: string;
+  grade: string;
+  pricePerHour: number;
+  description: string;
+}
+
+export interface PublicTutorDetail {
+  tutor: PublicTutorProfile;
+  listings: PublicTeachingListing[];
+}
+
+export interface PublicAvailabilitySlot {
+  id: string;
+  startAtUtc: string;
+  endAtUtc: string;
+}
+
+export interface PublicAvailabilityQuery {
+  from?: string | Date;
+  to?: string | Date;
+}
