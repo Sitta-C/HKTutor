@@ -14,6 +14,7 @@ test('documents every S1-T33 evidence item', async () => {
   const evidenceItems = [
     'create',
     'update',
+    'ownership',
     'validation',
     'access',
     'consent',
@@ -33,20 +34,31 @@ test('documents every S1-T33 evidence item', async () => {
   assert.match(doc, /S1-T32/);
 });
 
-test('cites only test files that exist in the repository', async () => {
+test('cites only proving-test files that exist in the repository', async () => {
   const doc = await readDoc();
-  const citedPaths = [
+  const citedTests = [
     ...new Set([
-      ...(doc.match(/(?:apps|packages)\/[\w./-]+\.(?:tsx|ts)/g) ?? []),
+      ...(doc.match(/(?:apps|packages)\/[\w./-]*\/test\/[\w./-]+\.(?:tsx|ts)/g) ?? []),
       ...(doc.match(/tests\/[\w./-]+\.mjs/g) ?? []),
     ]),
   ];
 
-  assert.ok(citedPaths.length >= 6, 'the doc must cite the proving test files');
-  for (const citedPath of citedPaths) {
-    await fs.access(citedPath).catch(() => {
-      assert.fail(`traceability doc cites a path that does not exist: ${citedPath}`);
+  for (const citedTest of citedTests) {
+    await fs.access(citedTest).catch(() => {
+      assert.fail(`traceability doc cites a path that does not exist: ${citedTest}`);
     });
+  }
+
+  for (const requiredTest of [
+    'apps/api/test/student-profile-contract.e2e-spec.ts',
+    'apps/web/test/profile-navigation.test.ts',
+    'tests/personal-profile-foundation.test.mjs',
+    'tests/sprint1-database-contract.test.mjs',
+  ]) {
+    assert.ok(
+      citedTests.includes(requiredTest),
+      `traceability doc must cite the proving test ${requiredTest}`,
+    );
   }
 });
 
