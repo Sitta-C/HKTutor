@@ -4,6 +4,7 @@ import request from 'supertest';
 import { configureApplication } from '@/app.setup';
 import { CURRENT_PRIVACY_POLICY_VERSION } from '@/auth/auth.constants';
 import { JwtAuthGuard } from '@/auth/auth.guard';
+import { RolesGuard } from '@/auth/roles.guard';
 import { PrismaService } from '@/database/prisma.service';
 import { Role } from '@/generated/prisma/client';
 import { ProfilesController } from '@/profiles/profiles.controller';
@@ -76,7 +77,13 @@ describe('Student profile contract (e2e)', () => {
     };
     const moduleFixture: TestingModule = await Test.createTestingModule({
       controllers: [ProfilesController],
-      providers: [ProfilesService, { provide: PrismaService, useValue: prisma }],
+      providers: [
+        ProfilesService,
+        // RolesGuard is registered but deliberately NOT overridden: the 403 cases must be
+        // produced by the real role check against the @Roles metadata on the controller.
+        RolesGuard,
+        { provide: PrismaService, useValue: prisma },
+      ],
     })
       .overrideGuard(JwtAuthGuard)
       .useValue({
