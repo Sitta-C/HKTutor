@@ -366,6 +366,7 @@ export const translations = {
         choose: 'Choose this time',
         conflict: 'That time was just booked. The latest open times are shown below.',
         verified: 'VERIFIED',
+      },
       availability: {
         eyebrow: 'Tutor availability',
         title: 'Plan your teaching time',
@@ -730,6 +731,7 @@ export const translations = {
         choose: 'เลือกเวลานี้',
         conflict: 'ช่วงเวลานี้เพิ่งถูกจอง จึงแสดงเวลาอื่นที่ยังว่างล่าสุดให้เลือก',
         verified: 'ยืนยันแล้ว',
+      },
       availability: {
         eyebrow: 'ตารางเวลาว่างของติวเตอร์',
         title: 'จัดเวลาสอนของคุณ',
