@@ -119,6 +119,19 @@ export function formatBangkokRange(
   return `${new Intl.DateTimeFormat(locale, dateOptions).format(start)} · ${new Intl.DateTimeFormat(locale, timeOptions).format(start)}–${new Intl.DateTimeFormat(locale, timeOptions).format(end)}`;
 }
 
+export function formatBangkokDateTime(valueAtUtc: string, language: BookingLanguage): string {
+  const locale = language === 'th' ? 'th-TH' : 'en-GB';
+  return new Intl.DateTimeFormat(locale, {
+    day: 'numeric',
+    month: 'short',
+    timeZone: 'Asia/Bangkok',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).format(new Date(valueAtUtc));
+}
+
 export function formatDuration(startAtUtc: string, endAtUtc: string, text: BookingText): string {
   const hours = (new Date(endAtUtc).getTime() - new Date(startAtUtc).getTime()) / 3_600_000;
   const rounded = Number.isInteger(hours) ? String(hours) : hours.toFixed(1);

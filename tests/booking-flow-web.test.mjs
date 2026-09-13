@@ -48,6 +48,12 @@ test('connects selected public availability to quote and create without client a
   assert.match(confirmation, /status === 409/);
   assert.match(confirmation, /Choose another time/);
   assert.match(confirmation, /disabled=\{isSubmitting\}/);
+  assert.match(confirmation, /setQuote\(null\)/);
+  assert.match(confirmation, /formatBangkokDateTime\(activeCreated\.createdAt, language\)/);
+  assert.doesNotMatch(
+    confirmation,
+    /formatBangkokRange\(activeCreated\.createdAt, activeCreated\.createdAt/,
+  );
 });
 
 test('renders Student-owned list/detail states and an explicit empty state', async () => {

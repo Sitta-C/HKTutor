@@ -7,6 +7,7 @@ import { useEffect, useRef, useState } from 'react';
 import {
   bookingCopy,
   BookingStatusBadge,
+  formatBangkokDateTime,
   formatBangkokRange,
   formatDuration,
   formatMoney,
@@ -61,6 +62,7 @@ export default function BookingConfirmationPage() {
       })
       .catch((caught: unknown) => {
         if (!active) return;
+        setQuote(null);
         setQuoteError(caught);
         setLoadedSelection(selectionKey);
       })
@@ -248,8 +250,7 @@ export default function BookingConfirmationPage() {
             />
           </div>
           <p className="mt-5 text-sm text-[#70695f]">
-            {text.created}:{' '}
-            {formatBangkokRange(activeCreated.createdAt, activeCreated.createdAt, language)}
+            {text.created}: {formatBangkokDateTime(activeCreated.createdAt, language)}
           </p>
           <div className="mt-6 flex flex-wrap gap-3">
             <button

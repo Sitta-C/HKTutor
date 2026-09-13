@@ -1134,7 +1134,7 @@ input {
   align-items: center;
   justify-content: center;
   border-radius: 1rem;
-  background: linear-gradient(135deg, var(--student-grad-1), var(--student-grad-2));
+  background: linear-gradient(135deg, var(--student), var(--student-deep));
   color: #fff;
   font-weight: 800;
 }
