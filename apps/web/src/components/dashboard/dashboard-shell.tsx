@@ -11,6 +11,7 @@ import {
   getUserDisplayName,
   getUserInitial,
 } from '@/lib/dashboard-navigation';
+import { formatBangkokYear } from '@/lib/date-time';
 import { useLanguage } from '@/lib/i18n';
 
 import type { AuthUser } from '@/lib/api/types';
@@ -271,7 +272,7 @@ export function DashboardShell({
 
           <footer className="dash-footer">
             <span>
-              © {new Date().getFullYear()} {copy.dashboard.common.copyright}
+              © {formatBangkokYear(new Date(), language)} {copy.dashboard.common.copyright}
             </span>
             <span className="sep">|</span>
             <button
@@ -294,6 +295,7 @@ function isDashboardNavActive(itemId: string, pathname: string): boolean {
   if (itemId === 'profile') return pathname === '/dashboard/profile';
   if (itemId === 'bookings') return pathname.startsWith('/dashboard/bookings');
   if (itemId === 'listings') return pathname.startsWith('/dashboard/listings');
+  if (itemId === 'availability') return pathname.startsWith('/dashboard/availability');
   return false;
 }
 
