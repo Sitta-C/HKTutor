@@ -6,6 +6,7 @@ import { useState } from 'react';
 
 import AuthShell, { EyeIcon } from '@/components/auth-shell';
 import PrivacyConsent from '@/components/privacy-consent';
+import { ApiError } from '@/lib/api/error';
 import { useAuth } from '@/lib/auth-context';
 import { useLanguage } from '@/lib/i18n';
 import { buildOnboardingConsent } from '@/lib/privacy-notice';
@@ -74,6 +75,10 @@ export default function Register() {
       });
       router.push(`/register/verify?email=${encodeURIComponent(email)}`);
     } catch (err: unknown) {
+      if (err instanceof ApiError && err.status === 503) {
+        router.push(`/register/verify?email=${encodeURIComponent(email)}&delivery=failed`);
+        return;
+      }
       setErrorMessage(getErrorMessage(err, 'Registration failed'));
     } finally {
       setIsLoading(false);

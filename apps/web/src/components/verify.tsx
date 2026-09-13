@@ -64,6 +64,7 @@ function VerifyForm() {
   const searchParams = useSearchParams();
   const token = searchParams.get('token');
   const initialEmail = searchParams.get('email') ?? '';
+  const deliveryFailed = searchParams.get('delivery') === 'failed';
   const attemptedToken = useRef<string | null>(null);
   const handledVerificationEvent = useRef(false);
   const [email, setEmail] = useState(initialEmail);
@@ -73,7 +74,9 @@ function VerifyForm() {
   const [message, setMessage] = useState(
     token
       ? copy.register.otpLoading
-      : copy.register.otpSubtitle.replace('{email}', initialEmail || copy.register.emailLabel),
+      : deliveryFailed
+        ? copy.register.verificationDeliveryFailed
+        : copy.register.otpSubtitle.replace('{email}', initialEmail || copy.register.emailLabel),
   );
   const [isResending, setIsResending] = useState(false);
 
