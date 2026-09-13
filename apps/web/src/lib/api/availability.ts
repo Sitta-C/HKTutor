@@ -1,6 +1,13 @@
 'use client';
 
 import { authenticatedFetch } from '@/lib/api/client';
+import {
+  addIsoDays,
+  BANGKOK_TIME_ZONE,
+  formatIsoDate,
+  getBangkokIsoDate,
+  parseIsoDate,
+} from '@/lib/date-time';
 
 import type {
   AvailabilityQuery,
@@ -9,7 +16,6 @@ import type {
   TutorAvailabilitySlot,
 } from '@/lib/api/types';
 
-export const BANGKOK_TIME_ZONE = 'Asia/Bangkok';
 export const BANGKOK_UTC_OFFSET_HOURS = 7;
 
 export function getTutorAvailability(
@@ -61,25 +67,14 @@ export function bangkokDateTimeToUtc(date: string, time: string): Date {
 }
 
 export function getBangkokWeekStart(date = new Date()): string {
-  const parts = new Intl.DateTimeFormat('en-CA', {
-    day: '2-digit',
-    month: '2-digit',
-    timeZone: BANGKOK_TIME_ZONE,
-    year: 'numeric',
-  }).formatToParts(date);
-  const year = Number(parts.find((part) => part.type === 'year')?.value);
-  const month = Number(parts.find((part) => part.type === 'month')?.value);
-  const day = Number(parts.find((part) => part.type === 'day')?.value);
-  const current = new Date(Date.UTC(year, month - 1, day));
+  const current = parseIsoDate(getBangkokIsoDate(date));
   const daysFromMonday = (current.getUTCDay() + 6) % 7;
   current.setUTCDate(current.getUTCDate() - daysFromMonday);
-  return formatDateInput(current);
+  return formatIsoDate(current);
 }
 
 export function shiftBangkokWeek(date: string, weeks: number): string {
-  const current = bangkokDateTimeToUtc(date, '00:00');
-  current.setUTCDate(current.getUTCDate() + weeks * 7);
-  return formatDateInput(new Date(current.getTime() + BANGKOK_UTC_OFFSET_HOURS * 60 * 60 * 1000));
+  return addIsoDays(date, weeks * 7);
 }
 
 export function getBangkokWeekRange(weekStart: string): { from: string; to: string } {
@@ -89,43 +84,24 @@ export function getBangkokWeekRange(weekStart: string): { from: string; to: stri
   return { from: from.toISOString(), to: to.toISOString() };
 }
 
-export function formatBangkokDate(value: string | Date, language: 'en' | 'th'): string {
-  return new Intl.DateTimeFormat(language === 'th' ? 'th-TH' : 'en-GB', {
-    day: 'numeric',
-    month: 'short',
-    timeZone: BANGKOK_TIME_ZONE,
-    weekday: 'long',
-    year: 'numeric',
-  }).format(new Date(value));
-}
-
-export function formatBangkokTime(value: string | Date): string {
-  return new Intl.DateTimeFormat('en-GB', {
-    hour: '2-digit',
-    minute: '2-digit',
-    timeZone: BANGKOK_TIME_ZONE,
-    hour12: false,
-  }).format(new Date(value));
-}
-
 export function getDurationHours(startAtUtc: string, endAtUtc: string): number {
   return (new Date(endAtUtc).getTime() - new Date(startAtUtc).getTime()) / (60 * 60 * 1000);
+}
+
+export function getDurationHoursMinutes(totalHours: number): { hours: number; minutes: number } {
+  const totalMinutes = Math.max(0, Math.round(totalHours * 60));
+  return {
+    hours: Math.floor(totalMinutes / 60),
+    minutes: totalMinutes % 60,
+  };
 }
 
 function toIsoString(value: string | Date): string {
   return value instanceof Date ? value.toISOString() : value;
 }
 
-function formatDateInput(date: Date): string {
-  return [date.getUTCFullYear(), date.getUTCMonth() + 1, date.getUTCDate()]
-    .map((part, index) =>
-      index === 0 ? String(part).padStart(4, '0') : String(part).padStart(2, '0'),
-    )
-    .join('-');
-}
-
 function isSameBangkokDateTime(value: Date, date: string, time: string): boolean {
-  const formatted = new Intl.DateTimeFormat('en-CA', {
+  const formatted = new Intl.DateTimeFormat('en-CA-u-ca-gregory', {
     day: '2-digit',
     hour: '2-digit',
     hour12: false,

@@ -6,21 +6,31 @@ import { useEffect, useMemo, useState } from 'react';
 
 import { DashboardIcon } from '@/components/dashboard/dashboard-icon';
 import DashboardShell from '@/components/dashboard/dashboard-shell';
+import { LocalizedDatePicker } from '@/components/date-time/localized-date-picker';
 import {
   bangkokDateTimeToUtc,
   createTutorAvailability,
   deleteTutorAvailability,
-  formatBangkokDate,
-  formatBangkokTime,
   getBangkokWeekRange,
   getBangkokWeekStart,
   getDurationHours,
+  getDurationHoursMinutes,
   getTutorAvailability,
   shiftBangkokWeek,
 } from '@/lib/api/availability';
 import { ApiError } from '@/lib/api/error';
 import { getMyProfile } from '@/lib/api/profiles';
 import { useAuth } from '@/lib/auth-context';
+import {
+  formatBangkokDate,
+  formatBangkokShortDate,
+  formatBangkokTime,
+  formatBangkokWeekday,
+  formatBangkokWeekRange,
+  formatUtcDateTime,
+  getBangkokIsoDate,
+  getBangkokToday,
+} from '@/lib/date-time';
 import { useLanguage } from '@/lib/i18n';
 
 import type { TutorAvailabilitySlot } from '@/lib/api/types';
@@ -31,29 +41,38 @@ export default function TutorAvailabilityPage() {
   const router = useRouter();
   const availabilityCopy = copy.dashboard.availability;
   const [weekStart, setWeekStart] = useState(() => getBangkokWeekStart());
-  const [date, setDate] = useState(() => getBangkokWeekStart());
+  const [date, setDate] = useState(() => getBangkokToday());
   const [startTime, setStartTime] = useState('18:00');
   const [endTime, setEndTime] = useState('19:00');
   const [slots, setSlots] = useState<TutorAvailabilitySlot[]>([]);
   const [profileDisplayName, setProfileDisplayName] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [refreshKey, setRefreshKey] = useState(0);
   const [isSaving, setIsSaving] = useState(false);
   const [busySlotId, setBusySlotId] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [mutationError, setMutationError] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
-  const loadAvailability = async () => {
-    const range = getBangkokWeekRange(weekStart);
+  const prepareAvailabilityLoad = () => {
     setIsLoading(true);
-    setError(null);
-    try {
-      setSlots(await getTutorAvailability(range));
-    } catch (caught: unknown) {
-      setError(caught instanceof Error ? caught.message : availabilityCopy.loadError);
-    } finally {
-      setIsLoading(false);
+    setLoadError(null);
+    setSlots([]);
+  };
+
+  const changeWeek = (nextWeek: string) => {
+    prepareAvailabilityLoad();
+    if (nextWeek === weekStart) {
+      setRefreshKey((key) => key + 1);
+    } else {
+      setWeekStart(nextWeek);
     }
+  };
+
+  const refreshAvailability = () => {
+    prepareAvailabilityLoad();
+    setRefreshKey((key) => key + 1);
   };
 
   useEffect(() => {
@@ -94,7 +113,7 @@ export default function TutorAvailabilityPage() {
       })
       .catch((caught: unknown) => {
         if (!active) return;
-        setError(caught instanceof Error ? caught.message : availabilityCopy.loadError);
+        setLoadError(caught instanceof Error ? caught.message : '');
       })
       .finally(() => {
         if (active) setIsLoading(false);
@@ -103,17 +122,12 @@ export default function TutorAvailabilityPage() {
     return () => {
       active = false;
     };
-  }, [availabilityCopy.loadError, user, weekStart]);
+  }, [refreshKey, user, weekStart]);
 
   const groupedSlots = useMemo(() => {
     const groups = new Map<string, TutorAvailabilitySlot[]>();
     slots.forEach((slot) => {
-      const key = new Intl.DateTimeFormat('en-CA', {
-        day: '2-digit',
-        month: '2-digit',
-        timeZone: 'Asia/Bangkok',
-        year: 'numeric',
-      }).format(new Date(slot.startAtUtc));
+      const key = getBangkokIsoDate(slot.startAtUtc);
       groups.set(key, [...(groups.get(key) ?? []), slot]);
     });
     return [...groups.entries()].sort(([first], [second]) => first.localeCompare(second));
@@ -122,7 +136,7 @@ export default function TutorAvailabilityPage() {
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setFormError(null);
-    setError(null);
+    setMutationError(null);
     setSuccess(null);
     if (!date || !startTime || !endTime) {
       setFormError(availabilityCopy.emptyForm);
@@ -144,9 +158,12 @@ export default function TutorAvailabilityPage() {
       setIsSaving(true);
       await createTutorAvailability({ startAt: startAt.toISOString(), endAt: endAt.toISOString() });
       setSuccess(availabilityCopy.added);
-      setWeekStart(getBangkokWeekStart(startAt));
-      setDate(date);
-      await loadAvailability();
+      const createdWeek = getBangkokWeekStart(startAt);
+      if (createdWeek === weekStart) {
+        refreshAvailability();
+      } else {
+        changeWeek(createdWeek);
+      }
     } catch (caught: unknown) {
       if (caught instanceof ApiError && caught.status === 409) {
         setFormError(availabilityCopy.overlapError);
@@ -161,17 +178,17 @@ export default function TutorAvailabilityPage() {
   const handleDelete = async (slot: TutorAvailabilitySlot) => {
     if (slot.state !== 'OPEN') return;
     setBusySlotId(slot.id);
-    setError(null);
+    setMutationError(null);
     setSuccess(null);
     try {
       await deleteTutorAvailability(slot.id);
       setSuccess(availabilityCopy.deleted);
-      await loadAvailability();
+      refreshAvailability();
     } catch (caught: unknown) {
       if (caught instanceof ApiError && caught.status === 409) {
-        setError(availabilityCopy.reservedError);
+        setMutationError(availabilityCopy.reservedError);
       } else {
-        setError(caught instanceof Error ? caught.message : availabilityCopy.deleteError);
+        setMutationError(caught instanceof Error ? caught.message : availabilityCopy.deleteError);
       }
     } finally {
       setBusySlotId(null);
@@ -183,17 +200,23 @@ export default function TutorAvailabilityPage() {
     router.replace('/');
   };
 
-  if (authLoading || (isLoading && !profileDisplayName) || !user) {
-    return <PageState message={availabilityCopy.loading} />;
+  if (authLoading || !user) {
+    return <FullPageState message={availabilityCopy.loading} />;
   }
   if (user.role !== 'TUTOR') return null;
-  if (!profileDisplayName) return <PageState message={availabilityCopy.loadError} />;
 
-  const shellUser = { ...user, displayName: profileDisplayName };
-  const weekLabel = formatBangkokDate(bangkokDateTimeToUtc(weekStart, '00:00'), language);
-  const today = getBangkokWeekStart();
+  const shellUser = profileDisplayName ? { ...user, displayName: profileDisplayName } : user;
+  const weekLabel = formatBangkokWeekRange(weekStart, language);
+  const today = getBangkokToday();
+  const thisWeek = getBangkokWeekStart();
   const previewStart = date && startTime ? safeBangkokDateTime(date, startTime) : null;
   const previewEnd = date && endTime ? safeBangkokDateTime(date, endTime) : null;
+  const openSlotCount = slots.filter((slot) => slot.state === 'OPEN').length;
+  const reservedSlotCount = slots.length - openSlotCount;
+  const teachingHours = slots.reduce(
+    (total, slot) => total + getDurationHours(slot.startAtUtc, slot.endAtUtc),
+    0,
+  );
 
   return (
     <DashboardShell
@@ -211,82 +234,140 @@ export default function TutorAvailabilityPage() {
           <p>{availabilityCopy.subtitle}</p>
         </header>
 
-        <div className="mt-6 grid gap-5 xl:grid-cols-[1.4fr_minmax(300px,.8fr)]">
-          <section className="dash-card p-6 sm:p-7" aria-labelledby="availability-week-title">
-            <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+        <div
+          className="availability-summary"
+          aria-label={availabilityCopy.weekOf.replace('{date}', weekLabel)}
+        >
+          <SummaryCard
+            label={availabilityCopy.openSlots}
+            value={String(openSlotCount)}
+            help={availabilityCopy.openSlotsHelp}
+          />
+          <SummaryCard
+            label={availabilityCopy.reservedSlots}
+            value={String(reservedSlotCount)}
+            help={availabilityCopy.reservedSlotsHelp}
+          />
+          <SummaryCard
+            label={availabilityCopy.teachingHours}
+            value={formatHoursMinutes(
+              teachingHours,
+              availabilityCopy.hour,
+              availabilityCopy.hours,
+              availabilityCopy.minute,
+              availabilityCopy.minutes,
+            )}
+            help={availabilityCopy.teachingHoursHelp}
+            duration
+          />
+          <SummaryCard
+            label={availabilityCopy.timezoneLabel}
+            value="UTC+7"
+            help="Asia/Bangkok"
+            compact
+          />
+        </div>
+
+        <div className="availability-layout">
+          <section
+            className="dash-card availability-panel"
+            aria-labelledby="availability-week-title"
+          >
+            <div className="availability-section-head">
               <div>
-                <h2 id="availability-week-title" className="text-xl font-extrabold">
+                <h2 id="availability-week-title">
                   {availabilityCopy.weekOf.replace('{date}', weekLabel)}
                 </h2>
-                <p className="mt-1 text-sm text-[#5e5a52]">{availabilityCopy.timezone}</p>
+                <p>{availabilityCopy.weekDescription}</p>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="availability-week-actions">
                 <button
                   type="button"
-                  className="dash-btn-dark"
+                  className="availability-secondary-button availability-arrow-button"
                   aria-label={availabilityCopy.previousWeek}
-                  onClick={() => setWeekStart(shiftBangkokWeek(weekStart, -1))}
+                  onClick={() => changeWeek(shiftBangkokWeek(weekStart, -1))}
                 >
                   ‹
                 </button>
                 <button
                   type="button"
-                  className="dash-btn-dark"
+                  className="availability-secondary-button"
                   onClick={() => {
-                    setWeekStart(today);
+                    changeWeek(thisWeek);
                     setDate(today);
                   }}
                 >
-                  {availabilityCopy.today}
+                  {availabilityCopy.thisWeek}
                 </button>
                 <button
                   type="button"
-                  className="dash-btn-dark"
+                  className="availability-secondary-button availability-arrow-button"
                   aria-label={availabilityCopy.nextWeek}
-                  onClick={() => setWeekStart(shiftBangkokWeek(weekStart, 1))}
+                  onClick={() => changeWeek(shiftBangkokWeek(weekStart, 1))}
                 >
                   ›
                 </button>
               </div>
             </div>
 
-            {error && <Feedback message={error} tone="error" />}
+            {mutationError && <Feedback message={mutationError} tone="error" />}
             {success && <Feedback message={success} tone="success" />}
             {isLoading ? (
-              <PageState message={availabilityCopy.loading} />
+              <InlineState message={availabilityCopy.loading} />
+            ) : loadError !== null ? (
+              <InlineState
+                message={loadError || availabilityCopy.loadError}
+                actionLabel={availabilityCopy.retry}
+                onAction={refreshAvailability}
+                error
+              />
             ) : groupedSlots.length === 0 ? (
               <EmptyState message={availabilityCopy.noSlots} />
             ) : (
-              <div className="space-y-5">
+              <div>
                 {groupedSlots.map(([day, daySlots]) => (
-                  <div key={day} className="border-t border-[#ebe6dd] pt-4">
-                    <h3 className="font-extrabold">
-                      {formatBangkokDate(daySlots.at(0)?.startAtUtc ?? day, language)}
-                    </h3>
-                    <div className="mt-3 space-y-2">
+                  <article key={day} className="availability-day">
+                    <div className="availability-day-label">
+                      <strong>
+                        {formatBangkokWeekday(daySlots.at(0)?.startAtUtc ?? day, language)}
+                      </strong>
+                      <span>
+                        {formatBangkokShortDate(daySlots.at(0)?.startAtUtc ?? day, language)}
+                      </span>
+                    </div>
+                    <div className="availability-slot-list">
                       {daySlots.map((slot) => {
                         const reserved = slot.state === 'RESERVED';
+                        const durationHours = getDurationHours(slot.startAtUtc, slot.endAtUtc);
+                        const duration = (
+                          durationHours === 1
+                            ? availabilityCopy.duration
+                            : availabilityCopy.durationPlural
+                        ).replace('{hours}', formatDuration(durationHours));
                         return (
-                          <div
-                            key={slot.id}
-                            className="flex flex-wrap items-center gap-3 rounded-xl border border-[#ebe6dd] bg-[#faf8f4] p-4"
-                          >
-                            <strong className="min-w-[7.5rem] text-lg">
-                              {formatBangkokTime(slot.startAtUtc)}–
-                              {formatBangkokTime(slot.endAtUtc)}
+                          <div key={slot.id} className="availability-slot">
+                            <strong className="availability-slot-time">
+                              {formatBangkokTime(slot.startAtUtc, language)}–
+                              {formatBangkokTime(slot.endAtUtc, language)}
                             </strong>
-                            <span className="text-sm text-[#5e5a52]">
-                              {availabilityCopy.duration.replace(
-                                '{hours}',
-                                formatDuration(getDurationHours(slot.startAtUtc, slot.endAtUtc)),
-                              )}
+                            <span className="availability-slot-copy">
+                              {duration} ·{' '}
+                              {reserved
+                                ? availabilityCopy.reservedDetail
+                                : availabilityCopy.openDetail}
                             </span>
-                            <span className={`dash-pill ${reserved ? 'pending' : 'done'}`}>
+                            <span
+                              className={`dash-pill ${reserved ? 'pending' : 'dash-pill-tutor confirmed'}`}
+                            >
                               {reserved ? availabilityCopy.reserved : availabilityCopy.open}
                             </span>
                             <button
                               type="button"
-                              className="ml-auto dash-link !mt-0 disabled:cursor-not-allowed disabled:opacity-50"
+                              className={
+                                reserved
+                                  ? 'availability-secondary-button'
+                                  : 'availability-delete-button'
+                              }
                               disabled={reserved || busySlotId === slot.id}
                               onClick={() => void handleDelete(slot)}
                             >
@@ -296,29 +377,36 @@ export default function TutorAvailabilityPage() {
                         );
                       })}
                     </div>
-                  </div>
+                  </article>
                 ))}
               </div>
             )}
           </section>
 
-          <aside>
+          <aside className="availability-stack">
             <form
-              className="dash-card p-6 sm:p-7"
+              className="dash-card availability-panel"
               onSubmit={(event) => void handleSubmit(event)}
               noValidate
             >
-              <h2 className="text-xl font-extrabold">{availabilityCopy.addTitle}</h2>
-              <p className="mt-1 text-sm text-[#5e5a52]">{availabilityCopy.addDescription}</p>
-              <div className="mt-5 space-y-4">
-                <Field
+              <div className="availability-section-head">
+                <div>
+                  <h2>{availabilityCopy.addTitle}</h2>
+                  <p>{availabilityCopy.addDescription}</p>
+                </div>
+              </div>
+              <div className="availability-form-body">
+                <LocalizedDatePicker
                   label={availabilityCopy.date}
-                  type="date"
                   value={date}
                   onChange={setDate}
                   min={today}
+                  language={language}
+                  calendarLabel={availabilityCopy.calendarLabel}
+                  previousMonthLabel={availabilityCopy.previousMonth}
+                  nextMonthLabel={availabilityCopy.nextMonth}
                 />
-                <div className="grid gap-4 sm:grid-cols-2">
+                <div className="availability-time-grid">
                   <Field
                     label={availabilityCopy.startTime}
                     type="time"
@@ -332,38 +420,36 @@ export default function TutorAvailabilityPage() {
                     onChange={setEndTime}
                   />
                 </div>
-                <div className="rounded-xl bg-[#f4f7fb] p-4">
-                  <p className="text-xs font-bold uppercase tracking-wider text-[#5e5a52]">
-                    {availabilityCopy.preview}
-                  </p>
-                  <p className="mt-2 font-extrabold">
+                <div className="availability-preview">
+                  <p className="availability-preview-label">{availabilityCopy.preview}</p>
+                  <p className="availability-preview-value">
                     {previewStart && previewEnd
-                      ? `${formatBangkokDate(previewStart, language)} · ${formatBangkokTime(previewStart)}–${formatBangkokTime(previewEnd)}`
+                      ? `${formatBangkokDate(previewStart, language)} · ${formatBangkokTime(previewStart, language)}–${formatBangkokTime(previewEnd, language)} · ${formatDurationLabel(getDurationHours(previewStart.toISOString(), previewEnd.toISOString()), availabilityCopy.duration, availabilityCopy.durationPlural)}`
                       : availabilityCopy.emptyForm}
                   </p>
                   {previewStart && previewEnd && (
-                    <p className="mt-1 text-xs text-[#5e5a52]">
+                    <p className="availability-preview-help">
                       {availabilityCopy.storedAs
-                        .replace('{start}', previewStart.toISOString().slice(11, 16))
-                        .replace('{end}', previewEnd.toISOString().slice(11, 16))}
+                        .replace('{start}', formatUtcDateTime(previewStart, language))
+                        .replace('{end}', formatUtcDateTime(previewEnd, language))}
                     </p>
                   )}
                 </div>
                 {formError && (
-                  <p className="text-sm font-semibold text-[#c04f40]" role="alert">
+                  <p className="availability-form-error" role="alert">
                     {formError}
                   </p>
                 )}
-                <div className="flex flex-wrap gap-3">
+                <div className="availability-form-actions">
                   <button type="submit" className="dash-btn-dark" disabled={isSaving}>
                     <DashboardIcon name="plus" className="h-4 w-4" />
                     {isSaving ? availabilityCopy.adding : availabilityCopy.add}
                   </button>
                   <button
                     type="reset"
-                    className="dash-link !mt-0"
+                    className="availability-secondary-button"
                     onClick={() => {
-                      setDate(weekStart);
+                      setDate(today);
                       setStartTime('18:00');
                       setEndTime('19:00');
                       setFormError(null);
@@ -374,9 +460,10 @@ export default function TutorAvailabilityPage() {
                 </div>
               </div>
             </form>
-            <div className="mt-5 rounded-xl border border-[#f1ddc4] bg-[#fffaf4] p-4 text-sm text-[#7e5428]">
-              {availabilityCopy.reservedHelp}
-            </div>
+            <section className="availability-notice">
+              <strong>{availabilityCopy.reservedHelpTitle}</strong>
+              <p>{availabilityCopy.reservedHelp}</p>
+            </section>
           </aside>
         </div>
       </div>
@@ -389,22 +476,19 @@ function Field({
   type,
   value,
   onChange,
-  min,
 }: {
   label: string;
-  type: 'date' | 'time';
+  type: 'time';
   value: string;
   onChange: (value: string) => void;
-  min?: string;
 }) {
   return (
-    <label className="block text-sm font-bold text-[#1a1916]">
-      <span className="mb-2 block">{label}</span>
+    <label className="availability-field">
+      <span>{label}</span>
       <input
-        className="w-full rounded-xl border border-[#d9d2c6] bg-white px-3 py-3 text-base"
+        className="availability-input"
         type={type}
         value={value}
-        min={min}
         onChange={(event) => onChange(event.target.value)}
         required
       />
@@ -414,28 +498,70 @@ function Field({
 
 function Feedback({ message, tone }: { message: string; tone: 'error' | 'success' }) {
   return (
-    <p
-      className={`mb-4 rounded-xl p-3 text-sm font-semibold ${tone === 'error' ? 'bg-[#fff1ef] text-[#c04f40]' : 'bg-[#effaf5] text-[#0e8a73]'}`}
-      role={tone === 'error' ? 'alert' : 'status'}
-    >
+    <p className={`availability-feedback ${tone}`} role={tone === 'error' ? 'alert' : 'status'}>
       {message}
     </p>
   );
 }
 
 function EmptyState({ message }: { message: string }) {
+  return <div className="availability-empty">{message}</div>;
+}
+
+function FullPageState({ message }: { message: string }) {
   return (
-    <div className="rounded-xl border border-dashed border-[#d9d2c6] p-8 text-center text-sm text-[#5e5a52]">
-      {message}
+    <div className="availability-page-state">
+      <span role="status">{message}</span>
     </div>
   );
 }
 
-function PageState({ message }: { message: string }) {
+function InlineState({
+  message,
+  actionLabel,
+  onAction,
+  error = false,
+}: {
+  message: string;
+  actionLabel?: string;
+  onAction?: () => void;
+  error?: boolean;
+}) {
   return (
-    <main className="flex min-h-dvh items-center justify-center bg-[#fbfaf7] p-6 text-sm font-semibold text-[#5e5a52]">
-      <span role="status">{message}</span>
-    </main>
+    <div className={`availability-inline-state ${error ? 'error' : ''}`}>
+      <span role={error ? 'alert' : 'status'}>{message}</span>
+      {actionLabel && onAction && (
+        <button type="button" className="availability-secondary-button" onClick={onAction}>
+          {actionLabel}
+        </button>
+      )}
+    </div>
+  );
+}
+
+function SummaryCard({
+  label,
+  value,
+  help,
+  compact = false,
+  duration = false,
+}: {
+  label: string;
+  value: string;
+  help: string;
+  compact?: boolean;
+  duration?: boolean;
+}) {
+  return (
+    <section className="dash-card availability-stat">
+      <p className="availability-stat-label">{label}</p>
+      <p
+        className={`availability-stat-value ${compact ? 'compact' : ''} ${duration ? 'duration' : ''}`}
+      >
+        {value}
+      </p>
+      <p className="availability-stat-help">{help}</p>
+    </section>
   );
 }
 
@@ -443,6 +569,26 @@ function formatDuration(hours: number): string {
   return Number.isInteger(hours)
     ? String(hours)
     : hours.toFixed(2).replace(/0+$/, '').replace(/\.$/, '');
+}
+
+function formatHoursMinutes(
+  totalHours: number,
+  singularHour: string,
+  pluralHour: string,
+  singularMinute: string,
+  pluralMinute: string,
+): string {
+  const { hours, minutes } = getDurationHoursMinutes(totalHours);
+  const hourLabel = (hours === 1 ? singularHour : pluralHour).replace('{count}', String(hours));
+  const minuteLabel = (minutes === 1 ? singularMinute : pluralMinute).replace(
+    '{count}',
+    String(minutes),
+  );
+  return `${hourLabel} ${minuteLabel}`;
+}
+
+function formatDurationLabel(hours: number, singular: string, plural: string): string {
+  return (hours === 1 ? singular : plural).replace('{hours}', formatDuration(hours));
 }
 
 function safeBangkokDateTime(date: string, time: string): Date | null {

@@ -22,16 +22,42 @@ test('wires the tutor availability page to the private availability API', async 
 test('keeps availability display and input explicitly in Bangkok time', async () => {
   const page = await read('apps/web/src/components/availability/tutor-availability-page.tsx');
   const api = await read('apps/web/src/lib/api/availability.ts');
+  const dateTime = await read('apps/web/src/lib/date-time.ts');
+  const datePicker = await read('apps/web/src/components/date-time/localized-date-picker.tsx');
   const navigation = await read('apps/web/src/lib/dashboard-navigation.ts');
   const dashboard = await read('apps/web/src/components/dashboard/tutor-dashboard.tsx');
 
-  assert.match(api, /Asia\/Bangkok/);
   assert.match(api, /BANGKOK_UTC_OFFSET_HOURS = 7/);
   assert.match(api, /Date\.UTC\(year, month - 1, day, hour - BANGKOK_UTC_OFFSET_HOURS/);
+  assert.match(dateTime, /Asia\/Bangkok/);
+  assert.match(dateTime, /en-GB-u-ca-gregory/);
+  assert.match(dateTime, /th-TH-u-ca-buddhist/);
+  assert.match(dateTime, /getBangkokToday/);
+  assert.match(dateTime, /formatUtcDateTime/);
   assert.match(page, /bangkokDateTimeToUtc/);
   assert.match(page, /formatBangkokTime/);
+  assert.match(page, /LocalizedDatePicker/);
+  assert.doesNotMatch(page, /type="date"/);
+  assert.match(datePicker, /type="hidden"/);
+  assert.match(datePicker, /role="dialog"/);
+  assert.match(datePicker, /role="grid"/);
+  assert.match(datePicker, /aria-selected/);
   assert.match(navigation, /href: '\/dashboard\/availability'/);
   assert.match(dashboard, /href="\/dashboard\/availability"/);
+});
+
+test('keeps availability refreshes race-safe and dashboard states structurally valid', async () => {
+  const page = await read('apps/web/src/components/availability/tutor-availability-page.tsx');
+
+  assert.doesNotMatch(page, /function loadAvailability/);
+  assert.doesNotMatch(page, /await loadAvailability\(\)/);
+  assert.doesNotMatch(page, /<main/);
+  assert.doesNotMatch(page, /#[\da-fA-F]{3,8}/);
+  assert.match(
+    page,
+    /profileDisplayName \? \{ \.\.\.user, displayName: profileDisplayName \} : user/,
+  );
+  assert.match(page, /onAction=\{refreshAvailability\}/);
 });
 
 test('protects reserved slots and exposes the required availability states', async () => {
