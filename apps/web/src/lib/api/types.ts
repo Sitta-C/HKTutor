@@ -151,3 +151,30 @@ export interface PublicAvailabilityQuery {
   from?: string | Date;
   to?: string | Date;
 }
+
+export type AvailabilityState = 'OPEN' | 'RESERVED';
+
+export interface TutorAvailabilitySlot {
+  id: string;
+  startAtUtc: string;
+  endAtUtc: string;
+  createdAt: string;
+  state: AvailabilityState;
+}
+
+export interface AvailabilityQuery {
+  from?: string | Date;
+  to?: string | Date;
+}
+
+export interface CreateAvailabilityPayload {
+  startAt: string;
+  endAt: string;
+}
+
+export interface CreatedAvailabilitySlot {
+  id: string;
+  tutorProfileId: string;
+  startAtUtc: string;
+  endAtUtc: string;
+}
