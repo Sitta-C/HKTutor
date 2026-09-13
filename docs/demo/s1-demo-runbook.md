@@ -3,9 +3,13 @@
 **Owners:** Kin, Starter · **Task:** S1-T29 · **Depends on:** S1-T26 (integrated auth → listing →
 availability → search → booking flow)
 
-**Status:** DRAFT, revised against `main` on 2026-09-13. Sections 2–5 describe what exists on `main`
-today. Demo steps marked with an open pull request become runnable when that pull request merges.
-Every `TBC` must be filled by a real rehearsal after S1-T26.
+**Status:** DRAFT until one clean rehearsal is recorded. Revised against `main` at the S1-T26
+integration merge (PR #60) on 2026-09-13; S1-T25 (PR #54) is merged, so every demo step below is
+runnable today. What remains is the rehearsal itself: the one `TBC` in section 5 and the open items
+in section 9 are measurements and assignments, not unknown behavior.
+
+Companion record: `docs/qa/s1-evidence-record.md` (S1-T28) carries the API contract, the QA
+citations, and the issue log referenced here.
 
 ## 1. What this runbook proves
 
@@ -73,17 +77,25 @@ least 10 characters. It rejects bracketed placeholders.
 
 Seed contents on `main`:
 
-| Record                  | Detail                                                                                                        |
-| ----------------------- | ------------------------------------------------------------------------------------------------------------- |
-| Administrator           | `SEED_ADMIN_EMAIL`, email verified, active                                                                    |
-| Tutor **Anan**          | `SEED_TUTOR_EMAIL`, verified tutor, rating 4.80 from 24 reviews                                               |
-| Student **Nan**         | `SEED_STUDENT_EMAIL`, email verified, Grade 10 student profile                                                |
-| Catalog                 | Mathematics, Physics · Grade 10, Grade 11                                                                     |
-| Anan's listings         | Mathematics Grade 10 at 400 THB, **published** · Mathematics Grade 10 at 300 THB, **draft**                   |
-| Fixture tutors (search) | Mali · Math G10 · 350 THB, Kiet · Math G10 · 500 THB, Niran · Physics G10 · 400 THB, Pim · Math G11 · 450 THB |
-| Bookable slot           | Anan, 1 January 2030, 17:00–18:00 Bangkok time                                                                |
+| Record                  | Detail                                                                                                                                    |
+| ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| Administrator           | `SEED_ADMIN_EMAIL`, email verified, active                                                                                                |
+| Tutor **Anan**          | `SEED_TUTOR_EMAIL`, email verified, verification status **VERIFIED**, 5 years experience, **no rating yet** (cache is empty)              |
+| Student **Nan**         | `SEED_STUDENT_EMAIL`, email verified, completed Grade 10 student profile                                                                  |
+| Catalog                 | Mathematics, Physics · Grade 10, Grade 11                                                                                                 |
+| Anan's listings         | Mathematics Grade 10 at 400 THB, **published** · Mathematics Grade 10 at 300 THB, **draft**                                               |
+| Fixture tutors (search) | Mali · Math G10 · 350 THB · 4.40, Kiet · Math G10 · 500 THB · 4.00, Niran · Physics G10 · 400 THB · 4.70, Pim · Math G11 · 450 THB · 4.60 |
+| Bookable slot           | Anan, **seed run date + 7 days**, 17:00–18:00 Bangkok time, always slot id `30000000-0000-4000-8000-000000000001`                         |
 
-The seed creates no bookings, and it does not remove rows created during a demo. See section 8.
+Two consequences worth knowing before the demo:
+
+- Anan has no rating, so a minimum-rating filter hides Anan while showing the four fixture tutors.
+  Demonstrate the rating filter with the fixtures, not with Anan.
+- The bookable slot is one fixed row that every seed run moves to seven days ahead. Re-seeding does
+  not create a second slot and does not release a booking already made against it. See section 8.
+
+The seed creates no bookings and removes nothing created during a demo. The four fixture tutors have
+no usable password, so they can be searched but not signed in as.
 
 ## 5. Start the system
 
@@ -122,18 +134,26 @@ Compose on the presenting machine: `TBC`, not yet run.
 | 3   | Sign in as seeded tutor Anan. Open My listings and show the published 400 THB listing next to the 300 THB draft.                                                                                                                                       | S1-T15, S1-T16         | screenshot       | yes                        |
 | 4   | As Anan, add availability in Bangkok time. Add an overlapping range and show the rejection. Show that a reserved slot cannot be deleted.                                                                                                               | S1-T18, S1-T19         | screenshot       | yes                        |
 | 5   | Sign in as seeded student Nan. On `/tutors`, filter Mathematics, Grade 10, maximum budget 500: Mali, Anan, and Kiet appear, since the limit is inclusive; Niran, Pim, and the draft do not. Then filter Physics, Grade 11 and show the no-match state. | S1-T20, S1-T21, S1-T22 | screenshot       | yes                        |
-| 6   | Open Anan's tutor page, choose the slot, review the server quote on the confirmation screen, and submit. Show the booking in the student list as pending.                                                                                              | S1-T24, S1-T25         | screenshot       | after PR #54 merges        |
+| 6   | Open Anan's tutor page, choose the slot, review the server quote on the confirmation screen, and submit. Show the booking in the student list as pending.                                                                                              | S1-T24, S1-T25         | screenshot       | yes                        |
 | 7   | In Swagger, authorized as Nan, send `POST /api/v1/bookings` again with the same `listingId` and `slotId`. Show `409` with "The selected slot is already booked." and no `500`.                                                                         | S1-T24, S1-T27         | API response     | yes, once a booking exists |
 | 8   | Call `GET /api/v1/tutors/me/listings` with no token and show `401`. Call it with the student's token and show `403`. Neither response leaks private data.                                                                                              | S1-T10, S1-T13         | API response     | yes                        |
-| 9   | Run steps 3 to 7 as one uninterrupted walk-through without switching to Swagger.                                                                                                                                                                       | S1-T26                 | recording        | after S1-T26               |
+| 9   | Run steps 3 to 7 as one uninterrupted walk-through without switching to Swagger.                                                                                                                                                                       | S1-T26                 | recording        | yes                        |
 
 Not in Sprint 1, so not demonstrated: tutor confirming or rejecting a booking, and admin tools. No
 endpoint for either exists on `main`.
 
-Which slot step 6 books: `TBC`. The seeded 2030 slot works without step 4, but it stays booked after
-the first rehearsal. A slot created live in step 4 avoids that but ties step 6 to step 4.
+Three things to say accurately on stage, because the code does not match older wording:
 
-Timing target: `TBC`, measure during the first full rehearsal and record the actual duration here.
+- Discovery lists **pending or verified** tutors and shows the verification badge; it is not
+  verified-only. This is deliberate — tutor verification is Sprint 2 — and is logged as issue I3 in
+  the evidence record.
+- Booking requires a **completed student profile**. Seeded Nan has one. An account registered live
+  in step 1 must finish student onboarding before step 6 will succeed.
+- The quote shown in step 6 is computed by the API from the slot duration and the listing price. The
+  client never sends an amount.
+
+**Which slot step 6 books:** book a slot created live in step 4. The seeded slot is the fallback for
+a run that skips step 4, and it can only be booked once per database — see section 8.
 
 ## 7. Failure fallbacks
 
@@ -142,23 +162,45 @@ Timing target: `TBC`, measure during the first full rehearsal and record the act
 | Shared Supabase unreachable                 | present from the recorded rehearsal video; do not point the demo at an unreviewed database |
 | Verification email slow or not delivered    | skip to step 3 with the seeded accounts, which are already verified                        |
 | Docker build slow on the presenting machine | build before the session; use `pnpm dev` if Compose fails on the day                       |
-| Seeded slot already booked from a rehearsal | book a slot created in step 4 instead                                                      |
+| Seeded slot already booked from a rehearsal | book a slot created live in step 4 instead; re-seeding will not release it                 |
 | A step is red on the day                    | show the failing test and the issue entry rather than skipping silently                    |
 
 ## 8. Reset between rehearsals
 
-Re-running `pnpm db:seed` restores the fixture accounts, listings, and the 2030 slot. It does not
-cancel bookings, remove accounts registered in step 1, or delete slots created in step 4.
+Sprint 1 has no cancel endpoint and nothing sets `BookingStatus.EXPIRED` (issue I4 in the evidence
+record), so a booking made during a rehearsal is permanent for the life of that database.
 
-`TBC`, define once S1-T26 lands. Preferred shape: a demo-scoped cleanup that removes only rows
-created by the rehearsal, never a migration reset, so the shared project keeps its history.
+What `pnpm db:seed` does and does not do:
+
+| Does                                                               | Does not                                                           |
+| ------------------------------------------------------------------ | ------------------------------------------------------------------ |
+| Restore admin, Anan, Nan, the four fixture tutors and the listings | Cancel or delete any booking                                       |
+| Move slot `3000…0001` to seven days ahead of the run               | Create a second bookable slot                                      |
+| Stay idempotent and safe to re-run                                 | Remove accounts registered live in step 1 or slots added in step 4 |
+
+Because availability excludes slots that already have a pending or confirmed booking, the seeded
+slot disappears from Anan's availability after the first booking and re-seeding does not bring it
+back.
+
+The rehearsal procedure that follows from this:
+
+1. Run step 4 in every rehearsal and book the slot you create there in step 6. The rehearsal then
+   needs no cleanup at all.
+2. Keep the seeded slot for the one run where step 4 is skipped.
+3. If a rehearsal leaves the database unusable for another run, ask the migration owner for a fresh
+   disposable database. Never run `prisma migrate reset` against the shared project, and never edit
+   booking rows by hand during a demo window.
 
 ## 9. Open items before this leaves DRAFT
 
-- [ ] Re-run every step after PR #54 and S1-T26 merge, and correct the wording to match the real
-      screens.
-- [ ] Decide which slot step 6 books and how bookings are cleaned up between rehearsals.
-- [ ] Run the Compose path once on the presenting machine.
-- [ ] Fill each `TBC`.
-- [ ] Record one clean rehearsal end to end and link it here.
+Everything below needs the machine that will present, so none of it can be settled from the
+repository alone.
+
+- [ ] Run steps 1–9 once end to end on the presenting machine and correct any wording that does not
+      match the real screens.
+- [ ] Run the Compose path once on that machine and replace the `TBC` in section 5.
+- [ ] Record the walk-through duration in section 6 and keep the recording as the fallback in
+      section 7.
 - [ ] Confirm who presents each block and who operates the terminal.
+- [ ] Re-read section 6 against the evidence record's issue log, so nothing claimed on stage is
+      contradicted by a known issue.
