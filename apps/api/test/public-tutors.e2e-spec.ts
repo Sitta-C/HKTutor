@@ -56,6 +56,7 @@ describe('Public Tutor discovery APIs (e2e)', () => {
         reviewCount: 24,
         subject: 'Mathematics',
         tutorId: TUTOR_ID,
+        verificationStatus: 'PENDING',
       },
     ]);
 
@@ -70,6 +71,7 @@ describe('Public Tutor discovery APIs (e2e)', () => {
         nextAvailableAt: '2026-09-12T02:00:00.000Z',
         pricePerHour: 500,
         tutorId: TUTOR_ID,
+        verificationStatus: 'PENDING',
       }),
     ]);
     expect(service.searchPublicTutors).toHaveBeenCalledWith({

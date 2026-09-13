@@ -1,7 +1,6 @@
 import {
   BadRequestException,
   ConflictException,
-  ForbiddenException,
   Injectable,
   NotFoundException,
   ServiceUnavailableException,
@@ -67,7 +66,7 @@ const listingSelect = {
 type SelectedListing = Prisma.TeachingListingGetPayload<{ select: typeof listingSelect }>;
 
 const publicTutorWhere = {
-  verificationStatus: TutorVerificationStatus.VERIFIED,
+  verificationStatus: { in: [TutorVerificationStatus.PENDING, TutorVerificationStatus.VERIFIED] },
   user: {
     accountStatus: AccountStatus.ACTIVE,
     deletedAt: null,
@@ -144,6 +143,7 @@ const publicSearchSelect = (now: Date) =>
         ratingAverage: true,
         reviewCount: true,
         userId: true,
+        verificationStatus: true,
       },
     },
   }) satisfies Prisma.TeachingListingSelect;
@@ -218,7 +218,7 @@ const tutorNotFound = (): NotFoundException =>
   new NotFoundException({
     code: 'TUTOR_NOT_FOUND',
     error: 'Not Found',
-    message: 'Verified tutor not found',
+    message: 'Published tutor not found',
     statusCode: 404,
   });
 
@@ -400,15 +400,6 @@ export class TutorsService {
   }
 
   async postPublishListing(userId: string, listingId: string): Promise<ListingResponseDto> {
-    const tutorProfile = await this.prisma.tutorProfile.findUnique({
-      where: { userId },
-      select: { verificationStatus: true },
-    });
-
-    if (tutorProfile?.verificationStatus !== TutorVerificationStatus.VERIFIED) {
-      throw new ForbiddenException('Tutor is not verified');
-    }
-
     try {
       const listing = await this.prisma.teachingListing.update({
         where: {
@@ -526,7 +517,9 @@ export class TutorsService {
       select: { userId: true },
       where: {
         userId: tutorId,
-        verificationStatus: TutorVerificationStatus.VERIFIED,
+        verificationStatus: {
+          in: [TutorVerificationStatus.PENDING, TutorVerificationStatus.VERIFIED],
+        },
       },
     });
     if (!tutor) throw tutorNotFound();
@@ -680,6 +673,8 @@ function mapPublicSearchListing(listing: SelectedPublicSearchListing): TutorSear
     reviewCount: tutor.reviewCount,
     subject: listing.subject.name,
     tutorId: tutor.userId,
+    verificationStatus:
+      tutor.verificationStatus === TutorVerificationStatus.VERIFIED ? 'VERIFIED' : 'PENDING',
   };
 }
 
@@ -691,7 +686,8 @@ function mapPublicTutor(tutor: SelectedPublicTutor): PublicTutorDetailResponseDt
     ratingAverage: tutor.ratingAverage?.toNumber() ?? null,
     reviewCount: tutor.reviewCount,
     tutorId: tutor.userId,
-    verificationStatus: 'VERIFIED',
+    verificationStatus:
+      tutor.verificationStatus === TutorVerificationStatus.VERIFIED ? 'VERIFIED' : 'PENDING',
   };
 }
 
