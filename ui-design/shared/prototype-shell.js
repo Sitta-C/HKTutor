@@ -114,7 +114,7 @@
           <div class="dash-main-wrap">
             ${headerMarkup(config)}
             <main class="dash-main">${pageContent}</main>
-            <footer class="dash-footer"><span>© 2026 HKTutor. All rights reserved.</span><span class="sep">|</span><button type="button" style="color:inherit">${copy('Privacy & support', 'ความเป็นส่วนตัวและช่วยเหลือ')}</button></footer>
+            <footer class="dash-footer">${copy('© 2026 HKTutor. All rights reserved.', '© 2569 HKTutor. All rights reserved.')}<span class="sep">|</span><button type="button" style="color:inherit">${copy('Privacy & support', 'ความเป็นส่วนตัวและช่วยเหลือ')}</button></footer>
           </div>
         </div>
         <div class="proto-toast" role="status" aria-live="polite"></div>
