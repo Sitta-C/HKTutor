@@ -115,7 +115,7 @@ export function TutorDashboard({ user, onLogout }: TutorDashboardProps) {
                 </span>
                 <span>{tutorCopy.newListingAction}</span>
               </Link>
-              <Link href="#availability">
+              <Link href="/dashboard/availability">
                 <span className="ico" aria-hidden="true">
                   <DashboardIcon name="calendar" />
                 </span>
@@ -224,7 +224,7 @@ export function TutorDashboard({ user, onLogout }: TutorDashboardProps) {
         <div className="dash-card tutors-panel mt-5 p-6 sm:p-7">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-4">
             <h2 className="text-2xl font-extrabold tracking-tight">{tutorCopy.todayBangkokTime}</h2>
-            <Link href="#availability" className="dash-link !mt-0">
+            <Link href="/dashboard/availability" className="dash-link !mt-0">
               {tutorCopy.manageAvailability}
             </Link>
           </div>
