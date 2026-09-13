@@ -164,6 +164,10 @@ so the last column is where the team records it.
 | Kin     | `Viritphon Chongpermwattanapol`       |       5 | #11                                                                    | T28, T29 / T04, T05, T11, T12, T21, T22                     |
 | Starter | `starter2157`                         |       0 | —                                                                      | — / T07, T17, T29, T32                                      |
 
+PR #19 (`feature/authentication`) is the one branch with no single primary author: P and Jojo wrote
+20 and 18 commits on it. Merge authorship is not counted as contribution anywhere in this table;
+Kin merged PR #57 and PR #60, and wakesup1 merged PR #11 and PR #54.
+
 Starter has no commit authored on `main`. Starter is a second owner on four tasks, so any pairing
 or co-authored work needs to be recorded by the pair before this table is submitted — a zero here
 is a gap in the record, not a conclusion about the person.
