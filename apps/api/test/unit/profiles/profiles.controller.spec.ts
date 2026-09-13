@@ -6,6 +6,16 @@ import type { AuthenticatedUser } from '@/auth/auth.guard';
 import type { ProfilesService } from '@/profiles/profiles.service';
 
 describe('ProfilesController', () => {
+  it('restricts the private read route to student and tutor roles', () => {
+    const handler = Object.getOwnPropertyDescriptor(ProfilesController.prototype, 'getMine')
+      ?.value as object | undefined;
+    const roles = handler
+      ? (Reflect.getMetadata(ROLES_KEY, handler) as Role[] | undefined)
+      : undefined;
+
+    expect(roles).toEqual([Role.STUDENT, Role.TUTOR]);
+  });
+
   it('uses the authenticated student id as the upsert owner', async () => {
     const profile = {
       firstName: 'Suda',

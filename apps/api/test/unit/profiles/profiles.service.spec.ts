@@ -1,4 +1,4 @@
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 
 import { CURRENT_PRIVACY_POLICY_VERSION } from '@/auth/auth.constants';
 import { Role } from '@/generated/prisma/client';
@@ -7,6 +7,25 @@ import { ProfilesService } from '@/profiles/profiles.service';
 import type { PrismaService } from '@/database/prisma.service';
 
 describe('ProfilesService', () => {
+  it('rejects an admin before querying private profile data', async () => {
+    const findUnique = jest.fn();
+    const service = new ProfilesService({
+      user: { findUnique },
+    } as unknown as PrismaService);
+
+    await expect(
+      service.getMine({
+        id: 'admin-id',
+        email: 'admin@example.com',
+        role: Role.ADMIN,
+        sessionId: 'session-id',
+      }),
+    ).rejects.toThrow(
+      new ForbiddenException('Only students and tutors can access a private profile'),
+    );
+    expect(findUnique).not.toHaveBeenCalled();
+  });
+
   it('returns 404 when the authenticated account no longer exists', async () => {
     const service = new ProfilesService({
       user: { findUnique: jest.fn().mockResolvedValue(null) },
