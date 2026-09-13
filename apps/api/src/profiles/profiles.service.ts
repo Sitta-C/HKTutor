@@ -1,4 +1,9 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 
 import { CURRENT_PRIVACY_POLICY_VERSION } from '@/auth/auth.constants';
 import { PrismaService } from '@/database/prisma.service';
@@ -34,6 +39,10 @@ export class ProfilesService {
   constructor(private readonly prisma: PrismaService) {}
 
   async getMine(user: AuthenticatedUser) {
+    if (user.role === Role.ADMIN) {
+      throw new ForbiddenException('Only students and tutors can access a private profile');
+    }
+
     const account = await this.prisma.user.findUnique({
       where: { id: user.id },
       select: {
@@ -46,7 +55,7 @@ export class ProfilesService {
     if (!account) throw new NotFoundException('Account not found');
 
     const consentCurrent = account.policyVersion === CURRENT_PRIVACY_POLICY_VERSION;
-    if (user.role !== Role.ADMIN && !consentCurrent) {
+    if (!consentCurrent) {
       throw new BadRequestException('Accept the current privacy notice before viewing a profile');
     }
 
@@ -74,13 +83,7 @@ export class ProfilesService {
       };
     }
 
-    return {
-      consentCurrent: true,
-      policyVersion: CURRENT_PRIVACY_POLICY_VERSION,
-      profile: null,
-      profileComplete: true,
-      role: Role.ADMIN,
-    };
+    throw new ForbiddenException('Only students and tutors can access a private profile');
   }
 
   async saveStudent(userId: string, dto: SaveStudentProfileDto) {

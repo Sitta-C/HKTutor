@@ -3,11 +3,18 @@ import { describe, expect, it } from 'vitest';
 import {
   DASHBOARD_PATH,
   ONBOARDING_PROFILE_PATH,
+  requiresPrivateProfile,
   resolveDashboardGate,
   resolveOnboardingHandoff,
 } from '@/lib/profile-navigation';
 
 describe('dashboard gate', () => {
+  it('loads private profiles for students and tutors but bypasses them for admins', () => {
+    expect(requiresPrivateProfile('STUDENT')).toBe(true);
+    expect(requiresPrivateProfile('TUTOR')).toBe(true);
+    expect(requiresPrivateProfile('ADMIN')).toBe(false);
+  });
+
   it('sends a student whose profile is incomplete to onboarding', () => {
     expect(resolveDashboardGate({ consentCurrent: true, profileComplete: false })).toBe(
       ONBOARDING_PROFILE_PATH,
