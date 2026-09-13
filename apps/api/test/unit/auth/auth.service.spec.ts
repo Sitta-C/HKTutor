@@ -85,6 +85,60 @@ describe('AuthService', () => {
     expect(plainToken.length).toBeGreaterThanOrEqual(32);
   });
 
+  it('retries verification delivery when registration is repeated for an active unverified account', async () => {
+    const existingUser = {
+      accountStatus: AccountStatus.ACTIVE,
+      email: 'student@example.com',
+      emailVerifiedAt: null,
+      id: 'user-id',
+    };
+    const userFindFirst = jest.fn().mockResolvedValue(existingUser);
+    const updateMany = jest.fn().mockResolvedValue({ count: 1 });
+    const verificationCreate = jest.fn().mockResolvedValue({ id: 'new-token-id' });
+    const transaction = jest.fn(async (operation: (client: unknown) => Promise<unknown>) =>
+      operation({
+        emailVerificationToken: { create: verificationCreate, updateMany },
+      }),
+    );
+    const sendVerificationEmail = jest.fn().mockResolvedValue(undefined);
+    const passwordHash = jest.fn();
+    const service = createService({
+      prisma: { user: { findFirst: userFindFirst }, $transaction: transaction },
+      passwords: { hash: passwordHash },
+      email: { sendVerificationEmail },
+    });
+
+    await expect(
+      service.register({
+        email: existingUser.email,
+        password: 'password123',
+        role: 'student',
+        consent: true,
+        policyVersion: '2026-09-09',
+      }),
+    ).resolves.toEqual({
+      message: 'If the account can be verified, a verification email has been sent.',
+    });
+
+    expect(userFindFirst).toHaveBeenCalledTimes(2);
+    expect(passwordHash).not.toHaveBeenCalled();
+    expect(updateMany).toHaveBeenCalledWith({
+      data: { consumedAt: expect.any(Date) as Date },
+      where: { consumedAt: null, userId: existingUser.id },
+    });
+    expect(verificationCreate).toHaveBeenCalledWith({
+      data: {
+        expiresAt: expect.any(Date) as Date,
+        tokenHash: expect.stringMatching(/^[a-f0-9]{64}$/) as string,
+        userId: existingUser.id,
+      },
+    });
+    expect(sendVerificationEmail).toHaveBeenCalledWith(
+      existingUser.email,
+      expect.any(String) as string,
+    );
+  });
+
   it('rejects login before email verification even when the password is valid', async () => {
     const service = createService({
       prisma: {
