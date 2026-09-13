@@ -35,6 +35,7 @@ test('defines the S1-T22 public Tutor client contracts', async () => {
     'pricePerHour',
     'ratingAverage',
     'reviewCount',
+    'verificationStatus',
     'nextAvailableAt',
   ]) {
     assert.match(types, new RegExp(`export interface TutorSearchResult[\\s\\S]*?${field}`));
