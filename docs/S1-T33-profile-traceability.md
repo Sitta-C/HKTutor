@@ -1,8 +1,9 @@
 # S1-T33 — Student Profile E2E Regression Tests and Documentation Traceability
 
 - **Epic:** E11 — Identity, Privacy & Access Control
-- **User Story:** US11-2 — As a user, I want to accept a privacy notice before my private profile
-  data is read or written, so that my personal information is protected.
+- **User Story:** US11-4 — As a student, I want to complete and update my personal profile after
+  email verification, so that the platform has the information required to support my tutoring
+  journey.
 - **Dependencies:** S1-T31 (owner-only student profile API), S1-T32 (onboarding/edit UI and
   incomplete-profile redirects)
 - **Evidence / Done output:** Cover create/update, validation, access, consent, privacy, redirects,
@@ -103,8 +104,7 @@ PostgreSQL-backed `pnpm db:verify:bookings` script.
 - The e2e spec overrides `JwtAuthGuard` only. Keeping the real `RolesGuard` and the real
   `ValidationPipe` is what makes the access and validation rows above meaningful.
 - `pnpm check` runs the API jest unit suite (`test/unit/**`); the e2e specs run through
-  `pnpm --filter @hktutor/api test:e2e` and are reported separately, as in
-  `docs/S1-T27-negative-path-evidence.md`.
+  `pnpm --filter @hktutor/api test:e2e` and are reported separately.
 - Migration evidence is checked by reading
   `apps/api/prisma/migrations/20260909190000_add_personal_profiles/migration.sql`; no migration was
   added or changed by this task.

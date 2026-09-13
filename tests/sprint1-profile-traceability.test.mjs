@@ -32,6 +32,11 @@ test('documents every S1-T33 evidence item', async () => {
   }
   assert.match(doc, /S1-T31/);
   assert.match(doc, /S1-T32/);
+  assert.match(
+    doc,
+    /- \*\*User Story:\*\* US11-4/,
+    'the Sprint 1 backlog maps S1-T33 to US11-4; the doc must cite that story',
+  );
 });
 
 test('cites only proving-test files that exist in the repository', async () => {
@@ -46,6 +51,13 @@ test('cites only proving-test files that exist in the repository', async () => {
   for (const citedTest of citedTests) {
     await fs.access(citedTest).catch(() => {
       assert.fail(`traceability doc cites a path that does not exist: ${citedTest}`);
+    });
+  }
+
+  const citedDocs = [...new Set(doc.match(/docs\/[\w./-]+\.md/g) ?? [])];
+  for (const citedDoc of citedDocs) {
+    await fs.access(citedDoc).catch(() => {
+      assert.fail(`traceability doc cites a document that does not exist: ${citedDoc}`);
     });
   }
 

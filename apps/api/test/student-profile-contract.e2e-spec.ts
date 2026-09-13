@@ -44,6 +44,14 @@ interface UpsertArgs {
   where: { userId: string };
 }
 
+interface FindUniqueArgs {
+  select?: {
+    policyVersion?: boolean;
+    studentProfile?: { select: Record<string, unknown> };
+    tutorProfile?: { select: Record<string, unknown> };
+  };
+}
+
 interface ProfileReadBody {
   consentCurrent: boolean;
   profile: Record<string, unknown> | null;
@@ -64,6 +72,11 @@ describe('Student profile contract (e2e)', () => {
   const lastUpsertArgs = (): UpsertArgs => {
     const calls = studentUpsert.mock.calls as unknown as unknown[][];
     return calls.at(-1)?.[0] as UpsertArgs;
+  };
+
+  const findUniqueArgsList = (): FindUniqueArgs[] => {
+    const calls = userFindUnique.mock.calls as unknown as unknown[][];
+    return calls.map((call) => call[0] as FindUniqueArgs);
   };
 
   const readBody = (body: unknown): ProfileReadBody => body as ProfileReadBody;
@@ -314,9 +327,25 @@ describe('Student profile contract (e2e)', () => {
         .expect(200);
 
       for (const response of [readResponse, writeResponse]) {
-        expect(JSON.stringify(response.body)).not.toMatch(/passwordHash|refreshToken/);
-        expect(response.body).not.toHaveProperty('userId');
+        // Serialized check on purpose: a credential nested under `profile` would slip past a
+        // root-level `not.toHaveProperty` assertion.
+        expect(JSON.stringify(response.body)).not.toMatch(/passwordHash|refreshToken|userId/);
       }
+
+      // The Prisma mock returns whatever it is told, so the response alone cannot prove
+      // sanitization: the read query has to ask for the sanitized projection in the first place.
+      const readArgs = findUniqueArgsList().find(
+        (args) => args.select?.studentProfile !== undefined,
+      );
+      expect(readArgs?.select?.studentProfile?.select).toEqual({
+        firstName: true,
+        gradeLevel: true,
+        lastName: true,
+        nickname: true,
+        phone: true,
+        school: true,
+      });
+      expect(readArgs?.select).not.toHaveProperty('userId');
       expect(readBody(readResponse.body).profileComplete).toBe(true);
     });
   });
