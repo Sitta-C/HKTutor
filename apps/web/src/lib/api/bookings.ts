@@ -9,6 +9,8 @@ import type {
   CreateBookingPayload,
   MyBookingsQuery,
   MyBookingsResponse,
+  TutorBookingsQuery,
+  TutorBookingsResponse,
 } from '@/lib/api/types';
 
 export interface BookingSubmitGate {
@@ -51,6 +53,17 @@ export function getMyBookings(queryInput: MyBookingsQuery = {}): Promise<MyBooki
 
 export function getMyBooking(bookingId: string): Promise<BookingDetail> {
   return authenticatedFetch<BookingDetail>(`/bookings/me/${encodeURIComponent(bookingId)}`);
+}
+
+export function getTutorBookings(
+  queryInput: TutorBookingsQuery = {},
+): Promise<TutorBookingsResponse> {
+  const params = new URLSearchParams();
+  if (queryInput.status) params.set('status', queryInput.status);
+  if (queryInput.from) params.set('from', toIsoString(queryInput.from));
+  if (queryInput.to) params.set('to', toIsoString(queryInput.to));
+  const query = params.toString() ? `?${params.toString()}` : '';
+  return authenticatedFetch<TutorBookingsResponse>(`/bookings/tutor${query}`);
 }
 
 function toIsoString(value: string | Date): string {

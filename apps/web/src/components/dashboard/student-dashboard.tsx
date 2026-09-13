@@ -1,13 +1,16 @@
 'use client';
 
 import Link from 'next/link';
+import { useEffect, useMemo, useState } from 'react';
 
 import { DashboardIcon } from '@/components/dashboard/dashboard-icon';
 import DashboardShell from '@/components/dashboard/dashboard-shell';
+import { getMyBookings } from '@/lib/api/bookings';
 import { getUserDisplayName } from '@/lib/dashboard-navigation';
+import { formatBangkokDateTime } from '@/lib/date-time';
 import { useLanguage } from '@/lib/i18n';
 
-import type { AuthUser } from '@/lib/api/types';
+import type { AuthUser, BookingView } from '@/lib/api/types';
 
 export interface StudentDashboardProps {
   user: AuthUser;
@@ -15,9 +18,50 @@ export interface StudentDashboardProps {
 }
 
 export function StudentDashboard({ user, onLogout }: StudentDashboardProps) {
-  const { copy } = useLanguage();
+  const { copy, language } = useLanguage();
   const displayName = getUserDisplayName(user);
   const studentCopy = copy.dashboard.student;
+  const [bookings, setBookings] = useState<BookingView[]>([]);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [mountedAt] = useState(() => Date.now());
+
+  useEffect(() => {
+    let active = true;
+    getMyBookings()
+      .then((result) => {
+        if (!active) return;
+        setBookings(result.items);
+        setLoadError(null);
+      })
+      .catch((caught: unknown) => {
+        if (active) setLoadError(caught instanceof Error ? caught.message : studentCopy.loadError);
+      });
+    return () => {
+      active = false;
+    };
+  }, [studentCopy.loadError]);
+
+  const upcoming = useMemo(
+    () =>
+      bookings
+        .filter(
+          (booking) =>
+            (booking.status === 'PENDING' || booking.status === 'CONFIRMED') &&
+            new Date(booking.slot.startAtUtc).getTime() > mountedAt,
+        )
+        .sort(
+          (left, right) =>
+            new Date(left.slot.startAtUtc).getTime() - new Date(right.slot.startAtUtc).getTime(),
+        ),
+    [bookings, mountedAt],
+  );
+  const nextBooking = upcoming[0];
+  const pendingCount = bookings.filter((booking) => booking.status === 'PENDING').length;
+  const completedCount = bookings.filter((booking) => booking.status === 'COMPLETED').length;
+  const tutorBookings = useMemo(
+    () => Array.from(new Map(bookings.map((booking) => [booking.tutor.tutorId, booking])).values()),
+    [bookings],
+  );
 
   const headerNav = (
     <>
@@ -29,7 +73,12 @@ export function StudentDashboard({ user, onLogout }: StudentDashboardProps) {
   );
 
   return (
-    <DashboardShell user={user} onLogout={onLogout} headerNavRight={headerNav}>
+    <DashboardShell
+      user={user}
+      onLogout={onLogout}
+      headerNavRight={headerNav}
+      navBadges={{ bookings: String(bookings.length) }}
+    >
       <div className="dash-greeting">
         <p className="dash-eyebrow">{copy.dashboard.common.eyebrow}</p>
         <h1>
@@ -42,6 +91,14 @@ export function StudentDashboard({ user, onLogout }: StudentDashboardProps) {
       </div>
 
       <section>
+        {loadError && (
+          <p
+            className="mb-5 rounded-xl border border-[#e2b7ae] bg-[#fff4f1] p-4 text-sm text-[#a34334]"
+            role="alert"
+          >
+            {loadError}
+          </p>
+        )}
         {/* ROW 1: 4 summary cards */}
         <div className="dash-summary dash-summary-student">
           <div className="dash-card">
@@ -52,8 +109,12 @@ export function StudentDashboard({ user, onLogout }: StudentDashboardProps) {
             <p className="text-xs font-bold uppercase tracking-wider text-[#5e5a52]">
               {copy.dashboard.common.bangkokTimeWithZone}
             </p>
-            <div className="py-2.5 text-sm text-[#5e5a52]">{studentCopy.noUpcomingLessons}</div>
-            <span className="dash-pill done">{copy.dashboard.common.comingSoonBadge}</span>
+            <div className="py-2.5 text-sm text-[#5e5a52]">
+              {nextBooking
+                ? `${nextBooking.tutor.displayName} · ${formatBangkokDateTime(nextBooking.slot.startAtUtc, language)}`
+                : studentCopy.noUpcomingLessons}
+            </div>
+            {nextBooking && <span className="dash-pill done">{nextBooking.status}</span>}
           </div>
 
           <div className="dash-card">
@@ -61,18 +122,18 @@ export function StudentDashboard({ user, onLogout }: StudentDashboardProps) {
               <span className="dot" style={{ backgroundColor: 'var(--student)' }} />
               <span>{studentCopy.bookings}</span>
             </h2>
-            <div className="dash-big">0</div>
+            <div className="dash-big">{upcoming.length}</div>
             <p className="dash-sub">{studentCopy.upcomingLessonsCount}</p>
             <div className="mt-2.5 flex flex-col gap-1.5 text-xs text-[#5e5a52]">
               <div className="flex items-center justify-between">
                 <span>
-                  <b>0</b> {studentCopy.completedLessons}
+                  <b>{completedCount}</b> {studentCopy.completedLessons}
                 </span>
                 <span className="dash-pill done">{studentCopy.doneBadge}</span>
               </div>
               <div className="flex items-center justify-between">
                 <span>
-                  <b>0</b> {studentCopy.awaitingConfirmation}
+                  <b>{pendingCount}</b> {studentCopy.awaitingConfirmation}
                 </span>
                 <span className="dash-pill pending">{studentCopy.pendingBadge}</span>
               </div>
@@ -112,7 +173,9 @@ export function StudentDashboard({ user, onLogout }: StudentDashboardProps) {
               <span>{studentCopy.waitingOnTutor}</span>
             </h2>
             <div className="py-4 text-center text-xs text-[#8a857b]">
-              {studentCopy.noWaitingRequests}
+              {pendingCount > 0
+                ? `${pendingCount} ${studentCopy.awaitingConfirmation}`
+                : studentCopy.noWaitingRequests}
             </div>
           </div>
         </div>
@@ -129,7 +192,7 @@ export function StudentDashboard({ user, onLogout }: StudentDashboardProps) {
                   color: 'var(--student-deep)',
                 }}
               >
-                0
+                {tutorBookings.length}
               </span>
             </h2>
             <div className="flex flex-1 flex-wrap items-center justify-end gap-3 sm:flex-initial">
@@ -166,17 +229,29 @@ export function StudentDashboard({ user, onLogout }: StudentDashboardProps) {
             </div>
           </div>
 
-          {/* Honest empty state */}
-          <div className="rounded-2xl border border-dashed border-[#ebe6dd] bg-[#faf8f4] p-8 text-center">
-            <p className="text-base font-bold text-[#1a1916]">{studentCopy.noTutorsYetTitle}</p>
-            <p className="mt-1 text-xs text-[#5e5a52]">{studentCopy.noTutorsYetDescription}</p>
-            <div className="mx-auto mt-4 max-w-md rounded-xl border border-[#f1ddc4] bg-[#fffaf4] p-3 text-xs text-[#c07a2e]">
-              <span className="mr-1.5 inline-flex align-middle" aria-hidden="true">
-                <DashboardIcon name="info" className="h-4 w-4" />
-              </span>
-              <span>{copy.dashboard.common.domainApiNotice}</span>
+          {tutorBookings.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-[#ebe6dd] bg-[#faf8f4] p-8 text-center">
+              <p className="text-base font-bold text-[#1a1916]">{studentCopy.noTutorsYetTitle}</p>
+              <p className="mt-1 text-xs text-[#5e5a52]">{studentCopy.noTutorsYetDescription}</p>
             </div>
-          </div>
+          ) : (
+            <div className="grid gap-3 sm:grid-cols-2">
+              {tutorBookings.map((booking) => (
+                <Link
+                  key={booking.tutor.tutorId}
+                  href={`/dashboard/bookings/${encodeURIComponent(booking.id)}`}
+                  className="rounded-2xl border border-[#ebe6dd] bg-[#faf8f4] p-4"
+                >
+                  <strong className="block text-sm text-[#1a1916]">
+                    {booking.tutor.displayName}
+                  </strong>
+                  <span className="mt-1 block text-xs text-[#5e5a52]">
+                    {booking.listing.subjectName} · {booking.listing.gradeLevelName}
+                  </span>
+                </Link>
+              ))}
+            </div>
+          )}
 
           {/* Browse all tutors prompt */}
           <div className="mt-5 flex flex-wrap items-center justify-between gap-4 border-t border-[#ebe6dd] pt-5">
