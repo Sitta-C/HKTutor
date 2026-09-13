@@ -10,6 +10,7 @@ import { ApiError } from '@/lib/api/error';
 import { getMyProfile } from '@/lib/api/profiles';
 import { useAuth } from '@/lib/auth-context';
 import { useLanguage } from '@/lib/i18n';
+import { resolveDashboardGate } from '@/lib/profile-navigation';
 
 import type { AuthUser } from '@/lib/api/types';
 
@@ -33,8 +34,9 @@ export default function DashboardPage() {
     getMyProfile()
       .then((result) => {
         if (!active) return;
-        if (!result.profileComplete || !result.consentCurrent) {
-          router.replace('/onboarding/profile');
+        const gate = resolveDashboardGate(result);
+        if (gate) {
+          router.replace(gate);
           return;
         }
 

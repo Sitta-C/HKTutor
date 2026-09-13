@@ -16,6 +16,11 @@ import {
 } from '@/lib/api/profiles';
 import { useAuth } from '@/lib/auth-context';
 import { useLanguage } from '@/lib/i18n';
+import {
+  DASHBOARD_PATH,
+  resolveDashboardGate,
+  resolveOnboardingHandoff,
+} from '@/lib/profile-navigation';
 
 import type { AuthUser, StudentProfile, TutorProfile } from '@/lib/api/types';
 import type { FormEvent, InputHTMLAttributes, ReactNode } from 'react';
@@ -118,8 +123,8 @@ export default function ProfileEditor({ mode }: ProfileEditorProps) {
           setInitialTutor(form);
           setTutorMeta(result.profile);
         }
-        if (mode === 'onboarding' && result.profileComplete && result.consentCurrent) {
-          router.replace('/dashboard');
+        if (mode === 'onboarding' && resolveDashboardGate(result) === null) {
+          router.replace(DASHBOARD_PATH);
           return;
         }
         setIsLoading(false);
@@ -181,7 +186,8 @@ export default function ProfileEditor({ mode }: ProfileEditorProps) {
           setTutorMeta(result.profile);
         }
 
-        if (mode === 'onboarding' && result.profileComplete) router.replace('/dashboard');
+        const handoff = resolveOnboardingHandoff(result);
+        if (mode === 'onboarding' && handoff) router.replace(handoff);
       } catch (caught: unknown) {
         setError(caught instanceof Error ? caught.message : text.saveError);
       } finally {
