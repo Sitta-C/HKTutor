@@ -12,34 +12,54 @@ const composeConfig = () =>
       ...process.env,
       DATABASE_URL:
         'postgresql://postgres.project-ref:password@example.test:5432/postgres?sslmode=require',
+      EMAIL_FROM: 'HKTutor <no-reply@example.test>',
+      JWT_ACCESS_SECRET: 'test-access-secret-that-is-at-least-32-characters',
+      JWT_REFRESH_SECRET: 'test-refresh-secret-that-is-at-least-32-characters',
+      RESEND_API_KEY: 're_test_placeholder',
     },
   });
 
 const publishedPorts = (service) =>
-  service.ports.map(({ protocol, published, target }) => `${published}:${target}/${protocol}`);
+  (service.ports ?? []).map(
+    ({ protocol, published, target }) => `${published}:${target}/${protocol}`,
+  );
 
-test('defines web and API services with health checks and no local data service', () => {
+test('publishes one same-origin gateway and keeps web and API services private', () => {
   const result = composeConfig();
   const output = `${result.stdout}${result.stderr}`;
 
   assert.equal(result.status, 0, output);
 
   const config = JSON.parse(result.stdout);
-  assert.deepEqual(Object.keys(config.services).sort(), ['api', 'web']);
-  assert.deepEqual(publishedPorts(config.services.web), ['3000:3000/tcp']);
-  assert.deepEqual(publishedPorts(config.services.api), ['3001:3001/tcp']);
+  assert.deepEqual(Object.keys(config.services).sort(), ['api', 'gateway', 'web']);
+  assert.deepEqual(publishedPorts(config.services.gateway), ['3000:80/tcp']);
+  assert.deepEqual(publishedPorts(config.services.web), []);
+  assert.deepEqual(publishedPorts(config.services.api), []);
   assert.ok(config.services.web.healthcheck, 'web health check is required');
   assert.ok(config.services.api.healthcheck, 'API health check is required');
   assert.equal(config.services.web.depends_on.api.condition, 'service_healthy');
+  assert.equal(config.services.gateway.depends_on.api.condition, 'service_healthy');
+  assert.equal(config.services.gateway.depends_on.web.condition, 'service_healthy');
   assert.equal(
     config.services.api.environment.DATABASE_URL,
     'postgresql://postgres.project-ref:password@example.test:5432/postgres?sslmode=require',
   );
-  assert.match(config.services.api.healthcheck.test.join(' '), /\/api\/health/);
+  assert.equal(
+    config.services.api.environment.JWT_ACCESS_SECRET,
+    'test-access-secret-that-is-at-least-32-characters',
+  );
+  assert.equal(
+    config.services.api.environment.JWT_REFRESH_SECRET,
+    'test-refresh-secret-that-is-at-least-32-characters',
+  );
+  assert.equal(config.services.api.environment.RESEND_API_KEY, 're_test_placeholder');
+  assert.match(config.services.api.healthcheck.test.join(' '), /\/api\/v1\/health/);
   assert.equal(config.services.api.build.dockerfile, 'apps/api/Dockerfile');
   assert.equal(config.services.web.build.dockerfile, 'apps/web/Dockerfile');
+  assert.equal(config.services.web.build.args.API_INTERNAL_URL, 'http://api:3001');
   assert.deepEqual(config.services.api.volumes ?? [], []);
   assert.deepEqual(config.services.web.volumes ?? [], []);
+  assert.deepEqual(config.services.gateway.volumes ?? [], []);
   assert.deepEqual(config.volumes ?? {}, {});
 });
 
@@ -52,6 +72,38 @@ test('the API image generates Prisma Client without copying environment files', 
   assert.match(dockerfile, /FROM base AS runtime/);
   assert.match(dockerignore, /^\.env$/m);
   assert.match(dockerignore, /^\.env\.\*$/m);
+});
+
+test('the web Dockerfile receives only the internal API URL before the production build', async () => {
+  const dockerfile = await fs.readFile('apps/web/Dockerfile', 'utf8');
+
+  const argIndex = dockerfile.indexOf('ARG API_INTERNAL_URL');
+  const envIndex = dockerfile.indexOf('ENV API_INTERNAL_URL=$API_INTERNAL_URL');
+  const buildIndex = dockerfile.indexOf('RUN pnpm --filter @hktutor/web build');
+
+  assert.ok(argIndex > -1, 'the web Dockerfile must declare ARG API_INTERNAL_URL');
+  assert.ok(envIndex > -1, 'the web Dockerfile must set ENV API_INTERNAL_URL');
+  assert.ok(buildIndex > -1, 'the web Dockerfile must build @hktutor/web');
+  assert.ok(argIndex < buildIndex, 'ARG must appear before the web build');
+  assert.ok(
+    envIndex < buildIndex,
+    'ENV must appear before the web build so next build bakes it in',
+  );
+});
+
+test('the web image receives no public API URL or authentication secrets', async () => {
+  const dockerfile = await fs.readFile('apps/web/Dockerfile', 'utf8');
+
+  assert.doesNotMatch(dockerfile, /NEXT_PUBLIC_/);
+  assert.doesNotMatch(dockerfile, /ARG (?:JWT_|RESEND_|EMAIL_FROM|DATABASE_URL)/);
+  assert.doesNotMatch(dockerfile, /CLERK/i);
+});
+
+test('the gateway routes API traffic to NestJS and all other traffic to Next.js', async () => {
+  const nginx = await fs.readFile('deploy/gateway/nginx.conf', 'utf8');
+
+  assert.match(nginx, /location \/api\/v1\/\s*{[\s\S]*proxy_pass http:\/\/api:3001;/);
+  assert.match(nginx, /location \/\s*{[\s\S]*proxy_pass http:\/\/web:3000;/);
 });
 
 test('every Compose build resolves to an existing Dockerfile', async () => {

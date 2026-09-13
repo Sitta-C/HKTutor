@@ -1,102 +1,69 @@
 # HKTutor API
 
-This is the HKTutor NestJS API service. The repository root [README](../../README.md) is the authoritative guide for installation, workspace commands, database migrations, and development checks.
+NestJS 11 API using Prisma/PostgreSQL, local email/password authentication, JWT access tokens,
+rotating refresh sessions, and Resend verification email.
 
-From the repository root, configure the ignored `.env`, then run `pnpm --filter @hktutor/api dev`
-to start the API on [http://localhost:3001](http://localhost:3001). Set `PORT` to use another API
-port. The database-aware health endpoint is
-[http://localhost:3001/api/health](http://localhost:3001/api/health).
+Run commands from the repository root:
 
-The shared API contract is published at:
+```bash
+pnpm --filter @hktutor/api dev
+pnpm --filter @hktutor/api test
+pnpm --filter @hktutor/api build
+```
 
-- Swagger UI: [http://localhost:3001/api/docs](http://localhost:3001/api/docs)
-- OpenAPI JSON: [http://localhost:3001/api/docs-json](http://localhost:3001/api/docs-json)
+All controller routes receive the global `/api/v1` prefix. Authentication endpoints are under
+`/api/v1/auth`:
 
-All DTO-backed request input passes through the global NestJS `ValidationPipe`. DTOs should use
-concrete classes with `class-validator` decorators and explicit `class-transformer` conversions
-where a query or path value is not a string. Undeclared properties and invalid values return HTTP 400. Controllers are responsible for adding Swagger parameter, response, and example metadata as
-their endpoints are introduced.
+- `POST /register`
+- `POST /verify-email`
+- `POST /resend-verification`
+- `POST /login`
+- `POST /refresh`
+- `POST /logout`
+- `GET /me`
 
-Prisma commands are exposed from the repository root:
+Access tokens are Bearer JWTs. Refresh tokens are never returned in JSON; they are stored in an
+HttpOnly cookie and rotated against hashed `AuthSession` records.
 
-```sh
+Protect an endpoint and restrict its roles by running authentication before authorization:
+
+```ts
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles(Role.ADMIN)
+@Get('admin-only')
+readAdminResource(@CurrentUser() user: AuthenticatedUser) {
+  return { userId: user.id, role: user.role };
+}
+```
+
+`JwtAuthGuard` verifies the token and active session first. `RolesGuard` then compares the latest
+database-backed role attached to `request.auth`. A missing login returns 401; a logged-in user with
+the wrong role returns 403. Routes without `@Roles(...)` are not role-restricted.
+
+Configure the API through the root `.env.example`. Startup rejects missing or placeholder JWT,
+Resend, and sender values outside the test environment. The access and refresh secrets must be
+different and at least 32 characters.
+
+## Database
+
+Generate and validate the Prisma schema without changing a database:
+
+```bash
 pnpm db:generate
 pnpm db:validate
+```
+
+The local-auth migration is a one-shot demo migration that deletes existing identity-owned demo
+records before replacing the external identity fields. Do not apply it to a database containing
+data that must be retained.
+
+After confirming the target is disposable and filling the seed email/password values:
+
+```bash
 pnpm db:migrate:status
 pnpm db:migrate:deploy
 pnpm db:seed
 ```
 
-Only the designated migration owner creates migrations. Never reset the shared development/demo
-database.
-
-S1-T07 requires `SEED_ADMIN_EMAIL` and `SEED_ADMIN_PASSWORD` in the ignored root `.env` when
-running `pnpm db:seed`. The seed creates one active administrator with an Argon2id password hash,
-preserves an existing administrator on repeated runs, and refuses to promote an existing
-student/tutor account. Review the S1-T07 migration before running `pnpm db:migrate:deploy` against
-the shared database.
-
-S1-T14 additionally requires `SEED_TUTOR_EMAIL` and `SEED_TUTOR_PASSWORD`. The same atomic,
-idempotent seed inserts Mathematics, Grade 10, and one active verified tutor profile while
-preserving existing administrator and tutor credentials. The migration adds tutor profiles,
-subjects, grade levels, and teaching listings; publication authorization remains an S1-T15
-application rule.
-
-Only after the S1-T14 migration has been reviewed, merged, and explicitly approved for the shared
-checkpoint should the migration owner run status, deploy, seed twice, and status again. Never use
-`prisma migrate reset` against the shared project.
-
-### Tutor search fixtures (S1-T20)
-
-S1-T20 adds deterministic teaching-listing and seeded-rating fixtures to the same transaction. It
-uses the configured tutor plus four non-loginable `hktutor.invalid` tutor accounts to cover exact
-Mathematics/Grade 10 matches, THB 350 and THB 500 budget cases, Physics mismatch, Grade 11 mismatch,
-and one cheaper draft listing. Synthetic plaintext credentials are random and discarded; user
-upserts never replace existing password hashes. Fixed UUIDs prove that reserved fixture emails are
-seed-owned; a same-role email collision with any other UUID aborts the transaction so no search
-fixture profile or listing changes are committed.
-
-The S1-T21 contract is Mathematics/Grade 10 at a THB 500 maximum returning Anan, Mali, and Kiet;
-below THB 350 it returns no published result. Physics, Grade 11, and draft fixtures must remain
-excluded from that result set.
-
-S1-T20 requires no new environment variables and has no migration. After merge and separate shared
-checkpoint approval, run `status -> seed -> seed -> status`, then verify redacted fixture counts and
-states. Do not run migrate deploy for this task.
-
-### Availability slot foundation (S1-T17)
-
-Availability slots belong to `TutorProfile` and store `startAtUtc`/`endAtUtc` as `TIMESTAMPTZ(3)`.
-The database checks `startAtUtc < endAtUtc` and uses a partial GiST exclusion for overlaps only
-when `deletedAt` is null; its `[)` range permits adjacent slots. The future-only rule is deferred
-to S1-T18, and S1-T23 adds the database guards; S1-T18 maps them into the deletion API transaction. S1-T17 has no seed and
-no stored availability state. After pulling or merging, run `pnpm db:generate` to match the
-generated client to the schema. After the PR is reviewed and merged, and deployment is separately
-approved, shared deployment is only (see the root README for drift and unexpected-history stop
-conditions):
-
-```sh
-pnpm db:migrate:status
-pnpm db:migrate:deploy
-pnpm db:migrate:status
-```
-
-`pnpm db:seed` is intentionally absent from the S1-T17 checkpoint.
-
-### Booking foundation (S1-T23)
-
-`Booking` stores the Sprint 1 ownership/reservation and THB price snapshot needed by S1-T24. Active
-status means only `pending` or `confirmed`; `Booking_active_slot_key` prevents concurrent active
-duplicates while completed/canceled rows retain history without reserving the slot.
-
-The database exposes `Booking_active_slot_not_deleted_check` and
-`AvailabilitySlot_active_booking_delete_check` for the two slot soft-delete conflicts. S1-T18/S1-T24
-must still lock/read the slot in their domain transactions and map these named conflicts to HTTP 409.
-Roles, future time, own-tutor rejection, listing publication, and listing/slot tutor equality remain
-application rules. This task adds no endpoint or seed.
-
-Shared deployment remains separately approved: run `status -> deploy -> status`, then a
-rollback-only redacted conflict probe. Do not seed or reset for S1-T23.
-
-Pull requests and pushes to `main` run the root `pnpm check` command in GitHub Actions. CI does not
-receive shared-database credentials.
+The optional `db:verify:sprint1` command runs only against an explicitly approved local disposable
+database; see the repository README for its safety gate.

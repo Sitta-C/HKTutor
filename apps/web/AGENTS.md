@@ -1,3 +1,8 @@
+# HKTutor web application
+
+Keep this tracked guide limited to stable web-specific framework guidance. Personal assignments,
+temporary work notes, local machine paths, and account details belong outside the repository.
+
 <!-- BEGIN:nextjs-agent-rules -->
 
 # This is NOT the Next.js you know

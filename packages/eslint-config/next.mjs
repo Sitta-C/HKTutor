@@ -1,9 +1,10 @@
-import prettier from 'eslint-config-prettier';
+import { defineConfig, globalIgnores } from 'eslint/config';
 import nextVitals from 'eslint-config-next/core-web-vitals';
 import nextTs from 'eslint-config-next/typescript';
-import { defineConfig, globalIgnores } from 'eslint/config';
+import prettier from 'eslint-config-prettier';
 
 import {
+  absoluteAppImportRules,
   commonRules,
   createCrossAppBoundaryRule,
   createTypeScriptResolverSettings,
@@ -17,6 +18,7 @@ export const createNextConfig = ({ tsconfigRootDir }) =>
     {
       files: ['**/*.{ts,tsx}'],
       rules: {
+        ...absoluteAppImportRules,
         ...commonRules,
         '@typescript-eslint/no-explicit-any': 'error',
         'import/no-restricted-paths': createCrossAppBoundaryRule({

@@ -7,3 +7,5 @@ pnpm-lock.yaml
 apps/web/AGENTS.md
 apps/web/CLAUDE.md
 apps/web/next-env.d.ts
+.PLAN-*.md
+ui-design/pages/*.html

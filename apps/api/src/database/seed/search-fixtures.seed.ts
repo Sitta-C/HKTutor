@@ -78,7 +78,6 @@ function listingFixture(
 export async function seedTutorSearchFixtures(
   client: SeedTransactionClient,
   foundation: TutorFoundationSeedResult,
-  fixturePasswordHash: string,
 ): Promise<void> {
   const physics = await client.subject.upsert({
     where: { code: 'physics' },
@@ -105,12 +104,12 @@ export async function seedTutorSearchFixtures(
 
   for (const fixture of SYNTHETIC_TUTORS) {
     const tutor = await client.user.upsert({
-      where: { email: fixture.email },
-      update: {},
+      where: { id: fixture.userId },
+      update: { email: fixture.email, emailVerifiedAt: SEEDED_AT },
       create: {
         id: fixture.userId,
         email: fixture.email,
-        passwordHash: fixturePasswordHash,
+        emailVerifiedAt: SEEDED_AT,
         role: Role.TUTOR,
         accountStatus: AccountStatus.ACTIVE,
       },
@@ -118,15 +117,18 @@ export async function seedTutorSearchFixtures(
     });
 
     if (tutor.role !== Role.TUTOR) {
-      throw new Error('Search fixture email belongs to a non-tutor account');
+      throw new Error('Search fixture user ID belongs to a non-tutor account');
     }
 
     if (tutor.id !== fixture.userId) {
-      throw new Error('Search fixture email is not owned by the seed');
+      throw new Error('Search fixture user ID is not owned by the seed');
     }
 
     tutorIds.set(fixture.key, tutor.id);
     const profileData = {
+      firstName: fixture.displayName,
+      lastName: 'Fixture',
+      nickname: fixture.displayName,
       displayName: fixture.displayName,
       bio: fixture.bio,
       experienceYears: fixture.experienceYears,

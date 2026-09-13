@@ -1,0 +1,483 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dashboard — Tutor | HKTutor (draft v3 — polished)</title>
+<!--
+  DRAFT: ui-design/pages/dashboard-student.html — S1-T09 (role-aware dashboard, tutor view)
+  v3 polish: same fastwork-style layout, upgraded surfaces —
+  layered soft shadows, blue tutor accents, gradient avatars, refined pills/badges,
+  smooth hover/transition states. Tokens still follow uidesign.md §4. Mock data only.
+-->
+<style>
+  :root {
+    --bg: #f4f0e8; --bg-grad-1: #f7f4ec; --bg-grad-2: #f3ecdf;
+    --card: #ffffff;
+    --ink: #1a1916; --ink-2: #5e5a52; --ink-3: #8a857b;
+    --border: #ebe6dd; --border-strong: #d9d2c6;
+    --accent: #d18b43; --accent-hover: #d88835;
+    --cta: #ffc57d; --cta-deep: #f0a04e;
+    --tutor: #0e8eea; --tutor-deep: #0b6db0;
+    --tutor-grad-1: #4ab4f5; --tutor-grad-2: #0a6fbc;
+    --tutor-soft: rgba(14, 142, 234, 0.14); --tutor-softer: rgba(14,142,234,0.07);
+    --warn-bg: rgba(209,139,67,0.14); --warn-fg: #c07a2e;
+    --error: #c04f40;
+    --shadow-card: 0 1px 2px rgba(46,39,25,0.06), 0 18px 40px -12px rgba(46,39,25,0.14);
+    --shadow-card-hover: 0 2px 4px rgba(46,39,25,0.08), 0 26px 55px -14px rgba(46,39,25,0.18);
+    --shadow-cta: 0 0 0 0.5px rgba(0,0,0,0), 0 6px 16px -4px rgba(240,160,78,0.5);
+    --shadow-btn: 0 1px 2px rgba(20,20,18,0.5);
+  }
+  * { box-sizing: border-box; margin: 0; }
+  body {
+    font-family: system-ui, -apple-system, "Noto Sans Thai", Arial, sans-serif;
+    background: linear-gradient(160deg, var(--bg-grad-1), var(--bg-grad-2));
+    color: var(--ink); min-height: 100dvh;
+    display: flex; flex-direction: column; -webkit-font-smoothing: antialiased;
+  }
+  html[lang="th"] .en { display: none; }
+  html[lang="th"] .th { display: revert; }
+  .en { display: revert; } .th { display: none; }
+
+  /* decorative artwork — soft floating blobs */
+  .art { position: fixed; inset: 0; pointer-events: none; overflow: hidden; z-index: 0; }
+  .art::before { content: ""; position: absolute; inset: 0;
+    background: radial-gradient(circle at 78% 8%, rgba(255,255,255,0.5), transparent 40%); }
+  .art .blob { position: absolute; border-radius: 50%; filter: blur(0.5px); }
+  .art .b1 { left: -13rem; top: -12rem; width: 34rem; height: 34rem;
+    background: radial-gradient(circle at 30% 30%, rgba(255,252,246,0.9), rgba(235,224,205,0.4)); }
+  .art .b2 { right: -15rem; bottom: -14rem; width: 36rem; height: 36rem;
+    background: radial-gradient(circle at 50% 50%, rgba(246,224,198,0.75), rgba(241,221,196,0.25)); }
+  .art .b3 { left: 8%; bottom: 6%; width: 16rem; height: 16rem;
+    background: radial-gradient(circle at 40% 40%, rgba(14,142,234,0.10), transparent 80%); }
+
+  header { position: relative; z-index: 1; display: flex; align-items: center;
+    justify-content: space-between; padding: 1.6rem 2rem 1.2rem; }
+  .logo { display: inline-flex; align-items: center; gap: 0.6rem; text-decoration: none;
+    color: var(--ink); font-size: 1.6rem; font-weight: 900; letter-spacing: -0.08em; }
+  .logo .mono { display: flex; width: 2rem; height: 2rem; align-items: center;
+    justify-content: center; border-radius: 0.6rem; background: linear-gradient(135deg,#2a2822,#14130f);
+    box-shadow: var(--shadow-btn); color: var(--bg-grad-1);
+    font-size: 0.72rem; font-weight: 800; letter-spacing: -0.04em; }
+  .logo .mono::after { content: ""; }
+  nav { display: flex; align-items: center; gap: 1.25rem; font-size: 0.95rem; margin-left: auto; }
+  nav a { color: var(--ink); text-decoration: none; font-weight: 600; transition: color .15s; }
+  nav a:hover { color: var(--accent-hover); }
+  .lang-btn { display: inline-flex; align-items: center; gap: 0.4rem; border: 1px solid var(--border);
+    background: rgba(255,255,255,0.7); border-radius: 999px; padding: 0.45rem 0.85rem; cursor: pointer;
+    font: inherit; font-weight: 700; font-size: 0.8rem; transition: border-color .15s, background .15s; }
+  .lang-btn:hover { border-color: var(--tutor); background: #fff; }
+  .lang-btn .dot { width: 0.4rem; height: 0.4rem; border-radius: 50%; background: var(--tutor); }
+  .cta { display: inline-block; border: 0; cursor: pointer; background: var(--cta);
+    color: var(--ink); font: inherit; font-weight: 700; font-size: 0.9rem; padding: 0.72rem 1.45rem;
+    border-radius: 999px; box-shadow: var(--shadow-cta); text-decoration: none;
+    background-image: linear-gradient(135deg, var(--cta), var(--cta-deep));
+    transition: transform .15s, box-shadow .15s; }
+  .cta:hover { transform: translateY(-2px); box-shadow: 0 10px 22px -6px rgba(240,160,78,0.55); }
+
+  main { position: relative; z-index: 1; width: min(1200px, 100% - 2.5rem);
+    margin: 0 auto; padding-bottom: 3rem; flex: 1; }
+
+  .greeting { margin: 1.1rem 0 1.5rem; }
+  .eyebrow { font-size: 0.7rem; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.26em; color: var(--accent); margin-bottom: 0.55rem;
+    display: inline-block; padding: 0.15rem 0.6rem; border-radius: 999px;
+    background: var(--warn-bg); }
+  h1 { font-size: clamp(1.9rem, 4.5vw, 2.4rem); font-weight: 800; letter-spacing: -0.045em;
+    display: flex; align-items: center; gap: 0.7rem; flex-wrap: wrap; }
+  .role-chip { display: inline-flex; align-items: center; gap: 0.45rem; border-radius: 999px;
+    background: linear-gradient(135deg, var(--tutor-grad-1), var(--tutor-grad-2));
+    color: #fff; font-size: 0.74rem; font-weight: 800; letter-spacing: 0.06em; padding: 0.32rem 0.85rem;
+    box-shadow: 0 2px 8px rgba(14,142,234,0.35); }
+  .role-chip::before { content: ""; width: 0.5rem; height: 0.5rem; border-radius: 50%; background: #eafff7; }
+  .greeting p { margin-top: 0.55rem; color: var(--ink-2); font-size: 0.98rem; }
+
+  .app { display: flex; align-items: stretch; min-height: 100vh; }
+  /* ---- left outer rail: full viewport height ---- */
+  .sidebar {
+    width: 300px; flex: 0 0 300px; position: sticky; top: 0;
+    height: 100vh; overflow-y: auto; box-sizing: border-box;
+    display: flex; flex-direction: column; gap: 1.25rem;
+    padding: 1.5rem 1.25rem;
+    background: linear-gradient(180deg, #fbf9f3, #f4efe4);
+    border-right: 1px solid rgba(23,23,20,.07);
+    transition: flex-basis .3s ease, width .3s ease, padding .3s ease, opacity .2s ease;
+  }
+  body.sb-collapsed .sidebar { flex-basis: 0; width: 0; padding-left: 0; padding-right: 0; opacity: 0; overflow: hidden; border-right: none; }
+  .sb-head { display: flex; align-items: center; justify-content: space-between; gap: 0.6rem; margin-bottom: 0.4rem; }
+  .sb-close {
+    width: 2.1rem; height: 2.1rem; border-radius: 50%; border: 1px solid rgba(23,23,20,.12);
+    background: #fff; color: #5e5a52; cursor: pointer; font-size: 0.95rem; line-height: 1;
+    display: inline-flex; align-items: center; justify-content: center;
+    box-shadow: 0 2px 8px rgba(23,23,20,.08); transition: background .2s, color .2s, transform .2s;
+  }
+  .sb-close:hover { background: #c04f40; color: #fff; transform: scale(1.08); }
+
+  /* collapsed-header brand: fixed pill. logo ↔ burger is a crossfade, never a layout morph */
+  .reopen-logo {
+    display: none; position: relative; align-items: center; gap: 0.6rem;
+    width: 10.6rem; height: 2.7rem; box-sizing: border-box;
+    padding: 0 0.75rem; border-radius: 0.85rem;
+    overflow: hidden; cursor: pointer;
+    background: transparent;
+    transition: background .22s ease, box-shadow .22s ease;
+  }
+  body.sb-collapsed .reopen-logo { display: inline-flex; }
+  .reopen-logo:hover { background: rgba(23,23,20,.07); }
+  .reopen-logo .mono, .reopen-logo .reopen-txt {
+    position: relative; z-index: 1;
+    transition: opacity .2s ease, transform .28s cubic-bezier(.22,.8,.24,1);
+  }
+  .reopen-logo .burger {
+    position: absolute; inset: 0; z-index: 2;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px;
+    pointer-events: none;
+  }
+  .reopen-logo .burger i {
+    display: block; height: 2px; border-radius: 99px; background: var(--ink);
+    width: 1.15rem;
+    opacity: 0; transform: translateY(6px) scaleX(.4);
+    transition: opacity .22s ease, transform .32s cubic-bezier(.22,.8,.24,1);
+  }
+  .reopen-logo .burger i:nth-child(1) { transition-delay: 0s; }
+  .reopen-logo .burger i:nth-child(2) { width: .85rem; transition-delay: .04s; }
+  .reopen-logo .burger i:nth-child(3) { width: 1.05rem; transition-delay: .08s; }
+  .reopen-logo:hover .mono,
+  .reopen-logo:hover .reopen-txt {
+    opacity: 0; transform: translateY(-4px) scale(.96); pointer-events: none;
+  }
+  .reopen-logo:hover .burger i {
+    opacity: 1; transform: translateY(0) scaleX(1);
+  }
+
+  .main-wrap { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  @media (max-width: 960px) {
+    .app { flex-direction: column; }
+    .sidebar { position: static; height: auto; width: 100% !important; flex-basis: auto; }
+    body.sb-collapsed .sidebar { display: none; }
+  }
+
+  .card { background: var(--card); border-radius: 1.6rem; box-shadow: var(--shadow-card);
+    padding: 1.5rem; transition: transform .2s, box-shadow .2s; }
+
+  /* ROW 1: four summary cards */
+  .summary { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1.1rem; margin-bottom: 1.6rem; }
+  @media (max-width: 1100px) { .summary { grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 560px) { .summary { grid-template-columns: 1fr; } }
+  .summary .card { padding: 1.2rem; position: relative; overflow: hidden; }
+  .summary .card::before { content: ""; position: absolute; left: 0; top: 0; right: 0; height: 5px;
+    background: linear-gradient(90deg, var(--tutor-grad-1), var(--tutor-grad-2)); }
+  .summary .card::after { content: ""; position: absolute; right: -1.2rem; bottom: -1.2rem; width: 5.5rem;
+    height: 5.5rem; border-radius: 50%; background: var(--tutor-softer); }
+  .summary .card:hover { transform: translateY(-3px); box-shadow: var(--shadow-card-hover); }
+  .summary .card h2 { font-size: 0.8rem; color: var(--ink-2); font-weight: 700; letter-spacing: 0.01em;
+    margin-bottom: 0.75rem; display: flex; align-items: center; gap: 0.4rem; }
+  .summary .card h2 .dot { width: 0.45rem; height: 0.45rem; border-radius: 50%; background: var(--tutor); }
+
+  .big { font-size: 2rem; font-weight: 800; letter-spacing: -0.045em; color: var(--ink); }
+  .sub { font-size: 0.8rem; color: var(--ink-2); margin-top: 0.15rem; }
+
+  .pill { display: inline-flex; align-items: center; gap: 0.3rem; border-radius: 999px;
+    font-size: 0.66rem; font-weight: 700; letter-spacing: 0.03em; padding: 0.22rem 0.6rem; }
+  .pill::before { content: ""; width: 0.4rem; height: 0.4rem; border-radius: 50%; }
+  .pill.confirmed { background: var(--tutor-soft); color: var(--tutor-deep); }
+  .pill.confirmed::before { background: var(--tutor); }
+  .pill.pending { background: var(--warn-bg); color: var(--warn-fg); }
+  .pill.pending::before { background: var(--accent); }
+  .pill.done { background: rgba(26,25,22,0.06); color: var(--ink); }
+  .pill.done::before { background: var(--ink); }
+
+  /* next lesson */
+  .next-lesson .when { font-size: 0.76rem; font-weight: 700; color: var(--ink-2); letter-spacing: 0.05em;
+    text-transform: uppercase; display: inline-flex; align-items: center; gap: 0.35rem; }
+  .next-lesson .when::before { content: ""; width: 0.4rem; height: 0.4rem; border-radius: 50%; background: var(--tutor); }
+  .tutor-line { display: flex; align-items: center; gap: 0.7rem; margin: 0.65rem 0; }
+  .avatar { width: 2.5rem; height: 2.5rem; border-radius: 50%; flex-shrink: 0;
+    background: linear-gradient(135deg, var(--tutor-grad-1), var(--tutor-grad-2));
+    color: #fff; display: flex; align-items: center; justify-content: center;
+    font-weight: 800; font-size: 0.95rem; box-shadow: 0 2px 6px rgba(14,142,234,0.3); }
+  .tutor-line b { display: block; font-size: 0.98rem; font-weight: 700; }
+  .tutor-line span { font-size: 0.8rem; color: var(--ink-2); }
+
+  /* bookings */
+  .mini-list { display: flex; flex-direction: column; gap: 0.55rem; margin-top: 0.8rem; }
+  .mini-list .mrow { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem;
+    font-size: 0.82rem; color: var(--ink-2); }
+  .mini-list .mrow b { color: var(--ink); font-weight: 700; }
+
+  /* quick actions */
+  .qa { display: flex; flex-direction: column; gap: 0.45rem; margin-top: 0.7rem; }
+  .qa a { display: flex; align-items: center; gap: 0.6rem; font-size: 0.85rem; font-weight: 600;
+    color: var(--ink); text-decoration: none; padding: 0.5rem 0.6rem; border-radius: 0.75rem;
+    background: #fff; transition: background .15s, transform .15s, box-shadow .15s; }
+  .qa a:hover { background: var(--tutor-soft); transform: translateX(3px);
+    box-shadow: 0 2px 8px rgba(14,142,234,0.18); }
+  .qa a .ico { width: 1.55rem; height: 1.55rem; display: inline-flex; align-items: center;
+    justify-content: center; border-radius: 0.5rem; background: var(--tutor-soft); flex-shrink: 0; }
+
+  /* waiting on tutor */
+  .wait-item { display: flex; align-items: center; gap: 0.55rem; font-size: 0.8rem;
+    color: var(--ink-2); padding: 0.5rem 0.6rem; border-radius: 0.7rem; background: var(--tutor-soft); }
+  .wait-item b { color: var(--ink); font-weight: 700; }
+  .wait-item .cre { color: var(--accent); }
+  .empty { text-align: center; color: var(--ink-3); font-size: 0.82rem; padding: 0.9rem 0; }
+
+  /* ROW 2: your tutors panel */
+  .tutors-panel { padding: 1.8rem; position: relative; }
+  .tutors-head { display: flex; flex-wrap: wrap; gap: 1rem; align-items: center;
+    justify-content: space-between; margin-bottom: 1.15rem; }
+  .tutors-head h2 { font-size: 1.5rem; letter-spacing: -0.035em; font-weight: 800;
+    display: flex; align-items: center; gap: 0.5rem; }
+  .tutors-head h2 .count { display: inline-flex; align-items: center; justify-content: center;
+    min-width: 1.5rem; height: 1.5rem; padding: 0 0.45rem; border-radius: 999px; background: var(--tutor-soft);
+    color: var(--tutor-deep); font-size: 0.72rem; font-weight: 800; }
+
+  .search-row { display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: center; }
+  .search { display: flex; align-items: center; gap: 0.55rem; height: 3rem;
+    border: 1.5px solid var(--border-strong); border-radius: 999px; background: #fff;
+    padding: 0 1.1rem; flex: 1; min-width: 220px;
+    transition: border-color .15s, box-shadow .15s; }
+  .search:focus-within { border-color: var(--tutor); box-shadow: 0 0 0 4px rgba(14,142,234,0.14); }
+  .search svg { flex-shrink: 0; color: var(--ink-3); }
+  .search input { border: 0; outline: none; background: transparent; font: inherit;
+    font-size: 0.92rem; width: 100%; color: var(--ink); }
+  .search input::placeholder { color: var(--ink-3); }
+
+  .btn-dark { display: inline-flex; align-items: center; gap: 0.5rem; font: inherit; font-weight: 700;
+    font-size: 0.88rem; color: #fff; background: linear-gradient(135deg,#2a2822,#151410);
+    border: 0; border-radius: 999px; padding: 0.72rem 1.35rem; cursor: pointer; text-decoration: none;
+    box-shadow: 0 2px 10px rgba(25,24,20,0.35); transition: transform .15s, box-shadow .15s, opacity .15s; }
+  .btn-dark:hover { transform: translateY(-2px); box-shadow: 0 6px 16px rgba(25,24,20,0.4); opacity: 0.95; }
+  .btn-dark .ico { font-size: 0.95rem; }
+
+  .tutor-table { display: flex; flex-direction: column; }
+  .tutor-row { display: grid; grid-template-columns: auto 1fr auto auto; gap: 1rem;
+    align-items: center; padding: 1rem 0.5rem; border-bottom: 1px solid var(--border);
+    transition: background .15s; }
+  .tutor-row:hover { background: var(--tutor-softer); }
+  .tutor-row:last-child { border-bottom: 0; }
+  .tutor-row .who b { display: block; font-size: 1rem; font-weight: 700; }
+  .tutor-row .who span { font-size: 0.82rem; color: var(--ink-2); }
+  .rating { display: inline-flex; align-items: center; gap: 0.2rem; font-size: 0.85rem; color: var(--ink-2); }
+  .rating::before { content: "★"; color: #e6a23c; font-size: 0.9rem; }
+  .rating b { color: var(--ink); font-weight: 800; }
+  .price { font-weight: 800; font-size: 1rem; }
+  .btn-book { font: inherit; font-size: 0.82rem; font-weight: 800; border: 0; border-radius: 999px;
+    padding: 0.55rem 1.2rem; cursor: pointer; color: #fff; background: linear-gradient(135deg,#2a2822,#151410);
+    box-shadow: 0 1px 6px rgba(25,24,20,0.3); transition: transform .15s, opacity .15s; }
+  .btn-book:hover { transform: translateY(-2px); opacity: 0.9; }
+  .btn-book:active { transform: translateY(0); opacity: 0.95; }
+  .muted { color: var(--ink-3); }
+
+  /* sidebar item styles (rail layout handled in .sidebar block above) */
+  .side-nav { display: flex; flex-direction: column; align-items: stretch; gap: 0.2rem; margin-left: 0; width: 100%; }
+  .side-nav a { display: flex; align-items: center; gap: 0.7rem; padding: 0.7rem 0.9rem;
+    width: 100%; box-sizing: border-box; border-radius: 0.85rem; text-decoration: none; color: var(--ink); font-size: 0.92rem; font-weight: 600;
+    transition: background .15s, transform .15s; }
+  .side-nav a:hover { background: var(--tutor-soft); transform: translateX(3px); }
+  .side-nav a .ico { width: 1.7rem; height: 1.7rem; display: inline-flex; align-items: center;
+    justify-content: center; border-radius: 0.55rem; background: #fff; box-shadow: 0 1px 3px rgba(46,39,25,0.15); }
+  .side-nav a .nav-left { display: inline-flex; align-items: center; gap: 0.7rem; min-width: 0; }
+  .side-nav a.hint-r { justify-content: space-between; }
+  .side-nav a .chip { font-size: 0.7rem; font-weight: 800; color: var(--tutor-deep);
+    background: var(--tutor-soft); border-radius: 999px; min-width: 1.4rem; text-align: center; }
+  .side-nav a .ln { font-size: 0.7rem; font-weight: 800; color: var(--ink); border: 1px solid var(--border);
+    border-radius: 999px; padding: 0.05rem 0.55rem; }
+  .side-nav .danger { color: var(--error); font-weight: 700; }
+  .side-nav .danger .ico { background: rgba(192,79,64,0.1); }
+
+  .user-chip { display: flex; align-items: center; gap: 0.75rem; padding: 0.85rem; border: 1px solid var(--border);
+    border-radius: 1rem; background: linear-gradient(135deg, #fff, #fbf8f1); }
+  .user-chip .avatar { width: 2.4rem; height: 2.4rem; font-size: 0.9rem; }
+  .user-chip b { display: block; font-size: 0.92rem; font-weight: 800; }
+  .user-chip span { font-size: 0.75rem; color: var(--ink-2); }
+
+  .side-card h2 { font-size: 0.92rem; margin-bottom: 0.6rem; font-weight: 700; }
+  .side-card p { font-size: 0.8rem; color: var(--ink-2); line-height: 1.55; }
+  .link { display: inline-block; margin-top: 0.7rem; font-size: 0.82rem; font-weight: 700; color: var(--ink);
+    text-decoration: underline; text-decoration-color: var(--accent); text-underline-offset: 4px;
+    transition: color .15s; }
+  .link:hover { color: var(--accent-hover); }
+
+  footer { position: relative; z-index: 1; text-align: center; padding: 0 1.25rem 1.75rem;
+    font-size: 0.9rem; color: var(--ink-2); }
+  footer .sep { margin: 0 0.75rem; color: var(--border-strong); }
+
+  .pill.verified { background: var(--tutor-soft); color: var(--tutor-deep); }
+  .pill.verified::before { background: var(--tutor); }
+  .pill.published { background: var(--tutor-soft); color: var(--tutor-deep); }
+  .pill.published::before { background: var(--tutor); }
+  .pill.draft { background: rgba(26,25,22,0.06); color: var(--ink); }
+  .pill.draft::before { background: var(--ink-3); }
+  .req-row { display: flex; align-items: center; gap: 0.85rem; padding: 0.85rem 0.4rem;
+    border-bottom: 1px solid var(--border); }
+  .req-row:last-child { border-bottom: 0; }
+  .req-row .who b { display: block; font-size: 0.95rem; }
+  .req-row .who span { font-size: 0.78rem; color: var(--ink-2); }
+  .req-acts { display: flex; gap: 0.45rem; margin-left: auto; }
+  .btn-ghost { font: inherit; font-size: 0.78rem; font-weight: 700; border: 1px solid var(--border-strong);
+    background: #fff; border-radius: 999px; padding: 0.45rem 0.9rem; cursor: pointer; color: var(--ink-2);
+    transition: border-color .15s, color .15s; }
+  .btn-ghost:hover { border-color: var(--error); color: var(--error); }
+  .btn-ok { font: inherit; font-size: 0.78rem; font-weight: 800; border: 0; border-radius: 999px;
+    padding: 0.45rem 0.95rem; cursor: pointer; color: #fff;
+    background: linear-gradient(135deg, var(--tutor-grad-1), var(--tutor-grad-2));
+    box-shadow: 0 2px 8px rgba(14,142,234,0.28); }
+  .btn-ok:hover { transform: translateY(-1px); }
+  .slot { display: flex; align-items: center; justify-content: space-between; gap: 0.6rem;
+    padding: 0.55rem 0.7rem; border-radius: 0.75rem; background: var(--tutor-softer); font-size: 0.82rem; }
+  .slot b { font-weight: 800; }
+  .slot .open { color: var(--tutor-deep); font-weight: 700; font-size: 0.72rem; }
+  .slot .booked { color: var(--warn-fg); font-weight: 700; font-size: 0.72rem; }
+  .earn { font-size: 1.7rem; font-weight: 800; letter-spacing: -0.04em; }
+  .earn span { font-size: 0.85rem; font-weight: 600; color: var(--ink-2); }
+  .strength { height: 0.45rem; border-radius: 99px; background: var(--border); overflow: hidden; margin-top: 0.55rem; }
+  .strength i { display: block; height: 100%; width: 72%; border-radius: 99px;
+    background: linear-gradient(90deg, var(--tutor-grad-1), var(--tutor-grad-2)); }
+</style>
+<link rel="stylesheet" href="../shared/prototype.css">
+<link rel="stylesheet" href="../../apps/web/src/app/globals.css">
+</head>
+
+<body>
+  <div id="app"></div>
+
+  <template id="page-content">
+    <div class="greeting">
+      <p class="eyebrow" data-en="Dashboard" data-th="แดชบอร์ด">Dashboard</p>
+      <h1>
+        <span data-en="Welcome back, Pim" data-th="ยินดีต้อนรับกลับมา, พิม">Welcome back, Pim</span>
+        <span class="role-chip" data-en="Tutor" data-th="ติวเตอร์">Tutor</span>
+      </h1>
+      <p data-en="Here's what's happening with your teaching this week." data-th="สรุปงานสอนของคุณในสัปดาห์นี้">Here's what's happening with your teaching this week.</p>
+    </div>
+
+      <section>
+        <div class="summary">
+          <div class="card next-lesson">
+            <h2><span class="dot"></span><span data-en="Next session" data-th="คาบถัดไป">Next session</span></h2>
+            <p class="when" data-en="SAT 12 SEP · 10:00" data-th="ส. 12 ก.ย. · 10:00">SAT 12 SEP · 10:00</p>
+            <div class="tutor-line">
+              <div class="avatar">S</div>
+              <div><b>Somchai</b><span data-en="Mathematics · 450฿" data-th="คณิตศาสตร์ · 450฿">Mathematics · 450฿</span></div>
+            </div>
+            <span class="pill confirmed" data-en="CONFIRMED · paid" data-th="ยืนยันแล้ว · ชำระแล้ว">CONFIRMED · paid</span>
+          </div>
+
+          <div class="card">
+            <h2><span class="dot"></span><span data-en="Requests" data-th="คำขอจอง">Requests</span></h2>
+            <div class="big">3</div>
+            <p class="sub" data-en="Awaiting your reply" data-th="รอคุณตอบรับ">Awaiting your reply</p>
+            <div class="mini-list">
+              <div class="mrow"><span><b>2</b> <span data-en="this week" data-th="สัปดาห์นี้">this week</span></span><span class="pill pending" data-en="PENDING" data-th="รอดำเนินการ">PENDING</span></div>
+              <div class="mrow"><span><b>1</b> <span data-en="reschedule" data-th="ขอเลื่อนเวลา">reschedule</span></span><span class="pill pending" data-en="REVIEW" data-th="ต้องตรวจ">REVIEW</span></div>
+            </div>
+          </div>
+
+          <div class="card">
+            <h2><span class="dot"></span><span data-en="Earnings" data-th="รายได้">Earnings</span></h2>
+            <div class="earn">4,050฿ <span data-en="this month" data-th="เดือนนี้">this month</span></div>
+            <div class="mini-list">
+              <div class="mrow"><span data-en="9 sessions done" data-th="สอนแล้ว 9 คาบ">9 sessions done</span><span class="pill done" data-en="PAID" data-th="รับแล้ว">PAID</span></div>
+              <div class="mrow"><span data-en="Profile strength" data-th="ความสมบูรณ์โปรไฟล์">Profile strength</span><b>72%</b></div>
+            </div>
+            <div class="strength" aria-hidden="true"><i></i></div>
+          </div>
+
+          <div class="card">
+            <h2><span class="dot"></span><span data-en="Quick actions" data-th="เมนูลัด">Quick actions</span></h2>
+            <div class="qa">
+              <a href="#"><span class="ico">＋</span><span data-en="New listing" data-th="สร้างคอร์สใหม่">New listing</span></a>
+              <a href="#"><span class="ico">🗓</span><span data-en="Open slots" data-th="เปิดตารางว่าง">Open slots</span></a>
+              <a href="#"><span class="ico">👤</span><span data-en="Edit profile" data-th="แก้ไขโปรไฟล์">Edit profile</span></a>
+            </div>
+          </div>
+        </div>
+
+        <div class="card tutors-panel">
+          <div class="tutors-head">
+            <h2 data-en="Booking requests" data-th="คำขอจองที่รอตอบ">Booking requests <span class="count">3</span></h2>
+            <div class="search-row">
+              <label class="search">
+                <svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                  <circle cx="9" cy="9" r="6" stroke="currentColor" stroke-width="1.6"/>
+                  <path d="m14.5 14.5 3 3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+                </svg>
+                <input type="search" data-ph-en="Search student or subject…" data-ph-th="ค้นหานักเรียนหรือรายวิชา…" placeholder="Search student or subject…">
+              </label>
+              <a class="btn-dark" href="#"><span class="ico">📅</span> <span data-en="Open calendar" data-th="เปิดปฏิทิน">Open calendar</span></a>
+            </div>
+          </div>
+
+          <div class="tutor-table">
+            <div class="tutor-row">
+              <div class="avatar">S</div>
+              <div class="who"><b>Somchai</b><span data-en="Mathematics · Sat 12 Sep · 10:00–11:00" data-th="คณิตศาสตร์ · ส. 12 ก.ย. · 10:00–11:00">Mathematics · Sat 12 Sep · 10:00–11:00</span></div>
+              <span class="price">450฿</span>
+              <span class="req-acts"><button class="btn-ghost" type="button" data-en="Decline" data-th="ปฏิเสธ">Decline</button><button class="btn-ok" type="button" data-en="Confirm" data-th="ยืนยัน">Confirm</button></span>
+            </div>
+            <div class="tutor-row">
+              <div class="avatar">N</div>
+              <div class="who"><b>Nida</b><span data-en="Mathematics · Sun 13 Sep · 14:00–15:00" data-th="คณิตศาสตร์ · อา. 13 ก.ย. · 14:00–15:00">Mathematics · Sun 13 Sep · 14:00–15:00</span></div>
+              <span class="price">450฿</span>
+              <span class="req-acts"><button class="btn-ghost" type="button" data-en="Decline" data-th="ปฏิเสธ">Decline</button><button class="btn-ok" type="button" data-en="Confirm" data-th="ยืนยัน">Confirm</button></span>
+            </div>
+            <div class="tutor-row">
+              <div class="avatar" style="background:linear-gradient(135deg,#e8a04e,#c97f2e); color:#fff">M</div>
+              <div class="who"><b>Mali</b><span data-en="Reschedule · was Fri 11 Sep 16:00" data-th="ขอเลื่อนเวลา · เดิม ศ. 11 ก.ย. 16:00">Reschedule · was Fri 11 Sep 16:00</span></div>
+              <span class="pill pending" data-en="REVIEW" data-th="ต้องตรวจ">REVIEW</span>
+              <span class="req-acts"><button class="btn-ghost" type="button" data-en="Decline" data-th="ปฏิเสธ">Decline</button><button class="btn-ok" type="button" data-en="Offer time" data-th="เสนอเวลา">Offer time</button></span>
+            </div>
+          </div>
+        </div>
+
+        <div class="card tutors-panel" style="margin-top:1.25rem">
+          <div class="tutors-head">
+            <h2 data-en="My listings" data-th="คอร์สของฉัน">My listings <span class="count">2</span></h2>
+            <a class="btn-dark" href="#"><span class="ico">＋</span> <span data-en="New listing" data-th="สร้างคอร์สใหม่">New listing</span></a>
+          </div>
+          <div class="tutor-table">
+            <div class="tutor-row">
+              <div class="avatar">∑</div>
+              <div class="who"><b data-en="Mathematics · Grade 10–12 exam prep" data-th="คณิตศาสตร์ · ติวสอบ ม.4–ม.6">Mathematics · Grade 10–12 exam prep</b>
+                <span data-en="450฿/hr · 12 reviews · ★ 5.0" data-th="450฿/ชม. · 12 รีวิว · ★ 5.0">450฿/hr · 12 reviews · ★ 5.0</span></div>
+              <span class="pill published" data-en="PUBLISHED" data-th="เผยแพร่แล้ว">PUBLISHED</span>
+              <button class="btn-book" type="button" data-en="Edit" data-th="แก้ไข">Edit</button>
+            </div>
+            <div class="tutor-row">
+              <div class="avatar">π</div>
+              <div class="who"><b data-en="Mathematics · G.9 foundations" data-th="คณิตศาสตร์ · ปูพื้นฐาน ม.3">Mathematics · G.9 foundations</b>
+                <span data-en="350฿/hr · draft — add 2 more slots to publish" data-th="350฿/ชม. · ฉบับร่าง — เปิดสล็อตอีก 2 ช่องเพื่อเผยแพร่">350฿/hr · draft — add 2 more slots to publish</span></div>
+              <span class="pill draft" data-en="DRAFT" data-th="ฉบับร่าง">DRAFT</span>
+              <button class="btn-book" type="button" data-en="Finish" data-th="ทำต่อ">Finish</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="card tutors-panel" style="margin-top:1.25rem">
+          <div class="tutors-head">
+            <h2 data-en="Today · Bangkok time" data-th="วันนี้ · เวลาตามกรุงเทพฯ">Today · Bangkok time</h2>
+            <a class="link" href="#" style="margin-top:0" data-en="Manage availability" data-th="จัดการตารางว่าง">Manage availability</a>
+          </div>
+          <div style="display:flex; flex-direction:column; gap:0.55rem">
+            <div class="slot"><span><b>10:00–11:00</b> · Somchai · Mathematics</span><span class="booked" data-en="BOOKED" data-th="จองแล้ว">BOOKED</span></div>
+            <div class="slot"><span><b>13:00–14:00</b></span><span class="open" data-en="OPEN" data-th="ว่าง">OPEN</span></div>
+            <div class="slot"><span><b>16:00–17:00</b></span><span class="open" data-en="OPEN" data-th="ว่าง">OPEN</span></div>
+            <div class="slot"><span><b>19:00–20:00</b> · Nida · Mathematics</span><span class="booked" data-en="BOOKED" data-th="จองแล้ว">BOOKED</span></div>
+          </div>
+        </div>
+      </section>
+
+  </template>
+
+  <script src="../shared/prototype-shell.js"></script>
+  <script>
+      HKTutorPrototype.mount({
+        role: 'tutor',
+        active: 'dashboard',
+        headerSecondary: { en: 'My listings', th: 'คอร์สของฉัน', href: 'listing-form.html' },
+        headerPrimary: { en: 'New listing', th: 'สร้างคอร์สใหม่', href: 'listing-form.html#listingForm' },
+      });
+  </script>
+</body>
+</html>

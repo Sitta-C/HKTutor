@@ -1,36 +1,30 @@
-import { randomBytes } from 'node:crypto';
-
-import { argon2id, hash } from 'argon2';
-
+import { PasswordService } from '@/auth/password.service';
 import { seedAdministrator } from '@/database/seed/admin.seed';
+import { seedBookingFixtures } from '@/database/seed/booking-fixtures.seed';
 import { seedTutorSearchFixtures } from '@/database/seed/search-fixtures.seed';
 import { readSeedEnvironment } from '@/database/seed/seed-environment';
+import { seedStudent } from '@/database/seed/student.seed';
 import { seedTutorFoundation } from '@/database/seed/tutor-foundation.seed';
 
 import type { SeedDatabaseClient } from '@/database/seed/seed-client';
 
-async function hashSeedPassword(password: string): Promise<string> {
-  return hash(password, {
-    type: argon2id,
-    memoryCost: 19_456,
-    timeCost: 2,
-    parallelism: 1,
-  });
-}
-
 export async function runSeed(client: SeedDatabaseClient): Promise<void> {
   const config = readSeedEnvironment(process.env);
+  const passwords = new PasswordService();
+  const [adminPasswordHash, tutorPasswordHash, studentPasswordHash] = await Promise.all([
+    passwords.hash(config.adminPassword),
+    passwords.hash(config.tutorPassword),
+    passwords.hash(config.studentPassword),
+  ]);
 
   await client.$queryRawUnsafe('SELECT 1 AS connected');
-
-  const adminPasswordHash = await hashSeedPassword(config.adminPassword);
-  const tutorPasswordHash = await hashSeedPassword(config.tutorPassword);
-  const fixturePasswordHash = await hashSeedPassword(randomBytes(32).toString('hex'));
 
   await client.$transaction(async (transaction) => {
     await seedAdministrator(transaction, config.adminEmail, adminPasswordHash);
     const foundation = await seedTutorFoundation(transaction, config.tutorEmail, tutorPasswordHash);
-    await seedTutorSearchFixtures(transaction, foundation, fixturePasswordHash);
+    await seedTutorSearchFixtures(transaction, foundation);
+    await seedStudent(transaction, config.studentEmail, studentPasswordHash);
+    await seedBookingFixtures(transaction, foundation);
   });
 }
 

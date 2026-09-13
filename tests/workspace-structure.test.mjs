@@ -41,11 +41,17 @@ test('reserves web port 3000 while allowing PORT to select the API port', async 
 });
 
 test('keeps API lint read-only and fails on warnings', async () => {
+  const root = await readJson('package.json');
   const api = await readJson('apps/api/package.json');
+  const eslintConfig = await readJson('packages/eslint-config/package.json');
 
+  assert.match(root.scripts.lint, /lint:root/);
+  assert.match(root.scripts.lint, /pnpm -r --if-present lint/);
+  assert.match(api.scripts.lint, /eslint \./);
   assert.doesNotMatch(api.scripts.lint, /--fix/);
   assert.match(api.scripts.lint, /--max-warnings=0/);
   assert.match(api.scripts['lint:fix'], /--fix/);
+  assert.match(eslintConfig.scripts.lint, /eslint \./);
 });
 
 test('extends the shared strict TypeScript baseline', async () => {

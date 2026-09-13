@@ -36,25 +36,78 @@ enum BookingStatus {
   CONFIRMED @map("confirmed")
   COMPLETED @map("completed")
   CANCELED  @map("canceled")
+  EXPIRED   @map("expired")
 }
 
 model User {
-  id                String        @id @default(uuid()) @db.Uuid
-  email             String        @unique @db.Citext
-  passwordHash      String
-  role              Role
-  accountStatus     AccountStatus @default(ACTIVE)
-  consentAcceptedAt DateTime?     @db.Timestamptz(3)
-  policyVersion     String?
-  createdAt         DateTime      @default(now()) @db.Timestamptz(3)
-  updatedAt         DateTime      @updatedAt @db.Timestamptz(3)
-  deletedAt         DateTime?     @db.Timestamptz(3)
-  tutorProfile      TutorProfile?
-  studentBookings   Booking[]     @relation("BookingStudent")
+  id                 String                   @id @default(uuid()) @db.Uuid
+  /// A partial unique index for non-deleted users is migration-managed.
+  email              String                   @db.Citext
+  /// Null is reserved for deterministic, non-loginable search fixtures.
+  passwordHash       String?
+  emailVerifiedAt    DateTime?                @db.Timestamptz(3)
+  role               Role
+  accountStatus      AccountStatus            @default(ACTIVE)
+  /// Consent time and policy version are nullable together for provisioned/demo users; a migration-managed check prevents a partial consent state.
+  consentAcceptedAt  DateTime?                @db.Timestamptz(3)
+  policyVersion      String?
+  createdAt          DateTime                 @default(now()) @db.Timestamptz(3)
+  updatedAt          DateTime                 @updatedAt @db.Timestamptz(3)
+  deletedAt          DateTime?                @db.Timestamptz(3)
+  tutorProfile       TutorProfile?
+  studentProfile     StudentProfile?
+  studentBookings    Booking[]                @relation("BookingStudent")
+  authSessions       AuthSession[]
+  verificationTokens EmailVerificationToken[]
+}
+
+model StudentProfile {
+  userId     String   @id @db.Uuid
+  firstName  String
+  lastName   String
+  nickname   String
+  school     String
+  gradeLevel String
+  phone      String
+  createdAt  DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt  DateTime @updatedAt @db.Timestamptz(3)
+  user       User     @relation(fields: [userId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+}
+
+model EmailVerificationToken {
+  id         String    @id @default(uuid()) @db.Uuid
+  userId     String    @db.Uuid
+  tokenHash  String    @unique
+  expiresAt  DateTime  @db.Timestamptz(3)
+  consumedAt DateTime? @db.Timestamptz(3)
+  createdAt  DateTime  @default(now()) @db.Timestamptz(3)
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@index([userId, expiresAt], map: "EmailVerificationToken_userId_expiresAt_idx")
+}
+
+model AuthSession {
+  id               String    @id @default(uuid()) @db.Uuid
+  userId           String    @db.Uuid
+  refreshTokenHash String    @unique
+  expiresAt        DateTime  @db.Timestamptz(3)
+  revokedAt        DateTime? @db.Timestamptz(3)
+  lastUsedAt       DateTime? @db.Timestamptz(3)
+  createdAt        DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt        DateTime  @updatedAt @db.Timestamptz(3)
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@index([userId, revokedAt], map: "AuthSession_userId_revokedAt_idx")
 }
 
 model TutorProfile {
   userId             String                  @id @db.Uuid
+  /// Nullable only for tutor rows created before personal-profile onboarding was introduced.
+  firstName          String?
+  /// Nullable only for tutor rows created before personal-profile onboarding was introduced.
+  lastName           String?
+  /// Nullable only for tutor rows created before personal-profile onboarding was introduced.
+  nickname           String?
   displayName        String
   bio                String
   experienceYears    Int
@@ -64,10 +117,10 @@ model TutorProfile {
   ratingUpdatedAt    DateTime?               @db.Timestamptz(3)
   createdAt          DateTime                @default(now()) @db.Timestamptz(3)
   updatedAt          DateTime                @updatedAt @db.Timestamptz(3)
-  user                User                    @relation(fields: [userId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  listings            TeachingListing[]
-  availabilitySlots   AvailabilitySlot[]
-  bookings            Booking[]
+  user               User                    @relation(fields: [userId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  listings           TeachingListing[]
+  availabilitySlots  AvailabilitySlot[]
+  bookings           Booking[]
 }
 
 model AvailabilitySlot {
@@ -117,9 +170,9 @@ model TeachingListing {
   updatedAt         DateTime                 @updatedAt @db.Timestamptz(3)
   deletedAt         DateTime?                @db.Timestamptz(3)
   tutorProfile      TutorProfile             @relation(fields: [tutorProfileId], references: [userId], onDelete: Restrict, onUpdate: Cascade)
-  subject            Subject                  @relation(fields: [subjectId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  gradeLevel         GradeLevel               @relation(fields: [gradeLevelId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  bookings            Booking[]
+  subject           Subject                  @relation(fields: [subjectId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  gradeLevel        GradeLevel               @relation(fields: [gradeLevelId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  bookings          Booking[]
 
   @@index([tutorProfileId], map: "TeachingListing_tutorProfileId_idx")
   @@index([publicationStatus, subjectId, gradeLevelId, pricePerHour], map: "TeachingListing_search_idx")
@@ -136,6 +189,7 @@ model Booking {
   discountAmount Decimal          @default(0) @db.Decimal(10, 2)
   netAmount      Decimal          @db.Decimal(10, 2)
   currency       String           @default("THB") @db.Char(3)
+  /// A partial index on createdAt for PENDING bookings is migration-managed.
   createdAt      DateTime         @default(now()) @db.Timestamptz(3)
   updatedAt      DateTime         @updatedAt @db.Timestamptz(3)
   student        User             @relation("BookingStudent", fields: [studentUserId], references: [id], onDelete: Restrict, onUpdate: Cascade)

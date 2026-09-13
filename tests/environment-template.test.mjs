@@ -16,17 +16,34 @@ const parseEnvironment = (source) =>
       }),
   );
 
-test('provides only safe server-side Supabase placeholders', async () => {
+test('documents the required server-only and intentionally public environment values', async () => {
   const template = parseEnvironment(await fs.readFile('.env.example', 'utf8'));
 
   assert.deepEqual(Object.keys(template).sort(), [
+    'API_INTERNAL_URL',
+    'APP_URL',
+    'COOKIE_DOMAIN',
+    'COOKIE_SAME_SITE',
+    'COOKIE_SECURE',
     'DATABASE_URL',
+    'EMAIL_FROM',
+    'EMAIL_VERIFICATION_TTL_MINUTES',
+    'JWT_ACCESS_SECRET',
+    'JWT_ACCESS_TTL_SECONDS',
+    'JWT_AUDIENCE',
+    'JWT_ISSUER',
+    'JWT_REFRESH_SECRET',
+    'JWT_REFRESH_TTL_SECONDS',
+    'RESEND_API_KEY',
     'SEED_ADMIN_EMAIL',
     'SEED_ADMIN_PASSWORD',
+    'SEED_STUDENT_EMAIL',
+    'SEED_STUDENT_PASSWORD',
     'SEED_TUTOR_EMAIL',
     'SEED_TUTOR_PASSWORD',
     'SUPABASE_SECRET_KEY',
     'SUPABASE_URL',
+    'WEB_ORIGIN',
   ]);
   assert.equal(
     template.DATABASE_URL,
@@ -35,13 +52,19 @@ test('provides only safe server-side Supabase placeholders', async () => {
   assert.equal(template.SUPABASE_URL, 'https://[PROJECT_REF].supabase.co');
   assert.equal(template.SUPABASE_SECRET_KEY, 'sb_secret_[REPLACE_ME]');
   assert.equal(template.SEED_ADMIN_EMAIL, '[ADMIN_EMAIL]');
-  assert.equal(template.SEED_ADMIN_PASSWORD, '[ADMIN_PASSWORD]');
+  assert.equal(template.SEED_ADMIN_PASSWORD, '[ADMIN_PASSWORD_AT_LEAST_10_CHARACTERS]');
   assert.equal(template.SEED_TUTOR_EMAIL, '[TUTOR_EMAIL]');
-  assert.equal(template.SEED_TUTOR_PASSWORD, '[TUTOR_PASSWORD]');
-  assert.equal(
-    Object.keys(template).some((name) => name.startsWith('NEXT_PUBLIC_')),
-    false,
-  );
+  assert.equal(template.SEED_TUTOR_PASSWORD, '[TUTOR_PASSWORD_AT_LEAST_10_CHARACTERS]');
+  assert.equal(template.SEED_STUDENT_EMAIL, '[STUDENT_EMAIL]');
+  assert.equal(template.SEED_STUDENT_PASSWORD, '[STUDENT_PASSWORD_AT_LEAST_10_CHARACTERS]');
+  assert.equal(template.JWT_ACCESS_SECRET, '[JWT_ACCESS_SECRET_AT_LEAST_32_CHARACTERS]');
+  assert.equal(template.JWT_REFRESH_SECRET, '[JWT_REFRESH_SECRET_AT_LEAST_32_CHARACTERS]');
+  assert.equal(template.RESEND_API_KEY, '[RESEND_API_KEY]');
+  assert.equal(template.API_INTERNAL_URL, 'http://localhost:3001');
+  const nextPublicKeys = Object.keys(template)
+    .filter((name) => name.startsWith('NEXT_PUBLIC_'))
+    .sort();
+  assert.deepEqual(nextPublicKeys, [], 'the browser uses a same-origin API path');
 });
 
 test('ignores local environment files but keeps the safe template trackable', () => {
