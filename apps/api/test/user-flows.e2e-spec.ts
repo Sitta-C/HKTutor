@@ -665,25 +665,29 @@ describe('End-to-End User Flow Verification (Student & Tutor)', () => {
         state: string;
       }> = [];
 
-      tutorsService.postAvailability.mockImplementation(async (_userId: string, request) => {
-        const overlapsCommittedSlot = committedSlots.some(
-          (slot) => request.startAt < slot.endAtUtc && request.endAt > slot.startAtUtc,
-        );
-        if (overlapsCommittedSlot) {
-          throw new ConflictException('Availability slot overlaps an existing slot');
-        }
+      tutorsService.postAvailability.mockImplementation(
+        (_userId: string, req: { startAt: Date; endAt: Date }) => {
+          const overlapsCommittedSlot = committedSlots.some(
+            (slot) => req.startAt < slot.endAtUtc && req.endAt > slot.startAtUtc,
+          );
+          if (overlapsCommittedSlot) {
+            return Promise.reject(
+              new ConflictException('Availability slot overlaps an existing slot'),
+            );
+          }
 
-        const slot = {
-          createdAt: new Date('2026-09-13T00:00:00.000Z'),
-          endAtUtc: request.endAt,
-          id: slotId,
-          startAtUtc: request.startAt,
-          state: 'OPEN',
-        };
-        committedSlots.push(slot);
-        return { ...slot, tutorProfileId: tutorId };
-      });
-      tutorsService.getAvailabilityPrivate.mockImplementation(async () => committedSlots);
+          const slot = {
+            createdAt: new Date('2026-09-13T00:00:00.000Z'),
+            endAtUtc: req.endAt,
+            id: slotId,
+            startAtUtc: req.startAt,
+            state: 'OPEN',
+          };
+          committedSlots.push(slot);
+          return Promise.resolve({ ...slot, tutorProfileId: tutorId });
+        },
+      );
+      tutorsService.getAvailabilityPrivate.mockResolvedValue(committedSlots);
 
       await request(app.getHttpServer())
         .post('/api/v1/tutors/me/availability')
@@ -699,8 +703,14 @@ describe('End-to-End User Flow Verification (Student & Tutor)', () => {
         .get('/api/v1/tutors/me/availability')
         .expect(200);
 
-      expect(returnedSlots.body).toHaveLength(1);
-      expect(returnedSlots.body[0]).toMatchObject({
+      const returnedSlotsBody = returnedSlots.body as Array<{
+        endAtUtc: string;
+        id: string;
+        startAtUtc: string;
+        state: string;
+      }>;
+      expect(returnedSlotsBody).toHaveLength(1);
+      expect(returnedSlotsBody[0]).toMatchObject({
         id: slotId,
         startAtUtc: startAt.toISOString(),
         endAtUtc: endAt.toISOString(),
@@ -725,7 +735,7 @@ describe('End-to-End User Flow Verification (Student & Tutor)', () => {
       tutorsService.patchListing.mockRejectedValue(
         new ServiceUnavailableException('Listing save interrupted'),
       );
-      tutorsService.getListings.mockImplementation(async () => [committedDraft]);
+      tutorsService.getListings.mockResolvedValue([committedDraft]);
 
       await request(app.getHttpServer())
         .patch(`/api/v1/tutors/me/listings/${listingId}`)
@@ -747,6 +757,111 @@ describe('End-to-End User Flow Verification (Student & Tutor)', () => {
           publicationStatus: ListingPublicationStatus.DRAFT,
         }),
       ]);
+    });
+  });
+
+  describe('Unsaved profile editing failure cases: uncommitted edits are not stored', () => {
+    const studentId = '11111111-9999-4111-8111-111111111111';
+    const tutorId = '22222222-9999-4222-8222-222222222222';
+
+    it('ensures unsaved/failed student profile edits are not stored and original profile remains unchanged', async () => {
+      currentUser = {
+        id: studentId,
+        email: 'student-unsaved@example.com',
+        role: Role.STUDENT,
+        sessionId: 'student-unsaved-session',
+      };
+
+      const committedStudentProfile = {
+        firstName: 'Somchai',
+        lastName: 'Student',
+        nickname: 'Chai',
+        school: 'Triam Udom',
+        gradeLevel: 'Grade 10',
+        phone: '0812345678',
+      };
+
+      profilesService.getMine.mockResolvedValue({
+        consentCurrent: true,
+        policyVersion: CURRENT_PRIVACY_POLICY_VERSION,
+        profile: committedStudentProfile,
+        profileComplete: true,
+        role: Role.STUDENT,
+      });
+
+      // Attempt invalid edit (e.g. phone number pattern violation)
+      await request(app.getHttpServer())
+        .put('/api/v1/profiles/me/student')
+        .send({
+          ...committedStudentProfile,
+          nickname: 'DraftUnsavedNickname',
+          phone: 'invalid-phone-123',
+        })
+        .expect(400);
+
+      // Verify saveStudent was not executed due to validation rejection
+      expect(profilesService.saveStudent).not.toHaveBeenCalled();
+
+      // Read profile to verify database/server state is unchanged
+      const res = await request(app.getHttpServer()).get('/api/v1/profiles/me').expect(200);
+
+      const body = res.body as {
+        profile: { nickname: string; phone: string; school: string };
+      };
+      expect(body.profile.nickname).toBe('Chai');
+      expect(body.profile.phone).toBe('0812345678');
+      expect(body.profile.school).toBe('Triam Udom');
+    });
+
+    it('ensures unsaved/failed tutor profile edits are not stored and original profile remains unchanged', async () => {
+      currentUser = {
+        id: tutorId,
+        email: 'tutor-unsaved@example.com',
+        role: Role.TUTOR,
+        sessionId: 'tutor-unsaved-session',
+      };
+
+      const committedTutorProfile = {
+        firstName: 'Anan',
+        lastName: 'Teacher',
+        nickname: 'Nan',
+        displayName: 'Kru Anan',
+        bio: 'Experienced physics and math tutor',
+        experienceYears: 7,
+        ratingAverage: 4.9,
+        reviewCount: 10,
+        verificationStatus: TutorVerificationStatus.VERIFIED,
+      };
+
+      profilesService.getMine.mockResolvedValue({
+        consentCurrent: true,
+        policyVersion: CURRENT_PRIVACY_POLICY_VERSION,
+        profile: committedTutorProfile,
+        profileComplete: true,
+        role: Role.TUTOR,
+      });
+
+      // Attempt invalid edit (e.g. negative experience years)
+      await request(app.getHttpServer())
+        .put('/api/v1/profiles/me/tutor')
+        .send({
+          ...committedTutorProfile,
+          displayName: 'Unsaved Draft Name',
+          experienceYears: -5,
+        })
+        .expect(400);
+
+      // Verify saveTutor was not executed due to validation rejection
+      expect(profilesService.saveTutor).not.toHaveBeenCalled();
+
+      // Read profile to verify server state is unchanged
+      const res = await request(app.getHttpServer()).get('/api/v1/profiles/me').expect(200);
+
+      const body = res.body as {
+        profile: { displayName: string; experienceYears: number };
+      };
+      expect(body.profile.displayName).toBe('Kru Anan');
+      expect(body.profile.experienceYears).toBe(7);
     });
   });
 });
