@@ -1,12 +1,13 @@
 'use client';
 
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
 import AuthShell, { EyeIcon } from '@/components/auth-shell';
 import { useAuth } from '@/lib/auth-context';
 import { useLanguage } from '@/lib/i18n';
+import { sanitizeReturnTo } from '@/lib/return-to';
 
 import type { FormEvent } from 'react';
 
@@ -14,6 +15,8 @@ export default function Login() {
   const { copy } = useLanguage();
   const { isLoading: isAuthLoading, login, user } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const returnTo = sanitizeReturnTo(searchParams.get('returnTo'));
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -22,8 +25,8 @@ export default function Login() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!isAuthLoading && user) router.replace('/dashboard');
-  }, [isAuthLoading, router, user]);
+    if (!isAuthLoading && user) router.replace(returnTo);
+  }, [isAuthLoading, returnTo, router, user]);
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -34,7 +37,7 @@ export default function Login() {
 
     try {
       await login(email, password);
-      router.replace('/dashboard');
+      router.replace(returnTo);
     } catch (err: unknown) {
       setErrorMessage(err instanceof Error ? err.message : 'Failed to sign in');
     } finally {
