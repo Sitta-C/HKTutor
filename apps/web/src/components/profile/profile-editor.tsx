@@ -21,6 +21,7 @@ import {
   resolveDashboardGate,
   resolveOnboardingHandoff,
 } from '@/lib/profile-navigation';
+import { sanitizeReturnTo } from '@/lib/return-to';
 
 import type { AuthUser, StudentProfile, TutorProfile } from '@/lib/api/types';
 import type { FormEvent, InputHTMLAttributes, ReactNode } from 'react';
@@ -124,7 +125,7 @@ export default function ProfileEditor({ mode }: ProfileEditorProps) {
           setTutorMeta(result.profile);
         }
         if (mode === 'onboarding' && resolveDashboardGate(result) === null) {
-          router.replace(DASHBOARD_PATH);
+          router.replace(readOnboardingReturnTo());
           return;
         }
         setIsLoading(false);
@@ -187,7 +188,7 @@ export default function ProfileEditor({ mode }: ProfileEditorProps) {
         }
 
         const handoff = resolveOnboardingHandoff(result);
-        if (mode === 'onboarding' && handoff) router.replace(handoff);
+        if (mode === 'onboarding' && handoff) router.replace(readOnboardingReturnTo());
       } catch (caught: unknown) {
         setError(caught instanceof Error ? caught.message : text.saveError);
       } finally {
@@ -225,7 +226,7 @@ export default function ProfileEditor({ mode }: ProfileEditorProps) {
         setInitialTutor(form);
         setTutorMeta(result);
       }
-      if (mode === 'onboarding') router.replace('/dashboard');
+      if (mode === 'onboarding') router.replace(readOnboardingReturnTo());
       else setSaved(true);
     } catch (caught: unknown) {
       const apiErrors = apiFieldErrors(caught);
@@ -398,6 +399,11 @@ export default function ProfileEditor({ mode }: ProfileEditorProps) {
       )}
     </DashboardShell>
   );
+}
+
+function readOnboardingReturnTo(): string {
+  if (typeof window === 'undefined') return DASHBOARD_PATH;
+  return sanitizeReturnTo(new URLSearchParams(window.location.search).get('returnTo'));
 }
 
 function StudentFields({

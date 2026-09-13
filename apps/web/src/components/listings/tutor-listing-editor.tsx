@@ -23,6 +23,8 @@ import {
 import { getMyProfile } from '@/lib/api/profiles';
 import { useAuth } from '@/lib/auth-context';
 import { useLanguage } from '@/lib/i18n';
+import { resolveDashboardGate } from '@/lib/profile-navigation';
+import { withReturnTo } from '@/lib/return-to';
 
 import type {
   GradeLevelOption,
@@ -98,6 +100,13 @@ export default function TutorListingEditor({ listingId }: TutorListingEditorProp
     ])
       .then(([catalogs, profileResult, currentListing]) => {
         if (!active) return;
+        const editorPath = listingId
+          ? `/dashboard/listings/${encodeURIComponent(listingId)}/edit`
+          : '/dashboard/listings/new';
+        if (resolveDashboardGate(profileResult)) {
+          router.replace(withReturnTo('/onboarding/profile', editorPath));
+          return;
+        }
         const tutorProfile =
           profileResult.profile && 'verificationStatus' in profileResult.profile
             ? profileResult.profile
@@ -137,6 +146,13 @@ export default function TutorListingEditor({ listingId }: TutorListingEditorProp
       })
       .catch((caught: unknown) => {
         if (!active) return;
+        if (caught instanceof ApiError && caught.status === 400) {
+          const editorPath = listingId
+            ? `/dashboard/listings/${encodeURIComponent(listingId)}/edit`
+            : '/dashboard/listings/new';
+          router.replace(withReturnTo('/onboarding/profile', editorPath));
+          return;
+        }
         setPageError(
           readEditorError(caught, copy.loadError, listingId ? copy.notFound : undefined),
         );
@@ -215,10 +231,6 @@ export default function TutorListingEditor({ listingId }: TutorListingEditorProp
     setSuccess(null);
     if (Object.keys(nextErrors).length > 0) return;
 
-    if (action === 'publish' && !isVerified) {
-      setPageError(copy.verificationError);
-      return;
-    }
     const payload: SaveTeachingListingPayload = {
       subjectId: form.subjectId,
       gradeLevelId: form.gradeLevelId,
@@ -540,7 +552,7 @@ export default function TutorListingEditor({ listingId }: TutorListingEditorProp
                 {status !== 'PUBLISHED' && (
                   <button
                     type="button"
-                    disabled={createBlocked || !isVerified || submitAction !== null}
+                    disabled={createBlocked || submitAction !== null}
                     onClick={() => void saveListing('publish')}
                     className="listing-primary-action profile-primary-button min-h-12 rounded-md bg-[#34271e] px-5 text-sm font-extrabold text-white shadow-[0_2px_8px_-5px_rgba(43,31,22,0.35)] transition hover:-translate-y-0.5 hover:bg-[#4b3729] disabled:cursor-not-allowed disabled:translate-y-0 disabled:opacity-45"
                   >
@@ -722,7 +734,7 @@ const englishCopy = {
   priceError: 'Enter a price greater than zero with no more than two decimal places.',
   publishRule: 'Publication eligibility',
   canPublish: 'Your verified tutor profile can publish this listing.',
-  cannotPublish: 'Save a draft now. Publishing unlocks after tutor verification.',
+  cannotPublish: 'You can publish now. Students will see that verification is pending.',
   description: 'Listing description',
   descriptionPlaceholder:
     'Explain what students will learn, your teaching approach, and who this course suits.',
@@ -756,7 +768,7 @@ const englishCopy = {
   unsaved: 'Unsaved changes',
   upToDate: 'All changes saved',
   savedSuccess: 'Your listing changes have been saved.',
-  verificationError: 'Your tutor profile must be verified before this listing can be published.',
+  verificationError: 'This listing could not be published.',
   discardConfirm: 'Discard your unsaved changes?',
   qualityTitle: 'A strong listing is easy to scan',
   qualityOne: 'State the learning outcome in the first sentence.',
@@ -797,7 +809,7 @@ const thaiCopy: typeof englishCopy = {
   priceError: 'กรุณากรอกราคามากกว่าศูนย์และมีทศนิยมไม่เกินสองตำแหน่ง',
   publishRule: 'สิทธิ์ในการเผยแพร่',
   canPublish: 'โปรไฟล์ติวเตอร์ของคุณผ่านการยืนยันและเผยแพร่ประกาศนี้ได้',
-  cannotPublish: 'บันทึกฉบับร่างได้ทันที การเผยแพร่จะเปิดเมื่อโปรไฟล์ผ่านการยืนยัน',
+  cannotPublish: 'เผยแพร่ได้ทันที โดยนักเรียนจะเห็นว่าสถานะกำลังรอตรวจสอบ',
   description: 'คำอธิบายคอร์ส',
   descriptionPlaceholder: 'อธิบายว่านักเรียนจะได้เรียนรู้อะไร แนวทางการสอน และคอร์สนี้เหมาะกับใคร',
   descriptionHelp: 'เขียน 20–1,000 ตัวอักษร ระบุผลลัพธ์ที่ชัดเจนและใช้ภาษาที่เข้าใจง่าย',
@@ -830,7 +842,7 @@ const thaiCopy: typeof englishCopy = {
   unsaved: 'มีการเปลี่ยนแปลงที่ยังไม่ได้บันทึก',
   upToDate: 'บันทึกข้อมูลล่าสุดแล้ว',
   savedSuccess: 'บันทึกการแก้ไขประกาศแล้ว',
-  verificationError: 'โปรไฟล์ติวเตอร์ต้องผ่านการยืนยันก่อนเผยแพร่ประกาศ',
+  verificationError: 'ไม่สามารถเผยแพร่ประกาศนี้ได้',
   discardConfirm: 'ยกเลิกการเปลี่ยนแปลงที่ยังไม่ได้บันทึกหรือไม่?',
   qualityTitle: 'ประกาศที่ดีควรอ่านเข้าใจได้เร็ว',
   qualityOne: 'บอกผลลัพธ์การเรียนรู้ตั้งแต่ประโยคแรก',
