@@ -120,7 +120,7 @@ Compose on the presenting machine: `TBC`, not yet run.
 | 1   | Register a new tutor with the demo inbox. Submit without ticking consent and show the block. Open the privacy notice from the form, accept, then register.                                                                                             | S1-T06, S1-T11, S1-T12 | screen recording | yes                        |
 | 2   | Open the verification email, follow the link, and complete tutor onboarding. Show that login before verification is refused.                                                                                                                           | S1-T08, S1-T09         | screenshot       | yes                        |
 | 3   | Sign in as seeded tutor Anan. Open My listings and show the published 400 THB listing next to the 300 THB draft.                                                                                                                                       | S1-T15, S1-T16         | screenshot       | yes                        |
-| 4   | As Anan, add availability in Bangkok time. Add an overlapping range and show the rejection. Show that a reserved slot cannot be deleted.                                                                                                               | S1-T18, S1-T19         | screenshot       | after PR #53 merges        |
+| 4   | As Anan, add availability in Bangkok time. Add an overlapping range and show the rejection. Show that a reserved slot cannot be deleted.                                                                                                               | S1-T18, S1-T19         | screenshot       | yes                        |
 | 5   | Sign in as seeded student Nan. On `/tutors`, filter Mathematics, Grade 10, maximum budget 500: Mali, Anan, and Kiet appear, since the limit is inclusive; Niran, Pim, and the draft do not. Then filter Physics, Grade 11 and show the no-match state. | S1-T20, S1-T21, S1-T22 | screenshot       | yes                        |
 | 6   | Open Anan's tutor page, choose the slot, review the server quote on the confirmation screen, and submit. Show the booking in the student list as pending.                                                                                              | S1-T24, S1-T25         | screenshot       | after PR #54 merges        |
 | 7   | In Swagger, authorized as Nan, send `POST /api/v1/bookings` again with the same `listingId` and `slotId`. Show `409` with "The selected slot is already booked." and no `500`.                                                                         | S1-T24, S1-T27         | API response     | yes, once a booking exists |
@@ -155,8 +155,8 @@ created by the rehearsal, never a migration reset, so the shared project keeps i
 
 ## 9. Open items before this leaves DRAFT
 
-- [ ] Re-run every step after PR #53, PR #54, and S1-T26 merge, and correct the wording to match the
-      real screens.
+- [ ] Re-run every step after PR #54 and S1-T26 merge, and correct the wording to match the real
+      screens.
 - [ ] Decide which slot step 6 books and how bookings are cleaned up between rehearsals.
 - [ ] Run the Compose path once on the presenting machine.
 - [ ] Fill each `TBC`.
