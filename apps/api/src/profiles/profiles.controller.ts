@@ -23,6 +23,8 @@ export class ProfilesController {
   constructor(private readonly profiles: ProfilesService) {}
 
   @Get()
+  @UseGuards(RolesGuard)
+  @Roles(Role.STUDENT, Role.TUTOR)
   @GetMyProfileDoc()
   getMine(@CurrentUser() user: AuthenticatedUser) {
     return this.profiles.getMine(user);

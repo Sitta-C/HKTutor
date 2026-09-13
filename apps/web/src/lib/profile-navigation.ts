@@ -13,6 +13,11 @@ export interface ProfileGateStatus {
   profileComplete: boolean;
 }
 
+/** Admin accounts have no Student/Tutor private profile and use the auth identity directly. */
+export function requiresPrivateProfile(role: 'STUDENT' | 'TUTOR' | 'ADMIN'): boolean {
+  return role === 'STUDENT' || role === 'TUTOR';
+}
+
 /**
  * Guards the dashboard: an incomplete profile or a stale privacy notice must finish
  * onboarding first. Returns the target to redirect to, or null to stay on the dashboard.
