@@ -1,7 +1,9 @@
 import { Suspense } from 'react';
 
 import PublicTutorSearchShell from '@/components/tutors/public-tutor-search-shell';
-import TutorAvailabilityPage from '@/components/tutors/tutor-availability-page';
+import PublicTutorAvailabilityPage, {
+  PublicTutorAvailabilityLoading,
+} from '@/components/tutors/tutor-availability-page';
 
 export default async function PublicTutorDetailRoute({
   params,
@@ -11,9 +13,9 @@ export default async function PublicTutorDetailRoute({
   const { tutorId } = await params;
 
   return (
-    <Suspense fallback={<p className="p-6 text-sm font-semibold">Loading tutor…</p>}>
+    <Suspense fallback={<PublicTutorAvailabilityLoading />}>
       <PublicTutorSearchShell>
-        <TutorAvailabilityPage tutorId={tutorId} />
+        <PublicTutorAvailabilityPage tutorId={tutorId} />
       </PublicTutorSearchShell>
     </Suspense>
   );

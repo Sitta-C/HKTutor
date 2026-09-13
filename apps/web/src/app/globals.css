@@ -1094,6 +1094,12 @@ input {
   white-space: nowrap;
 }
 
+.booking-page {
+  width: min(1120px, 100%);
+  margin: 0 auto;
+  padding: 2rem 0 3rem;
+}
+
 .booking-status-pending {
   background: var(--warn-bg);
   color: var(--warn-fg);

@@ -3,98 +3,22 @@
 import Link from 'next/link';
 
 import { ApiError } from '@/lib/api/error';
+import { useLanguage } from '@/lib/i18n';
 
 import type { BookingStatus, BookingView } from '@/lib/api/types';
+import type { Language, Translation } from '@/lib/i18n';
 
-export const bookingCopy = {
-  en: {
-    loading: 'Loading…',
-    loadError: 'We could not load this booking right now. Please try again.',
-    validationError: 'The booking request is invalid. Please choose the tutor and time again.',
-    unauthenticated: 'Your session has expired. Please sign in again to continue.',
-    forbidden: 'This booking is not available for your account.',
-    notFound: 'This booking could not be found.',
-    conflict: 'This time was just booked. Choose another open time.',
-    unknown: 'Something went wrong. Please try again.',
-    status: 'Status',
-    pending: 'PENDING',
-    confirmed: 'CONFIRMED',
-    completed: 'COMPLETED',
-    canceled: 'CANCELED',
-    expired: 'EXPIRED',
-    tutor: 'Tutor',
-    subject: 'Subject',
-    grade: 'Grade level',
-    lessonTime: 'Lesson time',
-    bangkokTime: 'Bangkok time (UTC+7)',
-    duration: 'Duration',
-    hour: 'hour',
-    hours: 'hours',
-    amount: 'Amount',
-    subtotal: 'Subtotal',
-    discount: 'Discount',
-    total: 'Request total',
-    description: 'Description',
-    view: 'View',
-    backToBookings: 'Back to my bookings',
-    findTutor: 'Find another tutor',
-    signIn: 'Sign in',
-    tryAgain: 'Try again',
-    emptyTitle: 'No bookings yet',
-    emptyBody: 'Choose a verified tutor and send your first booking request.',
-    browseTutors: 'Browse tutors',
-    myBookings: 'My bookings',
-    all: 'All',
-    bookingCount: 'booking(s)',
-    bookingDetails: 'Booking details',
-    created: 'Request created',
-  },
-  th: {
-    loading: 'กำลังโหลด…',
-    loadError: 'ยังโหลดการจองไม่ได้ กรุณาลองใหม่อีกครั้ง',
-    validationError: 'ข้อมูลการจองไม่ถูกต้อง กรุณาเลือกติวเตอร์และเวลาใหม่',
-    unauthenticated: 'เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่อีกครั้ง',
-    forbidden: 'การจองนี้ไม่สามารถเปิดดูจากบัญชีนี้ได้',
-    notFound: 'ไม่พบการจองนี้',
-    conflict: 'ช่วงเวลานี้เพิ่งถูกจอง กรุณาเลือกเวลาอื่น',
-    unknown: 'เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง',
-    status: 'สถานะ',
-    pending: 'รอยืนยัน',
-    confirmed: 'ยืนยันแล้ว',
-    completed: 'เสร็จสิ้น',
-    canceled: 'ยกเลิกแล้ว',
-    expired: 'หมดอายุ',
-    tutor: 'ติวเตอร์',
-    subject: 'วิชา',
-    grade: 'ระดับชั้น',
-    lessonTime: 'เวลาเรียน',
-    bangkokTime: 'เวลาตามกรุงเทพฯ (UTC+7)',
-    duration: 'ระยะเวลา',
-    hour: 'ชั่วโมง',
-    hours: 'ชั่วโมง',
-    amount: 'ยอดเงิน',
-    subtotal: 'ยอดก่อนส่วนลด',
-    discount: 'ส่วนลด',
-    total: 'ยอดคำขอจอง',
-    description: 'รายละเอียด',
-    view: 'ดู',
-    backToBookings: 'กลับไปการจองของฉัน',
-    findTutor: 'ค้นหาติวเตอร์เพิ่ม',
-    signIn: 'เข้าสู่ระบบ',
-    tryAgain: 'ลองใหม่',
-    emptyTitle: 'ยังไม่มีการจอง',
-    emptyBody: 'เลือกติวเตอร์ที่ยืนยันแล้วและส่งคำขอจองครั้งแรกของคุณ',
-    browseTutors: 'ค้นหาติวเตอร์',
-    myBookings: 'การจองของฉัน',
-    all: 'ทั้งหมด',
-    bookingCount: 'รายการ',
-    bookingDetails: 'รายละเอียดการจอง',
-    created: 'สร้างคำขอแล้ว',
-  },
-} as const;
+export type BookingLanguage = Language;
+export type BookingText = Translation['dashboard']['booking'];
 
-export type BookingLanguage = keyof typeof bookingCopy;
-export type BookingText = { [Key in keyof (typeof bookingCopy)['en']]: string };
+export function BookingLoading() {
+  const { copy } = useLanguage();
+  return (
+    <p className="p-6 text-sm font-semibold" role="status">
+      {copy.dashboard.booking.loading}
+    </p>
+  );
+}
 
 export function formatBangkokRange(
   startAtUtc: string,
@@ -134,7 +58,7 @@ export function formatBangkokDateTime(valueAtUtc: string, language: BookingLangu
 
 export function formatDuration(startAtUtc: string, endAtUtc: string, text: BookingText): string {
   const hours = (new Date(endAtUtc).getTime() - new Date(startAtUtc).getTime()) / 3_600_000;
-  const rounded = Number.isInteger(hours) ? String(hours) : hours.toFixed(1);
+  const rounded = Number.isInteger(hours) ? String(hours) : String(Number(hours.toFixed(2)));
   return `${rounded} ${hours === 1 ? text.hour : text.hours}`;
 }
 

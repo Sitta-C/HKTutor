@@ -5,7 +5,6 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 
 import {
-  bookingCopy,
   BookingStatusBadge,
   formatBangkokDateTime,
   formatBangkokRange,
@@ -22,8 +21,8 @@ import type { BookingQuote, BookingResponse } from '@/lib/api/types';
 import type { ReactNode } from 'react';
 
 export default function BookingConfirmationPage() {
-  const { language } = useLanguage();
-  const text = bookingCopy[language];
+  const { copy, language } = useLanguage();
+  const text = copy.dashboard.booking;
   const router = useRouter();
   const searchParams = useSearchParams();
   const listingId = searchParams.get('listingId');
@@ -84,7 +83,11 @@ export default function BookingConfirmationPage() {
 
     try {
       const response = await createBookingOnce({ listingId, slotId }, submitInFlight);
-      if (response) setCreated(response);
+      if (response) {
+        setCreated(response);
+      } else {
+        setSubmitError(new Error(text.submissionInProgress));
+      }
     } catch (caught: unknown) {
       setCreated(null);
       setSubmitError(caught);
@@ -94,17 +97,15 @@ export default function BookingConfirmationPage() {
   };
 
   return (
-    <main className="booking-page">
+    <div className="booking-page">
       <section className="mb-8 max-w-3xl">
         <p className="mb-2 text-xs font-extrabold uppercase tracking-[0.18em] text-[#c07a2e]">
-          Booking
+          {text.pageEyebrow}
         </p>
         <h1 className="text-4xl font-black tracking-[-0.06em] text-[#171714] sm:text-5xl">
-          Review your lesson request
+          {text.reviewTitle}
         </h1>
-        <p className="mt-3 text-base leading-7 text-[#625b53]">
-          Choose one open time and send a request. A successful booking starts as PENDING.
-        </p>
+        <p className="mt-3 text-base leading-7 text-[#625b53]">{text.reviewDescription}</p>
       </section>
 
       {!missingSelection && (!selectionLoaded || isQuoteLoading) && (
@@ -135,13 +136,13 @@ export default function BookingConfirmationPage() {
                 <h2 className="text-2xl font-extrabold text-[#171714]">
                   {activeQuote.tutor.displayName}
                 </h2>
-                <p className="mt-1 text-sm font-semibold text-[#0e8a73]">VERIFIED TUTOR</p>
+                <p className="mt-1 text-sm font-semibold text-[#0e8a73]">{text.verifiedTutor}</p>
               </div>
             </div>
 
             <div className="mt-6 rounded-2xl bg-[#f8f5ef] p-5">
               <p className="text-xs font-extrabold uppercase tracking-[0.12em] text-[#8a857b]">
-                Selected listing
+                {text.selectedListing}
               </p>
               <h3 className="mt-2 text-xl font-extrabold text-[#171714]">
                 {activeQuote.listing.subjectName} · {activeQuote.listing.gradeLevelName}
@@ -169,16 +170,16 @@ export default function BookingConfirmationPage() {
             </div>
 
             <p className="mt-5 rounded-2xl border border-[#f0dfbd] bg-[#fffaf0] p-4 text-sm leading-6 text-[#9b6b2c]">
-              Request, not confirmation. The tutor will confirm the pending booking later.
+              {text.requestNotice}
             </p>
           </section>
 
           <aside className="h-fit rounded-[1.5rem] border border-[#ebe6dd] bg-white p-6 shadow-[0_18px_40px_-12px_rgba(46,39,25,0.14)] sm:p-8">
-            <h2 className="text-xl font-extrabold text-[#171714]">Booking summary</h2>
-            <p className="mt-1 text-sm text-[#8a857b]">Amounts are confirmed by the server.</p>
+            <h2 className="text-xl font-extrabold text-[#171714]">{text.bookingSummary}</h2>
+            <p className="mt-1 text-sm text-[#8a857b]">{text.serverAmountNote}</p>
             <div className="mt-6 space-y-3 text-sm">
               <MoneyRow
-                label="Hourly rate"
+                label={text.hourlyRate}
                 value={formatMoney(activeQuote.listing.pricePerHour, activeQuote.currency)}
               />
               <MoneyRow
@@ -215,13 +216,13 @@ export default function BookingConfirmationPage() {
               aria-busy={isSubmitting}
               onClick={() => void submit()}
             >
-              {isSubmitting ? 'Sending request…' : 'Send booking request'}
+              {isSubmitting ? text.sendingRequest : text.sendBookingRequest}
             </button>
             <Link
               href={`/tutors/${encodeURIComponent(activeQuote.tutor.tutorId)}?listingId=${encodeURIComponent(activeQuote.listing.id)}`}
               className="mt-3 block text-center text-sm font-bold text-[#625b53] underline"
             >
-              Change time
+              {text.changeTime}
             </Link>
           </aside>
         </div>
@@ -230,9 +231,9 @@ export default function BookingConfirmationPage() {
       {activeCreated && activeQuote && (
         <section className="rounded-[1.5rem] border border-[#bcebdc] bg-white p-6 shadow-[0_18px_40px_-12px_rgba(46,39,25,0.14)] sm:p-8">
           <div className="rounded-2xl bg-[#e9fbf4] p-5">
-            <h2 className="text-2xl font-extrabold text-[#0e8a73]">Booking request sent</h2>
+            <h2 className="text-2xl font-extrabold text-[#0e8a73]">{text.bookingRequestSent}</h2>
             <p className="mt-2 text-sm leading-6 text-[#3f7165]">
-              Your request was created as {activeCreated.status}. The selected time is now reserved.
+              {text.requestCreatedStatus.replace('{status}', activeCreated.status)}
             </p>
           </div>
           <div className="mt-6 grid gap-4 md:grid-cols-3">
@@ -241,7 +242,7 @@ export default function BookingConfirmationPage() {
               value={<BookingStatusBadge status={activeCreated.status} text={text} />}
             />
             <SummaryBox
-              label="Tutor and subject"
+              label={text.tutorAndSubject}
               value={`${activeQuote.tutor.displayName} · ${activeQuote.listing.subjectName} · ${activeQuote.listing.gradeLevelName}`}
             />
             <SummaryBox
@@ -271,7 +272,7 @@ export default function BookingConfirmationPage() {
           </div>
         </section>
       )}
-    </main>
+    </div>
   );
 }
 
@@ -319,7 +320,7 @@ function SubmitError({
           href={`/tutors/${encodeURIComponent(tutorId)}?listingId=${encodeURIComponent(listingId)}&conflict=1`}
           className="mt-2 inline-block font-bold underline"
         >
-          Choose another time
+          {text.chooseAnotherTime}
         </Link>
       )}
       {error instanceof ApiError && error.status === 401 && (

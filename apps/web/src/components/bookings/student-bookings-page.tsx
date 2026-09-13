@@ -3,11 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 
-import {
-  bookingCopy,
-  BookingSummaryRow,
-  getBookingErrorMessage,
-} from '@/components/bookings/booking-ui';
+import { BookingSummaryRow, getBookingErrorMessage } from '@/components/bookings/booking-ui';
 import { getMyBookings } from '@/lib/api/bookings';
 import { ApiError } from '@/lib/api/error';
 import { useLanguage } from '@/lib/i18n';
@@ -27,8 +23,8 @@ const filters: BookingFilter[] = [
 ];
 
 export default function StudentBookingsPage() {
-  const { language } = useLanguage();
-  const text = bookingCopy[language];
+  const { copy, language } = useLanguage();
+  const text = copy.dashboard.booking;
   const [filter, setFilter] = useState<BookingFilter>('ALL');
   const [items, setItems] = useState<BookingView[]>([]);
   const [total, setTotal] = useState(0);
@@ -72,10 +68,10 @@ export default function StudentBookingsPage() {
   }, [filter, reloadKey]);
 
   return (
-    <main className="booking-page">
+    <div className="booking-page">
       <section className="mb-8 max-w-3xl">
         <p className="mb-2 text-xs font-extrabold uppercase tracking-[0.18em] text-[#c07a2e]">
-          {text.myBookings}
+          {text.bookingsEyebrow}
         </p>
         <h1 className="text-4xl font-black tracking-[-0.06em] text-[#171714] sm:text-5xl">
           {text.myBookings}
@@ -86,7 +82,7 @@ export default function StudentBookingsPage() {
       </section>
 
       <section className="rounded-[1.5rem] border border-[#ebe6dd] bg-white p-5 shadow-[0_18px_40px_-12px_rgba(46,39,25,0.14)] sm:p-7">
-        <div className="mb-6 flex flex-wrap gap-2" aria-label={text.status}>
+        <div className="mb-6 flex flex-wrap gap-2" role="group" aria-label={text.status}>
           {filters.map((item) => (
             <button
               key={item}
@@ -160,7 +156,7 @@ export default function StudentBookingsPage() {
           </div>
         )}
       </section>
-    </main>
+    </div>
   );
 }
 

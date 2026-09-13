@@ -39,14 +39,17 @@ test('connects selected public availability to quote and create without client a
   const confirmation = await fs.readFile(confirmationPath, 'utf8');
   const availability = await fs.readFile(availabilityPath, 'utf8');
 
-  assert.match(availability, /getPublicTutorAvailability\(tutorId\)/);
+  assert.match(
+    availability,
+    /getPublicTutorAvailability\(tutorId, \{ from: availabilityFrom, to: availabilityTo \}\)/,
+  );
   assert.match(availability, /dashboard\/bookings\/new\?listingId=/);
   assert.match(confirmation, /getBookingQuote\(listingId, slotId\)/);
   assert.match(confirmation, /createBookingOnce\(\{ listingId, slotId \}/);
   assert.doesNotMatch(confirmation, /submitInFlight\.current = true/);
   assert.doesNotMatch(confirmation, /studentUserId|pricePerHour:|netAmount:/);
   assert.match(confirmation, /status === 409/);
-  assert.match(confirmation, /Choose another time/);
+  assert.match(confirmation, /text\.chooseAnotherTime/);
   assert.match(confirmation, /disabled=\{isSubmitting\}/);
   assert.match(confirmation, /setQuote\(null\)/);
   assert.match(confirmation, /formatBangkokDateTime\(activeCreated\.createdAt, language\)/);
@@ -54,6 +57,8 @@ test('connects selected public availability to quote and create without client a
     confirmation,
     /formatBangkokRange\(activeCreated\.createdAt, activeCreated\.createdAt/,
   );
+  assert.doesNotMatch(confirmation, /bookingCopy/);
+  assert.match(confirmation, /copy\.dashboard\.booking/);
 });
 
 test('renders Student-owned list/detail states and an explicit empty state', async () => {
@@ -76,5 +81,6 @@ test('starts booking-list loading only when a fetch effect runs', async () => {
   assert.match(list, /getMyBookings\(filter === 'ALL' \? \{\} : \{ status: filter \}\)/);
   assert.match(list, /\}, \[filter, reloadKey\]\);/);
   assert.match(list, /onClick=\{\(\) => setFilter\(item\)\}/);
+  assert.match(list, /role="group" aria-label=\{text\.status\}/);
   assert.doesNotMatch(list, /onClick=\{\(\) => \{[\s\S]*?setIsLoading\(true\)/);
 });

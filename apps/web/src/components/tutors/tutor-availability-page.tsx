@@ -10,42 +10,9 @@ import { useLanguage } from '@/lib/i18n';
 
 import type { PublicAvailabilitySlot, PublicTutorDetail } from '@/lib/api/types';
 
-const copy = {
-  en: {
-    eyebrow: 'Tutor profile',
-    loading: 'Loading tutor and available times…',
-    error: 'We could not load this tutor right now.',
-    notFound: 'This tutor is not publicly available.',
-    back: 'Back to tutor search',
-    listings: 'Teaching listings',
-    chooseListing: 'Choose a listing',
-    availability: 'Available times',
-    availabilityHint: 'Times are shown in Bangkok time (UTC+7).',
-    noSlots: 'No future open times are available right now.',
-    choose: 'Choose this time',
-    conflict: 'That time was just booked. The latest open times are shown below.',
-    verified: 'VERIFIED',
-  },
-  th: {
-    eyebrow: 'โปรไฟล์ติวเตอร์',
-    loading: 'กำลังโหลดข้อมูลติวเตอร์และเวลาว่าง…',
-    error: 'ยังโหลดข้อมูลติวเตอร์ไม่ได้',
-    notFound: 'ไม่พบติวเตอร์ที่เปิดให้ดูแบบสาธารณะ',
-    back: 'กลับไปค้นหาติวเตอร์',
-    listings: 'คอร์สที่เปิดสอน',
-    chooseListing: 'เลือกคอร์ส',
-    availability: 'เวลาที่ว่าง',
-    availabilityHint: 'แสดงเวลาในกรุงเทพฯ (UTC+7)',
-    noSlots: 'ยังไม่มีช่วงเวลาว่างในอนาคต',
-    choose: 'เลือกเวลานี้',
-    conflict: 'ช่วงเวลานี้เพิ่งถูกจอง จึงแสดงเวลาอื่นที่ยังว่างล่าสุดให้เลือก',
-    verified: 'ยืนยันแล้ว',
-  },
-} as const;
-
-export default function TutorAvailabilityPage({ tutorId }: { tutorId: string }) {
-  const { language } = useLanguage();
-  const text = copy[language];
+export default function PublicTutorAvailabilityPage({ tutorId }: { tutorId: string }) {
+  const { copy, language } = useLanguage();
+  const text = copy.dashboard.tutorAvailability;
   const router = useRouter();
   const searchParams = useSearchParams();
   const requestedListingId = searchParams.get('listingId');
@@ -61,7 +28,14 @@ export default function TutorAvailabilityPage({ tutorId }: { tutorId: string }) 
   useEffect(() => {
     let active = true;
 
-    Promise.all([getPublicTutor(tutorId), getPublicTutorAvailability(tutorId)])
+    const availabilityFrom = new Date();
+    const availabilityTo = new Date(availabilityFrom);
+    availabilityTo.setDate(availabilityTo.getDate() + 30);
+
+    Promise.all([
+      getPublicTutor(tutorId),
+      getPublicTutorAvailability(tutorId, { from: availabilityFrom, to: availabilityTo }),
+    ])
       .then(([nextDetail, nextSlots]) => {
         if (!active) return;
         setDetail(nextDetail);
@@ -119,7 +93,7 @@ export default function TutorAvailabilityPage({ tutorId }: { tutorId: string }) 
   }
 
   return (
-    <main className="tutor-search-page text-[#171714]">
+    <div className="tutor-search-page text-[#171714]">
       <section className="mb-8 max-w-4xl">
         <Link href="/tutors" className="text-sm font-bold text-[#625b53] underline">
           ← {text.back}
@@ -208,7 +182,16 @@ export default function TutorAvailabilityPage({ tutorId }: { tutorId: string }) 
           )}
         </section>
       </div>
-    </main>
+    </div>
+  );
+}
+
+export function PublicTutorAvailabilityLoading() {
+  const { copy } = useLanguage();
+  return (
+    <p className="p-6 text-sm font-semibold" role="status">
+      {copy.dashboard.tutorAvailability.loading}
+    </p>
   );
 }
 

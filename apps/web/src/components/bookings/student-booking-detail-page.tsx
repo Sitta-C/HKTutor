@@ -4,7 +4,6 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 
 import {
-  bookingCopy,
   BookingStatusBadge,
   formatBangkokRange,
   formatDuration,
@@ -17,8 +16,8 @@ import { useLanguage } from '@/lib/i18n';
 import type { BookingDetail } from '@/lib/api/types';
 
 export default function StudentBookingDetailPage({ bookingId }: { bookingId: string }) {
-  const { language } = useLanguage();
-  const text = bookingCopy[language];
+  const { copy, language } = useLanguage();
+  const text = copy.dashboard.booking;
   const [booking, setBooking] = useState<BookingDetail | null>(null);
   const [error, setError] = useState<unknown | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -73,7 +72,7 @@ export default function StudentBookingDetailPage({ bookingId }: { bookingId: str
   }
 
   return (
-    <main className="booking-page">
+    <div className="booking-page">
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <div>
           <p className="mb-2 text-xs font-extrabold uppercase tracking-[0.18em] text-[#c07a2e]">
@@ -131,7 +130,7 @@ export default function StudentBookingDetailPage({ bookingId }: { bookingId: str
           </Link>
         </div>
       </section>
-    </main>
+    </div>
   );
 }
 
