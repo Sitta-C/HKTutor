@@ -10,7 +10,7 @@ import { ApiError } from '@/lib/api/error';
 import { getMyProfile } from '@/lib/api/profiles';
 import { useAuth } from '@/lib/auth-context';
 import { useLanguage } from '@/lib/i18n';
-import { resolveDashboardGate } from '@/lib/profile-navigation';
+import { requiresPrivateProfile, resolveDashboardGate } from '@/lib/profile-navigation';
 
 import type { AuthUser } from '@/lib/api/types';
 
@@ -29,6 +29,8 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (!user) return;
+    if (!requiresPrivateProfile(user.role)) return;
+
     let active = true;
 
     getMyProfile()
@@ -95,7 +97,9 @@ export default function DashboardPage() {
     );
   }
 
-  if (!profileUser && !profileError) {
+  const privateProfileRequired = requiresPrivateProfile(user.role);
+
+  if (privateProfileRequired && !profileUser && !profileError) {
     return (
       <div
         role="status"
@@ -107,7 +111,7 @@ export default function DashboardPage() {
     );
   }
 
-  if (profileError) {
+  if (privateProfileRequired && profileError) {
     return (
       <main className="flex min-h-dvh items-center justify-center bg-[#fbfaf7] p-6">
         <div className="max-w-md rounded-2xl bg-white p-8 text-center shadow-sm">
@@ -120,17 +124,18 @@ export default function DashboardPage() {
     );
   }
 
-  if (!profileUser) return null;
+  const dashboardUser = privateProfileRequired ? profileUser : user;
+  if (!dashboardUser) return null;
 
   // Strictly use authenticated API role from AuthContext
   if (user.role === 'STUDENT') {
-    return <StudentDashboard user={profileUser} onLogout={handleLogout} />;
+    return <StudentDashboard user={dashboardUser} onLogout={handleLogout} />;
   }
 
   if (user.role === 'TUTOR') {
-    return <TutorDashboard user={profileUser} onLogout={handleLogout} />;
+    return <TutorDashboard user={dashboardUser} onLogout={handleLogout} />;
   }
 
   // Explicit safe ADMIN state and unsupported fallback (never student or tutor)
-  return <AdminDashboard user={profileUser} onLogout={handleLogout} />;
+  return <AdminDashboard user={dashboardUser} onLogout={handleLogout} />;
 }

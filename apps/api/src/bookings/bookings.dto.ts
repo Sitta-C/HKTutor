@@ -62,6 +62,9 @@ export class BookingQuoteTutorDto {
 
   @ApiProperty({ example: 'Anan Suksawat' })
   displayName!: string;
+
+  @ApiPropertyOptional({ enum: ['PENDING', 'VERIFIED'], example: 'VERIFIED' })
+  verificationStatus?: 'PENDING' | 'VERIFIED';
 }
 
 export class BookingQuoteListingDto {

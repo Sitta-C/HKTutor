@@ -241,6 +241,14 @@ describe('Student profile contract (e2e)', () => {
       expect(studentUpsert).not.toHaveBeenCalled();
     });
 
+    it('returns 403 before reading private profile data when an admin calls the read route', async () => {
+      currentUser = { ...currentUser, role: Role.ADMIN };
+
+      await request(app.getHttpServer()).get('/api/v1/profiles/me').expect(403);
+
+      expect(userFindUnique).not.toHaveBeenCalled();
+    });
+
     it('returns the caller role shape from the private read route', async () => {
       currentUser = { ...currentUser, role: Role.TUTOR };
       userFindUnique.mockResolvedValue({

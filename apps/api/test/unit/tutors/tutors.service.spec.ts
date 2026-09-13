@@ -1,9 +1,4 @@
-import {
-  BadRequestException,
-  ConflictException,
-  ForbiddenException,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
 
 import { TutorsService } from '@/tutors/tutors.service';
 
@@ -272,25 +267,10 @@ describe('TutorsService', () => {
   });
 
   describe('postPublishListing', () => {
-    it.each([null, { verificationStatus: 'PENDING' }])(
-      'rejects an absent or unverified tutor profile (%p)',
-      async (profile) => {
-        const prisma = createPrisma();
-        prisma.tutorProfile.findUnique.mockResolvedValue(profile);
-        const service = new TutorsService(prisma as unknown as PrismaService);
-
-        await expect(service.postPublishListing(USER_ID, LISTING_ID)).rejects.toThrow(
-          new ForbiddenException('Tutor is not verified'),
-        );
-        expect(prisma.teachingListing.update).not.toHaveBeenCalled();
-      },
-    );
-
-    it('publishes a verified tutor listing and returns the updated record', async () => {
+    it('publishes a tutor listing without requiring verification', async () => {
       jest.useFakeTimers().setSystemTime(new Date('2026-09-10T01:00:00.000Z'));
       const prisma = createPrisma();
       const publishedAt = new Date('2026-09-10T01:00:00.000Z');
-      prisma.tutorProfile.findUnique.mockResolvedValue({ verificationStatus: 'VERIFIED' });
       prisma.teachingListing.update.mockResolvedValue(
         listing({ publicationStatus: 'PUBLISHED', publishedAt }),
       );
@@ -298,10 +278,7 @@ describe('TutorsService', () => {
 
       const result = await service.postPublishListing(USER_ID, LISTING_ID);
 
-      expect(prisma.tutorProfile.findUnique).toHaveBeenCalledWith({
-        select: { verificationStatus: true },
-        where: { userId: USER_ID },
-      });
+      expect(prisma.tutorProfile.findUnique).not.toHaveBeenCalled();
       expect(prisma.teachingListing.update).toHaveBeenCalledWith(
         expect.objectContaining({
           data: { publicationStatus: 'PUBLISHED', publishedAt },
@@ -317,7 +294,6 @@ describe('TutorsService', () => {
 
     it('maps a missing listing to a stable 404', async () => {
       const prisma = createPrisma();
-      prisma.tutorProfile.findUnique.mockResolvedValue({ verificationStatus: 'VERIFIED' });
       prisma.teachingListing.update.mockRejectedValue(recordNotFoundError());
       const service = new TutorsService(prisma as unknown as PrismaService);
 
@@ -361,9 +337,8 @@ describe('TutorsService', () => {
       );
     });
 
-    it('uses the verified publish flow when the requested status is published', async () => {
+    it('uses the publish flow when the requested status is published', async () => {
       const prisma = createPrisma();
-      prisma.tutorProfile.findUnique.mockResolvedValue({ verificationStatus: 'VERIFIED' });
       prisma.teachingListing.update.mockResolvedValue(
         listing({ publicationStatus: 'PUBLISHED', publishedAt: new Date() }),
       );
@@ -371,7 +346,7 @@ describe('TutorsService', () => {
 
       await service.updateListingStatus(USER_ID, LISTING_ID, 'PUBLISHED');
 
-      expect(prisma.tutorProfile.findUnique).toHaveBeenCalled();
+      expect(prisma.tutorProfile.findUnique).not.toHaveBeenCalled();
       expect(prisma.teachingListing.update).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({ publicationStatus: 'PUBLISHED' }) as object,
@@ -458,7 +433,7 @@ describe('TutorsService', () => {
   });
 
   describe('getAvailabilityPublic', () => {
-    it('returns only future open slots for a verified tutor in ascending order', async () => {
+    it('returns only future open slots for a pending or verified tutor in ascending order', async () => {
       jest.useFakeTimers().setSystemTime(new Date('2026-10-17T07:00:00.000Z'));
       const prisma = createPrisma();
       prisma.tutorProfile.findFirst.mockResolvedValue({ userId: USER_ID });
@@ -472,7 +447,10 @@ describe('TutorsService', () => {
       ]);
       expect(prisma.tutorProfile.findFirst).toHaveBeenCalledWith({
         select: { userId: true },
-        where: { userId: USER_ID, verificationStatus: 'VERIFIED' },
+        where: {
+          userId: USER_ID,
+          verificationStatus: { in: ['PENDING', 'VERIFIED'] },
+        },
       });
       expect(prisma.availabilitySlot.findMany).toHaveBeenCalledWith({
         orderBy: [{ startAtUtc: 'asc' }, { endAtUtc: 'asc' }],
@@ -486,7 +464,7 @@ describe('TutorsService', () => {
       });
     });
 
-    it('returns TUTOR_NOT_FOUND for a missing or unverified tutor', async () => {
+    it('returns TUTOR_NOT_FOUND for a missing or rejected tutor', async () => {
       const prisma = createPrisma();
       prisma.tutorProfile.findFirst.mockResolvedValue(null);
       const service = new TutorsService(prisma as unknown as PrismaService);
@@ -495,7 +473,7 @@ describe('TutorsService', () => {
         new NotFoundException({
           code: 'TUTOR_NOT_FOUND',
           error: 'Not Found',
-          message: 'Verified tutor not found',
+          message: 'Published tutor not found',
           statusCode: 404,
         }),
       );

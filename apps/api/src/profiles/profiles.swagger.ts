@@ -117,13 +117,17 @@ export function ProfilesControllerDoc(): ClassDecorator {
 
 export function GetMyProfileDoc(): MethodDecorator {
   return applyDecorators(
-    ApiOperation({ summary: 'Get the current user profile and onboarding status' }),
+    ApiOperation({ summary: 'Get the current student or tutor profile and onboarding status' }),
     ApiOkResponse({
       description: 'Role-specific private profile returned to its owner',
       type: MyProfileResponseDto,
     }),
     ApiBadRequestResponse({ description: consentDescription, type: ApiErrorResponseDto }),
     ApiUnauthorizedResponse({ description: unauthorizedDescription, type: ApiErrorResponseDto }),
+    ApiForbiddenResponse({
+      description: 'Only students and tutors can access a private profile',
+      type: ApiErrorResponseDto,
+    }),
     ApiNotFoundResponse({
       description: 'Authenticated account not found',
       type: ApiNotFoundErrorResponseDto,

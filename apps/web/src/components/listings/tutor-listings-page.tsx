@@ -22,6 +22,8 @@ import { getMyProfile } from '@/lib/api/profiles';
 import { useAuth } from '@/lib/auth-context';
 import { formatBangkokShortDate } from '@/lib/date-time';
 import { useLanguage } from '@/lib/i18n';
+import { resolveDashboardGate } from '@/lib/profile-navigation';
+import { withReturnTo } from '@/lib/return-to';
 
 import type { ListingPublicationStatus, TeachingListing } from '@/lib/api/types';
 
@@ -57,6 +59,10 @@ export default function TutorListingsPage() {
     Promise.all([getTutorListings(), getMyProfile()])
       .then(([items, profileResult]) => {
         if (!active) return;
+        if (resolveDashboardGate(profileResult)) {
+          router.replace(withReturnTo('/onboarding/profile', '/dashboard/listings'));
+          return;
+        }
         const tutorProfile =
           profileResult.profile && 'displayName' in profileResult.profile
             ? profileResult.profile
@@ -67,6 +73,10 @@ export default function TutorListingsPage() {
       })
       .catch((caught: unknown) => {
         if (!active) return;
+        if (caught instanceof ApiError && caught.status === 400) {
+          router.replace(withReturnTo('/onboarding/profile', '/dashboard/listings'));
+          return;
+        }
         setError(caught instanceof Error ? caught.message : copy.loadError);
       })
       .finally(() => {
@@ -89,10 +99,9 @@ export default function TutorListingsPage() {
   );
 
   const nextStep = useMemo(() => {
-    if (!isVerified) return copy.verifyProfile;
     if (counts.DRAFT > 0) return copy.reviewDrafts;
-    return copy.keepTeaching;
-  }, [copy.keepTeaching, copy.reviewDrafts, copy.verifyProfile, counts.DRAFT, isVerified]);
+    return isVerified ? copy.keepTeaching : copy.publishWhilePending;
+  }, [copy.keepTeaching, copy.publishWhilePending, copy.reviewDrafts, counts.DRAFT, isVerified]);
 
   const visibleListings = useMemo(() => {
     const query = search.trim().toLocaleLowerCase(language === 'th' ? 'th' : 'en');
@@ -107,7 +116,6 @@ export default function TutorListingsPage() {
   }, [filter, language, listings, search]);
 
   const handlePublish = async (listingId: string) => {
-    if (!isVerified) return;
     setBusyId(listingId);
     setError(null);
     try {
@@ -205,7 +213,7 @@ export default function TutorListingsPage() {
             icon={isVerified ? 'check' : 'info'}
             label={copy.nextStep}
             value={nextStep}
-            detail={isVerified ? copy.verifiedDetail : copy.unverifiedDetail}
+            detail={isVerified ? copy.verifiedDetail : copy.pendingPublishDetail}
           />
         </section>
 
@@ -383,7 +391,7 @@ export default function TutorListingsPage() {
                       {listing.publicationStatus === 'DRAFT' && (
                         <button
                           type="button"
-                          disabled={!isVerified || busyId === listing.id}
+                          disabled={busyId === listing.id}
                           onClick={() => void handlePublish(listing.id)}
                           className="listing-primary-action min-h-11 flex-1 rounded-md bg-[#34271e] px-3.5 text-sm font-extrabold text-white transition hover:bg-[#4b3729] disabled:cursor-not-allowed disabled:opacity-45"
                         >
@@ -434,7 +442,7 @@ export default function TutorListingsPage() {
                           </button>
                           <button
                             type="button"
-                            disabled={!isVerified || busyId === listing.id}
+                            disabled={busyId === listing.id}
                             onClick={() => void handlePublish(listing.id)}
                             className="listing-primary-action min-h-11 flex-1 rounded-md bg-[#34271e] px-3.5 text-sm font-extrabold text-white transition hover:bg-[#4b3729] disabled:cursor-not-allowed disabled:opacity-45"
                           >
@@ -482,11 +490,13 @@ const englishCopy = {
   verifyProfile: 'Verify profile',
   reviewDrafts: 'Review drafts',
   keepTeaching: 'Keep teaching',
+  publishWhilePending: 'Publish while pending',
   verifiedDetail: 'Your profile is ready to publish',
   unverifiedDetail: 'Complete verification to go live',
-  verificationTitle: 'Publishing is currently unavailable',
+  pendingPublishDetail: 'Published listings show a pending-verification badge',
+  verificationTitle: 'Verification is pending',
   verificationBody:
-    'You can create and edit drafts now. Complete tutor verification before publishing.',
+    'You can publish now. Students will see that your verification is still pending.',
   openProfile: 'Open profile',
   all: 'All',
   published: 'Published',
@@ -534,11 +544,12 @@ const thaiCopy: typeof englishCopy = {
   verifyProfile: 'ยืนยันโปรไฟล์',
   reviewDrafts: 'ตรวจฉบับร่าง',
   keepTeaching: 'สร้างต่อได้เลย',
+  publishWhilePending: 'เผยแพร่ระหว่างรอตรวจสอบ',
   verifiedDetail: 'โปรไฟล์พร้อมเผยแพร่แล้ว',
   unverifiedDetail: 'ยืนยันโปรไฟล์เพื่อเผยแพร่',
-  verificationTitle: 'ยังไม่สามารถเผยแพร่ได้',
-  verificationBody:
-    'คุณสร้างและแก้ไขฉบับร่างได้ทันที และเผยแพร่ได้เมื่อโปรไฟล์ติวเตอร์ผ่านการยืนยัน',
+  pendingPublishDetail: 'คอร์สที่เผยแพร่จะแสดงป้ายกำลังรอตรวจสอบ',
+  verificationTitle: 'กำลังรอตรวจสอบโปรไฟล์',
+  verificationBody: 'คุณเผยแพร่ได้ทันที โดยนักเรียนจะเห็นว่าโปรไฟล์ยังอยู่ระหว่างการตรวจสอบ',
   openProfile: 'เปิดโปรไฟล์',
   all: 'ทั้งหมด',
   published: 'เผยแพร่แล้ว',

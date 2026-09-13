@@ -77,8 +77,8 @@ export default function PublicTutorSearchShell({ children }: { children: ReactNo
       }}
       headerNavRight={
         <>
-          <Link href="#bookings">{copy.dashboard.header.myBookingsNav}</Link>
-          <Link href="#tutor-search-filters" className="dash-cta">
+          <Link href="/dashboard/bookings">{copy.dashboard.header.myBookingsNav}</Link>
+          <Link href="/tutors" className="dash-cta">
             {copy.dashboard.header.findTutorCta}
           </Link>
         </>

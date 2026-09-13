@@ -74,6 +74,7 @@ function publicSearchListing(overrides: Record<string, unknown> = {}) {
       ratingAverage: decimal(4),
       reviewCount: 24,
       userId: TUTOR_ID,
+      verificationStatus: 'VERIFIED',
     },
     ...overrides,
   };
@@ -146,6 +147,7 @@ describe('TutorsService public discovery APIs', () => {
         reviewCount: 24,
         subject: 'Mathematics',
         tutorId: TUTOR_ID,
+        verificationStatus: 'VERIFIED',
       },
     ]);
 
@@ -158,7 +160,7 @@ describe('TutorsService public discovery APIs', () => {
           deletedAt: null,
           publicationStatus: 'PUBLISHED',
           tutorProfile: expect.objectContaining({
-            verificationStatus: 'VERIFIED',
+            verificationStatus: { in: ['PENDING', 'VERIFIED'] },
             user: { accountStatus: 'ACTIVE', deletedAt: null, role: 'TUTOR' },
           }) as object,
         }) as object,
@@ -302,7 +304,7 @@ describe('TutorsService public discovery APIs', () => {
       expect.objectContaining({
         where: expect.objectContaining({
           userId: TUTOR_ID,
-          verificationStatus: 'VERIFIED',
+          verificationStatus: { in: ['PENDING', 'VERIFIED'] },
           user: { accountStatus: 'ACTIVE', deletedAt: null, role: 'TUTOR' },
         }) as object,
       }),

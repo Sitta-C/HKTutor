@@ -1,13 +1,23 @@
 'use client';
 
 import Link from 'next/link';
+import { useEffect, useMemo, useState } from 'react';
 
 import { DashboardIcon } from '@/components/dashboard/dashboard-icon';
 import DashboardShell from '@/components/dashboard/dashboard-shell';
+import { getTutorAvailability } from '@/lib/api/availability';
+import { getTutorBookings } from '@/lib/api/bookings';
+import { getTutorListings } from '@/lib/api/listings';
 import { getUserDisplayName } from '@/lib/dashboard-navigation';
+import { formatBangkokDateTime, getBangkokToday } from '@/lib/date-time';
 import { useLanguage } from '@/lib/i18n';
 
-import type { AuthUser } from '@/lib/api/types';
+import type {
+  AuthUser,
+  TeachingListing,
+  TutorAvailabilitySlot,
+  TutorBookingView,
+} from '@/lib/api/types';
 
 export interface TutorDashboardProps {
   user: AuthUser;
@@ -15,9 +25,54 @@ export interface TutorDashboardProps {
 }
 
 export function TutorDashboard({ user, onLogout }: TutorDashboardProps) {
-  const { copy } = useLanguage();
+  const { copy, language } = useLanguage();
   const displayName = getUserDisplayName(user);
   const tutorCopy = copy.dashboard.tutor;
+  const [bookings, setBookings] = useState<TutorBookingView[]>([]);
+  const [listings, setListings] = useState<TeachingListing[]>([]);
+  const [slots, setSlots] = useState<TutorAvailabilitySlot[]>([]);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [mountedAt] = useState(() => Date.now());
+
+  useEffect(() => {
+    let active = true;
+    const today = getBangkokToday();
+    const from = bangkokDayBoundary(today);
+    const to = new Date(from.getTime() + 24 * 60 * 60 * 1000);
+
+    Promise.all([getTutorBookings(), getTutorListings(), getTutorAvailability({ from, to })])
+      .then(([bookingResult, listingResult, slotResult]) => {
+        if (!active) return;
+        setBookings(bookingResult.items);
+        setListings(listingResult);
+        setSlots(slotResult);
+        setLoadError(null);
+      })
+      .catch((caught: unknown) => {
+        if (active) setLoadError(caught instanceof Error ? caught.message : tutorCopy.loadError);
+      });
+    return () => {
+      active = false;
+    };
+  }, [tutorCopy.loadError]);
+
+  const pendingBookings = bookings.filter((booking) => booking.status === 'PENDING');
+  const upcomingBookings = useMemo(
+    () =>
+      bookings
+        .filter(
+          (booking) =>
+            (booking.status === 'PENDING' || booking.status === 'CONFIRMED') &&
+            new Date(booking.slot.startAtUtc).getTime() > mountedAt,
+        )
+        .sort(
+          (left, right) =>
+            new Date(left.slot.startAtUtc).getTime() - new Date(right.slot.startAtUtc).getTime(),
+        ),
+    [bookings, mountedAt],
+  );
+  const nextBooking = upcomingBookings[0];
+  const publishedListings = listings.filter((listing) => listing.publicationStatus === 'PUBLISHED');
 
   const headerNav = (
     <>
@@ -42,6 +97,14 @@ export function TutorDashboard({ user, onLogout }: TutorDashboardProps) {
       </div>
 
       <section>
+        {loadError && (
+          <p
+            className="mb-5 rounded-xl border border-[#e2b7ae] bg-[#fff4f1] p-4 text-sm text-[#a34334]"
+            role="alert"
+          >
+            {loadError}
+          </p>
+        )}
         {/* ROW 1: 4 summary cards */}
         <div className="dash-summary dash-summary-tutor">
           <div className="dash-card">
@@ -52,8 +115,12 @@ export function TutorDashboard({ user, onLogout }: TutorDashboardProps) {
             <p className="text-xs font-bold uppercase tracking-wider text-[#5e5a52]">
               {copy.dashboard.common.bangkokTimeWithZone}
             </p>
-            <div className="py-2.5 text-sm text-[#5e5a52]">{tutorCopy.noUpcomingSessions}</div>
-            <span className="dash-pill done">{copy.dashboard.common.comingSoonBadge}</span>
+            <div className="py-2.5 text-sm text-[#5e5a52]">
+              {nextBooking
+                ? `${nextBooking.student.nickname} · ${formatBangkokDateTime(nextBooking.slot.startAtUtc, language)}`
+                : tutorCopy.noUpcomingSessions}
+            </div>
+            {nextBooking && <span className="dash-pill done">{nextBooking.status}</span>}
           </div>
 
           <div className="dash-card">
@@ -61,12 +128,12 @@ export function TutorDashboard({ user, onLogout }: TutorDashboardProps) {
               <span className="dot" style={{ backgroundColor: 'var(--tutor)' }} />
               <span>{tutorCopy.requests}</span>
             </h2>
-            <div className="dash-big">0</div>
+            <div className="dash-big">{pendingBookings.length}</div>
             <p className="dash-sub">{tutorCopy.awaitingYourReply}</p>
             <div className="mt-2.5 flex flex-col gap-1.5 text-xs text-[#5e5a52]">
               <div className="flex items-center justify-between">
                 <span>
-                  <b>0</b> {tutorCopy.thisWeekCount}
+                  <b>{pendingBookings.length}</b> {tutorCopy.thisWeekCount}
                 </span>
                 <span className="dash-pill pending">{tutorCopy.pendingBadge}</span>
               </div>
@@ -143,7 +210,7 @@ export function TutorDashboard({ user, onLogout }: TutorDashboardProps) {
                   color: 'var(--tutor-deep)',
                 }}
               >
-                0
+                {pendingBookings.length}
               </span>
             </h2>
             <div className="flex flex-1 flex-wrap items-center justify-end gap-3 sm:flex-initial">
@@ -171,7 +238,7 @@ export function TutorDashboard({ user, onLogout }: TutorDashboardProps) {
                   disabled
                 />
               </label>
-              <Link href="#calendar" className="dash-btn-dark">
+              <Link href="/dashboard/availability" className="dash-btn-dark">
                 <span className="ico" aria-hidden="true">
                   <DashboardIcon name="calendar" />
                 </span>
@@ -180,15 +247,26 @@ export function TutorDashboard({ user, onLogout }: TutorDashboardProps) {
             </div>
           </div>
 
-          <div className="rounded-2xl border border-dashed border-[#ebe6dd] bg-[#faf8f4] p-8 text-center">
-            <p className="text-base font-bold text-[#1a1916]">{tutorCopy.noBookingRequestsYet}</p>
-            <div className="mx-auto mt-3 max-w-md rounded-xl border border-[#f1ddc4] bg-[#fffaf4] p-3 text-xs text-[#c07a2e]">
-              <span className="mr-1.5 inline-flex align-middle" aria-hidden="true">
-                <DashboardIcon name="info" className="h-4 w-4" />
-              </span>
-              <span>{copy.dashboard.common.domainApiNotice}</span>
+          {pendingBookings.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-[#ebe6dd] bg-[#faf8f4] p-8 text-center">
+              <p className="text-base font-bold text-[#1a1916]">{tutorCopy.noBookingRequestsYet}</p>
             </div>
-          </div>
+          ) : (
+            <div className="space-y-3">
+              {pendingBookings.map((booking) => (
+                <div
+                  key={booking.id}
+                  className="rounded-2xl border border-[#ebe6dd] bg-[#faf8f4] p-4"
+                >
+                  <strong>{booking.student.nickname}</strong>
+                  <p className="mt-1 text-sm text-[#5e5a52]">
+                    {booking.listing.subjectName} · {booking.listing.gradeLevelName} ·{' '}
+                    {formatBangkokDateTime(booking.slot.startAtUtc, language)}
+                  </p>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* ROW 3: My listings panel */}
@@ -203,7 +281,7 @@ export function TutorDashboard({ user, onLogout }: TutorDashboardProps) {
                   color: 'var(--tutor-deep)',
                 }}
               >
-                0
+                {listings.length}
               </span>
             </h2>
             <Link href="/dashboard/listings/new" className="dash-btn-dark">
@@ -214,10 +292,17 @@ export function TutorDashboard({ user, onLogout }: TutorDashboardProps) {
             </Link>
           </div>
 
-          <div className="rounded-2xl border border-dashed border-[#ebe6dd] bg-[#faf8f4] p-8 text-center">
-            <p className="text-base font-bold text-[#1a1916]">{tutorCopy.noListingsYetTitle}</p>
-            <p className="mt-1 text-xs text-[#5e5a52]">{tutorCopy.noListingsYetDescription}</p>
-          </div>
+          {listings.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-[#ebe6dd] bg-[#faf8f4] p-8 text-center">
+              <p className="text-base font-bold text-[#1a1916]">{tutorCopy.noListingsYetTitle}</p>
+              <p className="mt-1 text-xs text-[#5e5a52]">{tutorCopy.noListingsYetDescription}</p>
+            </div>
+          ) : (
+            <p className="rounded-xl bg-[#f4f7fb] p-5 text-sm text-[#5e5a52]">
+              {publishedListings.length} {tutorCopy.publishedBadge} ·{' '}
+              {listings.length - publishedListings.length} {tutorCopy.draftBadge}
+            </p>
+          )}
         </div>
 
         {/* ROW 4: Today Bangkok time availability panel */}
@@ -230,7 +315,7 @@ export function TutorDashboard({ user, onLogout }: TutorDashboardProps) {
           </div>
 
           <div className="rounded-xl bg-[#f4f7fb] p-6 text-center text-sm text-[#5e5a52]">
-            {tutorCopy.noSlotsToday}
+            {slots.length > 0 ? `${slots.length} ${tutorCopy.slotsToday}` : tutorCopy.noSlotsToday}
           </div>
         </div>
       </section>
@@ -239,3 +324,7 @@ export function TutorDashboard({ user, onLogout }: TutorDashboardProps) {
 }
 
 export default TutorDashboard;
+
+function bangkokDayBoundary(date: string): Date {
+  return new Date(`${date}T00:00:00+07:00`);
+}
