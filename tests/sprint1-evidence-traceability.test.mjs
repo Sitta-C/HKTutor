@@ -21,6 +21,18 @@ const RESPONSE_DECORATOR_STATUS = {
 
 const readRecord = () => fs.readFile(recordPath, 'utf8');
 
+const CITATION_PATTERN = /`([^`]+\.(?:ts|mjs))`\s+—\s+`([^`]+)`/g;
+
+function readQaRows(record) {
+  const rows = [];
+
+  for (const row of record.matchAll(/^\|\s*Q(\d+)\s*\|(.*)\|\s*$/gm)) {
+    rows.push({ line: row[2], number: Number(row[1]) });
+  }
+
+  return rows;
+}
+
 async function collect(pattern) {
   const paths = [];
 
@@ -120,7 +132,7 @@ function readEndpointRows(record) {
 
 test('every cited test file exists and contains the cited title verbatim', async () => {
   const record = await readRecord();
-  const citations = [...record.matchAll(/`([^`]+\.(?:ts|mjs))`\s+—\s+`([^`]+)`/g)];
+  const citations = [...record.matchAll(CITATION_PATTERN)];
 
   assert.ok(citations.length >= 30, 'expected the record to cite at least thirty proving tests');
 
@@ -129,6 +141,27 @@ test('every cited test file exists and contains the cited title verbatim', async
 
     assert.ok(source !== null, `${recordPath} cites a missing file: ${citedPath}`);
     assert.ok(source.includes(title), `${citedPath} does not contain the cited title: ${title}`);
+  }
+});
+
+test('every QA case carries at least one citation of its own', async () => {
+  const record = await readRecord();
+  const rows = readQaRows(record);
+
+  assert.ok(rows.length >= 30, 'the QA activity record must keep at least thirty cases');
+  assert.deepEqual(
+    rows.map((row) => row.number),
+    rows.map((_, index) => index + 1),
+    'QA cases must be numbered Q1..Qn without a gap, a repeat, or a reordering',
+  );
+
+  for (const row of rows) {
+    const citations = [...row.line.matchAll(CITATION_PATTERN)];
+
+    assert.ok(
+      citations.length >= 1,
+      `Q${row.number} has no \`path\` — \`title\` citation, so nothing proves it`,
+    );
   }
 });
 
