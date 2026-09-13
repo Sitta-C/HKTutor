@@ -11,6 +11,7 @@ import {
   getUserDisplayName,
   getUserInitial,
 } from '@/lib/dashboard-navigation';
+import { formatBangkokYear } from '@/lib/date-time';
 import { useLanguage } from '@/lib/i18n';
 
 import type { AuthUser } from '@/lib/api/types';
@@ -271,7 +272,7 @@ export function DashboardShell({
 
           <footer className="dash-footer">
             <span>
-              © {new Date().getFullYear()} {copy.dashboard.common.copyright}
+              © {formatBangkokYear(new Date(), language)} {copy.dashboard.common.copyright}
             </span>
             <span className="sep">|</span>
             <button

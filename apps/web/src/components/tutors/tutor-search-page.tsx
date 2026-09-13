@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { ApiError } from '@/lib/api/error';
 import { getGradeLevelCatalog, getSubjectCatalog, searchTutors } from '@/lib/api/tutors';
+import { formatBangkokDateTime } from '@/lib/date-time';
 import { useLanguage } from '@/lib/i18n';
 
 import type {
@@ -680,12 +681,5 @@ function formatPrice(price: number): string {
 function formatNextAvailable(value: string, language: 'en' | 'th'): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
-  return new Intl.DateTimeFormat(language === 'th' ? 'th-TH' : 'en-GB', {
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    month: 'short',
-    timeZone: 'Asia/Bangkok',
-    year: 'numeric',
-  }).format(date);
+  return formatBangkokDateTime(date, language);
 }

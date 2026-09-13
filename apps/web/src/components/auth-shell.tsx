@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 
+import { formatBangkokYear } from '@/lib/date-time';
 import { useLanguage } from '@/lib/i18n';
 
 import type { ReactNode } from 'react';
@@ -220,7 +221,7 @@ export default function AuthShell({ page, children }: { page: AuthPage; children
 
       <footer className="relative z-10 shrink-0 px-5 pb-6 text-center text-sm text-[#5e5a52] sm:pb-8">
         <span>
-          © {new Date().getFullYear()} {copy.common.copyright}
+          © {formatBangkokYear(new Date(), language)} {copy.common.copyright}
         </span>
         <span className="mx-3 text-[#b2ada2]">|</span>
         <span>{copy.common.privacySupport}</span>

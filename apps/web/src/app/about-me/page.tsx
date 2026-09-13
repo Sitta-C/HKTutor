@@ -3,6 +3,7 @@
 import Link from 'next/link';
 
 import { ArrowIcon, GlobeIcon } from '@/components/auth-shell';
+import { formatBangkokYear } from '@/lib/date-time';
 import { useLanguage } from '@/lib/i18n';
 
 function Logo() {
@@ -135,7 +136,7 @@ export default function AboutMePage() {
 
       <footer className="border-t border-[#e7e2d9] px-5 py-6 text-center text-sm text-[#68645c] sm:px-8 sm:py-8 lg:px-10">
         <span>
-          © {new Date().getFullYear()} {copy.common.copyright}
+          © {formatBangkokYear(new Date(), language)} {copy.common.copyright}
         </span>
         <span className="mx-3 text-[#b4aea3]">|</span>
         <span>{copy.common.privacySupport}</span>

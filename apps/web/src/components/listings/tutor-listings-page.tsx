@@ -20,6 +20,7 @@ import {
 } from '@/lib/api/listings';
 import { getMyProfile } from '@/lib/api/profiles';
 import { useAuth } from '@/lib/auth-context';
+import { formatBangkokShortDate } from '@/lib/date-time';
 import { useLanguage } from '@/lib/i18n';
 
 import type { ListingPublicationStatus, TeachingListing } from '@/lib/api/types';
@@ -361,7 +362,7 @@ export default function TutorListingsPage() {
                             : copy.updated}
                         </p>
                         <p className="mt-1 text-sm font-bold text-[#4e443b]">
-                          {formatDate(
+                          {formatBangkokShortDate(
                             listing.publicationStatus === 'PUBLISHED' && listing.publishedAt
                               ? listing.publishedAt
                               : listing.updatedAt,
@@ -464,15 +465,6 @@ function formatPrice(value: number, language: 'en' | 'th') {
     currency: 'THB',
     maximumFractionDigits: value % 1 === 0 ? 0 : 2,
   }).format(value);
-}
-
-function formatDate(value: string, language: 'en' | 'th') {
-  return new Intl.DateTimeFormat(language === 'th' ? 'th-TH' : 'en-GB', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-    timeZone: 'Asia/Bangkok',
-  }).format(new Date(value));
 }
 
 const englishCopy = {
