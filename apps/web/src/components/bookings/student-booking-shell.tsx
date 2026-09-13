@@ -12,37 +12,30 @@ import { useLanguage } from '@/lib/i18n';
 import type { AuthUser } from '@/lib/api/types';
 import type { ReactNode } from 'react';
 
-const publicGuestUser: AuthUser = {
-  id: 'public-search-guest',
-  email: '',
-  role: 'STUDENT',
-  displayName: 'Guest',
-};
-
-export default function PublicTutorSearchShell({ children }: { children: ReactNode }) {
+export default function StudentBookingShell({ children }: { children: ReactNode }) {
   const { isLoading: authLoading, logout, user } = useAuth();
   const { copy } = useLanguage();
   const router = useRouter();
   const [profileUser, setProfileUser] = useState<AuthUser | null>(null);
 
   useEffect(() => {
-    if (authLoading || !user) return;
+    if (authLoading) return;
+    if (!user) {
+      router.replace('/');
+      return;
+    }
+    if (user.role !== 'STUDENT') {
+      router.replace('/dashboard');
+      return;
+    }
 
     let active = true;
     getMyProfile()
       .then((result) => {
         if (!active) return;
-        const displayName =
-          result.role === 'STUDENT'
-            ? result.profile && 'school' in result.profile
-              ? result.profile.nickname
-              : undefined
-            : result.role === 'TUTOR'
-              ? result.profile && 'displayName' in result.profile
-                ? result.profile.displayName
-                : undefined
-              : undefined;
-        setProfileUser(displayName ? { ...user, displayName } : { ...user });
+        const nickname =
+          result.profile && 'school' in result.profile ? result.profile.nickname.trim() : '';
+        setProfileUser(nickname ? { ...user, displayName: nickname } : { ...user });
       })
       .catch(() => {
         if (active) setProfileUser(user);
@@ -51,10 +44,9 @@ export default function PublicTutorSearchShell({ children }: { children: ReactNo
     return () => {
       active = false;
     };
-  }, [authLoading, user]);
+  }, [authLoading, router, user]);
 
-  const profileReady = !user || profileUser?.id === user.id;
-  if (authLoading || (user && !profileReady)) {
+  if (authLoading || !user || (user.role === 'STUDENT' && !profileUser)) {
     return (
       <div
         className="flex min-h-dvh items-center justify-center bg-[#fbfaf7] p-6 text-sm font-semibold text-[#5e5a52]"
@@ -66,14 +58,14 @@ export default function PublicTutorSearchShell({ children }: { children: ReactNo
     );
   }
 
-  const shellUser = (user && profileReady ? profileUser : null) ?? user ?? publicGuestUser;
+  if (user.role !== 'STUDENT') return null;
 
   return (
     <DashboardShell
-      user={shellUser}
+      user={profileUser ?? user}
       onLogout={async () => {
-        if (user) await logout();
-        router.push('/');
+        await logout();
+        router.replace('/');
       }}
       headerNavRight={
         <>
