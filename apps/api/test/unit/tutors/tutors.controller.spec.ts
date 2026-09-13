@@ -64,7 +64,6 @@ describe('TutorsPrivateController', () => {
       : undefined;
 
     expect(ownership).toEqual({
-      allowAdmin: true,
       idParam,
       resource: 'teachingListing',
     });
@@ -77,7 +76,6 @@ describe('TutorsPrivateController', () => {
     )?.value as object | undefined;
 
     expect(Reflect.getMetadata(OWNERSHIP_KEY, handler as object)).toEqual({
-      allowAdmin: true,
       idParam: 'slotId',
       resource: 'availabilitySlot',
     });

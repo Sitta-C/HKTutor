@@ -10,7 +10,7 @@ import { TutorsPrivateController } from '@/tutors/tutors-private.controller';
 import { TutorsPublicController } from '@/tutors/tutors-public.controller';
 import { TutorsService } from '@/tutors/tutors.service';
 
-import type { AuthenticatedRequest } from '@/auth/auth.guard';
+import type { AuthenticatedRequest, AuthenticatedUser } from '@/auth/auth.guard';
 import type { ExecutionContext, INestApplication } from '@nestjs/common';
 import type { TestingModule } from '@nestjs/testing';
 import type { App } from 'supertest/types';
@@ -19,6 +19,7 @@ const TUTOR_ID = '20000000-0000-4000-8000-000000000001';
 
 describe('tutor availability routes', () => {
   let app: INestApplication<App>;
+  let currentUser: AuthenticatedUser;
   const getAvailabilityPrivate = jest.fn();
   const getAvailabilityPublic = jest.fn();
 
@@ -26,6 +27,7 @@ describe('tutor availability routes', () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
       controllers: [TutorsPrivateController, TutorsPublicController],
       providers: [
+        RolesGuard,
         {
           provide: TutorsService,
           useValue: {
@@ -39,17 +41,10 @@ describe('tutor availability routes', () => {
       .useValue({
         canActivate: (context: ExecutionContext) => {
           const request = context.switchToHttp().getRequest<AuthenticatedRequest>();
-          request.auth = {
-            email: 'tutor@example.com',
-            id: TUTOR_ID,
-            role: Role.TUTOR,
-            sessionId: 'session-id',
-          };
+          request.auth = currentUser;
           return true;
         },
       })
-      .overrideGuard(RolesGuard)
-      .useValue({ canActivate: () => true })
       .overrideGuard(ResourceOwnershipGuard)
       .useValue({ canActivate: () => true })
       .compile();
@@ -65,6 +60,12 @@ describe('tutor availability routes', () => {
 
   beforeEach(() => {
     jest.resetAllMocks();
+    currentUser = {
+      email: 'tutor@example.com',
+      id: TUTOR_ID,
+      role: Role.TUTOR,
+      sessionId: 'session-id',
+    };
   });
 
   it('routes the literal me segment to private availability', async () => {
@@ -77,6 +78,14 @@ describe('tutor availability routes', () => {
 
     expect(getAvailabilityPrivate).toHaveBeenCalledWith(TUTOR_ID, {});
     expect(getAvailabilityPublic).not.toHaveBeenCalled();
+  });
+
+  it('rejects an admin from tutor-private routes before calling the service', async () => {
+    currentUser = { ...currentUser, email: 'admin@example.com', role: Role.ADMIN };
+
+    await request(app.getHttpServer()).get('/api/v1/tutors/me/availability').expect(403);
+
+    expect(getAvailabilityPrivate).not.toHaveBeenCalled();
   });
 
   it('routes a UUID tutor ID to public availability without using private identity', async () => {

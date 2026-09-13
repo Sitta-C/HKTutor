@@ -68,7 +68,6 @@ export class TutorsPrivateController {
   @RequireOwnership({
     resource: 'teachingListing',
     idParam: 'listingId',
-    allowAdmin: true,
   })
   @GetMyListingDoc()
   getListing(
@@ -93,7 +92,6 @@ export class TutorsPrivateController {
   @RequireOwnership({
     resource: 'teachingListing',
     idParam: 'listingId',
-    allowAdmin: true,
   })
   @PatchListingDoc()
   patchListing(
@@ -109,7 +107,6 @@ export class TutorsPrivateController {
   @RequireOwnership({
     resource: 'teachingListing',
     idParam: 'listingId',
-    allowAdmin: true,
   })
   @UpdateListingStatusDoc()
   updateListingStatus(
@@ -125,7 +122,6 @@ export class TutorsPrivateController {
   @RequireOwnership({
     resource: 'teachingListing',
     idParam: 'listingId',
-    allowAdmin: true,
   })
   @PublishListingDoc()
   postPublishListing(
@@ -160,7 +156,6 @@ export class TutorsPrivateController {
   @RequireOwnership({
     resource: 'availabilitySlot',
     idParam: 'slotId',
-    allowAdmin: true,
   })
   @DeleteAvailabilityDoc()
   deleteAvailability(

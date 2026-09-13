@@ -82,7 +82,7 @@ describe('student profile Swagger contract', () => {
   it('documents the private profile response and stale-consent error', () => {
     const get = operation('get', '/api/v1/profiles/me');
 
-    for (const status of ['200', '400', '401', '404']) {
+    for (const status of ['200', '400', '401', '403', '404']) {
       expect(get.responses).toHaveProperty(status);
     }
     const notFoundResponse = get.responses['404'] as {
