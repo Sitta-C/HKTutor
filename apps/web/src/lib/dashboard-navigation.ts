@@ -84,7 +84,7 @@ export function getDashboardNavItems(role: UserRole, copy: Translation): Dashboa
       },
       {
         id: 'bookings',
-        href: '#bookings',
+        href: '/dashboard/bookings',
         icon: 'bookings',
         label: navCopy.myBookings,
         badge: '0',
