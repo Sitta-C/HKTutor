@@ -292,6 +292,7 @@ export function DashboardShell({
 function isDashboardNavActive(itemId: string, pathname: string): boolean {
   if (itemId === 'dashboard') return pathname === '/dashboard';
   if (itemId === 'profile') return pathname === '/dashboard/profile';
+  if (itemId === 'bookings') return pathname.startsWith('/dashboard/bookings');
   if (itemId === 'listings') return pathname.startsWith('/dashboard/listings');
   return false;
 }
