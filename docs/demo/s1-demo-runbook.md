@@ -77,20 +77,22 @@ least 10 characters. It rejects bracketed placeholders.
 
 Seed contents on `main`:
 
-| Record                  | Detail                                                                                                                                    |
-| ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| Administrator           | `SEED_ADMIN_EMAIL`, email verified, active                                                                                                |
-| Tutor **Anan**          | `SEED_TUTOR_EMAIL`, email verified, verification status **VERIFIED**, 5 years experience, **no rating yet** (cache is empty)              |
-| Student **Nan**         | `SEED_STUDENT_EMAIL`, email verified, completed Grade 10 student profile                                                                  |
-| Catalog                 | Mathematics, Physics · Grade 10, Grade 11                                                                                                 |
-| Anan's listings         | Mathematics Grade 10 at 400 THB, **published** · Mathematics Grade 10 at 300 THB, **draft**                                               |
-| Fixture tutors (search) | Mali · Math G10 · 350 THB · 4.40, Kiet · Math G10 · 500 THB · 4.00, Niran · Physics G10 · 400 THB · 4.70, Pim · Math G11 · 450 THB · 4.60 |
-| Bookable slot           | Anan, **seed run date + 7 days**, 17:00–18:00 Bangkok time, always slot id `30000000-0000-4000-8000-000000000001`                         |
+| Record                  | Detail                                                                                                                                                 |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Administrator           | `SEED_ADMIN_EMAIL`, email verified, active                                                                                                             |
+| Tutor **Anan**          | `SEED_TUTOR_EMAIL`, email verified, verification status **VERIFIED**, 5 years experience, rating **4.80** from 24 reviews (set by the search fixtures) |
+| Student **Nan**         | `SEED_STUDENT_EMAIL`, email verified, completed Grade 10 student profile                                                                               |
+| Catalog                 | Mathematics, Physics · Grade 10, Grade 11                                                                                                              |
+| Anan's listings         | Mathematics Grade 10 at 400 THB, **published** · Mathematics Grade 10 at 300 THB, **draft**                                                            |
+| Fixture tutors (search) | Mali · Math G10 · 350 THB · 4.40, Kiet · Math G10 · 500 THB · 4.00, Niran · Physics G10 · 400 THB · 4.70, Pim · Math G11 · 450 THB · 4.60              |
+| Bookable slot           | Anan, **seed run date + 7 days**, 17:00–18:00 Bangkok time, always slot id `30000000-0000-4000-8000-000000000001`                                      |
 
 Two consequences worth knowing before the demo:
 
-- Anan has no rating, so a minimum-rating filter hides Anan while showing the four fixture tutors.
-  Demonstrate the rating filter with the fixtures, not with Anan.
+- Anan is rated 4.80 from 24 reviews, so the minimum-rating filter does not hide him. With only the
+  seeded listings, Mathematics, Grade 10 at a minimum of 4.0 keeps Anan, Mali, and Kiet, since the
+  bound is inclusive, and a minimum of 4.5 leaves only Anan. Any extra listings in the database appear
+  alongside them.
 - The bookable slot is one fixed row that every seed run moves to seven days ahead. Re-seeding does
   not create a second slot and does not release a booking already made against it. See section 8.
 
