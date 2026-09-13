@@ -84,7 +84,7 @@ export function getDashboardNavItems(role: UserRole, copy: Translation): Dashboa
       },
       {
         id: 'bookings',
-        href: '#bookings',
+        href: '/dashboard/bookings',
         icon: 'bookings',
         label: navCopy.myBookings,
         badge: '0',
@@ -139,7 +139,7 @@ export function getDashboardNavItems(role: UserRole, copy: Translation): Dashboa
       },
       {
         id: 'availability',
-        href: '#availability',
+        href: '/dashboard/availability',
         icon: 'availability',
         label: navCopy.availability,
       },

@@ -29,7 +29,10 @@ rewrites that path to the API on port 3001. The API documentation is available a
 The implemented web flow is login (`/`), registration (`/register`), email verification
 (`/register/verify`, with `/register/verifypage` retained as a legacy alias), role-specific profile
 onboarding (`/onboarding/profile`), a protected dashboard (`/dashboard`), profile editing
-(`/dashboard/profile`), and the informational `/about-me` page. The privacy notice opens as a
+(`/dashboard/profile`), tutor availability management (`/dashboard/availability`), and the
+informational `/about-me` page. The availability screen creates and deletes future Bangkok-time
+ranges while exchanging UTC timestamps with the API, protecting reserved slots, and presenting a
+Gregorian calendar in English or a Buddhist calendar in Thai. The privacy notice opens as a
 closable modal from registration and the dashboard instead of using a separate route.
 
 The accepted student and tutor dashboard concepts, plus the tutor profile/certificate form, live
@@ -129,6 +132,7 @@ reset, email change, multi-factor authentication, and session-management UI are 
 of scope for this small demo.
 
 Domain models for tutor profiles, teaching listings, availability slots, and bookings already
-exist in Prisma, but the corresponding production web flows are not complete. Check the current
-task tracker and API surface before implementing a design draft; task wording that refers to Clerk
-is stale because `main` now uses local JWT authentication.
+exist in Prisma. The tutor availability flow is connected to its production API; other domain web
+flows may still be incomplete. Check the current task tracker and API surface before implementing a
+design draft; task wording that refers to Clerk is stale because `main` now uses local JWT
+authentication.
