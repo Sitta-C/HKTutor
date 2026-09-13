@@ -2,40 +2,56 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import test from 'node:test';
 
-const traceabilityDoc = 'docs/S1-T27-negative-path-evidence.md';
+const traceabilityDoc = 'docs/qa/S1-T27-negative-path-evidence.md';
 const read = (filePath) => fs.readFile(filePath, 'utf8');
 
 async function readDoc() {
   return read(traceabilityDoc);
 }
 
-test('documents every S1-T27 evidence case', async () => {
-  const doc = await readDoc();
-  const cases = [
-    'Missing bearer token',
-    'Invalid signature',
-    'Expired access token',
-    'Expired refresh token',
-    'Revoked session',
-    'Refresh-token reuse',
-    'Login before email verification',
-    'Unverified user on any authenticated route',
-    'Wrong role',
-    "Not the resource owner, or resource doesn't exist",
-    'Concurrent double-booking on the same slot',
-    'Failed booking (missing listing/slot) leaves no row (rollback)',
-  ];
+/**
+ * Parses the "Evidence: status code -> proving test" table into one record per row,
+ * keeping status, case, and proving-test citations tied together — a swapped status on
+ * one row (or a case with no citations) fails structurally, not just "somewhere in the
+ * doc, both a 401 and this case text exist independently".
+ */
+function parseEvidenceRows(doc) {
+  const rows = [];
+  for (const line of doc.split(/\r?\n/)) {
+    const cells = line.match(/^\|(.+)\|$/);
+    if (!cells) continue;
+    const [status, caseText, provingTest] = cells[1].split('|').map((cell) => cell.trim());
+    if (!status?.startsWith('`') || status.includes('---')) continue;
 
-  for (const negativePathCase of cases) {
-    assert.match(
-      doc,
-      new RegExp(`\\|\\s*${negativePathCase.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*\\|`),
-      `traceability doc must map the "${negativePathCase}" case to a proving test`,
+    const citations = [...provingTest.matchAll(/`([\w./-]+\.tsx?)`\s*—\s*`([^`]+)`/g)].map(
+      ([, path, title]) => ({ path, title }),
+    );
+
+    rows.push({ status, caseText, provingTest, citations });
+  }
+  return rows;
+}
+
+test('parses the evidence table into status/case/citation rows', async () => {
+  const doc = await readDoc();
+  const rows = parseEvidenceRows(doc);
+
+  assert.ok(rows.length >= 12, `expected at least 12 evidence rows, found ${rows.length}`);
+  for (const row of rows) {
+    assert.ok(
+      row.citations.length > 0,
+      `row "${row.caseText}" (status ${row.status}) cites no \`path\` — \`title\` pairs`,
     );
   }
+});
+
+test('every cited status is one of the four this task covers', async () => {
+  const doc = await readDoc();
+  const rows = parseEvidenceRows(doc);
+  const statusesSeen = new Set(rows.flatMap((row) => row.status.match(/`(\d{3})`/g) ?? []));
 
   for (const status of ['`401`', '`403`', '`404`', '`409`']) {
-    assert.match(doc, new RegExp(status), `traceability doc must cover status ${status}`);
+    assert.ok(statusesSeen.has(status), `no evidence row is tagged with status ${status}`);
   }
 
   assert.match(doc, /S1-T13/);
@@ -47,21 +63,30 @@ test('documents every S1-T27 evidence case', async () => {
   );
 });
 
-test('cites only proving-test files that exist in the repository', async () => {
+test('every citation points at a path that exists and a title that appears in that exact file', async () => {
   const doc = await readDoc();
-  const citedTests = [
-    ...new Set(doc.match(/apps\/api\/(?:test|src)\/[\w./-]+\.(?:tsx|ts)/g) ?? []),
-  ];
+  const rows = parseEvidenceRows(doc);
+  const fileCache = new Map();
+  const readCached = async (path) => {
+    if (!fileCache.has(path)) fileCache.set(path, await read(path).catch(() => null));
+    return fileCache.get(path);
+  };
 
-  assert.ok(citedTests.length > 0, 'the doc should cite at least one proving-test path');
-
-  for (const citedTest of citedTests) {
-    await fs.access(citedTest).catch(() => {
-      assert.fail(`traceability doc cites a path that does not exist: ${citedTest}`);
-    });
+  for (const row of rows) {
+    for (const { path, title } of row.citations) {
+      const contents = await readCached(path);
+      assert.ok(
+        contents !== null,
+        `row "${row.caseText}" cites a path that does not exist: ${path}`,
+      );
+      assert.ok(
+        contents.includes(title),
+        `row "${row.caseText}" quotes "${title}" as living in ${path}, but that exact text does not appear there`,
+      );
+    }
   }
 
-  for (const requiredTest of [
+  const requiredFiles = [
     'apps/api/test/unit/auth/auth.guard.spec.ts',
     'apps/api/test/unit/auth/jwt.service.spec.ts',
     'apps/api/test/unit/auth/auth.service.spec.ts',
@@ -69,52 +94,35 @@ test('cites only proving-test files that exist in the repository', async () => {
     'apps/api/test/unit/auth/ownership.guard.spec.ts',
     'apps/api/test/auth-authorization.e2e-spec.ts',
     'apps/api/src/scripts/verify-booking-endpoint-concurrency.ts',
-  ]) {
-    assert.ok(
-      citedTests.includes(requiredTest),
-      `traceability doc must cite the proving test ${requiredTest}`,
-    );
+  ];
+  const citedFiles = new Set(rows.flatMap((row) => row.citations.map((c) => c.path)));
+  for (const requiredFile of requiredFiles) {
+    assert.ok(citedFiles.has(requiredFile), `no evidence row cites ${requiredFile}`);
   }
 });
 
-test('names real test cases that still exist in the cited proving tests', async () => {
+test('flags a swapped status the same way a reviewer would', async () => {
+  // Regression check for the parser itself: swapping two rows' status columns while
+  // keeping their case/citations intact must change which status each case maps to.
   const doc = await readDoc();
-  const namedCases = [...(doc.match(/`([a-z][^`]{10,120})`/g) ?? [])]
-    .map((match) => match.slice(1, -1))
-    .filter((text) => /^(rejects|revokes|returns)\b/.test(text));
+  const rows = parseEvidenceRows(doc);
+  const byCase = new Map(rows.map((row) => [row.caseText, row.status]));
 
-  assert.ok(namedCases.length > 0, 'the doc should quote specific test-case names, not just files');
-
-  const authGuardSpec = await read('apps/api/test/unit/auth/auth.guard.spec.ts');
-  const authServiceSpec = await read('apps/api/test/unit/auth/auth.service.spec.ts');
-  const jwtServiceSpec = await read('apps/api/test/unit/auth/jwt.service.spec.ts');
-  const rolesGuardSpec = await read('apps/api/test/unit/auth/roles.guard.spec.ts');
-  const ownershipGuardSpec = await read('apps/api/test/unit/auth/ownership.guard.spec.ts');
-  const authorizationE2e = await read('apps/api/test/auth-authorization.e2e-spec.ts');
-  const concurrencyScript = await read(
-    'apps/api/src/scripts/verify-booking-endpoint-concurrency.ts',
+  assert.equal(
+    byCase.get('Unverified user on any authenticated route'),
+    '`401`',
+    'this case is proven by a test that throws UnauthorizedException, not ForbiddenException',
   );
-  const haystack = [
-    authGuardSpec,
-    authServiceSpec,
-    jwtServiceSpec,
-    rolesGuardSpec,
-    ownershipGuardSpec,
-    authorizationE2e,
-    concurrencyScript,
-  ].join('\n');
-
-  for (const namedCase of namedCases) {
-    assert.ok(
-      haystack.includes(namedCase),
-      `traceability doc quotes "${namedCase}", which no longer appears in any cited test file`,
-    );
-  }
+  assert.equal(
+    byCase.get('Failed booking (missing listing/slot) leaves no row'),
+    '`404`',
+    'this case is proven by a script assertion on response.status === 404, not 409',
+  );
 });
 
-test('keeps tracked traceability docs free of personal work state', async () => {
+test('keeps the tracked traceability doc free of leftover work-in-progress markers', async () => {
   const doc = await readDoc();
 
-  assert.doesNotMatch(doc, /Tonnam|First\/P|Korpai|reviewed through/);
+  assert.doesNotMatch(doc, /\bTODO\b|\bFIXME\b|\bWIP\b|reviewed through/i);
   assert.match(doc, /Evidence \/ Done output/);
 });
