@@ -1,3 +1,4 @@
+import { ConflictException, ServiceUnavailableException } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { ThrottlerGuard } from '@nestjs/throttler';
 import cookieParser from 'cookie-parser';
@@ -634,6 +635,118 @@ describe('End-to-End User Flow Verification (Student & Tutor)', () => {
       const tutorBookingsBody = tutorBookingsRes.body as { items: unknown[]; total: number };
       expect(tutorBookingsBody.items).toEqual([]);
       expect(tutorBookingsBody.total).toBe(0);
+    });
+  });
+
+  describe('Tutor failure recovery: committed data remains consistent', () => {
+    const tutorId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+    const subjectId = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+    const gradeLevelId = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+    const listingId = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
+    const slotId = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee';
+    const startAt = new Date('2026-10-01T10:00:00.000Z');
+    const endAt = new Date('2026-10-01T12:00:00.000Z');
+
+    beforeEach(() => {
+      currentUser = {
+        id: tutorId,
+        email: 'tutor@example.com',
+        role: Role.TUTOR,
+        sessionId: 'tutor-session-recovery',
+      };
+    });
+
+    it('keeps a committed availability slot when a later conflicting save fails', async () => {
+      const committedSlots: Array<{
+        id: string;
+        startAtUtc: Date;
+        endAtUtc: Date;
+        createdAt: Date;
+        state: string;
+      }> = [];
+
+      tutorsService.postAvailability.mockImplementation(async (_userId: string, request) => {
+        const overlapsCommittedSlot = committedSlots.some(
+          (slot) => request.startAt < slot.endAtUtc && request.endAt > slot.startAtUtc,
+        );
+        if (overlapsCommittedSlot) {
+          throw new ConflictException('Availability slot overlaps an existing slot');
+        }
+
+        const slot = {
+          createdAt: new Date('2026-09-13T00:00:00.000Z'),
+          endAtUtc: request.endAt,
+          id: slotId,
+          startAtUtc: request.startAt,
+          state: 'OPEN',
+        };
+        committedSlots.push(slot);
+        return { ...slot, tutorProfileId: tutorId };
+      });
+      tutorsService.getAvailabilityPrivate.mockImplementation(async () => committedSlots);
+
+      await request(app.getHttpServer())
+        .post('/api/v1/tutors/me/availability')
+        .send({ startAt: startAt.toISOString(), endAt: endAt.toISOString() })
+        .expect(201);
+
+      await request(app.getHttpServer())
+        .post('/api/v1/tutors/me/availability')
+        .send({ startAt: startAt.toISOString(), endAt: endAt.toISOString() })
+        .expect(409);
+
+      const returnedSlots = await request(app.getHttpServer())
+        .get('/api/v1/tutors/me/availability')
+        .expect(200);
+
+      expect(returnedSlots.body).toHaveLength(1);
+      expect(returnedSlots.body[0]).toMatchObject({
+        id: slotId,
+        startAtUtc: startAt.toISOString(),
+        endAtUtc: endAt.toISOString(),
+        state: 'OPEN',
+      });
+    });
+
+    it('discards an unfinished draft edit when its save fails and reloads the old draft', async () => {
+      const committedDraft = {
+        createdAt: new Date('2026-09-13T00:00:00.000Z'),
+        description: 'Original physics draft description.',
+        gradeLevel: { id: gradeLevelId, code: 'G11', name: 'Grade 11', sortOrder: 1, active: true },
+        id: listingId,
+        pricePerHour: 600,
+        publicationStatus: ListingPublicationStatus.DRAFT,
+        publishedAt: null,
+        subject: { id: subjectId, code: 'PHYSICS', name: 'Physics', active: true },
+        updatedAt: new Date('2026-09-13T00:00:00.000Z'),
+      };
+
+      prismaMock.teachingListing.findFirst.mockResolvedValue({ id: listingId });
+      tutorsService.patchListing.mockRejectedValue(
+        new ServiceUnavailableException('Listing save interrupted'),
+      );
+      tutorsService.getListings.mockImplementation(async () => [committedDraft]);
+
+      await request(app.getHttpServer())
+        .patch(`/api/v1/tutors/me/listings/${listingId}`)
+        .send({ description: 'Unfinished replacement description.' })
+        .expect(503);
+
+      const reloadedListings = await request(app.getHttpServer())
+        .get('/api/v1/tutors/me/listings')
+        .expect(200);
+
+      expect(tutorsService.patchListing).toHaveBeenCalledWith(tutorId, listingId, {
+        description: 'Unfinished replacement description.',
+      });
+      expect(reloadedListings.body).toEqual([
+        expect.objectContaining({
+          id: listingId,
+          description: 'Original physics draft description.',
+          pricePerHour: 600,
+          publicationStatus: ListingPublicationStatus.DRAFT,
+        }),
+      ]);
     });
   });
 });
