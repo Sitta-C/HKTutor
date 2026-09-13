@@ -39,7 +39,7 @@ const copy = {
     eyebrow: 'Tutor search',
     title: 'Find an exact match',
     subtitle:
-      'Filter published listings from verified tutors by subject, grade, maximum budget and minimum rating.',
+      'Filter published tutor listings by subject, grade, maximum budget and minimum rating. Verification status is shown on every result.',
     student: 'Student',
     filters: 'Filters',
     filtersHint: 'All selected filters are combined.',
@@ -61,7 +61,9 @@ const copy = {
     anyBudget: 'Any budget',
     upTo: 'up to',
     ratingSummary: 'rating',
-    verifiedOnly: 'VERIFIED ONLY',
+    verifiedOnly: 'VERIFICATION STATUS SHOWN',
+    verified: 'VERIFIED',
+    pendingVerification: 'VERIFICATION PENDING',
     loading: 'Loading tutors…',
     loadingCatalog: 'Loading subjects and grade levels…',
     catalogError: 'Subject and grade options are temporarily unavailable.',
@@ -83,7 +85,7 @@ const copy = {
     eyebrow: 'ค้นหาติวเตอร์',
     title: 'ค้นหาติวเตอร์ที่ตรงกับคุณ',
     subtitle:
-      'กรองคอร์สที่เผยแพร่จากติวเตอร์ที่ผ่านการตรวจสอบตามวิชา ระดับชั้น งบสูงสุด และคะแนนขั้นต่ำ',
+      'กรองคอร์สที่เผยแพร่ตามวิชา ระดับชั้น งบสูงสุด และคะแนนขั้นต่ำ โดยทุกผลลัพธ์จะแสดงสถานะการยืนยันของติวเตอร์',
     student: 'นักเรียน',
     filters: 'ตัวกรอง',
     filtersHint: 'ระบบจะใช้ตัวกรองที่เลือกทั้งหมดร่วมกัน',
@@ -105,7 +107,9 @@ const copy = {
     anyBudget: 'ไม่จำกัดงบ',
     upTo: 'ไม่เกิน',
     ratingSummary: 'คะแนน',
-    verifiedOnly: 'เฉพาะติวเตอร์ที่ยืนยันแล้ว',
+    verifiedOnly: 'แสดงสถานะการยืนยัน',
+    verified: 'ยืนยันแล้ว',
+    pendingVerification: 'กำลังรอตรวจสอบ',
     loading: 'กำลังโหลดข้อมูลติวเตอร์…',
     loadingCatalog: 'กำลังโหลดวิชาและระดับชั้น…',
     catalogError: 'ไม่สามารถโหลดตัวเลือกวิชาและระดับชั้นได้ชั่วคราว',
@@ -537,8 +541,14 @@ function TutorResultCard({
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <h3 className="truncate text-lg font-extrabold text-[#1a1916]">{result.displayName}</h3>
-            <span className="rounded-full bg-[rgba(34,196,154,0.14)] px-2 py-1 text-[0.65rem] font-extrabold tracking-[0.08em] text-[#0e8a73]">
-              VERIFIED
+            <span
+              className={`rounded-full px-2 py-1 text-[0.65rem] font-extrabold tracking-[0.08em] ${
+                result.verificationStatus === 'VERIFIED'
+                  ? 'bg-[rgba(34,196,154,0.14)] text-[#0e8a73]'
+                  : 'bg-[#fff0d8] text-[#9b6b2c]'
+              }`}
+            >
+              {result.verificationStatus === 'VERIFIED' ? text.verified : text.pendingVerification}
             </span>
           </div>
           <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs font-semibold text-[#625b53]">
