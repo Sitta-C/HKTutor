@@ -62,9 +62,12 @@ export class AuthService {
 
     const existing = await this.prisma.user.findFirst({
       where: { email: dto.email, deletedAt: null },
-      select: { id: true },
+      select: { accountStatus: true, email: true, emailVerifiedAt: true, id: true },
     });
     if (existing) {
+      if (!existing.emailVerifiedAt && existing.accountStatus === AccountStatus.ACTIVE) {
+        return this.resendVerification({ email: existing.email });
+      }
       throw new ConflictException('An account with this email already exists');
     }
 

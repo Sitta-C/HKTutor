@@ -88,93 +88,40 @@ describe('BookingsService', () => {
   });
 
   describe('create', () => {
-    it('should create a booking successfully when student is active and slot is available', async () => {
-      const { bookingId, listingId, slotId, studentUserId, tutorUserId } = createTestData();
-      const pricePerHour = 500;
-      const createdAt = new Date('2026-09-10T09:04:31.001Z');
-      const startAtUtc = new Date(Date.now() + 60 * 60 * 1000);
-      const expectedAmount = 750;
-      const mockSlot = {
-        ...futureSlot(slotId, tutorUserId),
-        startAtUtc,
-        endAtUtc: new Date(startAtUtc.getTime() + 90 * 60 * 1000),
-      };
-
-      const mockStudent = {
-        accountStatus: AccountStatus.ACTIVE,
-        deletedAt: null,
-        id: studentUserId,
-        role: Role.STUDENT,
-      };
-
-      const mockListing = {
-        deletedAt: null,
-        id: listingId,
-        pricePerHour: pricePerHour,
-        publicationStatus: ListingPublicationStatus.PUBLISHED,
-        tutorProfileId: tutorUserId,
-      };
-
-      const mockBooking = {
-        createdAt,
-        currency: 'THB',
-        discountAmount: new Prisma.Decimal(0),
-        id: bookingId,
-        listingId,
-        netAmount: new Prisma.Decimal(expectedAmount),
-        slotId,
-        status: BookingStatus.PENDING,
-        studentUserId,
-        subtotalAmount: new Prisma.Decimal(expectedAmount),
-        tutorProfileId: tutorUserId,
-      };
-
-      const bookingCreate = jest.fn().mockResolvedValue(mockBooking);
-      mockPrismaService.$transaction.mockImplementation(async (callback: TransactionCallback) => {
-        const tx = {
-          $queryRaw: jest.fn().mockResolvedValue([mockSlot]),
-          booking: {
-            create: bookingCreate,
-            findFirst: jest.fn().mockResolvedValue(null),
-          },
-          teachingListing: {
-            findUnique: jest.fn().mockResolvedValue(mockListing),
-          },
-          tutorProfile: {
-            findUnique: jest.fn().mockResolvedValue(verifiedTutorProfile),
-          },
-          user: {
-            findUnique: jest.fn().mockResolvedValue(mockStudent),
-          },
+    it.each([TutorVerificationStatus.PENDING, TutorVerificationStatus.VERIFIED])(
+      'creates a booking for a %s tutor when the student is active and the slot is available',
+      async (verificationStatus) => {
+        const { bookingId, listingId, slotId, studentUserId, tutorUserId } = createTestData();
+        const pricePerHour = 500;
+        const createdAt = new Date('2026-09-10T09:04:31.001Z');
+        const startAtUtc = new Date(Date.now() + 60 * 60 * 1000);
+        const expectedAmount = 750;
+        const mockSlot = {
+          ...futureSlot(slotId, tutorUserId),
+          startAtUtc,
+          endAtUtc: new Date(startAtUtc.getTime() + 90 * 60 * 1000),
         };
-        return await callback(tx);
-      });
 
-      const input: CreateBookingInput = {
-        listingId,
-        slotId,
-        studentUserId,
-      };
+        const mockStudent = {
+          accountStatus: AccountStatus.ACTIVE,
+          deletedAt: null,
+          id: studentUserId,
+          role: Role.STUDENT,
+        };
 
-      const result = await service.create(input);
+        const mockListing = {
+          deletedAt: null,
+          id: listingId,
+          pricePerHour: pricePerHour,
+          publicationStatus: ListingPublicationStatus.PUBLISHED,
+          tutorProfileId: tutorUserId,
+        };
 
-      expect(result).toEqual<BookingResponseDto>({
-        createdAt: createdAt.toISOString(),
-        currency: 'THB',
-        discountAmount: '0.00',
-        id: bookingId,
-        listingId,
-        netAmount: '750.00',
-        slotId,
-        status: BookingStatus.PENDING,
-        subtotalAmount: '750.00',
-      });
-
-      expect(mockPrismaService.$transaction).toHaveBeenCalledTimes(1);
-      expect(bookingCreate).toHaveBeenCalledWith({
-        data: {
+        const mockBooking = {
+          createdAt,
           currency: 'THB',
           discountAmount: new Prisma.Decimal(0),
+          id: bookingId,
           listingId,
           netAmount: new Prisma.Decimal(expectedAmount),
           slotId,
@@ -182,9 +129,65 @@ describe('BookingsService', () => {
           studentUserId,
           subtotalAmount: new Prisma.Decimal(expectedAmount),
           tutorProfileId: tutorUserId,
-        },
-      });
-    });
+        };
+
+        const bookingCreate = jest.fn().mockResolvedValue(mockBooking);
+        mockPrismaService.$transaction.mockImplementation(async (callback: TransactionCallback) => {
+          const tx = {
+            $queryRaw: jest.fn().mockResolvedValue([mockSlot]),
+            booking: {
+              create: bookingCreate,
+              findFirst: jest.fn().mockResolvedValue(null),
+            },
+            teachingListing: {
+              findUnique: jest.fn().mockResolvedValue(mockListing),
+            },
+            tutorProfile: {
+              findUnique: jest.fn().mockResolvedValue({ verificationStatus }),
+            },
+            user: {
+              findUnique: jest.fn().mockResolvedValue(mockStudent),
+            },
+          };
+          return await callback(tx);
+        });
+
+        const input: CreateBookingInput = {
+          listingId,
+          slotId,
+          studentUserId,
+        };
+
+        const result = await service.create(input);
+
+        expect(result).toEqual<BookingResponseDto>({
+          createdAt: createdAt.toISOString(),
+          currency: 'THB',
+          discountAmount: '0.00',
+          id: bookingId,
+          listingId,
+          netAmount: '750.00',
+          slotId,
+          status: BookingStatus.PENDING,
+          subtotalAmount: '750.00',
+        });
+
+        expect(mockPrismaService.$transaction).toHaveBeenCalledTimes(1);
+        expect(bookingCreate).toHaveBeenCalledWith({
+          data: {
+            currency: 'THB',
+            discountAmount: new Prisma.Decimal(0),
+            listingId,
+            netAmount: new Prisma.Decimal(expectedAmount),
+            slotId,
+            status: BookingStatus.PENDING,
+            studentUserId,
+            subtotalAmount: new Prisma.Decimal(expectedAmount),
+            tutorProfileId: tutorUserId,
+          },
+        });
+      },
+    );
 
     it('should throw BadRequestException when studentUserId is missing', async () => {
       const { listingId, slotId } = createTestData();
@@ -657,7 +660,7 @@ describe('BookingsService', () => {
       );
     });
 
-    it('should throw ConflictException when the tutor is not verified', async () => {
+    it('should throw ConflictException when the tutor is rejected', async () => {
       const { listingId, slotId, studentUserId, tutorUserId } = createTestData();
 
       const mockSlot = futureSlot(slotId, tutorUserId);
@@ -688,7 +691,7 @@ describe('BookingsService', () => {
           },
           tutorProfile: {
             findUnique: jest.fn().mockResolvedValue({
-              verificationStatus: TutorVerificationStatus.PENDING,
+              verificationStatus: TutorVerificationStatus.REJECTED,
             }),
           },
           user: {
@@ -853,41 +856,48 @@ describe('BookingsService', () => {
       tutorProfileId: tutorUserId,
     });
 
-    it('returns the authoritative quote for a valid listing and a free slot', async () => {
-      const { listingId, slotId, studentUserId, tutorUserId } = createTestData();
-      const pricePerHour = 450;
+    it.each([TutorVerificationStatus.PENDING, TutorVerificationStatus.VERIFIED])(
+      'returns the authoritative quote for a %s tutor with a valid listing and free slot',
+      async (verificationStatus) => {
+        const { listingId, slotId, studentUserId, tutorUserId } = createTestData();
+        const pricePerHour = 450;
 
-      mockPrismaService.availabilitySlot.findUnique.mockResolvedValue(
-        mockSlotResult(slotId, tutorUserId),
-      );
-      mockPrismaService.booking.findFirst.mockResolvedValue(null);
-      mockPrismaService.user.findUnique.mockResolvedValue(mockStudentResult(studentUserId));
-      mockPrismaService.teachingListing.findUnique.mockResolvedValue(
-        mockListingResult(listingId, tutorUserId, pricePerHour),
-      );
-      mockPrismaService.tutorProfile.findUnique.mockResolvedValue({
-        displayName: 'Anan Suksawat',
-        verificationStatus: TutorVerificationStatus.VERIFIED,
-      });
+        mockPrismaService.availabilitySlot.findUnique.mockResolvedValue(
+          mockSlotResult(slotId, tutorUserId),
+        );
+        mockPrismaService.booking.findFirst.mockResolvedValue(null);
+        mockPrismaService.user.findUnique.mockResolvedValue(mockStudentResult(studentUserId));
+        mockPrismaService.teachingListing.findUnique.mockResolvedValue(
+          mockListingResult(listingId, tutorUserId, pricePerHour),
+        );
+        mockPrismaService.tutorProfile.findUnique.mockResolvedValue({
+          displayName: 'Anan Suksawat',
+          verificationStatus,
+        });
 
-      const result = await service.getQuote({ listingId, slotId, studentUserId });
+        const result = await service.getQuote({ listingId, slotId, studentUserId });
 
-      expect(result.tutor).toEqual({ displayName: 'Anan Suksawat', tutorId: tutorUserId });
-      expect(result.listing).toEqual({
-        description: 'One-on-one algebra and calculus tutoring.',
-        gradeLevelId: 'grade-id',
-        gradeLevelName: 'Grade 10',
-        id: listingId,
-        pricePerHour: '450.00',
-        subjectId: 'subject-id',
-        subjectName: 'Mathematics',
-      });
-      expect(result.slot.id).toBe(slotId);
-      expect(result.subtotalAmount).toBe('450.00');
-      expect(result.discountAmount).toBe('0.00');
-      expect(result.netAmount).toBe('450.00');
-      expect(result.currency).toBe('THB');
-    });
+        expect(result.tutor).toEqual({
+          displayName: 'Anan Suksawat',
+          tutorId: tutorUserId,
+          verificationStatus,
+        });
+        expect(result.listing).toEqual({
+          description: 'One-on-one algebra and calculus tutoring.',
+          gradeLevelId: 'grade-id',
+          gradeLevelName: 'Grade 10',
+          id: listingId,
+          pricePerHour: '450.00',
+          subjectId: 'subject-id',
+          subjectName: 'Mathematics',
+        });
+        expect(result.slot.id).toBe(slotId);
+        expect(result.subtotalAmount).toBe('450.00');
+        expect(result.discountAmount).toBe('0.00');
+        expect(result.netAmount).toBe('450.00');
+        expect(result.currency).toBe('THB');
+      },
+    );
 
     it('prorates the authoritative amount from the slot duration and rounds to satang', async () => {
       const { listingId, slotId, studentUserId, tutorUserId } = createTestData();
@@ -1013,7 +1023,7 @@ describe('BookingsService', () => {
       );
     });
 
-    it('throws ConflictException when the tutor is not verified', async () => {
+    it('throws ConflictException when the tutor is rejected', async () => {
       const { listingId, slotId, studentUserId, tutorUserId } = createTestData();
 
       mockPrismaService.availabilitySlot.findUnique.mockResolvedValue(
@@ -1026,7 +1036,7 @@ describe('BookingsService', () => {
       );
       mockPrismaService.tutorProfile.findUnique.mockResolvedValue({
         displayName: 'Anan Suksawat',
-        verificationStatus: TutorVerificationStatus.PENDING,
+        verificationStatus: TutorVerificationStatus.REJECTED,
       });
 
       await expect(service.getQuote({ listingId, slotId, studentUserId })).rejects.toThrow(

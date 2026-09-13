@@ -114,8 +114,8 @@ export function SearchPublicTutorsDoc(): MethodDecorator {
   return applyDecorators(
     ApiOperation({
       description:
-        'Returns one item per published listing owned by a verified, active Tutor. All supplied filters are ANDed.',
-      summary: 'Search published verified tutors',
+        'Returns one item per published listing owned by a pending or verified active Tutor, including verification status. All supplied filters are ANDed.',
+      summary: 'Search published tutors with verification status',
     }),
     ApiQuery({
       description: 'Case-insensitive exact active Subject name',
@@ -160,7 +160,7 @@ export function GetPublicTutorDoc(): MethodDecorator {
   return applyDecorators(
     ApiOperation({
       description:
-        "Returns a verified Tutor and only that Tutor's published, non-deleted listings.",
+        "Returns a pending or verified Tutor and only that Tutor's published, non-deleted listings, including verification status.",
       summary: 'Get public Tutor detail',
     }),
     ApiParam({
@@ -298,7 +298,7 @@ export function PublishListingDoc(): MethodDecorator {
     }),
     ApiUnauthorizedResponse({ description: unauthorizedDescription, type: ApiErrorResponseDto }),
     ApiForbiddenResponse({
-      description: 'The account is not a tutor or its tutor profile is not verified',
+      description: 'The account is not a tutor',
       type: ApiErrorResponseDto,
     }),
     ApiNotFoundResponse({ description: 'Listing not found', type: ApiErrorResponseDto }),
@@ -317,8 +317,7 @@ export function UpdateListingStatusDoc(): MethodDecorator {
     }),
     ApiUnauthorizedResponse({ description: unauthorizedDescription, type: ApiErrorResponseDto }),
     ApiForbiddenResponse({
-      description:
-        'The account is not a tutor, or its tutor profile is not verified when publishing',
+      description: 'The account is not a tutor',
       type: ApiErrorResponseDto,
     }),
     ApiNotFoundResponse({
@@ -395,9 +394,9 @@ export function DeleteAvailabilityDoc(): MethodDecorator {
 
 export function GetTutorAvailabilityDoc(): MethodDecorator {
   return applyDecorators(
-    ApiOperation({ summary: 'Get a verified tutor’s future open availability slots' }),
+    ApiOperation({ summary: 'Get a published tutor’s future open availability slots' }),
     ApiParam({
-      description: 'Verified tutor ID',
+      description: 'Pending or verified tutor ID',
       format: 'uuid',
       name: 'tutorId',
       type: String,
@@ -412,7 +411,7 @@ export function GetTutorAvailabilityDoc(): MethodDecorator {
       type: ApiErrorResponseDto,
     }),
     ApiNotFoundResponse({
-      description: 'A verified tutor was not found (TUTOR_NOT_FOUND)',
+      description: 'A pending or verified tutor was not found (TUTOR_NOT_FOUND)',
       type: ApiErrorResponseDto,
     }),
   );

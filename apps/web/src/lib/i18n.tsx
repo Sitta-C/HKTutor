@@ -154,6 +154,8 @@ export const translations = {
         'Email verified. Your original tab is ready; you can close this tab manually.',
       closeVerificationTab: 'Close this tab',
       verificationFailed: 'Verification failed',
+      verificationDeliveryFailed:
+        'Your account was created, but the verification email could not be delivered. Use resend below.',
       resendFailed: 'Could not resend verification email',
     },
     aboutMe: {
@@ -227,6 +229,7 @@ export const translations = {
         privacySupport: 'Privacy & Support',
       },
       student: {
+        loadError: 'We could not load your dashboard summary.',
         subtitle: "Here's what's coming up in your learning journey.",
         nextLesson: 'Next lesson',
         noUpcomingLessons: 'No upcoming lessons scheduled.',
@@ -251,9 +254,10 @@ export const translations = {
           'Find a tutor who matches your learning goals and book your first lesson.',
         browseAllTutors: 'Browse all tutors',
         cantFindTutor: 'Looking for a tutor?',
-        cantFindTutorSub: 'Search all published & verified tutors',
+        cantFindTutorSub: 'Search published tutors and check their verification status',
       },
       tutor: {
+        loadError: 'We could not load your dashboard summary.',
         subtitle: "Here's what's happening with your teaching this week.",
         nextSession: 'Next session',
         noUpcomingSessions: 'No upcoming sessions scheduled.',
@@ -286,6 +290,7 @@ export const translations = {
         todayBangkokTime: 'Today · Bangkok time',
         manageAvailability: 'Manage availability',
         noSlotsToday: 'No availability slots scheduled for today.',
+        slotsToday: 'availability slots today',
         decline: 'Decline',
         confirm: 'Confirm',
       },
@@ -324,7 +329,8 @@ export const translations = {
         signIn: 'Sign in',
         tryAgain: 'Try again',
         emptyTitle: 'No bookings yet',
-        emptyBody: 'Choose a verified tutor and send your first booking request.',
+        emptyBody:
+          'Choose a published tutor, check their verification status, and send your first booking request.',
         browseTutors: 'Browse tutors',
         myBookings: 'My bookings',
         bookingsEyebrow: 'Student bookings',
@@ -337,6 +343,7 @@ export const translations = {
         reviewDescription:
           'Choose one open time and send a request. A successful booking starts as PENDING.',
         verifiedTutor: 'VERIFIED TUTOR',
+        pendingVerificationTutor: 'TUTOR VERIFICATION PENDING',
         selectedListing: 'Selected listing',
         requestNotice:
           'Request, not confirmation. The tutor will confirm the pending booking later.',
@@ -366,6 +373,9 @@ export const translations = {
         choose: 'Choose this time',
         conflict: 'That time was just booked. The latest open times are shown below.',
         verified: 'VERIFIED',
+        pendingVerification: 'VERIFICATION PENDING',
+        signInToChoose: 'Sign in to choose this time',
+        studentOnly: 'Student account required',
       },
       availability: {
         eyebrow: 'Tutor availability',
@@ -525,6 +535,8 @@ export const translations = {
       verificationCloseTab: 'ยืนยันอีเมลสำเร็จ แท็บเดิมพร้อมใช้งานแล้ว คุณสามารถปิดแท็บนี้ได้',
       closeVerificationTab: 'ปิดแท็บนี้',
       verificationFailed: 'ไม่สามารถยืนยันอีเมลได้',
+      verificationDeliveryFailed:
+        'สร้างบัญชีแล้ว แต่ส่งอีเมลยืนยันไม่สำเร็จ กรุณากดส่งอีเมลอีกครั้งด้านล่าง',
       resendFailed: 'ไม่สามารถส่งอีเมลยืนยันอีกครั้งได้',
     },
     aboutMe: {
@@ -597,6 +609,7 @@ export const translations = {
         privacySupport: 'ความเป็นส่วนตัวและการช่วยเหลือ',
       },
       student: {
+        loadError: 'ไม่สามารถโหลดข้อมูลสรุปแดชบอร์ดได้',
         subtitle: 'นี่คือตารางการเรียนรู้ที่กำลังจะมาถึงของคุณ',
         nextLesson: 'บทเรียนถัดไป',
         noUpcomingLessons: 'ยังไม่มีบทเรียนที่กำลังจะมาถึง',
@@ -620,9 +633,10 @@ export const translations = {
         noTutorsYetDescription: 'ค้นหาติวเตอร์ที่ตรงกับเป้าหมายการเรียนของคุณและเริ่มต้นบทเรียนแรก',
         browseAllTutors: 'ดูติวเตอร์ทั้งหมด',
         cantFindTutor: 'กำลังมองหาติวเตอร์ใช่ไหม?',
-        cantFindTutorSub: 'ค้นหาติวเตอร์ที่ผ่านการตรวจสอบและเปิดสอนทั้งหมด',
+        cantFindTutorSub: 'ค้นหาติวเตอร์ที่เปิดสอนและตรวจสอบสถานะการยืนยันได้ทันที',
       },
       tutor: {
+        loadError: 'ไม่สามารถโหลดข้อมูลสรุปแดชบอร์ดได้',
         subtitle: 'สรุปงานสอนของคุณในสัปดาห์นี้',
         nextSession: 'คาบถัดไป',
         noUpcomingSessions: 'ยังไม่มีคาบเรียนที่กำลังจะมาถึง',
@@ -654,6 +668,7 @@ export const translations = {
         todayBangkokTime: 'วันนี้ · เวลาตามกรุงเทพฯ',
         manageAvailability: 'จัดการตารางว่าง',
         noSlotsToday: 'ไม่มีสล็อตเวลาว่างที่กำหนดไว้สำหรับวันนี้',
+        slotsToday: 'ช่วงเวลาว่างในวันนี้',
         decline: 'ปฏิเสธ',
         confirm: 'ยืนยัน',
       },
@@ -692,7 +707,7 @@ export const translations = {
         signIn: 'เข้าสู่ระบบ',
         tryAgain: 'ลองใหม่',
         emptyTitle: 'ยังไม่มีการจอง',
-        emptyBody: 'เลือกติวเตอร์ที่ยืนยันแล้วและส่งคำขอจองครั้งแรกของคุณ',
+        emptyBody: 'เลือกติวเตอร์ที่เปิดสอน ตรวจสอบสถานะการยืนยัน และส่งคำขอจองครั้งแรกของคุณ',
         browseTutors: 'ค้นหาติวเตอร์',
         myBookings: 'การจองของฉัน',
         bookingsEyebrow: 'การจองของนักเรียน',
@@ -704,6 +719,7 @@ export const translations = {
         reviewTitle: 'ตรวจสอบคำขอเรียน',
         reviewDescription: 'เลือกเวลาที่ว่างแล้วส่งคำขอจอง การจองจะเริ่มต้นด้วยสถานะรอยืนยัน',
         verifiedTutor: 'ติวเตอร์ที่ยืนยันแล้ว',
+        pendingVerificationTutor: 'ติวเตอร์กำลังรอตรวจสอบ',
         selectedListing: 'คอร์สที่เลือก',
         requestNotice: 'นี่คือคำขอจอง ไม่ใช่การยืนยัน ติวเตอร์จะยืนยันคำขอในภายหลัง',
         bookingSummary: 'สรุปการจอง',
@@ -731,6 +747,9 @@ export const translations = {
         choose: 'เลือกเวลานี้',
         conflict: 'ช่วงเวลานี้เพิ่งถูกจอง จึงแสดงเวลาอื่นที่ยังว่างล่าสุดให้เลือก',
         verified: 'ยืนยันแล้ว',
+        pendingVerification: 'กำลังรอตรวจสอบ',
+        signInToChoose: 'เข้าสู่ระบบเพื่อเลือกเวลานี้',
+        studentOnly: 'ต้องใช้บัญชีนักเรียน',
       },
       availability: {
         eyebrow: 'ตารางเวลาว่างของติวเตอร์',

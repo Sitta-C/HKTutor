@@ -6,12 +6,15 @@ import { useEffect, useMemo, useState } from 'react';
 
 import { ApiError } from '@/lib/api/error';
 import { getPublicTutor, getPublicTutorAvailability } from '@/lib/api/tutors';
+import { useAuth } from '@/lib/auth-context';
 import { useLanguage } from '@/lib/i18n';
+import { withReturnTo } from '@/lib/return-to';
 
 import type { PublicAvailabilitySlot, PublicTutorDetail } from '@/lib/api/types';
 
 export default function PublicTutorAvailabilityPage({ tutorId }: { tutorId: string }) {
   const { copy, language } = useLanguage();
+  const { user } = useAuth();
   const text = copy.dashboard.tutorAvailability;
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -105,8 +108,16 @@ export default function PublicTutorAvailabilityPage({ tutorId }: { tutorId: stri
           <h1 className="text-4xl font-black tracking-[-0.06em] sm:text-5xl">
             {detail.tutor.displayName}
           </h1>
-          <span className="rounded-full bg-[rgba(34,196,154,0.14)] px-3 py-1.5 text-xs font-extrabold text-[#0e8a73]">
-            {text.verified}
+          <span
+            className={`rounded-full px-3 py-1.5 text-xs font-extrabold ${
+              detail.tutor.verificationStatus === 'VERIFIED'
+                ? 'bg-[rgba(34,196,154,0.14)] text-[#0e8a73]'
+                : 'bg-[#fff0d8] text-[#9b6b2c]'
+            }`}
+          >
+            {detail.tutor.verificationStatus === 'VERIFIED'
+              ? text.verified
+              : text.pendingVerification}
           </span>
         </div>
         <p className="mt-3 max-w-2xl text-base leading-7 text-[#625b53]">{detail.tutor.bio}</p>
@@ -166,15 +177,18 @@ export default function PublicTutorAvailabilityPage({ tutorId }: { tutorId: stri
                   <button
                     type="button"
                     className="mt-3 w-full rounded-full bg-[#1c1a16] px-4 py-2.5 text-sm font-bold text-white hover:bg-[#353129] disabled:cursor-not-allowed disabled:opacity-50"
-                    disabled={!selectedListing}
+                    disabled={!selectedListing || Boolean(user && user.role !== 'STUDENT')}
                     onClick={() => {
                       if (!selectedListing) return;
-                      router.push(
-                        `/dashboard/bookings/new?listingId=${encodeURIComponent(selectedListing.listingId)}&slotId=${encodeURIComponent(slot.id)}`,
-                      );
+                      const bookingPath = `/dashboard/bookings/new?listingId=${encodeURIComponent(selectedListing.listingId)}&slotId=${encodeURIComponent(slot.id)}`;
+                      router.push(user ? bookingPath : withReturnTo('/', bookingPath));
                     }}
                   >
-                    {text.choose}
+                    {user && user.role !== 'STUDENT'
+                      ? text.studentOnly
+                      : user
+                        ? text.choose
+                        : text.signInToChoose}
                   </button>
                 </div>
               ))}

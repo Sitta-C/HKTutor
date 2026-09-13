@@ -115,6 +115,7 @@ export interface TutorSearchResult {
   pricePerHour: number;
   ratingAverage: number | null;
   reviewCount: number;
+  verificationStatus: 'PENDING' | 'VERIFIED';
   nextAvailableAt: string | null;
 }
 
@@ -123,7 +124,7 @@ export interface PublicTutorProfile {
   displayName: string;
   bio: string;
   experienceYears: number;
-  verificationStatus: 'VERIFIED';
+  verificationStatus: 'PENDING' | 'VERIFIED';
   ratingAverage: number | null;
   reviewCount: number;
 }
@@ -162,6 +163,7 @@ export interface CreateBookingPayload {
 export interface BookingQuoteTutor {
   tutorId: string;
   displayName: string;
+  verificationStatus?: 'PENDING' | 'VERIFIED';
 }
 
 export interface BookingQuoteListing {
@@ -229,6 +231,26 @@ export interface MyBookingsQuery {
   from?: string | Date;
   to?: string | Date;
 }
+
+export interface TutorBookingView {
+  id: string;
+  status: BookingStatus;
+  student: { nickname: string };
+  listing: BookingQuoteListing;
+  slot: BookingQuoteSlot;
+  subtotalAmount: string;
+  discountAmount: string;
+  netAmount: string;
+  currency: string;
+  createdAt: string;
+}
+
+export interface TutorBookingsResponse {
+  items: TutorBookingView[];
+  total: number;
+}
+
+export type TutorBookingsQuery = MyBookingsQuery;
 export type AvailabilityState = 'OPEN' | 'RESERVED';
 
 export interface TutorAvailabilitySlot {

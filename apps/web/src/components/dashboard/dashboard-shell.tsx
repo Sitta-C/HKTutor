@@ -23,6 +23,7 @@ export interface DashboardShellProps {
   children: ReactNode;
   headerNavRight?: ReactNode;
   visualVariant?: 'default' | 'profile';
+  navBadges?: Partial<Record<string, string>>;
 }
 
 export function DashboardShell({
@@ -31,6 +32,7 @@ export function DashboardShell({
   children,
   headerNavRight,
   visualVariant = 'default',
+  navBadges,
 }: DashboardShellProps) {
   const { language, copy, toggleLanguage } = useLanguage();
   const pathname = usePathname();
@@ -167,6 +169,7 @@ export function DashboardShell({
               aria-label="Sidebar Navigation"
             >
               {navItems.map((item) => {
+                const badge = navBadges?.[item.id] ?? item.badge;
                 if (item.isDanger) {
                   return (
                     <button
@@ -220,7 +223,7 @@ export function DashboardShell({
                       </span>
                       <span className="dash-nav-label">{item.label}</span>
                     </span>
-                    {item.badge !== undefined && (
+                    {badge !== undefined && (
                       <span
                         className="dash-nav-badge rounded-full px-2 py-0.5 text-xs font-bold"
                         style={{
@@ -228,7 +231,7 @@ export function DashboardShell({
                           color: roleConfig.accentDeepColor,
                         }}
                       >
-                        {item.badge}
+                        {badge}
                       </span>
                     )}
                   </Link>
