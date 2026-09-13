@@ -143,7 +143,7 @@ export class BookingsService {
           select: { verificationStatus: true },
         });
 
-        if (!tutorProfile || tutorProfile.verificationStatus !== TutorVerificationStatus.VERIFIED) {
+        if (!tutorProfile || tutorProfile.verificationStatus === TutorVerificationStatus.REJECTED) {
           throw new ConflictException(
             'The selected listing is not currently available for booking.',
           );
@@ -283,7 +283,7 @@ export class BookingsService {
       select: { displayName: true, verificationStatus: true },
     });
 
-    if (!tutorProfile || tutorProfile.verificationStatus !== TutorVerificationStatus.VERIFIED) {
+    if (!tutorProfile || tutorProfile.verificationStatus === TutorVerificationStatus.REJECTED) {
       throw new ConflictException('The selected listing is not currently available for booking.');
     }
 
@@ -311,6 +311,10 @@ export class BookingsService {
       tutor: {
         displayName: tutorProfile.displayName,
         tutorId: listing.tutorProfileId,
+        verificationStatus:
+          tutorProfile.verificationStatus === TutorVerificationStatus.VERIFIED
+            ? 'VERIFIED'
+            : 'PENDING',
       },
     };
   }
