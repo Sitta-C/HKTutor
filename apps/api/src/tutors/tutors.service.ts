@@ -1,22 +1,19 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
   ServiceUnavailableException,
 } from '@nestjs/common';
 
 import { PrismaService } from '@/database/prisma.service';
-import {
-  AccountStatus,
-  BookingStatus,
-  ListingPublicationStatus,
-  Prisma,
-  Role,
-  TutorVerificationStatus,
-} from '@/generated/prisma/client';
+import { BookingStatus, ListingPublicationStatus, Prisma } from '@/generated/prisma/client';
+import { isPublicTutorVerificationStatus, publicTutorWhere } from '@/tutors/public-tutor-access';
 import { AvailabilityState } from '@/tutors/tutors.dto';
 
+import type { PublicTutorVerificationStatus } from '@/tutors/public-tutor-access';
 import type {
   AvailabilityPostRequestDto,
   AvailabilityPostResponseDto,
@@ -64,15 +61,6 @@ const listingSelect = {
 } satisfies Prisma.TeachingListingSelect;
 
 type SelectedListing = Prisma.TeachingListingGetPayload<{ select: typeof listingSelect }>;
-
-const publicTutorWhere = {
-  verificationStatus: { in: [TutorVerificationStatus.PENDING, TutorVerificationStatus.VERIFIED] },
-  user: {
-    accountStatus: AccountStatus.ACTIVE,
-    deletedAt: null,
-    role: Role.TUTOR,
-  },
-} satisfies Prisma.TutorProfileWhereInput;
 
 const publicListingWhere = {
   deletedAt: null,
@@ -236,6 +224,8 @@ const isConstraintViolation = (error: unknown): boolean => {
 
 @Injectable()
 export class TutorsService {
+  private readonly logger = new Logger(TutorsService.name);
+
   constructor(private readonly prisma: PrismaService) {}
 
   async searchPublicTutors(query: TutorSearchQueryDto): Promise<TutorSearchResultDto[]> {
@@ -279,7 +269,17 @@ export class TutorsService {
       orderBy: [{ publishedAt: 'desc' }, { id: 'asc' }],
     });
 
-    return listings.map(mapPublicSearchListing);
+    return listings.flatMap((listing) => {
+      const status = listing.tutorProfile.verificationStatus;
+      if (!isPublicTutorVerificationStatus(status)) {
+        this.logger.warn(
+          `Skipping public listing ${listing.id} with unexpected tutor verification status ${status}`,
+        );
+        return [];
+      }
+
+      return [mapPublicSearchListing(listing, status)];
+    });
   }
 
   async getPublicTutor(tutorId: string): Promise<PublicTutorDetailResponseDto> {
@@ -288,11 +288,18 @@ export class TutorsService {
       where: { ...publicTutorWhere, userId: tutorId },
     });
 
-    if (!tutor) throw new NotFoundException('Tutor not found');
+    if (!tutor || !isPublicTutorVerificationStatus(tutor.verificationStatus)) {
+      if (tutor) {
+        this.logger.warn(
+          `Hiding tutor ${tutor.userId} with unexpected verification status ${tutor.verificationStatus}`,
+        );
+      }
+      throw new NotFoundException('Tutor not found');
+    }
 
     return {
       listings: tutor.listings.map(mapPublicDetailListing),
-      tutor: mapPublicTutor(tutor),
+      tutor: mapPublicTutor(tutor, tutor.verificationStatus),
     };
   }
 
@@ -400,6 +407,15 @@ export class TutorsService {
   }
 
   async postPublishListing(userId: string, listingId: string): Promise<ListingResponseDto> {
+    const tutorProfile = await this.prisma.tutorProfile.findFirst({
+      select: { userId: true },
+      where: { ...publicTutorWhere, userId },
+    });
+
+    if (!tutorProfile) {
+      throw new ForbiddenException('Tutor is not eligible to publish listings');
+    }
+
     try {
       const listing = await this.prisma.teachingListing.update({
         where: {
@@ -515,12 +531,7 @@ export class TutorsService {
 
     const tutor = await this.prisma.tutorProfile.findFirst({
       select: { userId: true },
-      where: {
-        userId: tutorId,
-        verificationStatus: {
-          in: [TutorVerificationStatus.PENDING, TutorVerificationStatus.VERIFIED],
-        },
-      },
+      where: { ...publicTutorWhere, userId: tutorId },
     });
     if (!tutor) throw tutorNotFound();
 
@@ -658,7 +669,10 @@ function mapListing(listing: SelectedListing): ListingResponseDto {
   };
 }
 
-function mapPublicSearchListing(listing: SelectedPublicSearchListing): TutorSearchResultDto {
+function mapPublicSearchListing(
+  listing: SelectedPublicSearchListing,
+  verificationStatus: PublicTutorVerificationStatus,
+): TutorSearchResultDto {
   const tutor = listing.tutorProfile;
 
   return {
@@ -673,12 +687,14 @@ function mapPublicSearchListing(listing: SelectedPublicSearchListing): TutorSear
     reviewCount: tutor.reviewCount,
     subject: listing.subject.name,
     tutorId: tutor.userId,
-    verificationStatus:
-      tutor.verificationStatus === TutorVerificationStatus.VERIFIED ? 'VERIFIED' : 'PENDING',
+    verificationStatus,
   };
 }
 
-function mapPublicTutor(tutor: SelectedPublicTutor): PublicTutorDetailResponseDto['tutor'] {
+function mapPublicTutor(
+  tutor: SelectedPublicTutor,
+  verificationStatus: PublicTutorVerificationStatus,
+): PublicTutorDetailResponseDto['tutor'] {
   return {
     bio: tutor.bio,
     displayName: tutor.displayName,
@@ -686,8 +702,7 @@ function mapPublicTutor(tutor: SelectedPublicTutor): PublicTutorDetailResponseDt
     ratingAverage: tutor.ratingAverage?.toNumber() ?? null,
     reviewCount: tutor.reviewCount,
     tutorId: tutor.userId,
-    verificationStatus:
-      tutor.verificationStatus === TutorVerificationStatus.VERIFIED ? 'VERIFIED' : 'PENDING',
+    verificationStatus,
   };
 }
 

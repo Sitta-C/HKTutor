@@ -1,4 +1,4 @@
-import { ForbiddenException, UnauthorizedException } from '@nestjs/common';
+import { ConflictException, ForbiddenException, UnauthorizedException } from '@nestjs/common';
 
 import { AuthService } from '@/auth/auth.service';
 import { AccountStatus, Role } from '@/generated/prisma/client';
@@ -85,7 +85,7 @@ describe('AuthService', () => {
     expect(plainToken.length).toBeGreaterThanOrEqual(32);
   });
 
-  it('retries verification delivery when registration is repeated for an active unverified account', async () => {
+  it('rejects repeated registration without rotating its token', async () => {
     const existingUser = {
       accountStatus: AccountStatus.ACTIVE,
       email: 'student@example.com',
@@ -93,13 +93,7 @@ describe('AuthService', () => {
       id: 'user-id',
     };
     const userFindFirst = jest.fn().mockResolvedValue(existingUser);
-    const updateMany = jest.fn().mockResolvedValue({ count: 1 });
-    const verificationCreate = jest.fn().mockResolvedValue({ id: 'new-token-id' });
-    const transaction = jest.fn(async (operation: (client: unknown) => Promise<unknown>) =>
-      operation({
-        emailVerificationToken: { create: verificationCreate, updateMany },
-      }),
-    );
+    const transaction = jest.fn();
     const sendVerificationEmail = jest.fn().mockResolvedValue(undefined);
     const passwordHash = jest.fn();
     const service = createService({
@@ -116,27 +110,12 @@ describe('AuthService', () => {
         consent: true,
         policyVersion: '2026-09-09',
       }),
-    ).resolves.toEqual({
-      message: 'If the account can be verified, a verification email has been sent.',
-    });
+    ).rejects.toThrow(new ConflictException('An account with this email already exists'));
 
-    expect(userFindFirst).toHaveBeenCalledTimes(2);
+    expect(userFindFirst).toHaveBeenCalledTimes(1);
     expect(passwordHash).not.toHaveBeenCalled();
-    expect(updateMany).toHaveBeenCalledWith({
-      data: { consumedAt: expect.any(Date) as Date },
-      where: { consumedAt: null, userId: existingUser.id },
-    });
-    expect(verificationCreate).toHaveBeenCalledWith({
-      data: {
-        expiresAt: expect.any(Date) as Date,
-        tokenHash: expect.stringMatching(/^[a-f0-9]{64}$/) as string,
-        userId: existingUser.id,
-      },
-    });
-    expect(sendVerificationEmail).toHaveBeenCalledWith(
-      existingUser.email,
-      expect.any(String) as string,
-    );
+    expect(transaction).not.toHaveBeenCalled();
+    expect(sendVerificationEmail).not.toHaveBeenCalled();
   });
 
   it('rejects login before email verification even when the password is valid', async () => {

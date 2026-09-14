@@ -298,7 +298,7 @@ export function PublishListingDoc(): MethodDecorator {
     }),
     ApiUnauthorizedResponse({ description: unauthorizedDescription, type: ApiErrorResponseDto }),
     ApiForbiddenResponse({
-      description: 'The account is not a tutor',
+      description: 'The account is not an active eligible tutor',
       type: ApiErrorResponseDto,
     }),
     ApiNotFoundResponse({ description: 'Listing not found', type: ApiErrorResponseDto }),
@@ -317,7 +317,7 @@ export function UpdateListingStatusDoc(): MethodDecorator {
     }),
     ApiUnauthorizedResponse({ description: unauthorizedDescription, type: ApiErrorResponseDto }),
     ApiForbiddenResponse({
-      description: 'The account is not a tutor',
+      description: 'The account is not an active eligible tutor',
       type: ApiErrorResponseDto,
     }),
     ApiNotFoundResponse({

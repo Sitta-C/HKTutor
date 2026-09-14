@@ -235,7 +235,7 @@ export interface MyBookingsQuery {
 export interface TutorBookingView {
   id: string;
   status: BookingStatus;
-  student: { nickname: string };
+  student: { nickname: string | null };
   listing: BookingQuoteListing;
   slot: BookingQuoteSlot;
   subtotalAmount: string;

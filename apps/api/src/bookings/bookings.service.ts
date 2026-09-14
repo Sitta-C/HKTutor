@@ -24,8 +24,8 @@ import {
   BookingStatus,
   ListingPublicationStatus,
   Role,
-  TutorVerificationStatus,
 } from '@/generated/prisma/enums';
+import { isPublicTutorVerificationStatus, publicTutorWhere } from '@/tutors/public-tutor-access';
 
 export type CreateBookingInput = CreateBookingDto & { studentUserId: string };
 export type GetBookingQuoteInput = GetBookingQuoteQueryDto & { studentUserId: string };
@@ -138,19 +138,15 @@ export class BookingsService {
           throw new ConflictException('The selected slot does not belong to the selected listing.');
         }
 
-        const tutorProfile = await tx.tutorProfile.findUnique({
-          where: { userId: listing.tutorProfileId },
-          select: { verificationStatus: true },
+        const tutorProfile = await tx.tutorProfile.findFirst({
+          where: { ...publicTutorWhere, userId: listing.tutorProfileId },
+          select: { userId: true },
         });
 
-        if (!tutorProfile || tutorProfile.verificationStatus === TutorVerificationStatus.REJECTED) {
+        if (!tutorProfile) {
           throw new ConflictException(
             'The selected listing is not currently available for booking.',
           );
-        }
-
-        if (student.id === slot.tutorProfileId) {
-          throw new BadRequestException('Tutors cannot book their own slots.');
         }
 
         const amounts = deriveBookingAmounts(listing.pricePerHour, slot);
@@ -278,12 +274,12 @@ export class BookingsService {
       throw new ConflictException('The selected slot does not belong to the selected listing.');
     }
 
-    const tutorProfile = await this.prisma.tutorProfile.findUnique({
-      where: { userId: listing.tutorProfileId },
+    const tutorProfile = await this.prisma.tutorProfile.findFirst({
+      where: { ...publicTutorWhere, userId: listing.tutorProfileId },
       select: { displayName: true, verificationStatus: true },
     });
 
-    if (!tutorProfile || tutorProfile.verificationStatus === TutorVerificationStatus.REJECTED) {
+    if (!tutorProfile || !isPublicTutorVerificationStatus(tutorProfile.verificationStatus)) {
       throw new ConflictException('The selected listing is not currently available for booking.');
     }
 
@@ -311,10 +307,7 @@ export class BookingsService {
       tutor: {
         displayName: tutorProfile.displayName,
         tutorId: listing.tutorProfileId,
-        verificationStatus:
-          tutorProfile.verificationStatus === TutorVerificationStatus.VERIFIED
-            ? 'VERIFIED'
-            : 'PENDING',
+        verificationStatus: tutorProfile.verificationStatus,
       },
     };
   }
@@ -537,7 +530,7 @@ export class BookingsService {
           startAtUtc: booking.slot.startAtUtc.toISOString(),
         },
         status: booking.status,
-        student: { nickname: booking.student.studentProfile!.nickname },
+        student: { nickname: booking.student.studentProfile?.nickname ?? null },
         subtotalAmount: booking.subtotalAmount.toFixed(2),
       })),
       total,

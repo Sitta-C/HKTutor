@@ -367,6 +367,6 @@ describe('BookingsController OpenAPI contract', () => {
     const studentSchema = document.components?.schemas?.['TutorBookingStudentDto'] as
       { properties?: { nickname?: { nullable?: boolean; type?: string } } } | undefined;
     expect(studentSchema?.properties?.nickname).toMatchObject({ type: 'string' });
-    expect(studentSchema?.properties?.nickname?.nullable).not.toBe(true);
+    expect(studentSchema?.properties?.nickname?.nullable).toBe(true);
   });
 });

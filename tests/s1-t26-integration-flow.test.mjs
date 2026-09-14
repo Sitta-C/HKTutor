@@ -60,32 +60,33 @@ test('checks the tutor profile gate before loading listing edit dependencies', a
   assert.match(loadSequence, /withReturnTo\('\/onboarding\/profile', editorPath\)/);
 });
 
-test('allows pending tutors to publish while surfacing verification status throughout discovery', async () => {
-  const [tutorsService, bookingService, searchPage, tutorDetail, listingEditor] = await Promise.all(
-    [
+test('uses one fail-closed tutor allowlist across publish, discovery, availability, and booking', async () => {
+  const [tutorAccess, tutorsService, bookingService, searchPage, tutorDetail, listingEditor] =
+    await Promise.all([
+      read('apps/api/src/tutors/public-tutor-access.ts'),
       read('apps/api/src/tutors/tutors.service.ts'),
       read('apps/api/src/bookings/bookings.service.ts'),
       read('apps/web/src/components/tutors/tutor-search-page.tsx'),
       read('apps/web/src/components/tutors/tutor-availability-page.tsx'),
       read('apps/web/src/components/listings/tutor-listing-editor.tsx'),
-    ],
-  );
+    ]);
 
   assert.match(
-    tutorsService,
+    tutorAccess,
     /verificationStatus:\s*\{\s*in: \[TutorVerificationStatus\.PENDING, TutorVerificationStatus\.VERIFIED\]/,
   );
-  assert.doesNotMatch(
-    tutorsService.match(/async postPublishListing[\s\S]*?\n {2}}/)?.[0] ?? '',
-    /verificationStatus|Tutor is not verified/,
-  );
-  assert.match(bookingService, /verificationStatus === TutorVerificationStatus\.REJECTED/);
+  assert.match(tutorAccess, /accountStatus: AccountStatus\.ACTIVE/);
+  assert.match(tutorAccess, /deletedAt: null/);
+  assert.match(tutorAccess, /role: Role\.TUTOR/);
+  assert.match(tutorsService, /where: \{ \.\.\.publicTutorWhere, userId \}/);
+  assert.match(bookingService, /findFirst\(\{\s*where: \{ \.\.\.publicTutorWhere, userId:/);
+  assert.doesNotMatch(bookingService, /verificationStatus === TutorVerificationStatus\.REJECTED/);
   assert.match(searchPage, /result\.verificationStatus === 'VERIFIED'/);
   assert.match(tutorDetail, /detail\.tutor\.verificationStatus === 'VERIFIED'/);
   assert.match(listingEditor, /Students will see that verification is pending/);
 });
 
-test('keeps the walking-skeleton seed bookable and registration delivery recoverable', async () => {
+test('keeps the walking-skeleton seed bookable and repeated registration safe', async () => {
   const [seed, authService, register, verify] = await Promise.all([
     read('apps/api/src/database/seed/booking-fixtures.seed.ts'),
     read('apps/api/src/auth/auth.service.ts'),
@@ -96,9 +97,21 @@ test('keeps the walking-skeleton seed bookable and registration delivery recover
   assert.match(seed, /DEMO_SLOT_DAYS_AHEAD = 7/);
   assert.match(seed, /setUTCDate\(startAtUtc\.getUTCDate\(\) \+ DEMO_SLOT_DAYS_AHEAD\)/);
   assert.doesNotMatch(seed, /2030-/);
-  assert.match(authService, /return this\.resendVerification\(\{ email: existing\.email \}\)/);
+  assert.match(
+    authService,
+    /if \(existing\) \{\s*throw new ConflictException\('An account with this email already exists'\)/,
+  );
+  assert.doesNotMatch(
+    authService,
+    /return this\.resendVerification\(\{ email: existing\.email \}\)/,
+  );
   assert.match(register, /err instanceof ApiError && err\.status === 503/);
   assert.match(register, /delivery=failed/);
+  assert.match(register, /err instanceof ApiError && err\.status === 409/);
+  assert.match(
+    register,
+    /router\.push\(`\/register\/verify\?email=\$\{encodeURIComponent\(email\)\}`\)/,
+  );
   assert.match(verify, /copy\.register\.verificationDeliveryFailed/);
 });
 
