@@ -1,4 +1,4 @@
-import { ConflictException, ForbiddenException, UnauthorizedException } from '@nestjs/common';
+import { ForbiddenException, UnauthorizedException } from '@nestjs/common';
 
 import { AuthService } from '@/auth/auth.service';
 import { AccountStatus, Role } from '@/generated/prisma/client';
@@ -61,7 +61,9 @@ describe('AuthService', () => {
         consent: true,
         policyVersion: '2026-09-09',
       }),
-    ).resolves.toEqual({ message: 'Check your email to verify your account.' });
+    ).resolves.toEqual({
+      message: 'If an account can be created, a verification email has been sent.',
+    });
 
     const userCreateCalls = userCreate.mock.calls as unknown as Array<
       [{ data: { email: string; passwordHash: string; role: Role } }]
@@ -85,7 +87,7 @@ describe('AuthService', () => {
     expect(plainToken.length).toBeGreaterThanOrEqual(32);
   });
 
-  it('rejects repeated registration without rotating its token', async () => {
+  it('returns the same generic result for an existing email without changing account state', async () => {
     const existingUser = {
       accountStatus: AccountStatus.ACTIVE,
       email: 'student@example.com',
@@ -110,11 +112,36 @@ describe('AuthService', () => {
         consent: true,
         policyVersion: '2026-09-09',
       }),
-    ).rejects.toThrow(new ConflictException('An account with this email already exists'));
+    ).resolves.toEqual({
+      message: 'If an account can be created, a verification email has been sent.',
+    });
 
     expect(userFindFirst).toHaveBeenCalledTimes(1);
     expect(passwordHash).not.toHaveBeenCalled();
     expect(transaction).not.toHaveBeenCalled();
+    expect(sendVerificationEmail).not.toHaveBeenCalled();
+  });
+
+  it('returns the generic result when a concurrent registration wins the unique-email race', async () => {
+    const transaction = jest.fn().mockRejectedValue({ code: 'P2002' });
+    const sendVerificationEmail = jest.fn();
+    const service = createService({
+      prisma: { user: { findFirst: jest.fn().mockResolvedValue(null) }, $transaction: transaction },
+      passwords: { hash: jest.fn().mockResolvedValue('argon2id-hash') },
+      email: { sendVerificationEmail },
+    });
+
+    await expect(
+      service.register({
+        email: 'student@example.com',
+        password: 'password123',
+        role: 'student',
+        consent: true,
+        policyVersion: '2026-09-09',
+      }),
+    ).resolves.toEqual({
+      message: 'If an account can be created, a verification email has been sent.',
+    });
     expect(sendVerificationEmail).not.toHaveBeenCalled();
   });
 

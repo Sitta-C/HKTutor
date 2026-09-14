@@ -289,7 +289,7 @@ describe('TutorsService', () => {
         where: {
           user: { accountStatus: 'ACTIVE', deletedAt: null, role: 'TUTOR' },
           userId: USER_ID,
-          verificationStatus: { in: ['PENDING', 'VERIFIED'] },
+          verificationStatus: 'VERIFIED',
         },
       });
       expect(prisma.teachingListing.update).toHaveBeenCalledWith(
@@ -316,7 +316,7 @@ describe('TutorsService', () => {
       );
     });
 
-    it('rejects publishing when the tutor does not satisfy the shared public allowlist', async () => {
+    it('returns 403 when a pending or rejected tutor tries to publish', async () => {
       const prisma = createPrisma();
       prisma.tutorProfile.findFirst.mockResolvedValue(null);
       const service = new TutorsService(prisma as unknown as PrismaService);
@@ -459,7 +459,7 @@ describe('TutorsService', () => {
   });
 
   describe('getAvailabilityPublic', () => {
-    it('returns only future open slots for a pending or verified tutor in ascending order', async () => {
+    it('returns only future open slots for a verified tutor in ascending order', async () => {
       jest.useFakeTimers().setSystemTime(new Date('2026-10-17T07:00:00.000Z'));
       const prisma = createPrisma();
       prisma.tutorProfile.findFirst.mockResolvedValue({ userId: USER_ID });
@@ -476,7 +476,7 @@ describe('TutorsService', () => {
         where: {
           user: { accountStatus: 'ACTIVE', deletedAt: null, role: 'TUTOR' },
           userId: USER_ID,
-          verificationStatus: { in: ['PENDING', 'VERIFIED'] },
+          verificationStatus: 'VERIFIED',
         },
       });
       expect(prisma.availabilitySlot.findMany).toHaveBeenCalledWith({

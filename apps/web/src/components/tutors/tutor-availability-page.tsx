@@ -108,16 +108,8 @@ export default function PublicTutorAvailabilityPage({ tutorId }: { tutorId: stri
           <h1 className="text-4xl font-black tracking-[-0.06em] sm:text-5xl">
             {detail.tutor.displayName}
           </h1>
-          <span
-            className={`rounded-full px-3 py-1.5 text-xs font-extrabold ${
-              detail.tutor.verificationStatus === 'VERIFIED'
-                ? 'bg-[rgba(34,196,154,0.14)] text-[#0e8a73]'
-                : 'bg-[#fff0d8] text-[#9b6b2c]'
-            }`}
-          >
-            {detail.tutor.verificationStatus === 'VERIFIED'
-              ? text.verified
-              : text.pendingVerification}
+          <span className="rounded-full bg-[rgba(34,196,154,0.14)] px-3 py-1.5 text-xs font-extrabold text-[#0e8a73]">
+            {text.verified}
           </span>
         </div>
         <p className="mt-3 max-w-2xl text-base leading-7 text-[#625b53]">{detail.tutor.bio}</p>

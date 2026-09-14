@@ -27,7 +27,7 @@ export function StudentDashboard({ user, onLogout }: StudentDashboardProps) {
 
   useEffect(() => {
     let active = true;
-    getMyBookings()
+    getMyBookings({ pageSize: 100 })
       .then((result) => {
         if (!active) return;
         setBookings(result.items);

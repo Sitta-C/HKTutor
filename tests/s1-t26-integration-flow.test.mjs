@@ -37,10 +37,10 @@ test('gates every private flow route and connects both dashboards to live bookin
     assert.match(guardedPage, /resolveDashboardGate/);
     assert.match(guardedPage, /withReturnTo\('\/onboarding\/profile'/);
   }
-  assert.match(tutorDashboard, /getTutorBookings\(\)/);
+  assert.match(tutorDashboard, /getTutorBookings\(\{ pageSize: 100 \}\)/);
   assert.match(tutorDashboard, /getTutorAvailability/);
   assert.match(tutorDashboard, /getTutorListings\(\)/);
-  assert.match(studentDashboard, /getMyBookings\(\)/);
+  assert.match(studentDashboard, /getMyBookings\(\{ pageSize: 100 \}\)/);
   assert.match(studentDashboard, /navBadges=\{\{ bookings: String\(bookings\.length\) \}\}/);
   assert.match(bookingApi, /authenticatedFetch<TutorBookingsResponse>\(`\/bookings\/tutor/);
 });
@@ -71,19 +71,18 @@ test('uses one fail-closed tutor allowlist across publish, discovery, availabili
       read('apps/web/src/components/listings/tutor-listing-editor.tsx'),
     ]);
 
-  assert.match(
-    tutorAccess,
-    /verificationStatus:\s*\{\s*in: \[TutorVerificationStatus\.PENDING, TutorVerificationStatus\.VERIFIED\]/,
-  );
+  assert.match(tutorAccess, /verificationStatus: TutorVerificationStatus\.VERIFIED/);
   assert.match(tutorAccess, /accountStatus: AccountStatus\.ACTIVE/);
   assert.match(tutorAccess, /deletedAt: null/);
   assert.match(tutorAccess, /role: Role\.TUTOR/);
   assert.match(tutorsService, /where: \{ \.\.\.publicTutorWhere, userId \}/);
   assert.match(bookingService, /findFirst\(\{\s*where: \{ \.\.\.publicTutorWhere, userId:/);
   assert.doesNotMatch(bookingService, /verificationStatus === TutorVerificationStatus\.REJECTED/);
-  assert.match(searchPage, /result\.verificationStatus === 'VERIFIED'/);
-  assert.match(tutorDetail, /detail\.tutor\.verificationStatus === 'VERIFIED'/);
-  assert.match(listingEditor, /Students will see that verification is pending/);
+  assert.match(searchPage, /VERIFIED TUTORS ONLY/);
+  assert.doesNotMatch(searchPage, /VERIFICATION PENDING/);
+  assert.match(tutorDetail, /\{text\.verified\}/);
+  assert.doesNotMatch(tutorDetail, /text\.pendingVerification/);
+  assert.match(listingEditor, /must be verified before publishing/);
 });
 
 test('keeps the walking-skeleton seed bookable and repeated registration safe', async () => {
@@ -97,17 +96,14 @@ test('keeps the walking-skeleton seed bookable and repeated registration safe', 
   assert.match(seed, /DEMO_SLOT_DAYS_AHEAD = 7/);
   assert.match(seed, /setUTCDate\(startAtUtc\.getUTCDate\(\) \+ DEMO_SLOT_DAYS_AHEAD\)/);
   assert.doesNotMatch(seed, /2030-/);
-  assert.match(
-    authService,
-    /if \(existing\) \{\s*throw new ConflictException\('An account with this email already exists'\)/,
-  );
+  assert.match(authService, /if \(existing\) \{\s*return \{ message: REGISTRATION_MESSAGE \}/);
   assert.doesNotMatch(
     authService,
     /return this\.resendVerification\(\{ email: existing\.email \}\)/,
   );
   assert.match(register, /err instanceof ApiError && err\.status === 503/);
   assert.match(register, /delivery=failed/);
-  assert.match(register, /err instanceof ApiError && err\.status === 409/);
+  assert.doesNotMatch(register, /err instanceof ApiError && err\.status === 409/);
   assert.match(
     register,
     /router\.push\(`\/register\/verify\?email=\$\{encodeURIComponent\(email\)\}`\)/,

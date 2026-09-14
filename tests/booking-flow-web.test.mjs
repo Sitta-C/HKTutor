@@ -69,6 +69,9 @@ test('renders Student-owned list/detail states and an explicit empty state', asy
   assert.match(list, /items\.length === 0/);
   assert.match(list, /emptyTitle/);
   assert.match(list, /status/);
+  assert.match(list, /pageSize: BOOKINGS_PAGE_SIZE/);
+  assert.match(list, /setPage\(1\)/);
+  assert.match(list, /page >= totalPages/);
   assert.match(detail, /getMyBooking\(bookingId\)/);
   assert.match(detail, /getBookingErrorMessage/);
   assert.match(detail, /dashboard\/bookings/);
@@ -78,9 +81,9 @@ test('starts booking-list loading only when a fetch effect runs', async () => {
   const list = await fs.readFile(listPath, 'utf8');
 
   assert.match(list, /useEffect\(\(\) => \{[\s\S]*?setIsLoading\(true\);[\s\S]*?getMyBookings\(/);
-  assert.match(list, /getMyBookings\(filter === 'ALL' \? \{\} : \{ status: filter \}\)/);
-  assert.match(list, /\}, \[filter, reloadKey\]\);/);
-  assert.match(list, /onClick=\{\(\) => setFilter\(item\)\}/);
+  assert.match(list, /getMyBookings\(\{/);
+  assert.match(list, /\}, \[filter, page, reloadKey\]\);/);
+  assert.match(list, /setFilter\(item\);[\s\S]*?setPage\(1\);/);
   assert.match(list, /role="group" aria-label=\{text\.status\}/);
   assert.doesNotMatch(list, /onClick=\{\(\) => \{[\s\S]*?setIsLoading\(true\)/);
 });

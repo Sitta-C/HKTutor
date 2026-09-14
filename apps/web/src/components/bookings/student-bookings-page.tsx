@@ -12,6 +12,7 @@ import type { BookingText } from '@/components/bookings/booking-ui';
 import type { BookingStatus, BookingView } from '@/lib/api/types';
 
 type BookingFilter = 'ALL' | BookingStatus;
+const BOOKINGS_PAGE_SIZE = 10;
 
 const filters: BookingFilter[] = [
   'ALL',
@@ -28,6 +29,7 @@ export default function StudentBookingsPage() {
   const [filter, setFilter] = useState<BookingFilter>('ALL');
   const [items, setItems] = useState<BookingView[]>([]);
   const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<unknown | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
@@ -42,7 +44,11 @@ export default function StudentBookingsPage() {
     const fetchBookings = () => {
       setIsLoading(true);
       setError(null);
-      return getMyBookings(filter === 'ALL' ? {} : { status: filter });
+      return getMyBookings({
+        ...(filter === 'ALL' ? {} : { status: filter }),
+        page,
+        pageSize: BOOKINGS_PAGE_SIZE,
+      });
     };
 
     fetchBookings()
@@ -65,7 +71,9 @@ export default function StudentBookingsPage() {
     return () => {
       active = false;
     };
-  }, [filter, reloadKey]);
+  }, [filter, page, reloadKey]);
+
+  const totalPages = Math.max(1, Math.ceil(total / BOOKINGS_PAGE_SIZE));
 
   return (
     <div className="booking-page">
@@ -93,7 +101,10 @@ export default function StudentBookingsPage() {
                   : 'border-[#ebe6dd] bg-white text-[#625b53] hover:bg-[#f8f5ef]'
               }`}
               aria-pressed={filter === item}
-              onClick={() => setFilter(item)}
+              onClick={() => {
+                setFilter(item);
+                setPage(1);
+              }}
             >
               {getFilterLabel(item, text)}
             </button>
@@ -144,15 +155,45 @@ export default function StudentBookingsPage() {
         )}
 
         {!isLoading && !error && items.length > 0 && (
-          <div className="space-y-3">
-            {items.map((booking) => (
-              <BookingSummaryRow
-                key={booking.id}
-                booking={booking}
-                text={text}
-                language={language}
-              />
-            ))}
+          <div>
+            <div className="space-y-3">
+              {items.map((booking) => (
+                <BookingSummaryRow
+                  key={booking.id}
+                  booking={booking}
+                  text={text}
+                  language={language}
+                />
+              ))}
+            </div>
+            {totalPages > 1 && (
+              <nav
+                className="mt-6 flex items-center justify-between gap-4 border-t border-[#ebe6dd] pt-5"
+                aria-label={text.pagination}
+              >
+                <button
+                  type="button"
+                  disabled={page === 1}
+                  onClick={() => setPage((current) => Math.max(1, current - 1))}
+                  className="rounded-full border border-[#d9d2c6] px-4 py-2 text-sm font-bold text-[#4e443b] disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  {text.previousPage}
+                </button>
+                <span className="text-sm font-semibold text-[#625b53]">
+                  {text.pageOf
+                    .replace('{page}', String(page))
+                    .replace('{totalPages}', String(totalPages))}
+                </span>
+                <button
+                  type="button"
+                  disabled={page >= totalPages}
+                  onClick={() => setPage((current) => Math.min(totalPages, current + 1))}
+                  className="rounded-full border border-[#d9d2c6] px-4 py-2 text-sm font-bold text-[#4e443b] disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  {text.nextPage}
+                </button>
+              </nav>
+            )}
           </div>
         )}
       </section>

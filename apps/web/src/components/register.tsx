@@ -79,10 +79,6 @@ export default function Register() {
         router.push(`/register/verify?email=${encodeURIComponent(email)}&delivery=failed`);
         return;
       }
-      if (err instanceof ApiError && err.status === 409) {
-        router.push(`/register/verify?email=${encodeURIComponent(email)}`);
-        return;
-      }
       setErrorMessage(getErrorMessage(err, 'Registration failed'));
     } finally {
       setIsLoading(false);

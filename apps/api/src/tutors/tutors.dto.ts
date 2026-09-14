@@ -173,8 +173,8 @@ export class TutorSearchResultDto {
   @ApiProperty({ example: 24, minimum: 0, type: Number })
   reviewCount!: number;
 
-  @ApiProperty({ enum: ['PENDING', 'VERIFIED'], example: 'VERIFIED' })
-  verificationStatus!: 'PENDING' | 'VERIFIED';
+  @ApiProperty({ enum: ['VERIFIED'], example: 'VERIFIED' })
+  verificationStatus!: 'VERIFIED';
 
   @ApiProperty({
     example: '2026-09-12T02:00:00.000Z',
@@ -198,8 +198,8 @@ export class PublicTutorProfileDto {
   @ApiProperty({ example: 5, minimum: 0, type: Number })
   experienceYears!: number;
 
-  @ApiProperty({ enum: ['PENDING', 'VERIFIED'], example: 'VERIFIED' })
-  verificationStatus!: 'PENDING' | 'VERIFIED';
+  @ApiProperty({ enum: ['VERIFIED'], example: 'VERIFIED' })
+  verificationStatus!: 'VERIFIED';
 
   @ApiProperty({ example: 4.8, maximum: 5, minimum: 1, nullable: true, type: Number })
   ratingAverage!: number | null;

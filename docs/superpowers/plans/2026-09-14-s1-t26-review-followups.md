@@ -2,8 +2,8 @@
 
 ## Implementation
 
-1. Restore conflict behavior for repeated registration and preserve access to the verification page
-   from the registration UI.
+1. Prevent repeated registration from rotating credentials or verification tokens. The temporary
+   conflict response was later superseded by a generic accepted response to prevent enumeration.
 2. Extract the tutor allowlist and public-status guard into a shared API module.
 3. Apply the allowlist to publish, discovery, availability, booking, and quote queries.
 4. Filter and log invalid public-search rows while returning not found for an invalid detail record.

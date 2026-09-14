@@ -136,11 +136,7 @@ export default function BookingConfirmationPage() {
                 <h2 className="text-2xl font-extrabold text-[#171714]">
                   {activeQuote.tutor.displayName}
                 </h2>
-                <p className="mt-1 text-sm font-semibold text-[#0e8a73]">
-                  {activeQuote.tutor.verificationStatus === 'PENDING'
-                    ? text.pendingVerificationTutor
-                    : text.verifiedTutor}
-                </p>
+                <p className="mt-1 text-sm font-semibold text-[#0e8a73]">{text.verifiedTutor}</p>
               </div>
             </div>
 

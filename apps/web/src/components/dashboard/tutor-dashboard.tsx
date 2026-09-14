@@ -40,7 +40,11 @@ export function TutorDashboard({ user, onLogout }: TutorDashboardProps) {
     const from = bangkokDayBoundary(today);
     const to = new Date(from.getTime() + 24 * 60 * 60 * 1000);
 
-    Promise.all([getTutorBookings(), getTutorListings(), getTutorAvailability({ from, to })])
+    Promise.all([
+      getTutorBookings({ pageSize: 100 }),
+      getTutorListings(),
+      getTutorAvailability({ from, to }),
+    ])
       .then(([bookingResult, listingResult, slotResult]) => {
         if (!active) return;
         setBookings(bookingResult.items);
