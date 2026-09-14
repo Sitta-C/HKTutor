@@ -175,7 +175,7 @@ describe('BookingsService', () => {
 
         expect(mockPrismaService.$transaction).toHaveBeenCalledTimes(1);
         expect(tutorFindFirst).toHaveBeenCalledWith({
-          select: { verificationStatus: true },
+          select: { userId: true },
           where: {
             user: { accountStatus: 'ACTIVE', deletedAt: null, role: 'TUTOR' },
             userId: tutorUserId,
@@ -241,15 +241,15 @@ describe('BookingsService', () => {
       );
     });
 
-    it('should throw ForbiddenException when student role is not STUDENT', async () => {
-      const { listingId, slotId, studentUserId, tutorUserId } = createTestData();
+    it('rejects a tutor booking their own slot at the student role guard', async () => {
+      const { listingId, slotId, tutorUserId } = createTestData();
 
       const mockSlot = futureSlot(slotId, tutorUserId);
 
       const mockStudent = {
         accountStatus: AccountStatus.ACTIVE,
         deletedAt: null,
-        id: studentUserId,
+        id: tutorUserId,
         role: Role.TUTOR,
       };
 
@@ -269,7 +269,7 @@ describe('BookingsService', () => {
       const input: CreateBookingInput = {
         listingId,
         slotId,
-        studentUserId,
+        studentUserId: tutorUserId,
       };
 
       await expect(service.create(input)).rejects.toThrow(
@@ -1335,7 +1335,7 @@ describe('BookingsService', () => {
       expect(Object.keys(result.items[0] as object)).not.toContain('legalName');
     });
 
-    it('uses a safe label when a historical booking no longer has a student profile', async () => {
+    it('returns a null nickname when a historical booking no longer has a student profile', async () => {
       const { tutorUserId } = createTestData();
       const row = mockTutorBookingRow({ student: { studentProfile: null } });
 
@@ -1343,7 +1343,7 @@ describe('BookingsService', () => {
       mockPrismaService.booking.count.mockResolvedValue(1);
 
       await expect(service.getTutorBookings({ tutorUserId })).resolves.toMatchObject({
-        items: [expect.objectContaining({ student: { nickname: 'Student' } })],
+        items: [expect.objectContaining({ student: { nickname: null } })],
       });
     });
 

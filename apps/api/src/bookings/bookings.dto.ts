@@ -204,8 +204,8 @@ export class GetTutorBookingsQueryDto {
 }
 
 export class TutorBookingStudentDto {
-  @ApiProperty({ example: 'Nan', type: String })
-  nickname!: string;
+  @ApiProperty({ example: 'Nan', nullable: true, type: String })
+  nickname!: string | null;
 }
 
 export class TutorBookingViewDto {

@@ -85,7 +85,7 @@ describe('AuthService', () => {
     expect(plainToken.length).toBeGreaterThanOrEqual(32);
   });
 
-  it('rejects repeated registration for an active unverified account without rotating its token', async () => {
+  it('rejects repeated registration without rotating its token', async () => {
     const existingUser = {
       accountStatus: AccountStatus.ACTIVE,
       email: 'student@example.com',

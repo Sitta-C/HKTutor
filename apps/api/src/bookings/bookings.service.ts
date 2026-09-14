@@ -25,7 +25,7 @@ import {
   ListingPublicationStatus,
   Role,
 } from '@/generated/prisma/enums';
-import { publicTutorWhere, toPublicTutorVerificationStatus } from '@/tutors/public-tutor-access';
+import { isPublicTutorVerificationStatus, publicTutorWhere } from '@/tutors/public-tutor-access';
 
 export type CreateBookingInput = CreateBookingDto & { studentUserId: string };
 export type GetBookingQuoteInput = GetBookingQuoteQueryDto & { studentUserId: string };
@@ -140,7 +140,7 @@ export class BookingsService {
 
         const tutorProfile = await tx.tutorProfile.findFirst({
           where: { ...publicTutorWhere, userId: listing.tutorProfileId },
-          select: { verificationStatus: true },
+          select: { userId: true },
         });
 
         if (!tutorProfile) {
@@ -279,7 +279,7 @@ export class BookingsService {
       select: { displayName: true, verificationStatus: true },
     });
 
-    if (!tutorProfile) {
+    if (!tutorProfile || !isPublicTutorVerificationStatus(tutorProfile.verificationStatus)) {
       throw new ConflictException('The selected listing is not currently available for booking.');
     }
 
@@ -307,7 +307,7 @@ export class BookingsService {
       tutor: {
         displayName: tutorProfile.displayName,
         tutorId: listing.tutorProfileId,
-        verificationStatus: toPublicTutorVerificationStatus(tutorProfile.verificationStatus),
+        verificationStatus: tutorProfile.verificationStatus,
       },
     };
   }
@@ -530,7 +530,7 @@ export class BookingsService {
           startAtUtc: booking.slot.startAtUtc.toISOString(),
         },
         status: booking.status,
-        student: { nickname: booking.student.studentProfile?.nickname ?? 'Student' },
+        student: { nickname: booking.student.studentProfile?.nickname ?? null },
         subtotalAmount: booking.subtotalAmount.toFixed(2),
       })),
       total,

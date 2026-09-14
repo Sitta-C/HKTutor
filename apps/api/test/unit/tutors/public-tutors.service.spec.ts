@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  Logger,
   NotFoundException,
   ServiceUnavailableException,
 } from '@nestjs/common';
@@ -322,16 +323,30 @@ describe('TutorsService public discovery APIs', () => {
     );
   });
 
-  it('fails closed instead of relabeling an unexpected rejected tutor as pending', async () => {
+  it('hides an unexpected rejected tutor instead of relabeling it as pending', async () => {
     const prisma = createPrisma();
+    const warn = jest.spyOn(Logger.prototype, 'warn').mockImplementation();
     prisma.tutorProfile.findFirst.mockResolvedValue(
       publicTutor({ verificationStatus: 'REJECTED' }),
     );
     const service = new TutorsService(prisma as unknown as PrismaService);
 
     await expect(service.getPublicTutor(TUTOR_ID)).rejects.toThrow(
-      'Unexpected public tutor verification status',
+      new NotFoundException('Tutor not found'),
     );
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining(TUTOR_ID));
+  });
+
+  it('skips an unexpected tutor status without failing the complete search', async () => {
+    const prisma = createPrisma();
+    const warn = jest.spyOn(Logger.prototype, 'warn').mockImplementation();
+    const rejected = publicSearchListing();
+    rejected.tutorProfile.verificationStatus = 'REJECTED';
+    prisma.teachingListing.findMany.mockResolvedValue([rejected, publicSearchListing()]);
+    const service = new TutorsService(prisma as unknown as PrismaService);
+
+    await expect(service.searchPublicTutors({})).resolves.toHaveLength(1);
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining(LISTING_ID));
   });
 
   it('returns active catalogs in deterministic order and preserves empty results', async () => {

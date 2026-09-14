@@ -1,6 +1,9 @@
-import { AccountStatus, Role, TutorVerificationStatus } from '@/generated/prisma/client';
+import { AccountStatus, Role, TutorVerificationStatus } from '@/generated/prisma/enums';
 
 import type { Prisma } from '@/generated/prisma/client';
+
+export type PublicTutorVerificationStatus =
+  typeof TutorVerificationStatus.PENDING | typeof TutorVerificationStatus.VERIFIED;
 
 export const publicTutorWhere = {
   verificationStatus: {
@@ -13,10 +16,8 @@ export const publicTutorWhere = {
   },
 } satisfies Prisma.TutorProfileWhereInput;
 
-export function toPublicTutorVerificationStatus(
+export function isPublicTutorVerificationStatus(
   status: TutorVerificationStatus,
-): 'PENDING' | 'VERIFIED' {
-  if (status === TutorVerificationStatus.PENDING) return 'PENDING';
-  if (status === TutorVerificationStatus.VERIFIED) return 'VERIFIED';
-  throw new Error('Unexpected public tutor verification status');
+): status is PublicTutorVerificationStatus {
+  return status === TutorVerificationStatus.PENDING || status === TutorVerificationStatus.VERIFIED;
 }

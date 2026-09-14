@@ -117,7 +117,7 @@ export function TutorDashboard({ user, onLogout }: TutorDashboardProps) {
             </p>
             <div className="py-2.5 text-sm text-[#5e5a52]">
               {nextBooking
-                ? `${nextBooking.student.nickname} · ${formatBangkokDateTime(nextBooking.slot.startAtUtc, language)}`
+                ? `${nextBooking.student.nickname ?? tutorCopy.unavailableStudent} · ${formatBangkokDateTime(nextBooking.slot.startAtUtc, language)}`
                 : tutorCopy.noUpcomingSessions}
             </div>
             {nextBooking && <span className="dash-pill done">{nextBooking.status}</span>}
@@ -258,7 +258,7 @@ export function TutorDashboard({ user, onLogout }: TutorDashboardProps) {
                   key={booking.id}
                   className="rounded-2xl border border-[#ebe6dd] bg-[#faf8f4] p-4"
                 >
-                  <strong>{booking.student.nickname}</strong>
+                  <strong>{booking.student.nickname ?? tutorCopy.unavailableStudent}</strong>
                   <p className="mt-1 text-sm text-[#5e5a52]">
                     {booking.listing.subjectName} · {booking.listing.gradeLevelName} ·{' '}
                     {formatBangkokDateTime(booking.slot.startAtUtc, language)}

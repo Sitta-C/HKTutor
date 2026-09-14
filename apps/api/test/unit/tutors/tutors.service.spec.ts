@@ -272,7 +272,7 @@ describe('TutorsService', () => {
   });
 
   describe('postPublishListing', () => {
-    it('publishes a listing for an active pending or verified tutor', async () => {
+    it('publishes a listing for an eligible tutor', async () => {
       jest.useFakeTimers().setSystemTime(new Date('2026-09-10T01:00:00.000Z'));
       const prisma = createPrisma();
       const publishedAt = new Date('2026-09-10T01:00:00.000Z');

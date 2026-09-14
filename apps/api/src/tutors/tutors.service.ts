@@ -3,15 +3,17 @@ import {
   ConflictException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
   ServiceUnavailableException,
 } from '@nestjs/common';
 
 import { PrismaService } from '@/database/prisma.service';
 import { BookingStatus, ListingPublicationStatus, Prisma } from '@/generated/prisma/client';
-import { publicTutorWhere, toPublicTutorVerificationStatus } from '@/tutors/public-tutor-access';
+import { isPublicTutorVerificationStatus, publicTutorWhere } from '@/tutors/public-tutor-access';
 import { AvailabilityState } from '@/tutors/tutors.dto';
 
+import type { PublicTutorVerificationStatus } from '@/tutors/public-tutor-access';
 import type {
   AvailabilityPostRequestDto,
   AvailabilityPostResponseDto,
@@ -222,6 +224,8 @@ const isConstraintViolation = (error: unknown): boolean => {
 
 @Injectable()
 export class TutorsService {
+  private readonly logger = new Logger(TutorsService.name);
+
   constructor(private readonly prisma: PrismaService) {}
 
   async searchPublicTutors(query: TutorSearchQueryDto): Promise<TutorSearchResultDto[]> {
@@ -265,7 +269,17 @@ export class TutorsService {
       orderBy: [{ publishedAt: 'desc' }, { id: 'asc' }],
     });
 
-    return listings.map(mapPublicSearchListing);
+    return listings.flatMap((listing) => {
+      const status = listing.tutorProfile.verificationStatus;
+      if (!isPublicTutorVerificationStatus(status)) {
+        this.logger.warn(
+          `Skipping public listing ${listing.id} with unexpected tutor verification status ${status}`,
+        );
+        return [];
+      }
+
+      return [mapPublicSearchListing(listing, status)];
+    });
   }
 
   async getPublicTutor(tutorId: string): Promise<PublicTutorDetailResponseDto> {
@@ -274,11 +288,18 @@ export class TutorsService {
       where: { ...publicTutorWhere, userId: tutorId },
     });
 
-    if (!tutor) throw new NotFoundException('Tutor not found');
+    if (!tutor || !isPublicTutorVerificationStatus(tutor.verificationStatus)) {
+      if (tutor) {
+        this.logger.warn(
+          `Hiding tutor ${tutor.userId} with unexpected verification status ${tutor.verificationStatus}`,
+        );
+      }
+      throw new NotFoundException('Tutor not found');
+    }
 
     return {
       listings: tutor.listings.map(mapPublicDetailListing),
-      tutor: mapPublicTutor(tutor),
+      tutor: mapPublicTutor(tutor, tutor.verificationStatus),
     };
   }
 
@@ -648,7 +669,10 @@ function mapListing(listing: SelectedListing): ListingResponseDto {
   };
 }
 
-function mapPublicSearchListing(listing: SelectedPublicSearchListing): TutorSearchResultDto {
+function mapPublicSearchListing(
+  listing: SelectedPublicSearchListing,
+  verificationStatus: PublicTutorVerificationStatus,
+): TutorSearchResultDto {
   const tutor = listing.tutorProfile;
 
   return {
@@ -663,11 +687,14 @@ function mapPublicSearchListing(listing: SelectedPublicSearchListing): TutorSear
     reviewCount: tutor.reviewCount,
     subject: listing.subject.name,
     tutorId: tutor.userId,
-    verificationStatus: toPublicTutorVerificationStatus(tutor.verificationStatus),
+    verificationStatus,
   };
 }
 
-function mapPublicTutor(tutor: SelectedPublicTutor): PublicTutorDetailResponseDto['tutor'] {
+function mapPublicTutor(
+  tutor: SelectedPublicTutor,
+  verificationStatus: PublicTutorVerificationStatus,
+): PublicTutorDetailResponseDto['tutor'] {
   return {
     bio: tutor.bio,
     displayName: tutor.displayName,
@@ -675,7 +702,7 @@ function mapPublicTutor(tutor: SelectedPublicTutor): PublicTutorDetailResponseDt
     ratingAverage: tutor.ratingAverage?.toNumber() ?? null,
     reviewCount: tutor.reviewCount,
     tutorId: tutor.userId,
-    verificationStatus: toPublicTutorVerificationStatus(tutor.verificationStatus),
+    verificationStatus,
   };
 }
 

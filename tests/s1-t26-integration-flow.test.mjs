@@ -107,6 +107,11 @@ test('keeps the walking-skeleton seed bookable and repeated registration safe', 
   );
   assert.match(register, /err instanceof ApiError && err\.status === 503/);
   assert.match(register, /delivery=failed/);
+  assert.match(register, /err instanceof ApiError && err\.status === 409/);
+  assert.match(
+    register,
+    /router\.push\(`\/register\/verify\?email=\$\{encodeURIComponent\(email\)\}`\)/,
+  );
   assert.match(verify, /copy\.register\.verificationDeliveryFailed/);
 });
 
