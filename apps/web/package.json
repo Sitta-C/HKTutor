@@ -7,6 +7,7 @@
     "build": "next build --webpack",
     "start": "next start",
     "test": "vitest run",
+    "test:e2e": "playwright test",
     "test:watch": "vitest",
     "lint": "eslint --max-warnings=0",
     "lint:fix": "eslint --fix --max-warnings=0"
@@ -22,6 +23,7 @@
   "devDependencies": {
     "@hktutor/eslint-config": "workspace:*",
     "@hktutor/tsconfig": "workspace:*",
+    "@playwright/test": "^1.63.0",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",

@@ -93,16 +93,13 @@ export default function TutorListingEditor({ listingId }: TutorListingEditorProp
     }
 
     let active = true;
-    Promise.all([
-      getListingCatalogs().catch(() => null),
-      getMyProfile(),
-      listingId ? getTutorListing(listingId) : Promise.resolve(null),
-    ])
-      .then(([catalogs, profileResult, currentListing]) => {
+    const editorPath = listingId
+      ? `/dashboard/listings/${encodeURIComponent(listingId)}/edit`
+      : '/dashboard/listings/new';
+
+    getMyProfile()
+      .then(async (profileResult) => {
         if (!active) return;
-        const editorPath = listingId
-          ? `/dashboard/listings/${encodeURIComponent(listingId)}/edit`
-          : '/dashboard/listings/new';
         if (resolveDashboardGate(profileResult)) {
           router.replace(withReturnTo('/onboarding/profile', editorPath));
           return;
@@ -112,9 +109,15 @@ export default function TutorListingEditor({ listingId }: TutorListingEditorProp
             ? profileResult.profile
             : null;
         if (!tutorProfile) {
-          router.replace('/onboarding/profile');
+          router.replace(withReturnTo('/onboarding/profile', editorPath));
           return;
         }
+
+        const [catalogs, currentListing] = await Promise.all([
+          getListingCatalogs().catch(() => null),
+          listingId ? getTutorListing(listingId) : Promise.resolve(null),
+        ]);
+        if (!active) return;
 
         let subjectOptions = catalogs?.subjects ?? [];
         let gradeOptions = catalogs?.gradeLevels ?? [];
@@ -147,9 +150,6 @@ export default function TutorListingEditor({ listingId }: TutorListingEditorProp
       .catch((caught: unknown) => {
         if (!active) return;
         if (caught instanceof ApiError && caught.status === 400) {
-          const editorPath = listingId
-            ? `/dashboard/listings/${encodeURIComponent(listingId)}/edit`
-            : '/dashboard/listings/new';
           router.replace(withReturnTo('/onboarding/profile', editorPath));
           return;
         }
