@@ -45,6 +45,21 @@ test('gates every private flow route and connects both dashboards to live bookin
   assert.match(bookingApi, /authenticatedFetch<TutorBookingsResponse>\(`\/bookings\/tutor/);
 });
 
+test('checks the tutor profile gate before loading listing edit dependencies', async () => {
+  const listingEditor = await read('apps/web/src/components/listings/tutor-listing-editor.tsx');
+  const effectStart = listingEditor.indexOf('let active = true;');
+  const effectEnd = listingEditor.indexOf('return () => {', effectStart);
+  const loadSequence = listingEditor.slice(effectStart, effectEnd);
+  const profileRequest = loadSequence.indexOf('getMyProfile()');
+  const profileGate = loadSequence.indexOf('resolveDashboardGate(profileResult)');
+  const listingRequest = loadSequence.indexOf('getTutorListing(listingId)');
+
+  assert.ok(effectStart >= 0 && effectEnd > effectStart);
+  assert.ok(profileRequest >= 0 && profileRequest < profileGate);
+  assert.ok(profileGate < listingRequest);
+  assert.match(loadSequence, /withReturnTo\('\/onboarding\/profile', editorPath\)/);
+});
+
 test('allows pending tutors to publish while surfacing verification status throughout discovery', async () => {
   const [tutorsService, bookingService, searchPage, tutorDetail, listingEditor] = await Promise.all(
     [
