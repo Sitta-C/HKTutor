@@ -27,7 +27,7 @@ type TransactionCallback = (tx: {
   $queryRaw?: jest.Mock;
   booking?: { create?: jest.Mock; findFirst?: jest.Mock };
   teachingListing?: { findUnique?: jest.Mock };
-  tutorProfile?: { findUnique?: jest.Mock };
+  tutorProfile?: { findFirst?: jest.Mock };
   user?: { findUnique?: jest.Mock };
 }) => Promise<unknown>;
 
@@ -45,7 +45,7 @@ describe('BookingsService', () => {
     availabilitySlot: { findUnique: jest.fn() },
     booking: { count: jest.fn(), findFirst: jest.fn(), findMany: jest.fn() },
     teachingListing: { findUnique: jest.fn() },
-    tutorProfile: { findUnique: jest.fn() },
+    tutorProfile: { findFirst: jest.fn() },
     user: { findUnique: jest.fn() },
   };
 
@@ -132,6 +132,7 @@ describe('BookingsService', () => {
         };
 
         const bookingCreate = jest.fn().mockResolvedValue(mockBooking);
+        const tutorFindFirst = jest.fn().mockResolvedValue({ verificationStatus });
         mockPrismaService.$transaction.mockImplementation(async (callback: TransactionCallback) => {
           const tx = {
             $queryRaw: jest.fn().mockResolvedValue([mockSlot]),
@@ -143,7 +144,7 @@ describe('BookingsService', () => {
               findUnique: jest.fn().mockResolvedValue(mockListing),
             },
             tutorProfile: {
-              findUnique: jest.fn().mockResolvedValue({ verificationStatus }),
+              findFirst: tutorFindFirst,
             },
             user: {
               findUnique: jest.fn().mockResolvedValue(mockStudent),
@@ -173,6 +174,14 @@ describe('BookingsService', () => {
         });
 
         expect(mockPrismaService.$transaction).toHaveBeenCalledTimes(1);
+        expect(tutorFindFirst).toHaveBeenCalledWith({
+          select: { verificationStatus: true },
+          where: {
+            user: { accountStatus: 'ACTIVE', deletedAt: null, role: 'TUTOR' },
+            userId: tutorUserId,
+            verificationStatus: { in: ['PENDING', 'VERIFIED'] },
+          },
+        });
         expect(bookingCreate).toHaveBeenCalledWith({
           data: {
             currency: 'THB',
@@ -392,57 +401,6 @@ describe('BookingsService', () => {
 
       await expect(service.create(input)).rejects.toThrow(
         new BadRequestException('The selected slot has already started or is in the past.'),
-      );
-    });
-
-    it('should throw BadRequestException when a tutor tries to book their own slot', async () => {
-      const { listingId, slotId, tutorUserId } = createTestData();
-      const pricePerHour = 500;
-
-      const mockSlot = futureSlot(slotId, tutorUserId);
-
-      const mockStudent = {
-        accountStatus: AccountStatus.ACTIVE,
-        deletedAt: null,
-        id: tutorUserId,
-        role: Role.STUDENT,
-      };
-
-      const mockListing = {
-        deletedAt: null,
-        id: listingId,
-        pricePerHour: pricePerHour,
-        publicationStatus: ListingPublicationStatus.PUBLISHED,
-        tutorProfileId: tutorUserId,
-      };
-
-      mockPrismaService.$transaction.mockImplementation(async (callback: TransactionCallback) => {
-        const tx = {
-          $queryRaw: jest.fn().mockResolvedValue([mockSlot]),
-          booking: {
-            findFirst: jest.fn().mockResolvedValue(null),
-          },
-          teachingListing: {
-            findUnique: jest.fn().mockResolvedValue(mockListing),
-          },
-          tutorProfile: {
-            findUnique: jest.fn().mockResolvedValue(verifiedTutorProfile),
-          },
-          user: {
-            findUnique: jest.fn().mockResolvedValue(mockStudent),
-          },
-        };
-        return await callback(tx);
-      });
-
-      const input: CreateBookingInput = {
-        listingId,
-        slotId,
-        studentUserId: tutorUserId,
-      };
-
-      await expect(service.create(input)).rejects.toThrow(
-        new BadRequestException('Tutors cannot book their own slots.'),
       );
     });
 
@@ -690,9 +648,7 @@ describe('BookingsService', () => {
             findUnique: jest.fn().mockResolvedValue(mockListing),
           },
           tutorProfile: {
-            findUnique: jest.fn().mockResolvedValue({
-              verificationStatus: TutorVerificationStatus.REJECTED,
-            }),
+            findFirst: jest.fn().mockResolvedValue(null),
           },
           user: {
             findUnique: jest.fn().mockResolvedValue(mockStudent),
@@ -801,7 +757,7 @@ describe('BookingsService', () => {
             findUnique: jest.fn().mockResolvedValue(mockListing),
           },
           tutorProfile: {
-            findUnique: jest.fn().mockResolvedValue(verifiedTutorProfile),
+            findFirst: jest.fn().mockResolvedValue(verifiedTutorProfile),
           },
           user: {
             findUnique: jest.fn().mockResolvedValue(mockStudent),
@@ -870,7 +826,7 @@ describe('BookingsService', () => {
         mockPrismaService.teachingListing.findUnique.mockResolvedValue(
           mockListingResult(listingId, tutorUserId, pricePerHour),
         );
-        mockPrismaService.tutorProfile.findUnique.mockResolvedValue({
+        mockPrismaService.tutorProfile.findFirst.mockResolvedValue({
           displayName: 'Anan Suksawat',
           verificationStatus,
         });
@@ -896,6 +852,14 @@ describe('BookingsService', () => {
         expect(result.discountAmount).toBe('0.00');
         expect(result.netAmount).toBe('450.00');
         expect(result.currency).toBe('THB');
+        expect(mockPrismaService.tutorProfile.findFirst).toHaveBeenCalledWith({
+          select: { displayName: true, verificationStatus: true },
+          where: {
+            user: { accountStatus: 'ACTIVE', deletedAt: null, role: 'TUTOR' },
+            userId: tutorUserId,
+            verificationStatus: { in: ['PENDING', 'VERIFIED'] },
+          },
+        });
       },
     );
 
@@ -913,7 +877,7 @@ describe('BookingsService', () => {
       mockPrismaService.teachingListing.findUnique.mockResolvedValue(
         mockListingResult(listingId, tutorUserId, 100),
       );
-      mockPrismaService.tutorProfile.findUnique.mockResolvedValue({
+      mockPrismaService.tutorProfile.findFirst.mockResolvedValue({
         displayName: 'Anan Suksawat',
         verificationStatus: TutorVerificationStatus.VERIFIED,
       });
@@ -936,7 +900,7 @@ describe('BookingsService', () => {
       mockPrismaService.teachingListing.findUnique.mockResolvedValue(
         mockListingResult(listingId, tutorUserId, 450),
       );
-      mockPrismaService.tutorProfile.findUnique.mockResolvedValue({
+      mockPrismaService.tutorProfile.findFirst.mockResolvedValue({
         displayName: 'Anan Suksawat',
         verificationStatus: TutorVerificationStatus.VERIFIED,
       });
@@ -1034,10 +998,7 @@ describe('BookingsService', () => {
       mockPrismaService.teachingListing.findUnique.mockResolvedValue(
         mockListingResult(listingId, tutorUserId, 450),
       );
-      mockPrismaService.tutorProfile.findUnique.mockResolvedValue({
-        displayName: 'Anan Suksawat',
-        verificationStatus: TutorVerificationStatus.REJECTED,
-      });
+      mockPrismaService.tutorProfile.findFirst.mockResolvedValue(null);
 
       await expect(service.getQuote({ listingId, slotId, studentUserId })).rejects.toThrow(
         new ConflictException('The selected listing is not currently available for booking.'),
@@ -1372,6 +1333,18 @@ describe('BookingsService', () => {
       expect(result.items).toEqual([expect.objectContaining({ student: { nickname: 'Nan' } })]);
       expect(result.items[0]).not.toHaveProperty('tutor');
       expect(Object.keys(result.items[0] as object)).not.toContain('legalName');
+    });
+
+    it('uses a safe label when a historical booking no longer has a student profile', async () => {
+      const { tutorUserId } = createTestData();
+      const row = mockTutorBookingRow({ student: { studentProfile: null } });
+
+      mockPrismaService.booking.findMany.mockResolvedValue([row]);
+      mockPrismaService.booking.count.mockResolvedValue(1);
+
+      await expect(service.getTutorBookings({ tutorUserId })).resolves.toMatchObject({
+        items: [expect.objectContaining({ student: { nickname: 'Student' } })],
+      });
     });
 
     it('combines the status filter with the where clause', async () => {

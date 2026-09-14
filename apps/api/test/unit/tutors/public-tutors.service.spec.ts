@@ -322,6 +322,18 @@ describe('TutorsService public discovery APIs', () => {
     );
   });
 
+  it('fails closed instead of relabeling an unexpected rejected tutor as pending', async () => {
+    const prisma = createPrisma();
+    prisma.tutorProfile.findFirst.mockResolvedValue(
+      publicTutor({ verificationStatus: 'REJECTED' }),
+    );
+    const service = new TutorsService(prisma as unknown as PrismaService);
+
+    await expect(service.getPublicTutor(TUTOR_ID)).rejects.toThrow(
+      'Unexpected public tutor verification status',
+    );
+  });
+
   it('returns active catalogs in deterministic order and preserves empty results', async () => {
     const prisma = createPrisma();
     prisma.subject.findMany.mockResolvedValue([subject]);
