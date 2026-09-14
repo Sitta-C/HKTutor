@@ -8,11 +8,7 @@ import {
 } from '@nestjs/common';
 
 import { PrismaService } from '@/database/prisma.service';
-import {
-  BookingStatus,
-  ListingPublicationStatus,
-  Prisma,
-} from '@/generated/prisma/client';
+import { BookingStatus, ListingPublicationStatus, Prisma } from '@/generated/prisma/client';
 import { publicTutorWhere, toPublicTutorVerificationStatus } from '@/tutors/public-tutor-access';
 import { AvailabilityState } from '@/tutors/tutors.dto';
 
