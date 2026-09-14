@@ -2,13 +2,10 @@ import { AccountStatus, Role, TutorVerificationStatus } from '@/generated/prisma
 
 import type { Prisma } from '@/generated/prisma/client';
 
-export type PublicTutorVerificationStatus =
-  typeof TutorVerificationStatus.PENDING | typeof TutorVerificationStatus.VERIFIED;
+export type PublicTutorVerificationStatus = typeof TutorVerificationStatus.VERIFIED;
 
 export const publicTutorWhere = {
-  verificationStatus: {
-    in: [TutorVerificationStatus.PENDING, TutorVerificationStatus.VERIFIED],
-  },
+  verificationStatus: TutorVerificationStatus.VERIFIED,
   user: {
     accountStatus: AccountStatus.ACTIVE,
     deletedAt: null,
@@ -19,5 +16,5 @@ export const publicTutorWhere = {
 export function isPublicTutorVerificationStatus(
   status: TutorVerificationStatus,
 ): status is PublicTutorVerificationStatus {
-  return status === TutorVerificationStatus.PENDING || status === TutorVerificationStatus.VERIFIED;
+  return status === TutorVerificationStatus.VERIFIED;
 }

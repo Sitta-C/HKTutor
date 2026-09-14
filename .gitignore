@@ -20,7 +20,7 @@ apps/api/src/generated/prisma/
 !.env.example
 
 # Repository-local planning source contains team member names and student IDs.
-HKTutor_overview.xlsx
+HKTutor_Backlog.xlsx
 
 # Tooling files
 *.tsbuildinfo

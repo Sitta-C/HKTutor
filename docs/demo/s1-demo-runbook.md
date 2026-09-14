@@ -145,11 +145,11 @@ Compose on the presenting machine: `TBC`, not yet run.
 Not in Sprint 1, so not demonstrated: tutor confirming or rejecting a booking, and admin tools. No
 endpoint for either exists on `main`.
 
-Three things to say accurately on stage, because the code does not match older wording:
+Three things to say accurately on stage:
 
-- Discovery lists **pending or verified** tutors and shows the verification badge; it is not
-  verified-only. This is deliberate — tutor verification is Sprint 2 — and is logged as issue I3 in
-  the evidence record.
+- Discovery lists only **verified** tutors with published listings. Pending and rejected tutors may
+  save drafts, but cannot publish, appear in public discovery, expose public availability, or receive
+  new bookings.
 - Booking requires a **completed student profile**. Seeded Nan has one. An account registered live
   in step 1 must finish student onboarding before step 6 will succeed.
 - The quote shown in step 6 is computed by the API from the slot duration and the listing price. The

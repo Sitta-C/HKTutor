@@ -316,6 +316,8 @@ describe('BookingsController OpenAPI contract', () => {
         expect.objectContaining({ name: 'status', required: false }),
         expect.objectContaining({ name: 'from', required: false }),
         expect.objectContaining({ name: 'to', required: false }),
+        expect.objectContaining({ name: 'page', required: false }),
+        expect.objectContaining({ name: 'pageSize', required: false }),
       ]),
     );
   });
@@ -361,6 +363,8 @@ describe('BookingsController OpenAPI contract', () => {
         expect.objectContaining({ name: 'status', required: false }),
         expect.objectContaining({ name: 'from', required: false }),
         expect.objectContaining({ name: 'to', required: false }),
+        expect.objectContaining({ name: 'page', required: false }),
+        expect.objectContaining({ name: 'pageSize', required: false }),
       ]),
     );
 

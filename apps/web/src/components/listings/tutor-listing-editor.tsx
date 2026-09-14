@@ -225,6 +225,10 @@ export default function TutorListingEditor({ listingId }: TutorListingEditorProp
   };
 
   const saveListing = async (action: 'save' | 'publish') => {
+    if (action === 'publish' && !isVerified) {
+      setPageError(copy.verificationError);
+      return;
+    }
     const nextErrors = validateForm(form, copy);
     setErrors(nextErrors);
     setPageError(null);
@@ -552,7 +556,7 @@ export default function TutorListingEditor({ listingId }: TutorListingEditorProp
                 {status !== 'PUBLISHED' && (
                   <button
                     type="button"
-                    disabled={createBlocked || submitAction !== null}
+                    disabled={createBlocked || !isVerified || submitAction !== null}
                     onClick={() => void saveListing('publish')}
                     className="listing-primary-action profile-primary-button min-h-12 rounded-md bg-[#34271e] px-5 text-sm font-extrabold text-white shadow-[0_2px_8px_-5px_rgba(43,31,22,0.35)] transition hover:-translate-y-0.5 hover:bg-[#4b3729] disabled:cursor-not-allowed disabled:translate-y-0 disabled:opacity-45"
                   >
@@ -734,7 +738,7 @@ const englishCopy = {
   priceError: 'Enter a price greater than zero with no more than two decimal places.',
   publishRule: 'Publication eligibility',
   canPublish: 'Your verified tutor profile can publish this listing.',
-  cannotPublish: 'You can publish now. Students will see that verification is pending.',
+  cannotPublish: 'Save this listing as a draft until your tutor profile is verified.',
   description: 'Listing description',
   descriptionPlaceholder:
     'Explain what students will learn, your teaching approach, and who this course suits.',
@@ -768,7 +772,7 @@ const englishCopy = {
   unsaved: 'Unsaved changes',
   upToDate: 'All changes saved',
   savedSuccess: 'Your listing changes have been saved.',
-  verificationError: 'This listing could not be published.',
+  verificationError: 'Your tutor profile must be verified before publishing.',
   discardConfirm: 'Discard your unsaved changes?',
   qualityTitle: 'A strong listing is easy to scan',
   qualityOne: 'State the learning outcome in the first sentence.',
@@ -809,7 +813,7 @@ const thaiCopy: typeof englishCopy = {
   priceError: 'กรุณากรอกราคามากกว่าศูนย์และมีทศนิยมไม่เกินสองตำแหน่ง',
   publishRule: 'สิทธิ์ในการเผยแพร่',
   canPublish: 'โปรไฟล์ติวเตอร์ของคุณผ่านการยืนยันและเผยแพร่ประกาศนี้ได้',
-  cannotPublish: 'เผยแพร่ได้ทันที โดยนักเรียนจะเห็นว่าสถานะกำลังรอตรวจสอบ',
+  cannotPublish: 'บันทึกประกาศนี้เป็นฉบับร่างได้ และเผยแพร่เมื่อโปรไฟล์ติวเตอร์ผ่านการยืนยันแล้ว',
   description: 'คำอธิบายคอร์ส',
   descriptionPlaceholder: 'อธิบายว่านักเรียนจะได้เรียนรู้อะไร แนวทางการสอน และคอร์สนี้เหมาะกับใคร',
   descriptionHelp: 'เขียน 20–1,000 ตัวอักษร ระบุผลลัพธ์ที่ชัดเจนและใช้ภาษาที่เข้าใจง่าย',
@@ -842,7 +846,7 @@ const thaiCopy: typeof englishCopy = {
   unsaved: 'มีการเปลี่ยนแปลงที่ยังไม่ได้บันทึก',
   upToDate: 'บันทึกข้อมูลล่าสุดแล้ว',
   savedSuccess: 'บันทึกการแก้ไขประกาศแล้ว',
-  verificationError: 'ไม่สามารถเผยแพร่ประกาศนี้ได้',
+  verificationError: 'โปรไฟล์ติวเตอร์ต้องผ่านการยืนยันก่อนจึงจะเผยแพร่ได้',
   discardConfirm: 'ยกเลิกการเปลี่ยนแปลงที่ยังไม่ได้บันทึกหรือไม่?',
   qualityTitle: 'ประกาศที่ดีควรอ่านเข้าใจได้เร็ว',
   qualityOne: 'บอกผลลัพธ์การเรียนรู้ตั้งแต่ประโยคแรก',

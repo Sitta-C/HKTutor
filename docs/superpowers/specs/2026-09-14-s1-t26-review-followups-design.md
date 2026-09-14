@@ -16,8 +16,9 @@ skeleton.
 
 ## Tutor eligibility contract
 
-- One shared allowlist defines an eligible tutor as pending or verified with an active, non-deleted
-  tutor account.
+- One shared allowlist originally defined an eligible tutor as pending or verified. This decision was
+  superseded on 2026-09-14: public eligibility now requires a verified, active, non-deleted tutor
+  account so the implementation matches US1-1 and the RBAC contract.
 - Publishing, public discovery, public availability, booking creation, and booking quotes all use
   that allowlist.
 - Public search skips and logs an unexpected tutor status per row so one invalid record cannot turn
@@ -31,5 +32,4 @@ student nickname, and the web dashboard supplies localized English and Thai fall
 
 ## Out of scope
 
-Changing the pending-tutor product rule and redesigning verification-token invalidation are separate
-team decisions. The latter is tracked as Sprint 2 follow-up work.
+Redesigning verification-token invalidation remains separate follow-up work.

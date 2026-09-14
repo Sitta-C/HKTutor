@@ -100,8 +100,8 @@ export default function TutorListingsPage() {
 
   const nextStep = useMemo(() => {
     if (counts.DRAFT > 0) return copy.reviewDrafts;
-    return isVerified ? copy.keepTeaching : copy.publishWhilePending;
-  }, [copy.keepTeaching, copy.publishWhilePending, copy.reviewDrafts, counts.DRAFT, isVerified]);
+    return isVerified ? copy.keepTeaching : copy.verifyProfile;
+  }, [copy.keepTeaching, copy.reviewDrafts, copy.verifyProfile, counts.DRAFT, isVerified]);
 
   const visibleListings = useMemo(() => {
     const query = search.trim().toLocaleLowerCase(language === 'th' ? 'th' : 'en');
@@ -116,6 +116,10 @@ export default function TutorListingsPage() {
   }, [filter, language, listings, search]);
 
   const handlePublish = async (listingId: string) => {
+    if (!isVerified) {
+      setError(copy.actionError);
+      return;
+    }
     setBusyId(listingId);
     setError(null);
     try {
@@ -213,7 +217,7 @@ export default function TutorListingsPage() {
             icon={isVerified ? 'check' : 'info'}
             label={copy.nextStep}
             value={nextStep}
-            detail={isVerified ? copy.verifiedDetail : copy.pendingPublishDetail}
+            detail={isVerified ? copy.verifiedDetail : copy.unverifiedDetail}
           />
         </section>
 
@@ -391,7 +395,7 @@ export default function TutorListingsPage() {
                       {listing.publicationStatus === 'DRAFT' && (
                         <button
                           type="button"
-                          disabled={busyId === listing.id}
+                          disabled={busyId === listing.id || !isVerified}
                           onClick={() => void handlePublish(listing.id)}
                           className="listing-primary-action min-h-11 flex-1 rounded-md bg-[#34271e] px-3.5 text-sm font-extrabold text-white transition hover:bg-[#4b3729] disabled:cursor-not-allowed disabled:opacity-45"
                         >
@@ -434,7 +438,7 @@ export default function TutorListingsPage() {
                         <>
                           <button
                             type="button"
-                            disabled={busyId === listing.id}
+                            disabled={busyId === listing.id || !isVerified}
                             onClick={() => void handleRestoreDraft(listing.id)}
                             className="listing-secondary-action min-h-11 flex-1 rounded-md border border-[#d9d2c6] bg-white px-3.5 text-sm font-extrabold text-[#3e342c] transition hover:border-[#bba990] hover:bg-[#faf5ed] disabled:cursor-wait disabled:opacity-50"
                           >
@@ -490,13 +494,11 @@ const englishCopy = {
   verifyProfile: 'Verify profile',
   reviewDrafts: 'Review drafts',
   keepTeaching: 'Keep teaching',
-  publishWhilePending: 'Publish while pending',
   verifiedDetail: 'Your profile is ready to publish',
   unverifiedDetail: 'Complete verification to go live',
-  pendingPublishDetail: 'Published listings show a pending-verification badge',
   verificationTitle: 'Verification is pending',
   verificationBody:
-    'You can publish now. Students will see that your verification is still pending.',
+    'You can create and edit drafts now. Publishing becomes available after verification.',
   openProfile: 'Open profile',
   all: 'All',
   published: 'Published',
@@ -544,12 +546,10 @@ const thaiCopy: typeof englishCopy = {
   verifyProfile: 'ยืนยันโปรไฟล์',
   reviewDrafts: 'ตรวจฉบับร่าง',
   keepTeaching: 'สร้างต่อได้เลย',
-  publishWhilePending: 'เผยแพร่ระหว่างรอตรวจสอบ',
   verifiedDetail: 'โปรไฟล์พร้อมเผยแพร่แล้ว',
   unverifiedDetail: 'ยืนยันโปรไฟล์เพื่อเผยแพร่',
-  pendingPublishDetail: 'คอร์สที่เผยแพร่จะแสดงป้ายกำลังรอตรวจสอบ',
   verificationTitle: 'กำลังรอตรวจสอบโปรไฟล์',
-  verificationBody: 'คุณเผยแพร่ได้ทันที โดยนักเรียนจะเห็นว่าโปรไฟล์ยังอยู่ระหว่างการตรวจสอบ',
+  verificationBody: 'คุณสร้างและแก้ไขฉบับร่างได้ และจะเผยแพร่ได้หลังจากโปรไฟล์ผ่านการยืนยัน',
   openProfile: 'เปิดโปรไฟล์',
   all: 'ทั้งหมด',
   published: 'เผยแพร่แล้ว',

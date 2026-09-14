@@ -2,7 +2,6 @@ import { createHash, randomBytes, randomUUID, timingSafeEqual } from 'node:crypt
 
 import {
   BadRequestException,
-  ConflictException,
   ForbiddenException,
   Injectable,
   UnauthorizedException,
@@ -25,6 +24,7 @@ import type {
 import type { AuthResult, JwtPayload, PublicUser } from '@/auth/auth.types';
 
 const GENERIC_LOGIN_ERROR = 'Email or password is incorrect';
+const REGISTRATION_MESSAGE = 'If an account can be created, a verification email has been sent.';
 const VERIFICATION_MESSAGE = 'If the account can be verified, a verification email has been sent.';
 
 const roleMap = {
@@ -65,7 +65,7 @@ export class AuthService {
       select: { id: true },
     });
     if (existing) {
-      throw new ConflictException('An account with this email already exists');
+      return { message: REGISTRATION_MESSAGE };
     }
 
     const passwordHash = await this.passwords.hash(dto.password);
@@ -91,13 +91,13 @@ export class AuthService {
       });
     } catch (error) {
       if (isUniqueViolation(error)) {
-        throw new ConflictException('An account with this email already exists');
+        return { message: REGISTRATION_MESSAGE };
       }
       throw error;
     }
 
     await this.email.sendVerificationEmail(dto.email, token);
-    return { message: 'Check your email to verify your account.' };
+    return { message: REGISTRATION_MESSAGE };
   }
 
   async acceptPrivacyNotice(

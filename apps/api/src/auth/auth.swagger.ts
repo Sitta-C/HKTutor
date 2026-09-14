@@ -3,7 +3,6 @@ import {
   ApiBadRequestResponse,
   ApiBearerAuth,
   ApiBody,
-  ApiConflictResponse,
   ApiCookieAuth,
   ApiCreatedResponse,
   ApiForbiddenResponse,
@@ -102,7 +101,11 @@ const rateLimitResponse = ApiResponse({
 
 export function RegisterAuthDoc(): MethodDecorator {
   return applyDecorators(
-    ApiOperation({ summary: 'Register with email and password' }),
+    ApiOperation({
+      description:
+        'Always returns the same accepted result for new and existing emails so account existence is not disclosed.',
+      summary: 'Register with email and password',
+    }),
     ApiBody({
       schema: {
         example: {
@@ -129,9 +132,11 @@ export function RegisterAuthDoc(): MethodDecorator {
       },
     }),
     ApiCreatedResponse({
-      description: 'Account created and verification email accepted for delivery',
+      description: 'Generic registration result',
       schema: {
-        example: { message: 'Check your email to verify your account.' },
+        example: {
+          message: 'If an account can be created, a verification email has been sent.',
+        },
         properties: { message: { type: 'string' } },
         required: ['message'],
         type: 'object',
@@ -139,10 +144,6 @@ export function RegisterAuthDoc(): MethodDecorator {
     }),
     ApiBadRequestResponse({
       description: 'Registration data or consent is invalid',
-      schema: errorSchema,
-    }),
-    ApiConflictResponse({
-      description: 'An active account already uses this email',
       schema: errorSchema,
     }),
     ApiServiceUnavailableResponse({

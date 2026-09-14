@@ -77,6 +77,13 @@ describe('authentication Swagger contract', () => {
     expect(login.responses).toHaveProperty('429');
   });
 
+  it('documents registration as a generic response without an email-conflict signal', () => {
+    const registration = operation('post', '/api/v1/auth/register');
+    expect(registration.responses).toHaveProperty('201');
+    expect(registration.responses).not.toHaveProperty('409');
+    expect(JSON.stringify(registration)).toContain('account existence is not disclosed');
+  });
+
   function operation(method: string, path: string): OperationObject {
     const item = document.paths[path];
     const found = item?.[method as keyof typeof item] as OperationObject | undefined;

@@ -47,6 +47,8 @@ export function getMyBookings(queryInput: MyBookingsQuery = {}): Promise<MyBooki
   if (queryInput.status) params.set('status', queryInput.status);
   if (queryInput.from) params.set('from', toIsoString(queryInput.from));
   if (queryInput.to) params.set('to', toIsoString(queryInput.to));
+  if (queryInput.page !== undefined) params.set('page', String(queryInput.page));
+  if (queryInput.pageSize !== undefined) params.set('pageSize', String(queryInput.pageSize));
   const query = params.toString() ? `?${params.toString()}` : '';
   return authenticatedFetch<MyBookingsResponse>(`/bookings/me${query}`);
 }
@@ -62,6 +64,8 @@ export function getTutorBookings(
   if (queryInput.status) params.set('status', queryInput.status);
   if (queryInput.from) params.set('from', toIsoString(queryInput.from));
   if (queryInput.to) params.set('to', toIsoString(queryInput.to));
+  if (queryInput.page !== undefined) params.set('page', String(queryInput.page));
+  if (queryInput.pageSize !== undefined) params.set('pageSize', String(queryInput.pageSize));
   const query = params.toString() ? `?${params.toString()}` : '';
   return authenticatedFetch<TutorBookingsResponse>(`/bookings/tutor${query}`);
 }

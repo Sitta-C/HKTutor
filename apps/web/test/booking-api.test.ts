@@ -6,6 +6,7 @@ import {
   getBookingQuote,
   getMyBooking,
   getMyBookings,
+  getTutorBookings,
 } from '@/lib/api/bookings';
 import { clearAccessToken } from '@/lib/api/client';
 
@@ -116,6 +117,8 @@ describe('student booking API clients', () => {
     await expect(
       getMyBookings({
         from: new Date('2026-09-01T00:00:00.000Z'),
+        page: 2,
+        pageSize: 10,
         status: 'PENDING',
         to: '2026-09-30T23:59:59.999Z',
       }),
@@ -123,9 +126,20 @@ describe('student booking API clients', () => {
     await expect(getMyBooking('booking-id')).resolves.toEqual({ id: 'booking-id' });
 
     expect(fetchMock.mock.calls[0]?.[0]).toBe(
-      '/api/v1/bookings/me?status=PENDING&from=2026-09-01T00%3A00%3A00.000Z&to=2026-09-30T23%3A59%3A59.999Z',
+      '/api/v1/bookings/me?status=PENDING&from=2026-09-01T00%3A00%3A00.000Z&to=2026-09-30T23%3A59%3A59.999Z&page=2&pageSize=10',
     );
     expect(fetchMock.mock.calls[1]?.[0]).toBe('/api/v1/bookings/me/booking-id');
+  });
+
+  it('serializes tutor booking pagination without accepting a tutor id', async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({ items: [], total: 0 }));
+
+    await expect(getTutorBookings({ page: 3, pageSize: 25 })).resolves.toEqual({
+      items: [],
+      total: 0,
+    });
+
+    expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/v1/bookings/tutor?page=3&pageSize=25');
   });
 
   it.each([400, 401, 403, 409])(

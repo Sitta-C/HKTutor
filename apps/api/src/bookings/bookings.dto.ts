@@ -1,5 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsEnum, IsISO8601, IsOptional, IsString, IsUUID } from 'class-validator';
+import { Type } from 'class-transformer';
+import { IsEnum, IsInt, IsISO8601, IsOptional, IsString, IsUUID, Max, Min } from 'class-validator';
 
 import { BookingStatus } from '@/generated/prisma/enums';
 
@@ -63,8 +64,8 @@ export class BookingQuoteTutorDto {
   @ApiProperty({ example: 'Anan Suksawat' })
   displayName!: string;
 
-  @ApiPropertyOptional({ enum: ['PENDING', 'VERIFIED'], example: 'VERIFIED' })
-  verificationStatus?: 'PENDING' | 'VERIFIED';
+  @ApiPropertyOptional({ enum: ['VERIFIED'], example: 'VERIFIED' })
+  verificationStatus?: 'VERIFIED';
 }
 
 export class BookingQuoteListingDto {
@@ -124,7 +125,33 @@ export class BookingQuoteResponseDto {
   currency!: string;
 }
 
-export class GetMyBookingsQueryDto {
+export const DEFAULT_BOOKINGS_PAGE = 1;
+export const DEFAULT_BOOKINGS_PAGE_SIZE = 20;
+export const MAX_BOOKINGS_PAGE_SIZE = 100;
+
+export class BookingsPaginationQueryDto {
+  @ApiPropertyOptional({ default: DEFAULT_BOOKINGS_PAGE, example: 1, minimum: 1 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  page?: number;
+
+  @ApiPropertyOptional({
+    default: DEFAULT_BOOKINGS_PAGE_SIZE,
+    example: DEFAULT_BOOKINGS_PAGE_SIZE,
+    maximum: MAX_BOOKINGS_PAGE_SIZE,
+    minimum: 1,
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(MAX_BOOKINGS_PAGE_SIZE)
+  pageSize?: number;
+}
+
+export class GetMyBookingsQueryDto extends BookingsPaginationQueryDto {
   @ApiPropertyOptional({ enum: BookingStatus, example: BookingStatus.CONFIRMED })
   @IsOptional()
   @IsEnum(BookingStatus)
@@ -186,7 +213,7 @@ export class BookingDetailResponseDto extends BookingViewDto {
   updatedAt!: string;
 }
 
-export class GetTutorBookingsQueryDto {
+export class GetTutorBookingsQueryDto extends BookingsPaginationQueryDto {
   @ApiPropertyOptional({ enum: BookingStatus, example: BookingStatus.CONFIRMED })
   @IsOptional()
   @IsEnum(BookingStatus)
