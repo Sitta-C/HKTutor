@@ -55,7 +55,8 @@ test('keeps the new listing editor visible when the catalog dependency is unavai
   const editor = await read('apps/web/src/components/listings/tutor-listing-editor.tsx');
 
   assert.match(editor, /getListingCatalogs\(\)\.catch\(\(\) => null\)/);
-  assert.match(editor, /setProfile\(tutorProfile\)/);
+  assert.match(editor, /useProfileSession/);
+  assert.match(editor, /profileMode: 'required'/);
   assert.match(editor, /setCatalogError\(catalogs \? null : copy\.catalogUnavailable\)/);
   assert.match(editor, /const createBlocked = !isEditing && catalogUnavailable/);
   assert.match(editor, /disabled=\{catalogUnavailable\}/);

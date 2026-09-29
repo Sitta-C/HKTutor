@@ -27,7 +27,7 @@ rewrites that path to the API on port 3001. The API documentation is available a
 ### Current product surface
 
 The implemented web flow is login (`/`), registration (`/register`), email verification
-(`/register/verify`, with `/register/verifypage` retained as a legacy alias), role-specific profile
+(`/register/verify`, with `/register/verifypage` redirected as a legacy alias), role-specific profile
 onboarding (`/onboarding/profile`), a protected dashboard (`/dashboard`), profile editing
 (`/dashboard/profile`), tutor availability management (`/dashboard/availability`), and the
 informational `/about-me` page. The availability screen creates and deletes future Bangkok-time

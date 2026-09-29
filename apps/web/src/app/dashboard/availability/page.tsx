@@ -1,4 +1,4 @@
-import TutorAvailabilityPage from '@/components/availability/tutor-availability-page';
+import ManageTutorAvailability from '@/components/availability/manage-tutor-availability';
 
 import type { Metadata } from 'next';
 
@@ -9,5 +9,5 @@ export const metadata: Metadata = {
 };
 
 export default function DashboardAvailabilityPage() {
-  return <TutorAvailabilityPage />;
+  return <ManageTutorAvailability />;
 }

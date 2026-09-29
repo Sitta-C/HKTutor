@@ -3,6 +3,14 @@
 import Link from 'next/link';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+import { tutorSearchCopy } from '@/components/tutors/tutor-search-copy';
+import {
+  formatTutorSearchSummary,
+  initialTutorSearchForm,
+  toTutorSearchQuery,
+  tutorRatingOptions,
+  validateTutorSearch,
+} from '@/components/tutors/tutor-search-model';
 import {
   GraphPaper,
   NotebookHeading,
@@ -18,6 +26,8 @@ import { getGradeLevelCatalog, getSubjectCatalog, searchTutors } from '@/lib/api
 import { formatBangkokDateTime } from '@/lib/date-time';
 import { useLanguage } from '@/lib/i18n';
 
+import type { TutorSearchCopy } from '@/components/tutors/tutor-search-copy';
+import type { TutorSearchErrors, TutorSearchForm } from '@/components/tutors/tutor-search-model';
 import type {
   GradeLevelOption,
   SubjectOption,
@@ -27,122 +37,10 @@ import type {
 import type { FormEvent } from 'react';
 
 type SearchStatus = 'loading' | 'success' | 'error' | 'validation';
-type SearchForm = {
-  subject: string;
-  grade: string;
-  maxPrice: string;
-  minimumRating: string;
-};
-type SearchErrors = Partial<Record<keyof SearchForm, string>>;
-
-const initialForm: SearchForm = {
-  subject: '',
-  grade: '',
-  maxPrice: '',
-  minimumRating: '',
-};
-
-const ratingOptions = [1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5];
-
-const copy = {
-  en: {
-    eyebrow: 'Tutor search',
-    title: 'Find an exact match',
-    subtitle:
-      'Filter published listings from verified tutors by subject, grade, maximum budget and minimum rating.',
-    student: 'Student',
-    filters: 'Filters',
-    filtersHint: 'All selected filters are combined.',
-    subject: 'Subject',
-    allSubjects: 'All subjects',
-    grade: 'Grade level',
-    allGrades: 'All grades',
-    maxPrice: 'Maximum budget (THB/hour)',
-    maxPriceHint: 'The upper limit is inclusive.',
-    minimumRating: 'Minimum rating',
-    anyRating: 'Any rating',
-    ratingHint: 'Tutors without a rating are excluded when a minimum is selected.',
-    apply: 'Apply filters',
-    clear: 'Clear',
-    clearAllFilters: 'Clear all filters',
-    exactMatches: 'exact matches',
-    anySubject: 'Any subject',
-    anyGrade: 'Any grade',
-    anyBudget: 'Any budget',
-    upTo: 'up to',
-    ratingSummary: 'rating',
-    verifiedOnly: 'VERIFIED TUTORS ONLY',
-    verified: 'VERIFIED',
-    loading: 'Loading tutors…',
-    loadingCatalog: 'Loading subjects and grade levels…',
-    catalogError: 'Subject and grade options are temporarily unavailable.',
-    searchError: 'We could not load tutors right now. Please try again.',
-    validationError: 'Please check the highlighted filters.',
-    noMatches: 'No exact matches found',
-    noMatchesHint: 'Try clearing one or more filters to see other published Tutors.',
-    years: 'years experience',
-    newTutor: 'New tutor',
-    reviews: 'reviews',
-    noFutureSlots: 'No future slots',
-    next: 'Next',
-    hour: 'hour',
-    viewTimes: 'View times',
-    cardNote:
-      "Each card represents one matching teaching listing. Prices and subjects are never mixed across a tutor's other listings.",
-  },
-  th: {
-    eyebrow: 'ค้นหาติวเตอร์',
-    title: 'ค้นหาติวเตอร์ที่ตรงกับคุณ',
-    subtitle:
-      'กรองคอร์สที่เผยแพร่จากติวเตอร์ที่ผ่านการยืนยันแล้ว ตามวิชา ระดับชั้น งบสูงสุด และคะแนนขั้นต่ำ',
-    student: 'นักเรียน',
-    filters: 'ตัวกรอง',
-    filtersHint: 'ระบบจะใช้ตัวกรองที่เลือกทั้งหมดร่วมกัน',
-    subject: 'วิชา',
-    allSubjects: 'ทุกวิชา',
-    grade: 'ระดับชั้น',
-    allGrades: 'ทุกระดับชั้น',
-    maxPrice: 'ราคาสูงสุด (บาท/ชั่วโมง)',
-    maxPriceHint: 'ราคาที่เท่ากับค่าสูงสุดจะแสดงด้วย',
-    minimumRating: 'คะแนนขั้นต่ำ',
-    anyRating: 'ทุกคะแนน',
-    ratingHint: 'ติวเตอร์ที่ยังไม่มีคะแนนจะไม่แสดงเมื่อเลือกคะแนนขั้นต่ำ',
-    apply: 'ใช้ตัวกรอง',
-    clear: 'ล้าง',
-    clearAllFilters: 'ล้างตัวกรองทั้งหมด',
-    exactMatches: 'ผลลัพธ์ที่ตรงกัน',
-    anySubject: 'ทุกวิชา',
-    anyGrade: 'ทุกระดับชั้น',
-    anyBudget: 'ไม่จำกัดงบ',
-    upTo: 'ไม่เกิน',
-    ratingSummary: 'คะแนน',
-    verifiedOnly: 'เฉพาะติวเตอร์ที่ยืนยันแล้ว',
-    verified: 'ยืนยันแล้ว',
-    loading: 'กำลังโหลดข้อมูลติวเตอร์…',
-    loadingCatalog: 'กำลังโหลดวิชาและระดับชั้น…',
-    catalogError: 'ไม่สามารถโหลดตัวเลือกวิชาและระดับชั้นได้ชั่วคราว',
-    searchError: 'ไม่สามารถโหลดข้อมูลติวเตอร์ได้ กรุณาลองใหม่อีกครั้ง',
-    validationError: 'กรุณาตรวจสอบตัวกรองที่มีข้อความแจ้งเตือน',
-    noMatches: 'ไม่พบผลลัพธ์ที่ตรงกัน',
-    noMatchesHint: 'ลองล้างตัวกรองบางรายการเพื่อดูคอร์สอื่นที่เปิดสอน',
-    years: 'ปีประสบการณ์',
-    newTutor: 'ติวเตอร์ใหม่',
-    reviews: 'รีวิว',
-    noFutureSlots: 'ยังไม่มีเวลาว่างในอนาคต',
-    next: 'ครั้งถัดไป',
-    hour: 'ชั่วโมง',
-    viewTimes: 'ดูเวลาว่าง',
-    cardNote:
-      'แต่ละการ์ดแทนหนึ่งคอร์สที่ตรงกับตัวกรอง ราคาและวิชาจะไม่ถูกนำมาปะปนกับคอร์สอื่นของติวเตอร์คนเดียวกัน',
-  },
-} as const;
-
-type SearchCopy = { [Key in keyof (typeof copy)['en']]: string };
-
 export default function TutorSearchPage() {
   const { language } = useLanguage();
-  const text = copy[language];
-  const [form, setForm] = useState<SearchForm>(initialForm);
+  const text = tutorSearchCopy[language];
+  const [form, setForm] = useState<TutorSearchForm>(initialTutorSearchForm);
   const [subjects, setSubjects] = useState<SubjectOption[]>([]);
   const [gradeLevels, setGradeLevels] = useState<GradeLevelOption[]>([]);
   const [catalogLoading, setCatalogLoading] = useState(true);
@@ -150,7 +48,7 @@ export default function TutorSearchPage() {
   const [results, setResults] = useState<TutorSearchResult[]>([]);
   const [status, setStatus] = useState<SearchStatus>('loading');
   const [searchError, setSearchError] = useState<unknown | null>(null);
-  const [fieldErrors, setFieldErrors] = useState<SearchErrors>({});
+  const [fieldErrors, setFieldErrors] = useState<TutorSearchErrors>({});
   const requestId = useRef(0);
   const controller = useRef<AbortController | null>(null);
 
@@ -213,14 +111,17 @@ export default function TutorSearchPage() {
     };
   }, [executeSearch]);
 
-  const updateField = <Key extends keyof SearchForm>(key: Key, value: SearchForm[Key]) => {
+  const updateField = <Key extends keyof TutorSearchForm>(
+    key: Key,
+    value: TutorSearchForm[Key],
+  ) => {
     setForm((current) => ({ ...current, [key]: value }));
     setFieldErrors((current) => ({ ...current, [key]: undefined }));
   };
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const validation = validateSearchForm(form, text);
+    const validation = validateTutorSearch(form, text);
     setFieldErrors(validation);
     setSearchError(null);
     if (Object.keys(validation).length > 0) {
@@ -232,11 +133,11 @@ export default function TutorSearchPage() {
     }
 
     setFieldErrors({});
-    void executeSearch(toSearchQuery(form));
+    void executeSearch(toTutorSearchQuery(form));
   };
 
   const clearFilters = () => {
-    setForm(initialForm);
+    setForm(initialTutorSearchForm);
     setFieldErrors({});
     void executeSearch({});
   };
@@ -244,7 +145,7 @@ export default function TutorSearchPage() {
   const filterCount = [form.subject, form.grade, form.maxPrice, form.minimumRating].filter(
     Boolean,
   ).length;
-  const resultSummary = formatSearchSummary(form, text);
+  const resultSummary = formatTutorSearchSummary(form, text);
 
   return (
     <div className="mx-auto max-w-[1120px] py-8 lg:py-10">
@@ -320,7 +221,7 @@ export default function TutorSearchPage() {
               label={text.minimumRating}
               value={form.minimumRating}
               onChange={(value) => updateField('minimumRating', value)}
-              options={ratingOptions.map((value) => ({
+              options={tutorRatingOptions.map((value) => ({
                 label: `${value.toFixed(1)}+`,
                 value: String(value),
               }))}
@@ -522,7 +423,7 @@ function TutorResultCard({
   language,
 }: {
   result: TutorSearchResult;
-  text: SearchCopy;
+  text: TutorSearchCopy;
   language: 'en' | 'th';
 }) {
   const rating =
@@ -621,53 +522,6 @@ function SearchState({
       )}
     </GraphPaper>
   );
-}
-
-function validateSearchForm(form: SearchForm, text: SearchCopy): SearchErrors {
-  const errors: SearchErrors = {};
-  if (form.maxPrice !== '') {
-    const value = Number(form.maxPrice);
-    if (!Number.isFinite(value) || value < 0 || decimalPlaces(form.maxPrice) > 2) {
-      errors.maxPrice = text.validationError;
-    }
-  }
-  if (form.minimumRating !== '') {
-    const value = Number(form.minimumRating);
-    if (
-      !Number.isFinite(value) ||
-      value < 1 ||
-      value > 5 ||
-      decimalPlaces(form.minimumRating) > 2
-    ) {
-      errors.minimumRating = text.validationError;
-    }
-  }
-  return errors;
-}
-
-function toSearchQuery(form: SearchForm): TutorSearchQuery {
-  return {
-    ...(form.subject ? { subject: form.subject } : {}),
-    ...(form.grade ? { grade: form.grade } : {}),
-    ...(form.maxPrice !== '' ? { maxPrice: Number(form.maxPrice) } : {}),
-    ...(form.minimumRating !== '' ? { minimumRating: Number(form.minimumRating) } : {}),
-  };
-}
-
-function decimalPlaces(value: string): number {
-  const decimal = value.split('.')[1];
-  return decimal?.length ?? 0;
-}
-
-function formatSearchSummary(form: SearchForm, text: SearchCopy): string {
-  const subject = form.subject || text.anySubject;
-  const grade = form.grade || text.anyGrade;
-  const budget = form.maxPrice ? `${text.upTo} ${form.maxPrice}฿/${text.hour}` : text.anyBudget;
-  const rating = form.minimumRating
-    ? `${text.ratingSummary} ${Number(form.minimumRating).toFixed(1)}+`
-    : text.anyRating;
-
-  return [subject, grade, budget, rating].join(' · ');
 }
 
 function readSearchError(error: unknown, fallback: string): string {

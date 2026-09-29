@@ -4,6 +4,12 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 
+import {
+  formatAvailabilityDuration,
+  formatAvailabilityDurationLabel,
+  formatAvailabilityHoursMinutes,
+  safeBangkokDateTime,
+} from '@/components/availability/manage-tutor-availability-model';
 import { DashboardIcon } from '@/components/dashboard/dashboard-icon';
 import DashboardShell from '@/components/dashboard/dashboard-shell';
 import { LocalizedDatePicker } from '@/components/date-time/localized-date-picker';
@@ -24,7 +30,6 @@ import {
   getBangkokWeekRange,
   getBangkokWeekStart,
   getDurationHours,
-  getDurationHoursMinutes,
   getTutorAvailability,
   shiftBangkokWeek,
 } from '@/lib/api/availability';
@@ -53,7 +58,7 @@ const availabilitySecondaryButtonClass = notebookButtonClass({
   className: 'min-h-10 px-3 py-2 text-xs',
 });
 
-export default function TutorAvailabilityPage() {
+export default function ManageTutorAvailability() {
   const {
     isLoading: sessionLoading,
     logout,
@@ -264,7 +269,7 @@ export default function TutorAvailabilityPage() {
           />
           <SummaryCard
             label={availabilityCopy.teachingHours}
-            value={formatHoursMinutes(
+            value={formatAvailabilityHoursMinutes(
               teachingHours,
               availabilityCopy.hour,
               availabilityCopy.hours,
@@ -372,7 +377,7 @@ export default function TutorAvailabilityPage() {
                           durationHours === 1
                             ? availabilityCopy.duration
                             : availabilityCopy.durationPlural
-                        ).replace('{hours}', formatDuration(durationHours));
+                        ).replace('{hours}', formatAvailabilityDuration(durationHours));
                         return (
                           <GraphPaper
                             key={slot.id}
@@ -462,7 +467,7 @@ export default function TutorAvailabilityPage() {
                     </p>
                     <p className="mt-1.5 text-sm font-bold leading-6 text-notebook-ink">
                       {previewStart && previewEnd
-                        ? `${formatBangkokDate(previewStart, language)} · ${formatBangkokTime(previewStart, language)}–${formatBangkokTime(previewEnd, language)} · ${formatDurationLabel(getDurationHours(previewStart.toISOString(), previewEnd.toISOString()), availabilityCopy.duration, availabilityCopy.durationPlural)}`
+                        ? `${formatBangkokDate(previewStart, language)} · ${formatBangkokTime(previewStart, language)}–${formatBangkokTime(previewEnd, language)} · ${formatAvailabilityDurationLabel(getDurationHours(previewStart.toISOString(), previewEnd.toISOString()), availabilityCopy.duration, availabilityCopy.durationPlural)}`
                         : availabilityCopy.emptyForm}
                     </p>
                     {previewStart && previewEnd && (
@@ -643,38 +648,4 @@ function SummaryCard({
       <span className="absolute -bottom-9 -right-8 h-24 w-24 rounded-full bg-sticky-blue/45 transition group-hover:scale-110" />
     </PaperCard>
   );
-}
-
-function formatDuration(hours: number): string {
-  return Number.isInteger(hours)
-    ? String(hours)
-    : hours.toFixed(2).replace(/0+$/, '').replace(/\.$/, '');
-}
-
-function formatHoursMinutes(
-  totalHours: number,
-  singularHour: string,
-  pluralHour: string,
-  singularMinute: string,
-  pluralMinute: string,
-): string {
-  const { hours, minutes } = getDurationHoursMinutes(totalHours);
-  const hourLabel = (hours === 1 ? singularHour : pluralHour).replace('{count}', String(hours));
-  const minuteLabel = (minutes === 1 ? singularMinute : pluralMinute).replace(
-    '{count}',
-    String(minutes),
-  );
-  return `${hourLabel} ${minuteLabel}`;
-}
-
-function formatDurationLabel(hours: number, singular: string, plural: string): string {
-  return (hours === 1 ? singular : plural).replace('{hours}', formatDuration(hours));
-}
-
-function safeBangkokDateTime(date: string, time: string): Date | null {
-  try {
-    return bangkokDateTimeToUtc(date, time);
-  } catch {
-    return null;
-  }
 }

@@ -1,5 +1,4 @@
 import StudentBookingDetailPage from '@/components/bookings/student-booking-detail-page';
-import StudentBookingShell from '@/components/bookings/student-booking-shell';
 
 export default async function BookingDetailRoute({
   params,
@@ -8,9 +7,5 @@ export default async function BookingDetailRoute({
 }) {
   const { bookingId } = await params;
 
-  return (
-    <StudentBookingShell>
-      <StudentBookingDetailPage bookingId={bookingId} />
-    </StudentBookingShell>
-  );
+  return <StudentBookingDetailPage bookingId={bookingId} />;
 }

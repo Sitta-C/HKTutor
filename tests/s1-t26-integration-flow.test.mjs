@@ -5,10 +5,11 @@ import test from 'node:test';
 const read = (filePath) => fs.readFile(filePath, 'utf8');
 
 test('preserves the selected guest booking across login and student onboarding', async () => {
-  const [proxy, login, bookingShell, profileEditor, returnTo] = await Promise.all([
+  const [proxy, login, bookingShell, profileSession, profileEditor, returnTo] = await Promise.all([
     read('apps/web/src/proxy.ts'),
     read('apps/web/src/components/login.tsx'),
     read('apps/web/src/components/bookings/student-booking-shell.tsx'),
+    read('apps/web/src/lib/use-profile-session.ts'),
     read('apps/web/src/components/profile/profile-editor.tsx'),
     read('apps/web/src/lib/return-to.ts'),
   ]);
@@ -16,27 +17,38 @@ test('preserves the selected guest booking across login and student onboarding',
   assert.match(proxy, /loginUrl\.searchParams\.set\(\s*'returnTo'/);
   assert.match(login, /sanitizeReturnTo\(searchParams\.get\('returnTo'\)\)/);
   assert.match(login, /router\.replace\(returnTo\)/);
-  assert.match(bookingShell, /withReturnTo\('\/onboarding\/profile', currentBrowserPath\(\)\)/);
+  assert.match(bookingShell, /preserveReturnTo: true/);
+  assert.match(profileSession, /withReturnTo\(ONBOARDING_PROFILE_PATH, currentPath\)/);
   assert.match(profileEditor, /router\.replace\(readOnboardingReturnTo\(\)\)/);
   assert.match(returnTo, /value\.startsWith\('\/\/'\)/);
   assert.match(returnTo, /value\.includes\('\\\\'\)/);
 });
 
 test('gates every private flow route and connects both dashboards to live booking data', async () => {
-  const [availability, listingList, listingEditor, tutorDashboard, studentDashboard, bookingApi] =
-    await Promise.all([
-      read('apps/web/src/components/availability/tutor-availability-page.tsx'),
-      read('apps/web/src/components/listings/tutor-listings-page.tsx'),
-      read('apps/web/src/components/listings/tutor-listing-editor.tsx'),
-      read('apps/web/src/components/dashboard/tutor-dashboard.tsx'),
-      read('apps/web/src/components/dashboard/student-dashboard.tsx'),
-      read('apps/web/src/lib/api/bookings.ts'),
-    ]);
+  const [
+    availability,
+    listingList,
+    listingEditor,
+    profileSession,
+    tutorDashboard,
+    studentDashboard,
+    bookingApi,
+  ] = await Promise.all([
+    read('apps/web/src/components/availability/manage-tutor-availability.tsx'),
+    read('apps/web/src/components/listings/tutor-listings-page.tsx'),
+    read('apps/web/src/components/listings/tutor-listing-editor.tsx'),
+    read('apps/web/src/lib/use-profile-session.ts'),
+    read('apps/web/src/components/dashboard/tutor-dashboard.tsx'),
+    read('apps/web/src/components/dashboard/student-dashboard.tsx'),
+    read('apps/web/src/lib/api/bookings.ts'),
+  ]);
 
   for (const guardedPage of [availability, listingList, listingEditor]) {
-    assert.match(guardedPage, /resolveDashboardGate/);
-    assert.match(guardedPage, /withReturnTo\('\/onboarding\/profile'/);
+    assert.match(guardedPage, /useProfileSession/);
+    assert.match(guardedPage, /profileMode: 'required'/);
   }
+  assert.match(profileSession, /resolveDashboardGate\(currentProfileResult\)/);
+  assert.match(profileSession, /withReturnTo\(ONBOARDING_PROFILE_PATH, currentPath\)/);
   assert.match(tutorDashboard, /getTutorBookings\(\{ pageSize: 100 \}\)/);
   assert.match(tutorDashboard, /getTutorAvailability/);
   assert.match(tutorDashboard, /getTutorListings\(\)/);
@@ -47,29 +59,38 @@ test('gates every private flow route and connects both dashboards to live bookin
 
 test('checks the tutor profile gate before loading listing edit dependencies', async () => {
   const listingEditor = await read('apps/web/src/components/listings/tutor-listing-editor.tsx');
-  const effectStart = listingEditor.indexOf('let active = true;');
+  const effectStart = listingEditor.indexOf('useEffect(() => {');
   const effectEnd = listingEditor.indexOf('return () => {', effectStart);
   const loadSequence = listingEditor.slice(effectStart, effectEnd);
-  const profileRequest = loadSequence.indexOf('getMyProfile()');
-  const profileGate = loadSequence.indexOf('resolveDashboardGate(profileResult)');
+  const profileGate = loadSequence.indexOf(
+    "if (sessionLoading || profileError || !user || user.role !== 'TUTOR' || !profile) return;",
+  );
   const listingRequest = loadSequence.indexOf('getTutorListing(listingId)');
 
   assert.ok(effectStart >= 0 && effectEnd > effectStart);
-  assert.ok(profileRequest >= 0 && profileRequest < profileGate);
-  assert.ok(profileGate < listingRequest);
-  assert.match(loadSequence, /withReturnTo\('\/onboarding\/profile', editorPath\)/);
+  assert.ok(profileGate >= 0 && profileGate < listingRequest);
+  assert.match(listingEditor, /requiredRole: 'TUTOR'/);
+  assert.match(listingEditor, /profileMode: 'required'/);
 });
 
 test('uses one fail-closed tutor allowlist across publish, discovery, availability, and booking', async () => {
-  const [tutorAccess, tutorsService, bookingService, searchPage, tutorDetail, listingEditor] =
-    await Promise.all([
-      read('apps/api/src/tutors/public-tutor-access.ts'),
-      read('apps/api/src/tutors/tutors.service.ts'),
-      read('apps/api/src/bookings/bookings.service.ts'),
-      read('apps/web/src/components/tutors/tutor-search-page.tsx'),
-      read('apps/web/src/components/tutors/tutor-availability-page.tsx'),
-      read('apps/web/src/components/listings/tutor-listing-editor.tsx'),
-    ]);
+  const [
+    tutorAccess,
+    tutorsService,
+    bookingService,
+    searchPage,
+    searchCopy,
+    tutorDetail,
+    listingEditor,
+  ] = await Promise.all([
+    read('apps/api/src/tutors/public-tutor-access.ts'),
+    read('apps/api/src/tutors/tutors.service.ts'),
+    read('apps/api/src/bookings/bookings.service.ts'),
+    read('apps/web/src/components/tutors/tutor-search-page.tsx'),
+    read('apps/web/src/components/tutors/tutor-search-copy.ts'),
+    read('apps/web/src/components/tutors/public-tutor-availability.tsx'),
+    read('apps/web/src/components/listings/tutor-listing-editor.tsx'),
+  ]);
 
   assert.match(tutorAccess, /verificationStatus: TutorVerificationStatus\.VERIFIED/);
   assert.match(tutorAccess, /accountStatus: AccountStatus\.ACTIVE/);
@@ -78,8 +99,9 @@ test('uses one fail-closed tutor allowlist across publish, discovery, availabili
   assert.match(tutorsService, /where: \{ \.\.\.publicTutorWhere, userId \}/);
   assert.match(bookingService, /findFirst\(\{\s*where: \{ \.\.\.publicTutorWhere, userId:/);
   assert.doesNotMatch(bookingService, /verificationStatus === TutorVerificationStatus\.REJECTED/);
-  assert.match(searchPage, /VERIFIED TUTORS ONLY/);
-  assert.doesNotMatch(searchPage, /VERIFICATION PENDING/);
+  assert.match(searchPage, /text\.verifiedOnly/);
+  assert.match(searchCopy, /VERIFIED TUTORS ONLY/);
+  assert.doesNotMatch(searchCopy, /VERIFICATION PENDING/);
   assert.match(tutorDetail, /\{text\.verified\}/);
   assert.doesNotMatch(tutorDetail, /text\.pendingVerification/);
   assert.match(listingEditor, /must be verified before publishing/);
@@ -112,7 +134,7 @@ test('keeps the walking-skeleton seed bookable and repeated registration safe', 
 });
 
 test('makes the public booking action role-aware', async () => {
-  const detail = await read('apps/web/src/components/tutors/tutor-availability-page.tsx');
+  const detail = await read('apps/web/src/components/tutors/public-tutor-availability.tsx');
 
   assert.match(
     detail,

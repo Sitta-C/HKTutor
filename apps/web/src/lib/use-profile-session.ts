@@ -1,10 +1,10 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo } from 'react';
 
-import { getMyProfile } from '@/lib/api/profiles';
 import { useAuth } from '@/lib/auth-context';
+import { clearCurrentProfileCache, useCurrentProfile } from '@/lib/current-profile';
 import {
   ONBOARDING_PROFILE_PATH,
   applyProfileDisplayName,
@@ -14,7 +14,7 @@ import {
 } from '@/lib/profile-navigation';
 import { withReturnTo } from '@/lib/return-to';
 
-import type { AuthUser, MyProfileResponse, UserRole } from '@/lib/api/types';
+import type { AuthUser, UserRole } from '@/lib/api/types';
 
 type ProfileMode = 'optional' | 'required';
 type ProfileErrorMode = 'fallback' | 'report';
@@ -27,20 +27,6 @@ interface ProfileSessionOptions {
   preserveReturnTo?: boolean;
 }
 
-interface ProfileLoadState {
-  authUser: AuthUser | null;
-  error: string | null;
-  profile: MyProfileResponse | null;
-  settled: boolean;
-}
-
-const initialProfileState: ProfileLoadState = {
-  authUser: null,
-  error: null,
-  profile: null,
-  settled: false,
-};
-
 export function useProfileSession({
   allowGuest = false,
   requiredRole,
@@ -50,7 +36,14 @@ export function useProfileSession({
 }: ProfileSessionOptions) {
   const { isLoading: authLoading, logout, user } = useAuth();
   const router = useRouter();
-  const [state, setState] = useState<ProfileLoadState>(initialProfileState);
+  const roleAccepted = !user || !requiredRole || user.role === requiredRole;
+  const needsProfile = Boolean(
+    !authLoading && user && roleAccepted && requiresPrivateProfile(user.role),
+  );
+  const currentProfile = useCurrentProfile(user?.id ?? null, needsProfile);
+  const currentProfileError = currentProfile.error;
+  const currentProfileResult = currentProfile.profile;
+  const currentProfileStatus = currentProfile.status;
 
   useEffect(() => {
     if (authLoading) return;
@@ -64,39 +57,22 @@ export function useProfileSession({
     }
 
     if (!requiresPrivateProfile(user.role)) return;
-
-    let active = true;
-    getMyProfile()
-      .then((profile) => {
-        if (!active) return;
-        if (profileMode === 'required' && resolveDashboardGate(profile)) {
-          router.replace(onboardingPath(preserveReturnTo));
-          return;
-        }
-        setState({ authUser: user, error: null, profile, settled: true });
-      })
-      .catch((caught: unknown) => {
-        if (!active) return;
-        if (profileMode === 'required' && isProfileSetupError(caught)) {
-          router.replace(onboardingPath(preserveReturnTo));
-          return;
-        }
-        setState({
-          authUser: user,
-          error:
-            profileErrorMode === 'report'
-              ? caught instanceof Error
-                ? caught.message
-                : 'Unable to load profile'
-              : null,
-          profile: null,
-          settled: true,
-        });
-      });
-
-    return () => {
-      active = false;
-    };
+    if (
+      currentProfileStatus === 'success' &&
+      profileMode === 'required' &&
+      currentProfileResult &&
+      resolveDashboardGate(currentProfileResult)
+    ) {
+      router.replace(onboardingPath(preserveReturnTo));
+      return;
+    }
+    if (
+      currentProfileStatus === 'error' &&
+      profileMode === 'required' &&
+      isProfileSetupError(currentProfileError)
+    ) {
+      router.replace(onboardingPath(preserveReturnTo));
+    }
   }, [
     allowGuest,
     authLoading,
@@ -106,22 +82,33 @@ export function useProfileSession({
     requiredRole,
     router,
     user,
+    currentProfileError,
+    currentProfileResult,
+    currentProfileStatus,
   ]);
 
-  const currentState = user && state.authUser === user ? state : initialProfileState;
+  const profile = currentProfileStatus === 'success' ? currentProfileResult : null;
   const profileUser = useMemo<AuthUser | null>(
-    () => (user ? applyProfileDisplayName(user, currentState.profile) : null),
-    [currentState.profile, user],
+    () => (user ? applyProfileDisplayName(user, profile) : null),
+    [profile, user],
   );
-  const roleAccepted = !user || !requiredRole || user.role === requiredRole;
-  const profileSettled = !user || !requiresPrivateProfile(user.role) || currentState.settled;
+  const profileSettled = !needsProfile || ['success', 'error'].includes(currentProfileStatus);
   const isLoading = authLoading || (user ? !roleAccepted || !profileSettled : !allowGuest);
+  const logoutWithProfileReset = useCallback(async () => {
+    clearCurrentProfileCache();
+    await logout();
+  }, [logout]);
 
   return {
     isLoading,
-    logout,
-    profile: currentState.profile,
-    profileError: currentState.error,
+    logout: logoutWithProfileReset,
+    profile,
+    profileError:
+      currentProfileStatus === 'error' && profileErrorMode === 'report'
+        ? currentProfileError instanceof Error
+          ? currentProfileError.message
+          : 'Unable to load profile'
+        : null,
     profileUser,
     user,
   };

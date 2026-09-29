@@ -9,6 +9,17 @@ import { DashboardIcon, type DashboardIconName } from '@/components/dashboard/da
 import DashboardShell from '@/components/dashboard/dashboard-shell';
 import PrivacyConsent from '@/components/privacy-consent';
 import {
+  emptyStudentForm,
+  emptyTutorForm,
+  isStudentProfileComplete,
+  isTutorProfileComplete,
+  readProfileFieldErrors,
+  toTutorForm,
+  trimProfileForm,
+  validateStudentProfile,
+  validateTutorProfile,
+} from '@/components/profile/profile-editor-model';
+import {
   GraphPaper,
   NotebookPage,
   PaperCard,
@@ -18,14 +29,13 @@ import {
   notebookButtonClass,
   notebookInputClass,
 } from '@/components/ui/notebook';
-import { ApiError } from '@/lib/api/error';
 import {
   acceptCurrentPrivacyNotice,
-  getMyProfile,
   saveStudentProfile,
   saveTutorProfile,
 } from '@/lib/api/profiles';
 import { useAuth } from '@/lib/auth-context';
+import { clearCurrentProfileCache, loadCurrentProfile } from '@/lib/current-profile';
 import { useLanguage } from '@/lib/i18n';
 import {
   DASHBOARD_PATH,
@@ -37,59 +47,28 @@ import {
 } from '@/lib/profile-navigation';
 import { sanitizeReturnTo } from '@/lib/return-to';
 
-import type { AuthUser, StudentProfile, TutorProfile } from '@/lib/api/types';
+import type {
+  ProfileFieldErrors,
+  ProfileFieldName,
+  StudentForm,
+  TutorForm,
+} from '@/components/profile/profile-editor-model';
+import type { AuthUser, TutorProfile } from '@/lib/api/types';
 import type { FormEvent, InputHTMLAttributes, ReactNode } from 'react';
 
 interface ProfileEditorProps {
   mode: 'onboarding' | 'edit';
 }
 
-type StudentForm = StudentProfile;
-interface TutorForm {
-  bio: string;
-  displayName: string;
-  experienceYears: string;
-  firstName: string;
-  lastName: string;
-  nickname: string;
-}
-type FieldName = keyof StudentForm | keyof TutorForm;
-type FieldErrors = Partial<Record<FieldName, string>>;
+type FieldName = ProfileFieldName;
+type FieldErrors = ProfileFieldErrors;
 type ProfileTone = 'student' | 'tutor';
 
-const emptyStudent: StudentForm = {
-  firstName: '',
-  gradeLevel: '',
-  lastName: '',
-  nickname: '',
-  phone: '',
-  school: '',
-};
-const emptyTutor: TutorForm = {
-  bio: '',
-  displayName: '',
-  experienceYears: '',
-  firstName: '',
-  lastName: '',
-  nickname: '',
-};
 const emptyTutorMeta = {
   ratingAverage: null,
   reviewCount: 0,
   verificationStatus: 'PENDING',
 } satisfies Pick<TutorProfile, 'ratingAverage' | 'reviewCount' | 'verificationStatus'>;
-const phonePattern = /^[+0-9][0-9 ()-]{7,31}$/;
-const fields: FieldName[] = [
-  'firstName',
-  'lastName',
-  'nickname',
-  'school',
-  'gradeLevel',
-  'phone',
-  'displayName',
-  'bio',
-  'experienceYears',
-];
 
 const profileTone = {
   student: {
@@ -120,10 +99,10 @@ export default function ProfileEditor({ mode }: ProfileEditorProps) {
   const { language } = useLanguage();
   const router = useRouter();
   const text = copy[language];
-  const [student, setStudent] = useState<StudentForm>(emptyStudent);
-  const [initialStudent, setInitialStudent] = useState<StudentForm>(emptyStudent);
-  const [tutor, setTutor] = useState<TutorForm>(emptyTutor);
-  const [initialTutor, setInitialTutor] = useState<TutorForm>(emptyTutor);
+  const [student, setStudent] = useState<StudentForm>(emptyStudentForm);
+  const [initialStudent, setInitialStudent] = useState<StudentForm>(emptyStudentForm);
+  const [tutor, setTutor] = useState<TutorForm>(emptyTutorForm);
+  const [initialTutor, setInitialTutor] = useState<TutorForm>(emptyTutorForm);
   const [tutorMeta, setTutorMeta] =
     useState<Pick<TutorProfile, 'ratingAverage' | 'reviewCount' | 'verificationStatus'>>(
       emptyTutorMeta,
@@ -149,7 +128,7 @@ export default function ProfileEditor({ mode }: ProfileEditorProps) {
     }
 
     let active = true;
-    getMyProfile()
+    loadCurrentProfile(user.id)
       .then((result) => {
         if (!active) return;
         setConsentCurrent(result.consentCurrent);
@@ -212,7 +191,7 @@ export default function ProfileEditor({ mode }: ProfileEditorProps) {
       setIsSaving(true);
       try {
         await acceptCurrentPrivacyNotice();
-        const result = await getMyProfile();
+        const result = await loadCurrentProfile(user.id, { force: true });
         setConsentCurrent(result.consentCurrent);
         setAcceptedNotice(false);
         setConsentError(null);
@@ -241,8 +220,8 @@ export default function ProfileEditor({ mode }: ProfileEditorProps) {
     }
 
     const validationErrors = studentRole
-      ? validateStudent(student, language)
-      : validateTutor(tutor, language);
+      ? validateStudentProfile(student, language, text)
+      : validateTutorProfile(tutor, language, text);
     if (Object.keys(validationErrors).length) {
       setFieldErrors(validationErrors);
       focusFirstError(validationErrors);
@@ -255,11 +234,11 @@ export default function ProfileEditor({ mode }: ProfileEditorProps) {
     setIsSaving(true);
     try {
       if (user.role === 'STUDENT') {
-        const result = await saveStudentProfile(trimForm(student));
+        const result = await saveStudentProfile(trimProfileForm(student));
         setStudent(result);
         setInitialStudent(result);
       } else {
-        const normalized = trimForm(tutor);
+        const normalized = trimProfileForm(tutor);
         const result = await saveTutorProfile({
           ...normalized,
           experienceYears: Number(normalized.experienceYears),
@@ -269,10 +248,11 @@ export default function ProfileEditor({ mode }: ProfileEditorProps) {
         setInitialTutor(form);
         setTutorMeta(result);
       }
+      clearCurrentProfileCache();
       if (mode === 'onboarding') router.replace(readOnboardingReturnTo());
       else setSaved(true);
     } catch (caught: unknown) {
-      const apiErrors = apiFieldErrors(caught);
+      const apiErrors = readProfileFieldErrors(caught);
       setFieldErrors(apiErrors);
       if (Object.keys(apiErrors).length) focusFirstError(apiErrors);
       setError(caught instanceof Error ? caught.message : text.saveError);
@@ -403,7 +383,9 @@ export default function ProfileEditor({ mode }: ProfileEditorProps) {
                 email={user.email}
                 language={language}
                 student={studentRole}
-                complete={studentRole ? studentComplete(student) : tutorComplete(tutor)}
+                complete={
+                  studentRole ? isStudentProfileComplete(student) : isTutorProfileComplete(tutor)
+                }
                 tutorMeta={tutorMeta}
               />
               {!studentRole && (
@@ -1021,76 +1003,6 @@ function Loading({ label }: { label: string }) {
   );
 }
 
-function toTutorForm(profile: TutorProfile): TutorForm {
-  return {
-    bio: profile.bio,
-    displayName: profile.displayName,
-    experienceYears: String(profile.experienceYears),
-    firstName: profile.firstName ?? '',
-    lastName: profile.lastName ?? '',
-    nickname: profile.nickname ?? '',
-  };
-}
-function trimForm<T extends object>(data: T): T {
-  return Object.fromEntries(
-    Object.entries(data).map(([key, value]) => [key, value?.trim() ?? '']),
-  ) as T;
-}
-function studentComplete(data: StudentForm) {
-  return Object.values(data).every((value) => value.trim()) && phonePattern.test(data.phone.trim());
-}
-function tutorComplete(data: TutorForm) {
-  const years = Number(data.experienceYears);
-  return (
-    [data.firstName, data.lastName, data.nickname, data.displayName, data.bio].every((value) =>
-      value?.trim(),
-    ) &&
-    data.experienceYears !== '' &&
-    Number.isInteger(years) &&
-    years >= 0
-  );
-}
-function validateRequired(data: StudentForm | TutorForm, language: 'en' | 'th') {
-  const errors: FieldErrors = {};
-  for (const [field, value] of Object.entries(data) as [FieldName, string | null][])
-    if (!value?.trim()) errors[field] = requiredMessage(field, language);
-  return errors;
-}
-function validateStudent(data: StudentForm, language: 'en' | 'th') {
-  const errors = validateRequired(data, language);
-  if (data.phone.trim() && !phonePattern.test(data.phone.trim()))
-    errors.phone = copy[language].invalidPhone;
-  return errors;
-}
-function validateTutor(data: TutorForm, language: 'en' | 'th') {
-  const errors = validateRequired(data, language);
-  const years = Number(data.experienceYears);
-  if (data.experienceYears.trim() && (!Number.isInteger(years) || years < 0))
-    errors.experienceYears = copy[language].invalidYears;
-  return errors;
-}
-function requiredMessage(field: FieldName, language: 'en' | 'th') {
-  const label = copy[language].fieldLabels[field];
-  return language === 'th' ? `กรุณากรอก${label}` : `Enter your ${label.toLowerCase()}.`;
-}
-function apiFieldErrors(error: unknown) {
-  if (!(error instanceof ApiError) || !error.details || typeof error.details !== 'object')
-    return {};
-  const value = (error.details as { message?: unknown }).message;
-  const messages = Array.isArray(value)
-    ? value.filter((item): item is string => typeof item === 'string')
-    : typeof value === 'string'
-      ? [value]
-      : [];
-  const errors: FieldErrors = {};
-  for (const field of fields) {
-    const matchingMessage = messages.find((message) =>
-      message.toLowerCase().includes(field.toLowerCase()),
-    );
-    if (matchingMessage) errors[field] = matchingMessage;
-  }
-  return errors;
-}
 function focusFirstError(errors: FieldErrors) {
   const field = Object.keys(errors)[0];
   if (field) requestAnimationFrame(() => document.getElementById(field)?.focus());

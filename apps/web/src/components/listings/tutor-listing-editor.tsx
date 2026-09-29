@@ -12,8 +12,12 @@ import {
   listingButtonClass,
   listingFieldClass,
 } from '@/components/listings/listing-ui';
+import {
+  emptyListingForm,
+  readListingEditorError,
+  validateListingForm,
+} from '@/components/listings/tutor-listing-editor-model';
 import { GraphPaper, PaperCard, StickyNote, WashiTape } from '@/components/ui/notebook';
-import { ApiError } from '@/lib/api/error';
 import {
   createTutorListing,
   getListingCatalogs,
@@ -27,6 +31,10 @@ import { getTutorProfile } from '@/lib/profile-navigation';
 import { useProfileSession } from '@/lib/use-profile-session';
 
 import type {
+  ListingFormData,
+  ListingFormErrors,
+} from '@/components/listings/tutor-listing-editor-model';
+import type {
   GradeLevelOption,
   ListingPublicationStatus,
   SaveTeachingListingPayload,
@@ -38,22 +46,6 @@ import type { FormEvent } from 'react';
 interface TutorListingEditorProps {
   listingId?: string;
 }
-
-interface ListingFormData {
-  subjectId: string;
-  gradeLevelId: string;
-  pricePerHour: string;
-  description: string;
-}
-
-type FormErrors = Partial<Record<keyof ListingFormData, string>>;
-
-const emptyForm: ListingFormData = {
-  subjectId: '',
-  gradeLevelId: '',
-  pricePerHour: '',
-  description: '',
-};
 
 export default function TutorListingEditor({ listingId }: TutorListingEditorProps) {
   const {
@@ -72,12 +64,12 @@ export default function TutorListingEditor({ listingId }: TutorListingEditorProp
   const { language } = useLanguage();
   const router = useRouter();
   const copy = language === 'th' ? thaiCopy : englishCopy;
-  const [form, setForm] = useState<ListingFormData>(emptyForm);
-  const [initialForm, setInitialForm] = useState<ListingFormData>(emptyForm);
+  const [form, setForm] = useState<ListingFormData>(emptyListingForm);
+  const [initialForm, setInitialForm] = useState<ListingFormData>(emptyListingForm);
   const [subjects, setSubjects] = useState<SubjectOption[]>([]);
   const [gradeLevels, setGradeLevels] = useState<GradeLevelOption[]>([]);
   const [listing, setListing] = useState<TeachingListing | null>(null);
-  const [errors, setErrors] = useState<FormErrors>({});
+  const [errors, setErrors] = useState<ListingFormErrors>({});
   const [pageError, setPageError] = useState<string | null>(null);
   const [catalogError, setCatalogError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -133,7 +125,7 @@ export default function TutorListingEditor({ listingId }: TutorListingEditorProp
       .catch((caught: unknown) => {
         if (!active) return;
         setPageError(
-          readEditorError(caught, copy.loadError, listingId ? copy.notFound : undefined),
+          readListingEditorError(caught, copy.loadError, listingId ? copy.notFound : undefined),
         );
       })
       .finally(() => {
@@ -209,7 +201,7 @@ export default function TutorListingEditor({ listingId }: TutorListingEditorProp
       setPageError(copy.verificationError);
       return;
     }
-    const nextErrors = validateForm(form, copy);
+    const nextErrors = validateListingForm(form, copy);
     setErrors(nextErrors);
     setPageError(null);
     setSuccess(null);
@@ -248,7 +240,7 @@ export default function TutorListingEditor({ listingId }: TutorListingEditorProp
       if (!listingId && savedListingId) {
         router.replace(`/dashboard/listings/${savedListingId}/edit`);
       }
-      setPageError(readEditorError(caught, copy.saveError, copy.notFound));
+      setPageError(readListingEditorError(caught, copy.saveError, copy.notFound));
     } finally {
       setSubmitAction(null);
     }
@@ -264,7 +256,7 @@ export default function TutorListingEditor({ listingId }: TutorListingEditorProp
       setListing(restoredListing);
       setSuccess(copy.restoredSuccess);
     } catch (caught: unknown) {
-      setPageError(readEditorError(caught, copy.saveError, copy.notFound));
+      setPageError(readListingEditorError(caught, copy.saveError, copy.notFound));
     } finally {
       setSubmitAction(null);
     }
@@ -676,32 +668,6 @@ function Field({
       )}
     </label>
   );
-}
-
-function validateForm(form: ListingFormData, copy: typeof englishCopy): FormErrors {
-  const errors: FormErrors = {};
-  const price = Number(form.pricePerHour);
-  if (!form.subjectId) errors.subjectId = copy.subjectError;
-  if (!form.gradeLevelId) errors.gradeLevelId = copy.gradeError;
-  if (
-    !form.pricePerHour ||
-    !Number.isFinite(price) ||
-    price <= 0 ||
-    !/^\d+(\.\d{1,2})?$/.test(form.pricePerHour)
-  ) {
-    errors.pricePerHour = copy.priceError;
-  }
-  const descriptionLength = form.description.trim().length;
-  if (descriptionLength < 20 || descriptionLength > 1000) {
-    errors.description = copy.descriptionError;
-  }
-  return errors;
-}
-
-function readEditorError(error: unknown, fallback: string, notFound?: string) {
-  if (error instanceof ApiError && error.status === 404) return notFound ?? fallback;
-  if (error instanceof ApiError && error.status === 403) return fallback;
-  return error instanceof Error ? error.message : fallback;
 }
 
 function formatPrice(value: number, language: 'en' | 'th') {
