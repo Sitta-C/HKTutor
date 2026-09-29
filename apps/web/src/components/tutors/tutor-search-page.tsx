@@ -247,7 +247,7 @@ export default function TutorSearchPage() {
   const resultSummary = formatSearchSummary(form, text);
 
   return (
-    <main className="mx-auto max-w-[1120px] py-8 lg:py-10">
+    <div className="mx-auto max-w-[1120px] py-8 lg:py-10">
       <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
         <NotebookHeading eyebrow={text.eyebrow} title={text.title} description={text.subtitle} />
         <StatusBadge tone="student" className="mb-1">
@@ -406,7 +406,7 @@ export default function TutorSearchPage() {
           </p>
         </section>
       </div>
-    </main>
+    </div>
   );
 }
 

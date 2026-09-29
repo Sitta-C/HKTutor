@@ -56,8 +56,21 @@ html:lang(th) .font-note {
 }
 
 button,
-input {
+input,
+select,
+textarea {
   font: inherit;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
 
 /* --- Logged-in Dashboard tokens & component classes (ui-design/uidesign.md §4) --- */

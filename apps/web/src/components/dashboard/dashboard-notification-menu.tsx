@@ -120,7 +120,7 @@ export function DashboardNotificationMenu({
         <div
           className="fixed left-3 right-3 top-[4.75rem] z-50 overflow-hidden rounded-2xl border border-paper-edge bg-paper shadow-paper sm:absolute sm:left-auto sm:right-0 sm:top-[calc(100%+0.75rem)] sm:w-96"
           id="dashboard-notifications"
-          role="dialog"
+          role="region"
           aria-labelledby="dashboard-notifications-title"
         >
           <WashiTape tone="yellow" className="-top-2 left-1/2 -translate-x-1/2" />
