@@ -261,8 +261,8 @@ export default function TutorSearchPage() {
           id="tutor-search-filters"
           className="relative h-fit overflow-hidden p-5 shadow-[0_8px_20px_-12px_rgba(46,39,25,0.1)] sm:p-6"
         >
-          <WashiTape tone="yellow" className="-left-5 top-3 -rotate-12" />
-          <div className="mb-5 flex items-start justify-between gap-3">
+          <WashiTape tone="yellow" className="-left-5 -top-2 -rotate-12" />
+          <div className="relative z-10 mb-5 flex items-start justify-between gap-3">
             <div>
               <h2 className="font-note text-2xl font-bold tracking-[-0.03em]">{text.filters}</h2>
               <p className="mt-1 text-sm text-notebook-muted">{text.filtersHint}</p>
