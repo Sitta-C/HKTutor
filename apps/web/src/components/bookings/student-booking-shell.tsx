@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
 import DashboardShell from '@/components/dashboard/dashboard-shell';
+import { NotebookPage, StickyNote, WashiTape } from '@/components/ui/notebook';
 import { ApiError } from '@/lib/api/error';
 import { getMyProfile } from '@/lib/api/profiles';
 import { useAuth } from '@/lib/auth-context';
@@ -60,13 +61,17 @@ export default function StudentBookingShell({ children }: { children: ReactNode 
 
   if (authLoading || !user || (user.role === 'STUDENT' && !profileUser)) {
     return (
-      <div
-        className="flex min-h-dvh items-center justify-center bg-[#fbfaf7] p-6 text-sm font-semibold text-[#5e5a52]"
-        role="status"
-        aria-live="polite"
-      >
-        {copy.dashboard.common.loading}
-      </div>
+      <NotebookPage className="flex min-h-dvh items-center justify-center p-6">
+        <StickyNote
+          tone="green"
+          className="relative min-w-64 p-6 text-center text-sm font-semibold"
+          role="status"
+          aria-live="polite"
+        >
+          <WashiTape className="-top-2 left-1/2 -translate-x-1/2" />
+          {copy.dashboard.common.loading}
+        </StickyNote>
+      </NotebookPage>
     );
   }
 

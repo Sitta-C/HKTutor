@@ -4,6 +4,14 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 
 import { BookingSummaryRow, getBookingErrorMessage } from '@/components/bookings/booking-ui';
+import {
+  GraphPaper,
+  NotebookHeading,
+  PaperCard,
+  StickyNote,
+  WashiTape,
+  notebookButtonClass,
+} from '@/components/ui/notebook';
 import { getMyBookings } from '@/lib/api/bookings';
 import { ApiError } from '@/lib/api/error';
 import { useLanguage } from '@/lib/i18n';
@@ -76,20 +84,16 @@ export default function StudentBookingsPage() {
   const totalPages = Math.max(1, Math.ceil(total / BOOKINGS_PAGE_SIZE));
 
   return (
-    <div className="booking-page">
-      <section className="mb-8 max-w-3xl">
-        <p className="mb-2 text-xs font-extrabold uppercase tracking-[0.18em] text-[#c07a2e]">
-          {text.bookingsEyebrow}
-        </p>
-        <h1 className="text-4xl font-black tracking-[-0.06em] text-[#171714] sm:text-5xl">
-          {text.myBookings}
-        </h1>
-        <p className="mt-3 text-base leading-7 text-[#625b53]">
-          {total} {text.bookingCount}
-        </p>
-      </section>
+    <div className="mx-auto w-full max-w-[1120px] py-8 pb-12">
+      <NotebookHeading
+        eyebrow={text.bookingsEyebrow}
+        title={text.myBookings}
+        description={`${total} ${text.bookingCount}`}
+        className="mb-8"
+      />
 
-      <section className="rounded-[1.5rem] border border-[#ebe6dd] bg-white p-5 shadow-[0_18px_40px_-12px_rgba(46,39,25,0.14)] sm:p-7">
+      <PaperCard className="relative overflow-hidden p-5 shadow-[0_18px_40px_-12px_rgba(46,39,25,0.14)] sm:p-7">
+        <WashiTape tone="pink" className="-right-5 top-3 rotate-12" />
         <div className="mb-6 flex flex-wrap gap-2" role="group" aria-label={text.status}>
           {filters.map((item) => (
             <button
@@ -97,8 +101,8 @@ export default function StudentBookingsPage() {
               type="button"
               className={`rounded-full border px-4 py-2 text-sm font-bold transition ${
                 filter === item
-                  ? 'border-[#0e8a73] bg-[#dff7ef] text-[#0e8a73]'
-                  : 'border-[#ebe6dd] bg-white text-[#625b53] hover:bg-[#f8f5ef]'
+                  ? 'border-student-deep bg-sticky-green text-student-deep shadow-sm'
+                  : 'border-paper-edge bg-paper text-notebook-muted hover:bg-sticky-yellow/40'
               }`}
               aria-pressed={filter === item}
               onClick={() => {
@@ -112,17 +116,15 @@ export default function StudentBookingsPage() {
         </div>
 
         {isLoading && (
-          <p
-            className="rounded-2xl bg-[#f8f5ef] p-5 text-sm font-semibold text-[#625b53]"
-            role="status"
-          >
+          <StickyNote tone="yellow" className="p-5 text-sm font-semibold" role="status">
+            <span className="mr-2 inline-block h-2 w-2 animate-pulse rounded-full bg-amber-600" />
             {text.loading}
-          </p>
+          </StickyNote>
         )}
 
         {!isLoading && error !== null && (
           <div
-            className="rounded-2xl border border-[#e2b7ae] bg-[#fff4f1] p-5 text-sm text-[#a34334]"
+            className="rounded-xl border border-red-200 bg-red-50 p-5 text-sm text-red-800"
             role="alert"
           >
             <p>{getBookingErrorMessage(error, text)}</p>
@@ -140,18 +142,15 @@ export default function StudentBookingsPage() {
         )}
 
         {!isLoading && !error && items.length === 0 && (
-          <div className="rounded-2xl border border-dashed border-[#e3ddd2] bg-[#fcfbf8] p-10 text-center">
-            <h2 className="text-xl font-extrabold text-[#171714]">{text.emptyTitle}</h2>
-            <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-[#70695f]">
+          <GraphPaper className="border-dashed p-10 text-center">
+            <h2 className="font-note text-2xl font-bold text-notebook-ink">{text.emptyTitle}</h2>
+            <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-notebook-muted">
               {text.emptyBody}
             </p>
-            <Link
-              href="/tutors"
-              className="mt-5 inline-flex rounded-full bg-[#1c1a16] px-5 py-3 text-sm font-bold text-white"
-            >
+            <Link href="/tutors" className={notebookButtonClass({ className: 'mt-5' })}>
               {text.browseTutors}
             </Link>
-          </div>
+          </GraphPaper>
         )}
 
         {!isLoading && !error && items.length > 0 && (
@@ -168,18 +167,21 @@ export default function StudentBookingsPage() {
             </div>
             {totalPages > 1 && (
               <nav
-                className="mt-6 flex items-center justify-between gap-4 border-t border-[#ebe6dd] pt-5"
+                className="mt-6 flex items-center justify-between gap-4 border-t border-dashed border-paper-edge pt-5"
                 aria-label={text.pagination}
               >
                 <button
                   type="button"
                   disabled={page === 1}
                   onClick={() => setPage((current) => Math.max(1, current - 1))}
-                  className="rounded-full border border-[#d9d2c6] px-4 py-2 text-sm font-bold text-[#4e443b] disabled:cursor-not-allowed disabled:opacity-40"
+                  className={notebookButtonClass({
+                    tone: 'secondary',
+                    className: 'min-h-10 px-4 py-2',
+                  })}
                 >
                   {text.previousPage}
                 </button>
-                <span className="text-sm font-semibold text-[#625b53]">
+                <span className="text-sm font-semibold text-notebook-muted">
                   {text.pageOf
                     .replace('{page}', String(page))
                     .replace('{totalPages}', String(totalPages))}
@@ -188,7 +190,10 @@ export default function StudentBookingsPage() {
                   type="button"
                   disabled={page >= totalPages}
                   onClick={() => setPage((current) => Math.min(totalPages, current + 1))}
-                  className="rounded-full border border-[#d9d2c6] px-4 py-2 text-sm font-bold text-[#4e443b] disabled:cursor-not-allowed disabled:opacity-40"
+                  className={notebookButtonClass({
+                    tone: 'secondary',
+                    className: 'min-h-10 px-4 py-2',
+                  })}
                 >
                   {text.nextPage}
                 </button>
@@ -196,7 +201,7 @@ export default function StudentBookingsPage() {
             )}
           </div>
         )}
-      </section>
+      </PaperCard>
     </div>
   );
 }

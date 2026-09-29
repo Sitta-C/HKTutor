@@ -340,7 +340,7 @@ export const translations = {
         reviewTitle: 'Review your lesson request',
         reviewDescription:
           'Choose one open time and send a request. A successful booking starts as PENDING.',
-        verifiedTutor: 'VERIFIED TUTOR',
+        tutorVerification: 'TUTOR VERIFICATION {status}',
         selectedListing: 'Selected listing',
         requestNotice:
           'Request, not confirmation. The tutor will confirm the pending booking later.',
@@ -712,7 +712,7 @@ export const translations = {
         pageEyebrow: 'การจอง',
         reviewTitle: 'ตรวจสอบคำขอเรียน',
         reviewDescription: 'เลือกเวลาที่ว่างแล้วส่งคำขอจอง การจองจะเริ่มต้นด้วยสถานะรอยืนยัน',
-        verifiedTutor: 'ติวเตอร์ที่ยืนยันแล้ว',
+        tutorVerification: 'สถานะการยืนยันติวเตอร์: {status}',
         selectedListing: 'คอร์สที่เลือก',
         requestNotice: 'นี่คือคำขอจอง ไม่ใช่การยืนยัน ติวเตอร์จะยืนยันคำขอในภายหลัง',
         bookingSummary: 'สรุปการจอง',
