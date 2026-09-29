@@ -260,7 +260,7 @@ export default function ProfileEditor({ mode }: ProfileEditorProps) {
     : { ...user };
   const headerNav =
     mode === 'edit' ? (
-      <Link href="/dashboard" className="dash-cta">
+      <Link href="/dashboard" data-dashboard-action>
         {text.back}
       </Link>
     ) : (

@@ -1,7 +1,23 @@
 import type { ReactNode } from 'react';
 
 export type DashboardIconName =
-  'calendar' | 'check' | 'eye' | 'info' | 'plus' | 'profile' | 'search' | 'settings' | 'shield';
+  | 'availability'
+  | 'bell'
+  | 'bookings'
+  | 'calendar'
+  | 'check'
+  | 'close'
+  | 'dashboard'
+  | 'eye'
+  | 'info'
+  | 'listings'
+  | 'logout'
+  | 'plus'
+  | 'profile'
+  | 'search'
+  | 'settings'
+  | 'shield'
+  | 'support';
 
 export function DashboardIcon({
   name,
@@ -11,6 +27,24 @@ export function DashboardIcon({
   className?: string;
 }) {
   const paths: Record<DashboardIconName, ReactNode> = {
+    availability: (
+      <>
+        <rect x="4" y="5.5" width="16" height="15" rx="2" />
+        <path d="M8 3.5v4M16 3.5v4M4 9.5h16M8 13h3M8 16.5h3M14 13h2" />
+      </>
+    ),
+    bell: (
+      <>
+        <path d="M18 9a6 6 0 0 0-12 0c0 7-3 7-3 8.5h18C21 16 18 16 18 9Z" />
+        <path d="M10 21h4" />
+      </>
+    ),
+    bookings: (
+      <>
+        <rect x="5" y="4.5" width="14" height="16" rx="2" />
+        <path d="M9 4.5V3h6v1.5M9 10h6M9 13.5h6M9 17h3" />
+      </>
+    ),
     calendar: (
       <>
         <rect x="4" y="5.5" width="16" height="15" rx="2" />
@@ -21,6 +55,15 @@ export function DashboardIcon({
       <>
         <circle cx="12" cy="12" r="8.5" />
         <path d="m8.5 12 2.3 2.3 4.7-4.7" />
+      </>
+    ),
+    close: <path d="m6 6 12 12M18 6 6 18" />,
+    dashboard: (
+      <>
+        <rect x="4" y="4" width="6" height="6" rx="1.5" />
+        <rect x="14" y="4" width="6" height="6" rx="1.5" />
+        <rect x="4" y="14" width="6" height="6" rx="1.5" />
+        <rect x="14" y="14" width="6" height="6" rx="1.5" />
       </>
     ),
     eye: (
@@ -34,6 +77,15 @@ export function DashboardIcon({
         <circle cx="12" cy="12" r="8.5" />
         <path d="M12 10.5v5M12 7.7h.01" />
       </>
+    ),
+    listings: (
+      <>
+        <path d="M6 4.5h12v15H6z" />
+        <path d="M9 8h6M9 11.5h6M9 15h4" />
+      </>
+    ),
+    logout: (
+      <path d="M14 5h4.5A1.5 1.5 0 0 1 20 6.5v11a1.5 1.5 0 0 1-1.5 1.5H14M10 8l-4 4 4 4M6 12h9" />
     ),
     plus: <path d="M12 5v14M5 12h14" />,
     profile: (
@@ -58,6 +110,12 @@ export function DashboardIcon({
       <>
         <path d="M12 3.5 19 6v5.3c0 4.5-2.7 7.6-7 9.2-4.3-1.6-7-4.7-7-9.2V6z" />
         <path d="m9.5 12 1.7 1.5 3.4-3.5" />
+      </>
+    ),
+    support: (
+      <>
+        <path d="M4 13v-1a8 8 0 0 1 16 0v1" />
+        <path d="M4 13h3v5H5.5A1.5 1.5 0 0 1 4 16.5zM20 13h-3v5h1.5a1.5 1.5 0 0 0 1.5-1.5zM17 18c0 1.1-.9 2-2 2h-2" />
       </>
     ),
   };

@@ -1,3 +1,4 @@
+import type { DashboardIconName } from '@/components/dashboard/dashboard-icon';
 import type { AuthUser, UserRole } from '@/lib/api/types';
 import type { Translation } from '@/lib/i18n';
 
@@ -6,19 +7,10 @@ export type DashboardViewType = 'student' | 'tutor' | 'admin';
 export interface DashboardNavItem {
   id: string;
   href: string;
-  icon: string;
+  icon: DashboardIconName;
   label: string;
   badge?: string;
   isDanger?: boolean;
-}
-
-export interface RoleThemeConfig {
-  role: UserRole;
-  viewType: DashboardViewType;
-  accentColor: string;
-  accentDeepColor: string;
-  softBg: string;
-  roleChipText: string;
 }
 
 /**
@@ -30,39 +22,6 @@ export function resolveDashboardView(role: UserRole): DashboardViewType {
   if (role === 'TUTOR') return 'tutor';
   if (role === 'ADMIN') return 'admin';
   return 'admin';
-}
-
-export function getDashboardRoleConfig(role: UserRole, copy: Translation): RoleThemeConfig {
-  switch (role) {
-    case 'STUDENT':
-      return {
-        role: 'STUDENT',
-        viewType: 'student',
-        accentColor: '#22c49a',
-        accentDeepColor: '#0e8a73',
-        softBg: 'rgba(34, 196, 154, 0.14)',
-        roleChipText: copy.dashboard.common.studentChip,
-      };
-    case 'TUTOR':
-      return {
-        role: 'TUTOR',
-        viewType: 'tutor',
-        accentColor: '#0e8eea',
-        accentDeepColor: '#0b6db0',
-        softBg: 'rgba(14, 142, 234, 0.14)',
-        roleChipText: copy.dashboard.common.tutorChip,
-      };
-    case 'ADMIN':
-    default:
-      return {
-        role: 'ADMIN',
-        viewType: 'admin',
-        accentColor: '#d18b43',
-        accentDeepColor: '#b26f28',
-        softBg: 'rgba(209, 139, 67, 0.14)',
-        roleChipText: copy.dashboard.common.adminChip,
-      };
-  }
 }
 
 export function getDashboardNavItems(role: UserRole, copy: Translation): DashboardNavItem[] {
@@ -104,13 +63,13 @@ export function getDashboardNavItems(role: UserRole, copy: Translation): Dashboa
       {
         id: 'privacy',
         href: '#privacy',
-        icon: 'privacy',
+        icon: 'shield',
         label: navCopy.privacy,
       },
       {
         id: 'signout',
         href: '#signout',
-        icon: 'signout',
+        icon: 'logout',
         label: navCopy.signOut,
         isDanger: true,
       },
@@ -158,13 +117,13 @@ export function getDashboardNavItems(role: UserRole, copy: Translation): Dashboa
       {
         id: 'privacy',
         href: '#privacy',
-        icon: 'privacy',
+        icon: 'shield',
         label: navCopy.privacy,
       },
       {
         id: 'signout',
         href: '#signout',
-        icon: 'signout',
+        icon: 'logout',
         label: navCopy.signOut,
         isDanger: true,
       },
@@ -182,13 +141,13 @@ export function getDashboardNavItems(role: UserRole, copy: Translation): Dashboa
     {
       id: 'privacy',
       href: '#privacy',
-      icon: 'privacy',
+      icon: 'shield',
       label: navCopy.privacy,
     },
     {
       id: 'signout',
       href: '#signout',
-      icon: 'signout',
+      icon: 'logout',
       label: navCopy.signOut,
       isDanger: true,
     },
@@ -204,4 +163,13 @@ export function getUserDisplayName(user: Pick<AuthUser, 'email' | 'displayName'>
 
 export function getUserInitial(user: Pick<AuthUser, 'email' | 'displayName'>): string {
   return (user.displayName?.charAt(0) || user.email.charAt(0) || 'U').toUpperCase();
+}
+
+export function isDashboardNavActive(itemId: string, pathname: string): boolean {
+  if (itemId === 'dashboard') return pathname === '/dashboard';
+  if (itemId === 'profile') return pathname === '/dashboard/profile';
+  if (itemId === 'bookings') return pathname.startsWith('/dashboard/bookings');
+  if (itemId === 'listings') return pathname.startsWith('/dashboard/listings');
+  if (itemId === 'availability') return pathname.startsWith('/dashboard/availability');
+  return false;
 }

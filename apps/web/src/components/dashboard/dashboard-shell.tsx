@@ -2,19 +2,24 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 
+import { DashboardIcon } from '@/components/dashboard/dashboard-icon';
+import { DashboardNotificationMenu } from '@/components/dashboard/dashboard-notification-menu';
 import PrivacyNoticeModal from '@/components/privacy-notice-modal';
+import { GraphPaper, NotebookPage, StickyNote, WashiTape } from '@/components/ui/notebook';
 import {
   getDashboardNavItems,
-  getDashboardRoleConfig,
   getUserDisplayName,
   getUserInitial,
+  isDashboardNavActive,
+  resolveDashboardView,
 } from '@/lib/dashboard-navigation';
 import { formatBangkokYear } from '@/lib/date-time';
 import { useLanguage } from '@/lib/i18n';
 
 import type { AuthUser } from '@/lib/api/types';
+import type { DashboardViewType } from '@/lib/dashboard-navigation';
 import type { ReactNode } from 'react';
 
 export interface DashboardShellProps {
@@ -24,6 +29,63 @@ export interface DashboardShellProps {
   headerNavRight?: ReactNode;
   visualVariant?: 'default' | 'profile';
   navBadges?: Partial<Record<string, string>>;
+}
+
+const sidebarStorageKey = 'hktutor-sidebar-collapsed';
+
+const roleStyles = {
+  student: {
+    active:
+      'border-emerald-300 bg-sticky-green text-emerald-900 shadow-[inset_4px_0_0_var(--color-student)]',
+    avatar: 'bg-student-deep text-white',
+    badge: 'bg-sticky-green text-student-deep',
+    decoration: 'bg-sticky-green/55',
+    dot: 'bg-student',
+    hover: 'hover:bg-sticky-green/60',
+    icon: 'bg-emerald-50 text-student-deep',
+    noteTone: 'green',
+  },
+  tutor: {
+    active:
+      'border-blue-300 bg-sticky-blue text-blue-900 shadow-[inset_4px_0_0_var(--color-tutor)]',
+    avatar: 'bg-tutor-deep text-white',
+    badge: 'bg-sticky-blue text-tutor-deep',
+    decoration: 'bg-sticky-blue/60',
+    dot: 'bg-tutor',
+    hover: 'hover:bg-sticky-blue/60',
+    icon: 'bg-blue-50 text-tutor-deep',
+    noteTone: 'blue',
+  },
+  admin: {
+    active:
+      'border-amber-300 bg-sticky-yellow text-amber-900 shadow-[inset_4px_0_0_var(--color-admin)]',
+    avatar: 'bg-admin-deep text-white',
+    badge: 'bg-sticky-yellow text-admin-deep',
+    decoration: 'bg-sticky-yellow/70',
+    dot: 'bg-admin',
+    hover: 'hover:bg-sticky-yellow/60',
+    icon: 'bg-amber-50 text-admin-deep',
+    noteTone: 'yellow',
+  },
+} as const satisfies Record<
+  DashboardViewType,
+  {
+    active: string;
+    avatar: string;
+    badge: string;
+    decoration: string;
+    dot: string;
+    hover: string;
+    icon: string;
+    noteTone: 'green' | 'blue' | 'yellow';
+  }
+>;
+
+const navItemClass =
+  'flex min-h-11 w-full items-center justify-between gap-2 rounded-lg border border-transparent px-2.5 py-2 text-left text-sm font-semibold text-notebook-ink no-underline transition hover:translate-x-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-notebook-ink/25';
+
+function classes(...values: Array<string | false | null | undefined>): string {
+  return values.filter(Boolean).join(' ');
 }
 
 export function DashboardShell({
@@ -40,15 +102,20 @@ export function DashboardShell({
   const [isMobileSidebar, setIsMobileSidebar] = useState(false);
   const [privacyNoticeOpen, setPrivacyNoticeOpen] = useState(false);
 
-  const roleConfig = getDashboardRoleConfig(user.role, copy);
+  const viewType = resolveDashboardView(user.role);
+  const theme = roleStyles[viewType];
   const navItems = getDashboardNavItems(user.role, copy);
   const displayName = getUserDisplayName(user);
   const userInitial = getUserInitial(user);
 
   const toggleSidebar = () => {
-    setIsSidebarCollapsed((prev) => {
-      const next = !prev;
-      window.localStorage.setItem('hktutor-sidebar-collapsed', String(next));
+    setIsSidebarCollapsed((current) => {
+      const next = !current;
+      try {
+        window.localStorage.setItem(sidebarStorageKey, String(next));
+      } catch {
+        // The sidebar remains usable when browser storage is unavailable.
+      }
       return next;
     });
   };
@@ -57,8 +124,13 @@ export function DashboardShell({
     const media = window.matchMedia('(max-width: 960px)');
     const syncSidebar = () => {
       setIsMobileSidebar(media.matches);
-      const savedPreference = window.localStorage.getItem('hktutor-sidebar-collapsed');
-      setIsSidebarCollapsed(media.matches ? true : savedPreference === 'true');
+      let savedPreference = false;
+      try {
+        savedPreference = window.localStorage.getItem(sidebarStorageKey) === 'true';
+      } catch {
+        // Default to the expanded desktop shell when browser storage is unavailable.
+      }
+      setIsSidebarCollapsed(media.matches ? true : savedPreference);
     };
 
     syncSidebar();
@@ -85,185 +157,250 @@ export function DashboardShell({
   }, [isMobileSidebar, isSidebarCollapsed]);
 
   return (
-    <div className="dash-root">
-      {/* Soft floating decorative artwork */}
-      <div className="dash-art" aria-hidden="true">
-        <div className="blob dash-b1" />
-        <div className="blob dash-b2" />
-        <div className={`blob dash-b3-${roleConfig.viewType}`} />
+    <NotebookPage className="relative overflow-x-clip bg-paper">
+      <div className="pointer-events-none fixed inset-0 z-0 overflow-hidden" aria-hidden="true">
+        <div className="absolute -right-24 -top-20 h-64 w-64 rotate-6 rounded-[2rem] border border-blue-200/60 bg-sticky-blue/25" />
+        <div
+          className={classes(
+            'absolute -bottom-24 left-[12%] h-64 w-64 -rotate-6 rounded-full blur-sm',
+            theme.decoration,
+          )}
+        />
       </div>
 
       <div
-        className={`dash-app ${isSidebarCollapsed ? 'sb-collapsed' : ''} ${visualVariant === 'profile' ? 'dash-app-profile' : ''}`}
+        className={classes(
+          'relative z-10 min-h-dvh transition-[grid-template-columns] duration-300 lg:grid',
+          isSidebarCollapsed
+            ? 'lg:grid-cols-[5rem_minmax(0,1fr)]'
+            : 'lg:grid-cols-[18rem_minmax(0,1fr)]',
+        )}
       >
-        <button
-          type="button"
-          className="dash-sidebar-backdrop"
-          aria-label={copy.dashboard.sidebar.closeSidebar}
-          tabIndex={isMobileSidebar && !isSidebarCollapsed ? 0 : -1}
-          onClick={() => setIsSidebarCollapsed(true)}
-        />
-        {/* Sticky left sidebar */}
+        {isMobileSidebar && !isSidebarCollapsed && (
+          <button
+            type="button"
+            className="fixed inset-0 z-30 cursor-pointer border-0 bg-stone-900/40 backdrop-blur-[1px]"
+            aria-label={copy.dashboard.sidebar.closeSidebar}
+            onClick={() => setIsSidebarCollapsed(true)}
+          />
+        )}
+
         <aside
-          className="dash-sidebar"
+          className={classes(
+            'fixed inset-y-0 left-0 z-40 flex h-dvh flex-col gap-4 overflow-y-auto border-r border-paper-edge bg-paper-deep/95 py-4 shadow-paper backdrop-blur transition-[width,padding] duration-300 [scrollbar-width:none] motion-reduce:transition-none [&::-webkit-scrollbar]:hidden lg:sticky lg:top-0 lg:z-20 lg:shadow-none',
+            isSidebarCollapsed ? 'w-20 px-2.5' : 'w-[min(19rem,calc(100vw-1rem))] px-4 lg:w-72',
+          )}
           id="dashboard-sidebar"
           aria-label={copy.dashboard.common.eyebrow}
         >
-          <div className="dash-sb-head">
-            <Link
-              href="/dashboard"
-              className="dash-logo"
-              aria-label={copy.dashboard.common.eyebrow}
-              title={copy.dashboard.common.eyebrow}
-            >
-              <span className="mono">HK</span>
-              <span className="dash-logo-word">HKTutor</span>
-            </Link>
-            <button
-              type="button"
-              onClick={toggleSidebar}
-              className="dash-rail-toggle"
-              aria-label={copy.dashboard.sidebar.openSidebar}
-              title={copy.dashboard.sidebar.openSidebar}
-            >
-              <span className="mono">HK</span>
-              <span className="burger" aria-hidden="true">
-                <i />
-                <i />
-                <i />
-              </span>
-            </button>
-            <button
-              type="button"
-              onClick={toggleSidebar}
-              className="dash-sb-close"
-              aria-label={copy.dashboard.sidebar.closeSidebar}
-            >
-              <svg
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                aria-hidden="true"
+          <div
+            className={classes(
+              'flex min-h-12 items-center gap-2',
+              isSidebarCollapsed ? 'justify-center' : 'justify-between',
+            )}
+          >
+            {isSidebarCollapsed ? (
+              <button
+                type="button"
+                onClick={toggleSidebar}
+                className="group inline-flex h-12 w-12 items-center justify-center rounded-xl border border-notebook-ink bg-notebook-ink text-xs font-black tracking-tight text-paper shadow-[0_3px_0_#57534e] transition hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-notebook-ink/30 focus-visible:ring-offset-2"
+                aria-label={copy.dashboard.sidebar.openSidebar}
+                title={copy.dashboard.sidebar.openSidebar}
               >
-                <path d="m14.5 5-7 7 7 7" />
-              </svg>
-            </button>
+                <span className="group-hover:hidden">HK</span>
+                <span className="hidden space-y-1 group-hover:block" aria-hidden="true">
+                  <i className="block h-0.5 w-5 rounded-full bg-paper" />
+                  <i className="block h-0.5 w-4 rounded-full bg-paper" />
+                  <i className="block h-0.5 w-5 rounded-full bg-paper" />
+                </span>
+              </button>
+            ) : (
+              <>
+                <Link
+                  href="/dashboard"
+                  className="inline-flex items-center gap-2.5 rounded-lg text-notebook-ink no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-notebook-ink/30"
+                  aria-label={copy.dashboard.common.eyebrow}
+                  title={copy.dashboard.common.eyebrow}
+                >
+                  <span className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-notebook-ink bg-notebook-ink text-xs font-black tracking-tight text-paper shadow-[0_3px_0_#57534e]">
+                    HK
+                  </span>
+                  <span className="font-note text-3xl font-bold tracking-normal">HKTutor</span>
+                </Link>
+                <button
+                  type="button"
+                  onClick={toggleSidebar}
+                  className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-paper-edge bg-paper text-notebook-muted shadow-sm transition hover:-translate-x-0.5 hover:bg-sticky-yellow/60 hover:text-notebook-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-notebook-ink/30"
+                  aria-label={copy.dashboard.sidebar.closeSidebar}
+                  title={copy.dashboard.sidebar.closeSidebar}
+                >
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    className="h-5 w-5"
+                    aria-hidden="true"
+                  >
+                    <path d="m14.5 5-7 7 7 7" />
+                  </svg>
+                </button>
+              </>
+            )}
           </div>
 
-          <div className="dash-card dash-side-card dash-account-card dash-profile-nav-card">
-            <div className="dash-user-chip" style={{ marginBottom: '1rem' }}>
-              <div className={`dash-avatar dash-avatar-${roleConfig.viewType}`} aria-hidden="true">
-                {userInitial}
+          {!isSidebarCollapsed && (
+            <StickyNote tone={theme.noteTone} className="mt-1 p-3.5">
+              <WashiTape
+                tone={viewType === 'tutor' ? 'blue' : 'yellow'}
+                className="-top-2 left-1/2 -translate-x-1/2"
+              />
+              <div className="flex items-center gap-3">
+                <div
+                  className={classes(
+                    'flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-base font-black shadow-sm',
+                    theme.avatar,
+                  )}
+                  aria-hidden="true"
+                >
+                  {userInitial}
+                </div>
+                <div className="min-w-0">
+                  <b className="block truncate text-sm font-extrabold text-notebook-ink">
+                    {displayName}
+                  </b>
+                  <span className="block truncate text-xs text-notebook-muted">{user.email}</span>
+                </div>
               </div>
-              <div className="min-w-0">
-                <b className="block truncate text-sm font-extrabold text-[#1a1916]">
-                  {displayName}
-                </b>
-                <span className="block truncate text-xs text-[#5e5a52]">{user.email}</span>
-              </div>
-            </div>
+            </StickyNote>
+          )}
 
-            <nav
-              className={`dash-side-nav dash-side-nav-${roleConfig.viewType}`}
-              aria-label="Sidebar Navigation"
-            >
-              {navItems.map((item) => {
-                const badge = navBadges?.[item.id] ?? item.badge;
-                if (item.isDanger) {
-                  return (
-                    <button
-                      key={item.id}
-                      type="button"
-                      onClick={() => void onLogout()}
-                      className="danger"
-                      title={item.label}
+          <nav className="flex w-full flex-col gap-1" aria-label="Sidebar Navigation">
+            {navItems.map((item) => {
+              const badge = navBadges?.[item.id] ?? item.badge;
+              const icon = (
+                <span
+                  className={classes(
+                    'inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg shadow-sm',
+                    item.isDanger ? 'bg-red-50 text-red-700' : theme.icon,
+                  )}
+                  aria-hidden="true"
+                >
+                  <DashboardIcon name={item.icon} className="h-[1.1rem] w-[1.1rem]" />
+                </span>
+              );
+              const content = (
+                <>
+                  <span className="flex min-w-0 items-center gap-2.5">
+                    {icon}
+                    {!isSidebarCollapsed && <span className="truncate">{item.label}</span>}
+                  </span>
+                  {!isSidebarCollapsed && badge !== undefined && (
+                    <span
+                      className={classes(
+                        'rounded-full px-2 py-0.5 text-xs font-extrabold',
+                        theme.badge,
+                      )}
                     >
-                      <span className="flex items-center gap-2.5">
-                        <span className="ico" aria-hidden="true">
-                          <DashboardNavIcon name={item.icon} />
-                        </span>
-                        <span className="dash-nav-label">{item.label}</span>
-                      </span>
-                    </button>
-                  );
-                }
+                      {badge}
+                    </span>
+                  )}
+                </>
+              );
+              const itemLayout = isSidebarCollapsed
+                ? 'h-12 justify-center px-0 hover:translate-x-0'
+                : undefined;
 
-                if (item.id === 'privacy') {
-                  return (
-                    <button
-                      key={item.id}
-                      type="button"
-                      onClick={() => setPrivacyNoticeOpen(true)}
-                      title={item.label}
-                    >
-                      <span className="flex items-center gap-2.5">
-                        <span className="ico" aria-hidden="true">
-                          <DashboardNavIcon name={item.icon} />
-                        </span>
-                        <span className="dash-nav-label">{item.label}</span>
-                      </span>
-                    </button>
-                  );
-                }
-
-                const isActive = isDashboardNavActive(item.id, pathname);
-
+              if (item.isDanger) {
                 return (
-                  <Link
+                  <button
                     key={item.id}
-                    href={item.href}
-                    className={isActive ? 'is-active' : undefined}
-                    aria-current={isActive ? 'page' : undefined}
+                    type="button"
+                    onClick={() => void onLogout()}
+                    className={classes(
+                      navItemClass,
+                      itemLayout,
+                      'text-red-700 hover:bg-sticky-pink/70',
+                    )}
                     title={item.label}
                   >
-                    <span className="flex items-center gap-2.5">
-                      <span className="ico" aria-hidden="true">
-                        <DashboardNavIcon name={item.icon} />
-                      </span>
-                      <span className="dash-nav-label">{item.label}</span>
-                    </span>
-                    {badge !== undefined && (
-                      <span
-                        className="dash-nav-badge rounded-full px-2 py-0.5 text-xs font-bold"
-                        style={{
-                          background: roleConfig.softBg,
-                          color: roleConfig.accentDeepColor,
-                        }}
-                      >
-                        {badge}
-                      </span>
-                    )}
-                  </Link>
+                    {content}
+                  </button>
                 );
-              })}
-            </nav>
-          </div>
+              }
 
-          <div className="dash-card dash-side-card">
-            <h2>{copy.dashboard.sidebar.needHelpTitle}</h2>
-            <p>{copy.dashboard.sidebar.needHelpBody}</p>
-            <button type="button" onClick={() => setPrivacyNoticeOpen(true)} className="dash-link">
-              {copy.dashboard.sidebar.privacyNoticeLink}
-            </button>
-          </div>
+              if (item.id === 'privacy') {
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => setPrivacyNoticeOpen(true)}
+                    className={classes(navItemClass, itemLayout, theme.hover)}
+                    title={item.label}
+                  >
+                    {content}
+                  </button>
+                );
+              }
+
+              const isActive = isDashboardNavActive(item.id, pathname);
+
+              return (
+                <Link
+                  key={item.id}
+                  href={item.href}
+                  className={classes(
+                    navItemClass,
+                    itemLayout,
+                    isActive ? theme.active : theme.hover,
+                    isSidebarCollapsed && isActive && 'shadow-none',
+                  )}
+                  aria-current={isActive ? 'page' : undefined}
+                  title={item.label}
+                >
+                  {content}
+                </Link>
+              );
+            })}
+          </nav>
+
+          {!isSidebarCollapsed && (
+            <GraphPaper className="relative mt-auto p-4">
+              <WashiTape tone="pink" className="-right-4 -top-2 rotate-6" />
+              <h2 className="font-note text-xl font-bold text-notebook-ink">
+                {copy.dashboard.sidebar.needHelpTitle}
+              </h2>
+              <p className="mt-1 text-xs leading-5 text-notebook-muted">
+                {copy.dashboard.sidebar.needHelpBody}
+              </p>
+              <button
+                type="button"
+                onClick={() => setPrivacyNoticeOpen(true)}
+                className="mt-2 text-xs font-extrabold text-notebook-ink underline decoration-margin-guide decoration-2 underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-notebook-ink/25"
+              >
+                {copy.dashboard.sidebar.privacyNoticeLink}
+              </button>
+            </GraphPaper>
+          )}
         </aside>
 
-        {/* Main Column */}
-        <div className="dash-main-wrap">
-          <header className="dash-header">
-            <nav aria-label="Dashboard Top Navigation">
+        <div className="ml-20 flex min-w-0 flex-col lg:ml-0">
+          <header className="sticky top-0 z-20 flex min-h-20 items-center justify-end border-b border-dashed border-paper-edge bg-paper/85 px-3 py-3 backdrop-blur-md sm:px-5 lg:px-8">
+            <nav
+              className="ml-auto flex min-w-0 items-center gap-2 text-sm sm:gap-3 [&>[data-dashboard-action]]:min-h-11 [&>[data-dashboard-action]]:rounded-lg [&>[data-dashboard-action]]:border [&>[data-dashboard-action]]:border-notebook-ink [&>[data-dashboard-action]]:bg-notebook-ink [&>[data-dashboard-action]]:px-3.5 [&>[data-dashboard-action]]:py-2 [&>[data-dashboard-action]]:font-bold [&>[data-dashboard-action]]:text-paper [&>[data-dashboard-action]]:shadow-[0_3px_0_#57534e] [&>[data-dashboard-action]]:transition [&>[data-dashboard-action]]:hover:-translate-y-0.5 [&>a:not([data-dashboard-action])]:font-bold [&>a:not([data-dashboard-action])]:text-notebook-ink [&>a:not([data-dashboard-action])]:underline [&>a:not([data-dashboard-action])]:decoration-margin-guide [&>a:not([data-dashboard-action])]:decoration-2 [&>a:not([data-dashboard-action])]:underline-offset-4 max-[560px]:[&>a:not([data-dashboard-action])]:hidden"
+              aria-label="Dashboard Top Navigation"
+            >
               {visualVariant === 'profile' && (
-                <NotificationMenu userRole={user.role} copy={copy.dashboard.header} />
+                <DashboardNotificationMenu userRole={user.role} copy={copy.dashboard.header} />
               )}
               <button
                 type="button"
                 onClick={toggleLanguage}
                 aria-label={copy.common.languageButtonLabel}
                 aria-pressed={language === 'th'}
-                className="dash-lang-btn"
+                className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-paper-edge bg-paper/90 px-3 text-xs font-extrabold text-notebook-ink shadow-sm transition hover:-translate-y-0.5 hover:bg-sticky-yellow/45 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-notebook-ink/25"
               >
-                <span className="dot" style={{ backgroundColor: roleConfig.accentColor }} />
+                <span className={classes('h-2 w-2 rounded-full', theme.dot)} />
                 <span>{language.toUpperCase()}</span>
               </button>
 
@@ -271,17 +408,24 @@ export function DashboardShell({
             </nav>
           </header>
 
-          <main className="dash-main">{children}</main>
+          <main
+            className={classes(
+              'relative z-10 mx-auto w-[calc(100%-1.25rem)] min-w-0 flex-1 pb-12 sm:w-[calc(100%-2.5rem)]',
+              visualVariant === 'profile' ? 'max-w-[1280px]' : 'max-w-[1200px]',
+            )}
+          >
+            {children}
+          </main>
 
-          <footer className="dash-footer">
+          <footer className="relative z-10 px-4 pb-7 text-center text-sm text-notebook-muted">
             <span>
               © {formatBangkokYear(new Date(), language)} {copy.dashboard.common.copyright}
             </span>
-            <span className="sep">|</span>
+            <span className="mx-3 text-paper-edge">|</span>
             <button
               type="button"
               onClick={() => setPrivacyNoticeOpen(true)}
-              style={{ color: 'inherit' }}
+              className="text-inherit underline decoration-margin-guide decoration-2 underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-notebook-ink/25"
             >
               {copy.dashboard.common.privacySupport}
             </button>
@@ -289,324 +433,8 @@ export function DashboardShell({
         </div>
       </div>
       <PrivacyNoticeModal open={privacyNoticeOpen} onClose={() => setPrivacyNoticeOpen(false)} />
-    </div>
-  );
-}
-
-function isDashboardNavActive(itemId: string, pathname: string): boolean {
-  if (itemId === 'dashboard') return pathname === '/dashboard';
-  if (itemId === 'profile') return pathname === '/dashboard/profile';
-  if (itemId === 'bookings') return pathname.startsWith('/dashboard/bookings');
-  if (itemId === 'listings') return pathname.startsWith('/dashboard/listings');
-  if (itemId === 'availability') return pathname.startsWith('/dashboard/availability');
-  return false;
-}
-
-type NotificationMenuCopy = {
-  notifications: string;
-  notificationClose: string;
-  notificationNow: string;
-  notificationsUnread: string;
-  markAllNotificationsRead: string;
-  noNotifications: string;
-  profileNotificationTitle: string;
-  profileNotificationBody: string;
-  listingNotificationTitle: string;
-  listingNotificationBody: string;
-  privacyNotificationTitle: string;
-  privacyNotificationBody: string;
-};
-
-type NotificationItem = {
-  id: string;
-  href: string;
-  title: string;
-  body: string;
-  icon: 'profile' | 'listing' | 'privacy';
-};
-
-function NotificationMenu({
-  userRole,
-  copy,
-}: {
-  userRole: AuthUser['role'];
-  copy: NotificationMenuCopy;
-}) {
-  const [isOpen, setIsOpen] = useState(false);
-  const [hasUnread, setHasUnread] = useState(true);
-  const menuRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!isOpen) return;
-
-    const closeOnPointerDown = (event: PointerEvent) => {
-      if (!menuRef.current?.contains(event.target as Node)) setIsOpen(false);
-    };
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setIsOpen(false);
-    };
-
-    document.addEventListener('pointerdown', closeOnPointerDown);
-    document.addEventListener('keydown', closeOnEscape);
-    return () => {
-      document.removeEventListener('pointerdown', closeOnPointerDown);
-      document.removeEventListener('keydown', closeOnEscape);
-    };
-  }, [isOpen]);
-
-  const items: NotificationItem[] =
-    userRole === 'TUTOR'
-      ? [
-          {
-            id: 'profile',
-            href: '/dashboard/profile',
-            title: copy.profileNotificationTitle,
-            body: copy.profileNotificationBody,
-            icon: 'profile',
-          },
-          {
-            id: 'listing',
-            href: '/dashboard/listings/new',
-            title: copy.listingNotificationTitle,
-            body: copy.listingNotificationBody,
-            icon: 'listing',
-          },
-        ]
-      : [
-          {
-            id: 'profile',
-            href: '/dashboard/profile',
-            title: copy.profileNotificationTitle,
-            body: copy.profileNotificationBody,
-            icon: 'profile',
-          },
-          {
-            id: 'privacy',
-            href: '/dashboard/profile#privacy',
-            title: copy.privacyNotificationTitle,
-            body: copy.privacyNotificationBody,
-            icon: 'privacy',
-          },
-        ];
-
-  const unreadCount = hasUnread ? items.length : 0;
-  const unreadLabel = copy.notificationsUnread.replace('{count}', String(unreadCount));
-
-  return (
-    <div className="dash-notification-wrap" ref={menuRef}>
-      <button
-        type="button"
-        className="dash-notification-trigger"
-        aria-label={`${copy.notifications}${unreadCount ? `, ${unreadLabel}` : ''}`}
-        aria-expanded={isOpen}
-        aria-controls="dashboard-notifications"
-        onClick={() => setIsOpen((open) => !open)}
-      >
-        <svg
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1.8"
-          aria-hidden="true"
-        >
-          <path d="M18 9a6 6 0 0 0-12 0c0 7-3 7-3 8.5h18C21 16 18 16 18 9Z" />
-          <path d="M10 21h4" />
-        </svg>
-        {unreadCount > 0 && <span className="dash-notification-badge">{unreadCount}</span>}
-      </button>
-
-      {isOpen && (
-        <div
-          className="dash-notification-popover"
-          id="dashboard-notifications"
-          role="dialog"
-          aria-labelledby="dashboard-notifications-title"
-        >
-          <div className="dash-notification-head">
-            <div>
-              <div className="dash-notification-title-row">
-                <span className="dash-notification-header-icon" aria-hidden="true">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-                    <path d="M18 9a6 6 0 0 0-12 0c0 7-3 7-3 8.5h18C21 16 18 16 18 9Z" />
-                    <path d="M10 21h4" />
-                  </svg>
-                </span>
-                <h2 id="dashboard-notifications-title">{copy.notifications}</h2>
-              </div>
-              <p>{unreadCount ? unreadLabel : copy.noNotifications}</p>
-            </div>
-            <button
-              type="button"
-              className="dash-notification-close"
-              aria-label={copy.notificationClose}
-              onClick={() => setIsOpen(false)}
-            >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-                <path d="m6 6 12 12M18 6 6 18" />
-              </svg>
-            </button>
-          </div>
-
-          {unreadCount > 0 && (
-            <div className="dash-notification-actions">
-              <span>{unreadLabel}</span>
-              <button type="button" onClick={() => setHasUnread(false)}>
-                {copy.markAllNotificationsRead}
-              </button>
-            </div>
-          )}
-
-          <div className="dash-notification-list">
-            {items.length > 0 ? (
-              items.map((item) => (
-                <Link
-                  key={item.id}
-                  href={item.href}
-                  className={`dash-notification-item${hasUnread ? ' is-unread' : ''}`}
-                  onClick={() => {
-                    setHasUnread(false);
-                    setIsOpen(false);
-                  }}
-                >
-                  <span className="dash-notification-item-icon" aria-hidden="true">
-                    <NotificationItemIcon name={item.icon} />
-                  </span>
-                  <span className="dash-notification-item-content">
-                    <span className="dash-notification-item-title-row">
-                      <strong>{item.title}</strong>
-                      <time>{copy.notificationNow}</time>
-                    </span>
-                    <span className="dash-notification-item-body">{item.body}</span>
-                  </span>
-                  <span className="dash-notification-item-dot" aria-hidden="true" />
-                </Link>
-              ))
-            ) : (
-              <p className="dash-notification-empty">{copy.noNotifications}</p>
-            )}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function NotificationItemIcon({ name }: { name: NotificationItem['icon'] }) {
-  if (name === 'listing') {
-    return (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-        <path d="M6 4.5h12v15H6z" />
-        <path d="M9 8h6M9 11.5h6M9 15h4" />
-      </svg>
-    );
-  }
-
-  if (name === 'privacy') {
-    return (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-        <path d="m12 3.5 7 2.7v5.1c0 4.5-2.7 7.6-7 9.2-4.3-1.6-7-4.7-7-9.2V6.2z" />
-        <path d="M9.5 11.5 11.3 13l3.4-3.5" />
-      </svg>
-    );
-  }
-
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-      <circle cx="12" cy="8" r="3" />
-      <path d="M5.5 20c.7-3.1 3.1-4.8 6.5-4.8s5.8 1.7 6.5 4.8" />
-    </svg>
+    </NotebookPage>
   );
 }
 
 export default DashboardShell;
-
-function DashboardNavIcon({ name }: { name: string }) {
-  const common = {
-    fill: 'none',
-    stroke: 'currentColor',
-    strokeLinecap: 'round' as const,
-    strokeLinejoin: 'round' as const,
-    strokeWidth: 1.8,
-  };
-
-  if (name === 'dashboard') {
-    return (
-      <svg viewBox="0 0 24 24" aria-hidden="true" {...common}>
-        <rect x="4" y="4" width="6" height="6" rx="1.5" />
-        <rect x="14" y="4" width="6" height="6" rx="1.5" />
-        <rect x="4" y="14" width="6" height="6" rx="1.5" />
-        <rect x="14" y="14" width="6" height="6" rx="1.5" />
-      </svg>
-    );
-  }
-
-  if (name === 'profile') {
-    return (
-      <svg viewBox="0 0 24 24" aria-hidden="true" {...common}>
-        <circle cx="12" cy="8" r="3.2" />
-        <path d="M5.5 20c.7-3.1 3.1-4.8 6.5-4.8s5.8 1.7 6.5 4.8" />
-      </svg>
-    );
-  }
-
-  if (name === 'listings') {
-    return (
-      <svg viewBox="0 0 24 24" aria-hidden="true" {...common}>
-        <path d="M5 5.5A2.5 2.5 0 0 1 7.5 3H19v17H7.5A2.5 2.5 0 0 1 5 17.5z" />
-        <path d="M8 3v17M11.5 7h4.5M11.5 10.5h4.5" />
-      </svg>
-    );
-  }
-
-  if (name === 'availability') {
-    return (
-      <svg viewBox="0 0 24 24" aria-hidden="true" {...common}>
-        <rect x="4" y="5.5" width="16" height="15" rx="2" />
-        <path d="M8 3.5v4M16 3.5v4M4 9.5h16M8 13h3M8 16.5h3M14 13h2" />
-      </svg>
-    );
-  }
-
-  if (name === 'bookings') {
-    return (
-      <svg viewBox="0 0 24 24" aria-hidden="true" {...common}>
-        <rect x="5" y="4.5" width="14" height="16" rx="2" />
-        <path d="M9 4.5V3h6v1.5M9 10h6M9 13.5h6M9 17h3" />
-      </svg>
-    );
-  }
-
-  if (name === 'settings') {
-    return (
-      <svg viewBox="0 0 24 24" aria-hidden="true" {...common}>
-        <path d="m12 3 1.1 1.9 2.2.5 1.8-1 1.5 1.5-1 1.8.5 2.2L20 11v2l-1.9 1.1-.5 2.2 1 1.8-1.5 1.5-1.8-1-2.2.5L12 21l-1.1-1.9-2.2-.5-1.8 1-1.5-1.5 1-1.8-.5-2.2L4 13v-2l1.9-1.1.5-2.2-1-1.8L6.9 4.4l1.8 1 2.2-.5z" />
-        <circle cx="12" cy="12" r="2.7" />
-      </svg>
-    );
-  }
-
-  if (name === 'support') {
-    return (
-      <svg viewBox="0 0 24 24" aria-hidden="true" {...common}>
-        <path d="M4 13v-1a8 8 0 0 1 16 0v1" />
-        <path d="M4 13h3v5H5.5A1.5 1.5 0 0 1 4 16.5zM20 13h-3v5h1.5a1.5 1.5 0 0 0 1.5-1.5zM17 18c0 1.1-.9 2-2 2h-2" />
-      </svg>
-    );
-  }
-
-  if (name === 'privacy') {
-    return (
-      <svg viewBox="0 0 24 24" aria-hidden="true" {...common}>
-        <path d="M12 3.5 19 6v5.3c0 4.5-2.7 7.6-7 9.2-4.3-1.6-7-4.7-7-9.2V6z" />
-        <rect x="9.2" y="10.5" width="5.6" height="5" rx="1" />
-        <path d="M10.5 10.5V9.3a1.5 1.5 0 0 1 3 0v1.2" />
-      </svg>
-    );
-  }
-
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true" {...common}>
-      <path d="M14 5h4.5A1.5 1.5 0 0 1 20 6.5v11a1.5 1.5 0 0 1-1.5 1.5H14M10 8l-4 4 4 4M6 12h9" />
-    </svg>
-  );
-}

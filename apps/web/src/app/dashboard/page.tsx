@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react';
 import AdminDashboard from '@/components/dashboard/admin-dashboard';
 import StudentDashboard from '@/components/dashboard/student-dashboard';
 import TutorDashboard from '@/components/dashboard/tutor-dashboard';
+import { NotebookPage, StickyNote, WashiTape } from '@/components/ui/notebook';
 import { ApiError } from '@/lib/api/error';
 import { getMyProfile } from '@/lib/api/profiles';
 import { useAuth } from '@/lib/auth-context';
@@ -76,24 +77,21 @@ export default function DashboardPage() {
   // Prevent flashing content or incorrect role during session loading or when unauthenticated
   if (isLoading || !user) {
     return (
-      <div className="dash-root">
-        <div className="dash-art" aria-hidden="true">
-          <div className="blob dash-b1" />
-          <div className="blob dash-b2" />
-        </div>
+      <NotebookPage className="relative flex items-center justify-center overflow-hidden p-6">
         <div
-          role="status"
-          aria-live="polite"
-          className="relative z-10 flex min-h-dvh flex-col items-center justify-center p-6 text-center"
-        >
-          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white shadow-sm">
-            <span className="h-6 w-6 animate-spin rounded-full border-2 border-[#1a1916] border-t-transparent" />
-          </div>
-          <p className="mt-4 text-sm font-semibold text-[#5e5a52]">
-            {copy.dashboard.common.loading}
-          </p>
+          className="pointer-events-none absolute -right-16 -top-16 h-56 w-56 rotate-6 rounded-3xl bg-sticky-blue/45"
+          aria-hidden="true"
+        />
+        <div role="status" aria-live="polite" className="relative z-10 text-center">
+          <StickyNote tone="yellow" className="min-w-56 px-8 py-7">
+            <WashiTape className="-top-2 left-1/2 -translate-x-1/2" />
+            <span className="mx-auto block h-7 w-7 animate-spin rounded-full border-2 border-notebook-ink border-t-transparent" />
+            <p className="mt-4 font-note text-xl font-semibold text-notebook-ink">
+              {copy.dashboard.common.loading}
+            </p>
+          </StickyNote>
         </div>
-      </div>
+      </NotebookPage>
     );
   }
 

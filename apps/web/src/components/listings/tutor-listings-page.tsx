@@ -185,7 +185,7 @@ export default function TutorListingsPage() {
       user={shellUser}
       onLogout={handleLogout}
       headerNavRight={
-        <Link href="/dashboard/listings/new" className="dash-cta">
+        <Link href="/dashboard/listings/new" data-dashboard-action>
           {copy.newListing}
         </Link>
       }

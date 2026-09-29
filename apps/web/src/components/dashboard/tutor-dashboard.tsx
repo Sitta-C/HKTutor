@@ -81,7 +81,7 @@ export function TutorDashboard({ user, onLogout }: TutorDashboardProps) {
   const headerNav = (
     <>
       <Link href="/dashboard/listings">{copy.dashboard.header.myListingsNav}</Link>
-      <Link href="/dashboard/listings/new" className="dash-cta">
+      <Link href="/dashboard/listings/new" data-dashboard-action>
         {copy.dashboard.header.newListingCta}
       </Link>
     </>
@@ -313,7 +313,10 @@ export function TutorDashboard({ user, onLogout }: TutorDashboardProps) {
         <div className="dash-card tutors-panel mt-5 p-6 sm:p-7">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-4">
             <h2 className="text-2xl font-extrabold tracking-tight">{tutorCopy.todayBangkokTime}</h2>
-            <Link href="/dashboard/availability" className="dash-link !mt-0">
+            <Link
+              href="/dashboard/availability"
+              className="text-sm font-bold text-notebook-ink underline decoration-margin-guide decoration-2 underline-offset-4 transition hover:text-amber-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-notebook-ink/25"
+            >
               {tutorCopy.manageAvailability}
             </Link>
           </div>
