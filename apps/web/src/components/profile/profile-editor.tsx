@@ -7,6 +7,16 @@ import { useEffect, useState } from 'react';
 import { DashboardIcon, type DashboardIconName } from '@/components/dashboard/dashboard-icon';
 import DashboardShell from '@/components/dashboard/dashboard-shell';
 import PrivacyConsent from '@/components/privacy-consent';
+import {
+  GraphPaper,
+  NotebookPage,
+  PaperCard,
+  StatusBadge,
+  StickyNote,
+  WashiTape,
+  notebookButtonClass,
+  notebookInputClass,
+} from '@/components/ui/notebook';
 import { ApiError } from '@/lib/api/error';
 import {
   acceptCurrentPrivacyNotice,
@@ -41,6 +51,7 @@ interface TutorForm {
 }
 type FieldName = keyof StudentForm | keyof TutorForm;
 type FieldErrors = Partial<Record<FieldName, string>>;
+type ProfileTone = 'student' | 'tutor';
 
 const emptyStudent: StudentForm = {
   firstName: '',
@@ -75,6 +86,30 @@ const fields: FieldName[] = [
   'bio',
   'experienceYears',
 ];
+
+const profileTone = {
+  student: {
+    accent: 'text-student-deep',
+    avatar: 'bg-student-deep',
+    badge: 'student' as const,
+    fieldFocus: 'focus:border-student focus:ring-sticky-green/70',
+  },
+  tutor: {
+    accent: 'text-tutor-deep',
+    avatar: 'bg-tutor-deep',
+    badge: 'tutor' as const,
+    fieldFocus: 'focus:border-tutor focus:ring-sticky-blue/70',
+  },
+};
+
+function profileInputClass(tone: ProfileTone, error: boolean, className?: string): string {
+  return notebookInputClass({
+    error,
+    className: [error ? undefined : profileTone[tone].fieldFocus, className]
+      .filter(Boolean)
+      .join(' '),
+  });
+}
 
 export default function ProfileEditor({ mode }: ProfileEditorProps) {
   const { isLoading: authLoading, logout, user } = useAuth();
@@ -258,132 +293,168 @@ export default function ProfileEditor({ mode }: ProfileEditorProps) {
   const shellUser: AuthUser = savedShellName
     ? { ...user, displayName: savedShellName }
     : { ...user };
+  const tone: ProfileTone = studentRole ? 'student' : 'tutor';
   const headerNav =
     mode === 'edit' ? (
       <Link href="/dashboard" data-dashboard-action>
         {text.back}
       </Link>
     ) : (
-      <button className="profile-header-button" type="button" onClick={() => void handleLogout()}>
+      <button
+        className={notebookButtonClass({ tone: 'secondary', className: 'px-3.5' })}
+        type="button"
+        onClick={() => void handleLogout()}
+      >
         {text.signOut}
       </button>
     );
 
   return (
     <DashboardShell user={shellUser} onLogout={handleLogout} headerNavRight={headerNav}>
-      <div className="dash-greeting">
-        <p className="dash-eyebrow">{mode === 'onboarding' ? text.lastStep : text.account}</p>
-        <h1>
+      <header className="mb-6 mt-7">
+        <p className="font-note text-xl font-semibold leading-none text-amber-700 sm:text-2xl">
+          {mode === 'onboarding' ? text.lastStep : text.account}
+        </p>
+        <h1 className="mt-2 flex flex-wrap items-center gap-3 text-3xl font-bold tracking-[-0.045em] text-notebook-ink sm:text-4xl">
           <span>{studentRole ? text.studentTitle : text.tutorTitle}</span>
-          <span
-            className={`dash-role-chip ${studentRole ? 'dash-role-chip-student' : 'dash-role-chip-tutor'}`}
-          >
+          <StatusBadge tone={profileTone[tone].badge} className="tracking-wide">
             {studentRole ? text.student : text.tutor}
-          </span>
+          </StatusBadge>
         </h1>
-        <p>
+        <p className="mt-3 max-w-2xl text-sm leading-6 text-notebook-muted sm:text-base">
           {mode === 'onboarding'
             ? text.onboardingBody
             : studentRole
               ? text.studentSubtitle
               : text.tutorSubtitle}
         </p>
-      </div>
+      </header>
 
       {!consentCurrent ? (
-        <form className="dash-card profile-consent-card" onSubmit={handleSubmit}>
-          {error && <Alert>{error}</Alert>}
-          <p>{text.updatedNotice}</p>
-          <PrivacyConsent
-            accepted={acceptedNotice}
-            onAcceptedChange={(accepted) => {
-              setAcceptedNotice(accepted);
-              if (accepted) setConsentError(null);
-            }}
-            error={consentError}
-          />
-          <button className="profile-primary-button" disabled={isSaving} type="submit">
-            {isSaving ? text.saving : text.continue}
-          </button>
-        </form>
-      ) : (
-        <div className={`profile-grid ${studentRole ? 'student' : 'tutor'}`}>
-          <form
-            className={`dash-card profile-form-card ${studentRole ? 'student' : 'tutor'}`}
-            noValidate
-            onSubmit={handleSubmit}
-          >
-            <div className="profile-card-head">
-              <h2>{text.profileInformation}</h2>
-              <p>{studentRole ? text.allRequired : text.tutorVisibility}</p>
-            </div>
-            {studentRole && (
-              <div className="profile-onboarding-note student">
-                <span className="profile-inline-icon" aria-hidden="true">
-                  ✓
-                </span>
-                <div className="profile-onboarding-copy">
-                  <b>{text.onboardingNoteTitle}</b>
-                  <p>{text.onboardingNoteBody}</p>
-                </div>
-              </div>
-            )}
+        <PaperCard className="mx-auto max-w-3xl p-5 sm:p-7">
+          <WashiTape tone="pink" className="-top-2 left-1/2 -translate-x-1/2" />
+          <form onSubmit={handleSubmit}>
+            <h2 className="font-note text-2xl font-bold text-notebook-ink">{text.account}</h2>
             {error && <Alert>{error}</Alert>}
-            {studentRole ? (
-              <StudentFields
-                data={student}
-                errors={fieldErrors}
-                language={language}
-                onChange={(field, value) => {
-                  setStudent((current) => ({ ...current, [field]: value }));
-                  clearFieldError(field);
-                }}
-              />
-            ) : (
-              <TutorFields
-                data={tutor}
-                errors={fieldErrors}
-                language={language}
-                onChange={(field, value) => {
-                  setTutor((current) => ({ ...current, [field]: value }));
-                  clearFieldError(field);
-                }}
-              />
-            )}
-
-            <SystemInfo
-              email={user.email}
-              language={language}
-              student={studentRole}
-              complete={studentRole ? studentComplete(student) : tutorComplete(tutor)}
-              tutorMeta={tutorMeta}
+            <p className="mb-5 mt-2 text-sm leading-6 text-notebook-muted">{text.updatedNotice}</p>
+            <PrivacyConsent
+              accepted={acceptedNotice}
+              onAcceptedChange={(accepted) => {
+                setAcceptedNotice(accepted);
+                if (accepted) setConsentError(null);
+              }}
+              error={consentError}
             />
-            {!studentRole && (
-              <p className="profile-listing-note">
-                {text.listingNote} <Link href="/dashboard#listings">{text.myListings}</Link>.
-              </p>
-            )}
-            <div className="profile-form-actions">
-              <button className="profile-primary-button" disabled={isSaving} type="submit">
-                {isSaving ? text.saving : mode === 'onboarding' ? text.continue : text.save}
-              </button>
-              <button
-                className="profile-ghost-button"
-                disabled={!dirty || isSaving}
-                onClick={handleCancel}
-                type="button"
-              >
-                {text.cancel}
-              </button>
-              {dirty && <span className="profile-dirty">{text.unsaved}</span>}
-              {saved && (
-                <span className="profile-saved">
-                  <DashboardIcon name="check" className="h-3.5 w-3.5" />
-                  {text.saved}
-                </span>
-              )}
-            </div>
+            <button
+              className={notebookButtonClass({ className: 'mt-5' })}
+              disabled={isSaving}
+              type="submit"
+            >
+              {isSaving ? text.saving : text.continue}
+            </button>
           </form>
+        </PaperCard>
+      ) : (
+        <div
+          className={`grid items-start gap-5 min-[1061px]:grid-cols-[minmax(0,1.4fr)_minmax(290px,.75fr)] ${
+            studentRole ? 'min-[1061px]:grid-cols-[minmax(0,1.35fr)_minmax(290px,.75fr)]' : ''
+          }`}
+        >
+          <PaperCard className="overflow-hidden p-0">
+            <WashiTape tone={studentRole ? 'yellow' : 'blue'} className="-top-2 left-8 rotate-2" />
+            <form className="p-5 sm:p-7" noValidate onSubmit={handleSubmit}>
+              <div className="flex flex-col gap-1 border-b border-dashed border-paper-edge pb-5 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+                <h2 className="text-lg font-extrabold text-notebook-ink">
+                  {text.profileInformation}
+                </h2>
+                <p className="max-w-[260px] text-xs leading-5 text-notebook-muted sm:text-right">
+                  {studentRole ? text.allRequired : text.tutorVisibility}
+                </p>
+              </div>
+              {studentRole && (
+                <StickyNote tone="green" className="mt-5 flex items-start gap-3 p-4">
+                  <span
+                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white/80 font-black text-student-deep"
+                    aria-hidden="true"
+                  >
+                    ✓
+                  </span>
+                  <div>
+                    <b className="block text-sm text-notebook-ink">{text.onboardingNoteTitle}</b>
+                    <p className="mt-1 text-xs leading-5 text-notebook-muted">
+                      {text.onboardingNoteBody}
+                    </p>
+                  </div>
+                </StickyNote>
+              )}
+              {error && <Alert>{error}</Alert>}
+              {studentRole ? (
+                <StudentFields
+                  data={student}
+                  errors={fieldErrors}
+                  language={language}
+                  onChange={(field, value) => {
+                    setStudent((current) => ({ ...current, [field]: value }));
+                    clearFieldError(field);
+                  }}
+                />
+              ) : (
+                <TutorFields
+                  data={tutor}
+                  errors={fieldErrors}
+                  language={language}
+                  onChange={(field, value) => {
+                    setTutor((current) => ({ ...current, [field]: value }));
+                    clearFieldError(field);
+                  }}
+                />
+              )}
+
+              <SystemInfo
+                email={user.email}
+                language={language}
+                student={studentRole}
+                complete={studentRole ? studentComplete(student) : tutorComplete(tutor)}
+                tutorMeta={tutorMeta}
+              />
+              {!studentRole && (
+                <p className="mt-3 text-xs leading-5 text-notebook-muted">
+                  {text.listingNote}{' '}
+                  <Link
+                    href="/dashboard#listings"
+                    className="font-bold text-notebook-ink underline decoration-margin-guide decoration-2 underline-offset-4"
+                  >
+                    {text.myListings}
+                  </Link>
+                  .
+                </p>
+              )}
+              <div className="mt-6 flex flex-wrap items-center gap-2 border-t border-dashed border-paper-edge pt-5">
+                <button className={notebookButtonClass()} disabled={isSaving} type="submit">
+                  {isSaving ? text.saving : mode === 'onboarding' ? text.continue : text.save}
+                </button>
+                <button
+                  className={notebookButtonClass({ tone: 'secondary' })}
+                  disabled={!dirty || isSaving}
+                  onClick={handleCancel}
+                  type="button"
+                >
+                  {text.cancel}
+                </button>
+                {dirty && (
+                  <span className="w-full text-xs font-bold text-amber-700 sm:ml-auto sm:w-auto">
+                    {text.unsaved}
+                  </span>
+                )}
+                {saved && (
+                  <span className="inline-flex w-full items-center gap-1.5 text-xs font-bold text-student-deep sm:ml-auto sm:w-auto">
+                    <DashboardIcon name="check" className="h-3.5 w-3.5" />
+                    {text.saved}
+                  </span>
+                )}
+              </div>
+            </form>
+          </PaperCard>
           {studentRole ? (
             <StudentSummary data={student} language={language} />
           ) : (
@@ -392,7 +463,11 @@ export default function ProfileEditor({ mode }: ProfileEditorProps) {
         </div>
       )}
       {saved && (
-        <div className="profile-toast" role="status" aria-live="polite">
+        <div
+          className="fixed bottom-5 right-5 z-30 inline-flex items-center gap-2 rounded-lg border border-notebook-ink bg-notebook-ink px-4 py-3 text-xs font-bold text-paper shadow-paper"
+          role="status"
+          aria-live="polite"
+        >
           <DashboardIcon name="check" className="h-4 w-4" />
           {text.saved}
         </div>
@@ -419,8 +494,8 @@ function StudentFields({
 }) {
   const text = copy[language];
   return (
-    <div className="profile-fields">
-      <Section title={text.identity} hint={text.ownerOnly} />
+    <div className="grid gap-4 pt-5 sm:grid-cols-2">
+      <Section title={text.identity} hint={text.ownerOnly} tone="student" />
       <TextField
         id="firstName"
         label={text.firstName}
@@ -428,6 +503,7 @@ function StudentFields({
         maxLength={100}
         autoComplete="given-name"
         error={errors.firstName}
+        tone="student"
         onChange={onChange}
       />
       <TextField
@@ -437,6 +513,7 @@ function StudentFields({
         maxLength={100}
         autoComplete="family-name"
         error={errors.lastName}
+        tone="student"
         onChange={onChange}
       />
       <TextField
@@ -447,9 +524,15 @@ function StudentFields({
         autoComplete="nickname"
         hint={text.studentNicknameHint}
         error={errors.nickname}
+        tone="student"
         onChange={onChange}
       />
-      <Section title={text.learningInformation} hint={text.privateProfile} />
+      <Section
+        title={text.learningInformation}
+        hint={text.privateProfile}
+        tone="student"
+        separated
+      />
       <TextField
         id="school"
         label={text.school}
@@ -457,6 +540,7 @@ function StudentFields({
         maxLength={160}
         autoComplete="organization"
         error={errors.school}
+        tone="student"
         onChange={onChange}
       />
       <TextField
@@ -465,6 +549,7 @@ function StudentFields({
         value={data.gradeLevel}
         maxLength={80}
         error={errors.gradeLevel}
+        tone="student"
         onChange={onChange}
       />
       <TextField
@@ -477,6 +562,7 @@ function StudentFields({
         autoComplete="tel"
         hint={text.phoneHint}
         error={errors.phone}
+        tone="student"
         full
         onChange={onChange}
       />
@@ -497,8 +583,8 @@ function TutorFields({
 }) {
   const text = copy[language];
   return (
-    <div className="profile-fields">
-      <Section title={text.privateIdentity} hint={text.privateIdentityHint} />
+    <div className="grid gap-4 pt-5 sm:grid-cols-2">
+      <Section title={text.privateIdentity} hint={text.privateIdentityHint} tone="tutor" />
       <TextField
         id="firstName"
         label={text.firstName}
@@ -506,6 +592,7 @@ function TutorFields({
         maxLength={100}
         autoComplete="given-name"
         error={errors.firstName}
+        tone="tutor"
         onChange={onChange}
       />
       <TextField
@@ -515,6 +602,7 @@ function TutorFields({
         maxLength={100}
         autoComplete="family-name"
         error={errors.lastName}
+        tone="tutor"
         onChange={onChange}
       />
       <TextField
@@ -525,9 +613,10 @@ function TutorFields({
         autoComplete="nickname"
         hint={text.nicknameHint}
         error={errors.nickname}
+        tone="tutor"
         onChange={onChange}
       />
-      <Section title={text.publicProfile} hint={text.shownToStudents} />
+      <Section title={text.publicProfile} hint={text.shownToStudents} tone="tutor" separated />
       <TextField
         id="displayName"
         label={text.displayName}
@@ -535,6 +624,7 @@ function TutorFields({
         maxLength={100}
         hint={text.displayNameHint}
         error={errors.displayName}
+        tone="tutor"
         onChange={onChange}
       />
       <TextField
@@ -547,6 +637,7 @@ function TutorFields({
         inputMode="numeric"
         hint={text.experienceHint}
         error={errors.experienceYears}
+        tone="tutor"
         onChange={onChange}
       />
       <Field
@@ -564,6 +655,7 @@ function TutorFields({
           value={data.bio}
           aria-invalid={Boolean(errors.bio)}
           aria-describedby={descriptionId('bio', errors.bio, text.bioHint)}
+          className={profileInputClass('tutor', Boolean(errors.bio), 'min-h-40 resize-y leading-6')}
           onChange={(event) => onChange('bio', event.target.value)}
         />
       </Field>
@@ -578,6 +670,7 @@ function TextField<T extends FieldName>({
   hint,
   error,
   full,
+  tone,
   onChange,
   ...props
 }: {
@@ -587,6 +680,7 @@ function TextField<T extends FieldName>({
   hint?: string | undefined;
   error?: string | undefined;
   full?: boolean | undefined;
+  tone: ProfileTone;
   onChange: (field: T, value: string) => void;
 } & Omit<InputHTMLAttributes<HTMLInputElement>, 'id' | 'onChange' | 'value'>) {
   return (
@@ -597,6 +691,7 @@ function TextField<T extends FieldName>({
         value={value}
         aria-invalid={Boolean(error)}
         aria-describedby={descriptionId(id, error, hint)}
+        className={profileInputClass(tone, Boolean(error))}
         onChange={(event) => onChange(id, event.target.value)}
       />
     </Field>
@@ -621,19 +716,21 @@ function Field({
   children: ReactNode;
 }) {
   return (
-    <div className={`profile-field ${full ? 'full' : ''} ${error ? 'invalid' : ''}`}>
-      <div className="profile-label-row">
-        <label htmlFor={id}>{label}</label>
-        {count && <span>{count}</span>}
+    <div className={full ? 'sm:col-span-2' : undefined}>
+      <div className="mb-1.5 flex justify-between gap-4">
+        <label htmlFor={id} className="text-sm font-bold text-notebook-ink">
+          {label}
+        </label>
+        {count && <span className="text-xs text-notebook-muted">{count}</span>}
       </div>
       {children}
       {hint && !error && (
-        <p className="profile-help" id={`${id}-hint`}>
+        <p className="mt-1.5 text-xs leading-5 text-notebook-muted" id={`${id}-hint`}>
           {hint}
         </p>
       )}
       {error && (
-        <p className="profile-error" id={`${id}-error`} role="alert">
+        <p className="mt-1.5 text-xs font-semibold text-red-700" id={`${id}-error`} role="alert">
           {error}
         </p>
       )}
@@ -641,11 +738,29 @@ function Field({
   );
 }
 
-function Section({ title, hint }: { title: string; hint: string }) {
+function Section({
+  title,
+  hint,
+  tone,
+  separated = false,
+}: {
+  title: string;
+  hint: string;
+  tone: ProfileTone;
+  separated?: boolean;
+}) {
   return (
-    <div className="profile-section-label">
-      <strong>{title}</strong>
-      <span>{hint}</span>
+    <div
+      className={`flex flex-col items-start gap-1 sm:col-span-2 sm:flex-row sm:items-center sm:justify-between sm:gap-4 ${
+        separated ? 'mt-1 border-t border-dashed border-paper-edge pt-5' : ''
+      }`}
+    >
+      <strong
+        className={`text-xs font-extrabold uppercase tracking-[0.12em] ${profileTone[tone].accent}`}
+      >
+        {title}
+      </strong>
+      <span className="text-xs text-notebook-muted">{hint}</span>
     </div>
   );
 }
@@ -666,7 +781,11 @@ function SystemInfo({
   const text = copy[language];
   return (
     <div
-      className={`profile-system-info ${student ? 'student' : 'tutor'}`}
+      className={`mt-5 grid gap-3 border-t border-dashed border-paper-edge pt-5 ${
+        student
+          ? 'sm:grid-cols-[minmax(0,2fr)_minmax(180px,1fr)]'
+          : 'sm:grid-cols-2 min-[721px]:grid-cols-[minmax(220px,1.8fr)_repeat(3,minmax(110px,1fr))]'
+      }`}
       aria-label={text.profileStatus}
     >
       <ReadOnly label={text.accountEmail} value={email} />
@@ -701,30 +820,42 @@ function StudentSummary({ data, language }: { data: StudentForm; language: 'en' 
   const text = copy[language];
   const nickname = data.nickname.trim() || text.nickname;
   return (
-    <aside className="dash-card profile-preview-card student">
-      <PreviewTitle icon="profile" title={text.accountSummary} body={text.accountSummaryBody} />
-      <div className="profile-public-card student">
-        <Identity
-          name={nickname}
-          detail={text.studentAccount}
-          initials={initials(nickname, 'S')}
-          role="student"
+    <aside className="self-start min-[1061px]:sticky min-[1061px]:top-24">
+      <PaperCard className="p-5 sm:p-6">
+        <WashiTape tone="yellow" className="-top-2 right-8 rotate-3" />
+        <PreviewTitle
+          icon="profile"
+          title={text.accountSummary}
+          body={text.accountSummaryBody}
+          tone="student"
         />
-        <dl className="profile-summary-list">
-          <div className="profile-summary-row">
-            <dt>{text.school}</dt>
-            <dd>{data.school.trim() || '—'}</dd>
-          </div>
-          <div className="profile-summary-row">
-            <dt>{text.classLabel}</dt>
-            <dd>{data.gradeLevel.trim() || '—'}</dd>
-          </div>
-        </dl>
-      </div>
-      <div className="profile-tip student">
-        <b>{text.whatTutorsSee}</b>
-        <p>{text.whatTutorsSeeBody}</p>
-      </div>
+        <StickyNote tone="green" className="p-4">
+          <Identity
+            name={nickname}
+            detail={text.studentAccount}
+            initials={initials(nickname, 'S')}
+            role="student"
+          />
+          <dl className="relative z-10 mt-4 grid gap-2 border-t border-emerald-200/80 pt-4">
+            <div className="flex justify-between gap-4 text-xs">
+              <dt className="text-notebook-muted">{text.school}</dt>
+              <dd className="text-right font-bold text-notebook-ink">
+                {data.school.trim() || '—'}
+              </dd>
+            </div>
+            <div className="flex justify-between gap-4 text-xs">
+              <dt className="text-notebook-muted">{text.classLabel}</dt>
+              <dd className="text-right font-bold text-notebook-ink">
+                {data.gradeLevel.trim() || '—'}
+              </dd>
+            </div>
+          </dl>
+        </StickyNote>
+        <GraphPaper className="mt-4 p-4">
+          <b className="text-sm text-notebook-ink">{text.whatTutorsSee}</b>
+          <p className="mt-1 text-xs leading-5 text-notebook-muted">{text.whatTutorsSeeBody}</p>
+        </GraphPaper>
+      </PaperCard>
     </aside>
   );
 }
@@ -741,24 +872,34 @@ function TutorPreview({
   const text = copy[language];
   const name = data.displayName.trim() || text.displayName;
   return (
-    <aside className="dash-card profile-preview-card tutor">
-      <PreviewTitle icon="eye" title={text.studentView} body={text.studentViewBody} />
-      <div className="profile-public-card tutor">
-        <Identity
-          name={name}
-          detail={text.tutor}
-          secondaryDetail={`${data.experienceYears || '0'} ${text.yearsExperience}`}
-          initials={initials(name, 'T')}
-          role="tutor"
-          badge={text.status[status]}
-          badgeIcon={status === 'VERIFIED' ? 'check' : 'info'}
+    <aside className="self-start min-[1061px]:sticky min-[1061px]:top-24">
+      <PaperCard className="p-5 sm:p-6">
+        <WashiTape tone="blue" className="-top-2 right-8 rotate-3" />
+        <PreviewTitle
+          icon="eye"
+          title={text.studentView}
+          body={text.studentViewBody}
+          tone="tutor"
         />
-        <p className="profile-bio-preview">{data.bio.trim() || text.bioHint}</p>
-      </div>
-      <div className="profile-tip tutor">
-        <b>{text.standOut}</b>
-        <p>{text.standOutBody}</p>
-      </div>
+        <StickyNote tone="blue" className="p-4">
+          <Identity
+            name={name}
+            detail={text.tutor}
+            secondaryDetail={`${data.experienceYears || '0'} ${text.yearsExperience}`}
+            initials={initials(name, 'T')}
+            role="tutor"
+            badge={text.status[status]}
+            badgeIcon={status === 'VERIFIED' ? 'check' : 'info'}
+          />
+          <p className="relative z-10 mt-4 whitespace-pre-wrap border-t border-blue-200/80 pt-4 text-xs leading-5 text-notebook-muted">
+            {data.bio.trim() || text.bioHint}
+          </p>
+        </StickyNote>
+        <StickyNote tone="yellow" className="mt-4 p-4">
+          <b className="text-sm text-notebook-ink">{text.standOut}</b>
+          <p className="mt-1 text-xs leading-5 text-notebook-muted">{text.standOutBody}</p>
+        </StickyNote>
+      </PaperCard>
     </aside>
   );
 }
@@ -767,21 +908,30 @@ function PreviewTitle({
   icon,
   title,
   body,
+  tone,
 }: {
   icon: DashboardIconName;
   title: string;
   body: string;
+  tone: ProfileTone;
 }) {
   return (
-    <>
-      <div className="profile-preview-title">
-        <span aria-hidden="true">
+    <div className="mb-4">
+      <div className="flex items-center gap-2.5">
+        <span
+          className={`inline-flex h-8 w-8 items-center justify-center rounded-lg ${
+            tone === 'student'
+              ? 'bg-sticky-green text-student-deep'
+              : 'bg-sticky-blue text-tutor-deep'
+          }`}
+          aria-hidden="true"
+        >
           <DashboardIcon name={icon} className="h-4 w-4" />
         </span>
-        <h2>{title}</h2>
+        <h2 className="text-lg font-extrabold text-notebook-ink">{title}</h2>
       </div>
-      <p className="profile-preview-subtitle">{body}</p>
-    </>
+      <p className="mt-1.5 text-xs leading-5 text-notebook-muted">{body}</p>
+    </div>
   );
 }
 function Identity({
@@ -802,17 +952,21 @@ function Identity({
   badgeIcon?: DashboardIconName;
 }) {
   return (
-    <div className="profile-identity">
-      <div className={`profile-avatar ${role}`}>{letters}</div>
-      <div>
-        <h3>{name}</h3>
-        <p>{detail}</p>
-        {secondaryDetail && <p>{secondaryDetail}</p>}
+    <div className="relative z-10 flex items-center gap-3">
+      <div
+        className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-full text-lg font-black text-white shadow-sm ${profileTone[role].avatar}`}
+      >
+        {letters}
+      </div>
+      <div className="min-w-0">
+        <h3 className="truncate text-base font-extrabold text-notebook-ink">{name}</h3>
+        <p className="mt-0.5 text-xs text-notebook-muted">{detail}</p>
+        {secondaryDetail && <p className="mt-0.5 text-xs text-notebook-muted">{secondaryDetail}</p>}
         {badge && (
-          <span className="profile-verified">
+          <StatusBadge tone={profileTone[role].badge} className="mt-2 gap-1.5 py-0.5">
             {badgeIcon && <DashboardIcon name={badgeIcon} className="h-3 w-3" />}
             {badge}
-          </span>
+          </StatusBadge>
         )}
       </div>
     </div>
@@ -827,11 +981,25 @@ function ReadOnly({
   value: string;
   statusTone?: 'student' | 'tutor' | 'pending' | 'error';
 }) {
+  const toneClass = {
+    student: 'text-student-deep',
+    tutor: 'text-tutor-deep',
+    pending: 'text-amber-700',
+    error: 'text-red-700',
+  };
   return (
-    <div className="profile-read-only">
-      <span>{label}</span>
-      <b className={statusTone ? `status ${statusTone}` : undefined}>
-        {statusTone && <i className="profile-status-dot" aria-hidden="true" />}
+    <div className="min-w-0 rounded-lg border border-paper-edge bg-paper-deep/65 px-3 py-2.5">
+      <span className="block text-[0.65rem] font-bold uppercase tracking-[0.08em] text-notebook-muted">
+        {label}
+      </span>
+      <b
+        className={`mt-1 flex items-center gap-1.5 text-xs leading-5 [overflow-wrap:anywhere] ${
+          statusTone ? toneClass[statusTone] : 'text-notebook-ink'
+        }`}
+      >
+        {statusTone && (
+          <i className="h-1.5 w-1.5 shrink-0 rounded-full bg-current" aria-hidden="true" />
+        )}
         {value}
       </b>
     </div>
@@ -839,17 +1007,25 @@ function ReadOnly({
 }
 function Alert({ children }: { children: ReactNode }) {
   return (
-    <p className="profile-alert" role="alert">
+    <p
+      className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-xs font-semibold text-red-700"
+      role="alert"
+    >
       {children}
     </p>
   );
 }
 function Loading({ label }: { label: string }) {
   return (
-    <main className="profile-loading">
-      <span />
-      <p role="status">{label}</p>
-    </main>
+    <NotebookPage className="flex items-center justify-center p-6">
+      <StickyNote tone="yellow" className="min-w-56 px-8 py-7 text-center">
+        <WashiTape className="-top-2 left-1/2 -translate-x-1/2" />
+        <span className="mx-auto block h-7 w-7 animate-spin rounded-full border-2 border-notebook-ink border-t-transparent motion-reduce:animate-[spin_1.8s_linear_infinite]" />
+        <p className="mt-4 font-note text-xl font-semibold text-notebook-ink" role="status">
+          {label}
+        </p>
+      </StickyNote>
+    </NotebookPage>
   );
 }
 

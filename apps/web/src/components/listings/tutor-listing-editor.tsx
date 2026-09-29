@@ -368,14 +368,16 @@ export default function TutorListingEditor({ listingId }: TutorListingEditorProp
           <form
             noValidate
             onSubmit={handleSubmit}
-            className="listing-form-card profile-form-card dash-card min-w-0"
+            className="listing-form-card dash-card min-w-0 overflow-hidden !p-0"
           >
-            <div className="profile-card-head">
-              <h2>{copy.detailsTitle}</h2>
-              <p>{copy.detailsBody}</p>
+            <div className="flex flex-col gap-1 border-b border-[#ebe6dd] px-5 pb-5 pt-6 sm:flex-row sm:items-start sm:justify-between sm:gap-4 sm:px-6">
+              <h2 className="text-lg font-extrabold text-[#1a1916]">{copy.detailsTitle}</h2>
+              <p className="max-w-[250px] text-xs leading-5 text-[#8a857b] sm:text-right">
+                {copy.detailsBody}
+              </p>
             </div>
 
-            <div className="listing-readiness">
+            <div className="listing-readiness mx-5 sm:mx-6">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <p className="text-sm font-extrabold text-[#42362c]">{copy.readinessTitle}</p>
                 <span className="text-xs font-bold text-[#7b736b]">
@@ -528,14 +530,14 @@ export default function TutorListingEditor({ listingId }: TutorListingEditorProp
                 <button
                   type="button"
                   onClick={handleCancel}
-                  className="listing-secondary-action profile-ghost-button min-h-12 rounded-md border border-[#d9d2c6] bg-white px-4 text-sm font-extrabold text-[#544a41] transition hover:bg-[#f7f2ea]"
+                  className="listing-secondary-action min-h-12 rounded-md border border-[#d9d2c6] bg-white px-4 text-sm font-extrabold text-[#544a41] transition hover:bg-[#f7f2ea]"
                 >
                   {copy.cancel}
                 </button>
                 <button
                   type="submit"
                   disabled={createBlocked || submitAction !== null}
-                  className="listing-secondary-action profile-ghost-button min-h-12 rounded-md border border-[#3b3027] bg-white px-4 text-sm font-extrabold text-[#34271e] transition hover:bg-[#f4eee6] disabled:cursor-wait disabled:opacity-50"
+                  className="listing-secondary-action min-h-12 rounded-md border border-[#3b3027] bg-white px-4 text-sm font-extrabold text-[#34271e] transition hover:bg-[#f4eee6] disabled:cursor-wait disabled:opacity-50"
                 >
                   {submitAction === 'save'
                     ? copy.saving
@@ -548,7 +550,7 @@ export default function TutorListingEditor({ listingId }: TutorListingEditorProp
                     type="button"
                     disabled={submitAction !== null}
                     onClick={() => void restoreDraft()}
-                    className="listing-secondary-action profile-ghost-button min-h-12 rounded-md border border-[#d9d2c6] bg-white px-4 text-sm font-extrabold text-[#34271e] transition hover:bg-[#f4eee6] disabled:cursor-wait disabled:opacity-50"
+                    className="listing-secondary-action min-h-12 rounded-md border border-[#d9d2c6] bg-white px-4 text-sm font-extrabold text-[#34271e] transition hover:bg-[#f4eee6] disabled:cursor-wait disabled:opacity-50"
                   >
                     {submitAction === 'restore' ? copy.saving : copy.restoreDraft}
                   </button>
@@ -558,7 +560,7 @@ export default function TutorListingEditor({ listingId }: TutorListingEditorProp
                     type="button"
                     disabled={createBlocked || !isVerified || submitAction !== null}
                     onClick={() => void saveListing('publish')}
-                    className="listing-primary-action profile-primary-button min-h-12 rounded-md bg-[#34271e] px-5 text-sm font-extrabold text-white shadow-[0_2px_8px_-5px_rgba(43,31,22,0.35)] transition hover:-translate-y-0.5 hover:bg-[#4b3729] disabled:cursor-not-allowed disabled:translate-y-0 disabled:opacity-45"
+                    className="listing-primary-action min-h-12 rounded-md bg-[#34271e] px-5 text-sm font-extrabold text-white shadow-[0_2px_8px_-5px_rgba(43,31,22,0.35)] transition hover:-translate-y-0.5 hover:bg-[#4b3729] disabled:cursor-not-allowed disabled:translate-y-0 disabled:opacity-45"
                   >
                     {submitAction === 'publish' ? copy.publishing : copy.publish}
                   </button>
@@ -568,14 +570,17 @@ export default function TutorListingEditor({ listingId }: TutorListingEditorProp
           </form>
 
           <aside className="listing-preview-wrap min-w-0 xl:sticky xl:top-5 xl:self-start">
-            <section className="listing-preview-card profile-preview-card dash-card">
-              <div className="profile-preview-title">
-                <span aria-hidden="true">
+            <section className="listing-preview-card dash-card">
+              <div className="listing-preview-title flex items-center gap-2.5">
+                <span
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-[#fff0da] text-[#b26f28]"
+                  aria-hidden="true"
+                >
                   <ListingIcon name="listing" />
                 </span>
-                <h2>{copy.previewTitle}</h2>
+                <h2 className="text-lg font-extrabold">{copy.previewTitle}</h2>
               </div>
-              <p className="profile-preview-subtitle">{copy.previewBody}</p>
+              <p className="mb-4 mt-1.5 text-xs leading-5 text-[#8a857b]">{copy.previewBody}</p>
               <div className="listing-preview-content">
                 <div className="flex items-center gap-3">
                   <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md bg-[#d18b43] text-sm font-black text-[#2f2117]">
