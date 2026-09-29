@@ -12,14 +12,12 @@
   --color-sticky-green: #dcfce7;
   --color-notebook-ink: #292524;
   --color-notebook-muted: #78716c;
-  --color-pencil: #57534e;
   --color-student: #22c49a;
   --color-student-deep: #0e8a73;
   --color-tutor: #0e8eea;
   --color-tutor-deep: #0b6db0;
   --color-admin: #d18b43;
   --color-admin-deep: #b26f28;
-  --font-body: var(--font-bai-jamjuree), Arial, Helvetica, sans-serif;
   --font-note: var(--font-caveat), var(--font-mali), cursive;
   --shadow-paper: 0 1px 2px rgba(68, 64, 60, 0.08), 0 14px 32px -18px rgba(68, 64, 60, 0.28);
   --shadow-note: 0 8px 18px -12px rgba(68, 64, 60, 0.32);
@@ -30,7 +28,6 @@
   --foreground: #171717;
 
   --font-body-family: var(--font-bai-jamjuree), Arial, Helvetica, sans-serif;
-  --font-note-family: var(--font-caveat), var(--font-mali), cursive;
 }
 
 html {
@@ -54,10 +51,6 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-html:lang(th) body {
-  font-family: var(--font-body-family);
-}
-
 html:lang(th) .font-note {
   font-family: var(--font-mali), var(--font-caveat), cursive;
 }
@@ -69,8 +62,6 @@ input {
 
 /* --- Logged-in Dashboard tokens & component classes (ui-design/uidesign.md §4) --- */
 :root {
-  --bg: #f4f0e8;
-  --bg-light: #f7f4ec;
   --card: #ffffff;
   --ink: #1a1916;
   --ink-2: #5e5a52;
@@ -78,9 +69,6 @@ input {
   --border: #ebe6dd;
   --border-strong: #d9d2c6;
   --accent: #d18b43;
-  --accent-hover: #d88835;
-  --cta: #ffc57d;
-  --cta-deep: #f0a04e;
   --student: #22c49a;
   --student-deep: #0e8a73;
   --student-soft: rgba(34, 196, 154, 0.14);
@@ -89,18 +77,11 @@ input {
   --tutor-deep: #0b6db0;
   --tutor-soft: rgba(14, 142, 234, 0.14);
   --tutor-softer: rgba(14, 142, 234, 0.07);
-  --admin: #d18b43;
   --admin-deep: #b26f28;
-  --admin-soft: rgba(209, 139, 67, 0.14);
-  --admin-softer: rgba(209, 139, 67, 0.07);
   --warn-bg: rgba(209, 139, 67, 0.14);
   --warn-fg: #c07a2e;
-  --error: #c04f40;
-  --error-soft: rgba(192, 79, 64, 0.1);
   --shadow-card: 0 1px 2px rgba(46, 39, 25, 0.04), 0 8px 24px -16px rgba(46, 39, 25, 0.12);
   --shadow-card-hover: 0 2px 4px rgba(46, 39, 25, 0.05), 0 14px 28px -16px rgba(46, 39, 25, 0.14);
-  --shadow-cta: 0 2px 8px -6px rgba(240, 160, 78, 0.24);
-  --shadow-btn: 0 1px 2px rgba(20, 20, 18, 0.22);
 }
 
 .dash-greeting {
