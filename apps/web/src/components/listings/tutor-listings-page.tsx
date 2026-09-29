@@ -10,7 +10,9 @@ import {
   ListingMetric,
   ListingPageState,
   ListingStatusBadge,
+  listingButtonClass,
 } from '@/components/listings/listing-ui';
+import { GraphPaper, PaperCard, StickyNote, WashiTape } from '@/components/ui/notebook';
 import { ApiError } from '@/lib/api/error';
 import {
   archiveTutorListing,
@@ -190,14 +192,20 @@ export default function TutorListingsPage() {
         </Link>
       }
     >
-      <div className="listing-page min-w-0 pb-12">
-        <header className="dash-greeting listing-greeting">
-          <p className="dash-eyebrow">{copy.eyebrow}</p>
-          <h1>
+      <div className="min-w-0 pb-12">
+        <header className="mb-6 mt-7">
+          <p className="font-note text-xl font-semibold leading-none text-amber-700 sm:text-2xl">
+            {copy.eyebrow}
+          </p>
+          <h1 className="mt-2 flex flex-wrap items-center gap-3 text-3xl font-bold tracking-[-0.045em] text-notebook-ink sm:text-4xl">
             <span>{copy.title}</span>
-            <span className="dash-role-chip dash-role-chip-tutor">{copy.tutorRole}</span>
+            <span className="inline-flex items-center rounded-full border border-blue-200 bg-sticky-blue px-2.5 py-1 text-xs font-bold tracking-wide text-tutor-deep">
+              {copy.tutorRole}
+            </span>
           </h1>
-          <p>{copy.subtitle}</p>
+          <p className="mt-3 max-w-2xl text-sm leading-6 text-notebook-muted sm:text-base">
+            {copy.subtitle}
+          </p>
         </header>
 
         <section className="mt-6 grid gap-3 sm:grid-cols-3" aria-label={copy.overviewLabel}>
@@ -222,37 +230,38 @@ export default function TutorListingsPage() {
         </section>
 
         {!isVerified && (
-          <div className="mt-5 flex gap-3 rounded-md border border-[#e8c99f] bg-[#fff8ed] p-4 text-sm leading-6 text-[#7e5428]">
+          <StickyNote tone="yellow" className="mt-5 flex gap-3 p-4 text-sm leading-6">
             <span
-              className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-[#f5dfbd] text-[#9b6531]"
+              className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-white/75 text-amber-700"
               aria-hidden="true"
             >
               <ListingIcon name="info" />
             </span>
             <div>
-              <strong className="block text-[#573819]">{copy.verificationTitle}</strong>
-              <span>{copy.verificationBody}</span>{' '}
+              <strong className="block text-notebook-ink">{copy.verificationTitle}</strong>
+              <span className="text-notebook-muted">{copy.verificationBody}</span>{' '}
               <Link
                 href="/dashboard/profile"
-                className="font-extrabold underline decoration-[#d18b43] underline-offset-4"
+                className="font-extrabold text-notebook-ink underline decoration-margin-guide decoration-2 underline-offset-4"
               >
                 {copy.openProfile}
               </Link>
             </div>
-          </div>
+          </StickyNote>
         )}
 
         {error && (
           <div
             role="alert"
-            className="mt-6 rounded-md border border-[#e2b7ae] bg-[#fff4f1] p-4 text-sm text-[#a34334]"
+            className="mt-6 rounded-lg border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-700"
           >
             {error}
           </div>
         )}
 
-        <section className="listing-panel mt-5 rounded-[1.6rem] border border-[#ebe6dd] bg-white shadow-[0_1px_2px_rgba(46,39,25,0.04),0_8px_22px_-14px_rgba(46,39,25,0.1)]">
-          <div className="listing-filter-bar flex flex-col gap-4 border-b border-[#ebe6dd] p-4 sm:p-5 lg:flex-row lg:items-center lg:justify-between">
+        <PaperCard className="mt-5 overflow-hidden p-0">
+          <WashiTape tone="blue" className="-top-2 left-8 rotate-2" />
+          <div className="flex flex-col gap-4 border-b border-dashed border-paper-edge bg-paper/80 p-4 sm:p-5 lg:flex-row lg:items-center lg:justify-between">
             <div className="hidden flex-wrap gap-2 sm:flex" aria-label={copy.filterLabel}>
               {(['ALL', 'PUBLISHED', 'DRAFT', 'ARCHIVED'] as const).map((value) => (
                 <button
@@ -260,26 +269,26 @@ export default function TutorListingsPage() {
                   type="button"
                   onClick={() => setFilter(value)}
                   aria-pressed={filter === value}
-                  className={`min-h-11 rounded-md border px-3.5 text-sm font-bold transition focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-[#d18b43] ${
+                  className={`min-h-11 rounded-full border px-3.5 text-sm font-bold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tutor/30 focus-visible:ring-offset-2 ${
                     filter === value
-                      ? 'border-[#34271e] bg-[#34271e] text-white'
-                      : 'border-[#ded8ce] bg-[#fffdf9] text-[#625b53] hover:border-[#bda98f] hover:text-[#241a14]'
+                      ? 'border-tutor-deep bg-tutor-deep text-white shadow-sm'
+                      : 'border-paper-edge bg-paper text-notebook-muted hover:border-tutor hover:bg-sticky-blue/45 hover:text-notebook-ink'
                   }`}
                 >
                   {value === 'ALL' ? copy.all : statusLabels[value]}{' '}
-                  <span className={filter === value ? 'text-[#ffd6a2]' : 'text-[#a46d36]'}>
+                  <span className={filter === value ? 'text-blue-100' : 'text-tutor-deep'}>
                     {counts[value]}
                   </span>
                 </button>
               ))}
             </div>
 
-            <label className="listing-filter-select sm:hidden">
+            <label className="sm:hidden">
               <span className="sr-only">{copy.filterLabel}</span>
               <select
                 value={filter}
                 onChange={(event) => setFilter(event.target.value as ListingFilter)}
-                className="min-h-12 w-full rounded-md border border-[#d9d2c6] bg-[#fffdf9] px-4 text-sm font-bold text-[#241a14]"
+                className="min-h-12 w-full rounded-lg border border-paper-edge bg-paper px-4 text-sm font-bold text-notebook-ink outline-none focus:border-tutor focus:ring-4 focus:ring-sticky-blue/70"
               >
                 {(['ALL', 'PUBLISHED', 'DRAFT', 'ARCHIVED'] as const).map((value) => (
                   <option key={value} value={value}>
@@ -289,7 +298,7 @@ export default function TutorListingsPage() {
               </select>
             </label>
 
-            <label className="listing-search flex min-h-12 w-full items-center gap-2 rounded-md border border-[#d9d2c6] bg-[#fffdf9] px-3.5 transition focus-within:border-[#d18b43] focus-within:ring-4 focus-within:ring-[#d18b43]/10 lg:max-w-sm">
+            <label className="flex min-h-12 w-full items-center gap-2 rounded-lg border border-paper-edge bg-paper px-3.5 text-notebook-muted transition focus-within:border-tutor focus-within:ring-4 focus-within:ring-sticky-blue/70 lg:max-w-sm">
               <ListingIcon name="search" />
               <span className="sr-only">{copy.searchLabel}</span>
               <input
@@ -297,46 +306,50 @@ export default function TutorListingsPage() {
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
                 placeholder={copy.searchPlaceholder}
-                className="w-full bg-transparent text-sm text-[#241a14] outline-none placeholder:text-[#8a857b]"
+                className="w-full bg-transparent text-sm text-notebook-ink outline-none placeholder:text-stone-400"
               />
             </label>
           </div>
 
           <div className="p-4 sm:p-5">
             {visibleListings.length === 0 ? (
-              <div className="listing-empty-state flex min-h-72 flex-col items-center justify-center rounded-md border border-dashed border-[#d9d2c6] bg-[#fbf8f2] px-5 py-12 text-center">
-                <span className="listing-empty-icon flex h-12 w-12 items-center justify-center rounded-md bg-[#f2e3d2] text-[#9b6531]">
+              <GraphPaper className="flex min-h-72 flex-col items-center justify-center border-dashed px-5 py-12 text-center">
+                <span className="flex h-12 w-12 items-center justify-center rounded-lg bg-sticky-blue text-tutor-deep shadow-sm">
                   <ListingIcon name="listing" />
                 </span>
-                <h2 className="mt-4 text-lg font-black text-[#241a14]">
+                <h2 className="mt-4 text-lg font-black text-notebook-ink">
                   {listings.length === 0 ? copy.emptyTitle : copy.noResultsTitle}
                 </h2>
-                <p className="mt-2 max-w-md text-sm leading-6 text-[#6b645c]">
+                <p className="mt-2 max-w-md text-sm leading-6 text-notebook-muted">
                   {listings.length === 0 ? copy.emptyBody : copy.noResultsBody}
                 </p>
                 {listings.length === 0 && (
                   <Link
                     href="/dashboard/listings/new"
-                    className="listing-primary-action mt-5 inline-flex min-h-11 items-center gap-2 rounded-md bg-[#34271e] px-4 text-sm font-extrabold text-white"
+                    className={listingButtonClass('primary', 'mt-5')}
                   >
                     <ListingIcon name="add" />
                     {copy.createFirst}
                   </Link>
                 )}
-              </div>
+              </GraphPaper>
             ) : (
               <div className="grid gap-4 lg:grid-cols-2">
                 {visibleListings.map((listing) => (
-                  <article
+                  <PaperCard
                     key={listing.id}
-                    className="listing-card flex min-h-[21rem] min-w-0 flex-col rounded-[1.15rem] border border-[#ebe6dd] bg-white p-5 transition hover:-translate-y-0.5 hover:border-[#d9d2c6] hover:shadow-[0_2px_4px_rgba(46,39,25,0.05),0_12px_26px_-14px_rgba(46,39,25,0.12)] sm:p-6"
+                    className="flex min-h-[21rem] min-w-0 flex-col overflow-hidden p-5 transition hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-paper sm:p-6"
                   >
-                    <div className="flex items-start justify-between gap-3">
+                    <WashiTape
+                      tone={listing.publicationStatus === 'ARCHIVED' ? 'pink' : 'blue'}
+                      className="-right-5 -top-1 rotate-12 opacity-70"
+                    />
+                    <div className="flex flex-col items-start gap-3 sm:flex-row sm:justify-between">
                       <div className="min-w-0">
-                        <p className="text-xs font-extrabold uppercase tracking-[0.14em] text-[#b87434]">
+                        <p className="text-xs font-extrabold uppercase tracking-[0.14em] text-tutor-deep">
                           {listing.subject.name}
                         </p>
-                        <h2 className="mt-1 [overflow-wrap:anywhere] text-xl font-black tracking-[-0.025em] text-[#241a14]">
+                        <h2 className="mt-1 [overflow-wrap:anywhere] text-xl font-black tracking-[-0.025em] text-notebook-ink">
                           {listing.subject.name} · {listing.gradeLevel.name}
                         </h2>
                       </div>
@@ -347,33 +360,33 @@ export default function TutorListingsPage() {
                     </div>
 
                     <div className="mt-4 min-h-[5.5rem]">
-                      <p className="text-[0.68rem] font-extrabold uppercase tracking-[0.13em] text-[#8a8178]">
+                      <p className="text-[0.68rem] font-extrabold uppercase tracking-[0.13em] text-notebook-muted">
                         {copy.studentDescription}
                       </p>
-                      <p className="mt-2 line-clamp-3 whitespace-pre-wrap text-sm leading-6 text-[#686158]">
+                      <p className="mt-2 line-clamp-3 whitespace-pre-wrap text-sm leading-6 text-notebook-muted">
                         {listing.description}
                       </p>
                     </div>
 
-                    <div className="mt-5 grid grid-cols-2 gap-3 border-y border-[#ebe6dd] py-4">
+                    <div className="mt-5 grid grid-cols-2 gap-3 border-y border-dashed border-paper-edge py-4">
                       <div>
-                        <p className="text-[0.68rem] font-extrabold uppercase tracking-[0.12em] text-[#8a8178]">
+                        <p className="text-[0.68rem] font-extrabold uppercase tracking-[0.12em] text-notebook-muted">
                           {copy.rate}
                         </p>
-                        <p className="mt-1 text-lg font-black tracking-[-0.03em] text-[#241a14]">
+                        <p className="mt-1 text-lg font-black tracking-[-0.03em] text-notebook-ink">
                           {formatPrice(listing.pricePerHour, language)}
-                          <span className="ml-1 text-xs font-semibold text-[#6c655d]">
+                          <span className="ml-1 text-xs font-semibold text-notebook-muted">
                             /{copy.hour}
                           </span>
                         </p>
                       </div>
                       <div>
-                        <p className="text-[0.68rem] font-extrabold uppercase tracking-[0.12em] text-[#8a8178]">
+                        <p className="text-[0.68rem] font-extrabold uppercase tracking-[0.12em] text-notebook-muted">
                           {listing.publicationStatus === 'PUBLISHED' && listing.publishedAt
                             ? copy.publishedOn
                             : copy.updated}
                         </p>
-                        <p className="mt-1 text-sm font-bold text-[#4e443b]">
+                        <p className="mt-1 text-sm font-bold text-notebook-ink">
                           {formatBangkokShortDate(
                             listing.publicationStatus === 'PUBLISHED' && listing.publishedAt
                               ? listing.publishedAt
@@ -387,7 +400,7 @@ export default function TutorListingsPage() {
                     <div className="mt-auto flex flex-col gap-2 pt-4 sm:flex-row sm:items-center">
                       <Link
                         href={`/dashboard/listings/${listing.id}/edit`}
-                        className="listing-secondary-action inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-md border border-[#d9d2c6] bg-white px-3.5 text-sm font-extrabold text-[#3e342c] transition hover:border-[#bba990] hover:bg-[#faf5ed]"
+                        className={listingButtonClass('secondary', 'flex-1')}
                       >
                         <ListingIcon name="edit" />
                         {copy.edit}
@@ -397,29 +410,32 @@ export default function TutorListingsPage() {
                           type="button"
                           disabled={busyId === listing.id || !isVerified}
                           onClick={() => void handlePublish(listing.id)}
-                          className="listing-primary-action min-h-11 flex-1 rounded-md bg-[#34271e] px-3.5 text-sm font-extrabold text-white transition hover:bg-[#4b3729] disabled:cursor-not-allowed disabled:opacity-45"
+                          className={listingButtonClass('primary', 'flex-1')}
                         >
                           {busyId === listing.id ? copy.working : copy.publish}
                         </button>
                       )}
                       {listing.publicationStatus === 'PUBLISHED' &&
                         (archiveCandidate === listing.id ? (
-                          <div className="flex min-h-11 flex-1 items-center gap-2 rounded-md border border-[#e6c0b7] bg-[#fff4f1] p-1.5">
-                            <span className="min-w-0 flex-1 px-1 text-xs font-bold text-[#91493d]">
+                          <div className="flex min-h-11 flex-1 items-center gap-2 rounded-lg border border-red-200 bg-red-50 p-1.5">
+                            <span className="min-w-0 flex-1 px-1 text-xs font-bold text-red-700">
                               {copy.archiveConfirm}
                             </span>
                             <button
                               type="button"
                               disabled={busyId === listing.id}
                               onClick={() => void handleArchive(listing.id)}
-                              className="listing-danger-action min-h-11 rounded-sm bg-[#9b4e40] px-3 text-xs font-extrabold text-white"
+                              className={listingButtonClass('danger', 'min-h-10 px-3 py-2 text-xs')}
                             >
                               {copy.confirm}
                             </button>
                             <button
                               type="button"
                               onClick={() => setArchiveCandidate(null)}
-                              className="listing-secondary-action min-h-11 rounded-sm px-2 text-xs font-extrabold text-[#5e5a52]"
+                              className={listingButtonClass(
+                                'secondary',
+                                'min-h-10 px-2 py-2 text-xs',
+                              )}
                             >
                               {copy.cancel}
                             </button>
@@ -428,7 +444,10 @@ export default function TutorListingsPage() {
                           <button
                             type="button"
                             onClick={() => setArchiveCandidate(listing.id)}
-                            className="listing-danger-action inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-md border border-[#ead7d1] px-3 text-sm font-extrabold text-[#985043] transition hover:bg-[#fff0ec]"
+                            className={listingButtonClass(
+                              'secondary',
+                              'flex-1 border-red-200 text-red-700 hover:bg-red-50',
+                            )}
                           >
                             <ListingIcon name="archive" />
                             {copy.archive}
@@ -440,7 +459,7 @@ export default function TutorListingsPage() {
                             type="button"
                             disabled={busyId === listing.id || !isVerified}
                             onClick={() => void handleRestoreDraft(listing.id)}
-                            className="listing-secondary-action min-h-11 flex-1 rounded-md border border-[#d9d2c6] bg-white px-3.5 text-sm font-extrabold text-[#3e342c] transition hover:border-[#bba990] hover:bg-[#faf5ed] disabled:cursor-wait disabled:opacity-50"
+                            className={listingButtonClass('secondary', 'flex-1')}
                           >
                             {busyId === listing.id ? copy.working : copy.restoreDraft}
                           </button>
@@ -448,19 +467,19 @@ export default function TutorListingsPage() {
                             type="button"
                             disabled={busyId === listing.id}
                             onClick={() => void handlePublish(listing.id)}
-                            className="listing-primary-action min-h-11 flex-1 rounded-md bg-[#34271e] px-3.5 text-sm font-extrabold text-white transition hover:bg-[#4b3729] disabled:cursor-not-allowed disabled:opacity-45"
+                            className={listingButtonClass('primary', 'flex-1')}
                           >
                             {busyId === listing.id ? copy.working : copy.publish}
                           </button>
                         </>
                       )}
                     </div>
-                  </article>
+                  </PaperCard>
                 ))}
               </div>
             )}
           </div>
-        </section>
+        </PaperCard>
       </div>
     </DashboardShell>
   );
