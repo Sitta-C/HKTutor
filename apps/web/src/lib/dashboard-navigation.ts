@@ -10,7 +10,6 @@ export interface DashboardNavItem {
   icon: DashboardIconName;
   label: string;
   badge?: string;
-  isDanger?: boolean;
 }
 
 /**
@@ -49,29 +48,10 @@ export function getDashboardNavItems(role: UserRole, copy: Translation): Dashboa
         badge: '0',
       },
       {
-        id: 'settings',
-        href: '#settings',
-        icon: 'settings',
-        label: navCopy.settings,
-      },
-      {
-        id: 'support',
-        href: '#support',
-        icon: 'support',
-        label: navCopy.support,
-      },
-      {
         id: 'privacy',
         href: '#privacy',
         icon: 'shield',
         label: navCopy.privacy,
-      },
-      {
-        id: 'signout',
-        href: '#signout',
-        icon: 'logout',
-        label: navCopy.signOut,
-        isDanger: true,
       },
     ];
   }
@@ -103,29 +83,10 @@ export function getDashboardNavItems(role: UserRole, copy: Translation): Dashboa
         label: navCopy.availability,
       },
       {
-        id: 'settings',
-        href: '#settings',
-        icon: 'settings',
-        label: navCopy.settings,
-      },
-      {
-        id: 'support',
-        href: '#support',
-        icon: 'support',
-        label: navCopy.support,
-      },
-      {
         id: 'privacy',
         href: '#privacy',
         icon: 'shield',
         label: navCopy.privacy,
-      },
-      {
-        id: 'signout',
-        href: '#signout',
-        icon: 'logout',
-        label: navCopy.signOut,
-        isDanger: true,
       },
     ];
   }
@@ -144,13 +105,6 @@ export function getDashboardNavItems(role: UserRole, copy: Translation): Dashboa
       icon: 'shield',
       label: navCopy.privacy,
     },
-    {
-      id: 'signout',
-      href: '#signout',
-      icon: 'logout',
-      label: navCopy.signOut,
-      isDanger: true,
-    },
   ];
 }
 
@@ -162,7 +116,13 @@ export function getUserDisplayName(user: Pick<AuthUser, 'email' | 'displayName'>
 }
 
 export function getUserInitial(user: Pick<AuthUser, 'email' | 'displayName'>): string {
-  return (user.displayName?.charAt(0) || user.email.charAt(0) || 'U').toUpperCase();
+  const nameParts = user.displayName?.trim().split(/\s+/).filter(Boolean) ?? [];
+  const initials = nameParts
+    .slice(0, 2)
+    .map((part) => part.charAt(0))
+    .join('');
+
+  return (initials || user.email.charAt(0) || 'U').toUpperCase();
 }
 
 export function isDashboardNavActive(itemId: string, pathname: string): boolean {

@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
@@ -374,26 +375,7 @@ export default function ProfileEditor({ mode }: ProfileEditorProps) {
                 <h2 className="text-lg font-extrabold text-notebook-ink">
                   {text.profileInformation}
                 </h2>
-                <p className="max-w-[260px] text-xs leading-5 text-notebook-muted sm:text-right">
-                  {studentRole ? text.allRequired : text.tutorVisibility}
-                </p>
               </div>
-              {studentRole && (
-                <StickyNote tone="green" className="mt-5 flex items-start gap-3 p-4">
-                  <span
-                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white/80 font-black text-student-deep"
-                    aria-hidden="true"
-                  >
-                    ✓
-                  </span>
-                  <div>
-                    <b className="block text-sm text-notebook-ink">{text.onboardingNoteTitle}</b>
-                    <p className="mt-1 text-xs leading-5 text-notebook-muted">
-                      {text.onboardingNoteBody}
-                    </p>
-                  </div>
-                </StickyNote>
-              )}
               {error && <Alert>{error}</Alert>}
               {studentRole ? (
                 <StudentFields
@@ -502,7 +484,7 @@ function StudentFields({
   const text = copy[language];
   return (
     <div className="grid gap-4 pt-5 sm:grid-cols-2">
-      <Section title={text.identity} hint={text.ownerOnly} tone="student" />
+      <Section title={text.identity} tone="student" />
       <TextField
         id="firstName"
         label={text.firstName}
@@ -534,12 +516,7 @@ function StudentFields({
         tone="student"
         onChange={onChange}
       />
-      <Section
-        title={text.learningInformation}
-        hint={text.privateProfile}
-        tone="student"
-        separated
-      />
+      <Section title={text.learningInformation} tone="student" separated />
       <TextField
         id="school"
         label={text.school}
@@ -591,7 +568,7 @@ function TutorFields({
   const text = copy[language];
   return (
     <div className="grid gap-4 pt-5 sm:grid-cols-2">
-      <Section title={text.privateIdentity} hint={text.privateIdentityHint} tone="tutor" />
+      <Section title={text.privateIdentity} tone="tutor" />
       <TextField
         id="firstName"
         label={text.firstName}
@@ -623,7 +600,7 @@ function TutorFields({
         tone="tutor"
         onChange={onChange}
       />
-      <Section title={text.publicProfile} hint={text.shownToStudents} tone="tutor" separated />
+      <Section title={text.publicProfile} tone="tutor" separated />
       <TextField
         id="displayName"
         label={text.displayName}
@@ -752,7 +729,7 @@ function Section({
   separated = false,
 }: {
   title: string;
-  hint: string;
+  hint?: string;
   tone: ProfileTone;
   separated?: boolean;
 }) {
@@ -767,7 +744,7 @@ function Section({
       >
         {title}
       </strong>
-      <span className="text-xs text-notebook-muted">{hint}</span>
+      {hint && <span className="text-xs text-notebook-muted">{hint}</span>}
     </div>
   );
 }
@@ -892,7 +869,7 @@ function TutorPreview({
           <Identity
             name={name}
             detail={text.tutor}
-            secondaryDetail={`${data.experienceYears || '0'} ${text.yearsExperience}`}
+            secondaryDetail={`${text.experienceShort} ${data.experienceYears || '0'} ${text.years}`}
             initials={initials(name, 'T')}
             role="tutor"
             badge={text.status[status]}
@@ -946,6 +923,7 @@ function Identity({
   detail,
   secondaryDetail,
   initials: letters,
+  imageUrl,
   role,
   badge,
   badgeIcon,
@@ -954,17 +932,24 @@ function Identity({
   detail: string;
   secondaryDetail?: string;
   initials: string;
+  imageUrl?: string | null;
   role: 'student' | 'tutor';
   badge?: string;
   badgeIcon?: DashboardIconName;
 }) {
   return (
     <div className="relative z-10 flex items-center gap-3">
-      <div
-        className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-full text-lg font-black text-white shadow-sm ${profileTone[role].avatar}`}
+      <span
+        className={`relative flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-full border-2 border-paper text-lg font-black text-white shadow-sm ring-1 ring-paper-edge ${profileTone[role].avatar}`}
+        role="img"
+        aria-label={name}
       >
-        {letters}
-      </div>
+        {imageUrl ? (
+          <Image src={imageUrl} alt="" fill sizes="56px" className="object-cover" unoptimized />
+        ) : (
+          <span aria-hidden="true">{letters}</span>
+        )}
+      </span>
       <div className="min-w-0">
         <h3 className="truncate text-base font-extrabold text-notebook-ink">{name}</h3>
         <p className="mt-0.5 text-xs text-notebook-muted">{detail}</p>
@@ -1204,7 +1189,8 @@ const copy = {
     whatTutorsSee: 'What tutors can see',
     whatTutorsSeeBody:
       'Only your nickname may appear to a tutor linked to your booking. Your legal name, school, class, telephone, and email stay hidden.',
-    yearsExperience: 'years experience',
+    experienceShort: 'Experience',
+    years: 'years',
     status: { PENDING: 'Pending review', REJECTED: 'Not verified', VERIFIED: 'Verified' },
     fieldLabels: {
       bio: 'Tutor biography',
@@ -1295,8 +1281,9 @@ const copy = {
     verification: 'การยืนยัน',
     whatTutorsSee: 'ข้อมูลที่ติวเตอร์มองเห็น',
     whatTutorsSeeBody:
-      'เฉพาะชื่อเล่นเท่านั้นที่อาจแสดงให้ติวเตอร์ซึ่งเกี่ยวข้องกับการจองเห็น ชื่อจริง โรงเรียน ชั้นเรียน เบอร์โทรศัพท์ และอีเมลจะไม่แสดง',
-    yearsExperience: 'ปีของประสบการณ์',
+      'เฉพาะชื่อเล่นเท่านั้นที่จะแสดงให้ติวเตอร์ซึ่งเกี่ยวข้องกับการจองเห็น ชื่อจริง โรงเรียน ชั้นเรียน เบอร์โทรศัพท์ และอีเมลจะไม่แสดง',
+    experienceShort: 'ประสบการณ์',
+    years: 'ปี',
     status: {
       PENDING: 'รอตรวจสอบ',
       REJECTED: 'ยังไม่ผ่านการยืนยัน',

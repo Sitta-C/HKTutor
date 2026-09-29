@@ -51,6 +51,7 @@ export default function PublicTutorSearchShell({ children }: { children: ReactNo
         if (user) await logout();
         router.push('/');
       }}
+      showSignOut={Boolean(user)}
       headerNavRight={
         <>
           <Link href="/dashboard/bookings">{copy.dashboard.header.myBookingsNav}</Link>

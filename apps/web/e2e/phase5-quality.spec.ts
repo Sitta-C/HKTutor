@@ -15,6 +15,25 @@ test('tutor search has a responsive and accessible page shell', async ({ page })
   await expect(page.locator('main')).toHaveCount(1);
   await expect(page.locator('h1')).toHaveCount(1);
 
+  const sidebar = page.locator('#dashboard-sidebar');
+  if ((page.viewportSize()?.width ?? 0) < 1024) {
+    await expect(sidebar).toHaveAttribute('aria-hidden', 'true');
+    await page.getByRole('button', { name: 'Open sidebar' }).click();
+    await expect(sidebar).toBeVisible();
+    await expect(sidebar.getByRole('button', { name: 'Close sidebar' })).toBeFocused();
+  } else {
+    await expect(sidebar).toBeVisible();
+  }
+
+  await expect(sidebar.getByRole('img', { name: 'Guest' })).toBeVisible();
+  await expect(sidebar.getByText('Settings', { exact: true })).toHaveCount(0);
+  await expect(sidebar.getByText('Support', { exact: true })).toHaveCount(0);
+  await expect(sidebar.getByRole('button', { name: 'Sign out' })).toHaveCount(0);
+  if ((page.viewportSize()?.width ?? 0) < 1024) {
+    await sidebar.getByRole('button', { name: 'Close sidebar' }).click();
+    await expect(page.getByRole('button', { name: 'Open sidebar' })).toBeFocused();
+  }
+
   const duplicateIds = await page.locator('[id]').evaluateAll((elements) => {
     const ids = elements.map((element) => element.id).filter(Boolean);
     return ids.filter((id, index) => ids.indexOf(id) !== index);
