@@ -20,19 +20,29 @@ import {
   publishTutorListing,
   restoreTutorListing,
 } from '@/lib/api/listings';
-import { getMyProfile } from '@/lib/api/profiles';
-import { useAuth } from '@/lib/auth-context';
 import { formatBangkokShortDate } from '@/lib/date-time';
 import { useLanguage } from '@/lib/i18n';
-import { resolveDashboardGate } from '@/lib/profile-navigation';
-import { withReturnTo } from '@/lib/return-to';
+import { getTutorProfile } from '@/lib/profile-navigation';
+import { useProfileSession } from '@/lib/use-profile-session';
 
 import type { ListingPublicationStatus, TeachingListing } from '@/lib/api/types';
 
 type ListingFilter = 'ALL' | ListingPublicationStatus;
 
 export default function TutorListingsPage() {
-  const { isLoading: authLoading, logout, user } = useAuth();
+  const {
+    isLoading: sessionLoading,
+    logout,
+    profile,
+    profileError,
+    profileUser,
+    user,
+  } = useProfileSession({
+    preserveReturnTo: true,
+    profileMode: 'required',
+    profileErrorMode: 'report',
+    requiredRole: 'TUTOR',
+  });
   const { language } = useLanguage();
   const router = useRouter();
   const copy = language === 'th' ? thaiCopy : englishCopy;
@@ -42,43 +52,21 @@ export default function TutorListingsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [archiveCandidate, setArchiveCandidate] = useState<string | null>(null);
-  const [isVerified, setIsVerified] = useState(false);
-  const [profileDisplayName, setProfileDisplayName] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const tutorProfile = profile ? getTutorProfile(profile) : null;
+  const isVerified = tutorProfile?.verificationStatus === 'VERIFIED';
 
   useEffect(() => {
-    if (authLoading) return;
-    if (!user) {
-      router.replace('/');
-      return;
-    }
-    if (user.role !== 'TUTOR') {
-      router.replace('/dashboard');
-      return;
-    }
+    if (!user || user.role !== 'TUTOR') return;
 
     let active = true;
-    Promise.all([getTutorListings(), getMyProfile()])
-      .then(([items, profileResult]) => {
+    getTutorListings()
+      .then((items) => {
         if (!active) return;
-        if (resolveDashboardGate(profileResult)) {
-          router.replace(withReturnTo('/onboarding/profile', '/dashboard/listings'));
-          return;
-        }
-        const tutorProfile =
-          profileResult.profile && 'displayName' in profileResult.profile
-            ? profileResult.profile
-            : null;
         setListings(items);
-        setProfileDisplayName(tutorProfile?.displayName.trim() || null);
-        setIsVerified(tutorProfile?.verificationStatus === 'VERIFIED');
       })
       .catch((caught: unknown) => {
         if (!active) return;
-        if (caught instanceof ApiError && caught.status === 400) {
-          router.replace(withReturnTo('/onboarding/profile', '/dashboard/listings'));
-          return;
-        }
         setError(caught instanceof Error ? caught.message : copy.loadError);
       })
       .finally(() => {
@@ -88,7 +76,7 @@ export default function TutorListingsPage() {
     return () => {
       active = false;
     };
-  }, [authLoading, copy.loadError, router, user]);
+  }, [copy.loadError, user]);
 
   const counts = useMemo(
     () => ({
@@ -166,13 +154,13 @@ export default function TutorListingsPage() {
     router.replace('/');
   };
 
-  if (authLoading || isLoading || !user) {
+  if (sessionLoading || isLoading || !user) {
     return <ListingPageState>{copy.loading}</ListingPageState>;
   }
 
   if (user.role !== 'TUTOR') return null;
-  if (!profileDisplayName) {
-    return <ListingPageState>{error ?? copy.loadError}</ListingPageState>;
+  if (profileError || !profileUser || !tutorProfile) {
+    return <ListingPageState>{profileError ?? copy.loadError}</ListingPageState>;
   }
 
   const statusLabels = {
@@ -180,11 +168,10 @@ export default function TutorListingsPage() {
     PUBLISHED: copy.published,
     ARCHIVED: copy.archived,
   };
-  const shellUser = { ...user, displayName: profileDisplayName };
 
   return (
     <DashboardShell
-      user={shellUser}
+      user={profileUser}
       onLogout={handleLogout}
       headerNavRight={
         <Link href="/dashboard/listings/new" data-dashboard-action>

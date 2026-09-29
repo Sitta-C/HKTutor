@@ -28,6 +28,9 @@ import { useAuth } from '@/lib/auth-context';
 import { useLanguage } from '@/lib/i18n';
 import {
   DASHBOARD_PATH,
+  getStudentProfile,
+  getTutorProfile,
+  isProfileSetupError,
   resolveDashboardGate,
   resolveOnboardingHandoff,
 } from '@/lib/profile-navigation';
@@ -149,15 +152,17 @@ export default function ProfileEditor({ mode }: ProfileEditorProps) {
       .then((result) => {
         if (!active) return;
         setConsentCurrent(result.consentCurrent);
-        if (user.role === 'STUDENT' && result.profile && 'school' in result.profile) {
-          setStudent(result.profile);
-          setInitialStudent(result.profile);
+        const studentProfile = getStudentProfile(result);
+        if (user.role === 'STUDENT' && studentProfile) {
+          setStudent(studentProfile);
+          setInitialStudent(studentProfile);
         }
-        if (user.role === 'TUTOR' && result.profile && 'displayName' in result.profile) {
-          const form = toTutorForm(result.profile);
+        const tutorProfile = getTutorProfile(result);
+        if (user.role === 'TUTOR' && tutorProfile) {
+          const form = toTutorForm(tutorProfile);
           setTutor(form);
           setInitialTutor(form);
-          setTutorMeta(result.profile);
+          setTutorMeta(tutorProfile);
         }
         if (mode === 'onboarding' && resolveDashboardGate(result) === null) {
           router.replace(readOnboardingReturnTo());
@@ -167,7 +172,7 @@ export default function ProfileEditor({ mode }: ProfileEditorProps) {
       })
       .catch((caught: unknown) => {
         if (!active) return;
-        if (caught instanceof ApiError && caught.status === 400) {
+        if (isProfileSetupError(caught)) {
           setConsentCurrent(false);
         } else {
           setError(caught instanceof Error ? caught.message : text.loadError);
@@ -211,15 +216,17 @@ export default function ProfileEditor({ mode }: ProfileEditorProps) {
         setAcceptedNotice(false);
         setConsentError(null);
 
-        if (user.role === 'STUDENT' && result.profile && 'school' in result.profile) {
-          setStudent(result.profile);
-          setInitialStudent(result.profile);
+        const studentProfile = getStudentProfile(result);
+        if (user.role === 'STUDENT' && studentProfile) {
+          setStudent(studentProfile);
+          setInitialStudent(studentProfile);
         }
-        if (user.role === 'TUTOR' && result.profile && 'displayName' in result.profile) {
-          const form = toTutorForm(result.profile);
+        const tutorProfile = getTutorProfile(result);
+        if (user.role === 'TUTOR' && tutorProfile) {
+          const form = toTutorForm(tutorProfile);
           setTutor(form);
           setInitialTutor(form);
-          setTutorMeta(result.profile);
+          setTutorMeta(tutorProfile);
         }
 
         const handoff = resolveOnboardingHandoff(result);

@@ -22,11 +22,9 @@ import {
   updateTutorListing,
   updateTutorListingStatus,
 } from '@/lib/api/listings';
-import { getMyProfile } from '@/lib/api/profiles';
-import { useAuth } from '@/lib/auth-context';
 import { useLanguage } from '@/lib/i18n';
-import { resolveDashboardGate } from '@/lib/profile-navigation';
-import { withReturnTo } from '@/lib/return-to';
+import { getTutorProfile } from '@/lib/profile-navigation';
+import { useProfileSession } from '@/lib/use-profile-session';
 
 import type {
   GradeLevelOption,
@@ -34,7 +32,6 @@ import type {
   SaveTeachingListingPayload,
   SubjectOption,
   TeachingListing,
-  TutorProfile,
 } from '@/lib/api/types';
 import type { FormEvent } from 'react';
 
@@ -59,7 +56,19 @@ const emptyForm: ListingFormData = {
 };
 
 export default function TutorListingEditor({ listingId }: TutorListingEditorProps) {
-  const { isLoading: authLoading, logout, user } = useAuth();
+  const {
+    isLoading: sessionLoading,
+    logout,
+    profile: sessionProfile,
+    profileError,
+    profileUser,
+    user,
+  } = useProfileSession({
+    preserveReturnTo: true,
+    profileMode: 'required',
+    profileErrorMode: 'report',
+    requiredRole: 'TUTOR',
+  });
   const { language } = useLanguage();
   const router = useRouter();
   const copy = language === 'th' ? thaiCopy : englishCopy;
@@ -67,7 +76,6 @@ export default function TutorListingEditor({ listingId }: TutorListingEditorProp
   const [initialForm, setInitialForm] = useState<ListingFormData>(emptyForm);
   const [subjects, setSubjects] = useState<SubjectOption[]>([]);
   const [gradeLevels, setGradeLevels] = useState<GradeLevelOption[]>([]);
-  const [profile, setProfile] = useState<TutorProfile | null>(null);
   const [listing, setListing] = useState<TeachingListing | null>(null);
   const [errors, setErrors] = useState<FormErrors>({});
   const [pageError, setPageError] = useState<string | null>(null);
@@ -76,6 +84,7 @@ export default function TutorListingEditor({ listingId }: TutorListingEditorProp
   const [isLoading, setIsLoading] = useState(true);
   const [submitAction, setSubmitAction] = useState<'save' | 'publish' | 'restore' | null>(null);
 
+  const profile = sessionProfile ? getTutorProfile(sessionProfile) : null;
   const isEditing = Boolean(listingId);
   const isVerified = profile?.verificationStatus === 'VERIFIED';
   const isArchived = listing?.publicationStatus === 'ARCHIVED';
@@ -84,41 +93,14 @@ export default function TutorListingEditor({ listingId }: TutorListingEditorProp
   const isDirty = JSON.stringify(form) !== JSON.stringify(initialForm);
 
   useEffect(() => {
-    if (authLoading) return;
-    if (!user) {
-      router.replace('/');
-      return;
-    }
-    if (user.role !== 'TUTOR') {
-      router.replace('/dashboard');
-      return;
-    }
+    if (sessionLoading || profileError || !user || user.role !== 'TUTOR' || !profile) return;
 
     let active = true;
-    const editorPath = listingId
-      ? `/dashboard/listings/${encodeURIComponent(listingId)}/edit`
-      : '/dashboard/listings/new';
-
-    getMyProfile()
-      .then(async (profileResult) => {
-        if (!active) return;
-        if (resolveDashboardGate(profileResult)) {
-          router.replace(withReturnTo('/onboarding/profile', editorPath));
-          return;
-        }
-        const tutorProfile =
-          profileResult.profile && 'verificationStatus' in profileResult.profile
-            ? profileResult.profile
-            : null;
-        if (!tutorProfile) {
-          router.replace(withReturnTo('/onboarding/profile', editorPath));
-          return;
-        }
-
-        const [catalogs, currentListing] = await Promise.all([
-          getListingCatalogs().catch(() => null),
-          listingId ? getTutorListing(listingId) : Promise.resolve(null),
-        ]);
+    Promise.all([
+      getListingCatalogs().catch(() => null),
+      listingId ? getTutorListing(listingId) : Promise.resolve(null),
+    ])
+      .then(([catalogs, currentListing]) => {
         if (!active) return;
 
         let subjectOptions = catalogs?.subjects ?? [];
@@ -135,7 +117,6 @@ export default function TutorListingEditor({ listingId }: TutorListingEditorProp
         setSubjects(subjectOptions);
         setGradeLevels(gradeOptions);
         setCatalogError(catalogs ? null : copy.catalogUnavailable);
-        setProfile(tutorProfile);
         setListing(currentListing);
 
         if (currentListing) {
@@ -151,10 +132,6 @@ export default function TutorListingEditor({ listingId }: TutorListingEditorProp
       })
       .catch((caught: unknown) => {
         if (!active) return;
-        if (caught instanceof ApiError && caught.status === 400) {
-          router.replace(withReturnTo('/onboarding/profile', editorPath));
-          return;
-        }
         setPageError(
           readEditorError(caught, copy.loadError, listingId ? copy.notFound : undefined),
         );
@@ -167,12 +144,13 @@ export default function TutorListingEditor({ listingId }: TutorListingEditorProp
       active = false;
     };
   }, [
-    authLoading,
     copy.catalogUnavailable,
     copy.loadError,
     copy.notFound,
     listingId,
-    router,
+    profile,
+    profileError,
+    sessionLoading,
     user,
   ]);
 
@@ -301,12 +279,15 @@ export default function TutorListingEditor({ listingId }: TutorListingEditorProp
     router.replace('/');
   };
 
-  if (authLoading || isLoading || !user) {
+  if (sessionLoading || !user) {
     return <ListingPageState>{copy.loading}</ListingPageState>;
   }
   if (user.role !== 'TUTOR') return null;
-  if (!profile) {
-    return <ListingPageState>{pageError ?? copy.loading}</ListingPageState>;
+  if (profileError || !profile || !profileUser) {
+    return <ListingPageState>{profileError ?? pageError ?? copy.loadError}</ListingPageState>;
+  }
+  if (isLoading) {
+    return <ListingPageState>{copy.loading}</ListingPageState>;
   }
 
   const status = listing?.publicationStatus ?? 'DRAFT';
@@ -315,11 +296,9 @@ export default function TutorListingEditor({ listingId }: TutorListingEditorProp
     PUBLISHED: copy.published,
     ARCHIVED: copy.archived,
   };
-  const profileDisplayName = profile.displayName.trim();
-  const shellUser = { ...user, displayName: profileDisplayName };
-
+  const profileDisplayName = profileUser.displayName?.trim() || profileUser.email;
   return (
-    <DashboardShell user={shellUser} onLogout={handleLogout}>
+    <DashboardShell user={profileUser} onLogout={handleLogout}>
       <div className="min-w-0 pb-12">
         <Link
           href="/dashboard/listings"

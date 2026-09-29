@@ -2,13 +2,11 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
 
 import DashboardShell from '@/components/dashboard/dashboard-shell';
 import { NotebookPage, StickyNote, WashiTape } from '@/components/ui/notebook';
-import { getMyProfile } from '@/lib/api/profiles';
-import { useAuth } from '@/lib/auth-context';
 import { useLanguage } from '@/lib/i18n';
+import { useProfileSession } from '@/lib/use-profile-session';
 
 import type { AuthUser } from '@/lib/api/types';
 import type { ReactNode } from 'react';
@@ -21,41 +19,14 @@ const publicGuestUser: AuthUser = {
 };
 
 export default function PublicTutorSearchShell({ children }: { children: ReactNode }) {
-  const { isLoading: authLoading, logout, user } = useAuth();
+  const { isLoading, logout, profileUser, user } = useProfileSession({
+    allowGuest: true,
+    profileMode: 'optional',
+  });
   const { copy } = useLanguage();
   const router = useRouter();
-  const [profileUser, setProfileUser] = useState<AuthUser | null>(null);
 
-  useEffect(() => {
-    if (authLoading || !user) return;
-
-    let active = true;
-    getMyProfile()
-      .then((result) => {
-        if (!active) return;
-        const displayName =
-          result.role === 'STUDENT'
-            ? result.profile && 'school' in result.profile
-              ? result.profile.nickname
-              : undefined
-            : result.role === 'TUTOR'
-              ? result.profile && 'displayName' in result.profile
-                ? result.profile.displayName
-                : undefined
-              : undefined;
-        setProfileUser(displayName ? { ...user, displayName } : { ...user });
-      })
-      .catch(() => {
-        if (active) setProfileUser(user);
-      });
-
-    return () => {
-      active = false;
-    };
-  }, [authLoading, user]);
-
-  const profileReady = !user || profileUser?.id === user.id;
-  if (authLoading || (user && !profileReady)) {
+  if (isLoading) {
     return (
       <NotebookPage className="flex min-h-dvh items-center justify-center p-6">
         <StickyNote
@@ -71,7 +42,7 @@ export default function PublicTutorSearchShell({ children }: { children: ReactNo
     );
   }
 
-  const shellUser = (user && profileReady ? profileUser : null) ?? user ?? publicGuestUser;
+  const shellUser = profileUser ?? publicGuestUser;
 
   return (
     <DashboardShell

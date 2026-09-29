@@ -29,8 +29,6 @@ import {
   shiftBangkokWeek,
 } from '@/lib/api/availability';
 import { ApiError } from '@/lib/api/error';
-import { getMyProfile } from '@/lib/api/profiles';
-import { useAuth } from '@/lib/auth-context';
 import {
   formatBangkokDate,
   formatBangkokShortDate,
@@ -42,8 +40,7 @@ import {
   getBangkokToday,
 } from '@/lib/date-time';
 import { useLanguage } from '@/lib/i18n';
-import { resolveDashboardGate } from '@/lib/profile-navigation';
-import { withReturnTo } from '@/lib/return-to';
+import { useProfileSession } from '@/lib/use-profile-session';
 
 import type { TutorAvailabilitySlot } from '@/lib/api/types';
 
@@ -57,7 +54,18 @@ const availabilitySecondaryButtonClass = notebookButtonClass({
 });
 
 export default function TutorAvailabilityPage() {
-  const { isLoading: authLoading, logout, user } = useAuth();
+  const {
+    isLoading: sessionLoading,
+    logout,
+    profileError,
+    profileUser,
+    user,
+  } = useProfileSession({
+    preserveReturnTo: true,
+    profileMode: 'required',
+    profileErrorMode: 'report',
+    requiredRole: 'TUTOR',
+  });
   const { language, copy } = useLanguage();
   const router = useRouter();
   const availabilityCopy = copy.dashboard.availability;
@@ -66,8 +74,6 @@ export default function TutorAvailabilityPage() {
   const [startTime, setStartTime] = useState('18:00');
   const [endTime, setEndTime] = useState('19:00');
   const [slots, setSlots] = useState<TutorAvailabilitySlot[]>([]);
-  const [profileDisplayName, setProfileDisplayName] = useState<string | null>(null);
-  const [profileReady, setProfileReady] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [refreshKey, setRefreshKey] = useState(0);
   const [isSaving, setIsSaving] = useState(false);
@@ -98,45 +104,7 @@ export default function TutorAvailabilityPage() {
   };
 
   useEffect(() => {
-    if (authLoading) return;
-    if (!user) {
-      router.replace('/');
-      return;
-    }
-    if (user.role !== 'TUTOR') {
-      router.replace('/dashboard');
-      return;
-    }
-
-    let active = true;
-    getMyProfile()
-      .then((result) => {
-        if (!active) return;
-        if (resolveDashboardGate(result)) {
-          router.replace(withReturnTo('/onboarding/profile', '/dashboard/availability'));
-          return;
-        }
-        const profile = result.profile && 'displayName' in result.profile ? result.profile : null;
-        setProfileDisplayName(profile?.displayName.trim() || null);
-        setProfileReady(true);
-      })
-      .catch((caught: unknown) => {
-        if (!active) return;
-        if (caught instanceof ApiError && caught.status === 400) {
-          router.replace(withReturnTo('/onboarding/profile', '/dashboard/availability'));
-          return;
-        }
-        setLoadError(caught instanceof Error ? caught.message : availabilityCopy.loadError);
-        setIsLoading(false);
-      });
-
-    return () => {
-      active = false;
-    };
-  }, [authLoading, availabilityCopy.loadError, router, user]);
-
-  useEffect(() => {
-    if (!user || user.role !== 'TUTOR' || !profileReady) return;
+    if (sessionLoading || profileError || !user || user.role !== 'TUTOR') return;
     let active = true;
     const range = getBangkokWeekRange(weekStart);
     getTutorAvailability(range)
@@ -155,7 +123,7 @@ export default function TutorAvailabilityPage() {
     return () => {
       active = false;
     };
-  }, [profileReady, refreshKey, user, weekStart]);
+  }, [profileError, refreshKey, sessionLoading, user, weekStart]);
 
   const groupedSlots = useMemo(() => {
     const groups = new Map<string, TutorAvailabilitySlot[]>();
@@ -233,15 +201,15 @@ export default function TutorAvailabilityPage() {
     router.replace('/');
   };
 
-  if (authLoading || !user) {
+  if (sessionLoading || !user) {
     return <FullPageState message={availabilityCopy.loading} />;
   }
   if (user.role !== 'TUTOR') return null;
-  if (!profileReady) {
-    return <FullPageState message={loadError ?? availabilityCopy.loading} />;
+  if (profileError) {
+    return <FullPageState message={profileError} />;
   }
 
-  const shellUser = profileDisplayName ? { ...user, displayName: profileDisplayName } : user;
+  const shellUser = profileUser ?? user;
   const weekLabel = formatBangkokWeekRange(weekStart, language);
   const today = getBangkokToday();
   const thisWeek = getBangkokWeekStart();
