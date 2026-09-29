@@ -26,7 +26,7 @@ export default function PrivacyConsent({ accepted, onAcceptedChange, error }: Pr
 
   return (
     <div>
-      <div className="flex items-start gap-3 text-sm leading-6 text-[#5e5a52]">
+      <div className="flex items-start gap-3 text-sm leading-6 text-notebook-muted">
         <input
           id="policy"
           name="policy"
@@ -35,8 +35,8 @@ export default function PrivacyConsent({ accepted, onAcceptedChange, error }: Pr
           onChange={(event) => onAcceptedChange(event.target.checked)}
           aria-describedby={error ? errorId : undefined}
           aria-invalid={error ? true : undefined}
-          className={`mt-1 h-4 w-4 shrink-0 cursor-pointer accent-[#171714] ${
-            error ? 'outline outline-2 outline-offset-2 outline-[#d96452]' : ''
+          className={`mt-1 h-4 w-4 shrink-0 cursor-pointer accent-notebook-ink ${
+            error ? 'outline outline-2 outline-offset-2 outline-red-500' : ''
           }`}
         />
         <span>
@@ -45,7 +45,7 @@ export default function PrivacyConsent({ accepted, onAcceptedChange, error }: Pr
           </label>{' '}
           <button
             type="button"
-            className="font-bold text-[#171714] underline decoration-[#d18b43] underline-offset-4 hover:text-[#d88835]"
+            className="font-bold text-notebook-ink underline decoration-margin-guide decoration-2 underline-offset-4 hover:text-amber-700"
             onClick={(event) => {
               event.preventDefault();
               setNoticeOpen(true);
@@ -59,7 +59,7 @@ export default function PrivacyConsent({ accepted, onAcceptedChange, error }: Pr
         </span>
       </div>
       {error && (
-        <p id={errorId} role="alert" className="mt-1.5 pl-7 text-xs text-[#c04f40]">
+        <p id={errorId} role="alert" className="mt-1.5 pl-7 text-xs font-medium text-red-700">
           {error}
         </p>
       )}

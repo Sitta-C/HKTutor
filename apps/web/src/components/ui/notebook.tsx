@@ -61,6 +61,21 @@ export function NotebookPage({
   );
 }
 
+export function GraphPaper({ className, children, ...props }: HTMLAttributes<HTMLDivElement>) {
+  return (
+    <div
+      className={classes(
+        styles.grid,
+        'rounded-[1.25rem] border border-blue-200/70 bg-paper',
+        className,
+      )}
+      {...props}
+    >
+      {children}
+    </div>
+  );
+}
+
 export function PaperCard({ className, children, ...props }: HTMLAttributes<HTMLElement>) {
   return (
     <section

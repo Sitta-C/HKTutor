@@ -62,7 +62,7 @@ export default function Register() {
     setPasswordError('');
 
     if (password.length < 10 || !/[A-Za-z]/.test(password) || !/\d/.test(password)) {
-      setPasswordError('Password must be at least 10 characters and contain a letter and number');
+      setPasswordError(copy.register.passwordRequirements);
       return;
     }
 
@@ -87,7 +87,7 @@ export default function Register() {
         router.push(`/register/verify?email=${encodeURIComponent(email)}&delivery=failed`);
         return;
       }
-      setErrorMessage(getErrorMessage(err, 'Registration failed'));
+      setErrorMessage(getErrorMessage(err, copy.register.registrationFailed));
     } finally {
       setIsLoading(false);
     }

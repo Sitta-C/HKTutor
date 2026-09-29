@@ -5,6 +5,14 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useEffect, useRef, useState } from 'react';
 
 import AuthShell from '@/components/auth-shell';
+import {
+  NotebookButton,
+  NotebookField,
+  NotebookHeading,
+  PaperCard,
+  WashiTape,
+  notebookInputClass,
+} from '@/components/ui/notebook';
 import { resendVerification } from '@/lib/api/auth';
 import { useAuth } from '@/lib/auth-context';
 import { useLanguage } from '@/lib/i18n';
@@ -163,16 +171,16 @@ function VerifyForm() {
 
   return (
     <AuthShell page="register">
-      <section className="w-full max-w-[624px] rounded-[2rem] bg-white px-6 py-10 shadow-[0_10px_28px_rgba(46,39,25,0.06)] sm:px-12 sm:py-14 lg:px-[4.25rem] lg:py-[4.5rem]">
+      <PaperCard className="w-full max-w-[624px] px-6 py-10 sm:px-12 sm:py-14 lg:px-[4.25rem] lg:py-[4.5rem]">
+        <WashiTape tone="yellow" className="left-1/2 top-0 -translate-x-1/2 -translate-y-1/2" />
         <div className="mx-auto max-w-[490px] text-center">
-          <p className="mb-3 text-[0.68rem] font-bold uppercase tracking-[0.24em] text-[#d18b43]">
-            {copy.register.otpEyebrow}
-          </p>
-          <h1 className="text-[2.1rem] font-bold tracking-[-0.055em] text-[#171714]">
-            {status === 'verifying' ? copy.register.otpLoading : copy.register.otpTitle}
-          </h1>
+          <NotebookHeading
+            eyebrow={copy.register.otpEyebrow}
+            title={status === 'verifying' ? copy.register.otpLoading : copy.register.otpTitle}
+            align="center"
+          />
           <p
-            className={`mx-auto mt-4 max-w-[390px] leading-7 ${status === 'error' ? 'text-[#c04f40]' : 'text-[#5e5a52]'}`}
+            className={`mx-auto mt-4 max-w-[390px] leading-7 ${status === 'error' ? 'text-red-700' : 'text-notebook-muted'}`}
             role={status === 'error' ? 'alert' : 'status'}
           >
             {message}
@@ -180,49 +188,52 @@ function VerifyForm() {
 
           {(status === 'waiting' || status === 'error') && (
             <div className="mt-8 space-y-3">
-              <label htmlFor="verificationEmail" className="sr-only">
-                {copy.register.emailLabel}
-              </label>
-              <input
-                id="verificationEmail"
-                type="email"
-                autoComplete="email"
-                placeholder={copy.register.emailPlaceholder}
-                value={email}
-                onChange={(event) => setEmail(event.target.value)}
-                className="h-[3.65rem] w-full rounded-xl border border-[#e2dfd8] bg-white px-5 text-left text-[0.98rem] text-[#171714] outline-none focus:border-[#171714] focus:ring-2 focus:ring-[#171714]/10"
-              />
-              <button
+              <NotebookField
+                htmlFor="verificationEmail"
+                label={copy.register.emailLabel}
+                className="text-left"
+              >
+                <input
+                  id="verificationEmail"
+                  type="email"
+                  autoComplete="email"
+                  placeholder={copy.register.emailPlaceholder}
+                  value={email}
+                  onChange={(event) => setEmail(event.target.value)}
+                  className={notebookInputClass({ className: 'h-[3.65rem] text-left' })}
+                />
+              </NotebookField>
+              <NotebookButton
                 type="button"
                 onClick={handleResend}
                 disabled={isResending || !email.trim()}
-                className="flex h-[3.65rem] w-full items-center justify-center rounded-xl bg-[#ffc57d] px-5 text-base font-bold text-[#171714] transition-all hover:bg-[#ffbd6c] disabled:cursor-not-allowed disabled:opacity-60"
+                className="h-[3.65rem] w-full text-base"
               >
                 {isResending ? copy.register.otpResending : copy.register.otpResend}
-              </button>
+              </NotebookButton>
             </div>
           )}
 
           {status === 'verified' && (
-            <button
+            <NotebookButton
               type="button"
               onClick={() => window.close()}
-              className="mt-8 flex h-[3.65rem] w-full items-center justify-center rounded-xl bg-[#ffc57d] px-5 text-base font-bold text-[#171714] transition-all hover:bg-[#ffbd6c]"
+              className="mt-8 h-[3.65rem] w-full text-base"
             >
               {copy.register.closeVerificationTab}
-            </button>
+            </NotebookButton>
           )}
 
           {status !== 'verified' && (
             <Link
               href="/"
-              className="mt-7 inline-block text-sm font-bold text-[#171714] underline decoration-[#d18b43] underline-offset-4"
+              className="mt-7 inline-block text-sm font-bold text-notebook-ink underline decoration-margin-guide decoration-2 underline-offset-4 hover:text-amber-700"
             >
               {copy.register.signIn}
             </Link>
           )}
         </div>
-      </section>
+      </PaperCard>
     </AuthShell>
   );
 }
