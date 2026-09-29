@@ -8,6 +8,16 @@ import { DashboardIcon } from '@/components/dashboard/dashboard-icon';
 import DashboardShell from '@/components/dashboard/dashboard-shell';
 import { LocalizedDatePicker } from '@/components/date-time/localized-date-picker';
 import {
+  GraphPaper,
+  NotebookPage,
+  PaperCard,
+  StatusBadge,
+  StickyNote,
+  WashiTape,
+  notebookButtonClass,
+  notebookInputClass,
+} from '@/components/ui/notebook';
+import {
   bangkokDateTimeToUtc,
   createTutorAvailability,
   deleteTutorAvailability,
@@ -36,6 +46,15 @@ import { resolveDashboardGate } from '@/lib/profile-navigation';
 import { withReturnTo } from '@/lib/return-to';
 
 import type { TutorAvailabilitySlot } from '@/lib/api/types';
+
+const availabilityInputClass = notebookInputClass({
+  className: 'focus:border-tutor focus:ring-sticky-blue/70',
+});
+
+const availabilitySecondaryButtonClass = notebookButtonClass({
+  tone: 'secondary',
+  className: 'min-h-10 px-3 py-2 text-xs',
+});
 
 export default function TutorAvailabilityPage() {
   const { isLoading: authLoading, logout, user } = useAuth();
@@ -239,20 +258,30 @@ export default function TutorAvailabilityPage() {
     <DashboardShell
       user={shellUser}
       onLogout={handleLogout}
-      headerNavRight={<Link href="/dashboard/listings">{copy.dashboard.header.myListingsNav}</Link>}
+      headerNavRight={
+        <Link href="/dashboard/listings" data-dashboard-action>
+          {copy.dashboard.header.myListingsNav}
+        </Link>
+      }
     >
       <div className="min-w-0 pb-12">
-        <header className="dash-greeting">
-          <p className="dash-eyebrow">{availabilityCopy.eyebrow}</p>
-          <h1>
+        <header className="mb-6 mt-7">
+          <p className="font-note text-xl font-semibold leading-none text-amber-700 sm:text-2xl">
+            {availabilityCopy.eyebrow}
+          </p>
+          <h1 className="mt-2 flex flex-wrap items-center gap-3 text-3xl font-bold tracking-[-0.045em] text-notebook-ink sm:text-4xl">
             <span>{availabilityCopy.title}</span>
-            <span className="dash-role-chip dash-role-chip-tutor">{availabilityCopy.timezone}</span>
+            <StatusBadge tone="tutor" className="tracking-wide">
+              {availabilityCopy.timezone}
+            </StatusBadge>
           </h1>
-          <p>{availabilityCopy.subtitle}</p>
+          <p className="mt-3 max-w-2xl text-sm leading-6 text-notebook-muted sm:text-base">
+            {availabilityCopy.subtitle}
+          </p>
         </header>
 
         <div
-          className="availability-summary"
+          className="mb-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4"
           aria-label={availabilityCopy.weekOf.replace('{date}', weekLabel)}
         >
           <SummaryCard
@@ -285,22 +314,31 @@ export default function TutorAvailabilityPage() {
           />
         </div>
 
-        <div className="availability-layout">
-          <section
-            className="dash-card availability-panel"
+        <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1.35fr)_minmax(300px,.75fr)]">
+          <PaperCard
+            className="overflow-hidden p-5 sm:p-6"
             aria-labelledby="availability-week-title"
           >
-            <div className="availability-section-head">
+            <WashiTape tone="blue" className="-top-2 left-8 rotate-2" />
+            <div className="flex flex-col gap-4 border-b border-dashed border-paper-edge pb-5 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <h2 id="availability-week-title">
+                <h2
+                  id="availability-week-title"
+                  className="text-lg font-extrabold text-notebook-ink"
+                >
                   {availabilityCopy.weekOf.replace('{date}', weekLabel)}
                 </h2>
-                <p>{availabilityCopy.weekDescription}</p>
+                <p className="mt-1 max-w-md text-xs leading-5 text-notebook-muted">
+                  {availabilityCopy.weekDescription}
+                </p>
               </div>
-              <div className="availability-week-actions">
+              <div className="flex flex-wrap gap-2">
                 <button
                   type="button"
-                  className="availability-secondary-button availability-arrow-button"
+                  className={notebookButtonClass({
+                    tone: 'secondary',
+                    className: 'min-h-10 w-10 px-0 py-2 text-lg',
+                  })}
                   aria-label={availabilityCopy.previousWeek}
                   onClick={() => changeWeek(shiftBangkokWeek(weekStart, -1))}
                 >
@@ -308,7 +346,7 @@ export default function TutorAvailabilityPage() {
                 </button>
                 <button
                   type="button"
-                  className="availability-secondary-button"
+                  className={availabilitySecondaryButtonClass}
                   onClick={() => {
                     changeWeek(thisWeek);
                     setDate(today);
@@ -318,7 +356,10 @@ export default function TutorAvailabilityPage() {
                 </button>
                 <button
                   type="button"
-                  className="availability-secondary-button availability-arrow-button"
+                  className={notebookButtonClass({
+                    tone: 'secondary',
+                    className: 'min-h-10 w-10 px-0 py-2 text-lg',
+                  })}
                   aria-label={availabilityCopy.nextWeek}
                   onClick={() => changeWeek(shiftBangkokWeek(weekStart, 1))}
                 >
@@ -341,18 +382,21 @@ export default function TutorAvailabilityPage() {
             ) : groupedSlots.length === 0 ? (
               <EmptyState message={availabilityCopy.noSlots} />
             ) : (
-              <div>
+              <div className="divide-y divide-dashed divide-paper-edge">
                 {groupedSlots.map(([day, daySlots]) => (
-                  <article key={day} className="availability-day">
-                    <div className="availability-day-label">
-                      <strong>
+                  <article
+                    key={day}
+                    className="grid gap-3 py-5 first:pt-5 last:pb-0 sm:grid-cols-[120px_minmax(0,1fr)] sm:gap-4"
+                  >
+                    <div>
+                      <strong className="block text-sm font-extrabold text-notebook-ink">
                         {formatBangkokWeekday(daySlots.at(0)?.startAtUtc ?? day, language)}
                       </strong>
-                      <span>
+                      <span className="mt-1 block text-xs text-notebook-muted">
                         {formatBangkokShortDate(daySlots.at(0)?.startAtUtc ?? day, language)}
                       </span>
                     </div>
-                    <div className="availability-slot-list">
+                    <div className="flex flex-col gap-2">
                       {daySlots.map((slot) => {
                         const reserved = slot.state === 'RESERVED';
                         const durationHours = getDurationHours(slot.startAtUtc, slot.endAtUtc);
@@ -362,35 +406,40 @@ export default function TutorAvailabilityPage() {
                             : availabilityCopy.durationPlural
                         ).replace('{hours}', formatDuration(durationHours));
                         return (
-                          <div key={slot.id} className="availability-slot">
-                            <strong className="availability-slot-time">
+                          <GraphPaper
+                            key={slot.id}
+                            className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 p-3 sm:grid-cols-[110px_minmax(0,1fr)_auto_auto] sm:gap-3"
+                          >
+                            <strong className="text-sm font-extrabold text-notebook-ink">
                               {formatBangkokTime(slot.startAtUtc, language)}–
                               {formatBangkokTime(slot.endAtUtc, language)}
                             </strong>
-                            <span className="availability-slot-copy">
+                            <span className="text-xs leading-5 text-notebook-muted max-sm:col-span-2">
                               {duration} ·{' '}
                               {reserved
                                 ? availabilityCopy.reservedDetail
                                 : availabilityCopy.openDetail}
                             </span>
-                            <span
-                              className={`dash-pill ${reserved ? 'pending' : 'dash-pill-tutor confirmed'}`}
+                            <StatusBadge
+                              tone={reserved ? 'warning' : 'tutor'}
+                              className="justify-self-start"
                             >
                               {reserved ? availabilityCopy.reserved : availabilityCopy.open}
-                            </span>
+                            </StatusBadge>
                             <button
                               type="button"
-                              className={
-                                reserved
-                                  ? 'availability-secondary-button'
-                                  : 'availability-delete-button'
-                              }
+                              className={notebookButtonClass({
+                                tone: 'secondary',
+                                className: reserved
+                                  ? 'min-h-9 px-3 py-1.5 text-xs'
+                                  : 'min-h-9 border-red-200 px-3 py-1.5 text-xs text-red-700 hover:bg-red-50',
+                              })}
                               disabled={reserved || busySlotId === slot.id}
                               onClick={() => void handleDelete(slot)}
                             >
                               {reserved ? availabilityCopy.reservedAction : availabilityCopy.delete}
                             </button>
-                          </div>
+                          </GraphPaper>
                         );
                       })}
                     </div>
@@ -398,89 +447,106 @@ export default function TutorAvailabilityPage() {
                 ))}
               </div>
             )}
-          </section>
+          </PaperCard>
 
-          <aside className="availability-stack">
-            <form
-              className="dash-card availability-panel"
-              onSubmit={(event) => void handleSubmit(event)}
-              noValidate
-            >
-              <div className="availability-section-head">
-                <div>
-                  <h2>{availabilityCopy.addTitle}</h2>
-                  <p>{availabilityCopy.addDescription}</p>
+          <aside className="space-y-4 xl:sticky xl:top-24">
+            <PaperCard className="p-5 sm:p-6">
+              <WashiTape tone="yellow" className="-top-2 right-8 rotate-3" />
+              <form onSubmit={(event) => void handleSubmit(event)} noValidate>
+                <div className="border-b border-dashed border-paper-edge pb-4">
+                  <div>
+                    <h2 className="text-lg font-extrabold text-notebook-ink">
+                      {availabilityCopy.addTitle}
+                    </h2>
+                    <p className="mt-1 text-xs leading-5 text-notebook-muted">
+                      {availabilityCopy.addDescription}
+                    </p>
+                  </div>
                 </div>
-              </div>
-              <div className="availability-form-body">
-                <LocalizedDatePicker
-                  label={availabilityCopy.date}
-                  value={date}
-                  onChange={setDate}
-                  min={today}
-                  language={language}
-                  calendarLabel={availabilityCopy.calendarLabel}
-                  previousMonthLabel={availabilityCopy.previousMonth}
-                  nextMonthLabel={availabilityCopy.nextMonth}
-                />
-                <div className="availability-time-grid">
-                  <Field
-                    label={availabilityCopy.startTime}
-                    type="time"
-                    value={startTime}
-                    onChange={setStartTime}
+                <div className="flex flex-col gap-4 pt-5">
+                  <LocalizedDatePicker
+                    label={availabilityCopy.date}
+                    value={date}
+                    onChange={setDate}
+                    min={today}
+                    language={language}
+                    calendarLabel={availabilityCopy.calendarLabel}
+                    previousMonthLabel={availabilityCopy.previousMonth}
+                    nextMonthLabel={availabilityCopy.nextMonth}
                   />
-                  <Field
-                    label={availabilityCopy.endTime}
-                    type="time"
-                    value={endTime}
-                    onChange={setEndTime}
-                  />
-                </div>
-                <div className="availability-preview">
-                  <p className="availability-preview-label">{availabilityCopy.preview}</p>
-                  <p className="availability-preview-value">
-                    {previewStart && previewEnd
-                      ? `${formatBangkokDate(previewStart, language)} · ${formatBangkokTime(previewStart, language)}–${formatBangkokTime(previewEnd, language)} · ${formatDurationLabel(getDurationHours(previewStart.toISOString(), previewEnd.toISOString()), availabilityCopy.duration, availabilityCopy.durationPlural)}`
-                      : availabilityCopy.emptyForm}
-                  </p>
-                  {previewStart && previewEnd && (
-                    <p className="availability-preview-help">
-                      {availabilityCopy.storedAs
-                        .replace('{start}', formatUtcDateTime(previewStart, language))
-                        .replace('{end}', formatUtcDateTime(previewEnd, language))}
+                  <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
+                    <Field
+                      label={availabilityCopy.startTime}
+                      type="time"
+                      value={startTime}
+                      onChange={setStartTime}
+                    />
+                    <Field
+                      label={availabilityCopy.endTime}
+                      type="time"
+                      value={endTime}
+                      onChange={setEndTime}
+                    />
+                  </div>
+                  <GraphPaper className="p-4">
+                    <p className="text-[0.68rem] font-extrabold uppercase tracking-[0.12em] text-tutor-deep">
+                      {availabilityCopy.preview}
+                    </p>
+                    <p className="mt-1.5 text-sm font-bold leading-6 text-notebook-ink">
+                      {previewStart && previewEnd
+                        ? `${formatBangkokDate(previewStart, language)} · ${formatBangkokTime(previewStart, language)}–${formatBangkokTime(previewEnd, language)} · ${formatDurationLabel(getDurationHours(previewStart.toISOString(), previewEnd.toISOString()), availabilityCopy.duration, availabilityCopy.durationPlural)}`
+                        : availabilityCopy.emptyForm}
+                    </p>
+                    {previewStart && previewEnd && (
+                      <p className="mt-1 text-xs leading-5 text-notebook-muted">
+                        {availabilityCopy.storedAs
+                          .replace('{start}', formatUtcDateTime(previewStart, language))
+                          .replace('{end}', formatUtcDateTime(previewEnd, language))}
+                      </p>
+                    )}
+                  </GraphPaper>
+                  {formError && (
+                    <p
+                      className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-xs font-semibold text-red-700"
+                      role="alert"
+                    >
+                      {formError}
                     </p>
                   )}
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="submit"
+                      className={notebookButtonClass({ className: 'flex-1' })}
+                      disabled={isSaving}
+                    >
+                      <DashboardIcon name="plus" className="h-4 w-4" />
+                      {isSaving ? availabilityCopy.adding : availabilityCopy.add}
+                    </button>
+                    <button
+                      type="reset"
+                      className={notebookButtonClass({
+                        tone: 'secondary',
+                        className: 'flex-1',
+                      })}
+                      onClick={() => {
+                        setDate(today);
+                        setStartTime('18:00');
+                        setEndTime('19:00');
+                        setFormError(null);
+                      }}
+                    >
+                      {availabilityCopy.reset}
+                    </button>
+                  </div>
                 </div>
-                {formError && (
-                  <p className="availability-form-error" role="alert">
-                    {formError}
-                  </p>
-                )}
-                <div className="availability-form-actions">
-                  <button type="submit" className="dash-btn-dark" disabled={isSaving}>
-                    <DashboardIcon name="plus" className="h-4 w-4" />
-                    {isSaving ? availabilityCopy.adding : availabilityCopy.add}
-                  </button>
-                  <button
-                    type="reset"
-                    className="availability-secondary-button"
-                    onClick={() => {
-                      setDate(today);
-                      setStartTime('18:00');
-                      setEndTime('19:00');
-                      setFormError(null);
-                    }}
-                  >
-                    {availabilityCopy.reset}
-                  </button>
-                </div>
-              </div>
-            </form>
-            <section className="availability-notice">
-              <strong>{availabilityCopy.reservedHelpTitle}</strong>
-              <p>{availabilityCopy.reservedHelp}</p>
-            </section>
+              </form>
+            </PaperCard>
+            <StickyNote tone="yellow" className="p-4 text-sm leading-6">
+              <strong className="block text-notebook-ink">
+                {availabilityCopy.reservedHelpTitle}
+              </strong>
+              <p className="mt-1 text-xs text-notebook-muted">{availabilityCopy.reservedHelp}</p>
+            </StickyNote>
           </aside>
         </div>
       </div>
@@ -500,10 +566,10 @@ function Field({
   onChange: (value: string) => void;
 }) {
   return (
-    <label className="availability-field">
+    <label className="flex flex-col gap-1.5 text-sm font-bold text-notebook-ink">
       <span>{label}</span>
       <input
-        className="availability-input"
+        className={availabilityInputClass}
         type={type}
         value={value}
         onChange={(event) => onChange(event.target.value)}
@@ -515,21 +581,38 @@ function Field({
 
 function Feedback({ message, tone }: { message: string; tone: 'error' | 'success' }) {
   return (
-    <p className={`availability-feedback ${tone}`} role={tone === 'error' ? 'alert' : 'status'}>
+    <p
+      className={`mt-4 rounded-lg border px-4 py-3 text-xs font-semibold ${
+        tone === 'error'
+          ? 'border-red-200 bg-red-50 text-red-700'
+          : 'border-emerald-200 bg-emerald-50 text-emerald-800'
+      }`}
+      role={tone === 'error' ? 'alert' : 'status'}
+    >
       {message}
     </p>
   );
 }
 
 function EmptyState({ message }: { message: string }) {
-  return <div className="availability-empty">{message}</div>;
+  return (
+    <GraphPaper className="mt-5 flex min-h-40 items-center justify-center border-dashed p-8 text-center text-sm text-notebook-muted">
+      {message}
+    </GraphPaper>
+  );
 }
 
 function FullPageState({ message }: { message: string }) {
   return (
-    <div className="availability-page-state">
-      <span role="status">{message}</span>
-    </div>
+    <NotebookPage className="flex items-center justify-center p-6">
+      <StickyNote tone="blue" className="min-w-64 px-8 py-7 text-center">
+        <WashiTape tone="blue" className="-top-2 left-1/2 -translate-x-1/2" />
+        <span className="mx-auto block h-7 w-7 animate-spin rounded-full border-2 border-tutor-deep border-t-transparent motion-reduce:animate-[spin_1.8s_linear_infinite]" />
+        <p className="mt-4 font-note text-xl font-semibold text-notebook-ink" role="status">
+          {message}
+        </p>
+      </StickyNote>
+    </NotebookPage>
   );
 }
 
@@ -545,10 +628,16 @@ function InlineState({
   error?: boolean;
 }) {
   return (
-    <div className={`availability-inline-state ${error ? 'error' : ''}`}>
+    <div
+      className={`mt-5 flex min-h-32 flex-wrap items-center justify-center gap-3 rounded-xl border border-dashed p-4 text-center text-sm ${
+        error
+          ? 'border-red-200 bg-red-50 text-red-700'
+          : 'border-paper-edge bg-paper-deep/65 text-notebook-muted'
+      }`}
+    >
       <span role={error ? 'alert' : 'status'}>{message}</span>
       {actionLabel && onAction && (
-        <button type="button" className="availability-secondary-button" onClick={onAction}>
+        <button type="button" className={availabilitySecondaryButtonClass} onClick={onAction}>
           {actionLabel}
         </button>
       )}
@@ -570,15 +659,21 @@ function SummaryCard({
   duration?: boolean;
 }) {
   return (
-    <section className="dash-card availability-stat">
-      <p className="availability-stat-label">{label}</p>
+    <PaperCard className="group relative min-h-36 overflow-hidden p-4 transition hover:-translate-y-0.5 hover:shadow-paper sm:p-5">
+      <WashiTape tone="blue" className="-right-5 -top-1 rotate-12 opacity-70" />
+      <p className="relative z-10 flex items-center gap-2 text-xs font-bold text-notebook-muted before:h-2 before:w-2 before:rounded-full before:bg-tutor">
+        {label}
+      </p>
       <p
-        className={`availability-stat-value ${compact ? 'compact' : ''} ${duration ? 'duration' : ''}`}
+        className={`relative z-10 mt-3 font-black tracking-[-0.045em] text-notebook-ink ${
+          compact ? 'text-xl' : duration ? 'text-xl leading-tight' : 'text-3xl'
+        }`}
       >
         {value}
       </p>
-      <p className="availability-stat-help">{help}</p>
-    </section>
+      <p className="relative z-10 mt-1 text-xs leading-5 text-notebook-muted">{help}</p>
+      <span className="absolute -bottom-9 -right-8 h-24 w-24 rounded-full bg-sticky-blue/45 transition group-hover:scale-110" />
+    </PaperCard>
   );
 }
 
