@@ -6,6 +6,14 @@ import { useState } from 'react';
 
 import AuthShell, { EyeIcon } from '@/components/auth-shell';
 import PrivacyConsent from '@/components/privacy-consent';
+import {
+  NotebookButton,
+  NotebookField,
+  NotebookHeading,
+  PaperCard,
+  WashiTape,
+  notebookInputClass,
+} from '@/components/ui/notebook';
 import { ApiError } from '@/lib/api/error';
 import { useAuth } from '@/lib/auth-context';
 import { useLanguage } from '@/lib/i18n';
@@ -87,32 +95,32 @@ export default function Register() {
 
   return (
     <AuthShell page="register">
-      <section className="w-full max-w-[624px] rounded-[2rem] bg-white px-6 py-9 shadow-[0_10px_28px_rgba(46,39,25,0.06)] sm:px-12 sm:py-12 lg:px-[4.25rem] lg:py-14">
+      <PaperCard className="w-full max-w-[624px] px-6 py-9 sm:px-12 sm:py-12 lg:px-[4.25rem] lg:py-14">
+        <WashiTape
+          tone="pink"
+          className="left-1/2 top-0 -translate-x-1/2 -translate-y-1/2 rotate-1"
+        />
         <div className="mx-auto max-w-[490px]">
           <div>
-            <div className="mb-7 text-center sm:mb-8">
-              <p className="mb-3 text-[0.68rem] font-bold uppercase tracking-[0.24em] text-[#d18b43]">
-                {copy.register.eyebrow}
-              </p>
-              <h1 className="text-[2rem] font-bold tracking-[-0.055em] text-[#171714] sm:text-[2.25rem]">
-                {copy.register.title}
-              </h1>
-              <p className="mx-auto mt-3 max-w-[360px] text-[1.02rem] leading-7 text-[#5e5a52]">
-                {copy.register.subtitle}
-              </p>
-            </div>
+            <NotebookHeading
+              eyebrow={copy.register.eyebrow}
+              title={copy.register.title}
+              description={copy.register.subtitle}
+              align="center"
+              className="mb-7 sm:mb-8"
+            />
 
             <form onSubmit={handleSubmit} className="space-y-3.5">
               {errorMessage && (
-                <p className="rounded-lg bg-red-50 p-3 text-xs text-[#c04f40]" role="alert">
+                <p
+                  className="rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-700"
+                  role="alert"
+                >
                   {errorMessage}
                 </p>
               )}
 
-              <div>
-                <label htmlFor="email" className="sr-only">
-                  {copy.register.emailLabel}
-                </label>
+              <NotebookField htmlFor="email" label={copy.register.emailLabel}>
                 <input
                   id="email"
                   type="email"
@@ -120,91 +128,88 @@ export default function Register() {
                   placeholder={copy.register.emailPlaceholder}
                   value={email}
                   onChange={(event) => setEmail(event.target.value)}
-                  className="h-[3.65rem] w-full rounded-xl border border-[#e2dfd8] bg-white px-5 text-[0.98rem] text-[#171714] outline-none transition-colors placeholder:text-[#77736b] hover:border-[#c6c0b5] focus:border-[#171714] focus:ring-2 focus:ring-[#171714]/10"
+                  className={notebookInputClass({ className: 'h-[3.65rem]' })}
                   required
                 />
-              </div>
+              </NotebookField>
 
-              <div className="relative">
-                <label htmlFor="password" className="sr-only">
-                  {copy.register.passwordLabel}
-                </label>
-                <input
-                  id="password"
-                  type={isPasswordVisible ? 'text' : 'password'}
-                  autoComplete="new-password"
-                  minLength={10}
-                  placeholder={copy.register.passwordPlaceholder}
-                  value={password}
-                  onChange={(event) => {
-                    setPassword(event.target.value);
-                    if (passwordError) setPasswordError('');
-                  }}
-                  className="h-[3.65rem] w-full rounded-xl border border-[#e2dfd8] bg-white px-5 pr-14 text-[0.98rem] text-[#171714] outline-none transition-colors placeholder:text-[#77736b] hover:border-[#c6c0b5] focus:border-[#171714] focus:ring-2 focus:ring-[#171714]/10"
-                  required
-                />
-                <button
-                  type="button"
-                  aria-label={
-                    isPasswordVisible ? copy.register.hidePassword : copy.register.showPassword
-                  }
-                  aria-pressed={isPasswordVisible}
-                  onClick={() => setIsPasswordVisible((visible) => !visible)}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 rounded-md p-1 text-[#77736b] transition-colors hover:text-[#171714] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#171714]/20"
-                >
-                  <EyeIcon visible={isPasswordVisible} />
-                </button>
-              </div>
+              <NotebookField htmlFor="password" label={copy.register.passwordLabel}>
+                <div className="relative">
+                  <input
+                    id="password"
+                    type={isPasswordVisible ? 'text' : 'password'}
+                    autoComplete="new-password"
+                    minLength={10}
+                    placeholder={copy.register.passwordPlaceholder}
+                    value={password}
+                    onChange={(event) => {
+                      setPassword(event.target.value);
+                      if (passwordError) setPasswordError('');
+                    }}
+                    className={notebookInputClass({ className: 'h-[3.65rem] pr-14' })}
+                    required
+                  />
+                  <button
+                    type="button"
+                    aria-label={
+                      isPasswordVisible ? copy.register.hidePassword : copy.register.showPassword
+                    }
+                    aria-pressed={isPasswordVisible}
+                    onClick={() => setIsPasswordVisible((visible) => !visible)}
+                    className="absolute right-4 top-1/2 -translate-y-1/2 rounded-md p-1 text-notebook-muted transition-colors hover:text-notebook-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-notebook-ink/20"
+                  >
+                    <EyeIcon visible={isPasswordVisible} />
+                  </button>
+                </div>
+              </NotebookField>
 
-              <div className="relative">
-                <label htmlFor="confirmPassword" className="sr-only">
-                  {copy.register.confirmPasswordLabel}
-                </label>
-                <input
-                  id="confirmPassword"
-                  type={isConfirmPasswordVisible ? 'text' : 'password'}
-                  autoComplete="new-password"
-                  minLength={10}
-                  placeholder={copy.register.confirmPasswordPlaceholder}
-                  value={confirmPassword}
-                  onChange={(event) => {
-                    setConfirmPassword(event.target.value);
-                    if (passwordError) setPasswordError('');
-                  }}
-                  className={`h-[3.65rem] w-full rounded-xl border bg-[#faf9f6] px-5 pr-14 text-[0.98rem] text-[#171714] outline-none transition-colors placeholder:text-[#77736b] hover:border-[#c6c0b5] focus:ring-2 focus:ring-[#171714]/10 ${
-                    passwordError
-                      ? 'border-[#d96452] focus:border-[#d96452]'
-                      : 'border-[#e2dfd8] focus:border-[#171714]'
-                  }`}
-                  required
-                />
-                <button
-                  type="button"
-                  aria-label={
-                    isConfirmPasswordVisible
-                      ? copy.register.hideConfirmPassword
-                      : copy.register.showConfirmPassword
-                  }
-                  aria-pressed={isConfirmPasswordVisible}
-                  onClick={() => setIsConfirmPasswordVisible((visible) => !visible)}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 rounded-md p-1 text-[#77736b] transition-colors hover:text-[#171714] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#171714]/20"
-                >
-                  <EyeIcon visible={isConfirmPasswordVisible} />
-                </button>
-                {passwordError && (
-                  <p className="mt-1.5 text-xs text-[#c04f40]" role="alert">
-                    {passwordError}
-                  </p>
-                )}
-              </div>
+              <NotebookField
+                htmlFor="confirmPassword"
+                label={copy.register.confirmPasswordLabel}
+                error={passwordError || undefined}
+              >
+                <div className="relative">
+                  <input
+                    id="confirmPassword"
+                    type={isConfirmPasswordVisible ? 'text' : 'password'}
+                    autoComplete="new-password"
+                    minLength={10}
+                    placeholder={copy.register.confirmPasswordPlaceholder}
+                    value={confirmPassword}
+                    aria-invalid={Boolean(passwordError)}
+                    onChange={(event) => {
+                      setConfirmPassword(event.target.value);
+                      if (passwordError) setPasswordError('');
+                    }}
+                    className={notebookInputClass({
+                      error: Boolean(passwordError),
+                      className: 'h-[3.65rem] pr-14',
+                    })}
+                    required
+                  />
+                  <button
+                    type="button"
+                    aria-label={
+                      isConfirmPasswordVisible
+                        ? copy.register.hideConfirmPassword
+                        : copy.register.showConfirmPassword
+                    }
+                    aria-pressed={isConfirmPasswordVisible}
+                    onClick={() => setIsConfirmPasswordVisible((visible) => !visible)}
+                    className="absolute right-4 top-1/2 -translate-y-1/2 rounded-md p-1 text-notebook-muted transition-colors hover:text-notebook-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-notebook-ink/20"
+                  >
+                    <EyeIcon visible={isConfirmPasswordVisible} />
+                  </button>
+                </div>
+              </NotebookField>
 
               <div className="space-y-3 pt-2">
                 <div className="flex items-center justify-between gap-4">
-                  <span className="text-sm font-semibold text-[#171714]">
+                  <span className="text-sm font-semibold text-notebook-ink">
                     {copy.register.joiningAs}
                   </span>
                   <div
-                    className="grid grid-cols-2 rounded-xl border border-[#e2dfd8] bg-[#faf9f6] p-1"
+                    className="grid grid-cols-2 rounded-lg border border-paper-edge bg-paper-deep p-1"
                     role="group"
                     aria-label={copy.register.chooseRole}
                   >
@@ -214,8 +219,8 @@ export default function Register() {
                       onClick={() => setRole('student')}
                       className={`min-h-10 rounded-lg px-4 text-sm font-semibold transition-colors ${
                         role === 'student'
-                          ? 'bg-[#171714] text-white shadow-sm'
-                          : 'text-[#77736b] hover:text-[#171714]'
+                          ? 'bg-notebook-ink text-paper shadow-sm'
+                          : 'text-notebook-muted hover:text-notebook-ink'
                       }`}
                     >
                       {copy.register.student}
@@ -226,8 +231,8 @@ export default function Register() {
                       onClick={() => setRole('tutor')}
                       className={`min-h-10 rounded-lg px-4 text-sm font-semibold transition-colors ${
                         role === 'tutor'
-                          ? 'bg-[#171714] text-white shadow-sm'
-                          : 'text-[#77736b] hover:text-[#171714]'
+                          ? 'bg-notebook-ink text-paper shadow-sm'
+                          : 'text-notebook-muted hover:text-notebook-ink'
                       }`}
                     >
                       {copy.register.tutor}
@@ -242,27 +247,27 @@ export default function Register() {
                 />
               </div>
 
-              <button
+              <NotebookButton
                 type="submit"
                 disabled={isLoading}
-                className="mt-2 flex h-[3.65rem] w-full items-center justify-center rounded-xl bg-[#ffc57d] px-5 text-base font-bold text-[#171714] shadow-[0_3px_10px_rgba(206,145,64,0.14)] transition-all hover:-translate-y-0.5 hover:bg-[#ffbd6c] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#171714]/30 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+                className="!mt-5 h-[3.65rem] w-full text-base"
               >
                 {isLoading ? copy.register.loading : copy.register.submit}
-              </button>
+              </NotebookButton>
             </form>
 
-            <p className="mt-7 text-center text-sm text-[#5e5a52]">
+            <p className="mt-7 text-center text-sm text-notebook-muted">
               {copy.register.already}{' '}
               <Link
                 href="/"
-                className="font-bold text-[#171714] underline decoration-[#d18b43] underline-offset-4 hover:text-[#d88835]"
+                className="font-bold text-notebook-ink underline decoration-margin-guide decoration-2 underline-offset-4 hover:text-amber-700"
               >
                 {copy.register.signIn}
               </Link>
             </p>
           </div>
         </div>
-      </section>
+      </PaperCard>
     </AuthShell>
   );
 }

@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 
+import { NotebookPage, StickyNote, WashiTape, notebookButtonClass } from '@/components/ui/notebook';
 import { formatBangkokYear } from '@/lib/date-time';
 import { useLanguage } from '@/lib/i18n';
 
@@ -112,45 +113,25 @@ export function AuthSocialButtons() {
 export function BackgroundArtwork() {
   return (
     <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden="true">
-      <div className="absolute -left-56 -top-56 h-[38rem] w-[38rem] rounded-full border border-[#e5ded2] bg-[#fbfaf7]/75" />
-      <div className="absolute -bottom-52 -right-52 h-[37rem] w-[37rem] rounded-full bg-[#f1ddc4]/70" />
-      <div className="absolute left-1/2 top-1/2 h-[min(48rem,82vw)] w-[min(48rem,82vw)] -translate-x-1/2 -translate-y-1/2 rounded-full border border-white/70" />
-
-      <svg
-        className="absolute inset-0 h-full w-full"
-        viewBox="0 0 1440 900"
-        fill="none"
-        preserveAspectRatio="none"
+      <div className="absolute -right-16 top-32 hidden h-64 w-64 rotate-3 rounded-2xl border border-blue-200/70 bg-[linear-gradient(#dbeafe_1px,transparent_1px),linear-gradient(90deg,#dbeafe_1px,transparent_1px)] bg-[size:22px_22px] opacity-55 lg:block" />
+      <StickyNote
+        tone="yellow"
+        className="absolute -left-8 bottom-24 hidden h-40 w-48 -rotate-6 opacity-75 xl:block"
       >
-        <defs>
-          <pattern id="auth-minimal-dots" width="16" height="16" patternUnits="userSpaceOnUse">
-            <circle cx="2" cy="2" r="1.15" fill="#d4c7b5" />
-          </pattern>
-        </defs>
-        <path d="M0 778h1440" stroke="#ded6ca" strokeWidth="1" />
+        <span className="block h-px w-24 bg-amber-700/20" />
+        <span className="mt-5 block h-px w-32 bg-amber-700/20" />
+        <span className="mt-5 block h-px w-20 bg-amber-700/20" />
+      </StickyNote>
+      <WashiTape tone="pink" className="-right-5 top-20 hidden rotate-12 lg:block" />
+      <svg className="absolute bottom-8 right-10 h-24 w-24 text-stone-400/30" viewBox="0 0 96 96">
         <path
-          d="M1176 166c34 27 72 19 88-20 14-33 34-26 37 7 4 41 38 41 64 5 25-34 46-42 55-12 8 27 25 32 47 18"
-          stroke="#d4c7b5"
-          strokeWidth="1"
+          d="M22 62c16-4 12-27 27-28 13-1 9 24 23 21 8-2 5-14 12-18"
+          fill="none"
+          stroke="currentColor"
           strokeLinecap="round"
+          strokeWidth="2"
         />
-        <path
-          d="M90 652c26 23 58 19 75-10 14-24 32-16 35 8 4 31 31 34 54 8 20-23 37-25 47-6"
-          stroke="#d18b43"
-          strokeWidth="1.2"
-          strokeLinecap="round"
-        />
-        <circle cx="1288" cy="214" r="5" stroke="#d18b43" strokeWidth="1.2" />
-        <circle cx="168" cy="690" r="4" stroke="#d4c7b5" />
-        <rect
-          x="70"
-          y="704"
-          width="112"
-          height="74"
-          rx="20"
-          fill="url(#auth-minimal-dots)"
-          opacity="0.72"
-        />
+        <path d="m77 29 8 8-11 3" fill="none" stroke="currentColor" strokeWidth="2" />
       </svg>
     </div>
   );
@@ -164,24 +145,24 @@ export default function AuthShell({ page, children }: { page: AuthPage; children
   const navCopy = isLogin ? copy.shell.login : copy.shell.register;
 
   return (
-    <div className="relative flex min-h-dvh flex-col overflow-hidden bg-[#f7f4ec] text-[#171714]">
+    <NotebookPage className="relative flex flex-col overflow-hidden">
       <BackgroundArtwork />
 
       <header className="relative z-10 flex items-start justify-between px-5 py-6 sm:px-8 sm:py-8 lg:px-16 lg:py-9">
         <div>
           <Link
             href="/"
-            className="inline-flex items-center gap-2 text-[1.55rem] font-black tracking-[-0.08em] text-[#171714]"
+            className="inline-flex items-center gap-2 text-[1.55rem] font-black tracking-[-0.08em] text-notebook-ink"
           >
-            <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[#171714] text-[0.65rem] font-bold tracking-[-0.04em] text-[#f7f4ec]">
+            <span className="flex h-8 w-8 -rotate-3 items-center justify-center rounded-md bg-notebook-ink text-[0.65rem] font-bold tracking-[-0.04em] text-paper shadow-[2px_2px_0_#fca5a5]">
               HK
             </span>
             <span>HKTutor</span>
           </Link>
-          <div className="mt-5 hidden w-44 border-t border-[#9c988e] pt-3 text-sm sm:block">
+          <div className="mt-5 hidden w-44 border-t border-dashed border-stone-400 pt-3 text-sm sm:block">
             <Link
               href={secondaryHref}
-              className="group flex items-center justify-between gap-4 hover:text-[#d88835]"
+              className="group flex items-center justify-between gap-4 text-notebook-muted hover:text-amber-700"
             >
               <span>{navCopy.secondary}</span>
               <ArrowIcon className="h-4 w-4 transition-transform group-hover:translate-x-1" />
@@ -196,19 +177,22 @@ export default function AuthShell({ page, children }: { page: AuthPage; children
             aria-pressed={language === 'th'}
             title={copy.common.languageButtonLabel}
             onClick={toggleLanguage}
-            className="inline-flex items-center gap-2 rounded-full p-2 transition-colors hover:bg-white/60"
+            className="inline-flex items-center gap-2 rounded-full p-2 text-notebook-ink transition-colors hover:bg-sticky-yellow/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-notebook-ink/25"
           >
             <GlobeIcon />
             <span className="text-xs font-semibold tracking-[0.12em]">
               {language.toUpperCase()}
             </span>
           </button>
-          <Link href={navHref} className="hidden transition-colors hover:text-[#d88835] sm:inline">
+          <Link href={navHref} className="hidden transition-colors hover:text-amber-700 sm:inline">
             {navCopy.nav}
           </Link>
           <Link
             href={navHref}
-            className="rounded-xl bg-[#ffc57d] px-4 py-3 font-semibold shadow-[0_3px_10px_rgba(206,145,64,0.12)] transition-transform hover:-translate-y-0.5 sm:px-6 sm:py-3.5"
+            className={notebookButtonClass({
+              tone: 'secondary',
+              className: 'border-amber-200 bg-sticky-yellow sm:px-6',
+            })}
           >
             {navCopy.cta}
           </Link>
@@ -219,13 +203,13 @@ export default function AuthShell({ page, children }: { page: AuthPage; children
         {children}
       </main>
 
-      <footer className="relative z-10 shrink-0 px-5 pb-6 text-center text-sm text-[#5e5a52] sm:pb-8">
+      <footer className="relative z-10 shrink-0 px-5 pb-6 text-center text-sm text-notebook-muted sm:pb-8">
         <span>
           © {formatBangkokYear(new Date(), language)} {copy.common.copyright}
         </span>
-        <span className="mx-3 text-[#b2ada2]">|</span>
+        <span className="mx-3 text-stone-300">|</span>
         <span>{copy.common.privacySupport}</span>
       </footer>
-    </div>
+    </NotebookPage>
   );
 }
