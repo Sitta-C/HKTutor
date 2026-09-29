@@ -20,8 +20,8 @@ For the page-by-page API dependency, see
 | Product Backlog tab in the same workbook                                                                                                            | Rows 4–86: UI acceptance criteria and Sprint 1–3 boundaries, including exact filtering, chat, classes, rescheduling, documents, reports, reviews and coupons.        |
 | `apps/api/prisma/schema.prisma` and migrations                                                                                                      | Actual persisted fields and database constraints. A sheet field is not necessarily implemented.                                                                      |
 | `apps/api/src/app.module.ts`, controllers, DTOs, services and contract tests                                                                        | Actual HTTP surface, identity contract and implemented safeguards. Profile and Tutor-listing controllers exist; availability, search and booking controllers do not. |
-| Tracked repository Markdown                                                                                                                         | Root/API/web READMEs, `apps/web/AGENTS.md`, contract references and this document. Historical local task logs are not sources of truth.                              |
-| All tracked first-party `apps/web/src/**/*.{ts,tsx}` files                                                                                          | Eleven route pages, shared components, API clients, auth context and i18n. Generated output and dependencies are excluded.                                           |
+| Tracked repository Markdown                                                                                                                         | Root/API/web READMEs, contract references and this document. Historical local task logs are not sources of truth.                                                    |
+| All tracked first-party `apps/web/src/**/*.{ts,tsx}` files                                                                                          | Sixteen route pages, shared components, API clients, auth context and i18n. Generated output and dependencies are excluded.                                          |
 | `dashboard-navigation.ts`, `globals.css`, `ui-design/index.html` and prototype references                                                           | Navigation targets, theme and existing design conventions.                                                                                                           |
 
 Source priority: tracked production code and tests describe current implementation; current API
@@ -48,7 +48,8 @@ assignee-specific instructions.
 | `/about-me`                            | `app/about-me/page.tsx`                                                                                                  | Static EN/TH informational page                                                                                                      | `copy.aboutMe`; not a user profile                                       |
 | Shared layout/auth/i18n                | `app/layout.tsx`, `components/auth-shell.tsx`, `lib/auth-context.tsx`, `lib/i18n.tsx`                                    | Auth/session bootstrap, theme, language persistence                                                                                  | Auth refresh response; local language preference                         |
 
-There are **11 existing route pages**, including one legacy alias and one dynamic listing route.
+There are **16 existing route pages**, including three dynamic routes. The legacy verification
+alias is a redirect and does not maintain a duplicate page.
 Student, Tutor and Admin dashboards
 share one route. The Admin view is a safe placeholder, not a completed admin console.
 
@@ -72,9 +73,8 @@ drawer instead of a new route if it preserves the same information and deep-link
 These are design surfaces rather than mandatory route count. Forms, detail drawers and
 confirmation states may share screens when they preserve the same data and navigation behavior.
 
-Current production Student navigation: Dashboard → My profile → My bookings → Settings → Support →
-Privacy → Sign out. Current Tutor navigation: Dashboard → My profile → My listings → Availability →
-Settings → Support → Privacy → Sign out.
+Current production Student navigation: Dashboard → My profile → My bookings → Privacy → Sign out.
+Current Tutor navigation: Dashboard → My profile → My listings → Availability → Privacy → Sign out.
 The tutor booking-management actions arrive in Sprint 2. Account can remain read-only using the
 existing identity contract. Settings/support have no dedicated storage or workflow contract yet.
 Guest search is allowed by RBAC; use a public header without private dashboard identity.
@@ -305,7 +305,7 @@ ui-design/
    copy the dashboard `:root` token block and reuse the component patterns; do not invent
    new tokens.
 2. Review in chat; iterate until agreed.
-3. Implement in `apps/web` after reading `apps/web/AGENTS.md` and the relevant Next 16 guide under
+3. Implement in `apps/web` after reading the relevant Next 16 guide under
    `apps/web/node_modules/next/dist/docs/`.
 4. Mark the draft row in §7 ✅ implemented (keep the draft; don't delete).
 

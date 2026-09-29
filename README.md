@@ -120,9 +120,9 @@ This generates Prisma Client, runs workspace contract tests, formatting checks, 
 and production builds. It does not apply migrations, seed a database, or send email.
 
 Docker images can be validated with `docker compose config` after required environment values are
-set. Compose publishes one gateway on port 3000; `/api/v1` goes directly to NestJS and every other
-path goes to Next.js. The web and API ports stay private inside the Compose network. Terminate HTTPS
-at this gateway or an upstream VM proxy and set `COOKIE_SECURE=true` for a deployed demo.
+set. Compose publishes Next.js on port 3000; the app forwards same-origin `/api/v1` requests to the
+private NestJS service. Terminate HTTPS at an upstream VM proxy and set `COOKIE_SECURE=true` for a
+deployed demo.
 
 ## Demo scope
 

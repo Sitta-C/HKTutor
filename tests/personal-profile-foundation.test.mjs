@@ -154,14 +154,10 @@ test('uses the production dashboard shell across product feature surfaces', asyn
   }
 });
 
-test('keeps tracked web contributor and UI design docs free of personal work state', async () => {
-  const webGuide = await read('apps/web/AGENTS.md');
+test('keeps the tracked UI design reference free of personal work state', async () => {
   const design = await read('ui-design/uidesign.md');
 
-  assert.match(webGuide, /stable web-specific framework guidance/);
-  assert.match(webGuide, /BEGIN:nextjs-agent-rules/);
-  assert.match(design, /11 existing route pages/);
-  assert.match(design, /production `dash-\*` element structure/);
-  assert.doesNotMatch(webGuide, /reviewed through|Tonnam|First\/P|Korpai/);
+  assert.match(design, /16 existing route pages/);
+  assert.match(design, /production code and tests are authoritative/);
   assert.doesNotMatch(design, /reviewed through|Tonnam|First\/P|Korpai/);
 });
