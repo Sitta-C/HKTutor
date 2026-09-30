@@ -47,7 +47,9 @@ export default function DashboardPage() {
     return (
       <main className="flex min-h-dvh items-center justify-center bg-[#fbfaf7] p-6">
         <div className="max-w-md rounded-2xl bg-white p-8 text-center shadow-sm">
-          <h1 className="text-xl font-bold text-[#171714]">Unable to load profile</h1>
+          <h1 className="text-xl font-bold text-[#171714]">
+            {copy.dashboard.common.loadProfileError}
+          </h1>
           <p className="mt-3 text-sm text-[#c04f40]" role="alert">
             {profileError}
           </p>

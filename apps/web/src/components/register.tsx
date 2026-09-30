@@ -23,11 +23,6 @@ import type { FormEvent } from 'react';
 
 type Role = 'student' | 'tutor';
 
-function getErrorMessage(error: unknown, fallback: string) {
-  if (error instanceof Error) return error.message || fallback;
-  return fallback;
-}
-
 export default function Register() {
   const { copy } = useLanguage();
   const { register } = useAuth();
@@ -87,7 +82,7 @@ export default function Register() {
         router.push(`/register/verify?email=${encodeURIComponent(email)}&delivery=failed`);
         return;
       }
-      setErrorMessage(getErrorMessage(err, copy.register.registrationFailed));
+      setErrorMessage(copy.register.registrationFailed);
     } finally {
       setIsLoading(false);
     }

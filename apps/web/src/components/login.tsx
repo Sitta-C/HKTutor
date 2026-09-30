@@ -47,8 +47,8 @@ export default function Login() {
     try {
       await login(email, password);
       router.replace(returnTo);
-    } catch (err: unknown) {
-      setErrorMessage(err instanceof Error ? err.message : copy.login.failed);
+    } catch {
+      setErrorMessage(copy.login.failed);
     } finally {
       setIsLoading(false);
     }

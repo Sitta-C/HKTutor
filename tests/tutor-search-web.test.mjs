@@ -102,8 +102,9 @@ test('keeps the search callback stable when the language changes', async () => {
   )?.[1];
 
   assert.ok(executeSearch, 'executeSearch callback must exist');
-  assert.match(executeSearch, /setSearchError\(error\)/);
+  assert.match(executeSearch, /setHasSearchError\(true\)/);
   assert.doesNotMatch(executeSearch, /text\.searchError/);
   assert.match(executeSearch, /\}, \[\]\);$/);
-  assert.match(component, /readSearchError\(searchError, text\.searchError\)/);
+  assert.match(component, /message=\{text\.searchError\}/);
+  assert.doesNotMatch(component, /error\.message/);
 });

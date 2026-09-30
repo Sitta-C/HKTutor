@@ -50,6 +50,5 @@ export function validateListingForm(
 
 export function readListingEditorError(error: unknown, fallback: string, notFound?: string) {
   if (error instanceof ApiError && error.status === 404) return notFound ?? fallback;
-  if (error instanceof ApiError && error.status === 403) return fallback;
-  return error instanceof Error ? error.message : fallback;
+  return fallback;
 }

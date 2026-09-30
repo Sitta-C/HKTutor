@@ -151,7 +151,7 @@ export default function PublicTutorAvailabilityPage({ tutorId }: { tutorId: stri
                   {listing.description}
                 </span>
                 <span className="mt-2 block text-sm font-bold text-student-deep">
-                  {listing.pricePerHour} THB/hour
+                  {formatTutorRate(listing.pricePerHour, language)} {text.pricePerHour}
                 </span>
               </button>
             ))}
@@ -202,6 +202,12 @@ export default function PublicTutorAvailabilityPage({ tutorId }: { tutorId: stri
       </div>
     </div>
   );
+}
+
+function formatTutorRate(value: number, language: 'en' | 'th'): string {
+  return new Intl.NumberFormat(language === 'th' ? 'th-TH' : 'en-US', {
+    maximumFractionDigits: value % 1 === 0 ? 0 : 2,
+  }).format(value);
 }
 
 export function PublicTutorAvailabilityLoading() {

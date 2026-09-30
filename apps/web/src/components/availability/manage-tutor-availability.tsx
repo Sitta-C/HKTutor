@@ -117,9 +117,9 @@ export default function ManageTutorAvailability() {
         if (!active) return;
         setSlots(result);
       })
-      .catch((caught: unknown) => {
+      .catch(() => {
         if (!active) return;
-        setLoadError(caught instanceof Error ? caught.message : '');
+        setLoadError(availabilityCopy.loadError);
       })
       .finally(() => {
         if (active) setIsLoading(false);
@@ -128,7 +128,7 @@ export default function ManageTutorAvailability() {
     return () => {
       active = false;
     };
-  }, [profileError, refreshKey, sessionLoading, user, weekStart]);
+  }, [availabilityCopy.loadError, profileError, refreshKey, sessionLoading, user, weekStart]);
 
   const groupedSlots = useMemo(() => {
     const groups = new Map<string, TutorAvailabilitySlot[]>();
@@ -172,7 +172,7 @@ export default function ManageTutorAvailability() {
       if (caught instanceof ApiError && caught.status === 409) {
         setFormError(availabilityCopy.overlapError);
       } else {
-        toast.error(caught instanceof Error ? caught.message : availabilityCopy.createError);
+        toast.error(availabilityCopy.createError);
       }
     } finally {
       setIsSaving(false);
@@ -190,7 +190,7 @@ export default function ManageTutorAvailability() {
       if (caught instanceof ApiError && caught.status === 409) {
         toast.error(availabilityCopy.reservedError);
       } else {
-        toast.error(caught instanceof Error ? caught.message : availabilityCopy.deleteError);
+        toast.error(availabilityCopy.deleteError);
       }
     } finally {
       setBusySlotId(null);

@@ -6,6 +6,9 @@ import type { ReactNode } from 'react';
 
 export type Language = 'en' | 'th';
 
+// Keep app-wide shell/navigation copy here. Feature-owned copy belongs in a colocated
+// `*-copy.ts` module and should expose the same recursive EN/TH shape.
+
 const LANGUAGE_STORAGE_KEY = 'hktutor-language';
 let currentLanguage: Language = 'en';
 let hasLoadedLanguage = false;
@@ -214,6 +217,9 @@ export const translations = {
         tutorChip: 'Tutor',
         adminChip: 'Administrator',
         loading: 'Loading dashboard…',
+        loadProfileError: 'Unable to load profile',
+        sidebarNavigationLabel: 'Sidebar navigation',
+        topNavigationLabel: 'Dashboard top navigation',
         bangkokTime: 'Bangkok time',
         bangkokTimeWithZone: 'Bangkok time (UTC+7)',
         comingSoonBadge: 'Coming soon',
@@ -373,6 +379,7 @@ export const translations = {
         verified: 'VERIFIED',
         signInToChoose: 'Sign in to choose this time',
         studentOnly: 'Student account required',
+        pricePerHour: 'THB/hour',
       },
       availability: {
         eyebrow: 'Tutor availability',
@@ -592,6 +599,9 @@ export const translations = {
         tutorChip: 'ติวเตอร์',
         adminChip: 'ผู้ดูแลระบบ',
         loading: 'กำลังโหลดแดชบอร์ด…',
+        loadProfileError: 'ไม่สามารถโหลดโปรไฟล์ได้',
+        sidebarNavigationLabel: 'เมนูด้านข้าง',
+        topNavigationLabel: 'เมนูด้านบนของแดชบอร์ด',
         bangkokTime: 'เวลาตามกรุงเทพฯ',
         bangkokTimeWithZone: 'เวลาตามกรุงเทพฯ (UTC+7)',
         comingSoonBadge: 'เร็ว ๆ นี้',
@@ -744,6 +754,7 @@ export const translations = {
         verified: 'ยืนยันแล้ว',
         signInToChoose: 'เข้าสู่ระบบเพื่อเลือกเวลานี้',
         studentOnly: 'ต้องใช้บัญชีนักเรียน',
+        pricePerHour: 'บาท/ชั่วโมง',
       },
       availability: {
         eyebrow: 'ตารางเวลาว่างของติวเตอร์',

@@ -3,7 +3,8 @@
 import { useEffect, useRef } from 'react';
 
 import { NotebookButton, WashiTape } from '@/components/ui/notebook';
-import { PRIVACY_NOTICE } from '@/lib/privacy-notice';
+import { useLanguage } from '@/lib/i18n';
+import { privacyNoticeCopy } from '@/lib/privacy-notice-copy';
 
 export interface PrivacyNoticeModalProps {
   readonly open: boolean;
@@ -11,6 +12,8 @@ export interface PrivacyNoticeModalProps {
 }
 
 export default function PrivacyNoticeModal({ open, onClose }: PrivacyNoticeModalProps) {
+  const { language } = useLanguage();
+  const notice = privacyNoticeCopy[language];
   const dialogRef = useRef<HTMLDialogElement>(null);
 
   useEffect(() => {
@@ -34,16 +37,16 @@ export default function PrivacyNoticeModal({ open, onClose }: PrivacyNoticeModal
         <div>
           <p className="font-note text-xl font-semibold text-amber-700">HKTutor</p>
           <h2 id="privacy-notice-title" className="mt-1 text-2xl font-bold tracking-[-0.04em]">
-            {PRIVACY_NOTICE.title}
+            {notice.title}
           </h2>
           <p className="mt-1 text-xs text-notebook-muted">
-            Version {PRIVACY_NOTICE.version} · Effective {PRIVACY_NOTICE.effectiveDate}
+            {notice.versionLabel} {notice.version} · {notice.effectiveLabel} {notice.effectiveDate}
           </p>
         </div>
         <button
           type="button"
           autoFocus
-          aria-label="Close privacy notice"
+          aria-label={notice.closeLabel}
           onClick={onClose}
           className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-paper-edge text-lg font-bold text-notebook-muted hover:bg-sticky-yellow/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-notebook-ink/30"
         >
@@ -53,11 +56,11 @@ export default function PrivacyNoticeModal({ open, onClose }: PrivacyNoticeModal
 
       <div className="max-h-[calc(88dvh-104px)] overflow-y-auto px-6 py-6 sm:px-8 sm:py-8">
         <p id="privacy-notice-summary" className="leading-7 text-notebook-muted">
-          {PRIVACY_NOTICE.summary}
+          {notice.summary}
         </p>
 
         <div className="mt-8 space-y-8">
-          {PRIVACY_NOTICE.sections.map((section) => (
+          {notice.sections.map((section) => (
             <section key={section.heading}>
               <h3 className="text-lg font-bold tracking-[-0.02em]">{section.heading}</h3>
               {section.paragraphs.map((paragraph) => (
@@ -78,7 +81,7 @@ export default function PrivacyNoticeModal({ open, onClose }: PrivacyNoticeModal
 
         <div className="mt-9 border-t border-paper-edge pt-6 text-right">
           <NotebookButton type="button" onClick={onClose}>
-            Close
+            {notice.close}
           </NotebookButton>
         </div>
       </div>

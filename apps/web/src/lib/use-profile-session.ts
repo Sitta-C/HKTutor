@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo } from 'react';
 
 import { useAuth } from '@/lib/auth-context';
 import { clearCurrentProfileCache, useCurrentProfile } from '@/lib/current-profile';
+import { useLanguage } from '@/lib/i18n';
 import {
   ONBOARDING_PROFILE_PATH,
   applyProfileDisplayName,
@@ -35,6 +36,7 @@ export function useProfileSession({
   preserveReturnTo = false,
 }: ProfileSessionOptions) {
   const { isLoading: authLoading, logout, user } = useAuth();
+  const { copy } = useLanguage();
   const router = useRouter();
   const roleAccepted = !user || !requiredRole || user.role === requiredRole;
   const needsProfile = Boolean(
@@ -105,9 +107,7 @@ export function useProfileSession({
     profile,
     profileError:
       currentProfileStatus === 'error' && profileErrorMode === 'report'
-        ? currentProfileError instanceof Error
-          ? currentProfileError.message
-          : 'Unable to load profile'
+        ? copy.dashboard.common.loadProfileError
         : null,
     profileUser,
     user,

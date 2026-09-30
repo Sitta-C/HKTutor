@@ -3,6 +3,7 @@ import fs from 'node:fs/promises';
 import test from 'node:test';
 
 const noticeModulePath = 'apps/web/src/lib/privacy-notice.ts';
+const noticeCopyPath = 'apps/web/src/lib/privacy-notice-copy.ts';
 const noticeModalPath = 'apps/web/src/components/privacy-notice-modal.tsx';
 const consentComponentPath = 'apps/web/src/components/privacy-consent.tsx';
 const registerComponentPath = 'apps/web/src/components/register.tsx';
@@ -13,7 +14,7 @@ const read = (path) => fs.readFile(path, 'utf8');
 test('pins the S1-T11 privacy policy version and consent contract', async () => {
   const notice = await read(noticeModulePath);
 
-  assert.match(notice, /export const PRIVACY_POLICY_VERSION = '2026-09-09';/);
+  assert.match(notice, /export const PRIVACY_POLICY_VERSION = '2026-09-30';/);
   assert.doesNotMatch(notice, /PRIVACY_NOTICE_PATH/);
   assert.match(notice, /export const CONSENT_REQUIRED_MESSAGE =/);
   assert.match(
@@ -25,16 +26,16 @@ test('pins the S1-T11 privacy policy version and consent contract', async () => 
 });
 
 test('describes local password storage and Resend email delivery', async () => {
-  const notice = await read(noticeModulePath);
+  const notice = await read(noticeCopyPath);
 
   assert.match(notice, /stores a one-way password hash rather than your password/);
   assert.match(notice, /uses Resend to deliver account verification emails/);
-  assert.match(notice, /short-lived access '[\s\S]*tokens plus a refresh-session cookie/);
+  assert.match(notice, /short-lived access tokens plus a refresh-session cookie/);
   assert.match(notice, /Verification links are random, expire/);
 });
 
 test('discloses the new personal, education, and emergency-contact data', async () => {
-  const notice = await read(noticeModulePath);
+  const notice = await read(noticeCopyPath);
 
   assert.match(notice, /Student profile: first name, last name, nickname, school, grade level/);
   assert.match(notice, /telephone number is treated as a private emergency contact field/);
@@ -44,14 +45,35 @@ test('discloses the new personal, education, and emergency-contact data', async 
 });
 
 test('covers every required disclosure topic exactly once per heading', async () => {
-  const notice = await read(noticeModulePath);
+  const notice = await read(noticeCopyPath);
   const headings = [...notice.matchAll(/heading: '([^']+)'/g)].map((match) => match[1]);
 
-  assert.equal(headings.length, 10, 'the notice must keep its ten numbered sections');
+  assert.equal(headings.length, 20, 'both languages must keep the ten numbered sections');
   assert.equal(new Set(headings).size, headings.length, 'section headings must be unique');
   assert.deepEqual(
     headings.map((heading) => heading.split('.')[0]),
-    ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10'],
+    [
+      '1',
+      '2',
+      '3',
+      '4',
+      '5',
+      '6',
+      '7',
+      '8',
+      '9',
+      '10',
+      '1',
+      '2',
+      '3',
+      '4',
+      '5',
+      '6',
+      '7',
+      '8',
+      '9',
+      '10',
+    ],
   );
 
   for (const topic of [
@@ -74,7 +96,7 @@ test('covers every required disclosure topic exactly once per heading', async ()
 });
 
 test('states that no account record exists without consent', async () => {
-  const notice = await read(noticeModulePath);
+  const notice = await read(noticeCopyPath);
 
   assert.match(
     notice,
@@ -91,8 +113,20 @@ test('renders a closable modal instead of a separate privacy route', async () =>
   assert.match(modal, /<dialog/);
   assert.match(modal, /dialog\.showModal\(\)/);
   assert.match(modal, /onClose=\{onClose\}/);
-  assert.match(modal, /PRIVACY_NOTICE\.sections\.map/);
+  assert.match(modal, /notice\.sections\.map/);
+  assert.match(modal, /privacyNoticeCopy\[language\]/);
   await assert.rejects(fs.stat('apps/web/src/app/privacy/page.tsx'));
+});
+
+test('ships the full privacy notice in English and Thai under one policy version', async () => {
+  const notice = await read(noticeCopyPath);
+
+  assert.match(notice, /as const satisfies Record<Language, PrivacyNoticeCopy>/);
+  assert.match(notice, /title: 'HKTutor Privacy Notice'/);
+  assert.match(notice, /title: 'ประกาศความเป็นส่วนตัวของ HKTutor'/);
+  assert.match(notice, /heading: '10\. Changes to this notice'/);
+  assert.match(notice, /heading: '10\. การเปลี่ยนแปลงประกาศนี้'/);
+  assert.equal([...notice.matchAll(/version: PRIVACY_POLICY_VERSION/g)].length, 2);
 });
 
 test('requires an explicit consent decision in the onboarding control', async () => {

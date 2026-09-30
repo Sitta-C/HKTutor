@@ -81,7 +81,7 @@ class MyProfileResponseDto {
   @ApiProperty({ example: true })
   consentCurrent!: boolean;
 
-  @ApiProperty({ example: '2026-09-09' })
+  @ApiProperty({ example: '2026-09-30' })
   policyVersion!: string;
 
   @ApiProperty({ example: true })

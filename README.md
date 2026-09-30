@@ -32,8 +32,8 @@ onboarding (`/onboarding/profile`), a protected dashboard (`/dashboard`), profil
 (`/dashboard/profile`), tutor availability management (`/dashboard/availability`), and the
 informational `/about-me` page. The availability screen creates and deletes future Bangkok-time
 ranges while exchanging UTC timestamps with the API, protecting reserved slots, and presenting a
-Gregorian calendar in English or a Buddhist calendar in Thai. The privacy notice opens as a
-closable modal from registration and the dashboard instead of using a separate route.
+Gregorian calendar in English or a Buddhist calendar in Thai. The bilingual privacy notice opens
+as a closable modal from registration and the dashboard instead of using a separate route.
 
 The accepted student and tutor dashboard concepts, plus the tutor profile/certificate form, live
 in [`ui-design`](ui-design/). Open [`ui-design/index.html`](ui-design/index.html) directly or serve

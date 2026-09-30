@@ -156,7 +156,7 @@ export default function ProfileEditor({ mode }: ProfileEditorProps) {
         if (isProfileSetupError(caught)) {
           setConsentCurrent(false);
         } else {
-          setError(caught instanceof Error ? caught.message : text.loadError);
+          setError(text.loadError);
         }
         setIsLoading(false);
       });
@@ -211,8 +211,8 @@ export default function ProfileEditor({ mode }: ProfileEditorProps) {
 
         const handoff = resolveOnboardingHandoff(result);
         if (mode === 'onboarding' && handoff) router.replace(readOnboardingReturnTo());
-      } catch (caught: unknown) {
-        setError(caught instanceof Error ? caught.message : text.saveError);
+      } catch {
+        setError(text.saveError);
       } finally {
         setIsSaving(false);
       }
@@ -254,7 +254,7 @@ export default function ProfileEditor({ mode }: ProfileEditorProps) {
       const apiErrors = readProfileFieldErrors(caught);
       setFieldErrors(apiErrors);
       if (Object.keys(apiErrors).length) focusFirstError(apiErrors);
-      setError(caught instanceof Error ? caught.message : text.saveError);
+      setError(text.saveError);
     } finally {
       setIsSaving(false);
     }

@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 
+import { getBookingStatusLabel } from '@/components/bookings/booking-ui';
 import { DashboardIcon } from '@/components/dashboard/dashboard-icon';
 import DashboardShell from '@/components/dashboard/dashboard-shell';
 import { getTutorAvailability } from '@/lib/api/availability';
@@ -52,8 +53,8 @@ export function TutorDashboard({ user, onLogout }: TutorDashboardProps) {
         setSlots(slotResult);
         setLoadError(null);
       })
-      .catch((caught: unknown) => {
-        if (active) setLoadError(caught instanceof Error ? caught.message : tutorCopy.loadError);
+      .catch(() => {
+        if (active) setLoadError(tutorCopy.loadError);
       });
     return () => {
       active = false;
@@ -124,7 +125,11 @@ export function TutorDashboard({ user, onLogout }: TutorDashboardProps) {
                 ? `${nextBooking.student.nickname ?? tutorCopy.unavailableStudent} · ${formatBangkokDateTime(nextBooking.slot.startAtUtc, language)}`
                 : tutorCopy.noUpcomingSessions}
             </div>
-            {nextBooking && <span className="dash-pill done">{nextBooking.status}</span>}
+            {nextBooking && (
+              <span className="dash-pill done">
+                {getBookingStatusLabel(nextBooking.status, copy.dashboard.booking)}
+              </span>
+            )}
           </div>
 
           <div className="dash-card">

@@ -88,7 +88,7 @@ export function getBookingErrorMessage(error: unknown, text: BookingText): strin
     if (error.status === 404) return text.notFound;
     if (error.status === 409) return text.conflict;
   }
-  return error instanceof Error && error.message ? error.message : text.unknown;
+  return text.unknown;
 }
 
 export function isBookingError(error: unknown, status: number): boolean {
@@ -96,13 +96,7 @@ export function isBookingError(error: unknown, status: number): boolean {
 }
 
 export function BookingStatusBadge({ status, text }: { status: BookingStatus; text: BookingText }) {
-  const labels: Record<BookingStatus, string> = {
-    CANCELED: text.canceled,
-    COMPLETED: text.completed,
-    CONFIRMED: text.confirmed,
-    EXPIRED: text.expired,
-    PENDING: text.pending,
-  };
+  const label = getBookingStatusLabel(status, text);
   const tone = {
     CANCELED: 'danger',
     COMPLETED: 'neutral',
@@ -110,7 +104,18 @@ export function BookingStatusBadge({ status, text }: { status: BookingStatus; te
     EXPIRED: 'danger',
     PENDING: 'warning',
   } as const;
-  return <StatusBadge tone={tone[status]}>{labels[status]}</StatusBadge>;
+  return <StatusBadge tone={tone[status]}>{label}</StatusBadge>;
+}
+
+export function getBookingStatusLabel(status: BookingStatus, text: BookingText): string {
+  const labels: Record<BookingStatus, string> = {
+    CANCELED: text.canceled,
+    COMPLETED: text.completed,
+    CONFIRMED: text.confirmed,
+    EXPIRED: text.expired,
+    PENDING: text.pending,
+  };
+  return labels[status];
 }
 
 export function BookingSummaryRow({

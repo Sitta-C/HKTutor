@@ -310,7 +310,10 @@ export function DashboardShell({
             )}
           </div>
 
-          <nav className="relative flex w-full flex-col gap-1.5" aria-label="Sidebar Navigation">
+          <nav
+            className="relative flex w-full flex-col gap-1.5"
+            aria-label={copy.dashboard.common.sidebarNavigationLabel}
+          >
             {navItems.map((item) => {
               const badge = navBadges?.[item.id] ?? item.badge;
               const icon = (
@@ -464,7 +467,7 @@ export function DashboardShell({
           <header className="sticky top-0 z-20 flex min-h-20 items-center justify-end border-b border-dashed border-paper-edge bg-paper/85 py-3 pl-20 pr-3 backdrop-blur-md sm:px-5 sm:pl-20 lg:px-8">
             <nav
               className="ml-auto flex min-w-0 items-center gap-2 text-sm sm:gap-3 [&>[data-dashboard-action]]:min-h-11 [&>[data-dashboard-action]]:rounded-lg [&>[data-dashboard-action]]:border [&>[data-dashboard-action]]:border-notebook-ink [&>[data-dashboard-action]]:bg-notebook-ink [&>[data-dashboard-action]]:px-3.5 [&>[data-dashboard-action]]:py-2 [&>[data-dashboard-action]]:font-bold [&>[data-dashboard-action]]:text-paper [&>[data-dashboard-action]]:shadow-[0_3px_0_#57534e] [&>[data-dashboard-action]]:transition [&>[data-dashboard-action]]:hover:-translate-y-0.5 [&>a:not([data-dashboard-action])]:font-bold [&>a:not([data-dashboard-action])]:text-notebook-ink [&>a:not([data-dashboard-action])]:underline [&>a:not([data-dashboard-action])]:decoration-margin-guide [&>a:not([data-dashboard-action])]:decoration-2 [&>a:not([data-dashboard-action])]:underline-offset-4 max-[560px]:[&>a:not([data-dashboard-action])]:hidden"
-              aria-label="Dashboard Top Navigation"
+              aria-label={copy.dashboard.common.topNavigationLabel}
             >
               {visualVariant === 'profile' && (
                 <DashboardNotificationMenu userRole={user.role} copy={copy.dashboard.header} />

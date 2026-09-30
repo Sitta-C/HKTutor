@@ -428,7 +428,7 @@ export default function TutorListingEditor({
                       }
                     />
                     <span className="pointer-events-none absolute right-4 top-1/2 mt-1 -translate-y-1/2 text-sm font-bold text-notebook-muted">
-                      THB
+                      {copy.currency}
                     </span>
                   </div>
                   {!errors.pricePerHour && (
@@ -720,6 +720,7 @@ const englishCopy = {
   selectGrade: 'Select a grade level',
   gradeError: 'Choose a grade level.',
   price: 'Price per hour',
+  currency: 'THB',
   priceHelp: 'Enter Thai baht with up to two decimal places.',
   priceError: 'Enter a price greater than zero with no more than two decimal places.',
   publishRule: 'Publication eligibility',
@@ -794,6 +795,7 @@ const thaiCopy: typeof englishCopy = {
   selectGrade: 'เลือกระดับชั้น',
   gradeError: 'กรุณาเลือกระดับชั้น',
   price: 'ราคาต่อชั่วโมง',
+  currency: 'บาท',
   priceHelp: 'กรอกราคาเป็นเงินบาทและมีทศนิยมได้ไม่เกินสองตำแหน่ง',
   priceError: 'กรุณากรอกราคามากกว่าศูนย์และมีทศนิยมไม่เกินสองตำแหน่ง',
   publishRule: 'สิทธิ์ในการเผยแพร่',

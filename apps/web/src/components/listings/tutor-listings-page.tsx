@@ -13,7 +13,6 @@ import {
   listingButtonClass,
 } from '@/components/listings/listing-ui';
 import { GraphPaper, PaperCard, StickyNote, WashiTape } from '@/components/ui/notebook';
-import { ApiError } from '@/lib/api/error';
 import {
   archiveTutorListing,
   getTutorListings,
@@ -65,9 +64,9 @@ export default function TutorListingsPage() {
         if (!active) return;
         setListings(items);
       })
-      .catch((caught: unknown) => {
+      .catch(() => {
         if (!active) return;
-        setError(caught instanceof Error ? caught.message : copy.loadError);
+        setError(copy.loadError);
       })
       .finally(() => {
         if (active) setIsLoading(false);
@@ -115,8 +114,8 @@ export default function TutorListingsPage() {
     try {
       const updated = await publishTutorListing(listingId);
       setListings((current) => current.map((item) => (item.id === listingId ? updated : item)));
-    } catch (caught: unknown) {
-      setError(readListingError(caught, copy.actionError));
+    } catch {
+      setError(copy.actionError);
     } finally {
       setBusyId(null);
     }
@@ -128,8 +127,8 @@ export default function TutorListingsPage() {
     try {
       const updated = await restoreTutorListing(listingId);
       setListings((current) => current.map((item) => (item.id === listingId ? updated : item)));
-    } catch (caught: unknown) {
-      setError(readListingError(caught, copy.actionError));
+    } catch {
+      setError(copy.actionError);
     } finally {
       setBusyId(null);
     }
@@ -142,8 +141,8 @@ export default function TutorListingsPage() {
       const updated = await archiveTutorListing(listingId);
       setListings((current) => current.map((item) => (item.id === listingId ? updated : item)));
       setArchiveCandidate(null);
-    } catch (caught: unknown) {
-      setError(readListingError(caught, copy.actionError));
+    } catch {
+      setError(copy.actionError);
     } finally {
       setBusyId(null);
     }
@@ -470,11 +469,6 @@ export default function TutorListingsPage() {
       </div>
     </DashboardShell>
   );
-}
-
-function readListingError(error: unknown, fallback: string) {
-  if (error instanceof ApiError && error.status === 403) return fallback;
-  return error instanceof Error ? error.message : fallback;
 }
 
 function formatPrice(value: number, language: 'en' | 'th') {

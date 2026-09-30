@@ -111,7 +111,7 @@ describe('authentication API client', () => {
         password: 'password1234',
         role: 'admin' as never,
         consent: true,
-        policyVersion: '2026-09-09',
+        policyVersion: '2026-09-30',
       }),
     ).rejects.toMatchObject({ status: 400 });
 

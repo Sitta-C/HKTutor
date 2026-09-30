@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from 'react';
 
 import {
   BookingStatusBadge,
+  getBookingStatusLabel,
   formatBangkokDateTime,
   formatBangkokRange,
   formatDuration,
@@ -250,7 +251,10 @@ export default function BookingConfirmationPage() {
               {text.bookingRequestSent}
             </h2>
             <p className="mt-2 text-sm leading-6 text-emerald-800">
-              {text.requestCreatedStatus.replace('{status}', activeCreated.status)}
+              {text.requestCreatedStatus.replace(
+                '{status}',
+                getBookingStatusLabel(activeCreated.status, text),
+              )}
             </p>
           </StickyNote>
           <div className="mt-6 grid gap-4 md:grid-cols-3">

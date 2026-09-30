@@ -21,7 +21,6 @@ import {
   notebookButtonClass,
   notebookInputClass,
 } from '@/components/ui/notebook';
-import { ApiError } from '@/lib/api/error';
 import { getGradeLevelCatalog, getSubjectCatalog, searchTutors } from '@/lib/api/tutors';
 import { formatBangkokDateTime } from '@/lib/date-time';
 import { useLanguage } from '@/lib/i18n';
@@ -47,7 +46,7 @@ export default function TutorSearchPage() {
   const [catalogError, setCatalogError] = useState(false);
   const [results, setResults] = useState<TutorSearchResult[]>([]);
   const [status, setStatus] = useState<SearchStatus>('loading');
-  const [searchError, setSearchError] = useState<unknown | null>(null);
+  const [hasSearchError, setHasSearchError] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<TutorSearchErrors>({});
   const requestId = useRef(0);
   const controller = useRef<AbortController | null>(null);
@@ -80,7 +79,7 @@ export default function TutorSearchPage() {
     const nextController = new AbortController();
     controller.current = nextController;
     setStatus('loading');
-    setSearchError(null);
+    setHasSearchError(false);
     setResults([]);
 
     try {
@@ -88,11 +87,11 @@ export default function TutorSearchPage() {
       if (currentRequest !== requestId.current) return;
       setResults(nextResults);
       setStatus('success');
-    } catch (error: unknown) {
+    } catch {
       if (nextController.signal.aborted || currentRequest !== requestId.current) return;
       setResults([]);
       setStatus('error');
-      setSearchError(error);
+      setHasSearchError(true);
     }
   }, []);
 
@@ -123,7 +122,7 @@ export default function TutorSearchPage() {
     event.preventDefault();
     const validation = validateTutorSearch(form, text);
     setFieldErrors(validation);
-    setSearchError(null);
+    setHasSearchError(false);
     if (Object.keys(validation).length > 0) {
       requestId.current += 1;
       controller.current?.abort();
@@ -267,15 +266,8 @@ export default function TutorSearchPage() {
             </div>
 
             <div className="space-y-4 p-5 sm:p-6">
-              {status === 'error' && (
-                <SearchState
-                  tone="error"
-                  message={
-                    searchError === null
-                      ? text.searchError
-                      : readSearchError(searchError, text.searchError)
-                  }
-                />
+              {status === 'error' && hasSearchError && (
+                <SearchState tone="error" message={text.searchError} />
               )}
               {status === 'validation' && (
                 <SearchState tone="error" message={text.validationError} />
@@ -302,9 +294,6 @@ export default function TutorSearchPage() {
                 ))}
             </div>
           </PaperCard>
-          <p className="px-2 py-3 font-note text-base leading-5 text-notebook-muted">
-            {text.cardNote}
-          </p>
         </section>
       </div>
     </div>
@@ -471,7 +460,7 @@ function TutorResultCard({
       </div>
       <div className="flex shrink-0 items-center justify-between gap-4 border-t border-dashed border-paper-edge pt-4 lg:flex-col lg:items-end lg:border-t-0 lg:pt-0">
         <strong className="text-xl font-black text-notebook-ink">
-          {formatPrice(result.pricePerHour)} ฿
+          {formatPrice(result.pricePerHour, language)} ฿
           <span className="text-xs font-bold text-notebook-muted">/{text.hour}</span>
         </strong>
         <Link
@@ -524,13 +513,6 @@ function SearchState({
   );
 }
 
-function readSearchError(error: unknown, fallback: string): string {
-  if (error instanceof ApiError && error.status === 400) {
-    return error.message;
-  }
-  return fallback;
-}
-
 function getInitials(displayName: string): string {
   const initials = displayName
     .trim()
@@ -541,8 +523,10 @@ function getInitials(displayName: string): string {
   return initials.toUpperCase() || 'T';
 }
 
-function formatPrice(price: number): string {
-  return new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 }).format(price);
+function formatPrice(price: number, language: 'en' | 'th'): string {
+  return new Intl.NumberFormat(language === 'th' ? 'th-TH' : 'en-US', {
+    maximumFractionDigits: 2,
+  }).format(price);
 }
 
 function formatNextAvailable(value: string, language: 'en' | 'th'): string {

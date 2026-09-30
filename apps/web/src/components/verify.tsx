@@ -141,9 +141,9 @@ function VerifyForm() {
           setMessage(copy.register.verificationCloseTab);
         }, 250);
       })
-      .catch((error: unknown) => {
+      .catch(() => {
         setStatus('error');
-        setMessage(error instanceof Error ? error.message : copy.register.verificationFailed);
+        setMessage(copy.register.verificationFailed);
       });
   }, [
     copy.register.verificationCloseTab,
@@ -158,12 +158,12 @@ function VerifyForm() {
     if (!email.trim()) return;
     setIsResending(true);
     try {
-      const result = await resendVerification(email.trim());
+      await resendVerification(email.trim());
       setStatus('waiting');
-      setMessage(result.message);
-    } catch (error: unknown) {
+      setMessage(copy.register.otpResent);
+    } catch {
       setStatus('error');
-      setMessage(error instanceof Error ? error.message : copy.register.resendFailed);
+      setMessage(copy.register.resendFailed);
     } finally {
       setIsResending(false);
     }
