@@ -68,6 +68,7 @@ export const translations = {
       languageButtonLabel: 'Switch language to Thai',
       copyright: 'HKTutor',
       privacySupport: 'Privacy & support',
+      toastRegion: 'Notifications',
     },
     shell: {
       login: {
@@ -447,6 +448,7 @@ export const translations = {
       languageButtonLabel: 'เปลี่ยนภาษาเป็นภาษาอังกฤษ',
       copyright: 'HKTutor',
       privacySupport: 'ความเป็นส่วนตัวและการช่วยเหลือ',
+      toastRegion: 'การแจ้งเตือน',
     },
     shell: {
       login: {

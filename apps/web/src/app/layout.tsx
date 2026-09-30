@@ -1,6 +1,7 @@
 import { Caveat, Mali } from 'next/font/google';
 import localFont from 'next/font/local';
 
+import { NotebookToastProvider } from '@/components/ui/notebook-toast';
 import { AuthProvider } from '@/lib/auth-context';
 import { LanguageProvider } from '@/lib/i18n';
 
@@ -70,7 +71,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en" className={`${baiJamjuree.variable} ${caveat.variable} ${mali.variable}`}>
       <body className="min-h-screen bg-white text-gray-900 antialiased">
         <AuthProvider>
-          <LanguageProvider>{children}</LanguageProvider>
+          <LanguageProvider>
+            <NotebookToastProvider>{children}</NotebookToastProvider>
+          </LanguageProvider>
         </AuthProvider>
       </body>
     </html>

@@ -16,6 +16,10 @@ export const emptyListingForm: ListingFormData = {
   description: '',
 };
 
+export function formatTutorExperience(years: number, language: 'en' | 'th'): string {
+  return language === 'th' ? `ประสบการณ์ ${years} ปี` : `${years} years experience`;
+}
+
 export function validateListingForm(
   form: ListingFormData,
   copy: {

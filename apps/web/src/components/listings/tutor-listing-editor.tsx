@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
@@ -14,10 +15,12 @@ import {
 } from '@/components/listings/listing-ui';
 import {
   emptyListingForm,
+  formatTutorExperience,
   readListingEditorError,
   validateListingForm,
 } from '@/components/listings/tutor-listing-editor-model';
 import { GraphPaper, PaperCard, StickyNote, WashiTape } from '@/components/ui/notebook';
+import { useNotebookToast } from '@/components/ui/notebook-toast';
 import {
   createTutorListing,
   getListingCatalogs,
@@ -45,9 +48,13 @@ import type { FormEvent } from 'react';
 
 interface TutorListingEditorProps {
   listingId?: string;
+  profileImageUrl?: string | null;
 }
 
-export default function TutorListingEditor({ listingId }: TutorListingEditorProps) {
+export default function TutorListingEditor({
+  listingId,
+  profileImageUrl = null,
+}: TutorListingEditorProps) {
   const {
     isLoading: sessionLoading,
     logout,
@@ -62,6 +69,7 @@ export default function TutorListingEditor({ listingId }: TutorListingEditorProp
     requiredRole: 'TUTOR',
   });
   const { language } = useLanguage();
+  const toast = useNotebookToast();
   const router = useRouter();
   const copy = language === 'th' ? thaiCopy : englishCopy;
   const [form, setForm] = useState<ListingFormData>(emptyListingForm);
@@ -72,7 +80,6 @@ export default function TutorListingEditor({ listingId }: TutorListingEditorProp
   const [errors, setErrors] = useState<ListingFormErrors>({});
   const [pageError, setPageError] = useState<string | null>(null);
   const [catalogError, setCatalogError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [submitAction, setSubmitAction] = useState<'save' | 'publish' | 'restore' | null>(null);
 
@@ -188,7 +195,6 @@ export default function TutorListingEditor({ listingId }: TutorListingEditorProp
   ) => {
     setForm((current) => ({ ...current, [key]: value }));
     setErrors((current) => ({ ...current, [key]: undefined }));
-    setSuccess(null);
   };
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
@@ -198,13 +204,12 @@ export default function TutorListingEditor({ listingId }: TutorListingEditorProp
 
   const saveListing = async (action: 'save' | 'publish') => {
     if (action === 'publish' && !isVerified) {
-      setPageError(copy.verificationError);
+      toast.error(copy.verificationError);
       return;
     }
     const nextErrors = validateListingForm(form, copy);
     setErrors(nextErrors);
     setPageError(null);
-    setSuccess(null);
     if (Object.keys(nextErrors).length > 0) return;
 
     const payload: SaveTeachingListingPayload = {
@@ -230,17 +235,17 @@ export default function TutorListingEditor({ listingId }: TutorListingEditorProp
       }
 
       setInitialForm({ ...form, description: payload.description });
+      toast.success(copy.savedSuccess);
       if (!listingId || action === 'publish') {
         router.push('/dashboard/listings');
       } else {
         setForm((current) => ({ ...current, description: payload.description }));
-        setSuccess(copy.savedSuccess);
       }
     } catch (caught: unknown) {
       if (!listingId && savedListingId) {
         router.replace(`/dashboard/listings/${savedListingId}/edit`);
       }
-      setPageError(readListingEditorError(caught, copy.saveError, copy.notFound));
+      toast.error(readListingEditorError(caught, copy.saveError, copy.notFound));
     } finally {
       setSubmitAction(null);
     }
@@ -250,13 +255,12 @@ export default function TutorListingEditor({ listingId }: TutorListingEditorProp
     if (!listingId) return;
     setSubmitAction('restore');
     setPageError(null);
-    setSuccess(null);
     try {
       const restoredListing = await updateTutorListingStatus(listingId, 'DRAFT');
       setListing(restoredListing);
-      setSuccess(copy.restoredSuccess);
+      toast.success(copy.restoredSuccess);
     } catch (caught: unknown) {
-      setPageError(readListingEditorError(caught, copy.saveError, copy.notFound));
+      toast.error(readListingEditorError(caught, copy.saveError, copy.notFound));
     } finally {
       setSubmitAction(null);
     }
@@ -332,14 +336,6 @@ export default function TutorListingEditor({ listingId }: TutorListingEditorProp
             className="mt-6 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800"
           >
             {catalogError}
-          </div>
-        )}
-        {success && (
-          <div
-            role="status"
-            className="mt-6 rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm font-bold text-emerald-800"
-          >
-            {success}
           </div>
         )}
 
@@ -569,15 +565,16 @@ export default function TutorListingEditor({ listingId }: TutorListingEditorProp
               </p>
               <GraphPaper className="p-4">
                 <div className="flex items-center gap-3">
-                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-tutor-deep text-sm font-black text-white shadow-sm">
-                    {profileDisplayName.charAt(0).toUpperCase()}
-                  </span>
+                  <ListingPreviewAvatar
+                    displayName={profileDisplayName}
+                    imageUrl={profileImageUrl}
+                  />
                   <div className="min-w-0">
                     <p className="truncate text-sm font-black text-notebook-ink">
                       {profileDisplayName}
                     </p>
                     <p className="mt-0.5 text-xs text-notebook-muted">
-                      {profile?.experienceYears ?? 0} {copy.yearsExperience}
+                      {formatTutorExperience(profile?.experienceYears ?? 0, language)}
                     </p>
                   </div>
                 </div>
@@ -603,7 +600,7 @@ export default function TutorListingEditor({ listingId }: TutorListingEditorProp
                     {selectedSubject?.name || copy.subjectFallback} ·{' '}
                     {selectedGrade?.name || copy.gradeFallback}
                   </h3>
-                  <p className="mt-4 whitespace-pre-wrap text-sm leading-6 text-notebook-muted">
+                  <p className="mt-4 min-w-0 whitespace-pre-wrap break-words text-sm leading-6 text-notebook-muted [overflow-wrap:anywhere]">
                     {form.description.trim() || copy.descriptionFallback}
                   </p>
                 </div>
@@ -670,6 +667,28 @@ function Field({
   );
 }
 
+function ListingPreviewAvatar({
+  displayName,
+  imageUrl,
+}: {
+  displayName: string;
+  imageUrl?: string | null;
+}) {
+  return (
+    <span
+      className="relative flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full border-2 border-paper bg-tutor-deep text-sm font-black text-white shadow-sm ring-1 ring-paper-edge"
+      role="img"
+      aria-label={displayName}
+    >
+      {imageUrl ? (
+        <Image src={imageUrl} alt="" fill sizes="44px" className="object-cover" unoptimized />
+      ) : (
+        <span aria-hidden="true">{displayName.charAt(0).toUpperCase() || 'T'}</span>
+      )}
+    </span>
+  );
+}
+
 function formatPrice(value: number, language: 'en' | 'th') {
   return new Intl.NumberFormat(language === 'th' ? 'th-TH' : 'en-US', {
     style: 'currency',
@@ -719,7 +738,6 @@ const englishCopy = {
   subjectFallback: 'Subject',
   gradeFallback: 'Grade level',
   descriptionFallback: 'Your course description will appear here.',
-  yearsExperience: 'years experience',
   verified: 'Verified tutor',
   verificationPending: 'Verification pending',
   reviews: 'reviews',
@@ -793,7 +811,6 @@ const thaiCopy: typeof englishCopy = {
   subjectFallback: 'รายวิชา',
   gradeFallback: 'ระดับชั้น',
   descriptionFallback: 'คำอธิบายคอร์สของคุณจะแสดงที่นี่',
-  yearsExperience: 'ปีของประสบการณ์',
   verified: 'ติวเตอร์ยืนยันแล้ว',
   verificationPending: 'รอการยืนยัน',
   reviews: 'รีวิว',

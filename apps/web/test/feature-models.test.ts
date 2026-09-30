@@ -8,6 +8,7 @@ import {
 } from '@/components/availability/manage-tutor-availability-model';
 import {
   emptyListingForm,
+  formatTutorExperience,
   validateListingForm,
 } from '@/components/listings/tutor-listing-editor-model';
 import {
@@ -87,6 +88,11 @@ describe('feature form models', () => {
         copy,
       ),
     ).toEqual({});
+  });
+
+  it('formats tutor experience naturally in both supported languages', () => {
+    expect(formatTutorExperience(5, 'en')).toBe('5 years experience');
+    expect(formatTutorExperience(5, 'th')).toBe('ประสบการณ์ 5 ปี');
   });
 
   it('trims and validates role-specific profile fields', () => {

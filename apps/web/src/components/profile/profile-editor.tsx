@@ -29,6 +29,7 @@ import {
   notebookButtonClass,
   notebookInputClass,
 } from '@/components/ui/notebook';
+import { useNotebookToast } from '@/components/ui/notebook-toast';
 import {
   acceptCurrentPrivacyNotice,
   saveStudentProfile,
@@ -97,6 +98,7 @@ function profileInputClass(tone: ProfileTone, error: boolean, className?: string
 export default function ProfileEditor({ mode }: ProfileEditorProps) {
   const { isLoading: authLoading, logout, user } = useAuth();
   const { language } = useLanguage();
+  const toast = useNotebookToast();
   const router = useRouter();
   const text = copy[language];
   const [student, setStudent] = useState<StudentForm>(emptyStudentForm);
@@ -109,7 +111,6 @@ export default function ProfileEditor({ mode }: ProfileEditorProps) {
     );
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
   const [consentCurrent, setConsentCurrent] = useState(true);
   const [acceptedNotice, setAcceptedNotice] = useState(false);
   const [consentError, setConsentError] = useState<string | null>(null);
@@ -170,7 +171,6 @@ export default function ProfileEditor({ mode }: ProfileEditorProps) {
     : JSON.stringify(tutor) !== JSON.stringify(initialTutor);
 
   const clearFieldError = (field: FieldName) => {
-    setSaved(false);
     setFieldErrors((current) => {
       if (!current[field]) return current;
       const next = { ...current };
@@ -230,7 +230,6 @@ export default function ProfileEditor({ mode }: ProfileEditorProps) {
 
     setError(null);
     setFieldErrors({});
-    setSaved(false);
     setIsSaving(true);
     try {
       if (user.role === 'STUDENT') {
@@ -250,7 +249,7 @@ export default function ProfileEditor({ mode }: ProfileEditorProps) {
       }
       clearCurrentProfileCache();
       if (mode === 'onboarding') router.replace(readOnboardingReturnTo());
-      else setSaved(true);
+      else toast.success(text.saved);
     } catch (caught: unknown) {
       const apiErrors = readProfileFieldErrors(caught);
       setFieldErrors(apiErrors);
@@ -266,7 +265,6 @@ export default function ProfileEditor({ mode }: ProfileEditorProps) {
     else setTutor(initialTutor);
     setFieldErrors({});
     setError(null);
-    setSaved(false);
   };
   const handleLogout = async () => {
     await logout();
@@ -417,12 +415,6 @@ export default function ProfileEditor({ mode }: ProfileEditorProps) {
                     {text.unsaved}
                   </span>
                 )}
-                {saved && (
-                  <span className="inline-flex w-full items-center gap-1.5 text-xs font-bold text-student-deep sm:ml-auto sm:w-auto">
-                    <DashboardIcon name="check" className="h-3.5 w-3.5" />
-                    {text.saved}
-                  </span>
-                )}
               </div>
             </form>
           </PaperCard>
@@ -431,16 +423,6 @@ export default function ProfileEditor({ mode }: ProfileEditorProps) {
           ) : (
             <TutorPreview data={tutor} language={language} status={tutorMeta.verificationStatus} />
           )}
-        </div>
-      )}
-      {saved && (
-        <div
-          className="fixed bottom-5 right-5 z-30 inline-flex items-center gap-2 rounded-lg border border-notebook-ink bg-notebook-ink px-4 py-3 text-xs font-bold text-paper shadow-paper"
-          role="status"
-          aria-live="polite"
-        >
-          <DashboardIcon name="check" className="h-4 w-4" />
-          {text.saved}
         </div>
       )}
     </DashboardShell>

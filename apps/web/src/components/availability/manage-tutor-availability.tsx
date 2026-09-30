@@ -23,6 +23,7 @@ import {
   notebookButtonClass,
   notebookInputClass,
 } from '@/components/ui/notebook';
+import { useNotebookToast } from '@/components/ui/notebook-toast';
 import {
   bangkokDateTimeToUtc,
   createTutorAvailability,
@@ -72,6 +73,7 @@ export default function ManageTutorAvailability() {
     requiredRole: 'TUTOR',
   });
   const { language, copy } = useLanguage();
+  const toast = useNotebookToast();
   const router = useRouter();
   const availabilityCopy = copy.dashboard.availability;
   const [weekStart, setWeekStart] = useState(() => getBangkokWeekStart());
@@ -84,9 +86,7 @@ export default function ManageTutorAvailability() {
   const [isSaving, setIsSaving] = useState(false);
   const [busySlotId, setBusySlotId] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [mutationError, setMutationError] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
 
   const prepareAvailabilityLoad = () => {
     setIsLoading(true);
@@ -142,8 +142,6 @@ export default function ManageTutorAvailability() {
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setFormError(null);
-    setMutationError(null);
-    setSuccess(null);
     if (!date || !startTime || !endTime) {
       setFormError(availabilityCopy.emptyForm);
       return;
@@ -163,7 +161,7 @@ export default function ManageTutorAvailability() {
 
       setIsSaving(true);
       await createTutorAvailability({ startAt: startAt.toISOString(), endAt: endAt.toISOString() });
-      setSuccess(availabilityCopy.added);
+      toast.success(availabilityCopy.added);
       const createdWeek = getBangkokWeekStart(startAt);
       if (createdWeek === weekStart) {
         refreshAvailability();
@@ -174,7 +172,7 @@ export default function ManageTutorAvailability() {
       if (caught instanceof ApiError && caught.status === 409) {
         setFormError(availabilityCopy.overlapError);
       } else {
-        setFormError(caught instanceof Error ? caught.message : availabilityCopy.createError);
+        toast.error(caught instanceof Error ? caught.message : availabilityCopy.createError);
       }
     } finally {
       setIsSaving(false);
@@ -184,17 +182,15 @@ export default function ManageTutorAvailability() {
   const handleDelete = async (slot: TutorAvailabilitySlot) => {
     if (slot.state !== 'OPEN') return;
     setBusySlotId(slot.id);
-    setMutationError(null);
-    setSuccess(null);
     try {
       await deleteTutorAvailability(slot.id);
-      setSuccess(availabilityCopy.deleted);
+      toast.success(availabilityCopy.deleted);
       refreshAvailability();
     } catch (caught: unknown) {
       if (caught instanceof ApiError && caught.status === 409) {
-        setMutationError(availabilityCopy.reservedError);
+        toast.error(availabilityCopy.reservedError);
       } else {
-        setMutationError(caught instanceof Error ? caught.message : availabilityCopy.deleteError);
+        toast.error(caught instanceof Error ? caught.message : availabilityCopy.deleteError);
       }
     } finally {
       setBusySlotId(null);
@@ -341,8 +337,6 @@ export default function ManageTutorAvailability() {
               </div>
             </div>
 
-            {mutationError && <Feedback message={mutationError} tone="error" />}
-            {success && <Feedback message={success} tone="success" />}
             {isLoading ? (
               <InlineState message={availabilityCopy.loading} />
             ) : loadError !== null ? (
@@ -549,21 +543,6 @@ function Field({
         required
       />
     </label>
-  );
-}
-
-function Feedback({ message, tone }: { message: string; tone: 'error' | 'success' }) {
-  return (
-    <p
-      className={`mt-4 rounded-lg border px-4 py-3 text-xs font-semibold ${
-        tone === 'error'
-          ? 'border-red-200 bg-red-50 text-red-700'
-          : 'border-emerald-200 bg-emerald-50 text-emerald-800'
-      }`}
-      role={tone === 'error' ? 'alert' : 'status'}
-    >
-      {message}
-    </p>
   );
 }
 
