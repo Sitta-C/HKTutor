@@ -1,8 +1,8 @@
-import { seedStudent } from '@/database/seed/student.seed';
-import { AccountStatus, Role } from '@/generated/prisma/client';
+import { AccountStatus, Role } from '@generated/prisma/client';
+import { seedStudent } from '@infrastructure/database/seed/student.seed';
 
-import type { SeedTransactionClient } from '@/database/seed/seed-client';
-import type { Prisma } from '@/generated/prisma/client';
+import type { Prisma } from '@generated/prisma/client';
+import type { SeedTransactionClient } from '@infrastructure/database/seed/seed-client';
 
 function createClient(existing: { id: string; role: Role } | null = null) {
   const findFirst = jest.fn().mockResolvedValue(existing);

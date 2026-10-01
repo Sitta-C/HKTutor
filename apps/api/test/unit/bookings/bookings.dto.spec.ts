@@ -1,7 +1,7 @@
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
 
-import { GetMyBookingsQueryDto, GetTutorBookingsQueryDto } from '@/bookings/bookings.dto';
+import { GetMyBookingsQueryDto, GetTutorBookingsQueryDto } from '@modules/bookings/bookings.dto';
 
 describe('booking list pagination DTOs', () => {
   it.each([GetMyBookingsQueryDto, GetTutorBookingsQueryDto])(

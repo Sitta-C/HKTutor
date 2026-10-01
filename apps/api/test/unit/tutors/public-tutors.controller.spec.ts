@@ -1,10 +1,10 @@
 import { GUARDS_METADATA, PATH_METADATA } from '@nestjs/common/constants';
 
-import { CatalogController } from '@/tutors/catalog.controller';
-import { TutorsPublicController } from '@/tutors/tutors-public.controller';
+import { CatalogController } from '@modules/tutors/catalog.controller';
+import { TutorsPublicController } from '@modules/tutors/tutors-public.controller';
 
-import type { TutorAvailabilityService } from '@/tutors/tutor-availability.service';
-import type { TutorDirectoryService } from '@/tutors/tutor-directory.service';
+import type { TutorAvailabilityService } from '@modules/tutors/tutor-availability.service';
+import type { TutorDirectoryService } from '@modules/tutors/tutor-directory.service';
 
 describe('public Tutor controllers', () => {
   it('are plain public controllers without authentication guards', () => {

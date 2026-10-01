@@ -1,22 +1,22 @@
 import { GUARDS_METADATA } from '@nestjs/common/constants';
 
-import { OWNERSHIP_KEY } from '@/auth/ownership.decorator';
-import { ROLES_KEY } from '@/auth/roles.decorator';
-import { Role } from '@/generated/prisma/client';
-import { TutorsPrivateController } from '@/tutors/tutors-private.controller';
-import { TutorsPublicController } from '@/tutors/tutors-public.controller';
+import { Role } from '@generated/prisma/client';
+import { OWNERSHIP_KEY } from '@modules/auth/ownership.decorator';
+import { ROLES_KEY } from '@modules/auth/roles.decorator';
+import { TutorsPrivateController } from '@modules/tutors/tutors-private.controller';
+import { TutorsPublicController } from '@modules/tutors/tutors-public.controller';
 
-import type { AuthenticatedUser } from '@/auth/auth.guard';
-import type { OwnershipRule } from '@/auth/ownership.decorator';
-import type { TutorAvailabilityService } from '@/tutors/tutor-availability.service';
-import type { TutorDirectoryService } from '@/tutors/tutor-directory.service';
-import type { TutorListingsService } from '@/tutors/tutor-listings.service';
+import type { AuthenticatedUser } from '@modules/auth/auth.guard';
+import type { OwnershipRule } from '@modules/auth/ownership.decorator';
+import type { TutorAvailabilityService } from '@modules/tutors/tutor-availability.service';
+import type { TutorDirectoryService } from '@modules/tutors/tutor-directory.service';
+import type { TutorListingsService } from '@modules/tutors/tutor-listings.service';
 import type {
   AvailabilityPostRequestDto,
   AvailabilityPrivateResponseDto,
   AvailabilityPublicResponseDto,
   ListingResponseDto,
-} from '@/tutors/tutors.dto';
+} from '@modules/tutors/tutors.dto';
 
 const USER_ID = '20000000-0000-4000-8000-000000000001';
 const LISTING_ID = '10000000-0000-4000-8000-000000000001';

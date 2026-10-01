@@ -6,19 +6,19 @@ import {
 } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 
-import { BookingsService } from '@/bookings/bookings.service';
-import { PrismaService } from '@/database/prisma.service';
-import { Prisma } from '@/generated/prisma/client';
+import { Prisma } from '@generated/prisma/client';
 import {
   AccountStatus,
   BookingStatus,
   ListingPublicationStatus,
   Role,
   TutorVerificationStatus,
-} from '@/generated/prisma/enums';
+} from '@generated/prisma/enums';
+import { PrismaService } from '@infrastructure/database/prisma.service';
+import { BookingsService } from '@modules/bookings/bookings.service';
 
-import type { BookingResponseDto } from '@/bookings/bookings.dto';
-import type { CreateBookingInput } from '@/bookings/bookings.service';
+import type { BookingResponseDto } from '@modules/bookings/bookings.dto';
+import type { CreateBookingInput } from '@modules/bookings/bookings.service';
 import type { TestingModule } from '@nestjs/testing';
 
 type DatabaseError = Error & { code: string };

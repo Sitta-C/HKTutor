@@ -1,4 +1,4 @@
-import * as healthSwagger from '@/health/health.swagger';
+import * as healthSwagger from '@modules/health/health.swagger';
 
 describe('health Swagger decorators', () => {
   it('exports documentation using the controller method name', () => {

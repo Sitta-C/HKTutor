@@ -2,11 +2,11 @@ import { BadRequestException } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
 
-import { configureApplication } from '@/app.setup';
-import { CatalogController } from '@/tutors/catalog.controller';
-import { TutorAvailabilityService } from '@/tutors/tutor-availability.service';
-import { TutorDirectoryService } from '@/tutors/tutor-directory.service';
-import { TutorsPublicController } from '@/tutors/tutors-public.controller';
+import { configureApplication } from '@app/app.setup';
+import { CatalogController } from '@modules/tutors/catalog.controller';
+import { TutorAvailabilityService } from '@modules/tutors/tutor-availability.service';
+import { TutorDirectoryService } from '@modules/tutors/tutor-directory.service';
+import { TutorsPublicController } from '@modules/tutors/tutors-public.controller';
 
 import type { INestApplication } from '@nestjs/common';
 import type { TestingModule } from '@nestjs/testing';

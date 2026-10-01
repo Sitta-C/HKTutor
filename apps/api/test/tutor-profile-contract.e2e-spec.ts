@@ -1,19 +1,19 @@
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
 
-import { configureApplication } from '@/app.setup';
-import { JwtAuthGuard } from '@/auth/auth.guard';
-import { ResourceOwnershipGuard } from '@/auth/ownership.guard';
-import { RolesGuard } from '@/auth/roles.guard';
-import { PrismaService } from '@/database/prisma.service';
-import { Role } from '@/generated/prisma/client';
-import { ProfilesController } from '@/profiles/profiles.controller';
-import { ProfilesService } from '@/profiles/profiles.service';
-import { TutorAvailabilityService } from '@/tutors/tutor-availability.service';
-import { TutorListingsService } from '@/tutors/tutor-listings.service';
-import { TutorsPrivateController } from '@/tutors/tutors-private.controller';
+import { configureApplication } from '@app/app.setup';
+import { Role } from '@generated/prisma/client';
+import { PrismaService } from '@infrastructure/database/prisma.service';
+import { JwtAuthGuard } from '@modules/auth/auth.guard';
+import { ResourceOwnershipGuard } from '@modules/auth/ownership.guard';
+import { RolesGuard } from '@modules/auth/roles.guard';
+import { ProfilesController } from '@modules/profiles/profiles.controller';
+import { ProfilesService } from '@modules/profiles/profiles.service';
+import { TutorAvailabilityService } from '@modules/tutors/tutor-availability.service';
+import { TutorListingsService } from '@modules/tutors/tutor-listings.service';
+import { TutorsPrivateController } from '@modules/tutors/tutors-private.controller';
 
-import type { AuthenticatedRequest } from '@/auth/auth.guard';
+import type { AuthenticatedRequest } from '@modules/auth/auth.guard';
 import type { ExecutionContext, INestApplication } from '@nestjs/common';
 import type { TestingModule } from '@nestjs/testing';
 import type { App } from 'supertest/types';

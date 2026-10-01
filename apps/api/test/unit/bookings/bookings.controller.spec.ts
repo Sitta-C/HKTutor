@@ -1,25 +1,25 @@
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { Test } from '@nestjs/testing';
 
-import { API_GLOBAL_PREFIX } from '@/app.setup';
-import { JWT_BEARER_AUTH } from '@/auth/auth.swagger';
-import { OWNERSHIP_KEY } from '@/auth/ownership.decorator';
-import { ROLES_KEY } from '@/auth/roles.decorator';
-import { BookingsController } from '@/bookings/bookings.controller';
-import { PrismaService } from '@/database/prisma.service';
-import { Role } from '@/generated/prisma/client';
-import { BookingStatus } from '@/generated/prisma/enums';
+import { API_GLOBAL_PREFIX } from '@app/app.setup';
+import { Role } from '@generated/prisma/client';
+import { BookingStatus } from '@generated/prisma/enums';
+import { PrismaService } from '@infrastructure/database/prisma.service';
+import { JWT_BEARER_AUTH } from '@modules/auth/auth.swagger';
+import { OWNERSHIP_KEY } from '@modules/auth/ownership.decorator';
+import { ROLES_KEY } from '@modules/auth/roles.decorator';
+import { BookingsController } from '@modules/bookings/bookings.controller';
 
-import type { AuthenticatedUser } from '@/auth/auth.guard';
-import type { OwnershipRule } from '@/auth/ownership.decorator';
+import type { AuthenticatedUser } from '@modules/auth/auth.guard';
+import type { OwnershipRule } from '@modules/auth/ownership.decorator';
 import type {
   BookingDetailResponseDto,
   BookingQuoteResponseDto,
   BookingResponseDto,
   MyBookingsResponseDto,
   TutorBookingsResponseDto,
-} from '@/bookings/bookings.dto';
-import type { BookingsService } from '@/bookings/bookings.service';
+} from '@modules/bookings/bookings.dto';
+import type { BookingsService } from '@modules/bookings/bookings.service';
 import type { INestApplication, Type } from '@nestjs/common';
 import type { OpenAPIObject } from '@nestjs/swagger';
 
@@ -196,7 +196,7 @@ describe('BookingsController OpenAPI contract', () => {
 
   beforeAll(async () => {
     process.env['DATABASE_URL'] = 'postgresql://user:password@example.test:5432/hktutor';
-    const { AppModule } = jest.requireActual<{ AppModule: Type<unknown> }>('@/app.module');
+    const { AppModule } = jest.requireActual<{ AppModule: Type<unknown> }>('@app/app.module');
 
     const moduleFixture = await Test.createTestingModule({ imports: [AppModule] })
       .overrideProvider(PrismaService)

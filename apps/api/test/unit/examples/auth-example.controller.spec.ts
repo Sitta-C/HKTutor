@@ -1,18 +1,18 @@
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { Test } from '@nestjs/testing';
 
-import { API_GLOBAL_PREFIX } from '@/app.setup';
-import { JwtAuthGuard } from '@/auth/auth.guard';
-import { JWT_BEARER_AUTH } from '@/auth/auth.swagger';
-import { OWNERSHIP_KEY } from '@/auth/ownership.decorator';
-import { ResourceOwnershipGuard } from '@/auth/ownership.guard';
-import { ROLES_KEY } from '@/auth/roles.decorator';
-import { RolesGuard } from '@/auth/roles.guard';
-import { AuthExampleController } from '@/examples/auth-example.controller';
-import { Role } from '@/generated/prisma/client';
+import { API_GLOBAL_PREFIX } from '@app/app.setup';
+import { AuthExampleController } from '@examples/auth-example.controller';
+import { Role } from '@generated/prisma/client';
+import { JwtAuthGuard } from '@modules/auth/auth.guard';
+import { JWT_BEARER_AUTH } from '@modules/auth/auth.swagger';
+import { OWNERSHIP_KEY } from '@modules/auth/ownership.decorator';
+import { ResourceOwnershipGuard } from '@modules/auth/ownership.guard';
+import { ROLES_KEY } from '@modules/auth/roles.decorator';
+import { RolesGuard } from '@modules/auth/roles.guard';
 
-import type { AuthenticatedUser } from '@/auth/auth.guard';
-import type { OwnershipRule } from '@/auth/ownership.decorator';
+import type { AuthenticatedUser } from '@modules/auth/auth.guard';
+import type { OwnershipRule } from '@modules/auth/ownership.decorator';
 import type { INestApplication } from '@nestjs/common';
 import type { OpenAPIObject } from '@nestjs/swagger';
 

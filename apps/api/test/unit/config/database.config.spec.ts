@@ -1,4 +1,4 @@
-import { validateDatabaseEnvironment } from '@/config/database.config';
+import { validateDatabaseEnvironment } from '@config/database.config';
 
 describe('validateDatabaseEnvironment', () => {
   it.each([undefined, '', '   '])('rejects a missing or blank DATABASE_URL', (databaseUrl) => {

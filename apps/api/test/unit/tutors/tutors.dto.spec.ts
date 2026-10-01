@@ -9,7 +9,7 @@ import {
   ListingQueryDto,
   ListingStatusRequestDto,
   TutorSearchQueryDto,
-} from '@/tutors/tutors.dto';
+} from '@modules/tutors/tutors.dto';
 
 describe('tutor listing DTOs', () => {
   it('accepts a valid create request and transforms a numeric price string', async () => {

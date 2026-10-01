@@ -1,8 +1,8 @@
 import { ValidationPipe } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 
-import { REFRESH_COOKIE_NAME } from '@/auth/auth.constants';
-import { JWT_BEARER_AUTH, REFRESH_COOKIE_AUTH } from '@/auth/auth.swagger';
+import { REFRESH_COOKIE_NAME } from '@modules/auth/auth.constants';
+import { JWT_BEARER_AUTH, REFRESH_COOKIE_AUTH } from '@modules/auth/auth.swagger';
 
 import type { INestApplication } from '@nestjs/common';
 

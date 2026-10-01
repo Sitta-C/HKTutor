@@ -4,34 +4,34 @@ import { ThrottlerGuard } from '@nestjs/throttler';
 import cookieParser from 'cookie-parser';
 import request from 'supertest';
 
-import { configureApplication } from '@/app.setup';
-import { CURRENT_PRIVACY_POLICY_VERSION } from '@/auth/auth.constants';
-import { AuthController } from '@/auth/auth.controller';
-import { JwtAuthGuard } from '@/auth/auth.guard';
-import { AuthService } from '@/auth/auth.service';
-import { JwtTokenService } from '@/auth/jwt.service';
-import { ResourceOwnershipGuard } from '@/auth/ownership.guard';
-import { RolesGuard } from '@/auth/roles.guard';
-import { BookingsController } from '@/bookings/bookings.controller';
-import { BookingsService } from '@/bookings/bookings.service';
-import { AuthConfigService } from '@/config/auth.config';
-import { PrismaService } from '@/database/prisma.service';
+import { configureApplication } from '@app/app.setup';
+import { AuthConfigService } from '@config/auth.config';
 import {
   BookingStatus,
   ListingPublicationStatus,
   Role,
   TutorVerificationStatus,
-} from '@/generated/prisma/client';
-import { ProfilesController } from '@/profiles/profiles.controller';
-import { ProfilesService } from '@/profiles/profiles.service';
-import { CatalogController } from '@/tutors/catalog.controller';
-import { TutorAvailabilityService } from '@/tutors/tutor-availability.service';
-import { TutorDirectoryService } from '@/tutors/tutor-directory.service';
-import { TutorListingsService } from '@/tutors/tutor-listings.service';
-import { TutorsPrivateController } from '@/tutors/tutors-private.controller';
-import { TutorsPublicController } from '@/tutors/tutors-public.controller';
+} from '@generated/prisma/client';
+import { PrismaService } from '@infrastructure/database/prisma.service';
+import { CURRENT_PRIVACY_POLICY_VERSION } from '@modules/auth/auth.constants';
+import { AuthController } from '@modules/auth/auth.controller';
+import { JwtAuthGuard } from '@modules/auth/auth.guard';
+import { AuthService } from '@modules/auth/auth.service';
+import { JwtTokenService } from '@modules/auth/jwt.service';
+import { ResourceOwnershipGuard } from '@modules/auth/ownership.guard';
+import { RolesGuard } from '@modules/auth/roles.guard';
+import { BookingsController } from '@modules/bookings/bookings.controller';
+import { BookingsService } from '@modules/bookings/bookings.service';
+import { ProfilesController } from '@modules/profiles/profiles.controller';
+import { ProfilesService } from '@modules/profiles/profiles.service';
+import { CatalogController } from '@modules/tutors/catalog.controller';
+import { TutorAvailabilityService } from '@modules/tutors/tutor-availability.service';
+import { TutorDirectoryService } from '@modules/tutors/tutor-directory.service';
+import { TutorListingsService } from '@modules/tutors/tutor-listings.service';
+import { TutorsPrivateController } from '@modules/tutors/tutors-private.controller';
+import { TutorsPublicController } from '@modules/tutors/tutors-public.controller';
 
-import type { AuthenticatedRequest, AuthenticatedUser } from '@/auth/auth.guard';
+import type { AuthenticatedRequest, AuthenticatedUser } from '@modules/auth/auth.guard';
 import type { ExecutionContext, INestApplication } from '@nestjs/common';
 import type { TestingModule } from '@nestjs/testing';
 import type { App } from 'supertest/types';

@@ -1,9 +1,9 @@
-import { ROLES_KEY } from '@/auth/roles.decorator';
-import { Role } from '@/generated/prisma/client';
-import { ProfilesController } from '@/profiles/profiles.controller';
+import { Role } from '@generated/prisma/client';
+import { ROLES_KEY } from '@modules/auth/roles.decorator';
+import { ProfilesController } from '@modules/profiles/profiles.controller';
 
-import type { AuthenticatedUser } from '@/auth/auth.guard';
-import type { ProfilesService } from '@/profiles/profiles.service';
+import type { AuthenticatedUser } from '@modules/auth/auth.guard';
+import type { ProfilesService } from '@modules/profiles/profiles.service';
 
 describe('ProfilesController', () => {
   it('restricts the private read route to student and tutor roles', () => {

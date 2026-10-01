@@ -5,10 +5,10 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 
-import { TutorAvailabilityService } from '@/tutors/tutor-availability.service';
-import { TutorListingsService as TutorsService } from '@/tutors/tutor-listings.service';
+import { TutorAvailabilityService } from '@modules/tutors/tutor-availability.service';
+import { TutorListingsService as TutorsService } from '@modules/tutors/tutor-listings.service';
 
-import type { PrismaService } from '@/database/prisma.service';
+import type { PrismaService } from '@infrastructure/database/prisma.service';
 
 const USER_ID = '20000000-0000-4000-8000-000000000001';
 const LISTING_ID = '10000000-0000-4000-8000-000000000001';

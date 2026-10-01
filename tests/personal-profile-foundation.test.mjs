@@ -51,8 +51,8 @@ test('creates the student profile table with bounded nonempty data and restricti
 });
 
 test('exposes owner-only profile APIs and requires current consent for private reads and writes', async () => {
-  const controller = await read('apps/api/src/profiles/profiles.controller.ts');
-  const service = await read('apps/api/src/profiles/profiles.service.ts');
+  const controller = await read('apps/api/src/modules/profiles/profiles.controller.ts');
+  const service = await read('apps/api/src/modules/profiles/profiles.service.ts');
 
   assert.match(controller, /@Controller\('profiles\/me'\)/);
   assert.match(controller, /@UseGuards\(JwtAuthGuard\)/);

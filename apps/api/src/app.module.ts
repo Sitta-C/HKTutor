@@ -2,14 +2,14 @@ import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { ThrottlerModule } from '@nestjs/throttler';
 
-import { AuthModule } from '@/auth/auth.module';
-import { BookingsModule } from '@/bookings/bookings.module';
-import { validateAuthEnvironment } from '@/config/auth.config';
-import { validateDatabaseEnvironment } from '@/config/database.config';
-import { DatabaseModule } from '@/database/database.module';
-import { HealthModule } from '@/health/health.module';
-import { ProfilesModule } from '@/profiles/profiles.module';
-import { TutorsModule } from '@/tutors/tutors.module';
+import { validateAuthEnvironment } from '@config/auth.config';
+import { validateDatabaseEnvironment } from '@config/database.config';
+import { DatabaseModule } from '@infrastructure/database/database.module';
+import { AuthModule } from '@modules/auth/auth.module';
+import { BookingsModule } from '@modules/bookings/bookings.module';
+import { HealthModule } from '@modules/health/health.module';
+import { ProfilesModule } from '@modules/profiles/profiles.module';
+import { TutorsModule } from '@modules/tutors/tutors.module';
 
 @Module({
   imports: [

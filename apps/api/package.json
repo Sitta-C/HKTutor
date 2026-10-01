@@ -7,15 +7,15 @@
   "license": "UNLICENSED",
   "scripts": {
     "prebuild": "pnpm db:generate",
-    "build": "nest build",
+    "build": "nest build && pnpm typecheck:scripts",
     "db:generate": "prisma generate",
     "db:validate": "prisma validate",
     "db:migrate:deploy": "prisma migrate deploy",
     "db:migrate:status": "prisma migrate status",
     "db:seed": "prisma db seed",
     "db:verify:sprint1": "node scripts/verify-sprint1-database.mjs",
-    "db:verify:bookings": "pnpm build && node dist/scripts/verify-booking-endpoint-concurrency.js",
-    "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
+    "db:verify:bookings": "pnpm build && tsx scripts/verify-booking-endpoint-concurrency.ts",
+    "format": "prettier --write \"src/**/*.ts\" \"scripts/**/*.ts\" \"docs/examples/**/*.ts\" \"test/**/*.ts\"",
     "start": "nest start",
     "dev": "nest start --watch",
     "start:dev": "nest start --watch",
@@ -27,7 +27,8 @@
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
-    "test:e2e": "jest --config ./test/jest-e2e.json"
+    "test:e2e": "jest --config ./test/jest-e2e.json",
+    "typecheck:scripts": "tsc -p scripts/tsconfig.json"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",
@@ -86,7 +87,13 @@
       "^.+\\.(t|j)s$": "ts-jest"
     },
     "moduleNameMapper": {
-      "^@/(.*)$": "<rootDir>/src/$1",
+      "^@app/(.*)$": "<rootDir>/src/$1",
+      "^@common/(.*)$": "<rootDir>/src/common/$1",
+      "^@config/(.*)$": "<rootDir>/src/config/$1",
+      "^@examples/(.*)$": "<rootDir>/docs/examples/$1",
+      "^@generated/(.*)$": "<rootDir>/src/generated/$1",
+      "^@infrastructure/(.*)$": "<rootDir>/src/infrastructure/$1",
+      "^@modules/(.*)$": "<rootDir>/src/modules/$1",
       "^(\\.{1,2}/.*)\\.js$": "$1"
     },
     "collectCoverageFrom": [

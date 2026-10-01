@@ -1,4 +1,4 @@
-import { normalizeDatabaseUrlForPg } from '@/config/database-url';
+import { normalizeDatabaseUrlForPg } from '@config/database-url';
 
 describe('normalizeDatabaseUrlForPg', () => {
   it('uses libpq semantics for sslmode=require connections', () => {

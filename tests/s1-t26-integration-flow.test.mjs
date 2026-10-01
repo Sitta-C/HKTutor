@@ -85,11 +85,11 @@ test('uses one fail-closed tutor allowlist across publish, discovery, availabili
     tutorDetail,
     listingEditor,
   ] = await Promise.all([
-    read('apps/api/src/tutors/public-tutor-access.ts'),
-    read('apps/api/src/tutors/tutor-directory.service.ts'),
-    read('apps/api/src/tutors/tutor-listings.service.ts'),
-    read('apps/api/src/tutors/tutor-availability.service.ts'),
-    read('apps/api/src/bookings/bookings.service.ts'),
+    read('apps/api/src/modules/tutors/public-tutor-access.ts'),
+    read('apps/api/src/modules/tutors/tutor-directory.service.ts'),
+    read('apps/api/src/modules/tutors/tutor-listings.service.ts'),
+    read('apps/api/src/modules/tutors/tutor-availability.service.ts'),
+    read('apps/api/src/modules/bookings/bookings.service.ts'),
     read('apps/web/src/components/tutors/tutor-search-page.tsx'),
     read('apps/web/src/components/tutors/tutor-search-copy.ts'),
     read('apps/web/src/components/tutors/public-tutor-availability.tsx'),
@@ -115,8 +115,8 @@ test('uses one fail-closed tutor allowlist across publish, discovery, availabili
 
 test('keeps the walking-skeleton seed bookable and repeated registration safe', async () => {
   const [seed, authService, register, verify] = await Promise.all([
-    read('apps/api/src/database/seed/booking-fixtures.seed.ts'),
-    read('apps/api/src/auth/auth.service.ts'),
+    read('apps/api/src/infrastructure/database/seed/booking-fixtures.seed.ts'),
+    read('apps/api/src/modules/auth/auth.service.ts'),
     read('apps/web/src/components/register.tsx'),
     read('apps/web/src/components/verify.tsx'),
   ]);

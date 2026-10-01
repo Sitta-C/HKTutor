@@ -1,9 +1,9 @@
-import { seedTutorSearchFixtures } from '@/database/seed/search-fixtures.seed';
-import { ListingPublicationStatus, Role } from '@/generated/prisma/client';
+import { ListingPublicationStatus, Role } from '@generated/prisma/client';
+import { seedTutorSearchFixtures } from '@infrastructure/database/seed/search-fixtures.seed';
 
-import type { SeedTransactionClient } from '@/database/seed/seed-client';
-import type { TutorFoundationSeedResult } from '@/database/seed/tutor-foundation.seed';
-import type { Prisma } from '@/generated/prisma/client';
+import type { Prisma } from '@generated/prisma/client';
+import type { SeedTransactionClient } from '@infrastructure/database/seed/seed-client';
+import type { TutorFoundationSeedResult } from '@infrastructure/database/seed/tutor-foundation.seed';
 
 const foundation: TutorFoundationSeedResult = {
   tutorUserId: 'anan-id',

@@ -1,11 +1,11 @@
 import { BadRequestException, NotFoundException, UnauthorizedException } from '@nestjs/common';
 
-import { ResourceOwnershipGuard } from '@/auth/ownership.guard';
-import { Role } from '@/generated/prisma/client';
+import { Role } from '@generated/prisma/client';
+import { ResourceOwnershipGuard } from '@modules/auth/ownership.guard';
 
-import type { AuthenticatedRequest, AuthenticatedUser } from '@/auth/auth.guard';
-import type { OwnershipRule } from '@/auth/ownership.decorator';
-import type { PrismaService } from '@/database/prisma.service';
+import type { PrismaService } from '@infrastructure/database/prisma.service';
+import type { AuthenticatedRequest, AuthenticatedUser } from '@modules/auth/auth.guard';
+import type { OwnershipRule } from '@modules/auth/ownership.decorator';
 import type { ExecutionContext } from '@nestjs/common';
 import type { Reflector } from '@nestjs/core';
 

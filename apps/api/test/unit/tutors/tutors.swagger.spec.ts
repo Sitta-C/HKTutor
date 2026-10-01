@@ -1,17 +1,17 @@
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { Test } from '@nestjs/testing';
 
-import { configureApplication } from '@/app.setup';
-import { JwtAuthGuard } from '@/auth/auth.guard';
-import { JWT_BEARER_AUTH } from '@/auth/auth.swagger';
-import { ResourceOwnershipGuard } from '@/auth/ownership.guard';
-import { RolesGuard } from '@/auth/roles.guard';
-import { CatalogController } from '@/tutors/catalog.controller';
-import { TutorAvailabilityService } from '@/tutors/tutor-availability.service';
-import { TutorDirectoryService } from '@/tutors/tutor-directory.service';
-import { TutorListingsService } from '@/tutors/tutor-listings.service';
-import { TutorsPrivateController } from '@/tutors/tutors-private.controller';
-import { TutorsPublicController } from '@/tutors/tutors-public.controller';
+import { configureApplication } from '@app/app.setup';
+import { JwtAuthGuard } from '@modules/auth/auth.guard';
+import { JWT_BEARER_AUTH } from '@modules/auth/auth.swagger';
+import { ResourceOwnershipGuard } from '@modules/auth/ownership.guard';
+import { RolesGuard } from '@modules/auth/roles.guard';
+import { CatalogController } from '@modules/tutors/catalog.controller';
+import { TutorAvailabilityService } from '@modules/tutors/tutor-availability.service';
+import { TutorDirectoryService } from '@modules/tutors/tutor-directory.service';
+import { TutorListingsService } from '@modules/tutors/tutor-listings.service';
+import { TutorsPrivateController } from '@modules/tutors/tutors-private.controller';
+import { TutorsPublicController } from '@modules/tutors/tutors-public.controller';
 
 import type { INestApplication } from '@nestjs/common';
 import type {

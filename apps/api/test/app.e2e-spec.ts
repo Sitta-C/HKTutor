@@ -1,9 +1,9 @@
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
 
-import { AppModule } from '@/app.module';
-import { configureApplication } from '@/app.setup';
-import { PrismaService } from '@/database/prisma.service';
+import { AppModule } from '@app/app.module';
+import { configureApplication } from '@app/app.setup';
+import { PrismaService } from '@infrastructure/database/prisma.service';
 
 import type { INestApplication } from '@nestjs/common';
 import type { TestingModule } from '@nestjs/testing';

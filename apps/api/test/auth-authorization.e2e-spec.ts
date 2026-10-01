@@ -1,14 +1,14 @@
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
 
-import { configureApplication } from '@/app.setup';
-import { JwtAuthGuard } from '@/auth/auth.guard';
-import { JwtTokenService } from '@/auth/jwt.service';
-import { ResourceOwnershipGuard } from '@/auth/ownership.guard';
-import { RolesGuard } from '@/auth/roles.guard';
-import { PrismaService } from '@/database/prisma.service';
-import { AuthExampleController } from '@/examples/auth-example.controller';
-import { AccountStatus, Role } from '@/generated/prisma/client';
+import { configureApplication } from '@app/app.setup';
+import { AuthExampleController } from '@examples/auth-example.controller';
+import { AccountStatus, Role } from '@generated/prisma/client';
+import { PrismaService } from '@infrastructure/database/prisma.service';
+import { JwtAuthGuard } from '@modules/auth/auth.guard';
+import { JwtTokenService } from '@modules/auth/jwt.service';
+import { ResourceOwnershipGuard } from '@modules/auth/ownership.guard';
+import { RolesGuard } from '@modules/auth/roles.guard';
 
 import type { INestApplication } from '@nestjs/common';
 import type { App } from 'supertest/types';

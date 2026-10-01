@@ -71,10 +71,10 @@ test('one-shot migration clears only the demo identity graph and installs local 
 
 test('verifies JWT signatures and keeps refresh tokens out of response bodies', async () => {
   const [jwtService, controller, authService, emailService] = await Promise.all([
-    read('apps/api/src/auth/jwt.service.ts'),
-    read('apps/api/src/auth/auth.controller.ts'),
-    read('apps/api/src/auth/auth.service.ts'),
-    read('apps/api/src/email/email.service.ts'),
+    read('apps/api/src/modules/auth/jwt.service.ts'),
+    read('apps/api/src/modules/auth/auth.controller.ts'),
+    read('apps/api/src/modules/auth/auth.service.ts'),
+    read('apps/api/src/infrastructure/email/email.service.ts'),
   ]);
 
   assert.match(jwtService, /jwt\.verify\(/);
