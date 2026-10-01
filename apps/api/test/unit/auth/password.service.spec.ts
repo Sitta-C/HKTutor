@@ -1,4 +1,4 @@
-import { PasswordService } from '@/auth/password.service';
+import { PasswordService } from '@modules/auth/password.service';
 
 describe('PasswordService', () => {
   const passwords = new PasswordService();

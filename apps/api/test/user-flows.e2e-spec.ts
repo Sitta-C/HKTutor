@@ -4,32 +4,34 @@ import { ThrottlerGuard } from '@nestjs/throttler';
 import cookieParser from 'cookie-parser';
 import request from 'supertest';
 
-import { configureApplication } from '@/app.setup';
-import { CURRENT_PRIVACY_POLICY_VERSION } from '@/auth/auth.constants';
-import { AuthController } from '@/auth/auth.controller';
-import { JwtAuthGuard } from '@/auth/auth.guard';
-import { AuthService } from '@/auth/auth.service';
-import { JwtTokenService } from '@/auth/jwt.service';
-import { ResourceOwnershipGuard } from '@/auth/ownership.guard';
-import { RolesGuard } from '@/auth/roles.guard';
-import { BookingsController } from '@/bookings/bookings.controller';
-import { BookingsService } from '@/bookings/bookings.service';
-import { AuthConfigService } from '@/config/auth.config';
-import { PrismaService } from '@/database/prisma.service';
+import { configureApplication } from '@app/app.setup';
+import { AuthConfigService } from '@config/auth.config';
 import {
   BookingStatus,
   ListingPublicationStatus,
   Role,
   TutorVerificationStatus,
-} from '@/generated/prisma/client';
-import { ProfilesController } from '@/profiles/profiles.controller';
-import { ProfilesService } from '@/profiles/profiles.service';
-import { CatalogController } from '@/tutors/catalog.controller';
-import { TutorsPrivateController } from '@/tutors/tutors-private.controller';
-import { TutorsPublicController } from '@/tutors/tutors-public.controller';
-import { TutorsService } from '@/tutors/tutors.service';
+} from '@generated/prisma/client';
+import { PrismaService } from '@infrastructure/database/prisma.service';
+import { CURRENT_PRIVACY_POLICY_VERSION } from '@modules/auth/auth.constants';
+import { AuthController } from '@modules/auth/auth.controller';
+import { JwtAuthGuard } from '@modules/auth/auth.guard';
+import { AuthService } from '@modules/auth/auth.service';
+import { JwtTokenService } from '@modules/auth/jwt.service';
+import { ResourceOwnershipGuard } from '@modules/auth/ownership.guard';
+import { RolesGuard } from '@modules/auth/roles.guard';
+import { BookingsController } from '@modules/bookings/bookings.controller';
+import { BookingsService } from '@modules/bookings/bookings.service';
+import { ProfilesController } from '@modules/profiles/profiles.controller';
+import { ProfilesService } from '@modules/profiles/profiles.service';
+import { CatalogController } from '@modules/tutors/catalog.controller';
+import { TutorAvailabilityService } from '@modules/tutors/tutor-availability.service';
+import { TutorDirectoryService } from '@modules/tutors/tutor-directory.service';
+import { TutorListingsService } from '@modules/tutors/tutor-listings.service';
+import { TutorsPrivateController } from '@modules/tutors/tutors-private.controller';
+import { TutorsPublicController } from '@modules/tutors/tutors-public.controller';
 
-import type { AuthenticatedRequest, AuthenticatedUser } from '@/auth/auth.guard';
+import type { AuthenticatedRequest, AuthenticatedUser } from '@modules/auth/auth.guard';
 import type { ExecutionContext, INestApplication } from '@nestjs/common';
 import type { TestingModule } from '@nestjs/testing';
 import type { App } from 'supertest/types';
@@ -113,7 +115,9 @@ describe('End-to-End User Flow Verification (Student & Tutor)', () => {
         ResourceOwnershipGuard,
         { provide: BookingsService, useValue: bookingsService },
         { provide: ProfilesService, useValue: profilesService },
-        { provide: TutorsService, useValue: tutorsService },
+        { provide: TutorAvailabilityService, useValue: tutorsService },
+        { provide: TutorDirectoryService, useValue: tutorsService },
+        { provide: TutorListingsService, useValue: tutorsService },
         { provide: AuthConfigService, useValue: authConfig },
         { provide: PrismaService, useValue: prismaMock },
         { provide: AuthService, useValue: authService },
@@ -240,29 +244,39 @@ describe('End-to-End User Flow Verification (Student & Tutor)', () => {
       });
 
       // Step 4: Search - Find published tutors
-      tutorsService.searchPublicTutors.mockResolvedValue([
-        {
-          description: 'Experienced calculus and algebra tutor.',
-          displayName: 'Kru Anan',
-          experienceYears: 6,
-          grade: 'Grade 10',
-          listingId,
-          nextAvailableAt: new Date('2026-09-20T10:00:00.000Z'),
-          pricePerHour: 500,
-          ratingAverage: 4.9,
-          reviewCount: 15,
-          subject: 'Mathematics',
-          tutorId,
-        },
-      ]);
+      tutorsService.searchPublicTutors.mockResolvedValue({
+        items: [
+          {
+            description: 'Experienced calculus and algebra tutor.',
+            displayName: 'Kru Anan',
+            experienceYears: 6,
+            grade: 'Grade 10',
+            listingId,
+            nextAvailableAt: new Date('2026-09-20T10:00:00.000Z'),
+            pricePerHour: 500,
+            ratingAverage: 4.9,
+            reviewCount: 15,
+            subject: 'Mathematics',
+            tutorId,
+          },
+        ],
+        page: 1,
+        pageSize: 10,
+        total: 1,
+        totalPages: 1,
+      });
       const searchRes = await request(app.getHttpServer())
         .get('/api/v1/tutors')
         .query({ subject: 'Mathematics', grade: 'Grade 10', maxPrice: '600', minimumRating: '4.5' })
         .expect(200);
-      const searchResults = searchRes.body as Array<{ tutorId: string; pricePerHour: number }>;
-      expect(searchResults).toHaveLength(1);
-      expect(searchResults[0]?.tutorId).toBe(tutorId);
-      expect(searchResults[0]?.pricePerHour).toBe(500);
+      const searchResults = searchRes.body as {
+        items: Array<{ tutorId: string; pricePerHour: number }>;
+        total: number;
+      };
+      expect(searchResults.items).toHaveLength(1);
+      expect(searchResults.items[0]?.tutorId).toBe(tutorId);
+      expect(searchResults.items[0]?.pricePerHour).toBe(500);
+      expect(searchResults.total).toBe(1);
 
       // Step 5: Search - View tutor detail & public availability
       tutorsService.getPublicTutor.mockResolvedValue({

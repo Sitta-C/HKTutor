@@ -1,12 +1,12 @@
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { Test } from '@nestjs/testing';
 
-import { configureApplication } from '@/app.setup';
-import { JwtAuthGuard } from '@/auth/auth.guard';
-import { JWT_BEARER_AUTH } from '@/auth/auth.swagger';
-import { RolesGuard } from '@/auth/roles.guard';
-import { ProfilesController } from '@/profiles/profiles.controller';
-import { ProfilesService } from '@/profiles/profiles.service';
+import { configureApplication } from '@app/app.setup';
+import { JwtAuthGuard } from '@modules/auth/auth.guard';
+import { JWT_BEARER_AUTH } from '@modules/auth/auth.swagger';
+import { RolesGuard } from '@modules/auth/roles.guard';
+import { ProfilesController } from '@modules/profiles/profiles.controller';
+import { ProfilesService } from '@modules/profiles/profiles.service';
 
 import type { INestApplication } from '@nestjs/common';
 import type {

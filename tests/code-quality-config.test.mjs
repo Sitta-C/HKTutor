@@ -69,9 +69,9 @@ void Login;
 test('prevents the web app from importing API source', () => {
   const result = lintSource({
     filename: 'src/app/page.tsx',
-    source: `import { AppService } from '../../../api/src/app.service';
+    source: `import { AppModule } from '../../../api/src/app.module';
 
-void AppService;
+void AppModule;
 `,
     workspace: '@hktutor/web',
   });

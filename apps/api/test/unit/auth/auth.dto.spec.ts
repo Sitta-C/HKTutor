@@ -1,7 +1,7 @@
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
 
-import { RegisterDto } from '@/auth/auth.dto';
+import { RegisterDto } from '@modules/auth/auth.dto';
 
 describe('RegisterDto', () => {
   it('normalizes a valid email/password registration', async () => {

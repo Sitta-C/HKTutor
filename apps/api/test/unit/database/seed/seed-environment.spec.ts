@@ -1,4 +1,4 @@
-import { readSeedEnvironment } from '@/database/seed/seed-environment';
+import { readSeedEnvironment } from '@infrastructure/database/seed/seed-environment';
 
 const completeEnvironment = {
   SEED_ADMIN_EMAIL: ' Admin@Example.com ',

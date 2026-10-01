@@ -102,6 +102,8 @@ export interface TutorSearchQuery {
   grade?: string;
   maxPrice?: number;
   minimumRating?: number;
+  page?: number;
+  pageSize?: number;
 }
 
 export interface TutorSearchResult {
@@ -117,6 +119,14 @@ export interface TutorSearchResult {
   reviewCount: number;
   verificationStatus: 'VERIFIED';
   nextAvailableAt: string | null;
+}
+
+export interface TutorSearchResponse {
+  items: TutorSearchResult[];
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
 }
 
 export interface PublicTutorProfile {

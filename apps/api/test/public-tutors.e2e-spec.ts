@@ -2,10 +2,11 @@ import { BadRequestException } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
 
-import { configureApplication } from '@/app.setup';
-import { CatalogController } from '@/tutors/catalog.controller';
-import { TutorsPublicController } from '@/tutors/tutors-public.controller';
-import { TutorsService } from '@/tutors/tutors.service';
+import { configureApplication } from '@app/app.setup';
+import { CatalogController } from '@modules/tutors/catalog.controller';
+import { TutorAvailabilityService } from '@modules/tutors/tutor-availability.service';
+import { TutorDirectoryService } from '@modules/tutors/tutor-directory.service';
+import { TutorsPublicController } from '@modules/tutors/tutors-public.controller';
 
 import type { INestApplication } from '@nestjs/common';
 import type { TestingModule } from '@nestjs/testing';
@@ -26,7 +27,10 @@ describe('Public Tutor discovery APIs (e2e)', () => {
   beforeAll(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
       controllers: [CatalogController, TutorsPublicController],
-      providers: [{ provide: TutorsService, useValue: service }],
+      providers: [
+        { provide: TutorAvailabilityService, useValue: service },
+        { provide: TutorDirectoryService, useValue: service },
+      ],
     }).compile();
 
     app = moduleFixture.createNestApplication();
@@ -43,41 +47,62 @@ describe('Public Tutor discovery APIs (e2e)', () => {
   });
 
   it('allows unauthenticated search and serializes the complete result-card contract', async () => {
-    service.searchPublicTutors.mockResolvedValue([
-      {
-        description: 'Experienced mathematics tutor.',
-        displayName: 'Kru Anan',
-        experienceYears: 5,
-        grade: 'Grade 10',
-        listingId: LISTING_ID,
-        nextAvailableAt: new Date('2026-09-12T02:00:00.000Z'),
-        pricePerHour: 500,
-        ratingAverage: 4,
-        reviewCount: 24,
-        subject: 'Mathematics',
-        tutorId: TUTOR_ID,
-        verificationStatus: 'PENDING',
-      },
-    ]);
+    service.searchPublicTutors.mockResolvedValue({
+      items: [
+        {
+          description: 'Experienced mathematics tutor.',
+          displayName: 'Kru Anan',
+          experienceYears: 5,
+          grade: 'Grade 10',
+          listingId: LISTING_ID,
+          nextAvailableAt: new Date('2026-09-12T02:00:00.000Z'),
+          pricePerHour: 500,
+          ratingAverage: 4,
+          reviewCount: 24,
+          subject: 'Mathematics',
+          tutorId: TUTOR_ID,
+          verificationStatus: 'PENDING',
+        },
+      ],
+      page: 2,
+      pageSize: 10,
+      total: 11,
+      totalPages: 2,
+    });
 
     const response = await request(app.getHttpServer())
       .get('/api/v1/tutors')
-      .query({ grade: 'Grade 10', maxPrice: '500', minimumRating: '4', subject: 'mathematics' })
+      .query({
+        grade: 'Grade 10',
+        maxPrice: '500',
+        minimumRating: '4',
+        page: '2',
+        pageSize: '10',
+        subject: 'mathematics',
+      })
       .expect(200);
 
-    expect(response.body).toEqual([
-      expect.objectContaining({
-        listingId: LISTING_ID,
-        nextAvailableAt: '2026-09-12T02:00:00.000Z',
-        pricePerHour: 500,
-        tutorId: TUTOR_ID,
-        verificationStatus: 'PENDING',
-      }),
-    ]);
+    expect(response.body).toEqual({
+      items: [
+        expect.objectContaining({
+          listingId: LISTING_ID,
+          nextAvailableAt: '2026-09-12T02:00:00.000Z',
+          pricePerHour: 500,
+          tutorId: TUTOR_ID,
+          verificationStatus: 'PENDING',
+        }),
+      ],
+      page: 2,
+      pageSize: 10,
+      total: 11,
+      totalPages: 2,
+    });
     expect(service.searchPublicTutors).toHaveBeenCalledWith({
       grade: 'Grade 10',
       maxPrice: 500,
       minimumRating: 4,
+      page: 2,
+      pageSize: 10,
       subject: 'mathematics',
     });
   });

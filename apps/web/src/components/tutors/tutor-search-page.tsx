@@ -21,7 +21,12 @@ import {
   notebookButtonClass,
   notebookInputClass,
 } from '@/components/ui/notebook';
-import { getGradeLevelCatalog, getSubjectCatalog, searchTutors } from '@/lib/api/tutors';
+import {
+  TUTOR_SEARCH_PAGE_SIZE,
+  getGradeLevelCatalog,
+  getSubjectCatalog,
+  searchTutors,
+} from '@/lib/api/tutors';
 import { formatBangkokDateTime } from '@/lib/date-time';
 import { useLanguage } from '@/lib/i18n';
 
@@ -32,10 +37,18 @@ import type {
   SubjectOption,
   TutorSearchQuery,
   TutorSearchResult,
+  TutorSearchResponse,
 } from '@/lib/api/types';
 import type { FormEvent } from 'react';
 
 type SearchStatus = 'loading' | 'success' | 'error' | 'validation';
+const initialPagination: Pick<TutorSearchResponse, 'page' | 'pageSize' | 'total' | 'totalPages'> = {
+  page: 1,
+  pageSize: TUTOR_SEARCH_PAGE_SIZE,
+  total: 0,
+  totalPages: 0,
+};
+
 export default function TutorSearchPage() {
   const { language } = useLanguage();
   const text = tutorSearchCopy[language];
@@ -45,6 +58,11 @@ export default function TutorSearchPage() {
   const [catalogLoading, setCatalogLoading] = useState(true);
   const [catalogError, setCatalogError] = useState(false);
   const [results, setResults] = useState<TutorSearchResult[]>([]);
+  const [pagination, setPagination] = useState(initialPagination);
+  const [activeQuery, setActiveQuery] = useState<TutorSearchQuery>({
+    page: 1,
+    pageSize: TUTOR_SEARCH_PAGE_SIZE,
+  });
   const [status, setStatus] = useState<SearchStatus>('loading');
   const [hasSearchError, setHasSearchError] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<TutorSearchErrors>({});
@@ -74,6 +92,11 @@ export default function TutorSearchPage() {
   }, []);
 
   const executeSearch = useCallback(async (query: TutorSearchQuery) => {
+    const paginatedQuery = {
+      ...query,
+      page: query.page ?? 1,
+      pageSize: query.pageSize ?? TUTOR_SEARCH_PAGE_SIZE,
+    };
     const currentRequest = ++requestId.current;
     controller.current?.abort();
     const nextController = new AbortController();
@@ -81,15 +104,23 @@ export default function TutorSearchPage() {
     setStatus('loading');
     setHasSearchError(false);
     setResults([]);
+    setActiveQuery(paginatedQuery);
 
     try {
-      const nextResults = await searchTutors(query, { signal: nextController.signal });
+      const response = await searchTutors(paginatedQuery, { signal: nextController.signal });
       if (currentRequest !== requestId.current) return;
-      setResults(nextResults);
+      setResults(response.items);
+      setPagination({
+        page: response.page,
+        pageSize: response.pageSize,
+        total: response.total,
+        totalPages: response.totalPages,
+      });
       setStatus('success');
     } catch {
       if (nextController.signal.aborted || currentRequest !== requestId.current) return;
       setResults([]);
+      setPagination(initialPagination);
       setStatus('error');
       setHasSearchError(true);
     }
@@ -99,7 +130,9 @@ export default function TutorSearchPage() {
     let active = true;
     const loadInitialResults = async () => {
       await Promise.resolve();
-      if (active) await executeSearch({});
+      if (active) {
+        await executeSearch({ page: 1, pageSize: TUTOR_SEARCH_PAGE_SIZE });
+      }
     };
 
     void loadInitialResults();
@@ -132,13 +165,22 @@ export default function TutorSearchPage() {
     }
 
     setFieldErrors({});
-    void executeSearch(toTutorSearchQuery(form));
+    void executeSearch({
+      ...toTutorSearchQuery(form),
+      page: 1,
+      pageSize: TUTOR_SEARCH_PAGE_SIZE,
+    });
   };
 
   const clearFilters = () => {
     setForm(initialTutorSearchForm);
     setFieldErrors({});
-    void executeSearch({});
+    void executeSearch({ page: 1, pageSize: TUTOR_SEARCH_PAGE_SIZE });
+  };
+
+  const changePage = (page: number) => {
+    if (page < 1 || page > pagination.totalPages || page === pagination.page) return;
+    void executeSearch({ ...activeQuery, page });
   };
 
   const filterCount = [form.subject, form.grade, form.maxPrice, form.minimumRating].filter(
@@ -253,7 +295,7 @@ export default function TutorSearchPage() {
             <div className="flex flex-wrap items-end justify-between gap-3 border-b border-dashed border-paper-edge px-5 py-5 sm:px-6">
               <div>
                 <h2 className="font-note text-3xl font-bold tracking-[-0.04em]">
-                  {status === 'success' ? results.length : '—'} {text.exactMatches}
+                  {status === 'success' ? pagination.total : '—'} {text.exactMatches}
                 </h2>
                 <p className="mt-1 text-sm text-notebook-muted">{resultSummary}</p>
                 {status === 'loading' && (
@@ -292,6 +334,32 @@ export default function TutorSearchPage() {
                     language={language}
                   />
                 ))}
+              {status === 'success' && pagination.totalPages > 1 && (
+                <nav
+                  className="flex flex-wrap items-center justify-between gap-3 border-t border-dashed border-paper-edge pt-5"
+                  aria-label={`${text.page} ${pagination.page} ${text.pageOf} ${pagination.totalPages}`}
+                >
+                  <button
+                    type="button"
+                    className={notebookButtonClass({ tone: 'secondary' })}
+                    disabled={pagination.page <= 1}
+                    onClick={() => changePage(pagination.page - 1)}
+                  >
+                    {text.previousPage}
+                  </button>
+                  <span className="text-sm font-extrabold text-notebook-muted" aria-current="page">
+                    {text.page} {pagination.page} {text.pageOf} {pagination.totalPages}
+                  </span>
+                  <button
+                    type="button"
+                    className={notebookButtonClass({ tone: 'secondary' })}
+                    disabled={pagination.page >= pagination.totalPages}
+                    onClick={() => changePage(pagination.page + 1)}
+                  >
+                    {text.nextPage}
+                  </button>
+                </nav>
+              )}
             </div>
           </PaperCard>
         </section>

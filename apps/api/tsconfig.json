@@ -15,7 +15,13 @@
     "sourceMap": true,
     "outDir": "./dist",
     "paths": {
-      "@/*": ["./src/*"]
+      "@app/*": ["./src/*"],
+      "@common/*": ["./src/common/*"],
+      "@config/*": ["./src/config/*"],
+      "@examples/*": ["./docs/examples/*"],
+      "@generated/*": ["./src/generated/*"],
+      "@infrastructure/*": ["./src/infrastructure/*"],
+      "@modules/*": ["./src/modules/*"]
     },
     "incremental": true,
     "skipLibCheck": true,
@@ -25,5 +31,8 @@
     "noPropertyAccessFromIndexSignature": true,
     "strictBindCallApply": true,
     "noFallthroughCasesInSwitch": true
+  },
+  "ts-node": {
+    "experimentalResolver": true
   }
 }

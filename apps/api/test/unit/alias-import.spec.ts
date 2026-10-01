@@ -1,9 +1,7 @@
-import { AppService } from '@/app.service';
+import { API_GLOBAL_PREFIX } from '@app/app.setup';
 
 describe('API source alias', () => {
   it('resolves application code through the source-root alias', () => {
-    const service = new AppService();
-
-    expect(service.getHello()).toBe('Hello World!');
+    expect(API_GLOBAL_PREFIX).toBe('api/v1');
   });
 });

@@ -2,9 +2,9 @@ import { ServiceUnavailableException } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { Test } from '@nestjs/testing';
 
-import { API_GLOBAL_PREFIX } from '@/app.setup';
-import { PrismaService } from '@/database/prisma.service';
-import { HealthController } from '@/health/health.controller';
+import { API_GLOBAL_PREFIX } from '@app/app.setup';
+import { PrismaService } from '@infrastructure/database/prisma.service';
+import { HealthController } from '@modules/health/health.controller';
 
 import type { INestApplication } from '@nestjs/common';
 

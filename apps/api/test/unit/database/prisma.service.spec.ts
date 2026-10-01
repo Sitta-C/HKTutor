@@ -1,6 +1,6 @@
 import { ConfigService } from '@nestjs/config';
 
-import { PrismaService } from '@/database/prisma.service';
+import { PrismaService } from '@infrastructure/database/prisma.service';
 
 const createService = () =>
   new PrismaService(

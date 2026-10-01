@@ -1,9 +1,9 @@
 import { ConfigService } from '@nestjs/config';
 import * as jwt from 'jsonwebtoken';
 
-import { JwtTokenService } from '@/auth/jwt.service';
-import { AuthConfigService } from '@/config/auth.config';
-import { Role } from '@/generated/prisma/client';
+import { AuthConfigService } from '@config/auth.config';
+import { Role } from '@generated/prisma/client';
+import { JwtTokenService } from '@modules/auth/jwt.service';
 
 describe('JwtTokenService', () => {
   const accessSecret = 'access-secret-with-more-than-thirty-two-characters';

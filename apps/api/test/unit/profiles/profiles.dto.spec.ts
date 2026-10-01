@@ -1,7 +1,7 @@
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
 
-import { SaveStudentProfileDto } from '@/profiles/profiles.dto';
+import { SaveStudentProfileDto } from '@modules/profiles/profiles.dto';
 
 describe('SaveStudentProfileDto', () => {
   const validProfile = {

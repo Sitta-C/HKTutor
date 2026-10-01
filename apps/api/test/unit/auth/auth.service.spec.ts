@@ -1,13 +1,13 @@
 import { ForbiddenException, UnauthorizedException } from '@nestjs/common';
 
-import { AuthService } from '@/auth/auth.service';
-import { AccountStatus, Role } from '@/generated/prisma/client';
+import { AccountStatus, Role } from '@generated/prisma/client';
+import { AuthService } from '@modules/auth/auth.service';
 
-import type { JwtTokenService } from '@/auth/jwt.service';
-import type { PasswordService } from '@/auth/password.service';
-import type { AuthConfigService } from '@/config/auth.config';
-import type { PrismaService } from '@/database/prisma.service';
-import type { EmailService } from '@/email/email.service';
+import type { AuthConfigService } from '@config/auth.config';
+import type { PrismaService } from '@infrastructure/database/prisma.service';
+import type { EmailService } from '@infrastructure/email/email.service';
+import type { JwtTokenService } from '@modules/auth/jwt.service';
+import type { PasswordService } from '@modules/auth/password.service';
 
 describe('AuthService', () => {
   it('records the current privacy notice when an authenticated user re-consents', async () => {

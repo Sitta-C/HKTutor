@@ -9,12 +9,14 @@ import type {
   PublicTutorDetail,
   SubjectOption,
   TutorSearchQuery,
-  TutorSearchResult,
+  TutorSearchResponse,
 } from '@/lib/api/types';
 
 interface CatalogResponse<T> {
   items: T[];
 }
+
+export const TUTOR_SEARCH_PAGE_SIZE = 10;
 
 export async function getSubjectCatalog(): Promise<SubjectOption[]> {
   const response = await apiFetch<CatalogResponse<SubjectOption>>('/subjects');
@@ -29,7 +31,7 @@ export async function getGradeLevelCatalog(): Promise<GradeLevelOption[]> {
 export function searchTutors(
   query: TutorSearchQuery = {},
   requestInit: Pick<RequestInit, 'signal'> = {},
-): Promise<TutorSearchResult[]> {
+): Promise<TutorSearchResponse> {
   const params = new URLSearchParams();
 
   if (query.subject) params.set('subject', query.subject);
@@ -38,9 +40,11 @@ export function searchTutors(
   if (query.minimumRating !== undefined) {
     params.set('minimumRating', String(query.minimumRating));
   }
+  if (query.page !== undefined) params.set('page', String(query.page));
+  if (query.pageSize !== undefined) params.set('pageSize', String(query.pageSize));
 
   const queryString = params.toString();
-  return apiFetch<TutorSearchResult[]>(
+  return apiFetch<TutorSearchResponse>(
     `/tutors${queryString ? `?${queryString}` : ''}`,
     requestInit,
   );

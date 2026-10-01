@@ -1,11 +1,11 @@
 import { UnauthorizedException } from '@nestjs/common';
 
-import { JwtAuthGuard } from '@/auth/auth.guard';
-import { AccountStatus, Role } from '@/generated/prisma/client';
+import { AccountStatus, Role } from '@generated/prisma/client';
+import { JwtAuthGuard } from '@modules/auth/auth.guard';
 
-import type { AuthenticatedRequest } from '@/auth/auth.guard';
-import type { JwtTokenService } from '@/auth/jwt.service';
-import type { PrismaService } from '@/database/prisma.service';
+import type { PrismaService } from '@infrastructure/database/prisma.service';
+import type { AuthenticatedRequest } from '@modules/auth/auth.guard';
+import type { JwtTokenService } from '@modules/auth/jwt.service';
 import type { ExecutionContext } from '@nestjs/common';
 import type { Request as ExpressRequest } from 'express';
 

@@ -54,7 +54,7 @@ export const absoluteAppImportRules = {
     {
       patterns: [
         {
-          message: 'Use the @/ alias for application-internal imports.',
+          message: 'Use an absolute application alias for internal imports.',
           regex: '^\\.\\.?/(?!.*\\.css$)',
         },
       ],

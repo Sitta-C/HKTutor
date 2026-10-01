@@ -23,6 +23,9 @@ test('defines the S1-T22 public Tutor client contracts', async () => {
   assert.match(client, /`\/tutors\$\{queryString \? `\?\$\{queryString\}` : ''\}`/);
   assert.match(client, /params\.set\('maxPrice', String\(query\.maxPrice\)\)/);
   assert.match(client, /params\.set\('minimumRating', String\(query\.minimumRating\)\)/);
+  assert.match(client, /params\.set\('page', String\(query\.page\)\)/);
+  assert.match(client, /params\.set\('pageSize', String\(query\.pageSize\)\)/);
+  assert.match(client, /Promise<TutorSearchResponse>/);
   assert.doesNotMatch(client, /params\.set\('maxBudget'/);
 
   for (const field of [
@@ -40,6 +43,10 @@ test('defines the S1-T22 public Tutor client contracts', async () => {
     'nextAvailableAt',
   ]) {
     assert.match(types, new RegExp(`export interface TutorSearchResult[\\s\\S]*?${field}`));
+  }
+
+  for (const field of ['items', 'page', 'pageSize', 'total', 'totalPages']) {
+    assert.match(types, new RegExp(`export interface TutorSearchResponse[\\s\\S]*?${field}`));
   }
 
   const publicProfile = types.match(/export interface PublicTutorProfile\s*{([\s\S]*?)\n}/)?.[1];
@@ -77,6 +84,10 @@ test('renders the public Tutor search route and catalog-backed controls', async 
   assert.match(component, /options=\{gradeLevels\.map/);
   assert.match(component, /id="tutor-search-max-price"[\s\S]*?step="50"/);
   assert.match(component, /key=\{result\.listingId\}/);
+  assert.match(component, /pagination\.total/);
+  assert.match(component, /pagination\.totalPages > 1/);
+  assert.match(component, /changePage\(pagination\.page - 1\)/);
+  assert.match(component, /changePage\(pagination\.page \+ 1\)/);
 });
 
 test('keeps no-match, validation, network-error, and stale-result states separate', async () => {

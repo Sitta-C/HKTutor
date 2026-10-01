@@ -22,6 +22,20 @@ All controller routes receive the global `/api/v1` prefix. Authentication endpoi
 - `POST /logout`
 - `GET /me`
 
+## Source layout
+
+- `src/modules/` contains runtime features: auth, bookings, health, profiles, and tutors.
+- `src/infrastructure/` contains technical adapters shared by features, currently database and
+  email.
+- `src/common/` and `src/config/` contain cross-feature utilities and configuration.
+- `src/generated/` contains generated Prisma code and must not be edited manually.
+- `docs/examples/` contains documentation-only NestJS examples that are not registered at runtime.
+- `scripts/` contains operational scripts that are type-checked separately from the Nest build.
+
+Use the matching absolute alias when importing application code: `@app/*`, `@modules/*`,
+`@infrastructure/*`, `@common/*`, `@config/*`, `@generated/*`, or `@examples/*`. Keep each feature
+directory flat until its size makes a further split clearly useful.
+
 Access tokens are Bearer JWTs. Refresh tokens are never returned in JSON; they are stored in an
 HttpOnly cookie and rotated against hashed `AuthSession` records.
 

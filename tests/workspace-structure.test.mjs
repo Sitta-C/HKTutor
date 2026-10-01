@@ -68,6 +68,33 @@ test('extends the shared strict TypeScript baseline', async () => {
   assert.equal(api.extends, '@hktutor/tsconfig/base.json');
 });
 
+test('organizes API features and infrastructure behind explicit aliases', async () => {
+  const api = await readJson('apps/api/tsconfig.json');
+  const paths = api.compilerOptions.paths;
+
+  assert.deepEqual(paths, {
+    '@app/*': ['./src/*'],
+    '@common/*': ['./src/common/*'],
+    '@config/*': ['./src/config/*'],
+    '@examples/*': ['./docs/examples/*'],
+    '@generated/*': ['./src/generated/*'],
+    '@infrastructure/*': ['./src/infrastructure/*'],
+    '@modules/*': ['./src/modules/*'],
+  });
+
+  for (const directory of [
+    'apps/api/src/modules/auth',
+    'apps/api/src/modules/bookings',
+    'apps/api/src/modules/health',
+    'apps/api/src/modules/profiles',
+    'apps/api/src/modules/tutors',
+    'apps/api/src/infrastructure/database',
+    'apps/api/src/infrastructure/email',
+  ]) {
+    assert.equal((await fs.stat(directory)).isDirectory(), true);
+  }
+});
+
 test('keeps later-sprint infrastructure out while allowing Prisma only in the API', async () => {
   const root = await readJson('package.json');
   const web = await readJson('apps/web/package.json');

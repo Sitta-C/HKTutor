@@ -1,7 +1,7 @@
-import { seedAdministrator } from '@/database/seed/admin.seed';
-import { AccountStatus, Role } from '@/generated/prisma/client';
+import { AccountStatus, Role } from '@generated/prisma/client';
+import { seedAdministrator } from '@infrastructure/database/seed/admin.seed';
 
-import type { SeedTransactionClient } from '@/database/seed/seed-client';
+import type { SeedTransactionClient } from '@infrastructure/database/seed/seed-client';
 
 describe('seedAdministrator', () => {
   it('creates a verified local administrator', async () => {

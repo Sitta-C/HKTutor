@@ -2,12 +2,12 @@ import { Test } from '@nestjs/testing';
 import { ThrottlerGuard } from '@nestjs/throttler';
 import request from 'supertest';
 
-import { configureApplication } from '@/app.setup';
-import { AuthController } from '@/auth/auth.controller';
-import { JwtAuthGuard } from '@/auth/auth.guard';
-import { AuthService } from '@/auth/auth.service';
-import { JWT_BEARER_AUTH, REFRESH_COOKIE_AUTH } from '@/auth/auth.swagger';
-import { AuthConfigService } from '@/config/auth.config';
+import { configureApplication } from '@app/app.setup';
+import { AuthConfigService } from '@config/auth.config';
+import { AuthController } from '@modules/auth/auth.controller';
+import { JwtAuthGuard } from '@modules/auth/auth.guard';
+import { AuthService } from '@modules/auth/auth.service';
+import { JWT_BEARER_AUTH, REFRESH_COOKIE_AUTH } from '@modules/auth/auth.swagger';
 
 import type { INestApplication } from '@nestjs/common';
 import type { OpenAPIObject, OperationObject } from '@nestjs/swagger';

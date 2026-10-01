@@ -4,12 +4,12 @@ import { ThrottlerGuard } from '@nestjs/throttler';
 import cookieParser from 'cookie-parser';
 import request from 'supertest';
 
-import { configureApplication } from '@/app.setup';
-import { REFRESH_COOKIE_NAME } from '@/auth/auth.constants';
-import { AuthController } from '@/auth/auth.controller';
-import { JwtAuthGuard } from '@/auth/auth.guard';
-import { AuthService } from '@/auth/auth.service';
-import { AuthConfigService } from '@/config/auth.config';
+import { configureApplication } from '@app/app.setup';
+import { AuthConfigService } from '@config/auth.config';
+import { REFRESH_COOKIE_NAME } from '@modules/auth/auth.constants';
+import { AuthController } from '@modules/auth/auth.controller';
+import { JwtAuthGuard } from '@modules/auth/auth.guard';
+import { AuthService } from '@modules/auth/auth.service';
 
 import type { INestApplication } from '@nestjs/common';
 import type { App } from 'supertest/types';

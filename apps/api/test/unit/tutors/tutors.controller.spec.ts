@@ -1,20 +1,22 @@
 import { GUARDS_METADATA } from '@nestjs/common/constants';
 
-import { OWNERSHIP_KEY } from '@/auth/ownership.decorator';
-import { ROLES_KEY } from '@/auth/roles.decorator';
-import { Role } from '@/generated/prisma/client';
-import { TutorsPrivateController } from '@/tutors/tutors-private.controller';
-import { TutorsPublicController } from '@/tutors/tutors-public.controller';
+import { Role } from '@generated/prisma/client';
+import { OWNERSHIP_KEY } from '@modules/auth/ownership.decorator';
+import { ROLES_KEY } from '@modules/auth/roles.decorator';
+import { TutorsPrivateController } from '@modules/tutors/tutors-private.controller';
+import { TutorsPublicController } from '@modules/tutors/tutors-public.controller';
 
-import type { AuthenticatedUser } from '@/auth/auth.guard';
-import type { OwnershipRule } from '@/auth/ownership.decorator';
+import type { AuthenticatedUser } from '@modules/auth/auth.guard';
+import type { OwnershipRule } from '@modules/auth/ownership.decorator';
+import type { TutorAvailabilityService } from '@modules/tutors/tutor-availability.service';
+import type { TutorDirectoryService } from '@modules/tutors/tutor-directory.service';
+import type { TutorListingsService } from '@modules/tutors/tutor-listings.service';
 import type {
   AvailabilityPostRequestDto,
   AvailabilityPrivateResponseDto,
   AvailabilityPublicResponseDto,
   ListingResponseDto,
-} from '@/tutors/tutors.dto';
-import type { TutorsService } from '@/tutors/tutors.service';
+} from '@modules/tutors/tutors.dto';
 
 const USER_ID = '20000000-0000-4000-8000-000000000001';
 const LISTING_ID = '10000000-0000-4000-8000-000000000001';
@@ -41,7 +43,10 @@ function createController() {
   };
 
   return {
-    controller: new TutorsPrivateController(service as unknown as TutorsService),
+    controller: new TutorsPrivateController(
+      service as unknown as TutorListingsService,
+      service as unknown as TutorAvailabilityService,
+    ),
     service,
   };
 }
@@ -175,7 +180,10 @@ describe('TutorsPublicController', () => {
 
   it('loads public availability for the requested tutor', async () => {
     const service = { getAvailabilityPublic: jest.fn() };
-    const controller = new TutorsPublicController(service as unknown as TutorsService);
+    const controller = new TutorsPublicController(
+      service as unknown as TutorDirectoryService,
+      service as unknown as TutorAvailabilityService,
+    );
     const query = { from: new Date('2026-10-17T00:00:00.000Z') };
     const slots = [{ id: SLOT_ID }] as AvailabilityPublicResponseDto[];
     service.getAvailabilityPublic.mockResolvedValue(slots);

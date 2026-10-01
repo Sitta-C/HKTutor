@@ -1,9 +1,9 @@
 import { ForbiddenException, UnauthorizedException } from '@nestjs/common';
 
-import { RolesGuard } from '@/auth/roles.guard';
-import { Role } from '@/generated/prisma/client';
+import { Role } from '@generated/prisma/client';
+import { RolesGuard } from '@modules/auth/roles.guard';
 
-import type { AuthenticatedRequest, AuthenticatedUser } from '@/auth/auth.guard';
+import type { AuthenticatedRequest, AuthenticatedUser } from '@modules/auth/auth.guard';
 import type { ExecutionContext } from '@nestjs/common';
 import type { Reflector } from '@nestjs/core';
 

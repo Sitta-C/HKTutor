@@ -1,10 +1,10 @@
 import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 
-import { CURRENT_PRIVACY_POLICY_VERSION } from '@/auth/auth.constants';
-import { Role } from '@/generated/prisma/client';
-import { ProfilesService } from '@/profiles/profiles.service';
+import { Role } from '@generated/prisma/client';
+import { CURRENT_PRIVACY_POLICY_VERSION } from '@modules/auth/auth.constants';
+import { ProfilesService } from '@modules/profiles/profiles.service';
 
-import type { PrismaService } from '@/database/prisma.service';
+import type { PrismaService } from '@infrastructure/database/prisma.service';
 
 describe('ProfilesService', () => {
   it('rejects an admin before querying private profile data', async () => {

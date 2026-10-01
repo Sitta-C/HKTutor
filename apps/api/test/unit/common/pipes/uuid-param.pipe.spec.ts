@@ -1,6 +1,6 @@
 import { BadRequestException } from '@nestjs/common';
 
-import { UuidParamPipe } from '@/common/pipes/uuid-param.pipe';
+import { UuidParamPipe } from '@common/pipes/uuid-param.pipe';
 
 import type { ArgumentMetadata } from '@nestjs/common';
 
