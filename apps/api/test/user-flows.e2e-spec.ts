@@ -244,29 +244,39 @@ describe('End-to-End User Flow Verification (Student & Tutor)', () => {
       });
 
       // Step 4: Search - Find published tutors
-      tutorsService.searchPublicTutors.mockResolvedValue([
-        {
-          description: 'Experienced calculus and algebra tutor.',
-          displayName: 'Kru Anan',
-          experienceYears: 6,
-          grade: 'Grade 10',
-          listingId,
-          nextAvailableAt: new Date('2026-09-20T10:00:00.000Z'),
-          pricePerHour: 500,
-          ratingAverage: 4.9,
-          reviewCount: 15,
-          subject: 'Mathematics',
-          tutorId,
-        },
-      ]);
+      tutorsService.searchPublicTutors.mockResolvedValue({
+        items: [
+          {
+            description: 'Experienced calculus and algebra tutor.',
+            displayName: 'Kru Anan',
+            experienceYears: 6,
+            grade: 'Grade 10',
+            listingId,
+            nextAvailableAt: new Date('2026-09-20T10:00:00.000Z'),
+            pricePerHour: 500,
+            ratingAverage: 4.9,
+            reviewCount: 15,
+            subject: 'Mathematics',
+            tutorId,
+          },
+        ],
+        page: 1,
+        pageSize: 10,
+        total: 1,
+        totalPages: 1,
+      });
       const searchRes = await request(app.getHttpServer())
         .get('/api/v1/tutors')
         .query({ subject: 'Mathematics', grade: 'Grade 10', maxPrice: '600', minimumRating: '4.5' })
         .expect(200);
-      const searchResults = searchRes.body as Array<{ tutorId: string; pricePerHour: number }>;
-      expect(searchResults).toHaveLength(1);
-      expect(searchResults[0]?.tutorId).toBe(tutorId);
-      expect(searchResults[0]?.pricePerHour).toBe(500);
+      const searchResults = searchRes.body as {
+        items: Array<{ tutorId: string; pricePerHour: number }>;
+        total: number;
+      };
+      expect(searchResults.items).toHaveLength(1);
+      expect(searchResults.items[0]?.tutorId).toBe(tutorId);
+      expect(searchResults.items[0]?.pricePerHour).toBe(500);
+      expect(searchResults.total).toBe(1);
 
       // Step 5: Search - View tutor detail & public availability
       tutorsService.getPublicTutor.mockResolvedValue({

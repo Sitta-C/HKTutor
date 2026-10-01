@@ -24,7 +24,13 @@ describe('public Tutor controllers', () => {
       {} as TutorAvailabilityService,
     );
     const query = { maxPrice: 500 };
-    const results = [{ listingId: 'listing', tutorId: 'tutor' }];
+    const results = {
+      items: [{ listingId: 'listing', tutorId: 'tutor' }],
+      page: 1,
+      pageSize: 10,
+      total: 1,
+      totalPages: 1,
+    };
     const detail = { listings: [], tutor: { tutorId: 'tutor' } };
     service.searchPublicTutors.mockResolvedValue(results);
     service.getPublicTutor.mockResolvedValue(detail);

@@ -29,12 +29,14 @@ function createPrisma() {
   return {
     gradeLevel: { findFirst: jest.fn(), findMany: jest.fn() },
     subject: { findFirst: jest.fn(), findMany: jest.fn() },
-    teachingListing: { findMany: jest.fn() },
+    teachingListing: { count: jest.fn().mockResolvedValue(0), findMany: jest.fn() },
     tutorProfile: { findFirst: jest.fn() },
   };
 }
 
 type SearchCall = {
+  skip: number;
+  take: number;
   select: {
     tutorProfile: {
       select: {
@@ -132,28 +134,35 @@ function expectNoPrivateFields(value: unknown): void {
 describe('TutorDirectoryService', () => {
   it('returns only public fields for published search results', async () => {
     const prisma = createPrisma();
+    prisma.teachingListing.count.mockResolvedValue(1);
     prisma.teachingListing.findMany.mockResolvedValue([publicSearchListing()]);
     const service = new TutorsService(prisma as unknown as PrismaService);
 
-    await expect(service.searchPublicTutors({})).resolves.toEqual([
-      {
-        description: 'Experienced mathematics tutor.',
-        displayName: 'Kru Anan',
-        experienceYears: 5,
-        grade: 'Grade 10',
-        listingId: LISTING_ID,
-        nextAvailableAt: new Date('2026-09-12T02:00:00.000Z'),
-        pricePerHour: 500,
-        ratingAverage: 4,
-        reviewCount: 24,
-        subject: 'Mathematics',
-        tutorId: TUTOR_ID,
-        verificationStatus: 'VERIFIED',
-      },
-    ]);
+    await expect(service.searchPublicTutors({})).resolves.toEqual({
+      items: [
+        {
+          description: 'Experienced mathematics tutor.',
+          displayName: 'Kru Anan',
+          experienceYears: 5,
+          grade: 'Grade 10',
+          listingId: LISTING_ID,
+          nextAvailableAt: new Date('2026-09-12T02:00:00.000Z'),
+          pricePerHour: 500,
+          ratingAverage: 4,
+          reviewCount: 24,
+          subject: 'Mathematics',
+          tutorId: TUTOR_ID,
+          verificationStatus: 'VERIFIED',
+        },
+      ],
+      page: 1,
+      pageSize: 10,
+      total: 1,
+      totalPages: 1,
+    });
 
     const result = await service.searchPublicTutors({});
-    expect(result[0]?.listingId).not.toBe(result[0]?.tutorId);
+    expect(result.items[0]?.listingId).not.toBe(result.items[0]?.tutorId);
     expectNoPrivateFields(result);
     expect(prisma.teachingListing.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -196,7 +205,11 @@ describe('TutorDirectoryService', () => {
     prisma.teachingListing.findMany.mockResolvedValue([]);
     const service = new TutorsService(prisma as unknown as PrismaService);
 
-    await expect(service.searchPublicTutors({ subject: 'mathematics' })).resolves.toEqual([]);
+    await expect(service.searchPublicTutors({ subject: 'mathematics' })).resolves.toMatchObject({
+      items: [],
+      total: 0,
+      totalPages: 0,
+    });
     expect(prisma.subject.findFirst).toHaveBeenCalledWith({
       select: { id: true },
       where: { active: true, name: { equals: 'mathematics', mode: 'insensitive' } },
@@ -240,7 +253,7 @@ describe('TutorDirectoryService', () => {
         minimumRating: 4,
         subject: 'Mathematics',
       }),
-    ).resolves.toEqual([]);
+    ).resolves.toMatchObject({ items: [], total: 0, totalPages: 0 });
 
     const call = getSearchCall(prisma);
     expect(call.where).toMatchObject({
@@ -282,6 +295,25 @@ describe('TutorDirectoryService', () => {
       },
     });
     expect(availability.where.startAtUtc.gt).toBeInstanceOf(Date);
+  });
+
+  it('applies page bounds to the query and returns pagination metadata', async () => {
+    const prisma = createPrisma();
+    prisma.teachingListing.count.mockResolvedValue(12);
+    prisma.teachingListing.findMany.mockResolvedValue([]);
+    const service = new TutorsService(prisma as unknown as PrismaService);
+
+    await expect(service.searchPublicTutors({ page: 3, pageSize: 5 })).resolves.toEqual({
+      items: [],
+      page: 3,
+      pageSize: 5,
+      total: 12,
+      totalPages: 3,
+    });
+    expect(getSearchCall(prisma)).toMatchObject({ skip: 10, take: 5 });
+    expect(prisma.teachingListing.count).toHaveBeenCalledWith({
+      where: getSearchCall(prisma).where,
+    });
   });
 
   it('returns a public Tutor detail with zero or more published listings only', async () => {
@@ -348,7 +380,10 @@ describe('TutorDirectoryService', () => {
       prisma.teachingListing.findMany.mockResolvedValue([unavailable, publicSearchListing()]);
       const service = new TutorsService(prisma as unknown as PrismaService);
 
-      await expect(service.searchPublicTutors({})).resolves.toHaveLength(1);
+      const result = await service.searchPublicTutors({});
+      expect(result.items).toEqual(
+        expect.arrayContaining([expect.objectContaining({ tutorId: TUTOR_ID })]),
+      );
       expect(warn).toHaveBeenCalledWith(expect.stringContaining(LISTING_ID));
     },
   );

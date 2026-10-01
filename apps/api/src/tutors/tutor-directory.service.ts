@@ -9,6 +9,8 @@ import {
 import { PrismaService } from '@/database/prisma.service';
 import { BookingStatus, ListingPublicationStatus, Prisma } from '@/generated/prisma/client';
 import { isPublicTutorVerificationStatus, publicTutorWhere } from '@/tutors/public-tutor-access';
+import { DEFAULT_TUTOR_SEARCH_PAGE, DEFAULT_TUTOR_SEARCH_PAGE_SIZE } from '@/tutors/tutors.dto';
+
 import type { PublicTutorVerificationStatus } from '@/tutors/public-tutor-access';
 import type {
   GradeLevelCatalogResponseDto,
@@ -16,6 +18,7 @@ import type {
   PublicTutorDetailResponseDto,
   SubjectCatalogResponseDto,
   TutorSearchQueryDto,
+  TutorSearchResponseDto,
   TutorSearchResultDto,
 } from '@/tutors/tutors.dto';
 
@@ -123,7 +126,7 @@ export class TutorDirectoryService {
 
   constructor(private readonly prisma: PrismaService) {}
 
-  async searchPublicTutors(query: TutorSearchQueryDto): Promise<TutorSearchResultDto[]> {
+  async searchPublicTutors(query: TutorSearchQueryDto): Promise<TutorSearchResponseDto> {
     const [subject, gradeLevel] = await Promise.all([
       query.subject === undefined
         ? Promise.resolve(null)
@@ -158,14 +161,21 @@ export class TutorDirectoryService {
           : { ratingAverage: { gte: query.minimumRating } }),
       },
     };
+    const page = query.page ?? DEFAULT_TUTOR_SEARCH_PAGE;
+    const pageSize = query.pageSize ?? DEFAULT_TUTOR_SEARCH_PAGE_SIZE;
     const now = new Date();
-    const listings = await this.prisma.teachingListing.findMany({
-      orderBy: [{ publishedAt: 'desc' }, { id: 'asc' }],
-      select: publicSearchSelect(now),
-      where,
-    });
+    const [listings, total] = await Promise.all([
+      this.prisma.teachingListing.findMany({
+        orderBy: [{ publishedAt: 'desc' }, { id: 'asc' }],
+        select: publicSearchSelect(now),
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+        where,
+      }),
+      this.prisma.teachingListing.count({ where }),
+    ]);
 
-    return listings.flatMap((listing) => {
+    const items = listings.flatMap((listing) => {
       const status = listing.tutorProfile.verificationStatus;
       if (!isPublicTutorVerificationStatus(status)) {
         this.logger.warn(
@@ -177,6 +187,13 @@ export class TutorDirectoryService {
       return [mapPublicSearchListing(listing, status)];
     });
 
+    return {
+      items,
+      page,
+      pageSize,
+      total,
+      totalPages: Math.ceil(total / pageSize),
+    };
   }
 
   async getPublicTutor(tutorId: string): Promise<PublicTutorDetailResponseDto> {

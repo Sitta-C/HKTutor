@@ -3,6 +3,7 @@ import { Transform, Type } from 'class-transformer';
 import {
   IsDate,
   IsEnum,
+  IsInt,
   IsNumber,
   IsOptional,
   IsPositive,
@@ -29,6 +30,10 @@ const transformOptionalNumber = ({ value }: TransformFnParams): unknown => {
   if (typeof value === 'string' && value.trim() === '') return Number.NaN;
   return typeof value === 'number' ? value : Number(value);
 };
+
+export const DEFAULT_TUTOR_SEARCH_PAGE = 1;
+export const DEFAULT_TUTOR_SEARCH_PAGE_SIZE = 10;
+export const MAX_TUTOR_SEARCH_PAGE_SIZE = 50;
 
 //Listing
 export class ListingQueryDto {
@@ -92,6 +97,26 @@ export class TutorSearchQueryDto {
   @Min(1)
   @Max(5)
   minimumRating?: number;
+
+  @ApiPropertyOptional({ default: DEFAULT_TUTOR_SEARCH_PAGE, example: 1, minimum: 1 })
+  @IsOptional()
+  @Transform(transformOptionalNumber)
+  @IsInt()
+  @Min(1)
+  page?: number;
+
+  @ApiPropertyOptional({
+    default: DEFAULT_TUTOR_SEARCH_PAGE_SIZE,
+    example: DEFAULT_TUTOR_SEARCH_PAGE_SIZE,
+    maximum: MAX_TUTOR_SEARCH_PAGE_SIZE,
+    minimum: 1,
+  })
+  @IsOptional()
+  @Transform(transformOptionalNumber)
+  @IsInt()
+  @Min(1)
+  @Max(MAX_TUTOR_SEARCH_PAGE_SIZE)
+  pageSize?: number;
 }
 
 class SubjectOptionResponseDto {
@@ -183,6 +208,23 @@ export class TutorSearchResultDto {
     type: String,
   })
   nextAvailableAt!: Date | null;
+}
+
+export class TutorSearchResponseDto {
+  @ApiProperty({ type: [TutorSearchResultDto] })
+  items!: TutorSearchResultDto[];
+
+  @ApiProperty({ example: 1, minimum: 1 })
+  page!: number;
+
+  @ApiProperty({ example: DEFAULT_TUTOR_SEARCH_PAGE_SIZE, minimum: 1 })
+  pageSize!: number;
+
+  @ApiProperty({ example: 24, minimum: 0 })
+  total!: number;
+
+  @ApiProperty({ example: 3, minimum: 0 })
+  totalPages!: number;
 }
 
 export class PublicTutorProfileDto {

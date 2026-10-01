@@ -40,6 +40,7 @@ import {
   SubjectCatalogItemDto,
   SubjectCatalogResponseDto,
   TutorSearchQueryDto,
+  TutorSearchResponseDto,
   TutorSearchResultDto,
 } from '@/tutors/tutors.dto';
 
@@ -92,6 +93,7 @@ export function TutorsPublicControllerDoc(): ClassDecorator {
       PublicTutorDetailResponseDto,
       PublicTutorProfileDto,
       TutorSearchQueryDto,
+      TutorSearchResponseDto,
       TutorSearchResultDto,
     ),
   );
@@ -145,9 +147,23 @@ export function SearchPublicTutorsDoc(): MethodDecorator {
       required: false,
       type: Number,
     }),
+    ApiQuery({
+      description: 'One-based result page',
+      example: 1,
+      name: 'page',
+      required: false,
+      type: Number,
+    }),
+    ApiQuery({
+      description: 'Results per page, up to 50',
+      example: 10,
+      name: 'pageSize',
+      required: false,
+      type: Number,
+    }),
     ApiOkResponse({
-      description: 'Matching public listings, or an empty array when there are no matches',
-      type: [TutorSearchResultDto],
+      description: 'Paginated public listings, with empty items when there are no matches',
+      type: TutorSearchResponseDto,
     }),
     ApiBadRequestResponse({
       description: 'A numeric filter is invalid or subject/grade is not an active catalog value',

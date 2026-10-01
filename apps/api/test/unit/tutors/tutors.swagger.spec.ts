@@ -7,9 +7,11 @@ import { JWT_BEARER_AUTH } from '@/auth/auth.swagger';
 import { ResourceOwnershipGuard } from '@/auth/ownership.guard';
 import { RolesGuard } from '@/auth/roles.guard';
 import { CatalogController } from '@/tutors/catalog.controller';
+import { TutorAvailabilityService } from '@/tutors/tutor-availability.service';
+import { TutorDirectoryService } from '@/tutors/tutor-directory.service';
+import { TutorListingsService } from '@/tutors/tutor-listings.service';
 import { TutorsPrivateController } from '@/tutors/tutors-private.controller';
 import { TutorsPublicController } from '@/tutors/tutors-public.controller';
-import { TutorsService } from '@/tutors/tutors.service';
 
 import type { INestApplication } from '@nestjs/common';
 import type {
@@ -26,7 +28,11 @@ describe('tutor Swagger contract', () => {
   beforeAll(async () => {
     const moduleFixture = await Test.createTestingModule({
       controllers: [CatalogController, TutorsPrivateController, TutorsPublicController],
-      providers: [{ provide: TutorsService, useValue: {} }],
+      providers: [
+        { provide: TutorAvailabilityService, useValue: {} },
+        { provide: TutorDirectoryService, useValue: {} },
+        { provide: TutorListingsService, useValue: {} },
+      ],
     })
       .overrideGuard(JwtAuthGuard)
       .useValue({ canActivate: () => true })
@@ -195,6 +201,8 @@ describe('tutor Swagger contract', () => {
         expect.objectContaining({ in: 'query', name: 'grade', required: false }),
         expect.objectContaining({ in: 'query', name: 'maxPrice', required: false }),
         expect.objectContaining({ in: 'query', name: 'minimumRating', required: false }),
+        expect.objectContaining({ in: 'query', name: 'page', required: false }),
+        expect.objectContaining({ in: 'query', name: 'pageSize', required: false }),
       ]),
     );
     expect(search.responses).toHaveProperty('200');
@@ -203,10 +211,14 @@ describe('tutor Swagger contract', () => {
     const response = search.responses['200'] as {
       content: { 'application/json': { schema: SchemaObject } };
     };
-    expect(response.content['application/json'].schema).toMatchObject({
-      items: { $ref: '#/components/schemas/TutorSearchResultDto' },
-      type: 'array',
+    expect(response.content['application/json'].schema).toEqual({
+      $ref: '#/components/schemas/TutorSearchResponseDto',
     });
+
+    const responseSchema = document.components?.schemas?.['TutorSearchResponseDto'] as SchemaObject;
+    expect(responseSchema.required).toEqual(
+      expect.arrayContaining(['items', 'page', 'pageSize', 'total', 'totalPages']),
+    );
 
     const resultSchema = document.components?.schemas?.['TutorSearchResultDto'] as SchemaObject;
     expect(resultSchema.required).toEqual(

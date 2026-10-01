@@ -99,12 +99,16 @@ describe('tutor listing DTOs', () => {
       grade: 'Grade 10',
       maxPrice: '500',
       minimumRating: '4.00',
+      page: '2',
+      pageSize: '20',
       subject: 'mathematics',
     });
 
     await expect(validate(dto)).resolves.toHaveLength(0);
     expect(dto.maxPrice).toBe(500);
     expect(dto.minimumRating).toBe(4);
+    expect(dto.page).toBe(2);
+    expect(dto.pageSize).toBe(20);
   });
 
   it.each([
@@ -114,6 +118,10 @@ describe('tutor listing DTOs', () => {
     ['non-numeric price', { maxPrice: 'not-a-number' }],
     ['infinite rating', { minimumRating: 'Infinity' }],
     ['blank price', { maxPrice: ' ' }],
+    ['page below one', { page: 0 }],
+    ['non-integer page', { page: 1.5 }],
+    ['page size above maximum', { pageSize: 51 }],
+    ['blank page size', { pageSize: ' ' }],
   ])('rejects invalid public search filter: %s', async (_label, override) => {
     const dto = plainToInstance(TutorSearchQueryDto, override);
 

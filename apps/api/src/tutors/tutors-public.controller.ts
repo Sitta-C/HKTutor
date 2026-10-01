@@ -8,7 +8,7 @@ import {
   AvailabilityQueryDto,
   PublicTutorDetailResponseDto,
   TutorSearchQueryDto,
-  TutorSearchResultDto,
+  TutorSearchResponseDto,
 } from '@/tutors/tutors.dto';
 import {
   GetPublicTutorDoc,
@@ -27,7 +27,7 @@ export class TutorsPublicController {
 
   @Get()
   @SearchPublicTutorsDoc()
-  search(@Query() query: TutorSearchQueryDto): Promise<TutorSearchResultDto[]> {
+  search(@Query() query: TutorSearchQueryDto): Promise<TutorSearchResponseDto> {
     return this.directory.searchPublicTutors(query);
   }
 
