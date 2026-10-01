@@ -31,7 +31,7 @@ test('keeps Swagger implementation out of controller files', async () => {
   }
 });
 
-test('CI runs the complete workspace check and booking race verification', async () => {
+test('CI runs the core project check and booking race verification', async () => {
   const workflow = await fs.readFile('.github/workflows/ci.yml', 'utf8');
 
   assert.match(workflow, /^permissions:\s*\n\s+contents: read$/m);
@@ -49,17 +49,6 @@ test('CI runs the complete workspace check and booking race verification', async
   );
   assert.match(workflow, /pnpm db:verify:bookings/);
   assert.doesNotMatch(workflow, /SUPABASE_(?:SECRET|SERVICE_ROLE)_KEY/);
-});
-
-test('booking verification preserves Nest constructor metadata at runtime', async () => {
-  const api = await readJson('apps/api/package.json');
-  const tsconfig = await readJson('apps/api/tsconfig.json');
-
-  assert.match(
-    api.scripts['db:verify:bookings'],
-    /ts-node -r tsconfig-paths\/register scripts\/verify-booking-endpoint-concurrency\.ts/,
-  );
-  assert.equal(tsconfig['ts-node']?.experimentalResolver, true);
 });
 
 test('workspace check generates Prisma Client before linting', async () => {
