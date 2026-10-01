@@ -31,5 +31,8 @@
     "noPropertyAccessFromIndexSignature": true,
     "strictBindCallApply": true,
     "noFallthroughCasesInSwitch": true
+  },
+  "ts-node": {
+    "experimentalResolver": true
   }
 }
