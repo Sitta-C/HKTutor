@@ -365,9 +365,15 @@ async function runTransactionalChecks(client) {
       [ids.secondBooking, ids.student, tutorProfileId, listingId, ids.bookingSlot],
       ['23505'],
     );
-    await client.query(`UPDATE "Booking" SET "status" = 'canceled' WHERE "id" = $1`, [
-      ids.firstBooking,
-    ]);
+    await client.query(
+      `UPDATE "Booking"
+       SET "status" = 'canceled',
+           "canceledById" = $2,
+           "cancellationReason" = 'Sprint 1 contract probe',
+           "canceledAt" = CURRENT_TIMESTAMP
+       WHERE "id" = $1`,
+      [ids.firstBooking, ids.student],
+    );
     await client.query(
       `INSERT INTO "Booking" (
         "id", "studentUserId", "tutorProfileId", "listingId", "slotId", "subtotalAmount",
@@ -382,9 +388,10 @@ async function runTransactionalChecks(client) {
       'booking amount balance',
       `INSERT INTO "Booking" (
         "id", "studentUserId", "tutorProfileId", "listingId", "slotId", "status",
-        "subtotalAmount", "discountAmount", "netAmount", "updatedAt"
+        "subtotalAmount", "discountAmount", "netAmount", "canceledById",
+        "cancellationReason", "canceledAt", "updatedAt"
        ) VALUES ('94000000-0000-4000-8000-000000000006', $1, $2, $3, $4, 'canceled',
-         500, 50, 451, CURRENT_TIMESTAMP)`,
+         500, 50, 451, $1, 'Amount balance probe', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
       [ids.student, tutorProfileId, listingId, ids.bookingSlot],
       ['23514'],
     );
@@ -393,9 +400,11 @@ async function runTransactionalChecks(client) {
       'booking numeric NaN',
       `INSERT INTO "Booking" (
         "id", "studentUserId", "tutorProfileId", "listingId", "slotId", "status",
-        "subtotalAmount", "discountAmount", "netAmount", "updatedAt"
+        "subtotalAmount", "discountAmount", "netAmount", "canceledById",
+        "cancellationReason", "canceledAt", "updatedAt"
        ) VALUES ('94000000-0000-4000-8000-000000000007', $1, $2, $3, $4, 'canceled',
-         'NaN'::numeric, 0, 'NaN'::numeric, CURRENT_TIMESTAMP)`,
+         'NaN'::numeric, 0, 'NaN'::numeric, $1, 'Numeric NaN probe', CURRENT_TIMESTAMP,
+         CURRENT_TIMESTAMP)`,
       [ids.student, tutorProfileId, listingId, ids.bookingSlot],
       ['23514'],
     );
@@ -404,9 +413,10 @@ async function runTransactionalChecks(client) {
       'booking currency remains THB',
       `INSERT INTO "Booking" (
         "id", "studentUserId", "tutorProfileId", "listingId", "slotId", "status",
-        "subtotalAmount", "discountAmount", "netAmount", "currency", "updatedAt"
+        "subtotalAmount", "discountAmount", "netAmount", "currency", "canceledById",
+        "cancellationReason", "canceledAt", "updatedAt"
        ) VALUES ('94000000-0000-4000-8000-000000000008', $1, $2, $3, $4, 'canceled',
-         500, 50, 450, 'USD', CURRENT_TIMESTAMP)`,
+         500, 50, 450, 'USD', $1, 'Currency probe', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
       [ids.student, tutorProfileId, listingId, ids.bookingSlot],
       ['23514'],
     );

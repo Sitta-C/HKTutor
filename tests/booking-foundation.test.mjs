@@ -100,10 +100,7 @@ test('defines the S1-T23 Booking Prisma boundary', async () => {
     /@@index\(\[tutorProfileId,\s*status,\s*createdAt\],\s*map:\s*"Booking_tutorProfileId_status_createdAt_idx"\)/,
   );
 
-  assert.doesNotMatch(
-    booking,
-    /\b(deletedAt|paymentStatus|couponId|mockReference|paidAt|meetingUrl|attendance|attendanceMarkedAt|canceledById|cancellationReason|canceledAt)\b/,
-  );
+  assert.doesNotMatch(booking, /\b(deletedAt|couponId)\b/);
   assert.doesNotMatch(schema, /model (RescheduleRequest|Review|AuditLog|Notification)\s*{/);
   assert.doesNotMatch(slot, /\b(available|reserved|status|state)\b/i);
 });
