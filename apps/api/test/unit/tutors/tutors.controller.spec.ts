@@ -8,13 +8,15 @@ import { TutorsPublicController } from '@/tutors/tutors-public.controller';
 
 import type { AuthenticatedUser } from '@/auth/auth.guard';
 import type { OwnershipRule } from '@/auth/ownership.decorator';
+import type { TutorAvailabilityService } from '@/tutors/tutor-availability.service';
+import type { TutorDirectoryService } from '@/tutors/tutor-directory.service';
+import type { TutorListingsService } from '@/tutors/tutor-listings.service';
 import type {
   AvailabilityPostRequestDto,
   AvailabilityPrivateResponseDto,
   AvailabilityPublicResponseDto,
   ListingResponseDto,
 } from '@/tutors/tutors.dto';
-import type { TutorsService } from '@/tutors/tutors.service';
 
 const USER_ID = '20000000-0000-4000-8000-000000000001';
 const LISTING_ID = '10000000-0000-4000-8000-000000000001';
@@ -41,7 +43,10 @@ function createController() {
   };
 
   return {
-    controller: new TutorsPrivateController(service as unknown as TutorsService),
+    controller: new TutorsPrivateController(
+      service as unknown as TutorListingsService,
+      service as unknown as TutorAvailabilityService,
+    ),
     service,
   };
 }
@@ -175,7 +180,10 @@ describe('TutorsPublicController', () => {
 
   it('loads public availability for the requested tutor', async () => {
     const service = { getAvailabilityPublic: jest.fn() };
-    const controller = new TutorsPublicController(service as unknown as TutorsService);
+    const controller = new TutorsPublicController(
+      service as unknown as TutorDirectoryService,
+      service as unknown as TutorAvailabilityService,
+    );
     const query = { from: new Date('2026-10-17T00:00:00.000Z') };
     const slots = [{ id: SLOT_ID }] as AvailabilityPublicResponseDto[];
     service.getAvailabilityPublic.mockResolvedValue(slots);

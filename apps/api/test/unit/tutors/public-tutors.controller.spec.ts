@@ -3,7 +3,8 @@ import { GUARDS_METADATA, PATH_METADATA } from '@nestjs/common/constants';
 import { CatalogController } from '@/tutors/catalog.controller';
 import { TutorsPublicController } from '@/tutors/tutors-public.controller';
 
-import type { TutorsService } from '@/tutors/tutors.service';
+import type { TutorAvailabilityService } from '@/tutors/tutor-availability.service';
+import type { TutorDirectoryService } from '@/tutors/tutor-directory.service';
 
 describe('public Tutor controllers', () => {
   it('are plain public controllers without authentication guards', () => {
@@ -18,7 +19,10 @@ describe('public Tutor controllers', () => {
       getPublicTutor: jest.fn(),
       searchPublicTutors: jest.fn(),
     };
-    const controller = new TutorsPublicController(service as unknown as TutorsService);
+    const controller = new TutorsPublicController(
+      service as unknown as TutorDirectoryService,
+      {} as TutorAvailabilityService,
+    );
     const query = { maxPrice: 500 };
     const results = [{ listingId: 'listing', tutorId: 'tutor' }];
     const detail = { listings: [], tutor: { tutorId: 'tutor' } };
@@ -36,7 +40,7 @@ describe('public Tutor controllers', () => {
       getActiveGradeLevels: jest.fn().mockResolvedValue({ items: [] }),
       getActiveSubjects: jest.fn().mockResolvedValue({ items: [] }),
     };
-    const controller = new CatalogController(service as unknown as TutorsService);
+    const controller = new CatalogController(service as unknown as TutorDirectoryService);
 
     await expect(controller.getSubjects()).resolves.toEqual({ items: [] });
     await expect(controller.getGradeLevels()).resolves.toEqual({ items: [] });

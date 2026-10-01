@@ -25,9 +25,11 @@ import {
 import { ProfilesController } from '@/profiles/profiles.controller';
 import { ProfilesService } from '@/profiles/profiles.service';
 import { CatalogController } from '@/tutors/catalog.controller';
+import { TutorAvailabilityService } from '@/tutors/tutor-availability.service';
+import { TutorDirectoryService } from '@/tutors/tutor-directory.service';
+import { TutorListingsService } from '@/tutors/tutor-listings.service';
 import { TutorsPrivateController } from '@/tutors/tutors-private.controller';
 import { TutorsPublicController } from '@/tutors/tutors-public.controller';
-import { TutorsService } from '@/tutors/tutors.service';
 
 import type { AuthenticatedRequest, AuthenticatedUser } from '@/auth/auth.guard';
 import type { ExecutionContext, INestApplication } from '@nestjs/common';
@@ -113,7 +115,9 @@ describe('End-to-End User Flow Verification (Student & Tutor)', () => {
         ResourceOwnershipGuard,
         { provide: BookingsService, useValue: bookingsService },
         { provide: ProfilesService, useValue: profilesService },
-        { provide: TutorsService, useValue: tutorsService },
+        { provide: TutorAvailabilityService, useValue: tutorsService },
+        { provide: TutorDirectoryService, useValue: tutorsService },
+        { provide: TutorListingsService, useValue: tutorsService },
         { provide: AuthConfigService, useValue: authConfig },
         { provide: PrismaService, useValue: prismaMock },
         { provide: AuthService, useValue: authService },

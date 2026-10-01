@@ -19,6 +19,8 @@ import { ResourceOwnershipGuard } from '@/auth/ownership.guard';
 import { Roles } from '@/auth/roles.decorator';
 import { RolesGuard } from '@/auth/roles.guard';
 import { Role } from '@/generated/prisma/client';
+import { TutorAvailabilityService } from '@/tutors/tutor-availability.service';
+import { TutorListingsService } from '@/tutors/tutor-listings.service';
 import {
   AvailabilityPostRequestDto,
   AvailabilityPostResponseDto,
@@ -30,7 +32,6 @@ import {
   ListingResponseDto,
   ListingStatusRequestDto,
 } from '@/tutors/tutors.dto';
-import { TutorsService } from '@/tutors/tutors.service';
 import {
   DeleteAvailabilityDoc,
   GetMyAvailabilityDoc,
@@ -51,7 +52,10 @@ import type { AuthenticatedUser } from '@/auth/auth.guard';
 @Roles(Role.TUTOR)
 @Controller('tutors/me')
 export class TutorsPrivateController {
-  constructor(private readonly tutors: TutorsService) {}
+  constructor(
+    private readonly listings: TutorListingsService,
+    private readonly availability: TutorAvailabilityService,
+  ) {}
 
   @Get('listings')
   @HttpCode(HttpStatus.OK)
@@ -60,7 +64,7 @@ export class TutorsPrivateController {
     @CurrentUser() user: AuthenticatedUser,
     @Query() query: ListingQueryDto,
   ): Promise<ListingResponseDto[]> {
-    return this.tutors.getListings(user.id, query);
+    return this.listings.getListings(user.id, query);
   }
 
   @Get('listings/:listingId')
@@ -74,7 +78,7 @@ export class TutorsPrivateController {
     @CurrentUser() user: AuthenticatedUser,
     @Param('listingId') listingId: string,
   ): Promise<ListingResponseDto> {
-    return this.tutors.getListing(user.id, listingId);
+    return this.listings.getListing(user.id, listingId);
   }
 
   @Post('listings')
@@ -84,7 +88,7 @@ export class TutorsPrivateController {
     @CurrentUser() user: AuthenticatedUser,
     @Body() dto: ListingPostRequestDto,
   ): Promise<ListingResponseDto> {
-    return this.tutors.postListing(user.id, dto);
+    return this.listings.postListing(user.id, dto);
   }
 
   @Patch('listings/:listingId')
@@ -99,7 +103,7 @@ export class TutorsPrivateController {
     @Param('listingId') listingId: string,
     @Body() dto: ListingPatchRequestDto,
   ): Promise<ListingResponseDto> {
-    return this.tutors.patchListing(user.id, listingId, dto);
+    return this.listings.patchListing(user.id, listingId, dto);
   }
 
   @Patch('listings/:listingId/status')
@@ -114,7 +118,7 @@ export class TutorsPrivateController {
     @Param('listingId') listingId: string,
     @Body() dto: ListingStatusRequestDto,
   ): Promise<ListingResponseDto> {
-    return this.tutors.updateListingStatus(user.id, listingId, dto.publicationStatus);
+    return this.listings.updateListingStatus(user.id, listingId, dto.publicationStatus);
   }
 
   @Post('listings/:listingId/publish')
@@ -128,7 +132,7 @@ export class TutorsPrivateController {
     @CurrentUser() user: AuthenticatedUser,
     @Param('listingId') listingId: string,
   ): Promise<ListingResponseDto> {
-    return this.tutors.postPublishListing(user.id, listingId);
+    return this.listings.postPublishListing(user.id, listingId);
   }
 
   @Get('availability')
@@ -138,7 +142,7 @@ export class TutorsPrivateController {
     @CurrentUser() user: AuthenticatedUser,
     @Query() query: AvailabilityQueryDto,
   ): Promise<AvailabilityPrivateResponseDto[]> {
-    return this.tutors.getAvailabilityPrivate(user.id, query);
+    return this.availability.getAvailabilityPrivate(user.id, query);
   }
 
   @Post('availability')
@@ -148,7 +152,7 @@ export class TutorsPrivateController {
     @CurrentUser() user: AuthenticatedUser,
     @Body() request: AvailabilityPostRequestDto,
   ): Promise<AvailabilityPostResponseDto> {
-    return this.tutors.postAvailability(user.id, request);
+    return this.availability.postAvailability(user.id, request);
   }
 
   @Delete('availability/:slotId')
@@ -162,6 +166,6 @@ export class TutorsPrivateController {
     @CurrentUser() user: AuthenticatedUser,
     @Param('slotId') slotId: string,
   ): Promise<void> {
-    return this.tutors.deleteAvailability(user.id, slotId);
+    return this.availability.deleteAvailability(user.id, slotId);
   }
 }

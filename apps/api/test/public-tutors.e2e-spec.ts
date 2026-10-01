@@ -4,8 +4,9 @@ import request from 'supertest';
 
 import { configureApplication } from '@/app.setup';
 import { CatalogController } from '@/tutors/catalog.controller';
+import { TutorAvailabilityService } from '@/tutors/tutor-availability.service';
+import { TutorDirectoryService } from '@/tutors/tutor-directory.service';
 import { TutorsPublicController } from '@/tutors/tutors-public.controller';
-import { TutorsService } from '@/tutors/tutors.service';
 
 import type { INestApplication } from '@nestjs/common';
 import type { TestingModule } from '@nestjs/testing';
@@ -26,7 +27,10 @@ describe('Public Tutor discovery APIs (e2e)', () => {
   beforeAll(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
       controllers: [CatalogController, TutorsPublicController],
-      providers: [{ provide: TutorsService, useValue: service }],
+      providers: [
+        { provide: TutorAvailabilityService, useValue: service },
+        { provide: TutorDirectoryService, useValue: service },
+      ],
     }).compile();
 
     app = moduleFixture.createNestApplication();

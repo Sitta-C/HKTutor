@@ -76,7 +76,9 @@ test('checks the tutor profile gate before loading listing edit dependencies', a
 test('uses one fail-closed tutor allowlist across publish, discovery, availability, and booking', async () => {
   const [
     tutorAccess,
-    tutorsService,
+    tutorDirectory,
+    tutorListings,
+    tutorAvailability,
     bookingService,
     searchPage,
     searchCopy,
@@ -84,7 +86,9 @@ test('uses one fail-closed tutor allowlist across publish, discovery, availabili
     listingEditor,
   ] = await Promise.all([
     read('apps/api/src/tutors/public-tutor-access.ts'),
-    read('apps/api/src/tutors/tutors.service.ts'),
+    read('apps/api/src/tutors/tutor-directory.service.ts'),
+    read('apps/api/src/tutors/tutor-listings.service.ts'),
+    read('apps/api/src/tutors/tutor-availability.service.ts'),
     read('apps/api/src/bookings/bookings.service.ts'),
     read('apps/web/src/components/tutors/tutor-search-page.tsx'),
     read('apps/web/src/components/tutors/tutor-search-copy.ts'),
@@ -96,7 +100,9 @@ test('uses one fail-closed tutor allowlist across publish, discovery, availabili
   assert.match(tutorAccess, /accountStatus: AccountStatus\.ACTIVE/);
   assert.match(tutorAccess, /deletedAt: null/);
   assert.match(tutorAccess, /role: Role\.TUTOR/);
-  assert.match(tutorsService, /where: \{ \.\.\.publicTutorWhere, userId \}/);
+  for (const tutorService of [tutorDirectory, tutorListings, tutorAvailability]) {
+    assert.match(tutorService, /where: \{ \.\.\.publicTutorWhere, userId/);
+  }
   assert.match(bookingService, /findFirst\(\{\s*where: \{ \.\.\.publicTutorWhere, userId:/);
   assert.doesNotMatch(bookingService, /verificationStatus === TutorVerificationStatus\.REJECTED/);
   assert.match(searchPage, /text\.verifiedOnly/);

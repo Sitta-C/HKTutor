@@ -9,8 +9,9 @@ import { PrismaService } from '@/database/prisma.service';
 import { Role } from '@/generated/prisma/client';
 import { ProfilesController } from '@/profiles/profiles.controller';
 import { ProfilesService } from '@/profiles/profiles.service';
+import { TutorAvailabilityService } from '@/tutors/tutor-availability.service';
+import { TutorListingsService } from '@/tutors/tutor-listings.service';
 import { TutorsPrivateController } from '@/tutors/tutors-private.controller';
-import { TutorsService } from '@/tutors/tutors.service';
 
 import type { AuthenticatedRequest } from '@/auth/auth.guard';
 import type { ExecutionContext, INestApplication } from '@nestjs/common';
@@ -75,7 +76,8 @@ describe('Tutor and profile contracts (e2e)', () => {
       providers: [
         ProfilesService,
         ResourceOwnershipGuard,
-        TutorsService,
+        TutorAvailabilityService,
+        TutorListingsService,
         { provide: PrismaService, useValue: prisma },
       ],
     })

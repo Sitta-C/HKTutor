@@ -5,7 +5,7 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common';
 
-import { TutorsService } from '@/tutors/tutors.service';
+import { TutorDirectoryService as TutorsService } from '@/tutors/tutor-directory.service';
 
 import type { PrismaService } from '@/database/prisma.service';
 
@@ -129,7 +129,7 @@ function expectNoPrivateFields(value: unknown): void {
   }
 }
 
-describe('TutorsService public discovery APIs', () => {
+describe('TutorDirectoryService', () => {
   it('returns only public fields for published search results', async () => {
     const prisma = createPrisma();
     prisma.teachingListing.findMany.mockResolvedValue([publicSearchListing()]);

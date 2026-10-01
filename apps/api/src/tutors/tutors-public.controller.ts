@@ -1,6 +1,8 @@
 import { Controller, Get, HttpCode, HttpStatus, Param, Query } from '@nestjs/common';
 
 import { UuidParamPipe } from '@/common/pipes/uuid-param.pipe';
+import { TutorAvailabilityService } from '@/tutors/tutor-availability.service';
+import { TutorDirectoryService } from '@/tutors/tutor-directory.service';
 import {
   AvailabilityPublicResponseDto,
   AvailabilityQueryDto,
@@ -8,7 +10,6 @@ import {
   TutorSearchQueryDto,
   TutorSearchResultDto,
 } from '@/tutors/tutors.dto';
-import { TutorsService } from '@/tutors/tutors.service';
 import {
   GetPublicTutorDoc,
   GetTutorAvailabilityDoc,
@@ -19,12 +20,15 @@ import {
 @TutorsPublicControllerDoc()
 @Controller('tutors')
 export class TutorsPublicController {
-  constructor(private readonly tutors: TutorsService) {}
+  constructor(
+    private readonly directory: TutorDirectoryService,
+    private readonly availability: TutorAvailabilityService,
+  ) {}
 
   @Get()
   @SearchPublicTutorsDoc()
   search(@Query() query: TutorSearchQueryDto): Promise<TutorSearchResultDto[]> {
-    return this.tutors.searchPublicTutors(query);
+    return this.directory.searchPublicTutors(query);
   }
 
   @Get(':tutorId')
@@ -32,7 +36,7 @@ export class TutorsPublicController {
   getPublicTutor(
     @Param('tutorId', UuidParamPipe) tutorId: string,
   ): Promise<PublicTutorDetailResponseDto> {
-    return this.tutors.getPublicTutor(tutorId);
+    return this.directory.getPublicTutor(tutorId);
   }
 
   @Get(':tutorId/availability')
@@ -42,6 +46,6 @@ export class TutorsPublicController {
     @Param('tutorId', UuidParamPipe) tutorId: string,
     @Query() query: AvailabilityQueryDto,
   ): Promise<AvailabilityPublicResponseDto[]> {
-    return this.tutors.getAvailabilityPublic(tutorId, query);
+    return this.availability.getAvailabilityPublic(tutorId, query);
   }
 }

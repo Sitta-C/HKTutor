@@ -5,7 +5,8 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 
-import { TutorsService } from '@/tutors/tutors.service';
+import { TutorAvailabilityService } from '@/tutors/tutor-availability.service';
+import { TutorListingsService as TutorsService } from '@/tutors/tutor-listings.service';
 
 import type { PrismaService } from '@/database/prisma.service';
 
@@ -84,7 +85,7 @@ function recordNotFoundError() {
   return Object.assign(new Error('Record not found'), { code: 'P2025' });
 }
 
-describe('TutorsService', () => {
+describe('Tutor listing and availability services', () => {
   afterEach(() => {
     jest.useRealTimers();
   });
@@ -392,6 +393,7 @@ describe('TutorsService', () => {
   });
 
   describe('getAvailabilityPrivate', () => {
+    const TutorsService = TutorAvailabilityService;
     it('queries active bookings only and returns slots in ascending order with derived state', async () => {
       const prisma = createPrisma();
       const bookingId = '60000000-0000-4000-8000-000000000001';
@@ -459,6 +461,7 @@ describe('TutorsService', () => {
   });
 
   describe('getAvailabilityPublic', () => {
+    const TutorsService = TutorAvailabilityService;
     it('returns only future open slots for a verified tutor in ascending order', async () => {
       jest.useFakeTimers().setSystemTime(new Date('2026-10-17T07:00:00.000Z'));
       const prisma = createPrisma();
@@ -509,6 +512,7 @@ describe('TutorsService', () => {
   });
 
   describe('postAvailability', () => {
+    const TutorsService = TutorAvailabilityService;
     it('allows adjacent slots and ignores soft-deleted slots in the overlap check', async () => {
       const adjacentEnd = new Date('2026-10-17T10:00:00.000Z');
       const prisma = createPrisma();
@@ -592,6 +596,7 @@ describe('TutorsService', () => {
   });
 
   describe('deleteAvailability', () => {
+    const TutorsService = TutorAvailabilityService;
     it('returns SLOT_NOT_FOUND for a missing, deleted, or cross-owner slot', async () => {
       const prisma = createPrisma();
       prisma.availabilitySlot.findFirst.mockResolvedValue(null);

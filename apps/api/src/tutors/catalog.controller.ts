@@ -1,7 +1,7 @@
 import { Controller, Get } from '@nestjs/common';
 
+import { TutorDirectoryService } from '@/tutors/tutor-directory.service';
 import { GradeLevelCatalogResponseDto, SubjectCatalogResponseDto } from '@/tutors/tutors.dto';
-import { TutorsService } from '@/tutors/tutors.service';
 import {
   CatalogControllerDoc,
   GetGradeLevelCatalogDoc,
@@ -11,17 +11,17 @@ import {
 @CatalogControllerDoc()
 @Controller()
 export class CatalogController {
-  constructor(private readonly tutors: TutorsService) {}
+  constructor(private readonly directory: TutorDirectoryService) {}
 
   @Get('subjects')
   @GetSubjectCatalogDoc()
   getSubjects(): Promise<SubjectCatalogResponseDto> {
-    return this.tutors.getActiveSubjects();
+    return this.directory.getActiveSubjects();
   }
 
   @Get('grade-levels')
   @GetGradeLevelCatalogDoc()
   getGradeLevels(): Promise<GradeLevelCatalogResponseDto> {
-    return this.tutors.getActiveGradeLevels();
+    return this.directory.getActiveGradeLevels();
   }
 }
