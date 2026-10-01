@@ -116,8 +116,9 @@ The verifier refuses non-loopback hosts and database names that do not begin wit
 pnpm check
 ```
 
-This generates Prisma Client, runs workspace contract tests, formatting checks, lint, unit tests,
-and production builds. It does not apply migrations, seed a database, or send email.
+This generates Prisma Client, runs formatting checks, lint, unit tests, and production builds. It
+does not apply migrations, seed a database, or send email. The repository contract checks are kept
+as an optional maintenance command and can be run with `pnpm verify:workspace`.
 
 Docker images can be validated with `docker compose config` after required environment values are
 set. Compose publishes Next.js on port 3000; the app forwards same-origin `/api/v1` requests to the
