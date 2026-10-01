@@ -1,8 +1,27 @@
+import {
+  NotebookPage,
+  PaperCard,
+  StatusBadge,
+  StickyNote,
+  WashiTape,
+  notebookButtonClass,
+  notebookInputClass,
+} from '@/components/ui/notebook';
+
 import type { ListingPublicationStatus } from '@/lib/api/types';
 import type { ReactNode } from 'react';
 
-export const listingFieldClass =
-  'listing-field-control mt-2 min-h-[2.9rem] w-full rounded-[0.9rem] border-[1.5px] border-[#d9d2c6] bg-white px-4 py-3 text-[0.9rem] text-[#1a1916] outline-none transition placeholder:text-[#8a857b] hover:border-[#b9b3a8] focus:border-[#d18b43] focus:ring-4 focus:ring-[#d18b43]/10 disabled:cursor-not-allowed disabled:bg-[#f1eee7]';
+export const listingFieldClass = notebookInputClass({
+  className:
+    'mt-2 focus:border-tutor focus:ring-sticky-blue/70 aria-invalid:border-red-400 aria-invalid:ring-4 aria-invalid:ring-red-100 disabled:cursor-not-allowed disabled:bg-paper-deep disabled:text-notebook-muted',
+});
+
+export function listingButtonClass(
+  tone: 'primary' | 'secondary' | 'danger' = 'secondary',
+  className?: string,
+) {
+  return notebookButtonClass({ tone, className });
+}
 
 export function ListingIcon({
   name,
@@ -78,20 +97,22 @@ export function ListingMetric({
   value: string;
 }) {
   return (
-    <div className="listing-metric dash-card flex min-h-[7rem] items-start gap-3 rounded-[1.15rem] border-0 bg-white p-4 sm:p-5">
-      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[0.55rem] bg-[var(--tutor-softer)] text-[var(--tutor-deep)]">
+    <PaperCard className="group relative flex min-h-32 items-start gap-3 overflow-hidden p-4 transition hover:-translate-y-0.5 hover:shadow-paper sm:p-5">
+      <WashiTape tone="blue" className="-right-5 -top-1 rotate-12 opacity-70" />
+      <span className="relative z-10 flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-sticky-blue text-tutor-deep">
         <ListingIcon name={icon} />
       </span>
-      <div className="min-w-0">
-        <p className="text-[0.68rem] font-extrabold uppercase tracking-[0.13em] text-[var(--ink-3)]">
+      <div className="relative z-10 min-w-0">
+        <p className="text-[0.68rem] font-extrabold uppercase tracking-[0.13em] text-notebook-muted">
           {label}
         </p>
-        <p className="mt-1 truncate text-xl font-black tracking-[-0.03em] text-[var(--ink)]">
+        <p className="mt-1 [overflow-wrap:anywhere] text-xl font-black tracking-[-0.03em] text-notebook-ink">
           {value}
         </p>
-        <p className="mt-1 text-xs leading-5 text-[var(--ink-2)]">{detail}</p>
+        <p className="mt-1 text-xs leading-5 text-notebook-muted">{detail}</p>
       </div>
-    </div>
+      <span className="absolute -bottom-9 -right-8 h-24 w-24 rounded-full bg-sticky-blue/50 transition group-hover:scale-110" />
+    </PaperCard>
   );
 }
 
@@ -102,26 +123,30 @@ export function ListingStatusBadge({
   status: ListingPublicationStatus;
   labels: Record<ListingPublicationStatus, string>;
 }) {
-  const classes = {
-    DRAFT: 'border-[#d9d2c6] bg-[#f4f1eb] text-[#5e5a52]',
-    PUBLISHED: 'border-[#b8decf] bg-[#edf8f3] text-[#246b51]',
-    ARCHIVED: 'border-[#e7c9bf] bg-[#fbf0ec] text-[#9c5142]',
-  }[status];
+  const tone = {
+    DRAFT: 'neutral',
+    PUBLISHED: 'success',
+    ARCHIVED: 'danger',
+  } as const;
 
   return (
-    <span
-      className={`listing-status-badge inline-flex min-h-7 items-center gap-2 rounded-full border px-2.5 py-1 text-[0.7rem] font-extrabold tracking-[0.08em] ${classes}`}
-    >
+    <StatusBadge tone={tone[status]} className="min-h-7 shrink-0 gap-2 tracking-[0.08em]">
       <span className="h-1.5 w-1.5 rounded-full bg-current" aria-hidden="true" />
       {labels[status]}
-    </span>
+    </StatusBadge>
   );
 }
 
 export function ListingPageState({ children }: { children: ReactNode }) {
   return (
-    <div className="flex min-h-dvh items-center justify-center bg-[#f7f4ec] p-6 text-center text-sm font-semibold text-[#5e5a52]">
-      {children}
-    </div>
+    <NotebookPage className="flex items-center justify-center p-6">
+      <StickyNote tone="blue" className="min-w-64 px-8 py-7 text-center">
+        <WashiTape tone="blue" className="-top-2 left-1/2 -translate-x-1/2" />
+        <span className="mx-auto block h-7 w-7 animate-spin rounded-full border-2 border-tutor-deep border-t-transparent motion-reduce:animate-[spin_1.8s_linear_infinite]" />
+        <p className="mt-4 font-note text-xl font-semibold text-notebook-ink" role="status">
+          {children}
+        </p>
+      </StickyNote>
+    </NotebookPage>
   );
 }

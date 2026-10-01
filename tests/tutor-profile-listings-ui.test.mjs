@@ -41,6 +41,7 @@ test('uses detail, publish, archive, and restore listing APIs', async () => {
 
 test('keeps listing form feedback accessible and within the API contract', async () => {
   const editor = await read('apps/web/src/components/listings/tutor-listing-editor.tsx');
+  const model = await read('apps/web/src/components/listings/tutor-listing-editor-model.ts');
 
   assert.match(editor, /noValidate/);
   assert.match(editor, /aria-invalid=\{Boolean\(errors\./);
@@ -49,13 +50,18 @@ test('keeps listing form feedback accessible and within the API contract', async
   assert.match(editor, /descriptionLength < 20/);
   assert.match(editor, /role="alert"/);
   assert.match(editor, /role="status"/);
+  assert.match(editor, /profileImageUrl\?: string \| null/);
+  assert.match(editor, /<Image src={imageUrl}/);
+  assert.match(editor, /\[overflow-wrap:anywhere\]/);
+  assert.match(model, /`ประสบการณ์ \$\{years\} ปี`/);
 });
 
 test('keeps the new listing editor visible when the catalog dependency is unavailable', async () => {
   const editor = await read('apps/web/src/components/listings/tutor-listing-editor.tsx');
 
   assert.match(editor, /getListingCatalogs\(\)\.catch\(\(\) => null\)/);
-  assert.match(editor, /setProfile\(tutorProfile\)/);
+  assert.match(editor, /useProfileSession/);
+  assert.match(editor, /profileMode: 'required'/);
   assert.match(editor, /setCatalogError\(catalogs \? null : copy\.catalogUnavailable\)/);
   assert.match(editor, /const createBlocked = !isEditing && catalogUnavailable/);
   assert.match(editor, /disabled=\{catalogUnavailable\}/);

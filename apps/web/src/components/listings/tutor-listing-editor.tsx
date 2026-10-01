@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
@@ -9,9 +10,17 @@ import {
   ListingIcon,
   ListingPageState,
   ListingStatusBadge,
+  listingButtonClass,
   listingFieldClass,
 } from '@/components/listings/listing-ui';
-import { ApiError } from '@/lib/api/error';
+import {
+  emptyListingForm,
+  formatTutorExperience,
+  readListingEditorError,
+  validateListingForm,
+} from '@/components/listings/tutor-listing-editor-model';
+import { GraphPaper, PaperCard, StickyNote, WashiTape } from '@/components/ui/notebook';
+import { useNotebookToast } from '@/components/ui/notebook-toast';
 import {
   createTutorListing,
   getListingCatalogs,
@@ -20,60 +29,61 @@ import {
   updateTutorListing,
   updateTutorListingStatus,
 } from '@/lib/api/listings';
-import { getMyProfile } from '@/lib/api/profiles';
-import { useAuth } from '@/lib/auth-context';
 import { useLanguage } from '@/lib/i18n';
-import { resolveDashboardGate } from '@/lib/profile-navigation';
-import { withReturnTo } from '@/lib/return-to';
+import { getTutorProfile } from '@/lib/profile-navigation';
+import { useProfileSession } from '@/lib/use-profile-session';
 
+import type {
+  ListingFormData,
+  ListingFormErrors,
+} from '@/components/listings/tutor-listing-editor-model';
 import type {
   GradeLevelOption,
   ListingPublicationStatus,
   SaveTeachingListingPayload,
   SubjectOption,
   TeachingListing,
-  TutorProfile,
 } from '@/lib/api/types';
 import type { FormEvent } from 'react';
 
 interface TutorListingEditorProps {
   listingId?: string;
+  profileImageUrl?: string | null;
 }
 
-interface ListingFormData {
-  subjectId: string;
-  gradeLevelId: string;
-  pricePerHour: string;
-  description: string;
-}
-
-type FormErrors = Partial<Record<keyof ListingFormData, string>>;
-
-const emptyForm: ListingFormData = {
-  subjectId: '',
-  gradeLevelId: '',
-  pricePerHour: '',
-  description: '',
-};
-
-export default function TutorListingEditor({ listingId }: TutorListingEditorProps) {
-  const { isLoading: authLoading, logout, user } = useAuth();
+export default function TutorListingEditor({
+  listingId,
+  profileImageUrl = null,
+}: TutorListingEditorProps) {
+  const {
+    isLoading: sessionLoading,
+    logout,
+    profile: sessionProfile,
+    profileError,
+    profileUser,
+    user,
+  } = useProfileSession({
+    preserveReturnTo: true,
+    profileMode: 'required',
+    profileErrorMode: 'report',
+    requiredRole: 'TUTOR',
+  });
   const { language } = useLanguage();
+  const toast = useNotebookToast();
   const router = useRouter();
   const copy = language === 'th' ? thaiCopy : englishCopy;
-  const [form, setForm] = useState<ListingFormData>(emptyForm);
-  const [initialForm, setInitialForm] = useState<ListingFormData>(emptyForm);
+  const [form, setForm] = useState<ListingFormData>(emptyListingForm);
+  const [initialForm, setInitialForm] = useState<ListingFormData>(emptyListingForm);
   const [subjects, setSubjects] = useState<SubjectOption[]>([]);
   const [gradeLevels, setGradeLevels] = useState<GradeLevelOption[]>([]);
-  const [profile, setProfile] = useState<TutorProfile | null>(null);
   const [listing, setListing] = useState<TeachingListing | null>(null);
-  const [errors, setErrors] = useState<FormErrors>({});
+  const [errors, setErrors] = useState<ListingFormErrors>({});
   const [pageError, setPageError] = useState<string | null>(null);
   const [catalogError, setCatalogError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [submitAction, setSubmitAction] = useState<'save' | 'publish' | 'restore' | null>(null);
 
+  const profile = sessionProfile ? getTutorProfile(sessionProfile) : null;
   const isEditing = Boolean(listingId);
   const isVerified = profile?.verificationStatus === 'VERIFIED';
   const isArchived = listing?.publicationStatus === 'ARCHIVED';
@@ -82,41 +92,14 @@ export default function TutorListingEditor({ listingId }: TutorListingEditorProp
   const isDirty = JSON.stringify(form) !== JSON.stringify(initialForm);
 
   useEffect(() => {
-    if (authLoading) return;
-    if (!user) {
-      router.replace('/');
-      return;
-    }
-    if (user.role !== 'TUTOR') {
-      router.replace('/dashboard');
-      return;
-    }
+    if (sessionLoading || profileError || !user || user.role !== 'TUTOR' || !profile) return;
 
     let active = true;
-    const editorPath = listingId
-      ? `/dashboard/listings/${encodeURIComponent(listingId)}/edit`
-      : '/dashboard/listings/new';
-
-    getMyProfile()
-      .then(async (profileResult) => {
-        if (!active) return;
-        if (resolveDashboardGate(profileResult)) {
-          router.replace(withReturnTo('/onboarding/profile', editorPath));
-          return;
-        }
-        const tutorProfile =
-          profileResult.profile && 'verificationStatus' in profileResult.profile
-            ? profileResult.profile
-            : null;
-        if (!tutorProfile) {
-          router.replace(withReturnTo('/onboarding/profile', editorPath));
-          return;
-        }
-
-        const [catalogs, currentListing] = await Promise.all([
-          getListingCatalogs().catch(() => null),
-          listingId ? getTutorListing(listingId) : Promise.resolve(null),
-        ]);
+    Promise.all([
+      getListingCatalogs().catch(() => null),
+      listingId ? getTutorListing(listingId) : Promise.resolve(null),
+    ])
+      .then(([catalogs, currentListing]) => {
         if (!active) return;
 
         let subjectOptions = catalogs?.subjects ?? [];
@@ -133,7 +116,6 @@ export default function TutorListingEditor({ listingId }: TutorListingEditorProp
         setSubjects(subjectOptions);
         setGradeLevels(gradeOptions);
         setCatalogError(catalogs ? null : copy.catalogUnavailable);
-        setProfile(tutorProfile);
         setListing(currentListing);
 
         if (currentListing) {
@@ -149,12 +131,8 @@ export default function TutorListingEditor({ listingId }: TutorListingEditorProp
       })
       .catch((caught: unknown) => {
         if (!active) return;
-        if (caught instanceof ApiError && caught.status === 400) {
-          router.replace(withReturnTo('/onboarding/profile', editorPath));
-          return;
-        }
         setPageError(
-          readEditorError(caught, copy.loadError, listingId ? copy.notFound : undefined),
+          readListingEditorError(caught, copy.loadError, listingId ? copy.notFound : undefined),
         );
       })
       .finally(() => {
@@ -165,12 +143,13 @@ export default function TutorListingEditor({ listingId }: TutorListingEditorProp
       active = false;
     };
   }, [
-    authLoading,
     copy.catalogUnavailable,
     copy.loadError,
     copy.notFound,
     listingId,
-    router,
+    profile,
+    profileError,
+    sessionLoading,
     user,
   ]);
 
@@ -216,7 +195,6 @@ export default function TutorListingEditor({ listingId }: TutorListingEditorProp
   ) => {
     setForm((current) => ({ ...current, [key]: value }));
     setErrors((current) => ({ ...current, [key]: undefined }));
-    setSuccess(null);
   };
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
@@ -226,13 +204,12 @@ export default function TutorListingEditor({ listingId }: TutorListingEditorProp
 
   const saveListing = async (action: 'save' | 'publish') => {
     if (action === 'publish' && !isVerified) {
-      setPageError(copy.verificationError);
+      toast.error(copy.verificationError);
       return;
     }
-    const nextErrors = validateForm(form, copy);
+    const nextErrors = validateListingForm(form, copy);
     setErrors(nextErrors);
     setPageError(null);
-    setSuccess(null);
     if (Object.keys(nextErrors).length > 0) return;
 
     const payload: SaveTeachingListingPayload = {
@@ -258,17 +235,17 @@ export default function TutorListingEditor({ listingId }: TutorListingEditorProp
       }
 
       setInitialForm({ ...form, description: payload.description });
+      toast.success(copy.savedSuccess);
       if (!listingId || action === 'publish') {
         router.push('/dashboard/listings');
       } else {
         setForm((current) => ({ ...current, description: payload.description }));
-        setSuccess(copy.savedSuccess);
       }
     } catch (caught: unknown) {
       if (!listingId && savedListingId) {
         router.replace(`/dashboard/listings/${savedListingId}/edit`);
       }
-      setPageError(readEditorError(caught, copy.saveError, copy.notFound));
+      toast.error(readListingEditorError(caught, copy.saveError, copy.notFound));
     } finally {
       setSubmitAction(null);
     }
@@ -278,13 +255,12 @@ export default function TutorListingEditor({ listingId }: TutorListingEditorProp
     if (!listingId) return;
     setSubmitAction('restore');
     setPageError(null);
-    setSuccess(null);
     try {
       const restoredListing = await updateTutorListingStatus(listingId, 'DRAFT');
       setListing(restoredListing);
-      setSuccess(copy.restoredSuccess);
+      toast.success(copy.restoredSuccess);
     } catch (caught: unknown) {
-      setPageError(readEditorError(caught, copy.saveError, copy.notFound));
+      toast.error(readListingEditorError(caught, copy.saveError, copy.notFound));
     } finally {
       setSubmitAction(null);
     }
@@ -299,12 +275,15 @@ export default function TutorListingEditor({ listingId }: TutorListingEditorProp
     router.replace('/');
   };
 
-  if (authLoading || isLoading || !user) {
+  if (sessionLoading || !user) {
     return <ListingPageState>{copy.loading}</ListingPageState>;
   }
   if (user.role !== 'TUTOR') return null;
-  if (!profile) {
-    return <ListingPageState>{pageError ?? copy.loading}</ListingPageState>;
+  if (profileError || !profile || !profileUser) {
+    return <ListingPageState>{profileError ?? pageError ?? copy.loadError}</ListingPageState>;
+  }
+  if (isLoading) {
+    return <ListingPageState>{copy.loading}</ListingPageState>;
   }
 
   const status = listing?.publicationStatus ?? 'DRAFT';
@@ -313,27 +292,31 @@ export default function TutorListingEditor({ listingId }: TutorListingEditorProp
     PUBLISHED: copy.published,
     ARCHIVED: copy.archived,
   };
-  const profileDisplayName = profile.displayName.trim();
-  const shellUser = { ...user, displayName: profileDisplayName };
-
+  const profileDisplayName = profileUser.displayName?.trim() || profileUser.email;
   return (
-    <DashboardShell user={shellUser} onLogout={handleLogout}>
-      <div className="listing-page min-w-0 pb-12">
+    <DashboardShell user={profileUser} onLogout={handleLogout}>
+      <div className="min-w-0 pb-12">
         <Link
           href="/dashboard/listings"
-          className="listing-back-link inline-flex min-h-11 items-center gap-2 text-sm font-bold text-[var(--ink-2)] underline decoration-[var(--accent)] underline-offset-4"
+          className="mt-1 inline-flex min-h-11 items-center gap-2 text-sm font-bold text-notebook-muted underline decoration-margin-guide decoration-2 underline-offset-4 transition hover:text-notebook-ink"
         >
           <span aria-hidden="true">←</span> {copy.back}
         </Link>
-        <header className="dash-greeting listing-greeting listing-editor-greeting">
+        <header className="mb-6 mt-2">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
             <div>
-              <p className="dash-eyebrow">{copy.eyebrow}</p>
-              <h1>
+              <p className="font-note text-xl font-semibold leading-none text-amber-700 sm:text-2xl">
+                {copy.eyebrow}
+              </p>
+              <h1 className="mt-2 flex flex-wrap items-center gap-3 text-3xl font-bold tracking-[-0.045em] text-notebook-ink sm:text-4xl">
                 <span>{isEditing ? copy.editTitle : copy.createTitle}</span>
-                <span className="dash-role-chip dash-role-chip-tutor">{copy.tutorRole}</span>
+                <span className="inline-flex items-center rounded-full border border-blue-200 bg-sticky-blue px-2.5 py-1 text-xs font-bold tracking-wide text-tutor-deep">
+                  {copy.tutorRole}
+                </span>
               </h1>
-              <p>{copy.subtitle}</p>
+              <p className="mt-3 max-w-2xl text-sm leading-6 text-notebook-muted sm:text-base">
+                {copy.subtitle}
+              </p>
             </div>
             <ListingStatusBadge status={status} labels={statusLabels} />
           </div>
@@ -342,7 +325,7 @@ export default function TutorListingEditor({ listingId }: TutorListingEditorProp
         {pageError && (
           <div
             role="alert"
-            className="mt-6 rounded-md border border-[#e2b7ae] bg-[#fff4f1] p-4 text-sm text-[#a34334]"
+            className="mt-6 rounded-lg border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-700"
           >
             {pageError}
           </div>
@@ -350,253 +333,258 @@ export default function TutorListingEditor({ listingId }: TutorListingEditorProp
         {catalogError && (
           <div
             role="status"
-            className="mt-6 rounded-md border border-[#e5cfaa] bg-[#fff9eb] p-4 text-sm text-[#795727]"
+            className="mt-6 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800"
           >
             {catalogError}
           </div>
         )}
-        {success && (
-          <div
-            role="status"
-            className="mt-6 rounded-md border border-[#b8decf] bg-[#edf8f3] p-4 text-sm font-bold text-[#246b51]"
-          >
-            {success}
-          </div>
-        )}
 
         <div className="mt-6 grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1.45fr)_minmax(300px,.75fr)]">
-          <form
-            noValidate
-            onSubmit={handleSubmit}
-            className="listing-form-card profile-form-card dash-card min-w-0"
-          >
-            <div className="profile-card-head">
-              <h2>{copy.detailsTitle}</h2>
-              <p>{copy.detailsBody}</p>
-            </div>
-
-            <div className="listing-readiness">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <p className="text-sm font-extrabold text-[#42362c]">{copy.readinessTitle}</p>
-                <span className="text-xs font-bold text-[#7b736b]">
-                  {completedChecks}/{publishChecks.length} {copy.readyLabel}
-                </span>
-              </div>
-              <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                {publishChecks.map((check) => (
-                  <div
-                    key={check.label}
-                    className={`flex min-h-10 items-center gap-2 rounded-md border px-3 text-xs font-bold ${
-                      check.complete
-                        ? 'border-[#c7dfd3] bg-[#f2faf5] text-[#28654c]'
-                        : 'border-[#e7dfd4] bg-white text-[#766d64]'
-                    }`}
-                  >
-                    <ListingIcon name={check.complete ? 'check' : 'info'} />
-                    <span>{check.label}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="listing-fields-grid grid gap-5 p-5 sm:grid-cols-2 sm:p-6">
-              <Field label={copy.subject} error={errors.subjectId} id="listing-subject-error">
-                <select
-                  value={form.subjectId}
-                  onChange={(event) => updateField('subjectId', event.target.value)}
-                  disabled={catalogUnavailable}
-                  className={listingFieldClass}
-                  aria-invalid={Boolean(errors.subjectId)}
-                  aria-describedby={errors.subjectId ? 'listing-subject-error' : undefined}
-                >
-                  {!form.subjectId && <option value="">{copy.selectSubject}</option>}
-                  {subjects.map((subject) => (
-                    <option key={subject.id} value={subject.id}>
-                      {subject.name}
-                    </option>
-                  ))}
-                </select>
-              </Field>
-
-              <Field label={copy.gradeLevel} error={errors.gradeLevelId} id="listing-grade-error">
-                <select
-                  value={form.gradeLevelId}
-                  onChange={(event) => updateField('gradeLevelId', event.target.value)}
-                  disabled={catalogUnavailable}
-                  className={listingFieldClass}
-                  aria-invalid={Boolean(errors.gradeLevelId)}
-                  aria-describedby={errors.gradeLevelId ? 'listing-grade-error' : undefined}
-                >
-                  {!form.gradeLevelId && <option value="">{copy.selectGrade}</option>}
-                  {gradeLevels.map((grade) => (
-                    <option key={grade.id} value={grade.id}>
-                      {grade.name}
-                    </option>
-                  ))}
-                </select>
-              </Field>
-
-              <Field label={copy.price} error={errors.pricePerHour} id="listing-price-error">
-                <div className="relative">
-                  <input
-                    type="number"
-                    min="0.01"
-                    step="0.01"
-                    inputMode="decimal"
-                    value={form.pricePerHour}
-                    onChange={(event) => updateField('pricePerHour', event.target.value)}
-                    placeholder="450"
-                    className={`${listingFieldClass} pr-16`}
-                    aria-invalid={Boolean(errors.pricePerHour)}
-                    aria-describedby={
-                      errors.pricePerHour ? 'listing-price-error' : 'listing-price-help'
-                    }
-                  />
-                  <span className="pointer-events-none absolute right-4 top-1/2 mt-1 -translate-y-1/2 text-sm font-bold text-[#746c63]">
-                    THB
-                  </span>
-                </div>
-                {!errors.pricePerHour && (
-                  <p id="listing-price-help" className="mt-2 text-xs leading-5 text-[#827a72]">
-                    {copy.priceHelp}
-                  </p>
-                )}
-              </Field>
-
-              <div className="listing-publish-rule rounded-[0.9rem] border border-[var(--border)] bg-[var(--warn-bg)] p-4">
-                <p className="text-sm font-extrabold text-[#42362c]">{copy.publishRule}</p>
-                <p className="mt-2 text-xs leading-5 text-[#746b62]">
-                  {isVerified ? copy.canPublish : copy.cannotPublish}
+          <PaperCard className="min-w-0 overflow-hidden p-0">
+            <WashiTape tone="blue" className="-top-2 left-8 rotate-2" />
+            <form noValidate onSubmit={handleSubmit}>
+              <div className="flex flex-col gap-1 border-b border-dashed border-paper-edge px-5 pb-5 pt-6 sm:flex-row sm:items-start sm:justify-between sm:gap-4 sm:px-6">
+                <h2 className="text-lg font-extrabold text-notebook-ink">{copy.detailsTitle}</h2>
+                <p className="max-w-[250px] text-xs leading-5 text-notebook-muted sm:text-right">
+                  {copy.detailsBody}
                 </p>
               </div>
 
-              <Field
-                label={copy.description}
-                error={errors.description}
-                id="listing-description-error"
-                className="sm:col-span-2"
-                trailing={`${descriptionLength} / 1000`}
-              >
-                <textarea
-                  value={form.description}
-                  onChange={(event) => updateField('description', event.target.value)}
-                  rows={8}
-                  maxLength={1000}
-                  placeholder={copy.descriptionPlaceholder}
-                  className={`${listingFieldClass} min-h-44 resize-y py-3 leading-6`}
-                  aria-invalid={Boolean(errors.description)}
-                  aria-describedby={
-                    errors.description ? 'listing-description-error' : 'listing-description-help'
-                  }
-                />
-                {!errors.description && (
-                  <p
-                    id="listing-description-help"
-                    className="mt-2 text-xs leading-5 text-[#827a72]"
-                  >
-                    {copy.descriptionHelp}
-                  </p>
-                )}
-                <div className="mt-3" aria-label={copy.descriptionProgress}>
-                  <div className="h-1.5 overflow-hidden rounded-full bg-[#eee7dd]">
-                    <div
-                      className={`h-full rounded-full transition-[width] ${
-                        descriptionLength < 20 ? 'bg-[#d18b43]' : 'bg-[#77a88f]'
-                      }`}
-                      style={{ width: `${Math.min(100, Math.max(0, descriptionLength / 10))}%` }}
-                    />
-                  </div>
-                  <div className="mt-1.5 flex items-center justify-between gap-3 text-xs font-semibold">
-                    <span className={descriptionLength < 20 ? 'text-[#a5662d]' : 'text-[#4d8068]'}>
-                      {descriptionLength < 20 ? copy.descriptionTooShort : copy.descriptionGood}
-                    </span>
-                    <span className="text-[#827a72]">{descriptionLength} / 1000</span>
-                  </div>
+              <StickyNote tone="blue" className="mx-5 mt-5 p-4 sm:mx-6">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-sm font-extrabold text-notebook-ink">{copy.readinessTitle}</p>
+                  <span className="text-xs font-bold text-notebook-muted">
+                    {completedChecks}/{publishChecks.length} {copy.readyLabel}
+                  </span>
                 </div>
-              </Field>
-            </div>
+                <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                  {publishChecks.map((check) => (
+                    <div
+                      key={check.label}
+                      className={`flex min-h-10 items-center gap-2 rounded-lg border px-3 text-xs font-bold ${
+                        check.complete
+                          ? 'border-emerald-200 bg-emerald-50/90 text-emerald-800'
+                          : 'border-blue-200 bg-white/75 text-notebook-muted'
+                      }`}
+                    >
+                      <ListingIcon name={check.complete ? 'check' : 'info'} />
+                      <span>{check.label}</span>
+                    </div>
+                  ))}
+                </div>
+              </StickyNote>
 
-            <div className="listing-form-actions flex flex-col-reverse gap-3 border-t border-[var(--border)] bg-[#fdfbf7] p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
-              <div className="flex items-center gap-2 text-xs font-semibold text-[#7b736b]">
+              <div className="grid gap-5 p-5 sm:grid-cols-2 sm:p-6">
+                <Field label={copy.subject} error={errors.subjectId} id="listing-subject-error">
+                  <select
+                    value={form.subjectId}
+                    onChange={(event) => updateField('subjectId', event.target.value)}
+                    disabled={catalogUnavailable}
+                    className={listingFieldClass}
+                    aria-invalid={Boolean(errors.subjectId)}
+                    aria-describedby={errors.subjectId ? 'listing-subject-error' : undefined}
+                  >
+                    {!form.subjectId && <option value="">{copy.selectSubject}</option>}
+                    {subjects.map((subject) => (
+                      <option key={subject.id} value={subject.id}>
+                        {subject.name}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+
+                <Field label={copy.gradeLevel} error={errors.gradeLevelId} id="listing-grade-error">
+                  <select
+                    value={form.gradeLevelId}
+                    onChange={(event) => updateField('gradeLevelId', event.target.value)}
+                    disabled={catalogUnavailable}
+                    className={listingFieldClass}
+                    aria-invalid={Boolean(errors.gradeLevelId)}
+                    aria-describedby={errors.gradeLevelId ? 'listing-grade-error' : undefined}
+                  >
+                    {!form.gradeLevelId && <option value="">{copy.selectGrade}</option>}
+                    {gradeLevels.map((grade) => (
+                      <option key={grade.id} value={grade.id}>
+                        {grade.name}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+
+                <Field label={copy.price} error={errors.pricePerHour} id="listing-price-error">
+                  <div className="relative">
+                    <input
+                      type="number"
+                      min="0.01"
+                      step="0.01"
+                      inputMode="decimal"
+                      value={form.pricePerHour}
+                      onChange={(event) => updateField('pricePerHour', event.target.value)}
+                      placeholder="450"
+                      className={`${listingFieldClass} pr-16`}
+                      aria-invalid={Boolean(errors.pricePerHour)}
+                      aria-describedby={
+                        errors.pricePerHour ? 'listing-price-error' : 'listing-price-help'
+                      }
+                    />
+                    <span className="pointer-events-none absolute right-4 top-1/2 mt-1 -translate-y-1/2 text-sm font-bold text-notebook-muted">
+                      {copy.currency}
+                    </span>
+                  </div>
+                  {!errors.pricePerHour && (
+                    <p
+                      id="listing-price-help"
+                      className="mt-2 text-xs leading-5 text-notebook-muted"
+                    >
+                      {copy.priceHelp}
+                    </p>
+                  )}
+                </Field>
+
+                <StickyNote tone={isVerified ? 'green' : 'yellow'} className="p-4">
+                  <p className="text-sm font-extrabold text-notebook-ink">{copy.publishRule}</p>
+                  <p className="mt-2 text-xs leading-5 text-notebook-muted">
+                    {isVerified ? copy.canPublish : copy.cannotPublish}
+                  </p>
+                </StickyNote>
+
+                <Field
+                  label={copy.description}
+                  error={errors.description}
+                  id="listing-description-error"
+                  className="sm:col-span-2"
+                  trailing={`${descriptionLength} / 1000`}
+                >
+                  <textarea
+                    value={form.description}
+                    onChange={(event) => updateField('description', event.target.value)}
+                    rows={8}
+                    maxLength={1000}
+                    placeholder={copy.descriptionPlaceholder}
+                    className={`${listingFieldClass} min-h-44 resize-y py-3 leading-6`}
+                    aria-invalid={Boolean(errors.description)}
+                    aria-describedby={
+                      errors.description ? 'listing-description-error' : 'listing-description-help'
+                    }
+                  />
+                  {!errors.description && (
+                    <p
+                      id="listing-description-help"
+                      className="mt-2 text-xs leading-5 text-notebook-muted"
+                    >
+                      {copy.descriptionHelp}
+                    </p>
+                  )}
+                  <div className="mt-3" aria-label={copy.descriptionProgress}>
+                    <div className="h-1.5 overflow-hidden rounded-full bg-paper-edge">
+                      <div
+                        className={`h-full rounded-full transition-[width] ${
+                          descriptionLength < 20 ? 'bg-amber-500' : 'bg-emerald-500'
+                        }`}
+                        style={{ width: `${Math.min(100, Math.max(0, descriptionLength / 10))}%` }}
+                      />
+                    </div>
+                    <div className="mt-1.5 flex items-center justify-between gap-3 text-xs font-semibold">
+                      <span
+                        className={descriptionLength < 20 ? 'text-amber-700' : 'text-emerald-700'}
+                      >
+                        {descriptionLength < 20 ? copy.descriptionTooShort : copy.descriptionGood}
+                      </span>
+                      <span className="text-notebook-muted">{descriptionLength} / 1000</span>
+                    </div>
+                  </div>
+                </Field>
+              </div>
+
+              <div className="mt-1 flex flex-col-reverse gap-3 border-t border-dashed border-paper-edge bg-paper-deep/55 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
+                <div className="flex items-center gap-2 text-xs font-semibold text-notebook-muted">
+                  <span
+                    className={`h-2 w-2 rounded-full ${isDirty ? 'bg-amber-500' : 'bg-emerald-500'}`}
+                    aria-hidden="true"
+                  />
+                  {isDirty ? copy.unsaved : copy.upToDate}
+                </div>
+                <div className="flex flex-col-reverse gap-2 sm:flex-row">
+                  <button
+                    type="button"
+                    onClick={handleCancel}
+                    className={listingButtonClass('secondary', 'w-full sm:w-auto')}
+                  >
+                    {copy.cancel}
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={createBlocked || submitAction !== null}
+                    className={listingButtonClass('secondary', 'w-full sm:w-auto')}
+                  >
+                    {submitAction === 'save'
+                      ? copy.saving
+                      : isEditing
+                        ? copy.saveChanges
+                        : copy.saveDraft}
+                  </button>
+                  {isArchived && (
+                    <button
+                      type="button"
+                      disabled={submitAction !== null}
+                      onClick={() => void restoreDraft()}
+                      className={listingButtonClass('secondary', 'w-full sm:w-auto')}
+                    >
+                      {submitAction === 'restore' ? copy.saving : copy.restoreDraft}
+                    </button>
+                  )}
+                  {status !== 'PUBLISHED' && (
+                    <button
+                      type="button"
+                      disabled={createBlocked || !isVerified || submitAction !== null}
+                      onClick={() => void saveListing('publish')}
+                      className={listingButtonClass('primary', 'w-full sm:w-auto')}
+                    >
+                      {submitAction === 'publish' ? copy.publishing : copy.publish}
+                    </button>
+                  )}
+                </div>
+              </div>
+            </form>
+          </PaperCard>
+
+          <aside className="min-w-0 xl:sticky xl:top-24 xl:self-start">
+            <PaperCard className="p-5 sm:p-6">
+              <WashiTape tone="blue" className="-top-2 right-8 rotate-3" />
+              <div className="flex items-center gap-2.5">
                 <span
-                  className={`h-2 w-2 rounded-full ${isDirty ? 'bg-[#d18b43]' : 'bg-[#77a88f]'}`}
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-sticky-blue text-tutor-deep"
                   aria-hidden="true"
-                />
-                {isDirty ? copy.unsaved : copy.upToDate}
-              </div>
-              <div className="flex flex-col-reverse gap-2 sm:flex-row">
-                <button
-                  type="button"
-                  onClick={handleCancel}
-                  className="listing-secondary-action profile-ghost-button min-h-12 rounded-md border border-[#d9d2c6] bg-white px-4 text-sm font-extrabold text-[#544a41] transition hover:bg-[#f7f2ea]"
                 >
-                  {copy.cancel}
-                </button>
-                <button
-                  type="submit"
-                  disabled={createBlocked || submitAction !== null}
-                  className="listing-secondary-action profile-ghost-button min-h-12 rounded-md border border-[#3b3027] bg-white px-4 text-sm font-extrabold text-[#34271e] transition hover:bg-[#f4eee6] disabled:cursor-wait disabled:opacity-50"
-                >
-                  {submitAction === 'save'
-                    ? copy.saving
-                    : isEditing
-                      ? copy.saveChanges
-                      : copy.saveDraft}
-                </button>
-                {isArchived && (
-                  <button
-                    type="button"
-                    disabled={submitAction !== null}
-                    onClick={() => void restoreDraft()}
-                    className="listing-secondary-action profile-ghost-button min-h-12 rounded-md border border-[#d9d2c6] bg-white px-4 text-sm font-extrabold text-[#34271e] transition hover:bg-[#f4eee6] disabled:cursor-wait disabled:opacity-50"
-                  >
-                    {submitAction === 'restore' ? copy.saving : copy.restoreDraft}
-                  </button>
-                )}
-                {status !== 'PUBLISHED' && (
-                  <button
-                    type="button"
-                    disabled={createBlocked || !isVerified || submitAction !== null}
-                    onClick={() => void saveListing('publish')}
-                    className="listing-primary-action profile-primary-button min-h-12 rounded-md bg-[#34271e] px-5 text-sm font-extrabold text-white shadow-[0_2px_8px_-5px_rgba(43,31,22,0.35)] transition hover:-translate-y-0.5 hover:bg-[#4b3729] disabled:cursor-not-allowed disabled:translate-y-0 disabled:opacity-45"
-                  >
-                    {submitAction === 'publish' ? copy.publishing : copy.publish}
-                  </button>
-                )}
-              </div>
-            </div>
-          </form>
-
-          <aside className="listing-preview-wrap min-w-0 xl:sticky xl:top-5 xl:self-start">
-            <section className="listing-preview-card profile-preview-card dash-card">
-              <div className="profile-preview-title">
-                <span aria-hidden="true">
                   <ListingIcon name="listing" />
                 </span>
-                <h2>{copy.previewTitle}</h2>
+                <h2 className="text-lg font-extrabold text-notebook-ink">{copy.previewTitle}</h2>
               </div>
-              <p className="profile-preview-subtitle">{copy.previewBody}</p>
-              <div className="listing-preview-content">
+              <p className="mb-4 mt-1.5 text-xs leading-5 text-notebook-muted">
+                {copy.previewBody}
+              </p>
+              <GraphPaper className="p-4">
                 <div className="flex items-center gap-3">
-                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md bg-[#d18b43] text-sm font-black text-[#2f2117]">
-                    {profileDisplayName.charAt(0).toUpperCase()}
-                  </span>
+                  <ListingPreviewAvatar
+                    displayName={profileDisplayName}
+                    imageUrl={profileImageUrl}
+                  />
                   <div className="min-w-0">
-                    <p className="truncate text-sm font-black text-[#30251d]">
+                    <p className="truncate text-sm font-black text-notebook-ink">
                       {profileDisplayName}
                     </p>
-                    <p className="mt-0.5 text-xs text-[#7a7269]">
-                      {profile?.experienceYears ?? 0} {copy.yearsExperience}
+                    <p className="mt-0.5 text-xs text-notebook-muted">
+                      {formatTutorExperience(profile?.experienceYears ?? 0, language)}
                     </p>
                   </div>
                 </div>
 
                 <div className="mt-3 flex flex-wrap gap-2">
-                  <span className="inline-flex min-h-7 items-center gap-1.5 rounded-md border border-[#d9e8df] bg-[#f1faf4] px-2.5 text-xs font-bold text-[#28654c]">
+                  <span className="inline-flex min-h-7 items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 text-xs font-bold text-emerald-800">
                     <ListingIcon name={isVerified ? 'check' : 'info'} />
                     {isVerified ? copy.verified : copy.verificationPending}
                   </span>
-                  <span className="inline-flex min-h-7 items-center gap-1.5 rounded-md border border-[#e8dfd2] bg-[#fbf7f0] px-2.5 text-xs font-bold text-[#6c5b4b]">
+                  <span className="inline-flex min-h-7 items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-2.5 text-xs font-bold text-amber-800">
                     <ListingIcon name="star" />
                     {profile?.ratingAverage
                       ? `${profile.ratingAverage} · ${profile.reviewCount} ${copy.reviews}`
@@ -604,41 +592,41 @@ export default function TutorListingEditor({ listingId }: TutorListingEditorProp
                   </span>
                 </div>
 
-                <div className="mt-5 border-y border-[#ebe6dd] py-5">
-                  <p className="text-xs font-extrabold uppercase tracking-[0.14em] text-[#b87434]">
+                <div className="mt-5 border-y border-dashed border-paper-edge py-5">
+                  <p className="text-xs font-extrabold uppercase tracking-[0.14em] text-tutor-deep">
                     {selectedSubject?.name || copy.subjectFallback}
                   </p>
-                  <h3 className="mt-1 text-xl font-black tracking-[-0.025em] text-[#241a14]">
+                  <h3 className="mt-1 text-xl font-black tracking-[-0.025em] text-notebook-ink">
                     {selectedSubject?.name || copy.subjectFallback} ·{' '}
                     {selectedGrade?.name || copy.gradeFallback}
                   </h3>
-                  <p className="mt-4 whitespace-pre-wrap text-sm leading-6 text-[#696158]">
+                  <p className="mt-4 min-w-0 whitespace-pre-wrap break-words text-sm leading-6 text-notebook-muted [overflow-wrap:anywhere]">
                     {form.description.trim() || copy.descriptionFallback}
                   </p>
                 </div>
 
                 <div className="mt-5 flex flex-wrap items-end justify-between gap-3">
                   <div>
-                    <strong className="text-2xl font-black tracking-[-0.04em] text-[#241a14]">
+                    <strong className="text-2xl font-black tracking-[-0.04em] text-notebook-ink">
                       {form.pricePerHour && Number(form.pricePerHour) > 0
                         ? formatPrice(Number(form.pricePerHour), language)
                         : '—'}
                     </strong>
-                    <span className="ml-1 text-sm text-[#6c655d]">/{copy.hour}</span>
+                    <span className="ml-1 text-sm text-notebook-muted">/{copy.hour}</span>
                   </div>
                   <ListingStatusBadge status={status} labels={statusLabels} />
                 </div>
-              </div>
-            </section>
+              </GraphPaper>
+            </PaperCard>
 
-            <section className="mt-4 rounded-md border border-[#e8c99f] bg-[#fff8ed] p-4 text-sm leading-6 text-[#775026]">
-              <strong className="block text-[#553719]">{copy.qualityTitle}</strong>
-              <ul className="mt-2 space-y-1.5 text-xs">
+            <StickyNote tone="yellow" className="mt-4 p-4 text-sm leading-6">
+              <strong className="block text-notebook-ink">{copy.qualityTitle}</strong>
+              <ul className="mt-2 space-y-1.5 text-xs text-notebook-muted">
                 <li>• {copy.qualityOne}</li>
                 <li>• {copy.qualityTwo}</li>
                 <li>• {copy.qualityThree}</li>
               </ul>
-            </section>
+            </StickyNote>
           </aside>
         </div>
       </div>
@@ -662,14 +650,16 @@ function Field({
   trailing?: string;
 }) {
   return (
-    <label className={`listing-field ${error ? 'listing-field-invalid' : ''} ${className}`}>
+    <label
+      className={`flex min-w-0 flex-col gap-1.5 text-sm font-bold text-notebook-ink ${className}`}
+    >
       <span className="flex items-center justify-between gap-3">
         <span>{label}</span>
-        {trailing && <span className="text-xs font-semibold text-[#8a8178]">{trailing}</span>}
+        {trailing && <span className="text-xs font-semibold text-notebook-muted">{trailing}</span>}
       </span>
       {children}
       {error && (
-        <span id={id} className="mt-2 block text-xs font-semibold leading-5 text-[#b04839]">
+        <span id={id} className="mt-1 block text-xs font-semibold leading-5 text-red-700">
           {error}
         </span>
       )}
@@ -677,30 +667,26 @@ function Field({
   );
 }
 
-function validateForm(form: ListingFormData, copy: typeof englishCopy): FormErrors {
-  const errors: FormErrors = {};
-  const price = Number(form.pricePerHour);
-  if (!form.subjectId) errors.subjectId = copy.subjectError;
-  if (!form.gradeLevelId) errors.gradeLevelId = copy.gradeError;
-  if (
-    !form.pricePerHour ||
-    !Number.isFinite(price) ||
-    price <= 0 ||
-    !/^\d+(\.\d{1,2})?$/.test(form.pricePerHour)
-  ) {
-    errors.pricePerHour = copy.priceError;
-  }
-  const descriptionLength = form.description.trim().length;
-  if (descriptionLength < 20 || descriptionLength > 1000) {
-    errors.description = copy.descriptionError;
-  }
-  return errors;
-}
-
-function readEditorError(error: unknown, fallback: string, notFound?: string) {
-  if (error instanceof ApiError && error.status === 404) return notFound ?? fallback;
-  if (error instanceof ApiError && error.status === 403) return fallback;
-  return error instanceof Error ? error.message : fallback;
+function ListingPreviewAvatar({
+  displayName,
+  imageUrl,
+}: {
+  displayName: string;
+  imageUrl?: string | null;
+}) {
+  return (
+    <span
+      className="relative flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full border-2 border-paper bg-tutor-deep text-sm font-black text-white shadow-sm ring-1 ring-paper-edge"
+      role="img"
+      aria-label={displayName}
+    >
+      {imageUrl ? (
+        <Image src={imageUrl} alt="" fill sizes="44px" className="object-cover" unoptimized />
+      ) : (
+        <span aria-hidden="true">{displayName.charAt(0).toUpperCase() || 'T'}</span>
+      )}
+    </span>
+  );
 }
 
 function formatPrice(value: number, language: 'en' | 'th') {
@@ -734,6 +720,7 @@ const englishCopy = {
   selectGrade: 'Select a grade level',
   gradeError: 'Choose a grade level.',
   price: 'Price per hour',
+  currency: 'THB',
   priceHelp: 'Enter Thai baht with up to two decimal places.',
   priceError: 'Enter a price greater than zero with no more than two decimal places.',
   publishRule: 'Publication eligibility',
@@ -752,7 +739,6 @@ const englishCopy = {
   subjectFallback: 'Subject',
   gradeFallback: 'Grade level',
   descriptionFallback: 'Your course description will appear here.',
-  yearsExperience: 'years experience',
   verified: 'Verified tutor',
   verificationPending: 'Verification pending',
   reviews: 'reviews',
@@ -809,6 +795,7 @@ const thaiCopy: typeof englishCopy = {
   selectGrade: 'เลือกระดับชั้น',
   gradeError: 'กรุณาเลือกระดับชั้น',
   price: 'ราคาต่อชั่วโมง',
+  currency: 'บาท',
   priceHelp: 'กรอกราคาเป็นเงินบาทและมีทศนิยมได้ไม่เกินสองตำแหน่ง',
   priceError: 'กรุณากรอกราคามากกว่าศูนย์และมีทศนิยมไม่เกินสองตำแหน่ง',
   publishRule: 'สิทธิ์ในการเผยแพร่',
@@ -826,7 +813,6 @@ const thaiCopy: typeof englishCopy = {
   subjectFallback: 'รายวิชา',
   gradeFallback: 'ระดับชั้น',
   descriptionFallback: 'คำอธิบายคอร์สของคุณจะแสดงที่นี่',
-  yearsExperience: 'ปีของประสบการณ์',
   verified: 'ติวเตอร์ยืนยันแล้ว',
   verificationPending: 'รอการยืนยัน',
   reviews: 'รีวิว',

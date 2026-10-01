@@ -66,7 +66,7 @@ describe('AuthController HTTP contract (e2e)', () => {
         password: 'password123',
         role: 'admin',
         consent: true,
-        policyVersion: '2026-09-09',
+        policyVersion: '2026-09-30',
       })
       .expect(400);
 

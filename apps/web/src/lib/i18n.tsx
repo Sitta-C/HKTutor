@@ -6,6 +6,9 @@ import type { ReactNode } from 'react';
 
 export type Language = 'en' | 'th';
 
+// Keep app-wide shell/navigation copy here. Feature-owned copy belongs in a colocated
+// `*-copy.ts` module and should expose the same recursive EN/TH shape.
+
 const LANGUAGE_STORAGE_KEY = 'hktutor-language';
 let currentLanguage: Language = 'en';
 let hasLoadedLanguage = false;
@@ -68,6 +71,7 @@ export const translations = {
       languageButtonLabel: 'Switch language to Thai',
       copyright: 'HKTutor',
       privacySupport: 'Privacy & support',
+      toastRegion: 'Notifications',
     },
     shell: {
       login: {
@@ -80,16 +84,6 @@ export const translations = {
         nav: 'Sign in',
         cta: 'Return to login',
       },
-    },
-    social: {
-      dividerLogin: 'Or sign in with',
-      dividerRegister: 'Or continue with',
-      google: 'Google',
-      apple: 'Apple',
-      facebook: 'Facebook',
-      googleAria: 'Continue with Google',
-      appleAria: 'Continue with Apple',
-      facebookAria: 'Continue with Facebook',
     },
     login: {
       eyebrow: 'Student portal',
@@ -104,6 +98,7 @@ export const translations = {
       trouble: 'Having trouble signing in?',
       submit: 'Sign in',
       loading: 'Signing in...',
+      failed: 'Unable to sign in. Please check your details and try again.',
       newTo: 'New to HKTutor?',
       createAccount: 'Create an account',
     },
@@ -136,6 +131,8 @@ export const translations = {
       already: 'Already have an account?',
       signIn: 'Sign in',
       passwordMismatch: 'Passwords do not match',
+      passwordRequirements: 'Use at least 10 characters with a letter and a number.',
+      registrationFailed: 'Unable to create your account. Please try again.',
       otpEyebrow: 'Verify your email',
       otpTitle: 'Check your inbox',
       otpSubtitle: 'We sent a verification link to {email}. Open it to finish signing up.',
@@ -220,6 +217,9 @@ export const translations = {
         tutorChip: 'Tutor',
         adminChip: 'Administrator',
         loading: 'Loading dashboard…',
+        loadProfileError: 'Unable to load profile',
+        sidebarNavigationLabel: 'Sidebar navigation',
+        topNavigationLabel: 'Dashboard top navigation',
         bangkokTime: 'Bangkok time',
         bangkokTimeWithZone: 'Bangkok time (UTC+7)',
         comingSoonBadge: 'Coming soon',
@@ -347,7 +347,7 @@ export const translations = {
         reviewTitle: 'Review your lesson request',
         reviewDescription:
           'Choose one open time and send a request. A successful booking starts as PENDING.',
-        verifiedTutor: 'VERIFIED TUTOR',
+        tutorVerification: 'TUTOR VERIFICATION {status}',
         selectedListing: 'Selected listing',
         requestNotice:
           'Request, not confirmation. The tutor will confirm the pending booking later.',
@@ -379,6 +379,7 @@ export const translations = {
         verified: 'VERIFIED',
         signInToChoose: 'Sign in to choose this time',
         studentOnly: 'Student account required',
+        pricePerHour: 'THB/hour',
       },
       availability: {
         eyebrow: 'Tutor availability',
@@ -454,6 +455,7 @@ export const translations = {
       languageButtonLabel: 'เปลี่ยนภาษาเป็นภาษาอังกฤษ',
       copyright: 'HKTutor',
       privacySupport: 'ความเป็นส่วนตัวและการช่วยเหลือ',
+      toastRegion: 'การแจ้งเตือน',
     },
     shell: {
       login: {
@@ -466,16 +468,6 @@ export const translations = {
         nav: 'เข้าสู่ระบบ',
         cta: 'กลับไปหน้าเข้าสู่ระบบ',
       },
-    },
-    social: {
-      dividerLogin: 'หรือเข้าสู่ระบบด้วย',
-      dividerRegister: 'หรือดำเนินการต่อด้วย',
-      google: 'Google',
-      apple: 'Apple',
-      facebook: 'Facebook',
-      googleAria: 'ดำเนินการต่อด้วย Google',
-      appleAria: 'ดำเนินการต่อด้วย Apple',
-      facebookAria: 'ดำเนินการต่อด้วย Facebook',
     },
     login: {
       eyebrow: 'พื้นที่สำหรับนักเรียน',
@@ -490,6 +482,7 @@ export const translations = {
       trouble: 'มีปัญหาในการเข้าสู่ระบบใช่ไหม?',
       submit: 'เข้าสู่ระบบ',
       loading: 'กำลังเข้าสู่ระบบ...',
+      failed: 'ไม่สามารถเข้าสู่ระบบได้ กรุณาตรวจสอบข้อมูลแล้วลองอีกครั้ง',
       newTo: 'ยังไม่มีบัญชี HKTutor?',
       createAccount: 'สร้างบัญชี',
     },
@@ -521,6 +514,8 @@ export const translations = {
       already: 'มีบัญชีอยู่แล้ว?',
       signIn: 'เข้าสู่ระบบ',
       passwordMismatch: 'รหัสผ่านไม่ตรงกัน',
+      passwordRequirements: 'ใช้รหัสผ่านอย่างน้อย 10 ตัวอักษร และมีทั้งตัวอักษรกับตัวเลข',
+      registrationFailed: 'ไม่สามารถสร้างบัญชีได้ กรุณาลองอีกครั้ง',
       otpEyebrow: 'ยืนยันอีเมลของคุณ',
       otpTitle: 'ตรวจสอบกล่องจดหมาย',
       otpSubtitle: 'เราได้ส่งลิงก์ยืนยันไปยัง {email} กรุณาเปิดลิงก์เพื่อเสร็จสิ้นการสมัครสมาชิก',
@@ -604,6 +599,9 @@ export const translations = {
         tutorChip: 'ติวเตอร์',
         adminChip: 'ผู้ดูแลระบบ',
         loading: 'กำลังโหลดแดชบอร์ด…',
+        loadProfileError: 'ไม่สามารถโหลดโปรไฟล์ได้',
+        sidebarNavigationLabel: 'เมนูด้านข้าง',
+        topNavigationLabel: 'เมนูด้านบนของแดชบอร์ด',
         bangkokTime: 'เวลาตามกรุงเทพฯ',
         bangkokTimeWithZone: 'เวลาตามกรุงเทพฯ (UTC+7)',
         comingSoonBadge: 'เร็ว ๆ นี้',
@@ -726,7 +724,7 @@ export const translations = {
         pageEyebrow: 'การจอง',
         reviewTitle: 'ตรวจสอบคำขอเรียน',
         reviewDescription: 'เลือกเวลาที่ว่างแล้วส่งคำขอจอง การจองจะเริ่มต้นด้วยสถานะรอยืนยัน',
-        verifiedTutor: 'ติวเตอร์ที่ยืนยันแล้ว',
+        tutorVerification: 'สถานะการยืนยันติวเตอร์: {status}',
         selectedListing: 'คอร์สที่เลือก',
         requestNotice: 'นี่คือคำขอจอง ไม่ใช่การยืนยัน ติวเตอร์จะยืนยันคำขอในภายหลัง',
         bookingSummary: 'สรุปการจอง',
@@ -756,6 +754,7 @@ export const translations = {
         verified: 'ยืนยันแล้ว',
         signInToChoose: 'เข้าสู่ระบบเพื่อเลือกเวลานี้',
         studentOnly: 'ต้องใช้บัญชีนักเรียน',
+        pricePerHour: 'บาท/ชั่วโมง',
       },
       availability: {
         eyebrow: 'ตารางเวลาว่างของติวเตอร์',

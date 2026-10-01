@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 
+import { getBookingStatusLabel } from '@/components/bookings/booking-ui';
 import { DashboardIcon } from '@/components/dashboard/dashboard-icon';
 import DashboardShell from '@/components/dashboard/dashboard-shell';
 import { getMyBookings } from '@/lib/api/bookings';
@@ -33,8 +34,8 @@ export function StudentDashboard({ user, onLogout }: StudentDashboardProps) {
         setBookings(result.items);
         setLoadError(null);
       })
-      .catch((caught: unknown) => {
-        if (active) setLoadError(caught instanceof Error ? caught.message : studentCopy.loadError);
+      .catch(() => {
+        if (active) setLoadError(studentCopy.loadError);
       });
     return () => {
       active = false;
@@ -66,7 +67,7 @@ export function StudentDashboard({ user, onLogout }: StudentDashboardProps) {
   const headerNav = (
     <>
       <Link href="/dashboard/bookings">{copy.dashboard.header.myBookingsNav}</Link>
-      <Link href="/tutors" className="dash-cta">
+      <Link href="/tutors" data-dashboard-action>
         {copy.dashboard.header.findTutorCta}
       </Link>
     </>
@@ -114,7 +115,11 @@ export function StudentDashboard({ user, onLogout }: StudentDashboardProps) {
                 ? `${nextBooking.tutor.displayName} · ${formatBangkokDateTime(nextBooking.slot.startAtUtc, language)}`
                 : studentCopy.noUpcomingLessons}
             </div>
-            {nextBooking && <span className="dash-pill done">{nextBooking.status}</span>}
+            {nextBooking && (
+              <span className="dash-pill done">
+                {getBookingStatusLabel(nextBooking.status, copy.dashboard.booking)}
+              </span>
+            )}
           </div>
 
           <div className="dash-card">

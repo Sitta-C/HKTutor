@@ -112,7 +112,7 @@ export function RegisterAuthDoc(): MethodDecorator {
           consent: true,
           email: 'student@example.com',
           password: 'password123',
-          policyVersion: '2026-09-09',
+          policyVersion: '2026-09-30',
           role: 'student',
         },
         properties: {
@@ -124,7 +124,7 @@ export function RegisterAuthDoc(): MethodDecorator {
             format: 'password',
             type: 'string',
           },
-          policyVersion: { enum: ['2026-09-09'], type: 'string' },
+          policyVersion: { enum: ['2026-09-30'], type: 'string' },
           role: { enum: ['student', 'tutor'], type: 'string' },
         },
         required: ['email', 'password', 'role', 'consent', 'policyVersion'],

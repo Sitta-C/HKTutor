@@ -10,7 +10,7 @@ test('dashboard navigation contract isolates Student, Tutor, and Admin roles', a
   // Must export the view resolver and nav item getters
   assert.match(navSource, /export function resolveDashboardView/);
   assert.match(navSource, /export function getDashboardNavItems/);
-  assert.match(navSource, /export function getDashboardRoleConfig/);
+  assert.match(navSource, /export function getUserInitial/);
 
   // Safe fallback must return admin and never fall through to student or tutor
   assert.match(navSource, /return\s+['"]admin['"]/);
@@ -20,14 +20,26 @@ test('dashboard navigation contract isolates Student, Tutor, and Admin roles', a
 
 test('dashboard navigation returns distinct items per role', async () => {
   const navSource = await read('apps/web/src/lib/dashboard-navigation.ts');
+  const navItemsStart = navSource.indexOf('export function getDashboardNavItems');
 
-  // Student specific navigation: myBookings
-  assert.match(navSource, /role === ['"]STUDENT['"][\s\S]*myBookings/);
-  // Tutor specific navigation: myListings and availability
-  assert.match(navSource, /role === ['"]TUTOR['"][\s\S]*myListings/);
-  assert.match(navSource, /role === ['"]TUTOR['"][\s\S]*availability/);
+  const studentNav = navSource.slice(
+    navSource.indexOf("if (role === 'STUDENT')", navItemsStart),
+    navSource.indexOf("if (role === 'TUTOR')", navItemsStart),
+  );
+  const tutorNav = navSource.slice(
+    navSource.indexOf("if (role === 'TUTOR')", navItemsStart),
+    navSource.indexOf('// Explicit safe ADMIN navigation', navItemsStart),
+  );
+  assert.match(studentNav, /href: '\/dashboard\/bookings'/);
+  assert.doesNotMatch(studentNav, /\/dashboard\/listings|\/dashboard\/availability/);
+  assert.match(tutorNav, /href: '\/dashboard\/listings'/);
+  assert.match(tutorNav, /href: '\/dashboard\/availability'/);
+  assert.doesNotMatch(tutorNav, /\/dashboard\/bookings/);
   // Admin navigation must only have privacy and sign out
-  const adminNav = navSource.slice(navSource.lastIndexOf('// Explicit safe ADMIN navigation'));
+  const adminNav = navSource.slice(
+    navSource.lastIndexOf('// Explicit safe ADMIN navigation'),
+    navSource.indexOf('export function getUserDisplayName'),
+  );
   assert.doesNotMatch(adminNav, /myBookings|myListings|availability/);
 });
 
@@ -65,33 +77,21 @@ test('role selection never reads from localStorage, cookies, or URL search param
 });
 
 test('dashboard shell enforces accessibility, responsive toggle, and visible focus states', async () => {
-  const [shellSource, cssSource] = await Promise.all([
-    read('apps/web/src/components/dashboard/dashboard-shell.tsx'),
-    read('apps/web/src/app/globals.css'),
-  ]);
+  const shellSource = await read('apps/web/src/components/dashboard/dashboard-shell.tsx');
 
   // Accessible buttons and aria labels
   assert.match(shellSource, /aria-label={copy\.dashboard\.sidebar\.closeSidebar}/);
   assert.match(shellSource, /aria-label={copy\.dashboard\.sidebar\.openSidebar}/);
   assert.match(shellSource, /aria-pressed={language === 'th'}/);
   assert.match(shellSource, /aria-hidden="true"/);
-  assert.match(shellSource, /className="dash-rail-toggle"/);
-  assert.match(shellSource, /href="\/dashboard"[\s\S]*className="dash-logo"/);
-  assert.doesNotMatch(shellSource, /className="dash-reopen-logo"/);
-
-  // Focus visible styles
-  assert.match(cssSource, /\.dash-sb-close:focus-visible/);
-  assert.match(cssSource, /\.dash-rail-toggle:focus-visible/);
-  assert.match(cssSource, /\.dash-lang-btn:focus-visible/);
-
-  // Responsive sidebar rail keeps navigation available while collapsed
-  assert.match(cssSource, /\.dash-app\.sb-collapsed \.dash-sidebar/);
-  assert.match(cssSource, /flex-basis:\s*4\.75rem/);
-  assert.match(cssSource, /\.dash-app\.sb-collapsed \.dash-side-nav a/);
-  assert.match(cssSource, /@media \(max-width: 960px\)/);
-  assert.match(cssSource, /\.dash-header nav > a:not\(\.dash-cta\)/);
-  assert.match(cssSource, /white-space:\s*nowrap/);
-  assert.match(cssSource, /@media \(prefers-reduced-motion: reduce\)/);
+  assert.match(shellSource, /aria-controls="dashboard-sidebar"/);
+  assert.match(shellSource, /aria-expanded=/);
+  assert.match(shellSource, /inert={isMobileSidebar && isSidebarCollapsed/);
+  assert.match(shellSource, /focus-visible:ring-2/);
+  assert.match(shellSource, /motion-reduce:transition-none/);
+  assert.match(shellSource, /window\.matchMedia\('\(max-width: 1023px\)'\)/);
+  assert.match(shellSource, /lg:grid-cols-\[5rem_minmax\(0,1fr\)\]/);
+  assert.match(shellSource, /mt-auto border-t border-dashed/);
 });
 
 test('role-specific views render distinct content with honest empty states', async () => {
@@ -134,14 +134,15 @@ test('role-specific views render distinct content with honest empty states', asy
   assert.doesNotMatch(tutorSource, /4,050฿/);
 });
 
-test('dashboard page derives role only from AuthContext and enforces loading/unauthenticated safeguards', async () => {
-  const pageSource = await read('apps/web/src/app/dashboard/page.tsx');
+test('dashboard page derives role only from the centralized profile session', async () => {
+  const [pageSource, profileSession] = await Promise.all([
+    read('apps/web/src/app/dashboard/page.tsx'),
+    read('apps/web/src/lib/use-profile-session.ts'),
+  ]);
 
-  // Must import useAuth
-  assert.match(pageSource, /import\s+{\s*useAuth\s*}\s+from\s+['"]@\/lib\/auth-context['"]/);
-
-  // Derives role strictly from AuthContext user
-  assert.match(pageSource, /const\s+{\s*isLoading,\s*logout,\s*user\s*}\s*=\s*useAuth\(\)/);
+  assert.match(pageSource, /useProfileSession/);
+  assert.match(pageSource, /profileMode: 'required'/);
+  assert.match(profileSession, /useAuth\(\)/);
   assert.match(pageSource, /if\s*\(\s*user\.role\s*===\s*['"]STUDENT['"]\s*\)/);
   assert.match(pageSource, /if\s*\(\s*user\.role\s*===\s*['"]TUTOR['"]\s*\)/);
   // Explicit safe Admin fallback
@@ -151,11 +152,7 @@ test('dashboard page derives role only from AuthContext and enforces loading/una
   assert.match(pageSource, /if\s*\(\s*isLoading\s*\|\|\s*!user\s*\)/);
   assert.match(pageSource, /role="status"/);
 
-  // Unauthenticated redirect to root
-  assert.match(
-    pageSource,
-    /if\s*\(\s*!isLoading\s*&&\s*!user\s*\)\s*{\s*router\.replace\(['"]\/['"]\)/,
-  );
+  assert.match(profileSession, /if \(!allowGuest\) router\.replace\('\/'\)/);
 
   // Never inspects query params, searchParams, window, or localStorage for role
   assert.doesNotMatch(

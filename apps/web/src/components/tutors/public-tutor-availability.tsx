@@ -4,6 +4,16 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 
+import {
+  GraphPaper,
+  NotebookHeading,
+  NotebookPage,
+  PaperCard,
+  StatusBadge,
+  StickyNote,
+  WashiTape,
+  notebookButtonClass,
+} from '@/components/ui/notebook';
 import { ApiError } from '@/lib/api/error';
 import { getPublicTutor, getPublicTutorAvailability } from '@/lib/api/tutors';
 import { useAuth } from '@/lib/auth-context';
@@ -74,9 +84,9 @@ export default function PublicTutorAvailabilityPage({ tutorId }: { tutorId: stri
 
   if (isLoading || !isCurrentTutorLoaded) {
     return (
-      <p className="rounded-2xl bg-white p-6 text-sm font-semibold text-[#625b53]" role="status">
+      <StickyNote tone="yellow" className="p-6 text-sm font-semibold" role="status">
         {text.loading}
-      </p>
+      </StickyNote>
     );
   }
 
@@ -84,7 +94,7 @@ export default function PublicTutorAvailabilityPage({ tutorId }: { tutorId: stri
     const notFound = error instanceof ApiError && error.status === 404;
     return (
       <div
-        className="rounded-2xl border border-[#e2b7ae] bg-[#fff4f1] p-6 text-sm text-[#a34334]"
+        className="rounded-xl border border-red-200 bg-red-50 p-6 text-sm text-red-800"
         role="alert"
       >
         <p>{notFound ? text.notFound : text.error}</p>
@@ -96,79 +106,81 @@ export default function PublicTutorAvailabilityPage({ tutorId }: { tutorId: stri
   }
 
   return (
-    <div className="tutor-search-page text-[#171714]">
+    <div className="mx-auto max-w-[1120px] py-8 lg:py-10">
       <section className="mb-8 max-w-4xl">
-        <Link href="/tutors" className="text-sm font-bold text-[#625b53] underline">
+        <Link
+          href="/tutors"
+          className="text-sm font-bold text-notebook-muted underline decoration-dashed underline-offset-4"
+        >
           ← {text.back}
         </Link>
-        <p className="mt-6 mb-2 text-xs font-extrabold uppercase tracking-[0.18em] text-[#c07a2e]">
-          {text.eyebrow}
-        </p>
-        <div className="flex flex-wrap items-center gap-3">
-          <h1 className="text-4xl font-black tracking-[-0.06em] sm:text-5xl">
-            {detail.tutor.displayName}
-          </h1>
-          <span className="rounded-full bg-[rgba(34,196,154,0.14)] px-3 py-1.5 text-xs font-extrabold text-[#0e8a73]">
+        <div className="mt-6 flex flex-wrap items-end justify-between gap-3">
+          <NotebookHeading
+            eyebrow={text.eyebrow}
+            title={detail.tutor.displayName}
+            description={detail.tutor.bio}
+          />
+          <StatusBadge tone="student" className="mb-1">
             {text.verified}
-          </span>
+          </StatusBadge>
         </div>
-        <p className="mt-3 max-w-2xl text-base leading-7 text-[#625b53]">{detail.tutor.bio}</p>
       </section>
 
       {conflict && (
-        <p
-          className="mb-6 rounded-2xl border border-[#f0dfbd] bg-[#fffaf0] p-4 text-sm font-semibold text-[#9b6b2c]"
-          role="alert"
-        >
+        <StickyNote tone="yellow" className="mb-6 p-4 text-sm font-semibold" role="alert">
           {text.conflict}
-        </p>
+        </StickyNote>
       )}
 
       <div className="grid gap-6 lg:grid-cols-[minmax(18rem,0.8fr)_minmax(0,1.2fr)]">
-        <section className="rounded-[1.5rem] border border-[#ebe6dd] bg-white p-5 shadow-[0_18px_40px_-12px_rgba(46,39,25,0.14)] sm:p-6">
-          <h2 className="text-xl font-extrabold">{text.listings}</h2>
+        <PaperCard className="relative overflow-hidden p-5 shadow-[0_18px_40px_-12px_rgba(46,39,25,0.14)] sm:p-6">
+          <WashiTape tone="pink" className="-left-5 top-3 -rotate-12" />
+          <h2 className="font-note text-2xl font-bold">{text.listings}</h2>
           <div className="mt-5 space-y-3">
             {detail.listings.map((listing) => (
               <button
                 key={listing.listingId}
                 type="button"
-                className={`w-full rounded-2xl border p-4 text-left transition ${effectiveListingId === listing.listingId ? 'border-[#0e8a73] bg-[#e9fbf4]' : 'border-[#ebe6dd] hover:bg-[#fcfbf8]'}`}
+                className={`w-full rounded-xl border p-4 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-student-deep/30 ${effectiveListingId === listing.listingId ? 'border-student-deep bg-sticky-green shadow-sm' : 'border-paper-edge bg-paper hover:bg-sticky-yellow/30'}`}
                 onClick={() => setSelectedListingId(listing.listingId)}
               >
                 <span className="block text-base font-extrabold">
                   {listing.subject} · {listing.grade}
                 </span>
-                <span className="mt-1 block text-sm text-[#625b53]">{listing.description}</span>
-                <span className="mt-2 block text-sm font-bold text-[#0e8a73]">
-                  {listing.pricePerHour} THB/hour
+                <span className="mt-1 block text-sm text-notebook-muted">
+                  {listing.description}
+                </span>
+                <span className="mt-2 block text-sm font-bold text-student-deep">
+                  {formatTutorRate(listing.pricePerHour, language)} {text.pricePerHour}
                 </span>
               </button>
             ))}
           </div>
-        </section>
+        </PaperCard>
 
-        <section className="rounded-[1.5rem] border border-[#ebe6dd] bg-white p-5 shadow-[0_18px_40px_-12px_rgba(46,39,25,0.14)] sm:p-6">
-          <h2 className="text-xl font-extrabold">{text.availability}</h2>
-          <p className="mt-1 text-sm text-[#8a857b]">{text.availabilityHint}</p>
+        <PaperCard className="relative overflow-hidden p-5 shadow-[0_18px_40px_-12px_rgba(46,39,25,0.14)] sm:p-6">
+          <WashiTape tone="blue" className="-right-5 top-3 rotate-12" />
+          <h2 className="font-note text-2xl font-bold">{text.availability}</h2>
+          <p className="mt-1 text-sm text-notebook-muted">{text.availabilityHint}</p>
           {selectedListing && (
-            <p className="mt-4 rounded-xl bg-[#f8f5ef] p-3 text-sm font-bold text-[#332e28]">
+            <StickyNote tone="green" className="mt-4 p-3 text-sm font-bold">
               {text.chooseListing}: {selectedListing.subject} · {selectedListing.grade}
-            </p>
+            </StickyNote>
           )}
           {slots.length === 0 ? (
-            <p className="mt-5 rounded-2xl border border-dashed border-[#e3ddd2] bg-[#fcfbf8] p-8 text-center text-sm text-[#70695f]">
+            <GraphPaper className="mt-5 border-dashed p-8 text-center text-sm text-notebook-muted">
               {text.noSlots}
-            </p>
+            </GraphPaper>
           ) : (
             <div className="mt-5 grid gap-3 sm:grid-cols-2">
               {slots.map((slot) => (
-                <div key={slot.id} className="rounded-2xl border border-[#ebe6dd] p-4">
-                  <p className="text-sm font-extrabold text-[#171714]">
+                <GraphPaper key={slot.id} className="rounded-xl p-4">
+                  <p className="text-sm font-extrabold text-notebook-ink">
                     {formatSlot(slot, language)}
                   </p>
                   <button
                     type="button"
-                    className="mt-3 w-full rounded-full bg-[#1c1a16] px-4 py-2.5 text-sm font-bold text-white hover:bg-[#353129] disabled:cursor-not-allowed disabled:opacity-50"
+                    className={notebookButtonClass({ className: 'mt-3 w-full' })}
                     disabled={!selectedListing || Boolean(user && user.role !== 'STUDENT')}
                     onClick={() => {
                       if (!selectedListing) return;
@@ -182,22 +194,30 @@ export default function PublicTutorAvailabilityPage({ tutorId }: { tutorId: stri
                         ? text.choose
                         : text.signInToChoose}
                   </button>
-                </div>
+                </GraphPaper>
               ))}
             </div>
           )}
-        </section>
+        </PaperCard>
       </div>
     </div>
   );
 }
 
+function formatTutorRate(value: number, language: 'en' | 'th'): string {
+  return new Intl.NumberFormat(language === 'th' ? 'th-TH' : 'en-US', {
+    maximumFractionDigits: value % 1 === 0 ? 0 : 2,
+  }).format(value);
+}
+
 export function PublicTutorAvailabilityLoading() {
   const { copy } = useLanguage();
   return (
-    <p className="p-6 text-sm font-semibold" role="status">
-      {copy.dashboard.tutorAvailability.loading}
-    </p>
+    <NotebookPage className="flex min-h-[50dvh] items-center justify-center p-6">
+      <StickyNote tone="yellow" className="p-6 text-sm font-semibold" role="status">
+        {copy.dashboard.tutorAvailability.loading}
+      </StickyNote>
+    </NotebookPage>
   );
 }
 

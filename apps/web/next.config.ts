@@ -13,6 +13,15 @@ const nextConfig: NextConfig = {
   output: 'standalone',
   outputFileTracingRoot: path.join(webRoot, '../..'),
   reactCompiler: true,
+  async redirects() {
+    return [
+      {
+        source: '/register/verifypage',
+        destination: '/register/verify',
+        permanent: true,
+      },
+    ];
+  },
   async rewrites() {
     return [
       {

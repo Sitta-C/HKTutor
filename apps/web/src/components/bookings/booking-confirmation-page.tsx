@@ -6,12 +6,21 @@ import { useEffect, useRef, useState } from 'react';
 
 import {
   BookingStatusBadge,
+  getBookingStatusLabel,
   formatBangkokDateTime,
   formatBangkokRange,
   formatDuration,
   formatMoney,
   getBookingErrorMessage,
 } from '@/components/bookings/booking-ui';
+import {
+  GraphPaper,
+  NotebookHeading,
+  PaperCard,
+  StickyNote,
+  WashiTape,
+  notebookButtonClass,
+} from '@/components/ui/notebook';
 import { createBookingOnce, getBookingQuote } from '@/lib/api/bookings';
 import { ApiError } from '@/lib/api/error';
 import { useLanguage } from '@/lib/i18n';
@@ -97,24 +106,18 @@ export default function BookingConfirmationPage() {
   };
 
   return (
-    <div className="booking-page">
-      <section className="mb-8 max-w-3xl">
-        <p className="mb-2 text-xs font-extrabold uppercase tracking-[0.18em] text-[#c07a2e]">
-          {text.pageEyebrow}
-        </p>
-        <h1 className="text-4xl font-black tracking-[-0.06em] text-[#171714] sm:text-5xl">
-          {text.reviewTitle}
-        </h1>
-        <p className="mt-3 text-base leading-7 text-[#625b53]">{text.reviewDescription}</p>
-      </section>
+    <div className="mx-auto w-full max-w-[1120px] py-8 pb-12">
+      <NotebookHeading
+        eyebrow={text.pageEyebrow}
+        title={text.reviewTitle}
+        description={text.reviewDescription}
+        className="mb-8"
+      />
 
       {!missingSelection && (!selectionLoaded || isQuoteLoading) && (
-        <p
-          className="rounded-2xl bg-white p-6 text-sm font-semibold text-[#625b53] shadow-sm"
-          role="status"
-        >
+        <StickyNote tone="yellow" className="p-6 text-sm font-semibold shadow-sm" role="status">
           {text.loading}
-        </p>
+        </StickyNote>
       )}
 
       {missingSelection && (
@@ -127,56 +130,68 @@ export default function BookingConfirmationPage() {
 
       {!isQuoteLoading && activeQuote && !activeCreated && (
         <div className="grid gap-6 lg:grid-cols-[minmax(0,1.2fr)_minmax(18rem,0.8fr)]">
-          <section className="rounded-[1.5rem] border border-[#ebe6dd] bg-white p-6 shadow-[0_18px_40px_-12px_rgba(46,39,25,0.14)] sm:p-8">
+          <PaperCard className="relative overflow-hidden p-6 shadow-[0_18px_40px_-12px_rgba(46,39,25,0.14)] sm:p-8">
+            <WashiTape tone="blue" className="-left-5 top-4 -rotate-12" />
             <div className="flex items-start gap-4">
-              <div className="booking-list-avatar" aria-hidden="true">
+              <div
+                className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-student-deep font-extrabold text-white shadow-sm"
+                aria-hidden="true"
+              >
                 {getInitials(activeQuote.tutor.displayName)}
               </div>
               <div>
-                <h2 className="text-2xl font-extrabold text-[#171714]">
+                <h2 className="text-2xl font-extrabold text-notebook-ink">
                   {activeQuote.tutor.displayName}
                 </h2>
-                <p className="mt-1 text-sm font-semibold text-[#0e8a73]">{text.verifiedTutor}</p>
+                <p className="mt-1 text-sm font-semibold text-student-deep">
+                  {text.tutorVerification.replace(
+                    '{status}',
+                    activeQuote.tutor.verificationStatus ?? 'VERIFIED',
+                  )}
+                </p>
               </div>
             </div>
 
-            <div className="mt-6 rounded-2xl bg-[#f8f5ef] p-5">
-              <p className="text-xs font-extrabold uppercase tracking-[0.12em] text-[#8a857b]">
+            <StickyNote tone="green" className="mt-6 p-5">
+              <p className="text-xs font-extrabold uppercase tracking-[0.12em] text-notebook-muted">
                 {text.selectedListing}
               </p>
-              <h3 className="mt-2 text-xl font-extrabold text-[#171714]">
+              <h3 className="mt-2 text-xl font-extrabold text-notebook-ink">
                 {activeQuote.listing.subjectName} · {activeQuote.listing.gradeLevelName}
               </h3>
-              <p className="mt-2 text-sm leading-6 text-[#625b53]">
+              <p className="mt-2 text-sm leading-6 text-notebook-muted">
                 {activeQuote.listing.description}
               </p>
-            </div>
+            </StickyNote>
 
-            <div className="mt-5 rounded-2xl border border-[#ebe6dd] p-5">
-              <p className="text-xs font-extrabold uppercase tracking-[0.12em] text-[#8a857b]">
+            <GraphPaper className="mt-5 p-5">
+              <p className="text-xs font-extrabold uppercase tracking-[0.12em] text-notebook-muted">
                 {text.lessonTime}
               </p>
-              <p className="mt-2 text-lg font-extrabold text-[#171714]">
+              <p className="mt-2 text-lg font-extrabold text-notebook-ink">
                 {formatBangkokRange(
                   activeQuote.slot.startAtUtc,
                   activeQuote.slot.endAtUtc,
                   language,
                 )}
               </p>
-              <p className="mt-1 text-sm text-[#70695f]">
+              <p className="mt-1 text-sm text-notebook-muted">
                 {text.bangkokTime} ·{' '}
                 {formatDuration(activeQuote.slot.startAtUtc, activeQuote.slot.endAtUtc, text)}
               </p>
-            </div>
+            </GraphPaper>
 
-            <p className="mt-5 rounded-2xl border border-[#f0dfbd] bg-[#fffaf0] p-4 text-sm leading-6 text-[#9b6b2c]">
+            <p className="mt-5 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-800">
               {text.requestNotice}
             </p>
-          </section>
+          </PaperCard>
 
-          <aside className="h-fit rounded-[1.5rem] border border-[#ebe6dd] bg-white p-6 shadow-[0_18px_40px_-12px_rgba(46,39,25,0.14)] sm:p-8">
-            <h2 className="text-xl font-extrabold text-[#171714]">{text.bookingSummary}</h2>
-            <p className="mt-1 text-sm text-[#8a857b]">{text.serverAmountNote}</p>
+          <PaperCard className="relative h-fit overflow-hidden p-6 shadow-[0_18px_40px_-12px_rgba(46,39,25,0.14)] sm:p-8">
+            <WashiTape tone="pink" className="-right-5 top-3 rotate-12" />
+            <h2 className="font-note text-2xl font-bold text-notebook-ink">
+              {text.bookingSummary}
+            </h2>
+            <p className="mt-1 text-sm text-notebook-muted">{text.serverAmountNote}</p>
             <div className="mt-6 space-y-3 text-sm">
               <MoneyRow
                 label={text.hourlyRate}
@@ -194,7 +209,7 @@ export default function BookingConfirmationPage() {
                 label={text.discount}
                 value={formatMoney(activeQuote.discountAmount, activeQuote.currency)}
               />
-              <div className="flex items-center justify-between border-t border-[#ebe6dd] pt-4 text-base font-extrabold text-[#171714]">
+              <div className="flex items-center justify-between border-t border-dashed border-paper-edge pt-4 text-base font-extrabold text-notebook-ink">
                 <span>{text.total}</span>
                 <span>{formatMoney(activeQuote.netAmount, activeQuote.currency)}</span>
               </div>
@@ -211,7 +226,7 @@ export default function BookingConfirmationPage() {
 
             <button
               type="button"
-              className="mt-6 w-full rounded-full bg-[#1c1a16] px-5 py-3.5 text-sm font-extrabold text-white transition hover:bg-[#353129] disabled:cursor-not-allowed disabled:opacity-60"
+              className={notebookButtonClass({ className: 'mt-6 w-full' })}
               disabled={isSubmitting}
               aria-busy={isSubmitting}
               onClick={() => void submit()}
@@ -220,22 +235,28 @@ export default function BookingConfirmationPage() {
             </button>
             <Link
               href={`/tutors/${encodeURIComponent(activeQuote.tutor.tutorId)}?listingId=${encodeURIComponent(activeQuote.listing.id)}`}
-              className="mt-3 block text-center text-sm font-bold text-[#625b53] underline"
+              className="mt-3 block text-center text-sm font-bold text-notebook-muted underline decoration-dashed underline-offset-4"
             >
               {text.changeTime}
             </Link>
-          </aside>
+          </PaperCard>
         </div>
       )}
 
       {activeCreated && activeQuote && (
-        <section className="rounded-[1.5rem] border border-[#bcebdc] bg-white p-6 shadow-[0_18px_40px_-12px_rgba(46,39,25,0.14)] sm:p-8">
-          <div className="rounded-2xl bg-[#e9fbf4] p-5">
-            <h2 className="text-2xl font-extrabold text-[#0e8a73]">{text.bookingRequestSent}</h2>
-            <p className="mt-2 text-sm leading-6 text-[#3f7165]">
-              {text.requestCreatedStatus.replace('{status}', activeCreated.status)}
+        <PaperCard className="relative overflow-hidden border-emerald-200 p-6 shadow-[0_18px_40px_-12px_rgba(46,39,25,0.14)] sm:p-8">
+          <WashiTape tone="blue" className="-right-5 top-3 rotate-12" />
+          <StickyNote tone="green" className="p-5">
+            <h2 className="font-note text-3xl font-bold text-student-deep">
+              {text.bookingRequestSent}
+            </h2>
+            <p className="mt-2 text-sm leading-6 text-emerald-800">
+              {text.requestCreatedStatus.replace(
+                '{status}',
+                getBookingStatusLabel(activeCreated.status, text),
+              )}
             </p>
-          </div>
+          </StickyNote>
           <div className="mt-6 grid gap-4 md:grid-cols-3">
             <SummaryBox
               label={text.status}
@@ -250,27 +271,27 @@ export default function BookingConfirmationPage() {
               value={formatMoney(activeCreated.netAmount, activeCreated.currency)}
             />
           </div>
-          <p className="mt-5 text-sm text-[#70695f]">
+          <p className="mt-5 text-sm text-notebook-muted">
             {text.created}: {formatBangkokDateTime(activeCreated.createdAt, language)}
           </p>
           <div className="mt-6 flex flex-wrap gap-3">
             <button
               type="button"
-              className="rounded-full bg-[#1c1a16] px-5 py-3 text-sm font-extrabold text-white"
+              className={notebookButtonClass()}
               onClick={() =>
                 router.push(`/dashboard/bookings/${encodeURIComponent(activeCreated.id)}`)
               }
             >
               {text.view} {text.bookingDetails}
             </button>
-            <Link href="/dashboard/bookings" className="booking-secondary-button">
+            <Link href="/dashboard/bookings" className={notebookButtonClass({ tone: 'secondary' })}>
               {text.backToBookings}
             </Link>
-            <Link href="/tutors" className="booking-secondary-button">
+            <Link href="/tutors" className={notebookButtonClass({ tone: 'secondary' })}>
               {text.findTutor}
             </Link>
           </div>
-        </section>
+        </PaperCard>
       )}
     </div>
   );
@@ -279,7 +300,7 @@ export default function BookingConfirmationPage() {
 function BookingError({ error, text }: { error: unknown; text: BookingText }) {
   return (
     <div
-      className="rounded-2xl border border-[#e2b7ae] bg-[#fff4f1] p-6 text-sm text-[#a34334]"
+      className="rounded-xl border border-red-200 bg-red-50 p-6 text-sm text-red-800"
       role="alert"
     >
       <p>{getBookingErrorMessage(error, text)}</p>
@@ -311,7 +332,7 @@ function SubmitError({
   const conflict = error instanceof ApiError && error.status === 409;
   return (
     <div
-      className="mt-5 rounded-2xl border border-[#e2b7ae] bg-[#fff4f1] p-4 text-sm leading-6 text-[#a34334]"
+      className="mt-5 rounded-xl border border-red-200 bg-red-50 p-4 text-sm leading-6 text-red-800"
       role="alert"
     >
       <p>{getBookingErrorMessage(error, text)}</p>
@@ -334,19 +355,21 @@ function SubmitError({
 
 function MoneyRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex items-center justify-between gap-4 text-[#625b53]">
+    <div className="flex items-center justify-between gap-4 text-notebook-muted">
       <span>{label}</span>
-      <strong className="text-[#332e28]">{value}</strong>
+      <strong className="text-notebook-ink">{value}</strong>
     </div>
   );
 }
 
 function SummaryBox({ label, value }: { label: string; value: ReactNode }) {
   return (
-    <div className="rounded-2xl bg-[#f8f5ef] p-4">
-      <p className="text-xs font-extrabold uppercase tracking-[0.1em] text-[#8a857b]">{label}</p>
-      <div className="mt-2 text-sm font-extrabold text-[#332e28]">{value}</div>
-    </div>
+    <GraphPaper className="rounded-xl p-4">
+      <p className="text-xs font-extrabold uppercase tracking-[0.1em] text-notebook-muted">
+        {label}
+      </p>
+      <div className="mt-2 text-sm font-extrabold text-notebook-ink">{value}</div>
+    </GraphPaper>
   );
 }
 

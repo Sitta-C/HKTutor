@@ -25,14 +25,14 @@ describe('AuthService', () => {
     await expect(
       service.acceptPrivacyNotice('user-id', {
         consent: true,
-        policyVersion: '2026-09-09',
+        policyVersion: '2026-09-30',
       }),
-    ).resolves.toMatchObject({ policyVersion: '2026-09-09' });
+    ).resolves.toMatchObject({ policyVersion: '2026-09-30' });
     const calls = update.mock.calls as unknown as Array<
       [{ where: { id: string }; data: { consentAcceptedAt: Date; policyVersion: string } }]
     >;
     expect(calls[0]?.[0].where).toEqual({ id: 'user-id' });
-    expect(calls[0]?.[0].data.policyVersion).toBe('2026-09-09');
+    expect(calls[0]?.[0].data.policyVersion).toBe('2026-09-30');
     expect(calls[0]?.[0].data.consentAcceptedAt).toBeInstanceOf(Date);
   });
 
@@ -59,7 +59,7 @@ describe('AuthService', () => {
         password: 'password123',
         role: 'student',
         consent: true,
-        policyVersion: '2026-09-09',
+        policyVersion: '2026-09-30',
       }),
     ).resolves.toEqual({
       message: 'If an account can be created, a verification email has been sent.',
@@ -110,7 +110,7 @@ describe('AuthService', () => {
         password: 'password123',
         role: 'student',
         consent: true,
-        policyVersion: '2026-09-09',
+        policyVersion: '2026-09-30',
       }),
     ).resolves.toEqual({
       message: 'If an account can be created, a verification email has been sent.',
@@ -137,7 +137,7 @@ describe('AuthService', () => {
         password: 'password123',
         role: 'student',
         consent: true,
-        policyVersion: '2026-09-09',
+        policyVersion: '2026-09-30',
       }),
     ).resolves.toEqual({
       message: 'If an account can be created, a verification email has been sent.',

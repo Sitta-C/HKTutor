@@ -27,13 +27,13 @@ rewrites that path to the API on port 3001. The API documentation is available a
 ### Current product surface
 
 The implemented web flow is login (`/`), registration (`/register`), email verification
-(`/register/verify`, with `/register/verifypage` retained as a legacy alias), role-specific profile
+(`/register/verify`, with `/register/verifypage` redirected as a legacy alias), role-specific profile
 onboarding (`/onboarding/profile`), a protected dashboard (`/dashboard`), profile editing
 (`/dashboard/profile`), tutor availability management (`/dashboard/availability`), and the
 informational `/about-me` page. The availability screen creates and deletes future Bangkok-time
 ranges while exchanging UTC timestamps with the API, protecting reserved slots, and presenting a
-Gregorian calendar in English or a Buddhist calendar in Thai. The privacy notice opens as a
-closable modal from registration and the dashboard instead of using a separate route.
+Gregorian calendar in English or a Buddhist calendar in Thai. The bilingual privacy notice opens
+as a closable modal from registration and the dashboard instead of using a separate route.
 
 The accepted student and tutor dashboard concepts, plus the tutor profile/certificate form, live
 in [`ui-design`](ui-design/). Open [`ui-design/index.html`](ui-design/index.html) directly or serve
@@ -120,9 +120,9 @@ This generates Prisma Client, runs workspace contract tests, formatting checks, 
 and production builds. It does not apply migrations, seed a database, or send email.
 
 Docker images can be validated with `docker compose config` after required environment values are
-set. Compose publishes one gateway on port 3000; `/api/v1` goes directly to NestJS and every other
-path goes to Next.js. The web and API ports stay private inside the Compose network. Terminate HTTPS
-at this gateway or an upstream VM proxy and set `COOKIE_SECURE=true` for a deployed demo.
+set. Compose publishes Next.js on port 3000; the app forwards same-origin `/api/v1` requests to the
+private NestJS service. Terminate HTTPS at an upstream VM proxy and set `COOKIE_SECURE=true` for a
+deployed demo.
 
 ## Demo scope
 

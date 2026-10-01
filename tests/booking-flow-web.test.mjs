@@ -7,7 +7,7 @@ const typesPath = 'apps/web/src/lib/api/types.ts';
 const confirmationPath = 'apps/web/src/components/bookings/booking-confirmation-page.tsx';
 const listPath = 'apps/web/src/components/bookings/student-bookings-page.tsx';
 const detailPath = 'apps/web/src/components/bookings/student-booking-detail-page.tsx';
-const availabilityPath = 'apps/web/src/components/tutors/tutor-availability-page.tsx';
+const availabilityPath = 'apps/web/src/components/tutors/public-tutor-availability.tsx';
 
 test('defines the finalized S1-T24 booking client contracts for S1-T25', async () => {
   const client = await fs.readFile(clientPath, 'utf8');

@@ -6,10 +6,10 @@ const read = (filePath) => fs.readFile(filePath, 'utf8');
 
 test('wires the tutor availability page to the private availability API', async () => {
   const route = await read('apps/web/src/app/dashboard/availability/page.tsx');
-  const page = await read('apps/web/src/components/availability/tutor-availability-page.tsx');
+  const page = await read('apps/web/src/components/availability/manage-tutor-availability.tsx');
   const api = await read('apps/web/src/lib/api/availability.ts');
 
-  assert.match(route, /TutorAvailabilityPage/);
+  assert.match(route, /ManageTutorAvailability/);
   assert.match(page, /getTutorAvailability/);
   assert.match(page, /createTutorAvailability/);
   assert.match(page, /deleteTutorAvailability/);
@@ -20,7 +20,7 @@ test('wires the tutor availability page to the private availability API', async 
 });
 
 test('keeps availability display and input explicitly in Bangkok time', async () => {
-  const page = await read('apps/web/src/components/availability/tutor-availability-page.tsx');
+  const page = await read('apps/web/src/components/availability/manage-tutor-availability.tsx');
   const api = await read('apps/web/src/lib/api/availability.ts');
   const dateTime = await read('apps/web/src/lib/date-time.ts');
   const datePicker = await read('apps/web/src/components/date-time/localized-date-picker.tsx');
@@ -47,21 +47,18 @@ test('keeps availability display and input explicitly in Bangkok time', async ()
 });
 
 test('keeps availability refreshes race-safe and dashboard states structurally valid', async () => {
-  const page = await read('apps/web/src/components/availability/tutor-availability-page.tsx');
+  const page = await read('apps/web/src/components/availability/manage-tutor-availability.tsx');
 
   assert.doesNotMatch(page, /function loadAvailability/);
   assert.doesNotMatch(page, /await loadAvailability\(\)/);
   assert.doesNotMatch(page, /<main/);
   assert.doesNotMatch(page, /#[\da-fA-F]{3,8}/);
-  assert.match(
-    page,
-    /profileDisplayName \? \{ \.\.\.user, displayName: profileDisplayName \} : user/,
-  );
+  assert.match(page, /const shellUser = profileUser \?\? user/);
   assert.match(page, /onAction=\{refreshAvailability\}/);
 });
 
 test('protects reserved slots and exposes the required availability states', async () => {
-  const page = await read('apps/web/src/components/availability/tutor-availability-page.tsx');
+  const page = await read('apps/web/src/components/availability/manage-tutor-availability.tsx');
   const types = await read('apps/web/src/lib/api/types.ts');
 
   assert.match(types, /export type AvailabilityState = 'OPEN' \| 'RESERVED'/);

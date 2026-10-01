@@ -20,8 +20,8 @@ For the page-by-page API dependency, see
 | Product Backlog tab in the same workbook                                                                                                            | Rows 4–86: UI acceptance criteria and Sprint 1–3 boundaries, including exact filtering, chat, classes, rescheduling, documents, reports, reviews and coupons.        |
 | `apps/api/prisma/schema.prisma` and migrations                                                                                                      | Actual persisted fields and database constraints. A sheet field is not necessarily implemented.                                                                      |
 | `apps/api/src/app.module.ts`, controllers, DTOs, services and contract tests                                                                        | Actual HTTP surface, identity contract and implemented safeguards. Profile and Tutor-listing controllers exist; availability, search and booking controllers do not. |
-| Tracked repository Markdown                                                                                                                         | Root/API/web READMEs, `apps/web/AGENTS.md`, contract references and this document. Historical local task logs are not sources of truth.                              |
-| All tracked first-party `apps/web/src/**/*.{ts,tsx}` files                                                                                          | Eleven route pages, shared components, API clients, auth context and i18n. Generated output and dependencies are excluded.                                           |
+| Tracked repository Markdown                                                                                                                         | Root/API/web READMEs, contract references and this document. Historical local task logs are not sources of truth.                                                    |
+| All tracked first-party `apps/web/src/**/*.{ts,tsx}` files                                                                                          | Sixteen route pages, shared components, API clients, auth context and i18n. Generated output and dependencies are excluded.                                          |
 | `dashboard-navigation.ts`, `globals.css`, `ui-design/index.html` and prototype references                                                           | Navigation targets, theme and existing design conventions.                                                                                                           |
 
 Source priority: tracked production code and tests describe current implementation; current API
@@ -37,7 +37,7 @@ assignee-specific instructions.
 | `/`                                    | `app/page.tsx`, `components/login.tsx`                                                                                   | Working email/password login; redirects signed-in users to dashboard                                                                 | Auth identity/session                                                    |
 | `/register`                            | `app/register/page.tsx`, `components/register.tsx`, `components/privacy-consent.tsx`                                     | Student/tutor choice, password confirmation, explicit privacy consent                                                                | Registration creates User and sends email; it does not start a session   |
 | `/register/verify`                     | `app/register/verify/page.tsx`, `components/verify.tsx`                                                                  | Waiting, link verification, resend, cross-tab completion/fallback                                                                    | Token verification and session creation                                  |
-| `/register/verifypage`                 | `app/register/verifypage/page.tsx`                                                                                       | Legacy alias using the same Verify component                                                                                         | No separate design needed                                                |
+| `/register/verifypage`                 | `next.config.ts` redirect to `/register/verify`                                                                          | Legacy alias preserved without maintaining a duplicate page                                                                          | No separate design needed                                                |
 | `/onboarding/profile`                  | `app/onboarding/profile/page.tsx`, `components/profile/profile-editor.tsx`                                               | Role-specific personal-profile onboarding after email verification                                                                   | Owner-only `StudentProfile`/`TutorProfile` API                           |
 | `/dashboard`                           | `app/dashboard/page.tsx`, `components/dashboard/{dashboard-shell,student-dashboard,tutor-dashboard,admin-dashboard}.tsx` | T09 role selection and responsive shell are implemented; domain panels are placeholders                                              | Auth identity plus owner profile; counts, lists and revenue are not live |
 | `/dashboard/profile`                   | `app/dashboard/profile/page.tsx`, `components/profile/profile-editor.tsx`                                                | Student/tutor can update the same fields collected during onboarding                                                                 | Owner-only profile upsert                                                |
@@ -48,7 +48,8 @@ assignee-specific instructions.
 | `/about-me`                            | `app/about-me/page.tsx`                                                                                                  | Static EN/TH informational page                                                                                                      | `copy.aboutMe`; not a user profile                                       |
 | Shared layout/auth/i18n                | `app/layout.tsx`, `components/auth-shell.tsx`, `lib/auth-context.tsx`, `lib/i18n.tsx`                                    | Auth/session bootstrap, theme, language persistence                                                                                  | Auth refresh response; local language preference                         |
 
-There are **11 existing route pages**, including one legacy alias and one dynamic listing route.
+There are **16 existing route pages**, including three dynamic routes. The legacy verification
+alias is a redirect and does not maintain a duplicate page.
 Student, Tutor and Admin dashboards
 share one route. The Admin view is a safe placeholder, not a completed admin console.
 
@@ -72,9 +73,8 @@ drawer instead of a new route if it preserves the same information and deep-link
 These are design surfaces rather than mandatory route count. Forms, detail drawers and
 confirmation states may share screens when they preserve the same data and navigation behavior.
 
-Current production Student navigation: Dashboard → My profile → My bookings → Settings → Support →
-Privacy → Sign out. Current Tutor navigation: Dashboard → My profile → My listings → Availability →
-Settings → Support → Privacy → Sign out.
+Current production Student navigation: Dashboard → My profile → My bookings → Privacy → Sign out.
+Current Tutor navigation: Dashboard → My profile → My listings → Availability → Privacy → Sign out.
 The tutor booking-management actions arrive in Sprint 2. Account can remain read-only using the
 existing identity contract. Settings/support have no dedicated storage or workflow contract yet.
 Guest search is allowed by RBAC; use a public header without private dashboard identity.
@@ -305,7 +305,7 @@ ui-design/
    copy the dashboard `:root` token block and reuse the component patterns; do not invent
    new tokens.
 2. Review in chat; iterate until agreed.
-3. Implement in `apps/web` after reading `apps/web/AGENTS.md` and the relevant Next 16 guide under
+3. Implement in `apps/web` after reading the relevant Next 16 guide under
    `apps/web/node_modules/next/dist/docs/`.
 4. Mark the draft row in §7 ✅ implemented (keep the draft; don't delete).
 
@@ -325,7 +325,7 @@ server-controlled unless a row explicitly describes an input.
 | Login                   | Email, password, password visibility, submit, registration link                                       | Input email maps to `User.email`; server verifies `passwordHash`                         | Loading, invalid credentials, unverified account, throttled/network failure; password is write-only and never echoed in a response                                                                              |
 | Register                | Email, password, confirm password, Student/Tutor role, consent checkbox and policy link/version       | `User.email/role`; password → server hash; consent → `consentAcceptedAt/policyVersion`   | Confirm password is client-only; no admin option; current client requires 10+ characters with a letter and number; server DTO remains final validator; unchecked consent prevents submit; duplicate email error |
 | Verify / resend         | Destination email, waiting/verifying/success/error text, resend and login actions, close-tab fallback | `EmailVerificationToken` consumed server-side; `User.emailVerifiedAt`; new `AuthSession` | Single-use link; invalid/expired/consumed link requires recovery; the raw token is an input only, never visible page content or persisted UI state; do not design numeric OTP boxes                             |
-| Privacy                 | Title, version, effective date, summary, sections, close action                                       | `PRIVACY_NOTICE`; consent field values are not the notice body                           | Presented in a closable modal; currently English-only; a future translated notice needs reviewed copy with the same version                                                                                     |
+| Privacy                 | Localized title, version, effective date, summary, sections, close action                             | `privacyNoticeCopy`; consent field values are not the notice body                        | Presented in a closable modal; English and Thai use the same policy version, and any material wording change requires a version bump                                                                            |
 | Account / sidebar       | Own email, role, profile nickname/display name and derived initial; language toggle; sign out         | Current `AuthUser` plus owner profile; local language store                              | Student uses `StudentProfile.nickname`; tutor uses `TutorProfile.displayName`; email prefix remains only a loading/legacy fallback                                                                              |
 | Future account metadata | Verification date, account status, consent date/version, joined date                                  | Current `User.emailVerifiedAt/accountStatus/consentAcceptedAt/policyVersion/createdAt`   | Read-only only after an allowlisted owner response exists; current `AuthUser` does not expose these fields                                                                                                      |
 

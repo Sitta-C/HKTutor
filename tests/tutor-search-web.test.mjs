@@ -7,6 +7,7 @@ const typesPath = 'apps/web/src/lib/api/types.ts';
 const pagePath = 'apps/web/src/app/tutors/page.tsx';
 const componentPath = 'apps/web/src/components/tutors/tutor-search-page.tsx';
 const shellPath = 'apps/web/src/components/tutors/public-tutor-search-shell.tsx';
+const copyPath = 'apps/web/src/components/tutors/tutor-search-copy.ts';
 
 test('defines the S1-T22 public Tutor client contracts', async () => {
   const client = await fs.readFile(clientPath, 'utf8');
@@ -54,15 +55,14 @@ test('renders the public Tutor search route and catalog-backed controls', async 
   assert.match(page, /TutorSearchPage/);
   assert.match(page, /PublicTutorSearchShell/);
   assert.match(shell, /DashboardShell/);
-  assert.match(shell, /getMyProfile/);
-  assert.match(shell, /useAuth/);
-  assert.match(shell, /authLoading/);
-  assert.match(shell, /profileUser\?\.id === user\.id/);
-  assert.match(shell, /user && !profileReady/);
+  assert.match(shell, /useProfileSession/);
+  assert.match(shell, /allowGuest: true/);
+  assert.match(shell, /profileMode: 'optional'/);
+  assert.match(shell, /const shellUser = profileUser \?\? publicGuestUser/);
   assert.match(shell, /headerNavRight/);
   assert.match(shell, /public-search-guest/);
   assert.doesNotMatch(shell, /student@example\.com|Somchai/);
-  assert.match(shell, /profile\.nickname/);
+  assert.match(shell, /profileUser/);
   for (const controlId of [
     'tutor-search-subject',
     'tutor-search-grade',
@@ -80,9 +80,12 @@ test('renders the public Tutor search route and catalog-backed controls', async 
 });
 
 test('keeps no-match, validation, network-error, and stale-result states separate', async () => {
-  const component = await fs.readFile(componentPath, 'utf8');
+  const [component, copy] = await Promise.all([
+    fs.readFile(componentPath, 'utf8'),
+    fs.readFile(copyPath, 'utf8'),
+  ]);
 
-  assert.match(component, /No exact matches found/);
+  assert.match(copy, /No exact matches found/);
   assert.match(component, /setResults\(\[\]\)/);
   assert.match(component, /status === 'validation'/);
   assert.match(component, /status === 'error'/);
@@ -99,8 +102,9 @@ test('keeps the search callback stable when the language changes', async () => {
   )?.[1];
 
   assert.ok(executeSearch, 'executeSearch callback must exist');
-  assert.match(executeSearch, /setSearchError\(error\)/);
+  assert.match(executeSearch, /setHasSearchError\(true\)/);
   assert.doesNotMatch(executeSearch, /text\.searchError/);
   assert.match(executeSearch, /\}, \[\]\);$/);
-  assert.match(component, /readSearchError\(searchError, text\.searchError\)/);
+  assert.match(component, /message=\{text\.searchError\}/);
+  assert.doesNotMatch(component, /error\.message/);
 });

@@ -18,18 +18,21 @@ test('centralizes localized calendar presentation without changing ISO and UTC c
 
 test('uses the shared localized formatter across every production date surface', async () => {
   const availability = await read(
-    'apps/web/src/components/availability/tutor-availability-page.tsx',
+    'apps/web/src/components/availability/manage-tutor-availability.tsx',
   );
   const listings = await read('apps/web/src/components/listings/tutor-listings-page.tsx');
   const search = await read('apps/web/src/components/tutors/tutor-search-page.tsx');
   const authShell = await read('apps/web/src/components/auth-shell.tsx');
   const dashboardShell = await read('apps/web/src/components/dashboard/dashboard-shell.tsx');
   const about = await read('apps/web/src/app/about-me/page.tsx');
+  const publicUi = await read('apps/web/src/components/public/public-ui.tsx');
 
   assert.match(availability, /formatBangkokWeekRange/);
   assert.match(listings, /formatBangkokShortDate/);
   assert.match(search, /formatBangkokDateTime/);
-  for (const footer of [authShell, dashboardShell, about]) {
+  assert.match(authShell, /PublicFooter/);
+  assert.match(about, /PublicFooter/);
+  for (const footer of [publicUi, dashboardShell]) {
     assert.match(footer, /formatBangkokYear/);
     assert.doesNotMatch(footer, /getFullYear\(\)/);
   }
@@ -38,7 +41,7 @@ test('uses the shared localized formatter across every production date surface',
 test('uses an accessible localized date picker backed by a Gregorian ISO value', async () => {
   const picker = await read('apps/web/src/components/date-time/localized-date-picker.tsx');
   const availability = await read(
-    'apps/web/src/components/availability/tutor-availability-page.tsx',
+    'apps/web/src/components/availability/manage-tutor-availability.tsx',
   );
 
   assert.match(availability, /LocalizedDatePicker/);

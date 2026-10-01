@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 
-import type { Route } from '@playwright/test';
+import type { Page, Route } from '@playwright/test';
 
 const tutorId = '11111111-1111-4111-8111-111111111111';
 const listingId = '22222222-2222-4222-8222-222222222222';
@@ -156,6 +156,7 @@ test('guest slot selection returns through login and onboarding to booking confi
   });
 
   await page.goto(`/tutors/${tutorId}?listingId=${listingId}`);
+  await expectAccessiblePageShell(page);
   await page.getByRole('button', { name: 'Sign in to choose this time' }).click();
 
   await expect(page).toHaveURL((url) => {
@@ -165,6 +166,7 @@ test('guest slot selection returns through login and onboarding to booking confi
         `/dashboard/bookings/new?listingId=${listingId}&slotId=${slotId}`
     );
   });
+  await expectAccessiblePageShell(page);
 
   await page.locator('#email').fill(studentUser.email);
   await page.locator('#password').fill('student-pass-123');
@@ -177,6 +179,7 @@ test('guest slot selection returns through login and onboarding to booking confi
         `/dashboard/bookings/new?listingId=${listingId}&slotId=${slotId}`
     );
   });
+  await expectAccessiblePageShell(page);
 
   await page.locator('#firstName').fill(studentProfile.firstName);
   await page.locator('#lastName').fill(studentProfile.lastName);
@@ -193,12 +196,27 @@ test('guest slot selection returns through login and onboarding to booking confi
       url.searchParams.get('slotId') === slotId
     );
   });
+  await expectAccessiblePageShell(page);
   await expect(page.getByRole('heading', { name: 'Review your lesson request' })).toBeVisible();
   await expect(page.getByText('TUTOR VERIFICATION PENDING')).toBeVisible();
   await page.getByRole('button', { name: 'Send booking request' }).click();
   await expect(page.getByRole('heading', { name: 'Booking request sent' })).toBeVisible();
   await expect(page.getByText('Your request was created as PENDING.')).toBeVisible();
+  await expectAccessiblePageShell(page);
 });
+
+async function expectAccessiblePageShell(page: Page) {
+  await expect(page.locator('main')).toHaveCount(1);
+  await expect(page.locator('h1')).toHaveCount(1);
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const root = document.scrollingElement ?? document.documentElement;
+        return root.scrollWidth - root.clientWidth;
+      }),
+    )
+    .toBeLessThanOrEqual(1);
+}
 
 function authResponse(user: typeof studentUser) {
   return { accessToken: 'e2e-access-token', expiresIn: 900, user };

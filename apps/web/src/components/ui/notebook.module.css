@@ -1,0 +1,96 @@
+.page {
+  isolation: isolate;
+  background-color: var(--color-paper);
+}
+
+.ruled {
+  background-image: repeating-linear-gradient(
+    to bottom,
+    transparent 0,
+    transparent 27px,
+    color-mix(in srgb, var(--color-notebook-line) 72%, transparent) 28px
+  );
+  background-position: 0 9px;
+}
+
+.ruled::before {
+  position: fixed;
+  z-index: -1;
+  top: 0;
+  bottom: 0;
+  left: clamp(3.5rem, 7vw, 6.75rem);
+  width: 1px;
+  pointer-events: none;
+  content: '';
+  background: color-mix(in srgb, var(--color-margin-guide) 58%, transparent);
+}
+
+.grid {
+  background-image:
+    linear-gradient(
+      color-mix(in srgb, var(--color-notebook-line) 58%, transparent) 1px,
+      transparent 1px
+    ),
+    linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--color-notebook-line) 58%, transparent) 1px,
+      transparent 1px
+    );
+  background-size: 24px 24px;
+}
+
+.paper {
+  position: relative;
+  background-color: color-mix(in srgb, var(--color-paper) 97%, white);
+  box-shadow: var(--shadow-paper);
+}
+
+.paper::after {
+  position: absolute;
+  right: -1px;
+  bottom: -1px;
+  width: 1.35rem;
+  height: 1.35rem;
+  pointer-events: none;
+  content: '';
+  background: linear-gradient(
+    135deg,
+    transparent 49%,
+    color-mix(in srgb, var(--color-paper-edge) 72%, transparent) 50%,
+    var(--color-paper-deep) 54%
+  );
+  border-bottom-right-radius: 1.45rem;
+}
+
+.sticky {
+  position: relative;
+  box-shadow: var(--shadow-note);
+}
+
+.sticky::after {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 1rem;
+  height: 1rem;
+  pointer-events: none;
+  content: '';
+  background: linear-gradient(135deg, transparent 50%, rgba(120, 113, 108, 0.1) 51%);
+}
+
+.tape {
+  background-image: repeating-linear-gradient(
+    -45deg,
+    rgba(255, 255, 255, 0.22) 0,
+    rgba(255, 255, 255, 0.22) 4px,
+    transparent 4px,
+    transparent 8px
+  );
+  box-shadow: 0 1px 1px rgba(68, 64, 60, 0.08);
+}
+
+@media (max-width: 640px) {
+  .ruled::before {
+    display: none;
+  }
+}

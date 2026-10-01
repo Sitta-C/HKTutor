@@ -10,6 +10,7 @@ import {
   verifyEmail,
 } from '@/lib/api/auth';
 import { onSessionExpired } from '@/lib/api/client';
+import { clearCurrentProfileCache } from '@/lib/current-profile';
 
 import type { AuthUser } from '@/lib/api/types';
 import type { ReactNode } from 'react';
@@ -61,16 +62,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       isLoading,
       user,
       async login(email, password) {
+        clearCurrentProfileCache();
         setUser(await loginAccount(email, password));
       },
       async logout() {
-        await logoutSession();
-        setUser(null);
+        try {
+          await logoutSession();
+        } finally {
+          clearCurrentProfileCache();
+          setUser(null);
+        }
       },
       async register(input) {
         await registerAccount(input);
       },
       async verify(token) {
+        clearCurrentProfileCache();
         setUser(await verifyEmail(token));
       },
     }),

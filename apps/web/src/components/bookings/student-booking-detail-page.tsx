@@ -10,6 +10,14 @@ import {
   formatMoney,
   getBookingErrorMessage,
 } from '@/components/bookings/booking-ui';
+import {
+  GraphPaper,
+  NotebookHeading,
+  PaperCard,
+  StickyNote,
+  WashiTape,
+  notebookButtonClass,
+} from '@/components/ui/notebook';
 import { getMyBooking } from '@/lib/api/bookings';
 import { useLanguage } from '@/lib/i18n';
 
@@ -51,16 +59,16 @@ export default function StudentBookingDetailPage({ bookingId }: { bookingId: str
 
   if (isLoading || !isCurrentBookingLoaded) {
     return (
-      <p className="rounded-2xl bg-white p-6 text-sm font-semibold text-[#625b53]" role="status">
+      <StickyNote tone="yellow" className="p-6 text-sm font-semibold" role="status">
         {text.loading}
-      </p>
+      </StickyNote>
     );
   }
 
   if (error || !booking) {
     return (
       <div
-        className="rounded-2xl border border-[#e2b7ae] bg-[#fff4f1] p-6 text-sm text-[#a34334]"
+        className="rounded-xl border border-red-200 bg-red-50 p-6 text-sm text-red-800"
         role="alert"
       >
         <p>{getBookingErrorMessage(error, text)}</p>
@@ -72,20 +80,14 @@ export default function StudentBookingDetailPage({ bookingId }: { bookingId: str
   }
 
   return (
-    <div className="booking-page">
+    <div className="mx-auto w-full max-w-[1120px] py-8 pb-12">
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <p className="mb-2 text-xs font-extrabold uppercase tracking-[0.18em] text-[#c07a2e]">
-            {text.bookingDetails}
-          </p>
-          <h1 className="text-4xl font-black tracking-[-0.06em] text-[#171714]">
-            {booking.tutor.displayName}
-          </h1>
-        </div>
+        <NotebookHeading eyebrow={text.bookingDetails} title={booking.tutor.displayName} />
         <BookingStatusBadge status={booking.status} text={text} />
       </div>
 
-      <section className="rounded-[1.5rem] border border-[#ebe6dd] bg-white p-6 shadow-[0_18px_40px_-12px_rgba(46,39,25,0.14)] sm:p-8">
+      <PaperCard className="relative overflow-hidden p-6 shadow-[0_18px_40px_-12px_rgba(46,39,25,0.14)] sm:p-8">
+        <WashiTape tone="blue" className="-right-5 top-4 rotate-12" />
         <div className="grid gap-4 md:grid-cols-3">
           <InfoBox label={text.subject} value={booking.listing.subjectName} />
           <InfoBox label={text.grade} value={booking.listing.gradeLevelName} />
@@ -94,23 +96,25 @@ export default function StudentBookingDetailPage({ bookingId }: { bookingId: str
             value={formatBangkokRange(booking.slot.startAtUtc, booking.slot.endAtUtc, language)}
           />
         </div>
-        <div className="mt-6 rounded-2xl bg-[#f8f5ef] p-5">
-          <p className="text-xs font-extrabold uppercase tracking-[0.1em] text-[#8a857b]">
+        <StickyNote tone="yellow" className="mt-6 p-5">
+          <p className="text-xs font-extrabold uppercase tracking-[0.1em] text-notebook-muted">
             {text.lessonTime}
           </p>
-          <p className="mt-2 text-lg font-extrabold text-[#171714]">
+          <p className="mt-2 text-lg font-extrabold text-notebook-ink">
             {formatBangkokRange(booking.slot.startAtUtc, booking.slot.endAtUtc, language)}
           </p>
-          <p className="mt-1 text-sm text-[#70695f]">
+          <p className="mt-1 text-sm text-notebook-muted">
             {text.bangkokTime} ·{' '}
             {formatDuration(booking.slot.startAtUtc, booking.slot.endAtUtc, text)}
           </p>
-        </div>
+        </StickyNote>
         <div className="mt-6">
-          <h2 className="text-lg font-extrabold text-[#171714]">{text.description}</h2>
-          <p className="mt-2 text-sm leading-6 text-[#625b53]">{booking.listing.description}</p>
+          <h2 className="font-note text-2xl font-bold text-notebook-ink">{text.description}</h2>
+          <p className="mt-2 text-sm leading-6 text-notebook-muted">
+            {booking.listing.description}
+          </p>
         </div>
-        <div className="mt-6 grid gap-3 border-t border-[#ebe6dd] pt-5 text-sm md:grid-cols-3">
+        <div className="mt-6 grid gap-3 border-t border-dashed border-paper-edge pt-5 text-sm md:grid-cols-3">
           <InfoBox
             label={text.subtotal}
             value={formatMoney(booking.subtotalAmount, booking.currency)}
@@ -122,23 +126,25 @@ export default function StudentBookingDetailPage({ bookingId }: { bookingId: str
           <InfoBox label={text.total} value={formatMoney(booking.netAmount, booking.currency)} />
         </div>
         <div className="mt-6 flex flex-wrap gap-3">
-          <Link href="/dashboard/bookings" className="booking-secondary-button">
+          <Link href="/dashboard/bookings" className={notebookButtonClass({ tone: 'secondary' })}>
             {text.backToBookings}
           </Link>
-          <Link href="/tutors" className="booking-secondary-button">
+          <Link href="/tutors" className={notebookButtonClass({ tone: 'secondary' })}>
             {text.findTutor}
           </Link>
         </div>
-      </section>
+      </PaperCard>
     </div>
   );
 }
 
 function InfoBox({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-2xl bg-[#f8f5ef] p-4">
-      <p className="text-xs font-extrabold uppercase tracking-[0.1em] text-[#8a857b]">{label}</p>
-      <p className="mt-2 text-sm font-extrabold text-[#332e28]">{value}</p>
-    </div>
+    <GraphPaper className="rounded-xl p-4">
+      <p className="text-xs font-extrabold uppercase tracking-[0.1em] text-notebook-muted">
+        {label}
+      </p>
+      <p className="mt-2 text-sm font-extrabold text-notebook-ink">{value}</p>
+    </GraphPaper>
   );
 }

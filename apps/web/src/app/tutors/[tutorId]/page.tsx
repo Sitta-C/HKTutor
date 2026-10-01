@@ -1,9 +1,9 @@
 import { Suspense } from 'react';
 
-import PublicTutorSearchShell from '@/components/tutors/public-tutor-search-shell';
 import PublicTutorAvailabilityPage, {
   PublicTutorAvailabilityLoading,
-} from '@/components/tutors/tutor-availability-page';
+} from '@/components/tutors/public-tutor-availability';
+import PublicTutorSearchShell from '@/components/tutors/public-tutor-search-shell';
 
 export default async function PublicTutorDetailRoute({
   params,

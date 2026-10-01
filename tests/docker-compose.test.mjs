@@ -24,22 +24,19 @@ const publishedPorts = (service) =>
     ({ protocol, published, target }) => `${published}:${target}/${protocol}`,
   );
 
-test('publishes one same-origin gateway and keeps web and API services private', () => {
+test('publishes the same-origin web entrypoint and keeps the API service private', () => {
   const result = composeConfig();
   const output = `${result.stdout}${result.stderr}`;
 
   assert.equal(result.status, 0, output);
 
   const config = JSON.parse(result.stdout);
-  assert.deepEqual(Object.keys(config.services).sort(), ['api', 'gateway', 'web']);
-  assert.deepEqual(publishedPorts(config.services.gateway), ['3000:80/tcp']);
-  assert.deepEqual(publishedPorts(config.services.web), []);
+  assert.deepEqual(Object.keys(config.services).sort(), ['api', 'web']);
+  assert.deepEqual(publishedPorts(config.services.web), ['3000:3000/tcp']);
   assert.deepEqual(publishedPorts(config.services.api), []);
   assert.ok(config.services.web.healthcheck, 'web health check is required');
   assert.ok(config.services.api.healthcheck, 'API health check is required');
   assert.equal(config.services.web.depends_on.api.condition, 'service_healthy');
-  assert.equal(config.services.gateway.depends_on.api.condition, 'service_healthy');
-  assert.equal(config.services.gateway.depends_on.web.condition, 'service_healthy');
   assert.equal(
     config.services.api.environment.DATABASE_URL,
     'postgresql://postgres.project-ref:password@example.test:5432/postgres?sslmode=require',
@@ -59,7 +56,6 @@ test('publishes one same-origin gateway and keeps web and API services private',
   assert.equal(config.services.web.build.args.API_INTERNAL_URL, 'http://api:3001');
   assert.deepEqual(config.services.api.volumes ?? [], []);
   assert.deepEqual(config.services.web.volumes ?? [], []);
-  assert.deepEqual(config.services.gateway.volumes ?? [], []);
   assert.deepEqual(config.volumes ?? {}, {});
 });
 
@@ -97,13 +93,6 @@ test('the web image receives no public API URL or authentication secrets', async
   assert.doesNotMatch(dockerfile, /NEXT_PUBLIC_/);
   assert.doesNotMatch(dockerfile, /ARG (?:JWT_|RESEND_|EMAIL_FROM|DATABASE_URL)/);
   assert.doesNotMatch(dockerfile, /CLERK/i);
-});
-
-test('the gateway routes API traffic to NestJS and all other traffic to Next.js', async () => {
-  const nginx = await fs.readFile('deploy/gateway/nginx.conf', 'utf8');
-
-  assert.match(nginx, /location \/api\/v1\/\s*{[\s\S]*proxy_pass http:\/\/api:3001;/);
-  assert.match(nginx, /location \/\s*{[\s\S]*proxy_pass http:\/\/web:3000;/);
 });
 
 test('every Compose build resolves to an existing Dockerfile', async () => {

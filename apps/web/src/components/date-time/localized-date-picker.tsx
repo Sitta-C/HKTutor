@@ -2,6 +2,7 @@
 
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 
+import { notebookInputClass } from '@/components/ui/notebook';
 import {
   addIsoDays,
   formatCalendarDate,
@@ -132,13 +133,19 @@ export function LocalizedDatePicker({
   };
 
   return (
-    <div className="availability-field localized-date-picker" ref={rootRef}>
+    <div
+      className="relative flex flex-col gap-1.5 text-sm font-bold text-notebook-ink"
+      ref={rootRef}
+    >
       <span id={labelId}>{label}</span>
       <input type="hidden" name="date" value={value} />
       <button
         ref={triggerRef}
         type="button"
-        className="availability-input localized-date-trigger"
+        className={notebookInputClass({
+          className:
+            'flex cursor-pointer items-center justify-between gap-3 text-left focus:border-tutor focus:ring-sticky-blue/70',
+        })}
         aria-labelledby={`${labelId} ${valueId}`}
         aria-haspopup="dialog"
         aria-expanded={isOpen}
@@ -150,21 +157,28 @@ export function LocalizedDatePicker({
       </button>
 
       {isOpen && (
-        <div id={dialogId} className="localized-calendar" role="dialog" aria-label={calendarLabel}>
-          <div className="localized-calendar-head">
+        <div
+          id={dialogId}
+          className="absolute left-0 top-[calc(100%+0.55rem)] z-30 w-full min-w-0 rounded-2xl border border-paper-edge bg-paper p-4 text-notebook-ink shadow-paper"
+          role="dialog"
+          aria-label={calendarLabel}
+        >
+          <div className="mb-3 grid grid-cols-[2.35rem_minmax(0,1fr)_2.35rem] items-center gap-2">
             <button
               type="button"
-              className="localized-calendar-nav"
+              className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-paper-edge bg-paper-deep text-lg text-notebook-ink transition hover:bg-sticky-blue/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tutor/40 disabled:cursor-not-allowed disabled:opacity-35"
               aria-label={previousMonthLabel}
               disabled={previousMonthDisabled}
               onClick={() => moveMonth(-1)}
             >
               ‹
             </button>
-            <strong aria-live="polite">{formatCalendarMonth(viewMonth, language)}</strong>
+            <strong className="text-center text-sm font-extrabold" aria-live="polite">
+              {formatCalendarMonth(viewMonth, language)}
+            </strong>
             <button
               type="button"
-              className="localized-calendar-nav"
+              className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-paper-edge bg-paper-deep text-lg text-notebook-ink transition hover:bg-sticky-blue/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tutor/40 disabled:cursor-not-allowed disabled:opacity-35"
               aria-label={nextMonthLabel}
               onClick={() => moveMonth(1)}
             >
@@ -173,21 +187,25 @@ export function LocalizedDatePicker({
           </div>
 
           <div
-            className="localized-calendar-grid"
             role="grid"
             aria-label={formatCalendarMonth(viewMonth, language)}
             onKeyDown={handleGridKeyDown}
           >
-            <div className="localized-calendar-weekdays" role="row">
+            <div className="mb-1 grid grid-cols-7 gap-1" role="row">
               {weekdayLabels.map((weekday) => (
-                <span key={weekday} role="columnheader" aria-label={weekday}>
+                <span
+                  key={weekday}
+                  className="py-1 text-center text-[0.64rem] font-bold text-notebook-muted"
+                  role="columnheader"
+                  aria-label={weekday}
+                >
                   {weekday}
                 </span>
               ))}
             </div>
-            <div className="localized-calendar-days" role="rowgroup">
+            <div className="flex flex-col gap-1" role="rowgroup">
               {Array.from({ length: 6 }, (_, weekIndex) => (
-                <div className="localized-calendar-row" role="row" key={weekIndex}>
+                <div className="grid grid-cols-7 gap-1" role="row" key={weekIndex}>
                   {days.slice(weekIndex * 7, weekIndex * 7 + 7).map((day) => {
                     const disabled = Boolean(min && day.isoDate < min);
                     const selected = day.isoDate === value;
@@ -198,7 +216,15 @@ export function LocalizedDatePicker({
                         ref={active ? activeDayRef : undefined}
                         type="button"
                         role="gridcell"
-                        className={`${day.inCurrentMonth ? '' : 'outside'} ${selected ? 'selected' : ''}`}
+                        className={`inline-flex aspect-square min-w-0 items-center justify-center rounded-lg text-xs font-bold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tutor/40 disabled:cursor-not-allowed disabled:text-notebook-muted disabled:opacity-30 disabled:line-through ${
+                          day.inCurrentMonth
+                            ? 'text-notebook-ink'
+                            : 'text-notebook-muted opacity-60'
+                        } ${
+                          selected
+                            ? 'bg-tutor-deep text-white hover:bg-tutor-deep'
+                            : 'hover:bg-sticky-blue/60'
+                        } ${day.isoDate === today && !selected ? 'ring-1 ring-inset ring-tutor' : ''}`}
                         aria-label={formatCalendarDate(day.isoDate, language)}
                         aria-selected={selected}
                         aria-current={day.isoDate === today ? 'date' : undefined}
@@ -222,7 +248,16 @@ export function LocalizedDatePicker({
 
 function CalendarIcon() {
   return (
-    <svg viewBox="0 0 24 24" aria-hidden="true">
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.7"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className="h-[1.15rem] w-[1.15rem] shrink-0"
+      aria-hidden="true"
+    >
       <rect x="3.5" y="5.5" width="17" height="15" rx="2.5" />
       <path d="M8 3.5v4M16 3.5v4M3.5 10h17" />
     </svg>

@@ -49,8 +49,8 @@ services:
       HOSTNAME: 0.0.0.0
       NODE_ENV: production
       PORT: 3000
-    expose:
-      - '3000'
+    ports:
+      - '${WEB_PORT:-3000}:3000'
     depends_on:
       api:
         condition: service_healthy
@@ -67,15 +67,3 @@ services:
       timeout: 3s
       retries: 10
       start_period: 10s
-
-  gateway:
-    build:
-      context: .
-      dockerfile: deploy/gateway/Dockerfile
-    ports:
-      - '${WEB_PORT:-3000}:80'
-    depends_on:
-      api:
-        condition: service_healthy
-      web:
-        condition: service_healthy

@@ -2,6 +2,14 @@
 
 import Link from 'next/link';
 
+import {
+  NotebookPage,
+  PaperCard,
+  StatusBadge,
+  StickyNote,
+  WashiTape,
+  notebookButtonClass,
+} from '@/components/ui/notebook';
 import { ApiError } from '@/lib/api/error';
 import { useLanguage } from '@/lib/i18n';
 
@@ -14,9 +22,15 @@ export type BookingText = Translation['dashboard']['booking'];
 export function BookingLoading() {
   const { copy } = useLanguage();
   return (
-    <p className="p-6 text-sm font-semibold" role="status">
-      {copy.dashboard.booking.loading}
-    </p>
+    <NotebookPage className="flex min-h-[50dvh] items-center justify-center p-6">
+      <StickyNote tone="green" className="min-w-64 px-8 py-7 text-center">
+        <WashiTape className="-top-2 left-1/2 -translate-x-1/2" />
+        <span className="mx-auto block h-7 w-7 animate-spin rounded-full border-2 border-student-deep border-t-transparent" />
+        <p className="mt-4 font-note text-xl font-semibold text-notebook-ink" role="status">
+          {copy.dashboard.booking.loading}
+        </p>
+      </StickyNote>
+    </NotebookPage>
   );
 }
 
@@ -74,7 +88,7 @@ export function getBookingErrorMessage(error: unknown, text: BookingText): strin
     if (error.status === 404) return text.notFound;
     if (error.status === 409) return text.conflict;
   }
-  return error instanceof Error && error.message ? error.message : text.unknown;
+  return text.unknown;
 }
 
 export function isBookingError(error: unknown, status: number): boolean {
@@ -82,6 +96,18 @@ export function isBookingError(error: unknown, status: number): boolean {
 }
 
 export function BookingStatusBadge({ status, text }: { status: BookingStatus; text: BookingText }) {
+  const label = getBookingStatusLabel(status, text);
+  const tone = {
+    CANCELED: 'danger',
+    COMPLETED: 'neutral',
+    CONFIRMED: 'success',
+    EXPIRED: 'danger',
+    PENDING: 'warning',
+  } as const;
+  return <StatusBadge tone={tone[status]}>{label}</StatusBadge>;
+}
+
+export function getBookingStatusLabel(status: BookingStatus, text: BookingText): string {
   const labels: Record<BookingStatus, string> = {
     CANCELED: text.canceled,
     COMPLETED: text.completed,
@@ -89,11 +115,7 @@ export function BookingStatusBadge({ status, text }: { status: BookingStatus; te
     EXPIRED: text.expired,
     PENDING: text.pending,
   };
-  return (
-    <span className={`booking-status booking-status-${status.toLowerCase()}`}>
-      {labels[status]}
-    </span>
-  );
+  return labels[status];
 }
 
 export function BookingSummaryRow({
@@ -106,32 +128,39 @@ export function BookingSummaryRow({
   text: BookingText;
 }) {
   return (
-    <article className="booking-list-row">
-      <div className="booking-list-avatar" aria-hidden="true">
+    <PaperCard className="flex flex-wrap items-start gap-4 overflow-hidden p-4 shadow-sm sm:flex-nowrap sm:items-center">
+      <WashiTape tone="blue" className="-right-5 -top-1 rotate-12 opacity-65" />
+      <div
+        className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-student-deep font-extrabold text-white shadow-sm"
+        aria-hidden="true"
+      >
         {getInitials(booking.tutor.displayName)}
       </div>
       <div className="min-w-0 flex-1">
-        <h2 className="truncate text-base font-extrabold text-[#1a1916]">
+        <h2 className="truncate text-base font-extrabold text-notebook-ink">
           {booking.tutor.displayName}
         </h2>
-        <p className="mt-1 text-sm font-semibold text-[#332e28]">
+        <p className="mt-1 text-sm font-semibold text-notebook-ink">
           {booking.listing.subjectName} · {booking.listing.gradeLevelName}
         </p>
-        <p className="mt-1 text-sm text-[#70695f]">
+        <p className="mt-1 text-sm text-notebook-muted">
           {formatBangkokRange(booking.slot.startAtUtc, booking.slot.endAtUtc, language)} ·{' '}
           {formatMoney(booking.netAmount, booking.currency)}
         </p>
       </div>
-      <div className="booking-list-actions">
+      <div className="flex w-full shrink-0 items-center justify-between gap-2 pl-16 sm:w-auto sm:flex-col sm:items-end sm:pl-0">
         <BookingStatusBadge status={booking.status} text={text} />
         <Link
           href={`/dashboard/bookings/${encodeURIComponent(booking.id)}`}
-          className="booking-secondary-button"
+          className={notebookButtonClass({
+            tone: 'secondary',
+            className: 'min-h-10 px-3 py-2 text-xs',
+          })}
         >
           {text.view}
         </Link>
       </div>
-    </article>
+    </PaperCard>
   );
 }
 
