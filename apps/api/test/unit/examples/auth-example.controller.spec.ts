@@ -2,16 +2,18 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { Test } from '@nestjs/testing';
 
 import { API_GLOBAL_PREFIX } from '@/app.setup';
+import { JwtAuthGuard } from '@/auth/auth.guard';
 import { JWT_BEARER_AUTH } from '@/auth/auth.swagger';
 import { OWNERSHIP_KEY } from '@/auth/ownership.decorator';
+import { ResourceOwnershipGuard } from '@/auth/ownership.guard';
 import { ROLES_KEY } from '@/auth/roles.decorator';
-import { PrismaService } from '@/database/prisma.service';
+import { RolesGuard } from '@/auth/roles.guard';
 import { AuthExampleController } from '@/examples/auth-example.controller';
 import { Role } from '@/generated/prisma/client';
 
 import type { AuthenticatedUser } from '@/auth/auth.guard';
 import type { OwnershipRule } from '@/auth/ownership.decorator';
-import type { INestApplication, Type } from '@nestjs/common';
+import type { INestApplication } from '@nestjs/common';
 import type { OpenAPIObject } from '@nestjs/swagger';
 
 describe('AuthExampleController', () => {
@@ -84,17 +86,19 @@ describe('AuthExampleController', () => {
 });
 
 describe('AuthExampleController OpenAPI contract', () => {
-  const previousDatabaseUrl = process.env['DATABASE_URL'];
   let app: INestApplication | undefined;
   let document: OpenAPIObject;
 
   beforeAll(async () => {
-    process.env['DATABASE_URL'] = 'postgresql://user:password@example.test:5432/hktutor';
-    const { AppModule } = jest.requireActual<{ AppModule: Type<unknown> }>('@/app.module');
-
-    const moduleFixture = await Test.createTestingModule({ imports: [AppModule] })
-      .overrideProvider(PrismaService)
-      .useValue({})
+    const moduleFixture = await Test.createTestingModule({
+      controllers: [AuthExampleController],
+    })
+      .overrideGuard(JwtAuthGuard)
+      .useValue({ canActivate: () => true })
+      .overrideGuard(RolesGuard)
+      .useValue({ canActivate: () => true })
+      .overrideGuard(ResourceOwnershipGuard)
+      .useValue({ canActivate: () => true })
       .compile();
 
     app = moduleFixture.createNestApplication();
@@ -112,12 +116,6 @@ describe('AuthExampleController OpenAPI contract', () => {
 
   afterAll(async () => {
     await app?.close();
-
-    if (previousDatabaseUrl === undefined) {
-      delete process.env['DATABASE_URL'];
-    } else {
-      process.env['DATABASE_URL'] = previousDatabaseUrl;
-    }
   });
 
   it('documents bearer authentication and authorization failures', () => {
