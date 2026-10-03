@@ -49,6 +49,12 @@ enum AttendanceStatus {
   ABSENT   @map("absent")
 }
 
+enum TutorDocumentReviewStatus {
+  PENDING  @map("pending")
+  VERIFIED @map("verified")
+  REJECTED @map("rejected")
+}
+
 model User {
   id                 String                   @id @default(uuid()) @db.Uuid
   /// A partial unique index for non-deleted users is migration-managed.
@@ -68,6 +74,7 @@ model User {
   studentProfile     StudentProfile?
   studentBookings    Booking[]                @relation("BookingStudent")
   canceledBookings   Booking[]                @relation("BookingCanceledBy")
+  reviewedDocuments  TutorDocument[]          @relation("TutorDocumentReviewer")
   authSessions       AuthSession[]
   verificationTokens EmailVerificationToken[]
 }
@@ -132,6 +139,29 @@ model TutorProfile {
   listings           TeachingListing[]
   availabilitySlots  AvailabilitySlot[]
   bookings           Booking[]
+  documents          TutorDocument[]
+}
+
+model TutorDocument {
+  id              String                    @id @default(uuid()) @db.Uuid
+  tutorUserId     String                    @db.Uuid
+  documentType    String
+  /// Relative path in the private tutor-document bucket. Public and signed URLs are never persisted.
+  objectPath      String                    @unique
+  originalName    String
+  mimeType        String
+  sizeBytes       Int
+  reviewStatus    TutorDocumentReviewStatus @default(PENDING)
+  reviewerUserId  String?                   @db.Uuid
+  reviewedAt      DateTime?                 @db.Timestamptz(3)
+  rejectionReason String?
+  createdAt       DateTime                  @default(now()) @db.Timestamptz(3)
+  updatedAt       DateTime                  @updatedAt @db.Timestamptz(3)
+  tutor           TutorProfile              @relation(fields: [tutorUserId], references: [userId], onDelete: Restrict, onUpdate: Cascade)
+  reviewer        User?                     @relation("TutorDocumentReviewer", fields: [reviewerUserId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@index([tutorUserId, reviewStatus, createdAt], map: "TutorDocument_tutorUserId_reviewStatus_createdAt_idx")
+  @@index([reviewStatus, createdAt], map: "TutorDocument_reviewStatus_createdAt_idx")
 }
 
 model AvailabilitySlot {
