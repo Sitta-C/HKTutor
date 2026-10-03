@@ -7,6 +7,7 @@ import { validateDatabaseEnvironment } from '@config/database.config';
 import { DatabaseModule } from '@infrastructure/database/database.module';
 import { AuthModule } from '@modules/auth/auth.module';
 import { BookingsModule } from '@modules/bookings/bookings.module';
+import { ConversationsModule } from '@modules/conversations/conversations.module';
 import { HealthModule } from '@modules/health/health.module';
 import { ProfilesModule } from '@modules/profiles/profiles.module';
 import { TutorsModule } from '@modules/tutors/tutors.module';
@@ -22,6 +23,7 @@ import { TutorsModule } from '@modules/tutors/tutors.module';
     ThrottlerModule.forRoot([{ limit: 100, ttl: 60_000 }]),
     DatabaseModule,
     BookingsModule,
+    ConversationsModule,
     HealthModule,
     AuthModule,
     ProfilesModule,
