@@ -71,6 +71,12 @@ The local-auth migration is a one-shot demo migration that deletes existing iden
 records before replacing the external identity fields. Do not apply it to a database containing
 data that must be retained.
 
+Tutor qualification uploads persist only private-storage metadata in `TutorDocument`; file bytes
+remain outside PostgreSQL. The database accepts PDF, JPEG, or PNG metadata up to 5 MiB, keeps the
+private object path unique, and permits only an administrator to move a pending review to verified
+or rejected. Public or signed download URLs must remain transient and are never stored in this
+table.
+
 After confirming the target is disposable and filling the seed email/password values:
 
 ```bash
