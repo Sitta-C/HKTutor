@@ -112,6 +112,10 @@ export function StickyNote({
   );
 }
 
+export function notebookArchiveClass(className?: string): string {
+  return classes(styles.archivedItem, className);
+}
+
 export function WashiTape({ tone = 'yellow', className }: { tone?: TapeTone; className?: string }) {
   return (
     <span

@@ -78,6 +78,45 @@
   background: linear-gradient(135deg, transparent 50%, rgba(120, 113, 108, 0.1) 51%);
 }
 
+.bookmarkNoteSwitch {
+  position: relative;
+  border: 1px solid color-mix(in srgb, var(--color-tutor-deep) 18%, var(--color-paper));
+  border-radius: 0.625rem;
+  background: color-mix(in srgb, var(--color-tutor-deep) 5%, var(--color-paper));
+  box-shadow: 0 2px 0 color-mix(in srgb, var(--color-tutor-deep) 9%, var(--color-paper));
+}
+
+.bookmarkNoteSwitch::before {
+  position: absolute;
+  top: -1px;
+  bottom: 0.6875rem;
+  left: 0.8125rem;
+  width: 1.0625rem;
+  pointer-events: none;
+  content: '';
+  background: color-mix(in srgb, var(--color-tutor-deep) 34%, var(--color-paper));
+  clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 85%, 0 100%);
+}
+
+.archivedItem {
+  position: relative;
+  overflow: hidden;
+  padding: 1rem 0.875rem 1rem 1.625rem;
+  border: 1px solid color-mix(in srgb, var(--color-tutor-deep) 16%, var(--color-paper));
+  border-radius: 0.1875rem 0.625rem 0.625rem 0.1875rem;
+  background: color-mix(in srgb, var(--color-tutor-deep) 6%, var(--color-paper));
+}
+
+.archivedItem::before {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0.8125rem;
+  pointer-events: none;
+  content: '';
+  border-left: 1px dashed color-mix(in srgb, var(--color-tutor-deep) 28%, var(--color-paper));
+}
+
 .tape {
   background-image: repeating-linear-gradient(
     -45deg,
