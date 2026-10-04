@@ -112,12 +112,11 @@ test('role-specific views render distinct content with honest empty states', asy
   assert.doesNotMatch(studentSource, /manageAvailability/);
 
   // Tutor view features
-  assert.match(tutorSource, /dash-role-chip-tutor/);
+  assert.match(tutorSource, /tutorCopy\.eyebrow/);
   assert.match(tutorSource, /tutorCopy\.bookingRequests/);
-  assert.match(tutorSource, /tutorCopy\.myListings/);
   assert.match(tutorSource, /tutorCopy\.todayBangkokTime/);
   assert.match(tutorSource, /tutorCopy\.noUpcomingSessions/);
-  assert.match(tutorSource, /dash-earnings-value/);
+  assert.doesNotMatch(tutorSource, /dash-earnings-value|dash-strength|dash-qa|type="search"/);
   assert.doesNotMatch(i18nSource, /thisMonth:\s*['"]0฿/);
   // Tutor view must not have student-specific panels
   assert.doesNotMatch(tutorSource, /studentCopy\.yourTutors/);
