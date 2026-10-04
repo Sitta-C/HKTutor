@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { formatDuration } from '@/components/bookings/booking-ui';
 import { DashboardIcon } from '@/components/dashboard/dashboard-icon';
 import DashboardShell from '@/components/dashboard/dashboard-shell';
+import { TutorDashboardAnalytics } from '@/components/dashboard/tutor-dashboard-analytics';
 import { loadTutorDashboardBookings } from '@/components/dashboard/tutor-dashboard-data';
 import {
   getTutorDashboardSummary,
@@ -324,6 +325,7 @@ export function TutorDashboard({ user, onLogout }: TutorDashboardProps) {
               />
             </PaperCard>
           </div>
+          <TutorDashboardAnalytics bookings={bookings} listings={listings} now={mountedAt} />
         </>
       )}
     </DashboardShell>

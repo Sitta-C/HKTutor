@@ -114,6 +114,7 @@ test('role-specific views render distinct content with honest empty states', asy
   // Tutor view features
   assert.match(tutorSource, /tutorCopy\.eyebrow/);
   assert.match(tutorSource, /tutorCopy\.bookingRequests/);
+  assert.match(tutorSource, /TutorDashboardAnalytics/);
   assert.match(tutorSource, /tutorCopy\.todayBangkokTime/);
   assert.match(tutorSource, /tutorCopy\.noUpcomingSessions/);
   assert.doesNotMatch(tutorSource, /dash-earnings-value|dash-strength|dash-qa|type="search"/);
