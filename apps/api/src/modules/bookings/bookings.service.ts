@@ -19,6 +19,8 @@ import {
   BookingDetailResponseDto,
   BookingQuoteResponseDto,
   BookingResponseDto,
+  BookingSlotStatus,
+  ConfirmBookingDto,
   CreateBookingDto,
   DEFAULT_BOOKINGS_PAGE,
   DEFAULT_BOOKINGS_PAGE_SIZE,
@@ -26,6 +28,8 @@ import {
   GetMyBookingsQueryDto,
   GetTutorBookingsQueryDto,
   MyBookingsResponseDto,
+  RejectBookingDto,
+  TutorBookingActionResponseDto,
   TutorBookingsResponseDto,
 } from '@modules/bookings/bookings.dto';
 import {
@@ -41,10 +45,50 @@ export interface GetMyBookingDetailInput {
   studentUserId: string;
 }
 export type GetTutorBookingsInput = GetTutorBookingsQueryDto & { tutorUserId: string };
+export interface TutorBookingActionInput {
+  bookingId: string;
+  tutorUserId: string;
+}
+export type ConfirmTutorBookingInput = TutorBookingActionInput & ConfirmBookingDto;
+export type RejectTutorBookingInput = TutorBookingActionInput & RejectBookingDto;
 
 const MILLISECONDS_PER_HOUR = 60 * 60 * 1000;
 const BOOKING_CONFLICT_MESSAGE =
   'The selected slot could not be booked because its availability changed.';
+/** The database requires a non-empty cancellation reason, but the card keeps `reason` optional. */
+const DEFAULT_REJECTION_REASON = 'Rejected by the tutor';
+
+const bookingNotFound = (): NotFoundException =>
+  new NotFoundException({
+    code: 'BOOKING_NOT_FOUND',
+    error: 'Not Found',
+    message: 'Booking not found',
+    statusCode: 404,
+  });
+
+const bookingNotOwned = (): ForbiddenException =>
+  new ForbiddenException({
+    code: 'BOOKING_NOT_OWNED',
+    error: 'Forbidden',
+    message: 'This booking belongs to another tutor',
+    statusCode: 403,
+  });
+
+const bookingNotPending = (status: BookingStatus): ConflictException =>
+  new ConflictException({
+    code: 'BOOKING_NOT_PENDING',
+    error: 'Conflict',
+    message: `Only a pending booking can be confirmed or rejected; this booking is ${status}`,
+    statusCode: 409,
+  });
+
+const bookingTransitionConflict = (): ConflictException =>
+  new ConflictException({
+    code: 'BOOKING_TRANSITION_CONFLICT',
+    error: 'Conflict',
+    message: 'The booking was already updated by another request',
+    statusCode: 409,
+  });
 
 const bookingListingSelect = {
   deletedAt: true,
@@ -512,6 +556,95 @@ export class BookingsService {
       })),
       total,
     };
+  }
+
+  async confirmTutorBooking(
+    input: ConfirmTutorBookingInput,
+  ): Promise<TutorBookingActionResponseDto> {
+    return this.transitionPendingBooking(input, { status: BookingStatus.CONFIRMED });
+  }
+
+  async rejectTutorBooking(input: RejectTutorBookingInput): Promise<TutorBookingActionResponseDto> {
+    const reason = input.reason?.trim();
+
+    return this.transitionPendingBooking(input, {
+      canceledAt: new Date(),
+      canceledById: input.tutorUserId,
+      cancellationReason: reason && reason.length > 0 ? reason : DEFAULT_REJECTION_REASON,
+      status: BookingStatus.CANCELED,
+    });
+  }
+
+  /**
+   * Moves one PENDING booking owned by the acting tutor to its next status and reports the slot
+   * state that results. Canceling releases the slot implicitly: availability is derived from the
+   * bookings still holding it, and the partial unique index only counts PENDING/CONFIRMED rows.
+   */
+  private async transitionPendingBooking(
+    input: TutorBookingActionInput,
+    // Unchecked input so the transition can set the canceledById foreign key directly.
+    data: Prisma.BookingUncheckedUpdateManyInput,
+  ): Promise<TutorBookingActionResponseDto> {
+    const booking = await this.prisma.booking.findUnique({
+      select: { status: true, tutorProfileId: true },
+      where: { id: input.bookingId },
+    });
+
+    if (!booking) {
+      throw bookingNotFound();
+    }
+    if (booking.tutorProfileId !== input.tutorUserId) {
+      throw bookingNotOwned();
+    }
+    if (booking.status !== BookingStatus.PENDING) {
+      throw bookingNotPending(booking.status);
+    }
+
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        // The PENDING filter decides the winner when confirm and reject race: the loser updates
+        // zero rows, so no request ever observes or persists a half-applied transition.
+        const transition = await tx.booking.updateMany({
+          data,
+          where: {
+            id: input.bookingId,
+            status: BookingStatus.PENDING,
+            tutorProfileId: input.tutorUserId,
+          },
+        });
+
+        if (transition.count !== 1) {
+          throw bookingTransitionConflict();
+        }
+
+        const updated = await tx.booking.findUniqueOrThrow({
+          select: { canceledAt: true, id: true, slotId: true, status: true },
+          where: { id: input.bookingId },
+        });
+        const activeBookings = await tx.booking.count({
+          where: {
+            slotId: updated.slotId,
+            status: { in: [BookingStatus.PENDING, BookingStatus.CONFIRMED] },
+          },
+        });
+
+        return {
+          bookingId: updated.id,
+          canceledAt: updated.canceledAt?.toISOString() ?? null,
+          slotStatus: activeBookings > 0 ? BookingSlotStatus.RESERVED : BookingSlotStatus.AVAILABLE,
+          status: updated.status,
+        };
+      });
+    } catch (error) {
+      if (isDatabaseConflict(error)) {
+        this.logger.warn(
+          `Rejecting booking transition for ${input.bookingId}: database reported a conflict`,
+        );
+        throw bookingTransitionConflict();
+      }
+
+      throw error;
+    }
   }
 }
 

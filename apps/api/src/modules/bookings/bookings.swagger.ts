@@ -2,6 +2,7 @@ import { applyDecorators } from '@nestjs/common';
 import {
   ApiBadRequestResponse,
   ApiBearerAuth,
+  ApiBody,
   ApiConflictResponse,
   ApiCreatedResponse,
   ApiExtraModels,
@@ -21,11 +22,15 @@ import {
   BookingDetailResponseDto,
   BookingQuoteResponseDto,
   BookingResponseDto,
+  BookingSlotStatus,
+  ConfirmBookingDto,
   CreateBookingDto,
   GetBookingQuoteQueryDto,
   GetMyBookingsQueryDto,
   GetTutorBookingsQueryDto,
   MyBookingsResponseDto,
+  RejectBookingDto,
+  TutorBookingActionResponseDto,
   TutorBookingsResponseDto,
 } from '@modules/bookings/bookings.dto';
 
@@ -512,5 +517,120 @@ export function GetTutorBookingsDoc(): MethodDecorator {
         type: 'object',
       },
     }),
+  );
+}
+
+/** Confirm and reject share one error contract, including the `code` field clients switch on. */
+function tutorBookingActionErrorResponses(): MethodDecorator[] {
+  return [
+    ApiBadRequestResponse({
+      description: 'bookingId is not a valid UUID, or the request body failed validation',
+      schema: {
+        example: {
+          code: 'INVALID_UUID',
+          error: 'Bad Request',
+          message: 'bookingId must be a valid UUID',
+          statusCode: 400,
+        },
+        type: 'object',
+      },
+    }),
+    ApiUnauthorizedResponse({
+      description:
+        'The access token or its backing session is missing, invalid, expired, or revoked',
+      schema: {
+        example: {
+          error: 'Unauthorized',
+          message: 'Invalid or expired authentication token',
+          statusCode: 401,
+        },
+        type: 'object',
+      },
+    }),
+    ApiForbiddenResponse({
+      description: 'The authenticated user is not a tutor, or the booking belongs to another tutor',
+      schema: {
+        example: {
+          code: 'BOOKING_NOT_OWNED',
+          error: 'Forbidden',
+          message: 'This booking belongs to another tutor',
+          statusCode: 403,
+        },
+        type: 'object',
+      },
+    }),
+    ApiNotFoundResponse({
+      description: 'No booking exists with this ID',
+      schema: {
+        example: {
+          code: 'BOOKING_NOT_FOUND',
+          error: 'Not Found',
+          message: 'Booking not found',
+          statusCode: 404,
+        },
+        type: 'object',
+      },
+    }),
+    ApiConflictResponse({
+      description:
+        'The booking is no longer pending (already confirmed, canceled, completed or expired), or a concurrent confirm/reject won the transition',
+      schema: {
+        example: {
+          code: 'BOOKING_NOT_PENDING',
+          error: 'Conflict',
+          message: 'Only a pending booking can be confirmed or rejected; this booking is CONFIRMED',
+          statusCode: 409,
+        },
+        type: 'object',
+      },
+    }),
+  ];
+}
+
+export function ConfirmTutorBookingDoc(): MethodDecorator {
+  return applyDecorators(
+    ApiExtraModels(ConfirmBookingDto, TutorBookingActionResponseDto),
+    ApiOperation({ summary: "Confirm one of the authenticated tutor's pending bookings" }),
+    ApiBearerAuth(JWT_BEARER_AUTH),
+    ApiBody({ required: false, type: ConfirmBookingDto }),
+    ApiOkResponse({
+      description:
+        'The pending booking became confirmed in one conditional update; the slot stays reserved',
+      schema: {
+        example: {
+          bookingId: '3c54a0d6-e3f3-4a38-bd55-3b4011ee31ae',
+          canceledAt: null,
+          slotStatus: BookingSlotStatus.RESERVED,
+          status: BookingStatus.CONFIRMED,
+        },
+        allOf: [{ $ref: getSchemaPath(TutorBookingActionResponseDto) }],
+        type: 'object',
+      },
+    }),
+    ...tutorBookingActionErrorResponses(),
+  );
+}
+
+export function RejectTutorBookingDoc(): MethodDecorator {
+  return applyDecorators(
+    ApiExtraModels(RejectBookingDto, TutorBookingActionResponseDto),
+    ApiOperation({ summary: "Reject one of the authenticated tutor's pending bookings" }),
+    ApiBearerAuth(JWT_BEARER_AUTH),
+    ApiBody({ required: false, type: RejectBookingDto }),
+    ApiOkResponse({
+      description:
+        'The pending booking became canceled and released its slot in the same transaction',
+      schema: {
+        example: {
+          bookingId: '3c54a0d6-e3f3-4a38-bd55-3b4011ee31ae',
+          canceledAt: '2026-10-04T09:04:31.001Z',
+          slotStatus: BookingSlotStatus.AVAILABLE,
+          status: BookingStatus.CANCELED,
+        },
+        allOf: [{ $ref: getSchemaPath(TutorBookingActionResponseDto) }],
+        type: 'object',
+      },
+    }),
+    ...tutorBookingActionErrorResponses(),
   );
 }

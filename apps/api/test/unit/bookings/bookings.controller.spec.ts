@@ -17,6 +17,7 @@ import type {
   BookingQuoteResponseDto,
   BookingResponseDto,
   MyBookingsResponseDto,
+  TutorBookingActionResponseDto,
   TutorBookingsResponseDto,
 } from '@modules/bookings/bookings.dto';
 import type { BookingsService } from '@modules/bookings/bookings.service';
@@ -175,6 +176,64 @@ describe('BookingsController', () => {
     expect(getTutorBookings).toHaveBeenCalledWith({ ...query, tutorUserId: user.id });
     expect(result).toBe(expected);
   });
+
+  it('derives the acting tutor for confirm and reject from the authenticated user', async () => {
+    const confirmTutorBooking = jest.fn();
+    const rejectTutorBooking = jest.fn();
+    const bookingsService = {
+      confirmTutorBooking,
+      rejectTutorBooking,
+    } as unknown as BookingsService;
+    const controller = new BookingsController(bookingsService);
+    const user: AuthenticatedUser = {
+      email: 'tutor@example.com',
+      id: '1772b6be-ebb5-40b7-b5bd-1c1fcfe26857',
+      role: Role.TUTOR,
+      sessionId: 'session-1',
+    };
+    const bookingId = '3c54a0d6-e3f3-4a38-bd55-3b4011ee31ae';
+    const confirmed = {} as TutorBookingActionResponseDto;
+    const rejected = {} as TutorBookingActionResponseDto;
+    confirmTutorBooking.mockResolvedValue(confirmed);
+    rejectTutorBooking.mockResolvedValue(rejected);
+
+    await expect(
+      controller.confirmTutorBooking(bookingId, { note: 'See you' }, user),
+    ).resolves.toBe(confirmed);
+    await expect(
+      controller.rejectTutorBooking(bookingId, { reason: 'Double booked' }, user),
+    ).resolves.toBe(rejected);
+
+    expect(confirmTutorBooking).toHaveBeenCalledWith({
+      bookingId,
+      note: 'See you',
+      tutorUserId: user.id,
+    });
+    expect(rejectTutorBooking).toHaveBeenCalledWith({
+      bookingId,
+      reason: 'Double booked',
+      tutorUserId: user.id,
+    });
+  });
+
+  it.each(['confirmTutorBooking', 'rejectTutorBooking'] as const)(
+    'restricts %s to tutors without an ownership-safe 404 rule',
+    (method) => {
+      const handler = Object.getOwnPropertyDescriptor(BookingsController.prototype, method)
+        ?.value as object | undefined;
+      const roles = handler
+        ? (Reflect.getMetadata(ROLES_KEY, handler) as Role[] | undefined)
+        : undefined;
+      const ownership = handler
+        ? (Reflect.getMetadata(OWNERSHIP_KEY, handler) as OwnershipRule | undefined)
+        : undefined;
+
+      expect(roles).toEqual([Role.TUTOR]);
+      // The card answers a wrong tutor with 403, so these routes must not use the ownership
+      // guard, which hides a foreign resource behind the same 404 as a missing one.
+      expect(ownership).toBeUndefined();
+    },
+  );
 
   it('restricts the tutor-bookings endpoint to tutors', () => {
     const handler = Object.getOwnPropertyDescriptor(
@@ -372,5 +431,45 @@ describe('BookingsController OpenAPI contract', () => {
       { properties?: { nickname?: { nullable?: boolean; type?: string } } } | undefined;
     expect(studentSchema?.properties?.nickname).toMatchObject({ type: 'string' });
     expect(studentSchema?.properties?.nickname?.nullable).toBe(true);
+  });
+
+  it.each([
+    ['confirm', 'Confirm'],
+    ['reject', 'Reject'],
+  ])('publishes the tutor %s action contract', (action, summaryVerb) => {
+    const operation =
+      document.paths[`/${API_GLOBAL_PREFIX}/bookings/tutor/{bookingId}/${action}`]?.post;
+
+    expect(operation?.summary).toBe(
+      `${summaryVerb} one of the authenticated tutor's pending bookings`,
+    );
+    expect(operation?.responses['200']).toMatchObject({
+      content: {
+        'application/json': {
+          schema: { allOf: [{ $ref: '#/components/schemas/TutorBookingActionResponseDto' }] },
+        },
+      },
+    });
+    for (const status of ['400', '401', '403', '404', '409']) {
+      expect(operation?.responses[status]).toBeDefined();
+    }
+    expect(operation?.security).toEqual([{ [JWT_BEARER_AUTH]: [] }]);
+    expect(operation?.parameters).toEqual(
+      expect.arrayContaining([expect.objectContaining({ name: 'bookingId', required: true })]),
+    );
+    expect(operation?.requestBody).toMatchObject({ required: false });
+  });
+
+  it('keeps the tutor action response schema aligned with the card', () => {
+    const schema = document.components?.schemas?.['TutorBookingActionResponseDto'] as
+      { properties?: Record<string, unknown>; required?: string[] } | undefined;
+
+    expect(Object.keys(schema?.properties ?? {}).sort()).toEqual([
+      'bookingId',
+      'canceledAt',
+      'slotStatus',
+      'status',
+    ]);
+    expect(schema?.properties?.['slotStatus']).toMatchObject({ enum: ['AVAILABLE', 'RESERVED'] });
   });
 });

@@ -1,6 +1,17 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsEnum, IsInt, IsISO8601, IsOptional, IsString, IsUUID, Max, Min } from 'class-validator';
+import {
+  IsEnum,
+  IsInt,
+  IsISO8601,
+  IsOptional,
+  IsString,
+  IsUUID,
+  Matches,
+  Max,
+  MaxLength,
+  Min,
+} from 'class-validator';
 
 import { BookingStatus } from '@generated/prisma/enums';
 
@@ -273,4 +284,69 @@ export class TutorBookingsResponseDto {
 
   @ApiProperty({ example: 1 })
   total!: number;
+}
+
+export const MAX_TUTOR_ACTION_TEXT_LENGTH = 500;
+/** A blank string would be stored as an empty cancellation reason, which the database rejects. */
+const NOT_BLANK_PATTERN = /\S/;
+
+/**
+ * Availability is derived from the bookings holding a slot, so these values report whether the
+ * acted-on booking still reserves its slot. `AVAILABLE` matches the S2-T01 card; the tutor
+ * availability API reports the same free state as `OPEN`.
+ */
+export const BookingSlotStatus = {
+  AVAILABLE: 'AVAILABLE',
+  RESERVED: 'RESERVED',
+} as const;
+export type BookingSlotStatus = (typeof BookingSlotStatus)[keyof typeof BookingSlotStatus];
+
+export class ConfirmBookingDto {
+  @ApiPropertyOptional({
+    description:
+      'Optional note from the tutor. Accepted by the contract but not persisted: the Booking model has no note column yet.',
+    example: 'See you in class.',
+    maxLength: MAX_TUTOR_ACTION_TEXT_LENGTH,
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(MAX_TUTOR_ACTION_TEXT_LENGTH)
+  @Matches(NOT_BLANK_PATTERN, { message: 'note must not be blank' })
+  note?: string;
+}
+
+export class RejectBookingDto {
+  @ApiPropertyOptional({
+    description: 'Why the tutor rejected the booking. A default reason is stored when omitted.',
+    example: 'I am no longer available at that time.',
+    maxLength: MAX_TUTOR_ACTION_TEXT_LENGTH,
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(MAX_TUTOR_ACTION_TEXT_LENGTH)
+  @Matches(NOT_BLANK_PATTERN, { message: 'reason must not be blank' })
+  reason?: string;
+}
+
+export class TutorBookingActionResponseDto {
+  @ApiProperty({ example: '3c54a0d6-e3f3-4a38-bd55-3b4011ee31ae' })
+  bookingId!: string;
+
+  @ApiProperty({ enum: BookingStatus, example: BookingStatus.CONFIRMED })
+  status!: BookingStatus;
+
+  @ApiProperty({
+    description: 'Whether the booking still reserves its availability slot after the transition.',
+    enum: Object.values(BookingSlotStatus),
+    example: BookingSlotStatus.RESERVED,
+  })
+  slotStatus!: BookingSlotStatus;
+
+  @ApiProperty({
+    description: 'Set when the booking was canceled; null for a confirmation.',
+    example: null,
+    nullable: true,
+    type: String,
+  })
+  canceledAt!: string | null;
 }
