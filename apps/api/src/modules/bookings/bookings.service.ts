@@ -191,7 +191,7 @@ export class BookingsService {
       throw new ConflictException('The selected slot is no longer available.');
     }
     if (slot.startAtUtc.getTime() <= Date.now()) {
-      throw new BadRequestException('The selected slot has already started or is in the past.');
+      throw new ConflictException('The selected slot has already started or is in the past.');
     }
   }
 

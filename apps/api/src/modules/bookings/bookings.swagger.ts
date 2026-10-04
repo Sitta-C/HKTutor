@@ -57,8 +57,7 @@ export function CreateBookingDoc(): MethodDecorator {
       },
     }),
     ApiBadRequestResponse({
-      description:
-        'A required booking field failed validation, the slot has already started, or the tutor tried to book their own slot',
+      description: 'A required booking field failed validation',
       schema: {
         example: {
           error: 'Bad Request',
@@ -93,7 +92,7 @@ export function CreateBookingDoc(): MethodDecorator {
     }),
     ApiConflictResponse({
       description:
-        'The requested slot is already booked, unavailable, or the listing/slot tutor mismatch',
+        'The requested slot is already booked, has already started, or is no longer available; the listing is unpublished or its tutor does not match the slot; or the tutor is not verified',
       schema: {
         example: {
           error: 'Conflict',
@@ -105,7 +104,7 @@ export function CreateBookingDoc(): MethodDecorator {
     }),
     ApiForbiddenResponse({
       description:
-        'The authenticated user is not a student, or active-student validation failed for the booking request',
+        'The authenticated user is not a student (a tutor booking their own slot is rejected here), active-student validation failed, or the student profile is incomplete',
       schema: {
         example: {
           error: 'Forbidden',
@@ -192,7 +191,7 @@ export function GetBookingQuoteDoc(): MethodDecorator {
     }),
     ApiForbiddenResponse({
       description:
-        'The authenticated user is not a student, or active-student validation failed for the quote request',
+        'The authenticated user is not a student, active-student validation failed, or the student profile is incomplete',
       schema: {
         example: {
           error: 'Forbidden',
@@ -214,7 +213,8 @@ export function GetBookingQuoteDoc(): MethodDecorator {
       },
     }),
     ApiConflictResponse({
-      description: 'The slot is unavailable, or the listing/slot tutor mismatch',
+      description:
+        'The slot is already booked, has already started, or is no longer available; the listing is unpublished or its tutor does not match the slot; or the tutor is not verified',
       schema: {
         example: {
           error: 'Conflict',
@@ -318,7 +318,7 @@ export function GetMyBookingsDoc(): MethodDecorator {
       schema: {
         example: {
           error: 'Forbidden',
-          message: 'Forbidden resource',
+          message: 'You do not have permission to access this resource',
           statusCode: 403,
         },
         type: 'object',
@@ -397,7 +397,7 @@ export function GetMyBookingDoc(): MethodDecorator {
       schema: {
         example: {
           error: 'Forbidden',
-          message: 'Forbidden resource',
+          message: 'You do not have permission to access this resource',
           statusCode: 403,
         },
         type: 'object',
@@ -409,7 +409,7 @@ export function GetMyBookingDoc(): MethodDecorator {
       schema: {
         example: {
           error: 'Not Found',
-          message: 'Booking not found',
+          message: 'Resource not found',
           statusCode: 404,
         },
         type: 'object',
@@ -506,7 +506,7 @@ export function GetTutorBookingsDoc(): MethodDecorator {
       schema: {
         example: {
           error: 'Forbidden',
-          message: 'Forbidden resource',
+          message: 'You do not have permission to access this resource',
           statusCode: 403,
         },
         type: 'object',

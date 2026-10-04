@@ -373,7 +373,7 @@ describe('BookingsService', () => {
       );
     });
 
-    it('should throw BadRequestException when the slot has already started', async () => {
+    it('should throw ConflictException when the slot has already started', async () => {
       const { listingId, slotId, studentUserId, tutorUserId } = createTestData();
 
       const mockSlot = {
@@ -398,7 +398,7 @@ describe('BookingsService', () => {
       };
 
       await expect(service.create(input)).rejects.toThrow(
-        new BadRequestException('The selected slot has already started or is in the past.'),
+        new ConflictException('The selected slot has already started or is in the past.'),
       );
     });
 
@@ -933,7 +933,7 @@ describe('BookingsService', () => {
       );
     });
 
-    it('throws BadRequestException when the slot has already started', async () => {
+    it('throws ConflictException when the slot has already started', async () => {
       const { listingId, slotId, studentUserId, tutorUserId } = createTestData();
 
       mockPrismaService.availabilitySlot.findUnique.mockResolvedValue({
@@ -945,7 +945,7 @@ describe('BookingsService', () => {
       });
 
       await expect(service.getQuote({ listingId, slotId, studentUserId })).rejects.toThrow(
-        new BadRequestException('The selected slot has already started or is in the past.'),
+        new ConflictException('The selected slot has already started or is in the past.'),
       );
       expect(mockPrismaService.booking.findFirst).not.toHaveBeenCalled();
     });
@@ -1177,6 +1177,35 @@ describe('BookingsService', () => {
       expect(result.total).toBe(57);
     });
 
+    it('combines the status and date filters and counts the same filtered set', async () => {
+      const { studentUserId } = createTestData();
+
+      mockPrismaService.booking.findMany.mockResolvedValue([]);
+      mockPrismaService.booking.count.mockResolvedValue(0);
+
+      await service.getMyBookings({
+        from: '2026-09-01T00:00:00.000Z',
+        status: BookingStatus.CONFIRMED,
+        studentUserId,
+        to: '2026-09-30T23:59:59.999Z',
+      });
+
+      const expectedWhere = {
+        slot: {
+          startAtUtc: {
+            gte: new Date('2026-09-01T00:00:00.000Z'),
+            lte: new Date('2026-09-30T23:59:59.999Z'),
+          },
+        },
+        status: BookingStatus.CONFIRMED,
+        studentUserId,
+      };
+      expect(mockPrismaService.booking.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: expectedWhere }),
+      );
+      expect(mockPrismaService.booking.count).toHaveBeenCalledWith({ where: expectedWhere });
+    });
+
     it('returns an empty result when the student has no bookings', async () => {
       const { studentUserId } = createTestData();
 
@@ -1199,7 +1228,7 @@ describe('BookingsService', () => {
         description: 'One-on-one algebra and calculus tutoring.',
         gradeLevel: { id: 'grade-id', name: 'Grade 10' },
         id: 'a22c4b4d-4f8e-4de6-9b3d-faae7db5eb6d',
-        pricePerHour: new Prisma.Decimal(450),
+        pricePerHour: new Prisma.Decimal(600),
         subject: { id: 'subject-id', name: 'Mathematics' },
       },
       netAmount: new Prisma.Decimal(450),
@@ -1239,7 +1268,7 @@ describe('BookingsService', () => {
           gradeLevelId: 'grade-id',
           gradeLevelName: 'Grade 10',
           id: row.listing.id,
-          pricePerHour: '450.00',
+          pricePerHour: '600.00',
           subjectId: 'subject-id',
           subjectName: 'Mathematics',
         },
@@ -1304,7 +1333,17 @@ describe('BookingsService', () => {
         startAtUtc: new Date('2026-09-15T10:04:06.784Z'),
       },
       status: BookingStatus.PENDING,
-      student: { studentProfile: { nickname: 'Nan' } },
+      student: {
+        studentProfile: {
+          firstName: 'Napat',
+          gradeLevel: 'Grade 10',
+          lastName: 'Suksawat',
+          nickname: 'Nan',
+          phone: '0800000000',
+          school: 'HKTutor Test School',
+        },
+      },
+      studentUserId: '6bb01222-1fce-4bc3-a69d-3d90db2fdf57',
       subtotalAmount: new Prisma.Decimal(450),
       ...overrides,
     });
@@ -1343,9 +1382,15 @@ describe('BookingsService', () => {
           where: { tutorProfileId: tutorUserId },
         }),
       );
-      expect(result.items).toEqual([expect.objectContaining({ student: { nickname: 'Nan' } })]);
+      const findManyCalls = mockPrismaService.booking.findMany.mock.calls as unknown as Array<
+        [{ select: { student: unknown } }]
+      >;
+      expect(findManyCalls[0]?.[0].select.student).toEqual({
+        select: { studentProfile: { select: { nickname: true } } },
+      });
+      expect(result.items[0]?.student).toStrictEqual({ nickname: 'Nan' });
       expect(result.items[0]).not.toHaveProperty('tutor');
-      expect(Object.keys(result.items[0] as object)).not.toContain('legalName');
+      expect(result.items[0]).not.toHaveProperty('studentUserId');
     });
 
     it('returns a null nickname when a historical booking no longer has a student profile', async () => {
@@ -1417,6 +1462,35 @@ describe('BookingsService', () => {
         }),
       );
       expect(result.total).toBe(41);
+    });
+
+    it('combines the status and date filters and counts the same filtered set', async () => {
+      const { tutorUserId } = createTestData();
+
+      mockPrismaService.booking.findMany.mockResolvedValue([]);
+      mockPrismaService.booking.count.mockResolvedValue(0);
+
+      await service.getTutorBookings({
+        from: '2026-09-01T00:00:00.000Z',
+        status: BookingStatus.CONFIRMED,
+        tutorUserId,
+        to: '2026-09-30T23:59:59.999Z',
+      });
+
+      const expectedWhere = {
+        slot: {
+          startAtUtc: {
+            gte: new Date('2026-09-01T00:00:00.000Z'),
+            lte: new Date('2026-09-30T23:59:59.999Z'),
+          },
+        },
+        status: BookingStatus.CONFIRMED,
+        tutorProfileId: tutorUserId,
+      };
+      expect(mockPrismaService.booking.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: expectedWhere }),
+      );
+      expect(mockPrismaService.booking.count).toHaveBeenCalledWith({ where: expectedWhere });
     });
 
     it('returns a deterministic empty result when the tutor has no bookings', async () => {

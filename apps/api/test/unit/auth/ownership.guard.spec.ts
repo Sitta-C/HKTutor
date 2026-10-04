@@ -132,6 +132,25 @@ describe('ResourceOwnershipGuard', () => {
     });
   });
 
+  it("returns the same generic 404 for another student's booking and a missing booking", async () => {
+    const missingBookingId = '10000000-0000-4000-8000-000000000099';
+    ownershipRule({ resource: 'booking', idParam: 'bookingId' });
+    bookingFindFirst.mockResolvedValue(null);
+
+    await expect(
+      guard.canActivate(createContext(authenticatedUser(Role.STUDENT), { bookingId: RESOURCE_ID })),
+    ).rejects.toThrow(new NotFoundException('Resource not found'));
+    await expect(
+      guard.canActivate(
+        createContext(authenticatedUser(Role.STUDENT), { bookingId: missingBookingId }),
+      ),
+    ).rejects.toThrow(new NotFoundException('Resource not found'));
+    expect(bookingFindFirst).toHaveBeenNthCalledWith(1, {
+      where: { id: RESOURCE_ID, studentUserId: USER_ID },
+      select: { id: true },
+    });
+  });
+
   function ownershipRule(rule: OwnershipRule): void {
     getAllAndOverride.mockReturnValue(rule);
   }
