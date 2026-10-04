@@ -77,6 +77,12 @@ private object path unique, and permits only an administrator to move a pending 
 or rejected. Public or signed download URLs must remain transient and are never stored in this
 table.
 
+Chat persistence uses `Conversation` and `Message` with canonical `User.id` references for the
+student, tutor, and sender. The database enforces one conversation per student-tutor pair, rejects
+non-participant senders, and de-duplicates retries by sender and `clientMessageId`. Message cursor
+indexes support both ID and UTC `sentAt` ordering; API handlers must still perform participant
+authorization and map expected uniqueness conflicts to the appropriate HTTP response.
+
 After confirming the target is disposable and filling the seed email/password values:
 
 ```bash

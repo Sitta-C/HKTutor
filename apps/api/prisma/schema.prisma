@@ -74,6 +74,9 @@ model User {
   studentProfile     StudentProfile?
   studentBookings    Booking[]                @relation("BookingStudent")
   canceledBookings   Booking[]                @relation("BookingCanceledBy")
+  studentConversations Conversation[]         @relation("ConversationStudent")
+  tutorConversations Conversation[]           @relation("ConversationTutor")
+  sentMessages       Message[]                @relation("MessageSender")
   reviewedDocuments  TutorDocument[]          @relation("TutorDocumentReviewer")
   authSessions       AuthSession[]
   verificationTokens EmailVerificationToken[]
@@ -250,4 +253,34 @@ model Booking {
 
   @@index([studentUserId, status, createdAt], map: "Booking_studentUserId_status_createdAt_idx")
   @@index([tutorProfileId, status, createdAt], map: "Booking_tutorProfileId_status_createdAt_idx")
+}
+
+model Conversation {
+  id            String    @id @default(uuid()) @db.Uuid
+  studentUserId String    @db.Uuid
+  tutorUserId   String    @db.Uuid
+  createdAt     DateTime  @default(now()) @db.Timestamptz(3)
+  student       User      @relation("ConversationStudent", fields: [studentUserId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  tutor         User      @relation("ConversationTutor", fields: [tutorUserId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  messages      Message[]
+
+  @@unique([studentUserId, tutorUserId], map: "Conversation_studentUserId_tutorUserId_key")
+  @@index([studentUserId, createdAt, id], map: "Conversation_studentUserId_createdAt_id_idx")
+  @@index([tutorUserId, createdAt, id], map: "Conversation_tutorUserId_createdAt_id_idx")
+}
+
+model Message {
+  id              String       @id @default(uuid()) @db.Uuid
+  conversationId  String       @db.Uuid
+  senderUserId    String       @db.Uuid
+  text            String
+  clientMessageId String
+  sentAt          DateTime     @default(now()) @db.Timestamptz(3)
+  readAt          DateTime?    @db.Timestamptz(3)
+  conversation    Conversation @relation(fields: [conversationId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  sender          User         @relation("MessageSender", fields: [senderUserId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@unique([senderUserId, clientMessageId], map: "Message_senderUserId_clientMessageId_key")
+  @@index([conversationId, id], map: "Message_conversationId_id_idx")
+  @@index([conversationId, sentAt, id], map: "Message_conversationId_sentAt_id_idx")
 }
