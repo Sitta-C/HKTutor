@@ -131,6 +131,8 @@ The local authentication implementation covers registration, verification-link r
 verification, login, refresh rotation, logout, current-user lookup, and route protection. Password
 reset, email change, multi-factor authentication, and session-management UI are intentionally out
 of scope for this small demo.
+The login page's "Forgot password?" action opens a dismissible notice explaining that password reset
+is not available yet.
 
 Domain models for tutor profiles, teaching listings, availability slots, and bookings already
 exist in Prisma. The tutor availability flow is connected to its production API; other domain web

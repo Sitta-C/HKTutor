@@ -81,9 +81,14 @@ export default function AuthShell({ page, children }: { page: AuthPage; children
 
         <nav className="flex items-center gap-4 text-sm sm:gap-7 lg:gap-10">
           <LanguageSwitch />
-          <Link href={navHref} className="hidden transition-colors hover:text-amber-700 sm:inline">
-            {navCopy.nav}
-          </Link>
+          {!isLogin && (
+            <Link
+              href={navHref}
+              className="hidden transition-colors hover:text-amber-700 sm:inline"
+            >
+              {navCopy.nav}
+            </Link>
+          )}
           <Link
             href={navHref}
             className={notebookButtonClass({
@@ -91,7 +96,7 @@ export default function AuthShell({ page, children }: { page: AuthPage; children
               className: 'border-amber-200 bg-sticky-yellow sm:px-6',
             })}
           >
-            {navCopy.cta}
+            {isLogin ? navCopy.nav : navCopy.cta}
           </Link>
         </nav>
       </header>
