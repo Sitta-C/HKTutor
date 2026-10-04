@@ -65,3 +65,22 @@ test('failed login shows an alert while keeping password help available', async 
   await page.getByRole('button', { name: 'Forgot password?', exact: true }).click();
   await expect(page.getByRole('dialog', { name: 'Forgot password?' })).toBeVisible();
 });
+
+test('registration shares the about link and offers one header login action', async ({ page }) => {
+  await page.goto('/register');
+  const header = page.locator('header');
+  const nav = header.locator('nav');
+  await expect(nav.getByRole('link')).toHaveCount(1);
+  await expect(nav.getByRole('link', { name: 'Return to login' })).toHaveAttribute('href', '/');
+  await expect(
+    header.getByRole('link', { name: 'Learn with us', includeHidden: true }),
+  ).toHaveAttribute('href', '/about-me');
+
+  await page.getByRole('button', { name: 'Switch language to Thai' }).click();
+  await expect(
+    header.getByRole('link', { name: 'เรียนรู้ไปกับเรา', includeHidden: true }),
+  ).toHaveAttribute('href', '/about-me');
+  await nav.getByRole('link', { name: 'กลับไปหน้าเข้าสู่ระบบ' }).click();
+  await expect(page).toHaveURL('/');
+  await expect(page.getByRole('button', { name: 'ลืมรหัสผ่าน?', exact: true })).toBeVisible();
+});
