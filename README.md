@@ -35,6 +35,26 @@ ranges while exchanging UTC timestamps with the API, protecting reserved slots, 
 Gregorian calendar in English or a Buddhist calendar in Thai. The bilingual privacy notice opens
 as a closable modal from registration and the dashboard instead of using a separate route.
 
+The tutor dashboard follows the Notebook Focus layout: the next confirmed session, today's
+availability, pending requests, monthly teaching analytics, and course performance. Monthly
+analytics show confirmed/completed lessons, scheduled hours, booking value, and a weekly-hours
+chart based on Bangkok lesson dates. A compact, single-row Ruler Reel selects the centered month when
+scrolling stops. It supports mouse dragging, native touch/trackpad scrolling, clicking, and keyboard
+navigation, keeps 25 months mounted, and replenishes the range at its ends. It uses native scroll
+snap, honors reduced motion, and updates analytics once per settled selection rather than during
+every scroll frame. Earnings and review containers display an unavailable state
+until real data is supplied; booking value is not treated as received revenue. It uses the existing
+read-only endpoints and loads all booking pages before showing totals. Requests and courses each
+have independent five-item pagination. Course performance uses a blue binder dropdown: it starts
+closed and shows metrics for only the chosen course. Course choices are paginated inside the
+dropdown, which supports keyboard navigation, Escape, and dismissal outside the folder. Changing
+the past-request filter or analytics month resets the relevant list to its first page; the selected
+course stays selected when the month changes. Course/profile/availability management stays in existing routes;
+the create-course action appears only when the tutor has no listings.
+Past lesson requests are hidden by default. A reusable blue bookmark-note switch can include
+them in the request list. Pale blue paper and a perforated margin distinguish past lessons
+without reducing the readability of their details.
+
 The accepted student and tutor dashboard concepts, plus the tutor profile/certificate form, live
 in [`ui-design`](ui-design/). Open [`ui-design/index.html`](ui-design/index.html) directly or serve
 the directory as static files. [`ui-design/uidesign.md`](ui-design/uidesign.md) records the page
