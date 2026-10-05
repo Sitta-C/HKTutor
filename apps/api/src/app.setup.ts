@@ -1,6 +1,7 @@
 import { ValidationPipe } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 
+import { ApiExceptionFilter } from '@common/filters/api-exception.filter';
 import { REFRESH_COOKIE_NAME } from '@modules/auth/auth.constants';
 import { JWT_BEARER_AUTH, REFRESH_COOKIE_AUTH } from '@modules/auth/auth.swagger';
 
@@ -10,6 +11,8 @@ export const API_GLOBAL_PREFIX = 'api/v1';
 
 export function configureApplication(app: INestApplication): void {
   app.setGlobalPrefix(API_GLOBAL_PREFIX);
+
+  app.useGlobalFilters(new ApiExceptionFilter());
 
   app.useGlobalPipes(
     new ValidationPipe({

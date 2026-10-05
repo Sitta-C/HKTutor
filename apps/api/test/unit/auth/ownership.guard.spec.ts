@@ -11,6 +11,7 @@ import type { Reflector } from '@nestjs/core';
 
 const RESOURCE_ID = '10000000-0000-4000-8000-000000000001';
 const USER_ID = '20000000-0000-4000-8000-000000000001';
+const OTHER_USER_ID = '20000000-0000-4000-8000-000000000002';
 
 describe('ResourceOwnershipGuard', () => {
   const getAllAndOverride = jest.fn();
@@ -18,10 +19,10 @@ describe('ResourceOwnershipGuard', () => {
   const tutorProfileFindFirst = jest.fn();
   const teachingListingFindFirst = jest.fn();
   const availabilitySlotFindFirst = jest.fn();
-  const bookingFindFirst = jest.fn();
+  const bookingFindUnique = jest.fn();
   const prisma = {
     availabilitySlot: { findFirst: availabilitySlotFindFirst },
-    booking: { findFirst: bookingFindFirst },
+    booking: { findUnique: bookingFindUnique },
     studentProfile: { findFirst: studentProfileFindFirst },
     teachingListing: { findFirst: teachingListingFindFirst },
     tutorProfile: { findFirst: tutorProfileFindFirst },
@@ -104,18 +105,86 @@ describe('ResourceOwnershipGuard', () => {
   });
 
   it.each([
-    [Role.STUDENT, { studentUserId: USER_ID }],
-    [Role.TUTOR, { tutorProfileId: USER_ID }],
-  ])('scopes booking access for %s ownership', async (role, ownerFilter) => {
+    [Role.STUDENT, { studentUserId: USER_ID, tutorProfileId: OTHER_USER_ID }],
+    [Role.TUTOR, { studentUserId: OTHER_USER_ID, tutorProfileId: USER_ID }],
+  ])('scopes booking access for %s ownership', async (role, owner) => {
     ownershipRule({ resource: 'booking', idParam: 'bookingId' });
-    bookingFindFirst.mockResolvedValue({ id: RESOURCE_ID });
+    bookingFindUnique.mockResolvedValue(owner);
 
     await expect(
       guard.canActivate(createContext(authenticatedUser(role), { bookingId: RESOURCE_ID })),
     ).resolves.toBe(true);
-    expect(bookingFindFirst).toHaveBeenCalledWith({
-      where: { id: RESOURCE_ID, ...ownerFilter },
-      select: { id: true },
+    // Loaded without an owner filter so a foreign booking is distinguishable from a missing one.
+    expect(bookingFindUnique).toHaveBeenCalledWith({
+      where: { id: RESOURCE_ID },
+      select: { studentUserId: true, tutorProfileId: true },
+    });
+  });
+
+  it.each([
+    [Role.STUDENT, { studentUserId: OTHER_USER_ID, tutorProfileId: OTHER_USER_ID }],
+    [Role.TUTOR, { studentUserId: OTHER_USER_ID, tutorProfileId: OTHER_USER_ID }],
+  ])('hides a booking owned by someone else from a %s by default', async (role, owner) => {
+    ownershipRule({ resource: 'booking', idParam: 'bookingId' });
+    bookingFindUnique.mockResolvedValue(owner);
+
+    await expect(
+      guard.canActivate(createContext(authenticatedUser(role), { bookingId: RESOURCE_ID })),
+    ).rejects.toThrow(new NotFoundException('Resource not found'));
+  });
+
+  it('answers 403 with the route code when the rule separates a foreign owner', async () => {
+    ownershipRule({
+      errors: {
+        foreignOwner: {
+          code: 'BOOKING_NOT_OWNED',
+          message: 'This booking belongs to another tutor',
+        },
+        missing: { code: 'BOOKING_NOT_FOUND', message: 'Booking not found' },
+      },
+      idParam: 'bookingId',
+      resource: 'booking',
+    });
+    bookingFindUnique.mockResolvedValue({
+      studentUserId: OTHER_USER_ID,
+      tutorProfileId: OTHER_USER_ID,
+    });
+
+    await expect(
+      guard.canActivate(createContext(authenticatedUser(Role.TUTOR), { bookingId: RESOURCE_ID })),
+    ).rejects.toMatchObject({
+      response: {
+        code: 'BOOKING_NOT_OWNED',
+        error: 'Forbidden',
+        message: 'This booking belongs to another tutor',
+        statusCode: 403,
+      },
+    });
+  });
+
+  it('answers the route 404 body when the booking does not exist at all', async () => {
+    ownershipRule({
+      errors: {
+        foreignOwner: {
+          code: 'BOOKING_NOT_OWNED',
+          message: 'This booking belongs to another tutor',
+        },
+        missing: { code: 'BOOKING_NOT_FOUND', message: 'Booking not found' },
+      },
+      idParam: 'bookingId',
+      resource: 'booking',
+    });
+    bookingFindUnique.mockResolvedValue(null);
+
+    await expect(
+      guard.canActivate(createContext(authenticatedUser(Role.TUTOR), { bookingId: RESOURCE_ID })),
+    ).rejects.toMatchObject({
+      response: {
+        code: 'BOOKING_NOT_FOUND',
+        error: 'Not Found',
+        message: 'Booking not found',
+        statusCode: 404,
+      },
     });
   });
 
@@ -135,7 +204,7 @@ describe('ResourceOwnershipGuard', () => {
   it("returns the same generic 404 for another student's booking and a missing booking", async () => {
     const missingBookingId = '10000000-0000-4000-8000-000000000099';
     ownershipRule({ resource: 'booking', idParam: 'bookingId' });
-    bookingFindFirst.mockResolvedValue(null);
+    bookingFindUnique.mockResolvedValue(null);
 
     await expect(
       guard.canActivate(createContext(authenticatedUser(Role.STUDENT), { bookingId: RESOURCE_ID })),
@@ -145,9 +214,9 @@ describe('ResourceOwnershipGuard', () => {
         createContext(authenticatedUser(Role.STUDENT), { bookingId: missingBookingId }),
       ),
     ).rejects.toThrow(new NotFoundException('Resource not found'));
-    expect(bookingFindFirst).toHaveBeenNthCalledWith(1, {
-      where: { id: RESOURCE_ID, studentUserId: USER_ID },
-      select: { id: true },
+    expect(bookingFindUnique).toHaveBeenNthCalledWith(1, {
+      where: { id: RESOURCE_ID },
+      select: { studentUserId: true, tutorProfileId: true },
     });
   });
 

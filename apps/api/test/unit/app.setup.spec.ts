@@ -1,4 +1,4 @@
-import { Controller, Get, Query } from '@nestjs/common';
+import { Controller, ForbiddenException, Get, Query } from '@nestjs/common';
 import { ApiOkResponse, ApiQuery } from '@nestjs/swagger';
 import { Test } from '@nestjs/testing';
 import { Type } from 'class-transformer';
@@ -15,6 +15,7 @@ import type { TestingModule } from '@nestjs/testing';
 import type { App } from 'supertest/types';
 
 interface ValidationErrorBody {
+  code: string;
   error: string;
   message: string[];
   statusCode: number;
@@ -41,6 +42,21 @@ class ContractProbeController {
   })
   read(@Query() query: SearchQueryDto): SearchQueryDto {
     return query;
+  }
+
+  @Get('domain-code')
+  readWithDomainCode(): never {
+    throw new ForbiddenException({
+      code: 'PROBE_NOT_OWNED',
+      error: 'Forbidden',
+      message: 'probe resource belongs to another user',
+      statusCode: 403,
+    });
+  }
+
+  @Get('plain-failure')
+  readWithoutCode(): never {
+    throw new ForbiddenException('probe is not allowed');
   }
 }
 
@@ -83,8 +99,38 @@ describe('configureApplication', () => {
       .expect(400);
     const body = response.body as ValidationErrorBody;
 
-    expect(body).toMatchObject({ error: 'Bad Request', statusCode: 400 });
+    expect(body).toMatchObject({
+      code: 'VALIDATION_FAILED',
+      error: 'Bad Request',
+      statusCode: 400,
+    });
     expect(body.message).toEqual(expect.arrayContaining([expect.stringContaining('maxPrice')]));
+  });
+
+  it('keeps a domain code set by the thrown exception', async () => {
+    const response = await request(app.getHttpServer())
+      .get('/api/v1/contract-probe/domain-code')
+      .expect(403);
+
+    expect(response.body).toEqual({
+      code: 'PROBE_NOT_OWNED',
+      error: 'Forbidden',
+      message: 'probe resource belongs to another user',
+      statusCode: 403,
+    });
+  });
+
+  it('adds the default code for a failure that does not set one', async () => {
+    const response = await request(app.getHttpServer())
+      .get('/api/v1/contract-probe/plain-failure')
+      .expect(403);
+
+    expect(response.body).toEqual({
+      code: 'FORBIDDEN',
+      error: 'Forbidden',
+      message: 'probe is not allowed',
+      statusCode: 403,
+    });
   });
 
   it('rejects query parameters that are not declared by the DTO', async () => {

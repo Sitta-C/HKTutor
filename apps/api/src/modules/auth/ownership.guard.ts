@@ -1,6 +1,7 @@
 import {
   CanActivate,
   ExecutionContext,
+  ForbiddenException,
   Injectable,
   NotFoundException,
   UnauthorizedException,
@@ -13,9 +14,15 @@ import { PrismaService } from '@infrastructure/database/prisma.service';
 import { OWNERSHIP_KEY } from '@modules/auth/ownership.decorator';
 
 import type { AuthenticatedRequest, AuthenticatedUser } from '@modules/auth/auth.guard';
-import type { OwnershipRule } from '@modules/auth/ownership.decorator';
+import type { OwnershipError, OwnershipRule } from '@modules/auth/ownership.decorator';
 
 const RESOURCE_NOT_FOUND = 'Resource not found';
+
+/**
+ * `foreignOwner` means the record exists but belongs to somebody else. It collapses into the same
+ * 404 as `missing` unless the route declares `errors.foreignOwner`.
+ */
+type OwnershipOutcome = 'foreignOwner' | 'granted' | 'missing';
 
 @Injectable()
 export class ResourceOwnershipGuard implements CanActivate {
@@ -40,85 +47,100 @@ export class ResourceOwnershipGuard implements CanActivate {
     const resourceId = request.params[rule.idParam ?? 'id'];
     if (!isUuid(resourceId)) throw invalidUuidException(rule.idParam ?? 'id');
 
-    if (!(await this.canAccess(rule, resourceId, request.auth))) {
-      throw new NotFoundException(RESOURCE_NOT_FOUND);
+    const outcome = await this.resolveOwnership(rule, resourceId, request.auth);
+    if (outcome === 'granted') return true;
+
+    if (outcome === 'foreignOwner' && rule.errors?.foreignOwner) {
+      throw new ForbiddenException(errorBody(rule.errors.foreignOwner, 'Forbidden', 403));
     }
 
-    return true;
+    const missing = rule.errors?.missing;
+    throw new NotFoundException(
+      missing ? errorBody(missing, 'Not Found', 404) : RESOURCE_NOT_FOUND,
+    );
   }
 
-  private async canAccess(
+  private async resolveOwnership(
     rule: OwnershipRule,
     resourceId: string,
     user: AuthenticatedUser,
-  ): Promise<boolean> {
+  ): Promise<OwnershipOutcome> {
     const adminAccess = rule.allowAdmin === true && user.role === Role.ADMIN;
 
     switch (rule.resource) {
       case 'studentProfile':
-        if (!adminAccess && resourceId !== user.id) return false;
+        if (!adminAccess && resourceId !== user.id) return 'foreignOwner';
 
-        return Boolean(
-          await this.prisma.studentProfile.findFirst({
-            where: { userId: resourceId },
-            select: { userId: true },
-          }),
-        );
+        return (await this.prisma.studentProfile.findFirst({
+          where: { userId: resourceId },
+          select: { userId: true },
+        }))
+          ? 'granted'
+          : 'missing';
       case 'tutorProfile':
-        if (!adminAccess && resourceId !== user.id) return false;
+        if (!adminAccess && resourceId !== user.id) return 'foreignOwner';
 
-        return Boolean(
-          await this.prisma.tutorProfile.findFirst({
-            where: { userId: resourceId },
-            select: { userId: true },
-          }),
-        );
+        return (await this.prisma.tutorProfile.findFirst({
+          where: { userId: resourceId },
+          select: { userId: true },
+        }))
+          ? 'granted'
+          : 'missing';
       case 'teachingListing':
-        return Boolean(
-          await this.prisma.teachingListing.findFirst({
-            where: {
-              id: resourceId,
-              deletedAt: null,
-              ...(adminAccess ? {} : { tutorProfileId: user.id }),
-            },
-            select: { id: true },
-          }),
-        );
+        // One owner-scoped query cannot separate a foreign listing from a missing one.
+        return (await this.prisma.teachingListing.findFirst({
+          where: {
+            id: resourceId,
+            deletedAt: null,
+            ...(adminAccess ? {} : { tutorProfileId: user.id }),
+          },
+          select: { id: true },
+        }))
+          ? 'granted'
+          : 'missing';
       case 'availabilitySlot':
-        return Boolean(
-          await this.prisma.availabilitySlot.findFirst({
-            where: {
-              id: resourceId,
-              deletedAt: null,
-              ...(adminAccess ? {} : { tutorProfileId: user.id }),
-            },
-            select: { id: true },
-          }),
-        );
+        return (await this.prisma.availabilitySlot.findFirst({
+          where: {
+            id: resourceId,
+            deletedAt: null,
+            ...(adminAccess ? {} : { tutorProfileId: user.id }),
+          },
+          select: { id: true },
+        }))
+          ? 'granted'
+          : 'missing';
       case 'booking':
-        return this.canAccessBooking(resourceId, user, adminAccess);
+        return this.resolveBookingOwnership(resourceId, user, adminAccess);
     }
   }
 
-  private async canAccessBooking(
+  private async resolveBookingOwnership(
     resourceId: string,
     user: AuthenticatedUser,
     adminAccess: boolean,
-  ): Promise<boolean> {
-    if (!adminAccess && user.role !== Role.STUDENT && user.role !== Role.TUTOR) return false;
+  ): Promise<OwnershipOutcome> {
+    if (!adminAccess && user.role !== Role.STUDENT && user.role !== Role.TUTOR) {
+      return 'foreignOwner';
+    }
 
-    return Boolean(
-      await this.prisma.booking.findFirst({
-        where: {
-          id: resourceId,
-          ...(adminAccess
-            ? {}
-            : user.role === Role.STUDENT
-              ? { studentUserId: user.id }
-              : { tutorProfileId: user.id }),
-        },
-        select: { id: true },
-      }),
-    );
+    // Loaded without an owner filter so a foreign booking can be told apart from a missing one.
+    const booking = await this.prisma.booking.findUnique({
+      where: { id: resourceId },
+      select: { studentUserId: true, tutorProfileId: true },
+    });
+
+    if (!booking) return 'missing';
+    if (adminAccess) return 'granted';
+
+    const ownerId = user.role === Role.STUDENT ? booking.studentUserId : booking.tutorProfileId;
+    return ownerId === user.id ? 'granted' : 'foreignOwner';
   }
+}
+
+function errorBody(
+  error: OwnershipError,
+  reason: string,
+  statusCode: number,
+): { code: string; error: string; message: string; statusCode: number } {
+  return { code: error.code, error: reason, message: error.message, statusCode };
 }

@@ -217,7 +217,7 @@ describe('BookingsController', () => {
   });
 
   it.each(['confirmTutorBooking', 'rejectTutorBooking'] as const)(
-    'restricts %s to tutors without an ownership-safe 404 rule',
+    'restricts %s to tutors and separates a foreign booking from a missing one',
     (method) => {
       const handler = Object.getOwnPropertyDescriptor(BookingsController.prototype, method)
         ?.value as object | undefined;
@@ -229,9 +229,19 @@ describe('BookingsController', () => {
         : undefined;
 
       expect(roles).toEqual([Role.TUTOR]);
-      // The card answers a wrong tutor with 403, so these routes must not use the ownership
-      // guard, which hides a foreign resource behind the same 404 as a missing one.
-      expect(ownership).toBeUndefined();
+      // The card answers a wrong tutor with 403 instead of the guard's ownership-safe 404, so the
+      // rule carries both outcome bodies.
+      expect(ownership).toEqual({
+        errors: {
+          foreignOwner: {
+            code: 'BOOKING_NOT_OWNED',
+            message: 'This booking belongs to another tutor',
+          },
+          missing: { code: 'BOOKING_NOT_FOUND', message: 'Booking not found' },
+        },
+        idParam: 'bookingId',
+        resource: 'booking',
+      });
     },
   );
 

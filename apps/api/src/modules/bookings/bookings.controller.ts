@@ -32,7 +32,7 @@ import {
   TutorBookingActionResponseDto,
   TutorBookingsResponseDto,
 } from '@modules/bookings/bookings.dto';
-import { BookingsService } from '@modules/bookings/bookings.service';
+import { BOOKING_OWNERSHIP_ERRORS, BookingsService } from '@modules/bookings/bookings.service';
 import {
   BookingsControllerDoc,
   ConfirmTutorBookingDoc,
@@ -45,6 +45,17 @@ import {
 } from '@modules/bookings/bookings.swagger';
 
 import type { AuthenticatedUser } from '@modules/auth/auth.guard';
+import type { OwnershipRule } from '@modules/auth/ownership.decorator';
+
+/**
+ * The S2-T01 card answers a wrong tutor with 403 instead of the ownership-safe 404 the guard uses
+ * elsewhere, so these two routes declare their own outcome bodies.
+ */
+const TUTOR_BOOKING_ACTION_OWNERSHIP = {
+  errors: BOOKING_OWNERSHIP_ERRORS,
+  idParam: 'bookingId',
+  resource: 'booking',
+} as const satisfies OwnershipRule;
 
 @BookingsControllerDoc()
 @Controller('bookings')
@@ -127,6 +138,7 @@ export class BookingsController {
   @HttpCode(HttpStatus.OK)
   @ConfirmTutorBookingDoc()
   @Roles(Role.TUTOR)
+  @RequireOwnership(TUTOR_BOOKING_ACTION_OWNERSHIP)
   async confirmTutorBooking(
     @Param('bookingId', UuidParamPipe) bookingId: string,
     @Body() dto: ConfirmBookingDto,
@@ -143,6 +155,7 @@ export class BookingsController {
   @HttpCode(HttpStatus.OK)
   @RejectTutorBookingDoc()
   @Roles(Role.TUTOR)
+  @RequireOwnership(TUTOR_BOOKING_ACTION_OWNERSHIP)
   async rejectTutorBooking(
     @Param('bookingId', UuidParamPipe) bookingId: string,
     @Body() dto: RejectBookingDto,

@@ -45,11 +45,16 @@ if (!/^hktutor[-_]/.test(databaseName)) {
 
 const ids = {
   raceSlot: '96000000-0000-4000-8000-000000000001',
+  rejectRollbackSlot: '96000000-0000-4000-8000-000000000002',
   studentA: '95000000-0000-4000-8000-000000000001',
   studentB: '95000000-0000-4000-8000-000000000002',
+  studentRejectRollback: '95000000-0000-4000-8000-000000000004',
   studentRollback: '95000000-0000-4000-8000-000000000003',
 };
-const studentIds = [ids.studentA, ids.studentB, ids.studentRollback];
+const studentIds = [ids.studentA, ids.studentB, ids.studentRejectRollback, ids.studentRollback];
+const slotIds = [ids.raceSlot, ids.rejectRollbackSlot];
+/** The probe trigger only fires for a cancellation carrying this reason. */
+const ROLLBACK_PROBE_REASON = 'ROLLBACK_PROBE';
 const TUTOR_ACTION_SESSION_PREFIX = 'booking-tutor-action-';
 
 /**
@@ -123,8 +128,9 @@ async function createAuthenticatedStudent(
 }
 
 async function cleanup(prisma: PrismaService): Promise<void> {
-  await prisma.booking.deleteMany({ where: { slotId: ids.raceSlot } });
-  await prisma.availabilitySlot.deleteMany({ where: { id: ids.raceSlot } });
+  await dropRejectRollbackProbe(prisma);
+  await prisma.booking.deleteMany({ where: { slotId: { in: slotIds } } });
+  await prisma.availabilitySlot.deleteMany({ where: { id: { in: slotIds } } });
   await prisma.studentProfile.deleteMany({ where: { userId: { in: studentIds } } });
   await prisma.user.deleteMany({ where: { id: { in: studentIds } } });
   await prisma.authSession.deleteMany({
@@ -143,11 +149,13 @@ async function createTutorAccessToken(
   jwtTokens: JwtTokenService,
   tutorUserId: string,
 ): Promise<string> {
-  const seeded = await prisma.user.findUniqueOrThrow({
-    select: { accountStatus: true, deletedAt: true, emailVerifiedAt: true },
-    where: { id: tutorUserId },
-  });
-  seededTutorAccount = { ...seeded, id: tutorUserId };
+  if (!seededTutorAccount) {
+    const seeded = await prisma.user.findUniqueOrThrow({
+      select: { accountStatus: true, deletedAt: true, emailVerifiedAt: true },
+      where: { id: tutorUserId },
+    });
+    seededTutorAccount = { ...seeded, id: tutorUserId };
+  }
 
   // The authentication guard refuses a tutor whose seeded account is inactive or unverified.
   await prisma.user.update({
@@ -174,7 +182,7 @@ async function runTutorActionRaceCheck(
   prisma: PrismaService,
   jwtTokens: JwtTokenService,
   httpServer: App,
-): Promise<void> {
+): Promise<string> {
   const pending = await prisma.booking.findFirst({
     select: { id: true, tutorProfileId: true },
     where: { slotId: ids.raceSlot, status: BookingStatus.PENDING },
@@ -254,6 +262,119 @@ async function runTutorActionRaceCheck(
   );
 
   process.stdout.write('PASS a repeated tutor action is rejected with 409 and changes nothing\n');
+
+  return token;
+}
+
+async function installRejectRollbackProbe(prisma: PrismaService): Promise<void> {
+  await prisma.$executeRawUnsafe(`
+    CREATE OR REPLACE FUNCTION "probe_reject_rollback"() RETURNS TRIGGER AS $$
+    BEGIN
+      RAISE EXCEPTION 'injected failure after the cancellation write' USING ERRCODE = '23514';
+    END;
+    $$ LANGUAGE plpgsql;
+  `);
+  await prisma.$executeRawUnsafe(`
+    CREATE TRIGGER "probe_reject_rollback_trg"
+    AFTER UPDATE ON "Booking"
+    FOR EACH ROW
+    WHEN (NEW."status" = 'canceled' AND NEW."cancellationReason" = '${ROLLBACK_PROBE_REASON}')
+    EXECUTE FUNCTION "probe_reject_rollback"();
+  `);
+}
+
+async function dropRejectRollbackProbe(prisma: PrismaService): Promise<void> {
+  await prisma.$executeRawUnsafe(
+    'DROP TRIGGER IF EXISTS "probe_reject_rollback_trg" ON "Booking";',
+  );
+  await prisma.$executeRawUnsafe('DROP FUNCTION IF EXISTS "probe_reject_rollback"();');
+}
+
+/**
+ * S2-T01/API-03 requires evidence that a reject which fails *after* writing cannot leave the
+ * booking half-canceled. A temporary AFTER UPDATE trigger raises once the PENDING row has already
+ * become CANCELED inside the transaction, so only a real rollback can restore the row.
+ */
+async function runRejectRollbackCheck(
+  prisma: PrismaService,
+  jwtTokens: JwtTokenService,
+  httpServer: App,
+  tutorToken: string,
+): Promise<void> {
+  const listing = await pickPublishedListing(prisma);
+  const studentToken = await createAuthenticatedStudent(
+    prisma,
+    jwtTokens,
+    ids.studentRejectRollback,
+    'reject-rollback@hktutor.invalid',
+    'Rollback Reject',
+  );
+
+  const startAtUtc = new Date(Date.now() + 4 * 60 * 60 * 1000);
+  const endAtUtc = new Date(startAtUtc.getTime() + 60 * 60 * 1000);
+  await prisma.availabilitySlot.upsert({
+    where: { id: ids.rejectRollbackSlot },
+    create: {
+      id: ids.rejectRollbackSlot,
+      tutorProfileId: listing.tutorProfileId,
+      startAtUtc,
+      endAtUtc,
+    },
+    update: { deletedAt: null, startAtUtc, endAtUtc },
+  });
+
+  const created = await request(httpServer)
+    .post(`/${API_GLOBAL_PREFIX}/bookings`)
+    .set('Authorization', `Bearer ${studentToken}`)
+    .send({ listingId: listing.id, slotId: ids.rejectRollbackSlot });
+  assert.equal(created.status, 201, 'the rollback probe needs its own pending booking');
+  const createdBody = created.body as { id?: string };
+  const bookingId = createdBody.id;
+  assert.ok(bookingId, 'the booking response must carry an id');
+
+  await installRejectRollbackProbe(prisma);
+  try {
+    const rejected = await request(httpServer)
+      .post(`/${API_GLOBAL_PREFIX}/bookings/tutor/${bookingId}/reject`)
+      .set('Authorization', `Bearer ${tutorToken}`)
+      .send({ reason: ROLLBACK_PROBE_REASON });
+
+    // The injected fault is infrastructure rather than a business conflict, so Prisma does not
+    // report a known conflict code and the API answers 500. What matters is that the request
+    // neither succeeds nor leaks the database message.
+    assert.equal(rejected.status, 500, 'a failed transition must not look like a success');
+    assert.ok(
+      !JSON.stringify(rejected.body).includes('injected failure'),
+      'the failure response must not leak the database error text',
+    );
+
+    const booking = await prisma.booking.findUniqueOrThrow({
+      select: { canceledAt: true, canceledById: true, cancellationReason: true, status: true },
+      where: { id: bookingId },
+    });
+    assert.equal(booking.status, BookingStatus.PENDING, 'the booking must roll back to pending');
+    assert.equal(booking.canceledAt, null, 'canceledAt must not survive the rollback');
+    assert.equal(booking.canceledById, null, 'canceledById must not survive the rollback');
+    assert.equal(
+      booking.cancellationReason,
+      null,
+      'cancellationReason must not survive the rollback',
+    );
+
+    const activeBookings = await prisma.booking.count({
+      where: {
+        slotId: ids.rejectRollbackSlot,
+        status: { in: [BookingStatus.PENDING, BookingStatus.CONFIRMED] },
+      },
+    });
+    assert.equal(activeBookings, 1, 'the slot must stay reserved when the rejection rolls back');
+  } finally {
+    await dropRejectRollbackProbe(prisma);
+  }
+
+  process.stdout.write(
+    'PASS a reject that fails after writing rolls back: 500 with no partial write, booking stays PENDING, slot stays reserved\n',
+  );
 }
 
 async function runConcurrencyCheck(
@@ -364,7 +485,8 @@ async function main(): Promise<void> {
   try {
     await cleanup(prisma);
     await runConcurrencyCheck(prisma, jwtTokens, httpServer);
-    await runTutorActionRaceCheck(prisma, jwtTokens, httpServer);
+    const tutorToken = await runTutorActionRaceCheck(prisma, jwtTokens, httpServer);
+    await runRejectRollbackCheck(prisma, jwtTokens, httpServer, tutorToken);
     await runFailedRequestCheck(prisma, jwtTokens, httpServer);
   } finally {
     await cleanup(prisma).catch(() => undefined);

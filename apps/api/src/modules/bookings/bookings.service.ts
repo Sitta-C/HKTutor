@@ -58,19 +58,28 @@ const BOOKING_CONFLICT_MESSAGE =
 /** The database requires a non-empty cancellation reason, but the card keeps `reason` optional. */
 const DEFAULT_REJECTION_REASON = 'Rejected by the tutor';
 
+/**
+ * Shared with the controller's ownership rule so `ResourceOwnershipGuard` and this service answer a
+ * missing or foreign booking with the same body, whichever one rejects the request first.
+ */
+export const BOOKING_OWNERSHIP_ERRORS = {
+  foreignOwner: { code: 'BOOKING_NOT_OWNED', message: 'This booking belongs to another tutor' },
+  missing: { code: 'BOOKING_NOT_FOUND', message: 'Booking not found' },
+} as const;
+
 const bookingNotFound = (): NotFoundException =>
   new NotFoundException({
-    code: 'BOOKING_NOT_FOUND',
+    code: BOOKING_OWNERSHIP_ERRORS.missing.code,
     error: 'Not Found',
-    message: 'Booking not found',
+    message: BOOKING_OWNERSHIP_ERRORS.missing.message,
     statusCode: 404,
   });
 
 const bookingNotOwned = (): ForbiddenException =>
   new ForbiddenException({
-    code: 'BOOKING_NOT_OWNED',
+    code: BOOKING_OWNERSHIP_ERRORS.foreignOwner.code,
     error: 'Forbidden',
-    message: 'This booking belongs to another tutor',
+    message: BOOKING_OWNERSHIP_ERRORS.foreignOwner.message,
     statusCode: 403,
   });
 

@@ -65,6 +65,7 @@ export function CreateBookingDoc(): MethodDecorator {
       description: 'A required booking field failed validation',
       schema: {
         example: {
+          code: 'VALIDATION_FAILED',
           error: 'Bad Request',
           message: ['slotId must be a UUID'],
           statusCode: 400,
@@ -77,6 +78,7 @@ export function CreateBookingDoc(): MethodDecorator {
         'The access token or its backing session is missing, invalid, expired, or revoked',
       schema: {
         example: {
+          code: 'UNAUTHENTICATED',
           error: 'Unauthorized',
           message: 'Invalid or expired authentication token',
           statusCode: 401,
@@ -88,6 +90,7 @@ export function CreateBookingDoc(): MethodDecorator {
       description: 'The referenced listing or slot does not exist',
       schema: {
         example: {
+          code: 'NOT_FOUND',
           error: 'Not Found',
           message: 'The selected slot does not exist.',
           statusCode: 404,
@@ -100,6 +103,7 @@ export function CreateBookingDoc(): MethodDecorator {
         'The requested slot is already booked, has already started, or is no longer available; the listing is unpublished or its tutor does not match the slot; or the tutor is not verified',
       schema: {
         example: {
+          code: 'CONFLICT',
           error: 'Conflict',
           message: 'The selected slot is already booked.',
           statusCode: 409,
@@ -112,6 +116,7 @@ export function CreateBookingDoc(): MethodDecorator {
         'The authenticated user is not a student (a tutor booking their own slot is rejected here), active-student validation failed, or the student profile is incomplete',
       schema: {
         example: {
+          code: 'FORBIDDEN',
           error: 'Forbidden',
           message: 'Only active students can create bookings.',
           statusCode: 403,
@@ -175,6 +180,7 @@ export function GetBookingQuoteDoc(): MethodDecorator {
       description: 'listingId or slotId failed validation',
       schema: {
         example: {
+          code: 'VALIDATION_FAILED',
           error: 'Bad Request',
           message: ['slotId must be a UUID'],
           statusCode: 400,
@@ -187,6 +193,7 @@ export function GetBookingQuoteDoc(): MethodDecorator {
         'The access token or its backing session is missing, invalid, expired, or revoked',
       schema: {
         example: {
+          code: 'UNAUTHENTICATED',
           error: 'Unauthorized',
           message: 'Invalid or expired authentication token',
           statusCode: 401,
@@ -199,6 +206,7 @@ export function GetBookingQuoteDoc(): MethodDecorator {
         'The authenticated user is not a student, active-student validation failed, or the student profile is incomplete',
       schema: {
         example: {
+          code: 'FORBIDDEN',
           error: 'Forbidden',
           message: 'Only active students can request a quote.',
           statusCode: 403,
@@ -210,6 +218,7 @@ export function GetBookingQuoteDoc(): MethodDecorator {
       description: 'The referenced listing or slot does not exist',
       schema: {
         example: {
+          code: 'NOT_FOUND',
           error: 'Not Found',
           message: 'The selected slot does not exist.',
           statusCode: 404,
@@ -222,6 +231,7 @@ export function GetBookingQuoteDoc(): MethodDecorator {
         'The slot is already booked, has already started, or is no longer available; the listing is unpublished or its tutor does not match the slot; or the tutor is not verified',
       schema: {
         example: {
+          code: 'CONFLICT',
           error: 'Conflict',
           message: 'The selected slot is already booked.',
           statusCode: 409,
@@ -299,6 +309,7 @@ export function GetMyBookingsDoc(): MethodDecorator {
       description: 'status, from, or to failed validation, or from is later than to',
       schema: {
         example: {
+          code: 'VALIDATION_FAILED',
           error: 'Bad Request',
           message: ['from must not be later than to'],
           statusCode: 400,
@@ -311,6 +322,7 @@ export function GetMyBookingsDoc(): MethodDecorator {
         'The access token or its backing session is missing, invalid, expired, or revoked',
       schema: {
         example: {
+          code: 'UNAUTHENTICATED',
           error: 'Unauthorized',
           message: 'Invalid or expired authentication token',
           statusCode: 401,
@@ -322,6 +334,7 @@ export function GetMyBookingsDoc(): MethodDecorator {
       description: 'The authenticated user is not a student',
       schema: {
         example: {
+          code: 'FORBIDDEN',
           error: 'Forbidden',
           message: 'You do not have permission to access this resource',
           statusCode: 403,
@@ -390,6 +403,7 @@ export function GetMyBookingDoc(): MethodDecorator {
         'The access token or its backing session is missing, invalid, expired, or revoked',
       schema: {
         example: {
+          code: 'UNAUTHENTICATED',
           error: 'Unauthorized',
           message: 'Invalid or expired authentication token',
           statusCode: 401,
@@ -401,6 +415,7 @@ export function GetMyBookingDoc(): MethodDecorator {
       description: 'The authenticated user is not a student',
       schema: {
         example: {
+          code: 'FORBIDDEN',
           error: 'Forbidden',
           message: 'You do not have permission to access this resource',
           statusCode: 403,
@@ -413,6 +428,7 @@ export function GetMyBookingDoc(): MethodDecorator {
         'The booking does not exist, or exists but does not belong to the authenticated student (ownership-safe: identical response either way)',
       schema: {
         example: {
+          code: 'NOT_FOUND',
           error: 'Not Found',
           message: 'Resource not found',
           statusCode: 404,
@@ -487,6 +503,7 @@ export function GetTutorBookingsDoc(): MethodDecorator {
       description: 'status, from, or to failed validation, or from is later than to',
       schema: {
         example: {
+          code: 'VALIDATION_FAILED',
           error: 'Bad Request',
           message: ['from must not be later than to'],
           statusCode: 400,
@@ -499,6 +516,7 @@ export function GetTutorBookingsDoc(): MethodDecorator {
         'The access token or its backing session is missing, invalid, expired, or revoked',
       schema: {
         example: {
+          code: 'UNAUTHENTICATED',
           error: 'Unauthorized',
           message: 'Invalid or expired authentication token',
           statusCode: 401,
@@ -510,6 +528,7 @@ export function GetTutorBookingsDoc(): MethodDecorator {
       description: 'The authenticated user is not a tutor',
       schema: {
         example: {
+          code: 'FORBIDDEN',
           error: 'Forbidden',
           message: 'You do not have permission to access this resource',
           statusCode: 403,
@@ -540,6 +559,7 @@ function tutorBookingActionErrorResponses(): MethodDecorator[] {
         'The access token or its backing session is missing, invalid, expired, or revoked',
       schema: {
         example: {
+          code: 'UNAUTHENTICATED',
           error: 'Unauthorized',
           message: 'Invalid or expired authentication token',
           statusCode: 401,

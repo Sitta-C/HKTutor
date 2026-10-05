@@ -17,6 +17,7 @@ import type { App } from 'supertest/types';
 
 const TUTOR_ID = '20000000-0000-4000-8000-000000000001';
 const OTHER_TUTOR_ID = '20000000-0000-4000-8000-000000000002';
+const STUDENT_ID = '30000000-0000-4000-8000-000000000001';
 const BOOKING_ID = '3c54a0d6-e3f3-4a38-bd55-3b4011ee31ae';
 const SLOT_ID = '7a0f9ab0-8f25-4d80-bb00-67b3a0c7d3d5';
 const CANCELED_AT = new Date('2026-10-04T09:04:31.001Z');
@@ -63,17 +64,21 @@ describe('Tutor booking confirm and reject (e2e)', () => {
   afterEach(() => jest.resetAllMocks());
 
   it('returns 401 without an access token', async () => {
-    await request(app.getHttpServer())
+    const response = await request(app.getHttpServer())
       .post(`/api/v1/bookings/tutor/${BOOKING_ID}/confirm`)
       .send({})
       .expect(401);
+
+    expect(response.body).toMatchObject({ code: 'UNAUTHENTICATED', statusCode: 401 });
     expect(bookingFindUnique).not.toHaveBeenCalled();
   });
 
   it('returns 403 for a student', async () => {
     authenticateAs(Role.STUDENT);
 
-    await actionRequest('confirm').send({}).expect(403);
+    const response = await actionRequest('confirm').send({}).expect(403);
+
+    expect(response.body).toMatchObject({ code: 'FORBIDDEN', statusCode: 403 });
     expect(bookingFindUnique).not.toHaveBeenCalled();
   });
 
@@ -99,9 +104,18 @@ describe('Tutor booking confirm and reject (e2e)', () => {
     ['an unknown field', { refund: true }],
   ])('returns 400 for %s', async (_description, body) => {
     authenticateAs(Role.TUTOR);
+    // Guards run before the body is validated, so the booking has to pass the ownership check
+    // first for the request to reach the validation pipe at all.
+    bookingFindUnique.mockResolvedValue({
+      status: BookingStatus.PENDING,
+      studentUserId: STUDENT_ID,
+      tutorProfileId: TUTOR_ID,
+    });
 
-    await actionRequest('reject').send(body).expect(400);
-    expect(bookingFindUnique).not.toHaveBeenCalled();
+    const response = await actionRequest('reject').send(body).expect(400);
+
+    expect(response.body).toMatchObject({ code: 'VALIDATION_FAILED', statusCode: 400 });
+    expect(transaction).not.toHaveBeenCalled();
   });
 
   it('returns 404 when the booking does not exist', async () => {
@@ -118,6 +132,7 @@ describe('Tutor booking confirm and reject (e2e)', () => {
     authenticateAs(Role.TUTOR);
     bookingFindUnique.mockResolvedValue({
       status: BookingStatus.PENDING,
+      studentUserId: STUDENT_ID,
       tutorProfileId: OTHER_TUTOR_ID,
     });
 
@@ -131,6 +146,7 @@ describe('Tutor booking confirm and reject (e2e)', () => {
     authenticateAs(Role.TUTOR);
     bookingFindUnique.mockResolvedValue({
       status: BookingStatus.PENDING,
+      studentUserId: STUDENT_ID,
       tutorProfileId: TUTOR_ID,
     });
     stubTransition({ activeBookings: 1, status: BookingStatus.CONFIRMED });
@@ -153,6 +169,7 @@ describe('Tutor booking confirm and reject (e2e)', () => {
     authenticateAs(Role.TUTOR);
     bookingFindUnique.mockResolvedValue({
       status: BookingStatus.PENDING,
+      studentUserId: STUDENT_ID,
       tutorProfileId: TUTOR_ID,
     });
     stubTransition({
@@ -184,6 +201,7 @@ describe('Tutor booking confirm and reject (e2e)', () => {
     authenticateAs(Role.TUTOR);
     bookingFindUnique.mockResolvedValue({
       status: BookingStatus.CONFIRMED,
+      studentUserId: STUDENT_ID,
       tutorProfileId: TUTOR_ID,
     });
 
@@ -197,6 +215,7 @@ describe('Tutor booking confirm and reject (e2e)', () => {
     authenticateAs(Role.TUTOR);
     bookingFindUnique.mockResolvedValue({
       status: BookingStatus.PENDING,
+      studentUserId: STUDENT_ID,
       tutorProfileId: TUTOR_ID,
     });
     stubTransition({ transitionCount: 0 });
@@ -205,6 +224,35 @@ describe('Tutor booking confirm and reject (e2e)', () => {
 
     expect(response.body).toMatchObject({ code: 'BOOKING_TRANSITION_CONFLICT', statusCode: 409 });
     expect(bookingFindUniqueOrThrow).not.toHaveBeenCalled();
+  });
+
+  it('returns 401 for the tutor inbox without an access token', async () => {
+    const response = await request(app.getHttpServer()).get('/api/v1/bookings/tutor').expect(401);
+
+    expect(response.body).toMatchObject({ code: 'UNAUTHENTICATED', statusCode: 401 });
+  });
+
+  it('returns 403 for the tutor inbox when a student asks', async () => {
+    authenticateAs(Role.STUDENT);
+
+    const response = await request(app.getHttpServer())
+      .get('/api/v1/bookings/tutor')
+      .set('Authorization', 'Bearer signed-token')
+      .expect(403);
+
+    expect(response.body).toMatchObject({ code: 'FORBIDDEN', statusCode: 403 });
+  });
+
+  it('returns 400 for the tutor inbox with an invalid status filter', async () => {
+    authenticateAs(Role.TUTOR);
+
+    const response = await request(app.getHttpServer())
+      .get('/api/v1/bookings/tutor')
+      .query({ status: 'NOT_A_STATUS' })
+      .set('Authorization', 'Bearer signed-token')
+      .expect(400);
+
+    expect(response.body).toMatchObject({ code: 'VALIDATION_FAILED', statusCode: 400 });
   });
 
   function actionRequest(action: 'confirm' | 'reject'): request.Test {
