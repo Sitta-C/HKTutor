@@ -32,7 +32,26 @@ onboarding (`/onboarding/profile`), a protected dashboard (`/dashboard`), profil
 (`/dashboard/profile`), tutor availability management (`/dashboard/availability`), and the
 informational `/about-me` page. The availability screen creates and deletes future Bangkok-time
 ranges while exchanging UTC timestamps with the API, protecting reserved slots, and presenting a
-Gregorian calendar in English or a Buddhist calendar in Thai. The bilingual privacy notice opens
+Gregorian calendar in English or a Buddhist calendar in Thai. Separate start/end dates support
+overnight and multi-day availability. Time fields expand into three-row hour/minute wheels with vertical-only
+touch, mouse, trackpad, scrollbar, and keyboard operation; their gentle opening transition respects
+reduced-motion preferences. Clicking the time field again or outside the picker closes it and
+removes its space from the layout. The date/time groups use explicit gaps. The availability
+page shows time ranges without duration totals, a timezone preview box, or a reset action.
+Weekly slots use ruled notebook rows with punched binding margins, green open statuses, and one
+booking status instead of a redundant disabled action. Ended ranges receive a muted overlay and an
+explicit label, updated while the page is open; ended cards have no interactive actions and cannot
+be deleted, including if a range expires while its confirmation is open. Statuses and compact delete
+buttons sit at the top right of each card. Delete buttons open a keyboard-accessible confirmation
+dialog styled as a notebook slip, with separate start/end dates and prominent times; canceling does
+not send a delete request, and reserved slots remain protected.
+Cross-day slots render as one continuous notebook card spanning the occupied Bangkok date rows and
+covering their separators, with the start at the top, the end at the bottom, and one status/action.
+Localized endpoint dates and the shared day gutter remain visible on mobile. Midnight endings display
+as 24:00 and do not create an empty row on the next date. Weekly
+views include incoming portions from earlier weeks using the existing API's optional query fields;
+summaries count each underlying slot once, and confirmed deletion removes the whole slot.
+The bilingual privacy notice opens
 as a closable modal from registration and the dashboard instead of using a separate route.
 
 The tutor dashboard follows the Notebook Focus layout: the next confirmed session, today's
