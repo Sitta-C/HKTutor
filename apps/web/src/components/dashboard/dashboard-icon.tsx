@@ -6,6 +6,7 @@ export type DashboardIconName =
   | 'bookings'
   | 'calendar'
   | 'check'
+  | 'clock'
   | 'close'
   | 'dashboard'
   | 'eye'
@@ -17,7 +18,8 @@ export type DashboardIconName =
   | 'search'
   | 'settings'
   | 'shield'
-  | 'support';
+  | 'support'
+  | 'trash';
 
 export function DashboardIcon({
   name,
@@ -55,6 +57,12 @@ export function DashboardIcon({
       <>
         <circle cx="12" cy="12" r="8.5" />
         <path d="m8.5 12 2.3 2.3 4.7-4.7" />
+      </>
+    ),
+    clock: (
+      <>
+        <circle cx="12" cy="12" r="8.5" />
+        <path d="M12 7v5l3 2" />
       </>
     ),
     close: <path d="m6 6 12 12M18 6 6 18" />,
@@ -116,6 +124,11 @@ export function DashboardIcon({
       <>
         <path d="M4 13v-1a8 8 0 0 1 16 0v1" />
         <path d="M4 13h3v5H5.5A1.5 1.5 0 0 1 4 16.5zM20 13h-3v5h1.5a1.5 1.5 0 0 0 1.5-1.5zM17 18c0 1.1-.9 2-2 2h-2" />
+      </>
+    ),
+    trash: (
+      <>
+        <path d="M3.5 6h17M9 6V3.5h6V6M6 6l1 14h10l1-14M10 10v6M14 10v6" />
       </>
     ),
   };

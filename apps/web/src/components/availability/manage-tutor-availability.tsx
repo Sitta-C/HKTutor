@@ -2,17 +2,16 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useEffect, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
 
 import {
-  formatAvailabilityDuration,
-  formatAvailabilityDurationLabel,
-  formatAvailabilityHoursMinutes,
-  safeBangkokDateTime,
+  buildAvailabilityWeek,
+  buildAvailabilityWeekLayout,
 } from '@/components/availability/manage-tutor-availability-model';
 import { DashboardIcon } from '@/components/dashboard/dashboard-icon';
 import DashboardShell from '@/components/dashboard/dashboard-shell';
 import { LocalizedDatePicker } from '@/components/date-time/localized-date-picker';
+import { TimeWheelPicker } from '@/components/date-time/time-wheel-picker';
 import {
   GraphPaper,
   NotebookPage,
@@ -21,7 +20,6 @@ import {
   StickyNote,
   WashiTape,
   notebookButtonClass,
-  notebookInputClass,
 } from '@/components/ui/notebook';
 import { useNotebookToast } from '@/components/ui/notebook-toast';
 import {
@@ -30,29 +28,26 @@ import {
   deleteTutorAvailability,
   getBangkokWeekRange,
   getBangkokWeekStart,
-  getDurationHours,
   getTutorAvailability,
   shiftBangkokWeek,
 } from '@/lib/api/availability';
 import { ApiError } from '@/lib/api/error';
 import {
-  formatBangkokDate,
+  formatBangkokDateRange,
+  formatBangkokDateTime,
   formatBangkokShortDate,
   formatBangkokTime,
   formatBangkokWeekday,
   formatBangkokWeekRange,
-  formatUtcDateTime,
   getBangkokIsoDate,
   getBangkokToday,
 } from '@/lib/date-time';
 import { useLanguage } from '@/lib/i18n';
 import { useProfileSession } from '@/lib/use-profile-session';
 
-import type { TutorAvailabilitySlot } from '@/lib/api/types';
+import styles from './manage-tutor-availability.module.css';
 
-const availabilityInputClass = notebookInputClass({
-  className: 'focus:border-tutor focus:ring-sticky-blue/70',
-});
+import type { TutorAvailabilitySlot } from '@/lib/api/types';
 
 const availabilitySecondaryButtonClass = notebookButtonClass({
   tone: 'secondary',
@@ -77,7 +72,8 @@ export default function ManageTutorAvailability() {
   const router = useRouter();
   const availabilityCopy = copy.dashboard.availability;
   const [weekStart, setWeekStart] = useState(() => getBangkokWeekStart());
-  const [date, setDate] = useState(() => getBangkokToday());
+  const [startDate, setStartDate] = useState(() => getBangkokToday());
+  const [endDate, setEndDate] = useState(() => getBangkokToday());
   const [startTime, setStartTime] = useState('18:00');
   const [endTime, setEndTime] = useState('19:00');
   const [slots, setSlots] = useState<TutorAvailabilitySlot[]>([]);
@@ -85,8 +81,21 @@ export default function ManageTutorAvailability() {
   const [refreshKey, setRefreshKey] = useState(0);
   const [isSaving, setIsSaving] = useState(false);
   const [busySlotId, setBusySlotId] = useState<string | null>(null);
+  const [now, setNow] = useState(() => Date.now());
   const [loadError, setLoadError] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const updateTime = () => setNow(Date.now());
+    const timer = window.setInterval(updateTime, 30_000);
+    window.addEventListener('focus', updateTime);
+    document.addEventListener('visibilitychange', updateTime);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener('focus', updateTime);
+      document.removeEventListener('visibilitychange', updateTime);
+    };
+  }, []);
 
   const prepareAvailabilityLoad = () => {
     setIsLoading(true);
@@ -112,7 +121,8 @@ export default function ManageTutorAvailability() {
     if (sessionLoading || profileError || !user || user.role !== 'TUTOR') return;
     let active = true;
     const range = getBangkokWeekRange(weekStart);
-    getTutorAvailability(range)
+    // The existing API filters by start time, so include earlier starts for carry-over slots.
+    getTutorAvailability({ to: range.to })
       .then((result) => {
         if (!active) return;
         setSlots(result);
@@ -130,26 +140,34 @@ export default function ManageTutorAvailability() {
     };
   }, [availabilityCopy.loadError, profileError, refreshKey, sessionLoading, user, weekStart]);
 
-  const groupedSlots = useMemo(() => {
-    const groups = new Map<string, TutorAvailabilitySlot[]>();
-    slots.forEach((slot) => {
-      const key = getBangkokIsoDate(slot.startAtUtc);
-      groups.set(key, [...(groups.get(key) ?? []), slot]);
-    });
-    return [...groups.entries()].sort(([first], [second]) => first.localeCompare(second));
-  }, [slots]);
+  const availabilityWeek = useMemo(
+    () => buildAvailabilityWeek(slots, weekStart),
+    [slots, weekStart],
+  );
+  const weekLayout = useMemo(
+    () => buildAvailabilityWeekLayout(availabilityWeek),
+    [availabilityWeek],
+  );
+
+  const getDeletableSpan = (slot: TutorAvailabilitySlot, currentTime: number) =>
+    weekLayout.spans.find(
+      (span) =>
+        span.slot.id === slot.id &&
+        span.slot.state === 'OPEN' &&
+        new Date(span.lastSegment.endAtUtc).getTime() > currentTime,
+    );
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setFormError(null);
-    if (!date || !startTime || !endTime) {
+    if (!startDate || !endDate || !startTime || !endTime) {
       setFormError(availabilityCopy.emptyForm);
       return;
     }
 
     try {
-      const startAt = bangkokDateTimeToUtc(date, startTime);
-      const endAt = bangkokDateTimeToUtc(date, endTime);
+      const startAt = bangkokDateTimeToUtc(startDate, startTime);
+      const endAt = bangkokDateTimeToUtc(endDate, endTime);
       if (endAt <= startAt) {
         setFormError(availabilityCopy.endAfterStart);
         return;
@@ -180,7 +198,12 @@ export default function ManageTutorAvailability() {
   };
 
   const handleDelete = async (slot: TutorAvailabilitySlot) => {
-    if (slot.state !== 'OPEN') return;
+    if (slot.state !== 'OPEN' || busySlotId !== null) return;
+    const currentTime = Date.now();
+    if (!getDeletableSpan(slot, currentTime)) {
+      setNow(currentTime);
+      return;
+    }
     setBusySlotId(slot.id);
     try {
       await deleteTutorAvailability(slot.id);
@@ -214,14 +237,8 @@ export default function ManageTutorAvailability() {
   const weekLabel = formatBangkokWeekRange(weekStart, language);
   const today = getBangkokToday();
   const thisWeek = getBangkokWeekStart();
-  const previewStart = date && startTime ? safeBangkokDateTime(date, startTime) : null;
-  const previewEnd = date && endTime ? safeBangkokDateTime(date, endTime) : null;
-  const openSlotCount = slots.filter((slot) => slot.state === 'OPEN').length;
-  const reservedSlotCount = slots.length - openSlotCount;
-  const teachingHours = slots.reduce(
-    (total, slot) => total + getDurationHours(slot.startAtUtc, slot.endAtUtc),
-    0,
-  );
+  const openSlotCount = availabilityWeek.slots.filter((slot) => slot.state === 'OPEN').length;
+  const reservedSlotCount = availabilityWeek.slots.length - openSlotCount;
 
   return (
     <DashboardShell
@@ -250,7 +267,7 @@ export default function ManageTutorAvailability() {
         </header>
 
         <div
-          className="mb-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4"
+          className="mb-5 grid gap-3 sm:grid-cols-3"
           aria-label={availabilityCopy.weekOf.replace('{date}', weekLabel)}
         >
           <SummaryCard
@@ -262,18 +279,6 @@ export default function ManageTutorAvailability() {
             label={availabilityCopy.reservedSlots}
             value={String(reservedSlotCount)}
             help={availabilityCopy.reservedSlotsHelp}
-          />
-          <SummaryCard
-            label={availabilityCopy.teachingHours}
-            value={formatAvailabilityHoursMinutes(
-              teachingHours,
-              availabilityCopy.hour,
-              availabilityCopy.hours,
-              availabilityCopy.minute,
-              availabilityCopy.minutes,
-            )}
-            help={availabilityCopy.teachingHoursHelp}
-            duration
           />
           <SummaryCard
             label={availabilityCopy.timezoneLabel}
@@ -318,7 +323,6 @@ export default function ManageTutorAvailability() {
                   className={availabilitySecondaryButtonClass}
                   onClick={() => {
                     changeWeek(thisWeek);
-                    setDate(today);
                   }}
                 >
                   {availabilityCopy.thisWeek}
@@ -346,72 +350,184 @@ export default function ManageTutorAvailability() {
                 onAction={refreshAvailability}
                 error
               />
-            ) : groupedSlots.length === 0 ? (
+            ) : weekLayout.spans.length === 0 ? (
               <EmptyState message={availabilityCopy.noSlots} />
             ) : (
-              <div className="divide-y divide-dashed divide-paper-edge">
-                {groupedSlots.map(([day, daySlots]) => (
-                  <article
-                    key={day}
-                    className="grid gap-3 py-5 first:pt-5 last:pb-0 sm:grid-cols-[120px_minmax(0,1fr)] sm:gap-4"
-                  >
-                    <div>
-                      <strong className="block text-sm font-extrabold text-notebook-ink">
-                        {formatBangkokWeekday(daySlots.at(0)?.startAtUtc ?? day, language)}
+              <div
+                className={styles.weekGrid}
+                style={{ gridTemplateRows: weekLayout.gridTemplateRows }}
+              >
+                {weekLayout.days.map(({ day, startAtUtc, rowStart, rowEnd, separatorRow }) => (
+                  <Fragment key={day}>
+                    <div
+                      className={styles.dayLabel}
+                      style={{ gridRow: `${rowStart} / ${rowEnd}` }}
+                      data-availability-date={day}
+                    >
+                      <strong className={styles.fullWeekday}>
+                        {formatBangkokWeekday(startAtUtc, language)}
                       </strong>
-                      <span className="mt-1 block text-xs text-notebook-muted">
-                        {formatBangkokShortDate(daySlots.at(0)?.startAtUtc ?? day, language)}
-                      </span>
+                      <strong className={styles.shortWeekday}>
+                        {formatBangkokWeekday(startAtUtc, language, 'short')}
+                      </strong>
+                      <span>{formatBangkokShortDate(startAtUtc, language)}</span>
                     </div>
-                    <div className="flex flex-col gap-2">
-                      {daySlots.map((slot) => {
-                        const reserved = slot.state === 'RESERVED';
-                        const durationHours = getDurationHours(slot.startAtUtc, slot.endAtUtc);
-                        const duration = (
-                          durationHours === 1
-                            ? availabilityCopy.duration
-                            : availabilityCopy.durationPlural
-                        ).replace('{hours}', formatAvailabilityDuration(durationHours));
-                        return (
-                          <GraphPaper
-                            key={slot.id}
-                            className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 p-3 sm:grid-cols-[110px_minmax(0,1fr)_auto_auto] sm:gap-3"
-                          >
-                            <strong className="text-sm font-extrabold text-notebook-ink">
-                              {formatBangkokTime(slot.startAtUtc, language)}–
-                              {formatBangkokTime(slot.endAtUtc, language)}
-                            </strong>
-                            <span className="text-xs leading-5 text-notebook-muted max-sm:col-span-2">
-                              {duration} ·{' '}
-                              {reserved
-                                ? availabilityCopy.reservedDetail
-                                : availabilityCopy.openDetail}
-                            </span>
-                            <StatusBadge
-                              tone={reserved ? 'warning' : 'tutor'}
-                              className="justify-self-start"
-                            >
-                              {reserved ? availabilityCopy.reserved : availabilityCopy.open}
-                            </StatusBadge>
-                            <button
-                              type="button"
-                              className={notebookButtonClass({
-                                tone: 'secondary',
-                                className: reserved
-                                  ? 'min-h-9 px-3 py-1.5 text-xs'
-                                  : 'min-h-9 border-red-200 px-3 py-1.5 text-xs text-red-700 hover:bg-red-50',
-                              })}
-                              disabled={reserved || busySlotId === slot.id}
-                              onClick={() => void handleDelete(slot)}
-                            >
-                              {reserved ? availabilityCopy.reservedAction : availabilityCopy.delete}
-                            </button>
-                          </GraphPaper>
-                        );
-                      })}
-                    </div>
-                  </article>
+                    {separatorRow !== null && (
+                      <div
+                        className={styles.daySeparator}
+                        style={{ gridRow: separatorRow }}
+                        aria-hidden="true"
+                      />
+                    )}
+                  </Fragment>
                 ))}
+                {weekLayout.spans.map(
+                  ({ slot, firstSegment, lastSegment, firstDay, lastDay, rowStart, rowEnd }) => {
+                    const reserved = slot.state === 'RESERVED';
+                    const past = new Date(lastSegment.endAtUtc).getTime() <= now;
+                    const spanning = firstDay !== lastDay;
+                    const continuesAfterWeek =
+                      new Date(lastSegment.endAtUtc).getTime() < new Date(slot.endAtUtc).getTime();
+                    const crossesDay =
+                      getBangkokIsoDate(slot.startAtUtc) !== getBangkokIsoDate(slot.endAtUtc);
+                    const endLabelDate = lastSegment.endsAtMidnight
+                      ? lastSegment.startAtUtc
+                      : lastSegment.endAtUtc;
+                    return (
+                      <div
+                        key={slot.id}
+                        role="group"
+                        aria-label={`${formatBangkokDateTime(slot.startAtUtc, language)}–${formatBangkokDateTime(slot.endAtUtc, language)}`}
+                        className={`${styles.row} ${spanning ? styles.spanningRow : ''}`}
+                        style={{ gridRow: `${rowStart} / ${rowEnd}` }}
+                        data-availability-slot={slot.id}
+                        data-availability-day={firstDay}
+                        data-availability-end-day={lastDay}
+                        data-spanning={spanning}
+                        data-state={past ? 'past' : reserved ? 'booked' : 'open'}
+                      >
+                        <div className={styles.binding} aria-hidden="true">
+                          <span />
+                          <span />
+                          <span />
+                        </div>
+                        <div className={styles.rowBody}>
+                          {spanning ? (
+                            <div className={styles.spanTimes}>
+                              <div className={styles.spanEndpoint}>
+                                <span className={styles.endpointLabel}>
+                                  {firstSegment.isContinuation
+                                    ? availabilityCopy.spanContinued
+                                    : availabilityCopy.spanStart}
+                                </span>
+                                <strong className={styles.time}>
+                                  <time dateTime={firstSegment.startAtUtc}>
+                                    {formatBangkokTime(firstSegment.startAtUtc, language)}
+                                  </time>
+                                </strong>
+                                <p className={styles.dateRange}>
+                                  {formatBangkokShortDate(firstSegment.startAtUtc, language)}
+                                </p>
+                              </div>
+                              <div className={styles.spanConnector} aria-hidden="true" />
+                              <div className={styles.spanEndpoint}>
+                                <span className={styles.endpointLabel}>
+                                  {continuesAfterWeek
+                                    ? availabilityCopy.spanContinues
+                                    : availabilityCopy.spanEnd}
+                                </span>
+                                <strong className={styles.time}>
+                                  <time dateTime={lastSegment.endAtUtc}>
+                                    {lastSegment.endsAtMidnight
+                                      ? '24:00'
+                                      : formatBangkokTime(lastSegment.endAtUtc, language)}
+                                  </time>
+                                </strong>
+                                <p className={styles.dateRange}>
+                                  {formatBangkokShortDate(endLabelDate, language)}
+                                </p>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="min-w-0">
+                              <strong className={`${styles.time} ${styles.timeRange}`}>
+                                <time dateTime={firstSegment.startAtUtc}>
+                                  {formatBangkokTime(firstSegment.startAtUtc, language)}
+                                </time>
+                                <span>–</span>
+                                <time dateTime={lastSegment.endAtUtc}>
+                                  {lastSegment.endsAtMidnight
+                                    ? '24:00'
+                                    : formatBangkokTime(lastSegment.endAtUtc, language)}
+                                </time>
+                              </strong>
+                              {crossesDay ? (
+                                <p className={styles.dateRange}>
+                                  {firstSegment.isContinuation
+                                    ? availabilityCopy.continuation.replace(
+                                        '{dates}',
+                                        formatBangkokDateRange(
+                                          slot.startAtUtc,
+                                          slot.endAtUtc,
+                                          language,
+                                        ),
+                                      )
+                                    : formatBangkokDateRange(
+                                        slot.startAtUtc,
+                                        slot.endAtUtc,
+                                        language,
+                                      )}
+                                </p>
+                              ) : (
+                                <p className={styles.detail}>
+                                  {reserved
+                                    ? availabilityCopy.reservedDetail
+                                    : past
+                                      ? availabilityCopy.pastDetail
+                                      : availabilityCopy.openDetail}
+                                </p>
+                              )}
+                            </div>
+                          )}
+                          <div className={styles.rowActions}>
+                            <StatusBadge
+                              tone={past ? 'neutral' : reserved ? 'warning' : 'success'}
+                              className={styles.badge ?? ''}
+                            >
+                              <DashboardIcon
+                                name={past ? 'clock' : reserved ? 'bookings' : 'check'}
+                                className="h-3.5 w-3.5 shrink-0"
+                              />
+                              {past
+                                ? availabilityCopy.past
+                                : reserved
+                                  ? availabilityCopy.hasBooking
+                                  : availabilityCopy.open}
+                            </StatusBadge>
+                            {!reserved && !past && (
+                              <button
+                                type="button"
+                                className={notebookButtonClass({
+                                  tone: 'secondary',
+                                  className: styles.deleteButton,
+                                })}
+                                aria-label={availabilityCopy.deleteSlotLabel.replace(
+                                  '{time}',
+                                  `${formatBangkokDateTime(slot.startAtUtc, language)}–${formatBangkokDateTime(slot.endAtUtc, language)}`,
+                                )}
+                                disabled={busySlotId === slot.id}
+                                onClick={() => void handleDelete(slot)}
+                              >
+                                <DashboardIcon name="trash" className="h-3.5 w-3.5" />
+                                {availabilityCopy.delete}
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  },
+                )}
               </div>
             )}
           </PaperCard>
@@ -431,47 +547,75 @@ export default function ManageTutorAvailability() {
                   </div>
                 </div>
                 <div className="flex flex-col gap-4 pt-5">
-                  <LocalizedDatePicker
-                    label={availabilityCopy.date}
-                    value={date}
-                    onChange={setDate}
-                    min={today}
-                    language={language}
-                    calendarLabel={availabilityCopy.calendarLabel}
-                    previousMonthLabel={availabilityCopy.previousMonth}
-                    nextMonthLabel={availabilityCopy.nextMonth}
-                  />
-                  <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
-                    <Field
+                  <div
+                    role="group"
+                    aria-labelledby="availability-start-title"
+                    className="flex min-w-0 flex-col gap-3"
+                  >
+                    <h3
+                      id="availability-start-title"
+                      className="text-sm font-extrabold text-notebook-ink"
+                    >
+                      {availabilityCopy.startDateTime}
+                    </h3>
+                    <LocalizedDatePicker
+                      name="startDate"
+                      label={availabilityCopy.startDate}
+                      value={startDate}
+                      onChange={(nextDate) => {
+                        setStartDate(nextDate);
+                        if (endDate < nextDate) setEndDate(nextDate);
+                      }}
+                      min={today}
+                      language={language}
+                      calendarLabel={availabilityCopy.calendarLabel}
+                      previousMonthLabel={availabilityCopy.previousMonth}
+                      nextMonthLabel={availabilityCopy.nextMonth}
+                    />
+                    <TimeWheelPicker
+                      name="startTime"
                       label={availabilityCopy.startTime}
-                      type="time"
                       value={startTime}
                       onChange={setStartTime}
-                    />
-                    <Field
-                      label={availabilityCopy.endTime}
-                      type="time"
-                      value={endTime}
-                      onChange={setEndTime}
+                      hourLabel={availabilityCopy.wheelHour}
+                      minuteLabel={availabilityCopy.wheelMinute}
                     />
                   </div>
-                  <GraphPaper className="p-4">
-                    <p className="text-[0.68rem] font-extrabold uppercase tracking-[0.12em] text-tutor-deep">
-                      {availabilityCopy.preview}
-                    </p>
-                    <p className="mt-1.5 text-sm font-bold leading-6 text-notebook-ink">
-                      {previewStart && previewEnd
-                        ? `${formatBangkokDate(previewStart, language)} · ${formatBangkokTime(previewStart, language)}–${formatBangkokTime(previewEnd, language)} · ${formatAvailabilityDurationLabel(getDurationHours(previewStart.toISOString(), previewEnd.toISOString()), availabilityCopy.duration, availabilityCopy.durationPlural)}`
-                        : availabilityCopy.emptyForm}
-                    </p>
-                    {previewStart && previewEnd && (
-                      <p className="mt-1 text-xs leading-5 text-notebook-muted">
-                        {availabilityCopy.storedAs
-                          .replace('{start}', formatUtcDateTime(previewStart, language))
-                          .replace('{end}', formatUtcDateTime(previewEnd, language))}
-                      </p>
-                    )}
-                  </GraphPaper>
+                  <div
+                    role="group"
+                    aria-labelledby="availability-end-title"
+                    className="flex min-w-0 flex-col gap-3"
+                  >
+                    <h3
+                      id="availability-end-title"
+                      className="flex items-center gap-2 text-sm font-extrabold text-notebook-ink"
+                    >
+                      {availabilityCopy.endDateTime}
+                      <span
+                        aria-hidden="true"
+                        className="flex-1 border-t border-dashed border-paper-edge"
+                      />
+                    </h3>
+                    <LocalizedDatePicker
+                      name="endDate"
+                      label={availabilityCopy.endDate}
+                      value={endDate}
+                      onChange={setEndDate}
+                      min={startDate > today ? startDate : today}
+                      language={language}
+                      calendarLabel={availabilityCopy.calendarLabel}
+                      previousMonthLabel={availabilityCopy.previousMonth}
+                      nextMonthLabel={availabilityCopy.nextMonth}
+                    />
+                    <TimeWheelPicker
+                      name="endTime"
+                      label={availabilityCopy.endTime}
+                      value={endTime}
+                      onChange={setEndTime}
+                      hourLabel={availabilityCopy.wheelHour}
+                      minuteLabel={availabilityCopy.wheelMinute}
+                    />
+                  </div>
                   {formError && (
                     <p
                       className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-xs font-semibold text-red-700"
@@ -489,21 +633,6 @@ export default function ManageTutorAvailability() {
                       <DashboardIcon name="plus" className="h-4 w-4" />
                       {isSaving ? availabilityCopy.adding : availabilityCopy.add}
                     </button>
-                    <button
-                      type="reset"
-                      className={notebookButtonClass({
-                        tone: 'secondary',
-                        className: 'flex-1',
-                      })}
-                      onClick={() => {
-                        setDate(today);
-                        setStartTime('18:00');
-                        setEndTime('19:00');
-                        setFormError(null);
-                      }}
-                    >
-                      {availabilityCopy.reset}
-                    </button>
                   </div>
                 </div>
               </form>
@@ -518,31 +647,6 @@ export default function ManageTutorAvailability() {
         </div>
       </div>
     </DashboardShell>
-  );
-}
-
-function Field({
-  label,
-  type,
-  value,
-  onChange,
-}: {
-  label: string;
-  type: 'time';
-  value: string;
-  onChange: (value: string) => void;
-}) {
-  return (
-    <label className="flex flex-col gap-1.5 text-sm font-bold text-notebook-ink">
-      <span>{label}</span>
-      <input
-        className={availabilityInputClass}
-        type={type}
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        required
-      />
-    </label>
   );
 }
 
@@ -602,13 +706,11 @@ function SummaryCard({
   value,
   help,
   compact = false,
-  duration = false,
 }: {
   label: string;
   value: string;
   help: string;
   compact?: boolean;
-  duration?: boolean;
 }) {
   return (
     <PaperCard className="group relative min-h-36 overflow-hidden p-4 transition hover:-translate-y-0.5 hover:shadow-paper sm:p-5">
@@ -618,7 +720,7 @@ function SummaryCard({
       </p>
       <p
         className={`relative z-10 mt-3 font-black tracking-[-0.045em] text-notebook-ink ${
-          compact ? 'text-xl' : duration ? 'text-xl leading-tight' : 'text-3xl'
+          compact ? 'text-xl' : 'text-3xl'
         }`}
       >
         {value}
