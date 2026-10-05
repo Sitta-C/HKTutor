@@ -554,7 +554,7 @@ test('subject index groups many subjects with stable colors and supports repeate
   await expectResponsiveShell(page);
 });
 
-test('course summary collapses smoothly and supports repeat toggles, keyboard and reduced motion', async ({
+test('course summary expands beneath its own row with repeat toggles, keyboard and reduced motion', async ({
   page,
 }) => {
   const calls = await mockDashboard(page);
@@ -563,12 +563,19 @@ test('course summary collapses smoothly and supports repeat toggles, keyboard an
   const courses = page.getByRole('region', { name: 'ภาพรวมรายคอร์ส', exact: true });
   const choices = courses.getByRole('listitem').getByRole('button');
   await choices.first().click();
-  const toggle = courses.getByRole('button', { name: 'Mathematics · Grade 10', exact: true });
+  const toggle = choices.first();
   const detailsId = await toggle.getAttribute('aria-controls');
   expect(detailsId).not.toBeNull();
   const details = page.locator(`[id="${detailsId}"]`);
   await expect(toggle).toHaveAttribute('aria-expanded', 'true');
   await expect(details.locator('dl')).toBeVisible();
+  const firstRow = courses.getByRole('listitem').first();
+  await expect(firstRow.locator(`[id="${detailsId}"]`)).toHaveCount(1);
+  const placement = await details.evaluate((element) => ({
+    isBelowTrigger: element.previousElementSibling?.getAttribute('aria-controls') === element.id,
+    isInsideRow: element.parentElement?.tagName === 'LI',
+  }));
+  expect(placement).toEqual({ isBelowTrigger: true, isInsideRow: true });
   const expandedHeight = await details.evaluate((element) => {
     for (const animation of element.getAnimations()) animation.finish();
     return element.getBoundingClientRect().height;
@@ -601,19 +608,24 @@ test('course summary collapses smoothly and supports repeat toggles, keyboard an
   await expect(details.locator('dl')).toBeVisible();
   await page.keyboard.press('Space');
   await expect(toggle).toHaveAttribute('aria-expanded', 'false');
-  await choices.last().click();
-  await expect(toggle).toHaveAttribute('aria-expanded', 'true');
-  await expect(details.locator('dd')).toHaveText(['0', '0', '0', '฿0.00']);
+  const lastToggle = choices.last();
+  await lastToggle.click();
+  await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+  await expect(lastToggle).toHaveAttribute('aria-expanded', 'true');
+  const lastPanelId = await lastToggle.getAttribute('aria-controls');
+  const lastDetails = courses.getByRole('listitem').last().locator(`[id="${lastPanelId}"]`);
+  await expect(lastDetails.locator('dd')).toHaveText(['0', '0', '0', '฿0.00']);
+  await expect(courses.getByRole('region')).toHaveCount(1);
   await expect(courses.getByRole('listitem')).toHaveCount(3);
   await page.emulateMedia({ reducedMotion: 'reduce' });
-  await toggle.click();
-  await expect(details).toHaveCSS('transition-property', 'none');
+  await lastToggle.click();
+  await expect(lastDetails).toHaveCSS('transition-property', 'none');
   await expect
-    .poll(() => details.evaluate((element) => element.getBoundingClientRect().height))
+    .poll(() => lastDetails.evaluate((element) => element.getBoundingClientRect().height))
     .toBe(0);
-  await toggle.click();
-  await expect(details.locator('dl')).toBeVisible();
-  await expect(details).toHaveAttribute('aria-hidden', 'false');
+  await lastToggle.click();
+  await expect(lastDetails.locator('dl')).toBeVisible();
+  await expect(lastDetails).toHaveAttribute('aria-hidden', 'false');
   expect(calls.length).toBe(callCount);
   await page.setViewportSize({ width: 320, height: 840 });
   await expectResponsiveShell(page);

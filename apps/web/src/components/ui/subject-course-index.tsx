@@ -98,7 +98,6 @@ export function SubjectCourseIndex({
   );
   const activeGroup = groups.find((group) => group.id === subjectId) ?? selectedGroup ?? groups[0];
   const selectedCourse = activeGroup?.courses.find((course) => course.value === value);
-  const showDetails = Boolean(selectedCourse) && detailsOpen;
   if (!activeGroup) {
     return null;
   }
@@ -176,78 +175,78 @@ export function SubjectCourseIndex({
             aria-label={courseLabel.replace('{subject}', activeGroup.label)}
             className="divide-y divide-dashed divide-paper-edge"
           >
-            {activeGroup.courses.map((course) => (
-              <li key={course.value}>
-                <button
-                  type="button"
-                  data-index-course
-                  aria-pressed={course.value === value}
-                  onClick={() => {
-                    setDetailsOpen(true);
-                    onChange(course.value);
-                  }}
-                  onKeyDown={(event) => moveFocus(event, 'course')}
-                  className={`${styles.course} flex min-h-18 w-full min-w-0 items-center gap-3 rounded-md px-2 py-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tutor-deep`}
-                >
-                  <span className="min-w-0 flex-1">
-                    <span className="block break-words text-sm font-semibold">{course.label}</span>
-                    <span className="mt-1 block text-xs leading-5 text-notebook-muted">
-                      {course.description}
-                    </span>
-                  </span>
-                  <span aria-hidden="true" className={`${styles.mark} shrink-0 text-lg`}>
-                    {course.value === value ? '✓' : '›'}
-                  </span>
-                </button>
-              </li>
-            ))}
-          </ul>
-          <div className="mt-4 border-t border-dashed border-paper-edge pt-3">
-            {selectedCourse && (
-              <h5>
-                <button
-                  id={`${id}-details-toggle`}
-                  type="button"
-                  aria-expanded={showDetails}
-                  aria-controls={`${id}-details`}
-                  onClick={() => setDetailsOpen((open) => !open)}
-                  className={`${styles.toggle} flex min-h-11 w-full items-center justify-between gap-3 rounded-md px-1 text-left text-sm font-bold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tutor-deep`}
-                >
-                  <span className="break-words">
-                    {activeGroup.label} · {selectedCourse.label}
-                  </span>
-                  <svg
-                    aria-hidden="true"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.8"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    className={`${styles.chevron} h-4 w-4 shrink-0`}
+            {activeGroup.courses.map((course, index) => {
+              const selected = course.value === value;
+              const open = selected && detailsOpen;
+              const triggerId = `${id}-course-${index}`;
+              const panelId = `${triggerId}-details`;
+              return (
+                <li key={course.value}>
+                  <button
+                    id={triggerId}
+                    type="button"
+                    data-index-course
+                    aria-pressed={selected}
+                    aria-expanded={open}
+                    aria-controls={panelId}
+                    onClick={() => {
+                      if (selected) {
+                        setDetailsOpen((current) => !current);
+                      } else {
+                        setDetailsOpen(true);
+                        onChange(course.value);
+                      }
+                    }}
+                    onKeyDown={(event) => moveFocus(event, 'course')}
+                    className={`${styles.course} flex min-h-18 w-full min-w-0 items-center gap-3 rounded-md px-2 py-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tutor-deep`}
                   >
-                    <path d="m6 9 6 6 6-6" />
-                  </svg>
-                </button>
-              </h5>
-            )}
-            <div
-              id={`${id}-details`}
-              role="region"
-              aria-labelledby={selectedCourse ? `${id}-details-toggle` : undefined}
-              aria-hidden={!showDetails}
-              inert={!showDetails}
-              data-open={showDetails}
-              className={styles.collapse}
-            >
-              <div className={styles.collapseInner}>
-                <div className="pt-3" aria-live="polite">
-                  {children}
-                </div>
-              </div>
-            </div>
-            {!selectedCourse && <p className="text-xs leading-6 text-notebook-muted">{hint}</p>}
-          </div>
+                    <span className="min-w-0 flex-1">
+                      <span className="block break-words text-sm font-semibold">
+                        {course.label}
+                      </span>
+                      <span className="mt-1 block text-xs leading-5 text-notebook-muted">
+                        {course.description}
+                      </span>
+                    </span>
+                    <svg
+                      aria-hidden="true"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.8"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      className={`${styles.chevron} h-4 w-4 shrink-0`}
+                    >
+                      <path d="m6 9 6 6 6-6" />
+                    </svg>
+                  </button>
+                  <div
+                    id={panelId}
+                    role="region"
+                    aria-labelledby={triggerId}
+                    aria-hidden={!open}
+                    inert={!open}
+                    data-open={open}
+                    className={styles.collapse}
+                  >
+                    <div className={styles.collapseInner}>
+                      {selected && (
+                        <div className="px-2 pb-5 pt-3" aria-live="polite">
+                          {children}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+          {!selectedCourse && (
+            <p className="mt-4 border-t border-dashed border-paper-edge pt-4 text-xs leading-6 text-notebook-muted">
+              {hint}
+            </p>
+          )}
         </div>
       </div>
     </div>

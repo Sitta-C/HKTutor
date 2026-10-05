@@ -61,7 +61,7 @@
   transition: transform 220ms ease;
 }
 
-.toggle[aria-expanded='true'] .chevron {
+.course[aria-expanded='true'] .chevron {
   transform: rotate(180deg);
 }
 
