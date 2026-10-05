@@ -4,6 +4,7 @@ import { loadTutorDashboardBookings } from '@/components/dashboard/tutor-dashboa
 import {
   getTutorDashboardSummary,
   getTutorMonthOverview,
+  groupTutorCoursesBySubject,
   isPastTutorRequest,
   paginateDashboardItems,
   shiftDashboardMonth,
@@ -59,6 +60,31 @@ function listing(publicationStatus: TeachingListing['publicationStatus']): Teach
 }
 
 describe('tutor dashboard presentation', () => {
+  it('groups every course by subject identity without merging equal names or changing input', () => {
+    const math = Array.from({ length: 7 }, (_, index) => ({
+      ...listing('PUBLISHED'),
+      id: `math-${index}`,
+    }));
+    const physics = {
+      ...listing('DRAFT'),
+      id: 'physics-course',
+      subject: { id: 'physics', code: 'PHYSICS', name: 'Physics', active: true },
+    };
+    const otherMath = {
+      ...listing('ARCHIVED'),
+      id: 'other-math-course',
+      subject: { id: 'other-math', code: 'OTHER', name: 'Mathematics', active: false },
+    };
+    const summary = getTutorMonthOverview([], [physics, ...math, otherMath], '2026-10');
+    const before = summary.courses.map((course) => course.listing.id);
+    const groups = groupTutorCoursesBySubject(summary.courses);
+    expect(groups.map((group) => group.subject.id)).toEqual(['math', 'other-math', 'physics']);
+    expect(groups[0]?.courses).toHaveLength(7);
+    expect(groups[1]?.courses[0]?.listing.publicationStatus).toBe('ARCHIVED');
+    expect(groups[2]?.courses[0]?.listing.publicationStatus).toBe('DRAFT');
+    expect(summary.courses.map((course) => course.listing.id)).toEqual(before);
+    expect(groupTutorCoursesBySubject([])).toEqual([]);
+  });
   it('treats a request as past only after the lesson ends', () => {
     const ongoing = booking('ongoing', 'PENDING', '2026-10-05T01:30:00Z');
     const ended = booking('ended', 'PENDING', '2026-10-05T01:00:00Z');

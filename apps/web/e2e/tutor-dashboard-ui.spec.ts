@@ -210,13 +210,13 @@ test('Notebook Focus uses existing data and keeps only contextual management lin
   ]);
   await expect(analytics.getByText('ยังไม่มีข้อมูลรีวิว', { exact: true })).toBeVisible();
   const courses = page.getByRole('region', { name: 'ภาพรวมรายคอร์ส', exact: true });
-  const coursePicker = courses.getByRole('button', { name: 'เลือกคอร์ส', exact: true });
-  await expect(coursePicker).toHaveAttribute('aria-expanded', 'false');
+  await expect(
+    courses.getByRole('group', { name: 'วิชาของคอร์ส' }).getByRole('button'),
+  ).toHaveCount(1);
   await expect(courses.locator('dd')).toHaveCount(0);
-  await coursePicker.click();
   await expect(courses.getByRole('listitem')).toHaveCount(3);
   await courses.getByRole('listitem').first().getByRole('button').click();
-  await expect(courses.getByRole('listitem')).toHaveCount(0);
+  await expect(courses.getByRole('listitem')).toHaveCount(3);
   await expect(courses.locator('dd')).toHaveText(['2', '2', '2', '฿900.00']);
   const main = page.locator('main');
   await expect(main.getByRole('link', { name: 'สร้างคอร์สใหม่', exact: true })).toHaveCount(0);
@@ -361,7 +361,7 @@ test('unavailable data shows an error instead of empty or zero dashboard summari
   await expect(page.getByRole('heading', { name: 'คำขอจองที่รอตอบ' })).toHaveCount(0);
 });
 
-test('request and course pages stay independent and month/filter changes reset the relevant page', async ({
+test('all subject courses remain visible independently of request pagination and month changes', async ({
   page,
 }, testInfo) => {
   const manyBookings = Array.from({ length: 102 }, (_, index) =>
@@ -376,7 +376,6 @@ test('request and course pages stay independent and month/filter changes reset t
   const manyListings = Array.from({ length: 7 }, (_, index) => ({
     ...listing(`course-${index}`, 'PUBLISHED'),
     gradeLevel: {
-      ...listings[0]?.gradeLevel,
       id: `grade-${index}`,
       code: `G${index}`,
       name: `Grade ${index + 1}`,
@@ -384,72 +383,48 @@ test('request and course pages stay independent and month/filter changes reset t
       sortOrder: index,
     },
   }));
-  await mockDashboard(page, { bookings: manyBookings, listings: manyListings });
+  const calls = await mockDashboard(page, { bookings: manyBookings, listings: manyListings });
   await page.goto('/dashboard');
   const requests = page.getByRole('region', { name: 'คำขอจองที่รอตอบ' });
   await expect(requests.getByRole('listitem')).toHaveCount(5);
   await expect(requests.getByRole('heading', { level: 2 })).toContainText('102');
   const requestPages = requests.getByRole('navigation', { name: 'หน้าคำขอจอง' });
-  await expect(requestPages.getByRole('button', { name: 'ก่อนหน้า', exact: true })).toBeDisabled();
   await requestPages.getByRole('button', { name: 'ถัดไป', exact: true }).click();
   await expect(requests.getByRole('heading', { level: 3 }).first()).toHaveText('Student 006');
   const courses = page.getByRole('region', { name: 'ภาพรวมรายคอร์ส', exact: true });
-  const coursePicker = courses.getByRole('button', { name: /^เลือกคอร์ส/ });
-  await coursePicker.click();
-  const coursePages = courses.getByRole('navigation', { name: 'หน้าภาพรวมรายคอร์ส' });
-  await coursePages.getByRole('button', { name: 'ถัดไป', exact: true }).click();
-  await expect(courses.getByRole('listitem')).toHaveCount(2);
-  await expect(coursePages.getByRole('button', { name: 'ถัดไป', exact: true })).toBeDisabled();
+  await expect(courses.getByRole('listitem')).toHaveCount(7);
+  await expect(courses.getByRole('navigation')).toHaveCount(0);
   await expect(requestPages).toContainText('หน้า 2 จาก 21');
+  await courses.getByRole('listitem').last().getByRole('button').click();
+  await expect(courses.getByRole('button', { pressed: true }).last()).toContainText('Grade 7');
+  await expect(courses.locator('dd')).toHaveCount(4);
   await requests.getByRole('switch').click();
   await expect(requests.getByRole('heading', { level: 3 }).first()).toHaveText('Past student');
   await expect(requestPages).toContainText('หน้า 1 จาก 21');
-  await expect(coursePages).not.toBeVisible();
-  await coursePicker.click();
-  await expect(coursePages).toContainText('หน้า 2 จาก 2');
-  await courses.getByRole('listitem').last().getByRole('button').click();
-  await expect(coursePicker).toContainText('Grade 7');
-  await expect(courses.locator('dd')).toHaveCount(4);
+  await expect(courses.getByRole('listitem')).toHaveCount(7);
+  const callCount = calls.length;
   await page
     .getByRole('group', { name: 'เดือนของภาพรวมการสอน' })
     .getByRole('button', { name: 'กันยายน 2569', exact: true })
     .click();
-  await expect(coursePicker).toContainText('Grade 7');
-  await expect(coursePicker).toHaveAttribute('aria-expanded', 'false');
-  await coursePicker.click();
-  await expect(coursePages).toContainText('หน้า 1 จาก 2');
-  await expect(page.getByRole('group', { name: 'เดือนของภาพรวมการสอน' })).toContainText(
-    'กันยายน 2569',
-  );
+  await expect(courses.getByRole('button', { pressed: true }).last()).toContainText('Grade 7');
+  await expect(courses.locator('dd')).toHaveText(['0', '0', '0', '฿0.00']);
   await expect(requests.getByRole('switch')).toBeChecked();
   await page
     .getByRole('group', { name: 'เดือนของภาพรวมการสอน' })
     .getByRole('button', { name: 'ตุลาคม 2569', exact: true })
     .click();
-  await expect(page.getByRole('group', { name: 'เดือนของภาพรวมการสอน' })).toContainText(
-    'ตุลาคม 2569',
-  );
+  expect(calls.length).toBe(callCount);
   await expectResponsiveShell(page);
-  await page.evaluate(() => window.scrollTo({ top: 0 }));
-  await page.screenshot({
-    path: testInfo.outputPath('tutor-dashboard-paginated.png'),
-    fullPage: true,
+  await page.evaluate(() => document.fonts.ready);
+  await courses.screenshot({
+    path: testInfo.outputPath('tutor-course-index-all-courses.png'),
+    style: 'header { visibility: hidden !important; }',
     animations: 'disabled',
     scale: 'css',
   });
   await page.setViewportSize({ width: 320, height: 840 });
-  await coursePicker.click();
-  const nextButton = coursePages.getByRole('button', { name: 'ถัดไป', exact: true });
-  await expect(nextButton).toBeVisible();
-  const folderBounds = await courses.boundingBox();
-  const buttonBounds = await nextButton.boundingBox();
-  expect(folderBounds).not.toBeNull();
-  expect(buttonBounds).not.toBeNull();
-  if (folderBounds && buttonBounds) {
-    expect(buttonBounds.x + buttonBounds.width).toBeLessThanOrEqual(
-      folderBounds.x + folderBounds.width,
-    );
-  }
+  await expect(courses.getByRole('listitem')).toHaveCount(7);
   await expectResponsiveShell(page);
 });
 
@@ -488,7 +463,6 @@ test('switching analytics months updates real booking totals and leaves earnings
     '—',
   ]);
   const courses = page.getByRole('region', { name: 'ภาพรวมรายคอร์ส', exact: true });
-  await courses.getByRole('button', { name: 'เลือกคอร์ส', exact: true }).click();
   await courses.getByRole('listitem').first().getByRole('button').click();
   await page.evaluate(() => document.fonts.ready);
   await analytics.screenshot({
@@ -499,60 +473,84 @@ test('switching analytics months updates real booking totals and leaves earnings
   });
 });
 
-test('course binder supports repeat selection, keyboard operation and dismissal without API calls', async ({
+test('subject index groups many subjects with stable colors and supports repeated keyboard selection', async ({
   page,
 }, testInfo) => {
-  const calls = await mockDashboard(page);
+  const otherSubjects = ['Physics', 'Chemistry', 'Biology', 'English', 'Computer', 'History'];
+  const additionalListings = otherSubjects.flatMap((name) =>
+    Array.from({ length: name === 'Physics' ? 6 : 1 }, (_, index) => ({
+      ...listing(`${name}-${index}`, index === 0 ? 'DRAFT' : 'PUBLISHED'),
+      subject: { id: name.toLowerCase(), code: name.toUpperCase(), name, active: true },
+      gradeLevel: {
+        id: `g${index}`,
+        code: `G${index}`,
+        name: `Grade ${index + 1}`,
+        active: true,
+        sortOrder: index,
+      },
+    })),
+  );
+  const calls = await mockDashboard(page, { listings: [...listings, ...additionalListings] });
   await page.goto('/dashboard');
   const courses = page.getByRole('region', { name: 'ภาพรวมรายคอร์ส', exact: true });
-  const trigger = courses.getByRole('button', { name: /^เลือกคอร์ส/ });
-  await expect(trigger).toBeVisible();
+  const subjects = courses.getByRole('group', { name: 'วิชาของคอร์ส' });
+  await expect(subjects.getByRole('button')).toHaveCount(7);
+  const math = subjects.getByRole('button', { name: 'Mathematics 3', exact: true });
+  const physics = subjects.getByRole('button', { name: 'Physics 6', exact: true });
   const callCount = calls.length;
-  await trigger.focus();
-  await page.keyboard.press('Enter');
-  await page.evaluate(() => document.fonts.ready);
-  await courses.screenshot({
-    path: testInfo.outputPath('tutor-course-binder-open.png'),
-    style: 'header { visibility: hidden !important; }',
-    animations: 'disabled',
-    scale: 'css',
-  });
-  await page.keyboard.press('ArrowDown');
-  await expect(courses.getByRole('listitem').first().getByRole('button')).toBeFocused();
-  await page.keyboard.press('Enter');
+  await math.click();
+  await courses.getByRole('listitem').first().getByRole('button').click();
   await expect(courses.locator('dd')).toHaveText(['2', '2', '2', '฿900.00']);
-  await expect(trigger).toBeFocused();
-  await expect(trigger).toHaveAttribute('aria-expanded', 'false');
-  await courses.getByRole('heading', { name: 'ภาพรวมรายคอร์ส', exact: true }).click();
-  await courses.screenshot({
-    path: testInfo.outputPath('tutor-course-binder-selected.png'),
-    style: 'header { visibility: hidden !important; }',
-    animations: 'disabled',
-    scale: 'css',
-  });
-  await trigger.focus();
-
-  await page.keyboard.press('Space');
+  const mathColor = await math.evaluate((element) => getComputedStyle(element).borderLeftColor);
+  const physicsColor = await physics.evaluate(
+    (element) => getComputedStyle(element).borderLeftColor,
+  );
+  expect(mathColor).not.toBe(physicsColor);
+  await physics.focus();
+  await page.keyboard.press('Enter');
+  await expect(physics).toHaveAttribute('aria-pressed', 'true');
+  await expect(courses.locator('dd')).toHaveCount(0);
+  await expect(courses.getByRole('listitem')).toHaveCount(6);
+  const choices = courses.getByRole('list', { name: 'คอร์สวิชา Physics' }).getByRole('button');
+  await choices.first().focus();
   await page.keyboard.press('End');
-  await expect(courses.getByRole('listitem').last().getByRole('button')).toBeFocused();
+  await expect(choices.last()).toBeFocused();
   await page.keyboard.press('Enter');
   await expect(courses.locator('dd')).toHaveText(['0', '0', '0', '฿0.00']);
-  await expect(trigger).toContainText('ฉบับร่าง');
-  await trigger.click();
-  await expect(courses.getByRole('button', { pressed: true })).toHaveCount(1);
-  await page.keyboard.press('ArrowDown');
-  await page.keyboard.press('Escape');
-  await expect(trigger).toHaveAttribute('aria-expanded', 'false');
-  await expect(trigger).toBeFocused();
+  await expect(choices.last()).toHaveAttribute('aria-pressed', 'true');
+  await page.keyboard.press('Home');
+  await page.keyboard.press('Space');
+  await expect(choices.first()).toHaveAttribute('aria-pressed', 'true');
+  await expect(courses.getByRole('listitem')).toHaveCount(6);
+  await subjects.getByRole('button', { name: 'History 1', exact: true }).click();
+  await expect(courses.getByRole('listitem')).toHaveCount(1);
+  await physics.click();
+  await expect(courses.getByRole('listitem')).toHaveCount(6);
+  expect(await physics.evaluate((element) => getComputedStyle(element).borderLeftColor)).toBe(
+    physicsColor,
+  );
+  await choices.first().click();
+  await page
+    .getByRole('group', { name: 'เดือนของภาพรวมการสอน' })
+    .getByRole('button', { name: 'กันยายน 2569', exact: true })
+    .click();
+  await expect(physics).toHaveAttribute('aria-pressed', 'true');
+  await expect(choices.first()).toHaveAttribute('aria-pressed', 'true');
   await expect(courses.locator('dd')).toHaveCount(4);
-
-  await trigger.click();
-  await page.getByRole('heading', { name: 'ภาพรวมการสอน', exact: true }).click();
-  await expect(trigger).toHaveAttribute('aria-expanded', 'false');
-  await trigger.click();
-  await page.keyboard.press('Shift+Tab');
-  await expect(trigger).toHaveAttribute('aria-expanded', 'false');
   expect(calls.length).toBe(callCount);
+  await expectResponsiveShell(page);
+  await page.evaluate(() => document.fonts.ready);
+  await courses.screenshot({
+    path: testInfo.outputPath('tutor-subject-index.png'),
+    style: 'header { visibility: hidden !important; }',
+    animations: 'disabled',
+    scale: 'css',
+  });
+  await page.setViewportSize({ width: 320, height: 840 });
+  await expectResponsiveShell(page);
+  await page.getByRole('button', { name: 'เปลี่ยนภาษาเป็นภาษาอังกฤษ' }).click();
+  await expect(page.getByRole('group', { name: 'Course subjects' })).toBeVisible();
+  await expect(page.getByRole('list', { name: 'Physics courses' })).toBeVisible();
   await expectResponsiveShell(page);
 });
 

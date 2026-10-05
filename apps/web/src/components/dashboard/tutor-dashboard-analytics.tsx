@@ -6,12 +6,12 @@ import { useMemo, useState } from 'react';
 import { DashboardIcon } from '@/components/dashboard/dashboard-icon';
 import {
   getTutorMonthOverview,
-  TUTOR_DASHBOARD_PAGE_SIZE,
+  groupTutorCoursesBySubject,
 } from '@/components/dashboard/tutor-dashboard-model';
 import { MonthRuler } from '@/components/date-time/month-ruler';
 import { ArrowIcon } from '@/components/public/public-ui';
-import { BinderDropdown } from '@/components/ui/binder-dropdown';
 import { PaperCard, StatusBadge, notebookButtonClass } from '@/components/ui/notebook';
+import { SubjectCourseIndex } from '@/components/ui/subject-course-index';
 import { formatCalendarMonth, getBangkokToday, getCalendarLocale } from '@/lib/date-time';
 import { useLanguage } from '@/lib/i18n';
 
@@ -62,6 +62,7 @@ export function TutorDashboardAnalytics({
     [bookings, listings, month],
   );
   const selectedCourse = summary.courses.find((course) => course.listing.id === selectedCourseId);
+  const subjectGroups = groupTutorCoursesBySubject(summary.courses);
   const number = (value: number) =>
     new Intl.NumberFormat(getCalendarLocale(language), { maximumFractionDigits: 1 }).format(value);
   const monthLabel = formatCalendarMonth(`${month}-01`, language);
@@ -264,25 +265,27 @@ export function TutorDashboardAnalytics({
             </Link>
           </div>
         ) : (
-          <BinderDropdown
-            key={month}
+          <SubjectCourseIndex
             value={selectedCourse?.listing.id ?? null}
-            label={text.selectCourse}
-            placeholder={text.selectCourse}
+            subjectLabel={text.subjectIndexLabel}
+            courseLabel={text.subjectCoursesLabel}
+            courseCountLabel={text.courseCount}
             hint={text.chooseCourseHint}
-            tabLabel={text.courseFolderTab}
-            paginationLabel={text.coursesPagination}
-            pageSize={TUTOR_DASHBOARD_PAGE_SIZE}
             onChange={setSelectedCourseId}
-            options={summary.courses.map(({ listing }) => ({
-              value: listing.id,
-              label: `${listing.subject.name} · ${listing.gradeLevel.name}`,
-              description:
-                listing.publicationStatus === 'PUBLISHED'
-                  ? text.publishedBadge
-                  : listing.publicationStatus === 'DRAFT'
-                    ? text.draftBadge
-                    : text.archivedBadge,
+            groups={subjectGroups.map(({ subject, courses }) => ({
+              id: subject.id,
+              label: subject.name,
+              code: subject.code,
+              courses: courses.map(({ listing }) => ({
+                value: listing.id,
+                label: listing.gradeLevel.name,
+                description:
+                  listing.publicationStatus === 'PUBLISHED'
+                    ? text.publishedBadge
+                    : listing.publicationStatus === 'DRAFT'
+                      ? text.draftBadge
+                      : text.archivedBadge,
+              })),
             }))}
           >
             {selectedCourse && (
@@ -308,7 +311,7 @@ export function TutorDashboardAnalytics({
                 </dl>
               </div>
             )}
-          </BinderDropdown>
+          </SubjectCourseIndex>
         )}
       </PaperCard>
     </section>

@@ -40,6 +40,30 @@ export interface TutorMonthOverview {
   courses: TutorCourseOverview[];
 }
 
+export function groupTutorCoursesBySubject(courses: readonly TutorCourseOverview[]): {
+  subject: TeachingListing['subject'];
+  courses: TutorCourseOverview[];
+}[] {
+  const groups = new Map<
+    string,
+    { subject: TeachingListing['subject']; courses: TutorCourseOverview[] }
+  >();
+  for (const course of courses) {
+    const subject = course.listing.subject;
+    const group = groups.get(subject.id);
+    if (group) {
+      group.courses.push(course);
+    } else {
+      groups.set(subject.id, { subject, courses: [course] });
+    }
+  }
+  return [...groups.values()].sort(
+    (left, right) =>
+      left.subject.name.localeCompare(right.subject.name) ||
+      left.subject.id.localeCompare(right.subject.id),
+  );
+}
+
 export function shiftDashboardMonth(month: string, direction: number): string {
   const date = new Date(`${month}-01T00:00:00Z`);
   date.setUTCMonth(date.getUTCMonth() + direction);

@@ -44,12 +44,14 @@ navigation, keeps 25 months mounted, and replenishes the range at its ends. It u
 snap, honors reduced motion, and updates analytics once per settled selection rather than during
 every scroll frame. Earnings and review containers display an unavailable state
 until real data is supplied; booking value is not treated as received revenue. It uses the existing
-read-only endpoints and loads all booking pages before showing totals. Requests and courses each
-have independent five-item pagination. Course performance uses a blue binder dropdown: it starts
-closed and shows metrics for only the chosen course. Course choices are paginated inside the
-dropdown, which supports keyboard navigation, Escape, and dismissal outside the folder. Changing
-the past-request filter or analytics month resets the relevant list to its first page; the selected
-course stays selected when the month changes. Course/profile/availability management stays in existing routes;
+read-only endpoints and loads all booking pages before showing totals. Requests use five-item
+pagination. Course performance uses a Subject Index: subjects appear in a color-coded directory
+beside a ruled paper folder containing all courses for the selected subject, without pagination.
+On narrow screens the directory sits above the folder. Subject groups come from existing listing
+IDs and retain stable accent colors. Keyboard navigation and native buttons support selecting
+one course at a time. Changing subjects clears unrelated course details; changing the month keeps
+the selected subject and course. Changing the past-request filter resets requests to their first page.
+Course/profile/availability management stays in existing routes;
 the create-course action appears only when the tutor has no listings.
 Past lesson requests are hidden by default. A reusable blue bookmark-note switch can include
 them in the request list. Pale blue paper and a perforated margin distinguish past lessons
