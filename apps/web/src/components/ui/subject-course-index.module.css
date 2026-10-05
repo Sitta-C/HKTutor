@@ -34,9 +34,43 @@
   background: color-mix(in srgb, var(--subject-accent) 8%, white);
 }
 
+.collapse {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 220ms ease;
+}
+
+.collapse[data-open='true'] {
+  grid-template-rows: 1fr;
+}
+
+.collapseInner {
+  min-height: 0;
+  overflow: hidden;
+  visibility: hidden;
+  transition: visibility 0s 220ms;
+}
+
+.collapse[data-open='true'] > .collapseInner {
+  visibility: visible;
+  transition-delay: 0s;
+}
+
+.chevron {
+  color: var(--subject-accent);
+  transition: transform 220ms ease;
+}
+
+.toggle[aria-expanded='true'] .chevron {
+  transform: rotate(180deg);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .subject,
-  .course {
+  .course,
+  .collapse,
+  .collapseInner,
+  .chevron {
     transition: none;
   }
 }

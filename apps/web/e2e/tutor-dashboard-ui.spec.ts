@@ -554,6 +554,71 @@ test('subject index groups many subjects with stable colors and supports repeate
   await expectResponsiveShell(page);
 });
 
+test('course summary collapses smoothly and supports repeat toggles, keyboard and reduced motion', async ({
+  page,
+}) => {
+  const calls = await mockDashboard(page);
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
+  await page.goto('/dashboard');
+  const courses = page.getByRole('region', { name: 'ภาพรวมรายคอร์ส', exact: true });
+  const choices = courses.getByRole('listitem').getByRole('button');
+  await choices.first().click();
+  const toggle = courses.getByRole('button', { name: 'Mathematics · Grade 10', exact: true });
+  const detailsId = await toggle.getAttribute('aria-controls');
+  expect(detailsId).not.toBeNull();
+  const details = page.locator(`[id="${detailsId}"]`);
+  await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+  await expect(details.locator('dl')).toBeVisible();
+  const expandedHeight = await details.evaluate((element) => {
+    for (const animation of element.getAnimations()) animation.finish();
+    return element.getBoundingClientRect().height;
+  });
+  expect(expandedHeight).toBeGreaterThan(40);
+  const callCount = calls.length;
+  await toggle.click();
+  await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+  await expect(details).toHaveAttribute('inert', '');
+  await expect(details).toHaveAttribute('aria-hidden', 'true');
+  const halfwayHeight = await details.evaluate((element) => {
+    const animation = element.getAnimations()[0];
+    if (!animation) return null;
+    animation.pause();
+    animation.currentTime = 110;
+    const height = element.getBoundingClientRect().height;
+    animation.finish();
+    return height;
+  });
+  expect(halfwayHeight).not.toBeNull();
+  expect(halfwayHeight).toBeGreaterThan(0);
+  expect(halfwayHeight).toBeLessThan(expandedHeight);
+  await expect(details.locator('dl')).not.toBeVisible();
+  await expect
+    .poll(() => details.evaluate((element) => element.getBoundingClientRect().height))
+    .toBe(0);
+  await expect(toggle).toBeFocused();
+  await page.keyboard.press('Enter');
+  await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+  await expect(details.locator('dl')).toBeVisible();
+  await page.keyboard.press('Space');
+  await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+  await choices.last().click();
+  await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+  await expect(details.locator('dd')).toHaveText(['0', '0', '0', '฿0.00']);
+  await expect(courses.getByRole('listitem')).toHaveCount(3);
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await toggle.click();
+  await expect(details).toHaveCSS('transition-property', 'none');
+  await expect
+    .poll(() => details.evaluate((element) => element.getBoundingClientRect().height))
+    .toBe(0);
+  await toggle.click();
+  await expect(details.locator('dl')).toBeVisible();
+  await expect(details).toHaveAttribute('aria-hidden', 'false');
+  expect(calls.length).toBe(callCount);
+  await page.setViewportSize({ width: 320, height: 840 });
+  await expectResponsiveShell(page);
+});
+
 test('month ruler selects after scrolling, handles dragging and keyboard, and extends its bounded range', async ({
   page,
 }, testInfo) => {

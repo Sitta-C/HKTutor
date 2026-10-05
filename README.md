@@ -49,7 +49,10 @@ pagination. Course performance uses a Subject Index: subjects appear in a color-
 beside a ruled paper folder containing all courses for the selected subject, without pagination.
 On narrow screens the directory sits above the folder. Subject groups come from existing listing
 IDs and retain stable accent colors. Keyboard navigation and native buttons support selecting
-one course at a time. Changing subjects clears unrelated course details; changing the month keeps
+one course at a time. The selected course heading toggles its summary with a lightweight CSS height
+transition; collapsed details are excluded from focus and accessibility navigation. Reduced-motion
+preferences disable the transition. Selecting a course reopens its summary.
+Changing subjects clears unrelated course details; changing the month keeps
 the selected subject and course. Changing the past-request filter resets requests to their first page.
 Course/profile/availability management stays in existing routes;
 the create-course action appears only when the tutor has no listings.
