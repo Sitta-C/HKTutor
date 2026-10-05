@@ -1,0 +1,42 @@
+.subject {
+  border-left: 3px solid var(--subject-accent);
+  border-radius: 0 0.625rem 0.625rem 0;
+  background: color-mix(in srgb, var(--subject-accent) 6%, var(--color-paper));
+  transition: background-color 150ms;
+}
+
+.subject:hover,
+.subject[aria-pressed='true'] {
+  background: color-mix(in srgb, var(--subject-accent) 14%, white);
+}
+
+.subject > svg,
+.heading > h4 > svg,
+.mark {
+  color: var(--subject-accent);
+}
+
+.folder {
+  border-color: color-mix(in srgb, var(--subject-accent) 25%, var(--color-paper-edge));
+}
+
+.heading {
+  border-color: color-mix(in srgb, var(--subject-accent) 18%, var(--color-paper-edge));
+  background: color-mix(in srgb, var(--subject-accent) 8%, white);
+}
+
+.course {
+  transition: background-color 150ms;
+}
+
+.course:hover,
+.course[aria-pressed='true'] {
+  background: color-mix(in srgb, var(--subject-accent) 8%, white);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .subject,
+  .course {
+    transition: none;
+  }
+}
