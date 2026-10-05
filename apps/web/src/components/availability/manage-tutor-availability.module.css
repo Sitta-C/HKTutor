@@ -216,6 +216,183 @@
   transform: none;
 }
 
+.deleteDialog {
+  --dialog-danger: color-mix(in srgb, var(--color-red-700) 75%, var(--color-notebook-muted));
+  width: min(390px, calc(100vw - 32px));
+  max-height: calc(100dvh - 32px);
+  padding: 24px;
+  margin: auto;
+  overflow-y: auto;
+  color: var(--color-notebook-ink);
+  background: var(--color-paper);
+  border: 1px solid var(--color-paper-edge);
+  border-radius: 18px;
+  box-shadow: 0 8px 28px color-mix(in srgb, var(--color-notebook-ink) 12%, transparent);
+}
+
+.dialogHeader {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.dialogIcon {
+  display: grid;
+  flex-shrink: 0;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  color: var(--dialog-danger);
+  background: color-mix(in srgb, var(--dialog-danger) 10%, var(--color-paper));
+  border-radius: 11px;
+}
+
+.dialogTitle {
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.4;
+  letter-spacing: -0.025em;
+}
+
+.dialogDescription {
+  margin-top: 12px;
+  color: var(--color-notebook-muted);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.dialogSummary {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr);
+  margin-top: 20px;
+  overflow: hidden;
+  background: var(--color-paper);
+  border: 1px solid var(--color-paper-edge);
+  border-radius: 10px;
+}
+
+.dialogBinding {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-around;
+  padding: 14px 0;
+  background: color-mix(in srgb, var(--dialog-danger) 10%, var(--color-paper));
+  border-right: 1px solid var(--color-paper-edge);
+}
+
+.dialogBinding span {
+  width: 6px;
+  height: 6px;
+  background: var(--color-paper-deep);
+  border-radius: 50%;
+  box-shadow: inset 0 1px 1px color-mix(in srgb, var(--color-notebook-muted) 30%, transparent);
+}
+
+.dialogRange {
+  position: relative;
+  isolation: isolate;
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+  padding: 14px;
+}
+
+.dialogRange::before {
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  pointer-events: none;
+  content: '';
+  background: repeating-linear-gradient(
+    to bottom,
+    transparent 0 31px,
+    color-mix(in srgb, var(--color-notebook-line) 55%, transparent) 31px 32px
+  );
+}
+
+.dialogEndpoint {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  column-gap: 10px;
+}
+
+.dialogLabel {
+  grid-column: 1;
+  color: var(--color-notebook-muted);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.dialogDate {
+  grid-column: 1;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.6;
+}
+
+.dialogTime {
+  grid-area: 1 / 2 / 3 / 3;
+  align-self: center;
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.35;
+  font-variant-numeric: tabular-nums;
+}
+
+.dialogActions {
+  display: grid;
+  grid-template-columns: 1fr 1.15fr;
+  gap: 10px;
+  margin-top: 22px;
+}
+
+.deleteDialog::backdrop {
+  background: color-mix(in srgb, var(--color-notebook-ink) 55%, transparent);
+}
+
+.deleteDialog[open] {
+  animation: confirm-delete-in 160ms ease-out;
+}
+
+.dialogAction {
+  min-width: 0;
+  min-height: 44px;
+  padding: 10px 12px;
+  font-size: 14px;
+  font-weight: 600;
+  border-radius: 9px;
+  box-shadow: none;
+}
+
+.dialogAction:hover {
+  box-shadow: none;
+  transform: none;
+}
+
+.dialogDelete {
+  color: var(--color-paper);
+  background: var(--dialog-danger);
+  border-color: var(--dialog-danger);
+}
+
+.dialogDelete:hover {
+  background: color-mix(in srgb, var(--dialog-danger) 90%, var(--color-notebook-ink));
+  border-color: var(--dialog-danger);
+}
+
+@keyframes confirm-delete-in {
+  from {
+    opacity: 0;
+    transform: translateY(5px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 @media (max-width: 640px) {
   .weekGrid {
     --availability-row-height: 120px;
@@ -276,11 +453,50 @@
   .detail {
     display: none;
   }
+
+  .deleteDialog {
+    padding: 20px;
+  }
+
+  .dialogHeader {
+    gap: 10px;
+  }
+
+  .dialogTitle {
+    font-size: 20px;
+  }
+
+  .dialogSummary {
+    grid-template-columns: 20px minmax(0, 1fr);
+  }
+
+  .dialogRange {
+    padding: 12px;
+  }
+
+  .dialogActions {
+    gap: 8px;
+  }
+
+  .dialogAction {
+    padding-right: 9px;
+    padding-left: 9px;
+  }
 }
 
 @media (pointer: coarse) {
   .deleteButton {
     min-width: 44px;
     min-height: 44px;
+  }
+
+  .dialogAction {
+    min-height: 44px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .deleteDialog[open] {
+    animation: none;
   }
 }

@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Fragment, useEffect, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 
 import {
   buildAvailabilityWeek,
@@ -81,7 +81,9 @@ export default function ManageTutorAvailability() {
   const [refreshKey, setRefreshKey] = useState(0);
   const [isSaving, setIsSaving] = useState(false);
   const [busySlotId, setBusySlotId] = useState<string | null>(null);
+  const [slotToDelete, setSlotToDelete] = useState<TutorAvailabilitySlot | null>(null);
   const [now, setNow] = useState(() => Date.now());
+  const deleteDialogRef = useRef<HTMLDialogElement>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -149,6 +151,19 @@ export default function ManageTutorAvailability() {
     [availabilityWeek],
   );
 
+  useEffect(() => {
+    const dialog = deleteDialogRef.current;
+    if (!dialog) return;
+    const selectedSpan = weekLayout.spans.find(({ slot }) => slot.id === slotToDelete?.id);
+    const canOpen =
+      slotToDelete !== null &&
+      (busySlotId !== null ||
+        (selectedSpan?.slot.state === 'OPEN' &&
+          new Date(selectedSpan.lastSegment.endAtUtc).getTime() > now));
+    if (canOpen && !dialog.open) dialog.showModal();
+    if (!canOpen && dialog.open) dialog.close();
+  }, [busySlotId, now, slotToDelete, weekLayout]);
+
   const getDeletableSpan = (slot: TutorAvailabilitySlot, currentTime: number) =>
     weekLayout.spans.find(
       (span) =>
@@ -156,6 +171,14 @@ export default function ManageTutorAvailability() {
         span.slot.state === 'OPEN' &&
         new Date(span.lastSegment.endAtUtc).getTime() > currentTime,
     );
+
+  const handleRequestDelete = (slot: TutorAvailabilitySlot, currentTime: number) => {
+    if (getDeletableSpan(slot, currentTime)) {
+      setSlotToDelete(slot);
+    } else {
+      setNow(currentTime);
+    }
+  };
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -202,6 +225,7 @@ export default function ManageTutorAvailability() {
     const currentTime = Date.now();
     if (!getDeletableSpan(slot, currentTime)) {
       setNow(currentTime);
+      setSlotToDelete(null);
       return;
     }
     setBusySlotId(slot.id);
@@ -217,6 +241,7 @@ export default function ManageTutorAvailability() {
       }
     } finally {
       setBusySlotId(null);
+      setSlotToDelete(null);
     }
   };
 
@@ -515,8 +540,9 @@ export default function ManageTutorAvailability() {
                                   '{time}',
                                   `${formatBangkokDateTime(slot.startAtUtc, language)}–${formatBangkokDateTime(slot.endAtUtc, language)}`,
                                 )}
+                                aria-haspopup="dialog"
                                 disabled={busySlotId === slot.id}
-                                onClick={() => void handleDelete(slot)}
+                                onClick={() => handleRequestDelete(slot, Date.now())}
                               >
                                 <DashboardIcon name="trash" className="h-3.5 w-3.5" />
                                 {availabilityCopy.delete}
@@ -646,6 +672,95 @@ export default function ManageTutorAvailability() {
           </aside>
         </div>
       </div>
+      <dialog
+        ref={deleteDialogRef}
+        role="alertdialog"
+        aria-modal="true"
+        aria-labelledby="availability-delete-title"
+        aria-describedby="availability-delete-description availability-delete-time"
+        className={styles.deleteDialog}
+        onCancel={(event) => {
+          if (busySlotId !== null) event.preventDefault();
+        }}
+        onClose={() => setSlotToDelete(null)}
+      >
+        <div className={styles.dialogHeader}>
+          <span className={styles.dialogIcon} aria-hidden="true">
+            <DashboardIcon name="trash" className="h-[18px] w-[18px]" />
+          </span>
+          <h2 id="availability-delete-title" className={styles.dialogTitle}>
+            {availabilityCopy.deleteTitle}
+          </h2>
+        </div>
+        <p id="availability-delete-description" className={styles.dialogDescription}>
+          {slotToDelete &&
+          getBangkokIsoDate(slotToDelete.startAtUtc) !== getBangkokIsoDate(slotToDelete.endAtUtc)
+            ? availabilityCopy.deleteSpanningDescription
+            : availabilityCopy.deleteDescription}
+        </p>
+        <div id="availability-delete-time" className={styles.dialogSummary}>
+          <div className={styles.dialogBinding} aria-hidden="true">
+            <span />
+            <span />
+            <span />
+          </div>
+          {slotToDelete && (
+            <dl className={styles.dialogRange}>
+              <div className={styles.dialogEndpoint}>
+                <dt className={styles.dialogLabel}>{availabilityCopy.spanStart}</dt>
+                <dd className={styles.dialogDate}>
+                  <time dateTime={slotToDelete.startAtUtc}>
+                    {formatBangkokShortDate(slotToDelete.startAtUtc, language)}
+                  </time>
+                </dd>
+                <dd className={styles.dialogTime}>
+                  <time dateTime={slotToDelete.startAtUtc}>
+                    {formatBangkokTime(slotToDelete.startAtUtc, language)}
+                  </time>
+                </dd>
+              </div>
+              <div className={styles.dialogEndpoint}>
+                <dt className={styles.dialogLabel}>{availabilityCopy.spanEnd}</dt>
+                <dd className={styles.dialogDate}>
+                  <time dateTime={slotToDelete.endAtUtc}>
+                    {formatBangkokShortDate(slotToDelete.endAtUtc, language)}
+                  </time>
+                </dd>
+                <dd className={styles.dialogTime}>
+                  <time dateTime={slotToDelete.endAtUtc}>
+                    {formatBangkokTime(slotToDelete.endAtUtc, language)}
+                  </time>
+                </dd>
+              </div>
+            </dl>
+          )}
+        </div>
+        <div className={styles.dialogActions}>
+          <button
+            type="button"
+            autoFocus
+            className={notebookButtonClass({ tone: 'secondary', className: styles.dialogAction })}
+            disabled={busySlotId !== null}
+            onClick={() => setSlotToDelete(null)}
+          >
+            {availabilityCopy.cancelDelete}
+          </button>
+          <button
+            type="button"
+            className={notebookButtonClass({
+              tone: 'danger',
+              className: `${styles.dialogAction} ${styles.dialogDelete}`,
+            })}
+            disabled={busySlotId !== null}
+            onClick={() => {
+              if (slotToDelete) void handleDelete(slotToDelete);
+            }}
+          >
+            <DashboardIcon name="trash" className="h-4 w-4 shrink-0" />
+            {busySlotId !== null ? availabilityCopy.deleting : availabilityCopy.confirmDelete}
+          </button>
+        </div>
+      </dialog>
     </DashboardShell>
   );
 }
