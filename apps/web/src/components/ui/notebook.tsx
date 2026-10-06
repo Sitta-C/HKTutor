@@ -3,7 +3,7 @@ import styles from './notebook.module.css';
 import type { ButtonHTMLAttributes, HTMLAttributes, ReactNode } from 'react';
 
 type NotebookBackground = 'plain' | 'ruled' | 'grid';
-type NoteTone = 'yellow' | 'pink' | 'blue' | 'green';
+type NoteTone = 'yellow' | 'orange' | 'pink' | 'blue' | 'green';
 type TapeTone = 'yellow' | 'pink' | 'blue';
 type ButtonTone = 'primary' | 'secondary' | 'danger';
 type StatusTone = 'neutral' | 'success' | 'warning' | 'danger' | 'student' | 'tutor';
@@ -20,6 +20,7 @@ const backgroundClass: Record<NotebookBackground, string> = {
 
 const noteToneClass: Record<NoteTone, string> = {
   yellow: 'bg-sticky-yellow',
+  orange: 'bg-sticky-orange',
   pink: 'bg-sticky-pink',
   blue: 'bg-sticky-blue',
   green: 'bg-sticky-green',
