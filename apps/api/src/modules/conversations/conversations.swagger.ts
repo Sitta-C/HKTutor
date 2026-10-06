@@ -13,13 +13,14 @@ import {
   getSchemaPath,
 } from '@nestjs/swagger';
 
+import { Role } from '@generated/prisma/enums';
 import { JWT_BEARER_AUTH } from '@modules/auth/auth.swagger';
 import {
-  ConversationSummaryDto,
   CreateConversationDto,
   GetMyConversationsQueryDto,
   MessageResponseDto,
   MyConversationsResponseDto,
+  OpenConversationResponseDto,
   SendMessageDto,
 } from '@modules/conversations/conversations.dto';
 
@@ -35,11 +36,20 @@ const lastMessageExample = {
   text: 'Do you teach quadratic equations?',
 };
 
-const conversationSummaryExample = {
+const openConversationExample = {
+  conversationId: CONVERSATION_ID_EXAMPLE,
   createdAt: '2026-09-30T08:00:00.000Z',
-  id: CONVERSATION_ID_EXAMPLE,
+  participants: [
+    { role: Role.STUDENT, userId: STUDENT_ID_EXAMPLE },
+    { role: Role.TUTOR, userId: TUTOR_ID_EXAMPLE },
+  ],
+};
+
+const conversationSummaryExample = {
+  conversationId: CONVERSATION_ID_EXAMPLE,
+  createdAt: '2026-09-30T08:00:00.000Z',
   lastMessage: lastMessageExample,
-  otherParticipant: { displayName: 'Anan Suksawat', id: TUTOR_ID_EXAMPLE },
+  otherParticipant: { displayName: 'Anan Suksawat', userId: TUTOR_ID_EXAMPLE },
 };
 
 /** The body ApiExceptionFilter sends for an HTTP error. */
@@ -72,23 +82,23 @@ export function ConversationsControllerDoc(): ClassDecorator {
 
 export function OpenConversationDoc(): MethodDecorator {
   return applyDecorators(
-    ApiExtraModels(CreateConversationDto, ConversationSummaryDto),
+    ApiExtraModels(CreateConversationDto, OpenConversationResponseDto),
     ApiOperation({ summary: 'Open a conversation with a tutor' }),
     ApiBearerAuth(JWT_BEARER_AUTH),
     ApiCreatedResponse({
       description: 'A new conversation was created between the student and the tutor',
       schema: {
-        allOf: [{ $ref: getSchemaPath(ConversationSummaryDto) }],
-        example: { ...conversationSummaryExample, lastMessage: null },
+        allOf: [{ $ref: getSchemaPath(OpenConversationResponseDto) }],
+        example: openConversationExample,
         type: 'object',
       },
     }),
     ApiOkResponse({
       description:
-        'The student already has a conversation with this tutor, so it is returned with its latest message',
+        'The student already has a conversation with this tutor, so that conversation is returned',
       schema: {
-        allOf: [{ $ref: getSchemaPath(ConversationSummaryDto) }],
-        example: conversationSummaryExample,
+        allOf: [{ $ref: getSchemaPath(OpenConversationResponseDto) }],
+        example: openConversationExample,
         type: 'object',
       },
     }),

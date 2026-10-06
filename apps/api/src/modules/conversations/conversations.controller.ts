@@ -18,11 +18,11 @@ import { JwtAuthGuard } from '@modules/auth/auth.guard';
 import { Roles } from '@modules/auth/roles.decorator';
 import { RolesGuard } from '@modules/auth/roles.guard';
 import {
-  ConversationSummaryDto,
   CreateConversationDto,
   GetMyConversationsQueryDto,
   MessageResponseDto,
   MyConversationsResponseDto,
+  OpenConversationResponseDto,
   SendMessageDto,
 } from '@modules/conversations/conversations.dto';
 import { ConversationsService } from '@modules/conversations/conversations.service';
@@ -49,7 +49,7 @@ export class ConversationsController {
     @Body() dto: CreateConversationDto,
     @CurrentUser() user: AuthenticatedUser,
     @Res({ passthrough: true }) response: Response,
-  ): Promise<ConversationSummaryDto> {
+  ): Promise<OpenConversationResponseDto> {
     const { conversation, created } = await this.conversationsService.openConversation({
       ...dto,
       studentUserId: user.id,

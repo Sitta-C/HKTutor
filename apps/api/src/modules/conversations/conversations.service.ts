@@ -6,7 +6,6 @@ import { Prisma } from '@generated/prisma/client';
 import { AccountStatus, Role } from '@generated/prisma/enums';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import {
-  ConversationParticipantDto,
   ConversationSummaryDto,
   CreateConversationDto,
   DEFAULT_CONVERSATIONS_PAGE,
@@ -14,6 +13,8 @@ import {
   GetMyConversationsQueryDto,
   MessageResponseDto,
   MyConversationsResponseDto,
+  OpenConversationResponseDto,
+  OtherParticipantDto,
   SendMessageDto,
 } from '@modules/conversations/conversations.dto';
 import { publicTutorWhere } from '@modules/tutors/public-tutor-access';
@@ -23,11 +24,16 @@ export type GetMyConversationsInput = GetMyConversationsQueryDto & { role: Role;
 export type SendMessageInput = SendMessageDto & { conversationId: string; senderUserId: string };
 
 export interface OpenConversationResult {
-  conversation: ConversationSummaryDto;
+  conversation: OpenConversationResponseDto;
   created: boolean;
 }
 
-const conversationSelect = { createdAt: true, id: true } satisfies Prisma.ConversationSelect;
+const conversationSelect = {
+  createdAt: true,
+  id: true,
+  studentUserId: true,
+  tutorUserId: true,
+} satisfies Prisma.ConversationSelect;
 
 const lastMessageSelect = {
   id: true,
@@ -73,21 +79,17 @@ export class ConversationsService {
 
     const tutor = await this.prisma.tutorProfile.findFirst({
       where: { ...publicTutorWhere, userId: input.tutorId },
-      select: { displayName: true, userId: true },
+      select: { userId: true },
     });
     if (!tutor) {
       throw new NotFoundException('Tutor not found');
     }
 
     const pair = { studentUserId: input.studentUserId, tutorUserId: tutor.userId };
-    const otherParticipant = { displayName: tutor.displayName, id: tutor.userId };
 
     const existing = await this.findConversationByPair(pair);
     if (existing) {
-      return {
-        conversation: await this.summarizeExisting(existing, otherParticipant),
-        created: false,
-      };
+      return { conversation: toOpenConversationResponse(existing), created: false };
     }
 
     try {
@@ -95,17 +97,14 @@ export class ConversationsService {
         data: pair,
         select: conversationSelect,
       });
-      return { conversation: buildSummary(conversation, otherParticipant, null), created: true };
+      return { conversation: toOpenConversationResponse(conversation), created: true };
     } catch (error) {
       if (!isUniqueViolation(error)) throw error;
 
       // A concurrent request created the same pair first, so return that conversation.
       const winner = await this.findConversationByPair(pair);
       if (!winner) throw error;
-      return {
-        conversation: await this.summarizeExisting(winner, otherParticipant),
-        created: false,
-      };
+      return { conversation: toOpenConversationResponse(winner), created: false };
     }
   }
 
@@ -218,18 +217,6 @@ export class ConversationsService {
       select: conversationSelect,
     });
   }
-
-  private async summarizeExisting(
-    conversation: SelectedConversation,
-    otherParticipant: ConversationParticipantDto,
-  ): Promise<ConversationSummaryDto> {
-    const lastMessage = await this.prisma.message.findFirst({
-      where: { conversationId: conversation.id },
-      orderBy: [{ sentAt: 'desc' }, { id: 'desc' }],
-      select: lastMessageSelect,
-    });
-    return buildSummary(conversation, otherParticipant, lastMessage);
-  }
 }
 
 function conversationPagination(input: { page?: number; pageSize?: number }): {
@@ -246,14 +233,27 @@ function isUniqueViolation(error: unknown): boolean {
   return typeof error === 'object' && error !== null && 'code' in error && error.code === 'P2002';
 }
 
+function toOpenConversationResponse(
+  conversation: SelectedConversation,
+): OpenConversationResponseDto {
+  return {
+    conversationId: conversation.id,
+    createdAt: conversation.createdAt.toISOString(),
+    participants: [
+      { role: Role.STUDENT, userId: conversation.studentUserId },
+      { role: Role.TUTOR, userId: conversation.tutorUserId },
+    ],
+  };
+}
+
 function buildSummary(
   conversation: SelectedConversation,
-  otherParticipant: ConversationParticipantDto,
+  otherParticipant: OtherParticipantDto,
   lastMessage: LastMessage | null,
 ): ConversationSummaryDto {
   return {
+    conversationId: conversation.id,
     createdAt: conversation.createdAt.toISOString(),
-    id: conversation.id,
     lastMessage:
       lastMessage === null
         ? null
@@ -270,14 +270,14 @@ function buildSummary(
 function listRowParticipant(
   row: ConversationListRow,
   viewerIsStudent: boolean,
-): ConversationParticipantDto {
+): OtherParticipantDto {
   if (viewerIsStudent) {
-    return { displayName: row.tutorDisplayName, id: row.tutorUserId };
+    return { displayName: row.tutorDisplayName, userId: row.tutorUserId };
   }
 
   // Starting a conversation requires a student profile, so the nickname is always present.
   // The fallback only covers the LEFT JOIN's nullable type.
-  return { displayName: row.studentNickname ?? '', id: row.studentUserId };
+  return { displayName: row.studentNickname ?? '', userId: row.studentUserId };
 }
 
 function listRowLastMessage(row: ConversationListRow): LastMessage | null {

@@ -11,6 +11,8 @@ import {
   Min,
 } from 'class-validator';
 
+import { Role } from '@generated/prisma/enums';
+
 const trimString = ({ value }: { value: unknown }): unknown =>
   typeof value === 'string' ? value.trim() : value;
 
@@ -95,8 +97,27 @@ export class MessageResponseDto {
 }
 
 export class ConversationParticipantDto {
+  @ApiProperty({ example: '2c9d7e1f-4a3b-4c5d-8e6f-7a8b9c0d1e2f' })
+  userId!: string;
+
+  @ApiProperty({ enum: [Role.STUDENT, Role.TUTOR], example: Role.STUDENT })
+  role!: Role;
+}
+
+export class OpenConversationResponseDto {
+  @ApiProperty({ example: '6f1c2b8e-3d4a-4f5b-9c7d-2e8a1b0c9d3f' })
+  conversationId!: string;
+
+  @ApiProperty({ description: 'The student, then the tutor', type: [ConversationParticipantDto] })
+  participants!: ConversationParticipantDto[];
+
+  @ApiProperty({ example: '2026-09-30T08:00:00.000Z' })
+  createdAt!: string;
+}
+
+export class OtherParticipantDto {
   @ApiProperty({ example: 'ad08a291-dd8b-40c1-84e5-ddafca54c6fc' })
-  id!: string;
+  userId!: string;
 
   @ApiProperty({
     description: "The tutor's display name or the student's nickname",
@@ -121,13 +142,13 @@ export class ConversationLastMessageDto {
 
 export class ConversationSummaryDto {
   @ApiProperty({ example: '6f1c2b8e-3d4a-4f5b-9c7d-2e8a1b0c9d3f' })
-  id!: string;
+  conversationId!: string;
 
   @ApiProperty({ example: '2026-09-30T08:00:00.000Z' })
   createdAt!: string;
 
-  @ApiProperty({ type: ConversationParticipantDto })
-  otherParticipant!: ConversationParticipantDto;
+  @ApiProperty({ type: OtherParticipantDto })
+  otherParticipant!: OtherParticipantDto;
 
   @ApiProperty({ nullable: true, type: ConversationLastMessageDto })
   lastMessage!: ConversationLastMessageDto | null;

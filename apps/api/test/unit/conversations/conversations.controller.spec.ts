@@ -40,11 +40,20 @@ const signedInAs = (role: Role): AuthenticatedUser => ({
   sessionId: 'session-id',
 });
 
-const conversationSummary = {
+const openedConversation = {
+  conversationId: CONVERSATION_ID,
   createdAt: '2026-09-30T08:00:00.000Z',
-  id: CONVERSATION_ID,
+  participants: [
+    { role: Role.STUDENT, userId: STUDENT_ID },
+    { role: Role.TUTOR, userId: TUTOR_ID },
+  ],
+};
+
+const conversationSummary = {
+  conversationId: CONVERSATION_ID,
+  createdAt: '2026-09-30T08:00:00.000Z',
   lastMessage: null,
-  otherParticipant: { displayName: 'Anan Suksawat', id: TUTOR_ID },
+  otherParticipant: { displayName: 'Anan Suksawat', userId: TUTOR_ID },
 };
 
 const storedMessage = {
@@ -109,13 +118,13 @@ describe('conversation routes', () => {
 
   describe('POST /conversations', () => {
     it('returns 201 for a new conversation and takes the student from the session', async () => {
-      openConversation.mockResolvedValue({ conversation: conversationSummary, created: true });
+      openConversation.mockResolvedValue({ conversation: openedConversation, created: true });
 
       await request(app.getHttpServer())
         .post('/api/v1/conversations')
         .send({ tutorId: TUTOR_ID })
         .expect(201)
-        .expect(conversationSummary);
+        .expect(openedConversation);
 
       expect(openConversation).toHaveBeenCalledWith({
         studentUserId: STUDENT_ID,
@@ -124,13 +133,13 @@ describe('conversation routes', () => {
     });
 
     it('returns 200 when the conversation already exists', async () => {
-      openConversation.mockResolvedValue({ conversation: conversationSummary, created: false });
+      openConversation.mockResolvedValue({ conversation: openedConversation, created: false });
 
       await request(app.getHttpServer())
         .post('/api/v1/conversations')
         .send({ tutorId: TUTOR_ID })
         .expect(200)
-        .expect(conversationSummary);
+        .expect(openedConversation);
     });
 
     it.each([Role.TUTOR, Role.ADMIN])(
@@ -359,5 +368,31 @@ describe('ConversationsController OpenAPI contract', () => {
     expect(Object.keys(schema?.properties ?? {})).toEqual(fields);
     expect(schema?.required).toEqual(fields);
     expect(schema?.properties?.['readAt']).toMatchObject({ nullable: true });
+  });
+
+  it('documents the API-01 create response for both 201 and 200', () => {
+    const operation = document.paths[`/${API_GLOBAL_PREFIX}/conversations`]?.post;
+    const responseRef = (status: string) =>
+      (
+        operation?.responses[status] as
+          | { content?: Record<string, { schema?: { allOf?: Array<{ $ref?: string }> } }> }
+          | undefined
+      )?.content?.['application/json']?.schema?.allOf?.[0]?.$ref;
+    const response = document.components?.schemas?.['OpenConversationResponseDto'] as
+      | { properties?: Record<string, { items?: { $ref?: string } }>; required?: string[] }
+      | undefined;
+    const participant = document.components?.schemas?.['ConversationParticipantDto'] as
+      { properties?: Record<string, { enum?: string[] }>; required?: string[] } | undefined;
+    const fields = ['conversationId', 'participants', 'createdAt'];
+
+    expect(responseRef('201')).toBe('#/components/schemas/OpenConversationResponseDto');
+    expect(responseRef('200')).toBe('#/components/schemas/OpenConversationResponseDto');
+    expect(Object.keys(response?.properties ?? {})).toEqual(fields);
+    expect(response?.required).toEqual(fields);
+    expect(response?.properties?.['participants']?.items?.$ref).toBe(
+      '#/components/schemas/ConversationParticipantDto',
+    );
+    expect(participant?.required).toEqual(['userId', 'role']);
+    expect(participant?.properties?.['role']?.enum).toEqual([Role.STUDENT, Role.TUTOR]);
   });
 });

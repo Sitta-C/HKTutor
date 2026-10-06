@@ -40,7 +40,23 @@ const activeStudent = {
   studentProfile: { userId: STUDENT_ID },
 };
 
-const publicTutor = { displayName: 'Anan Suksawat', userId: TUTOR_ID };
+const publicTutor = { userId: TUTOR_ID };
+
+const conversationRow = {
+  createdAt: CREATED_AT,
+  id: CONVERSATION_ID,
+  studentUserId: STUDENT_ID,
+  tutorUserId: TUTOR_ID,
+};
+
+const openedConversation = {
+  conversationId: CONVERSATION_ID,
+  createdAt: CREATED_AT.toISOString(),
+  participants: [
+    { role: Role.STUDENT, userId: STUDENT_ID },
+    { role: Role.TUTOR, userId: TUTOR_ID },
+  ],
+};
 
 const lastMessage = {
   id: MESSAGE_ID,
@@ -62,7 +78,7 @@ describe('ConversationsService', () => {
   const mockPrismaService = {
     $queryRaw: jest.fn(),
     conversation: { count: jest.fn(), create: jest.fn(), findUnique: jest.fn() },
-    message: { create: jest.fn(), findFirst: jest.fn() },
+    message: { create: jest.fn() },
     tutorProfile: { findFirst: jest.fn() },
     user: { findUnique: jest.fn() },
   };
@@ -94,18 +110,10 @@ describe('ConversationsService', () => {
 
     it('creates a conversation between an active student with a profile and a public tutor', async () => {
       mockPrismaService.conversation.findUnique.mockResolvedValue(null);
-      mockPrismaService.conversation.create.mockResolvedValue({
-        createdAt: CREATED_AT,
-        id: CONVERSATION_ID,
-      });
+      mockPrismaService.conversation.create.mockResolvedValue(conversationRow);
 
       await expect(openAsStudent()).resolves.toEqual({
-        conversation: {
-          createdAt: CREATED_AT.toISOString(),
-          id: CONVERSATION_ID,
-          lastMessage: null,
-          otherParticipant: { displayName: 'Anan Suksawat', id: TUTOR_ID },
-        },
+        conversation: openedConversation,
         created: true,
       });
       expect(mockPrismaService.tutorProfile.findFirst).toHaveBeenCalledWith(
@@ -116,25 +124,11 @@ describe('ConversationsService', () => {
       );
     });
 
-    it('returns the existing conversation with its latest message instead of creating another', async () => {
-      mockPrismaService.conversation.findUnique.mockResolvedValue({
-        createdAt: CREATED_AT,
-        id: CONVERSATION_ID,
-      });
-      mockPrismaService.message.findFirst.mockResolvedValue(lastMessage);
+    it('returns the existing conversation in the same shape instead of creating another', async () => {
+      mockPrismaService.conversation.findUnique.mockResolvedValue(conversationRow);
 
       await expect(openAsStudent()).resolves.toEqual({
-        conversation: {
-          createdAt: CREATED_AT.toISOString(),
-          id: CONVERSATION_ID,
-          lastMessage: {
-            messageId: MESSAGE_ID,
-            senderId: STUDENT_ID,
-            sentAt: SENT_AT.toISOString(),
-            text: US2_1_MESSAGE,
-          },
-          otherParticipant: { displayName: 'Anan Suksawat', id: TUTOR_ID },
-        },
+        conversation: openedConversation,
         created: false,
       });
       expect(mockPrismaService.conversation.findUnique).toHaveBeenCalledWith(
@@ -144,24 +138,17 @@ describe('ConversationsService', () => {
           },
         }),
       );
-      expect(mockPrismaService.message.findFirst).toHaveBeenCalledWith(
-        expect.objectContaining({
-          orderBy: [{ sentAt: 'desc' }, { id: 'desc' }],
-          where: { conversationId: CONVERSATION_ID },
-        }),
-      );
       expect(mockPrismaService.conversation.create).not.toHaveBeenCalled();
     });
 
     it('returns the conversation a concurrent request created first', async () => {
       mockPrismaService.conversation.findUnique
         .mockResolvedValueOnce(null)
-        .mockResolvedValueOnce({ createdAt: CREATED_AT, id: CONVERSATION_ID });
+        .mockResolvedValueOnce(conversationRow);
       mockPrismaService.conversation.create.mockRejectedValue(createDatabaseError('P2002'));
-      mockPrismaService.message.findFirst.mockResolvedValue(null);
 
-      await expect(openAsStudent()).resolves.toMatchObject({
-        conversation: { id: CONVERSATION_ID, lastMessage: null },
+      await expect(openAsStudent()).resolves.toEqual({
+        conversation: openedConversation,
         created: false,
       });
     });
@@ -246,21 +233,21 @@ describe('ConversationsService', () => {
       ).resolves.toEqual({
         items: [
           {
+            conversationId: CONVERSATION_ID,
             createdAt: CREATED_AT.toISOString(),
-            id: CONVERSATION_ID,
             lastMessage: {
               messageId: MESSAGE_ID,
               senderId: STUDENT_ID,
               sentAt: SENT_AT.toISOString(),
               text: US2_1_MESSAGE,
             },
-            otherParticipant: { displayName: 'Anan Suksawat', id: TUTOR_ID },
+            otherParticipant: { displayName: 'Anan Suksawat', userId: TUTOR_ID },
           },
           {
+            conversationId: OTHER_CONVERSATION_ID,
             createdAt: CREATED_AT.toISOString(),
-            id: OTHER_CONVERSATION_ID,
             lastMessage: null,
-            otherParticipant: { displayName: 'Anan Suksawat', id: TUTOR_ID },
+            otherParticipant: { displayName: 'Anan Suksawat', userId: TUTOR_ID },
           },
         ],
         total: 2,
@@ -281,7 +268,10 @@ describe('ConversationsService', () => {
 
       const result = await service.getMyConversations({ role: Role.TUTOR, userId: TUTOR_ID });
 
-      expect(result.items[0]?.otherParticipant).toEqual({ displayName: 'Nan', id: STUDENT_ID });
+      expect(result.items[0]?.otherParticipant).toEqual({
+        displayName: 'Nan',
+        userId: STUDENT_ID,
+      });
       expect(listQuery()?.text).toContain('c."tutorUserId" = $1');
       expect(listQuery()?.values).toEqual([TUTOR_ID, 20, 0]);
       expect(mockPrismaService.conversation.count).toHaveBeenCalledWith({
