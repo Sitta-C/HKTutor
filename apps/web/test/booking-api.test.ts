@@ -1,12 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
+  confirmTutorBooking,
   createBooking,
   createBookingOnce,
   getBookingQuote,
   getMyBooking,
   getMyBookings,
   getTutorBookings,
+  rejectTutorBooking,
 } from '@/lib/api/bookings';
 import { clearAccessToken } from '@/lib/api/client';
 
@@ -153,4 +155,87 @@ describe('student booking API clients', () => {
       await expect(getBookingQuote('listing-id', 'slot-id')).rejects.toMatchObject({ status });
     },
   );
+});
+
+describe('tutor booking decision API clients', () => {
+  const fetchMock = vi.fn<typeof fetch>();
+  const confirmed = {
+    bookingId: 'booking id/1',
+    status: 'CONFIRMED',
+    slotStatus: 'RESERVED',
+    canceledAt: null,
+  };
+  const canceled = {
+    bookingId: 'booking-1',
+    status: 'CANCELED',
+    slotStatus: 'AVAILABLE',
+    canceledAt: '2026-10-04T09:04:31.001Z',
+  };
+
+  beforeEach(() => {
+    clearAccessToken();
+    vi.stubGlobal('fetch', fetchMock);
+  });
+
+  afterEach(() => {
+    clearAccessToken();
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it('posts a confirmation to the owner-only tutor path with an encoded booking id', async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse(confirmed));
+
+    await expect(confirmTutorBooking('booking id/1')).resolves.toEqual(confirmed);
+
+    expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/v1/bookings/tutor/booking%20id%2F1/confirm');
+    const request = fetchMock.mock.calls[0]?.[1] as RequestInit;
+    expect(request.method).toBe('POST');
+    expect(JSON.parse(String(request.body))).toEqual({});
+  });
+
+  it('sends the trimmed note and reason, and never a tutor identity', async () => {
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse(confirmed))
+      .mockResolvedValueOnce(jsonResponse(canceled));
+
+    await confirmTutorBooking('booking-1', { note: '  See you in class.  ' });
+    await rejectTutorBooking('booking-1', { reason: '  Not available.  ' });
+
+    expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/v1/bookings/tutor/booking-1/confirm');
+    expect(JSON.parse(String((fetchMock.mock.calls[0]?.[1] as RequestInit).body))).toEqual({
+      note: 'See you in class.',
+    });
+    expect(fetchMock.mock.calls[1]?.[0]).toBe('/api/v1/bookings/tutor/booking-1/reject');
+    expect(JSON.parse(String((fetchMock.mock.calls[1]?.[1] as RequestInit).body))).toEqual({
+      reason: 'Not available.',
+    });
+    expect(JSON.stringify(fetchMock.mock.calls)).not.toMatch(/tutorId|tutorUserId|status/i);
+  });
+
+  it('drops blank text the API would reject instead of sending an empty value', async () => {
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse(confirmed))
+      .mockResolvedValueOnce(jsonResponse(canceled));
+
+    await confirmTutorBooking('booking-1', { note: '   ' });
+    await rejectTutorBooking('booking-1', { reason: '\n' });
+
+    expect(JSON.parse(String((fetchMock.mock.calls[0]?.[1] as RequestInit).body))).toEqual({});
+    expect(JSON.parse(String((fetchMock.mock.calls[1]?.[1] as RequestInit).body))).toEqual({});
+  });
+
+  it.each([
+    [403, 'BOOKING_NOT_OWNED'],
+    [404, 'BOOKING_NOT_FOUND'],
+    [409, 'BOOKING_NOT_PENDING'],
+    [409, 'BOOKING_TRANSITION_CONFLICT'],
+  ])('keeps the %s %s body available for the inbox error states', async (status, code) => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({ code, message: 'rejected' }, status));
+
+    await expect(confirmTutorBooking('booking-1')).rejects.toMatchObject({
+      status,
+      details: { code },
+    });
+  });
 });

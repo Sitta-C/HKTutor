@@ -6,9 +6,12 @@ import type {
   BookingDetail,
   BookingQuote,
   BookingResponse,
+  ConfirmTutorBookingPayload,
   CreateBookingPayload,
   MyBookingsQuery,
   MyBookingsResponse,
+  RejectTutorBookingPayload,
+  TutorBookingActionResult,
   TutorBookingsQuery,
   TutorBookingsResponse,
 } from '@/lib/api/types';
@@ -68,6 +71,37 @@ export function getTutorBookings(
   if (queryInput.pageSize !== undefined) params.set('pageSize', String(queryInput.pageSize));
   const query = params.toString() ? `?${params.toString()}` : '';
   return authenticatedFetch<TutorBookingsResponse>(`/bookings/tutor${query}`);
+}
+
+export function confirmTutorBooking(
+  bookingId: string,
+  payload: ConfirmTutorBookingPayload = {},
+): Promise<TutorBookingActionResult> {
+  const note = payload.note?.trim();
+  return postTutorBookingAction(bookingId, 'confirm', note ? { note } : {});
+}
+
+export function rejectTutorBooking(
+  bookingId: string,
+  payload: RejectTutorBookingPayload = {},
+): Promise<TutorBookingActionResult> {
+  const reason = payload.reason?.trim();
+  return postTutorBookingAction(bookingId, 'reject', reason ? { reason } : {});
+}
+
+/**
+ * The tutor is taken from the access token, so the body carries only the optional note or reason.
+ * A blank value is dropped because the API rejects an empty string with 400.
+ */
+function postTutorBookingAction(
+  bookingId: string,
+  action: 'confirm' | 'reject',
+  body: ConfirmTutorBookingPayload | RejectTutorBookingPayload,
+): Promise<TutorBookingActionResult> {
+  return authenticatedFetch<TutorBookingActionResult>(
+    `/bookings/tutor/${encodeURIComponent(bookingId)}/${action}`,
+    { method: 'POST', body: JSON.stringify(body) },
+  );
 }
 
 function toIsoString(value: string | Date): string {

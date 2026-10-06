@@ -39,6 +39,11 @@ confirmed lessons, and the selected analytics month separately. Monthly loading/
 analytics and failed loads offer retry actions. Booking value represents scheduled lessons, not
 received revenue; earnings and individual reviews remain unavailable without supporting data.
 
+`/dashboard/bookings` serves both roles: a student reviews the requests they sent, while a tutor
+works the booking inbox and confirms or rejects one pending request at a time. A decision is
+rendered only from the status the API returns, and a 403, 404, or 409 answer locks that row behind a
+refresh so the inbox never shows an optimistic status the server did not persist.
+
 See [frontend direction](ui-design/frontend-direction.md) for the Notebook Focus patterns and
 [implemented frontend behavior](ui-design/implemented-behavior.md) for interaction, loading,
 responsive layout, and accessibility details.

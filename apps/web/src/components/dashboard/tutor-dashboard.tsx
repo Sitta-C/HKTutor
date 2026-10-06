@@ -345,6 +345,10 @@ export function TutorDashboard({ user, onLogout }: TutorDashboardProps) {
                 label={tutorCopy.requestsPagination}
                 onPageChange={setRequestPage}
               />
+              <Link href="/dashboard/bookings" className={`${textLinkClass} mt-1`}>
+                {tutorCopy.reviewRequests}
+                <ArrowIcon />
+              </Link>
             </PaperCard>
           </div>
           <TutorDashboardAnalytics listings={listings} now={mountedAt} />

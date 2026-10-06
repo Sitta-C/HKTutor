@@ -1,5 +1,5 @@
-import StudentBookingShell from '@/components/bookings/student-booking-shell';
+import BookingWorkspaceShell from '@/components/bookings/booking-workspace-shell';
 
 export default function DashboardBookingsLayout({ children }: { children: React.ReactNode }) {
-  return <StudentBookingShell>{children}</StudentBookingShell>;
+  return <BookingWorkspaceShell>{children}</BookingWorkspaceShell>;
 }

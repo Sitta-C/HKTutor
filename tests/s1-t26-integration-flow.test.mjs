@@ -8,7 +8,7 @@ test('preserves the selected guest booking across login and student onboarding',
   const [proxy, login, bookingShell, profileSession, profileEditor, returnTo] = await Promise.all([
     read('apps/web/src/proxy.ts'),
     read('apps/web/src/components/login.tsx'),
-    read('apps/web/src/components/bookings/student-booking-shell.tsx'),
+    read('apps/web/src/components/bookings/booking-workspace-shell.tsx'),
     read('apps/web/src/lib/use-profile-session.ts'),
     read('apps/web/src/components/profile/profile-editor.tsx'),
     read('apps/web/src/lib/return-to.ts'),

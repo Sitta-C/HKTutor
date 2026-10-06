@@ -39,6 +39,7 @@ describe('dashboard role navigation', () => {
     expect(getDashboardNavItems('TUTOR', translations.en).map((item) => item.id)).toEqual([
       'dashboard',
       'profile',
+      'bookings',
       'listings',
       'availability',
       'privacy',
@@ -47,6 +48,20 @@ describe('dashboard role navigation', () => {
       'dashboard',
       'privacy',
     ]);
+  });
+
+  it('sends both roles to the shared booking workspace under their own label', () => {
+    const studentBookings = getDashboardNavItems('STUDENT', translations.en).find(
+      (item) => item.id === 'bookings',
+    );
+    const tutorBookings = getDashboardNavItems('TUTOR', translations.en).find(
+      (item) => item.id === 'bookings',
+    );
+
+    expect(studentBookings?.href).toBe('/dashboard/bookings');
+    expect(tutorBookings?.href).toBe('/dashboard/bookings');
+    expect(studentBookings?.label).toBe(translations.en.dashboard.nav.myBookings);
+    expect(tutorBookings?.label).toBe(translations.en.dashboard.nav.bookingRequests);
   });
 
   it('uses up to two name initials for the avatar fallback', () => {

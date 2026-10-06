@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import { tutorBookingInboxCopy } from '@/components/bookings/tutor-booking-inbox-copy';
 import { tutorSearchCopy } from '@/components/tutors/tutor-search-copy';
 import { translations } from '@/lib/i18n';
 import { privacyNoticeCopy } from '@/lib/privacy-notice-copy';
@@ -39,6 +40,7 @@ describe('bilingual copy contracts', () => {
   });
 
   it('keeps exported feature copy symmetric and non-empty', () => {
+    expectSymmetricCopy(tutorBookingInboxCopy.en, tutorBookingInboxCopy.th);
     expectSymmetricCopy(tutorSearchCopy.en, tutorSearchCopy.th);
     expectSymmetricCopy(privacyNoticeCopy.en, privacyNoticeCopy.th);
   });
