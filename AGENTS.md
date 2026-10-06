@@ -103,6 +103,9 @@ inputs and run `pnpm db:generate` instead.
 
 ## Web conventions
 
+- For UI/design work, read `ui-design/frontend-direction.md` first. It records the user's
+  approved Notebook Focus direction, selected components, UI-only scope, and preview-before-
+  implementation workflow. Apply it in new chats as well; older prototypes do not supersede it.
 - Keep App Router `page.tsx` and `layout.tsx` files thin. Put feature behavior and substantial UI in
   `src/components/<feature>` and reusable data access or pure logic in `src/lib`.
 - Default to Server Components. Add `'use client'` only when a component needs browser APIs, React

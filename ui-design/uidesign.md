@@ -5,6 +5,10 @@ This document defines what each screen shows, which model supplies it, who may a
 remains to design. Current production code and tests are authoritative for implemented behavior;
 future-looking rows are explicitly labelled proposed.
 
+For the latest user-approved visual direction and component choices, read
+[`frontend-direction.md`](./frontend-direction.md). Its Notebook Focus guidance and current
+production components supersede the older visual descriptions below when they differ.
+
 For the page-by-page API dependency, see
 [`sprint1-ui-api-map.md`](./sprint1-ui-api-map.md). Frontend field requirements for Backend are in
 [`sprint1-api-field-requirements.md`](./sprint1-api-field-requirements.md).
