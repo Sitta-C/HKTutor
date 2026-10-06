@@ -127,8 +127,7 @@ export default function ManageTutorAvailability() {
     if (sessionLoading || profileError || !user || user.role !== 'TUTOR') return;
     let active = true;
     const range = getBangkokWeekRange(weekStart);
-    // The existing API filters by start time, so include earlier starts for carry-over slots.
-    getTutorAvailability({ to: range.to })
+    getTutorAvailability({ ...range, rangeMode: 'overlap' })
       .then((result) => {
         if (!active) return;
         setSlots(result);

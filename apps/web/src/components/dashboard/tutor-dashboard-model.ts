@@ -1,4 +1,5 @@
-import { getBangkokIsoDate } from '@/lib/date-time';
+import { bangkokDateTimeToUtc } from '@/lib/api/availability';
+import { addIsoDays, getBangkokIsoDate } from '@/lib/date-time';
 
 import type { TeachingListing, TutorAvailabilitySlot, TutorBookingView } from '@/lib/api/types';
 
@@ -164,9 +165,18 @@ export function getTutorDashboardSummary(
         booking.status === 'CONFIRMED' && new Date(booking.slot.startAtUtc).getTime() > now,
     )
     .sort(byLessonTime)[0];
-  const todaySlots = [...slots].sort(
-    (left, right) => new Date(left.startAtUtc).getTime() - new Date(right.startAtUtc).getTime(),
-  );
+  const today = getBangkokIsoDate(new Date(now));
+  const from = bangkokDateTimeToUtc(today, '00:00').getTime();
+  const to = bangkokDateTimeToUtc(addIsoDays(today, 1), '00:00').getTime();
+  const todaySlots = slots
+    .filter((slot) => Date.parse(slot.startAtUtc) < to && Date.parse(slot.endAtUtc) > from)
+    .map((slot) => ({
+      ...slot,
+      startAtUtc:
+        Date.parse(slot.startAtUtc) < from ? new Date(from).toISOString() : slot.startAtUtc,
+      endAtUtc: Date.parse(slot.endAtUtc) > to ? new Date(to).toISOString() : slot.endAtUtc,
+    }))
+    .sort((left, right) => Date.parse(left.startAtUtc) - Date.parse(right.startAtUtc));
 
   return {
     pendingBookings,

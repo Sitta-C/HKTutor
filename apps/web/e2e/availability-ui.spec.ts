@@ -116,7 +116,11 @@ async function mockAvailability(
       if (to) options.requestedUntil?.push(to);
       body = slots.filter(
         (slot) =>
-          (from === null || slot.startAtUtc >= from) && (to === null || slot.startAtUtc < to),
+          (from === null ||
+            (url.searchParams.get('rangeMode') === 'overlap'
+              ? slot.endAtUtc > from
+              : slot.startAtUtc >= from)) &&
+          (to === null || slot.startAtUtc < to),
       );
       if (options.loadError) {
         status = 503;
@@ -762,6 +766,11 @@ test('a booking across dates 6 and 7 is a single bar covering the day divider', 
 test('weekly views carry earlier slots and deleting a spanning bar removes the whole range', async ({
   page,
 }) => {
+  const queries: URLSearchParams[] = [];
+  page.on('request', (request) => {
+    const url = new URL(request.url());
+    if (url.pathname === '/api/v1/tutors/me/availability') queries.push(url.searchParams);
+  });
   const deleted: string[] = [];
   await mockAvailability(page, {
     deleted,
@@ -778,6 +787,14 @@ test('weekly views carry earlier slots and deleting a spanning bar removes the w
   const incoming = page.locator('[data-availability-slot="incoming-slot"]');
   await expect(incoming).toHaveAttribute('data-availability-day', '2026-10-05');
   await expect(incoming.locator('strong')).toHaveText('00:00–07:00');
+  expect(queries.length).toBeGreaterThan(0);
+  expect(
+    queries.every(
+      (query) => query.get('rangeMode') === 'overlap' && query.has('from') && query.has('to'),
+    ),
+  ).toBe(true);
+  expect(queries[0]?.get('from')).toBe('2026-10-04T17:00:00.000Z');
+  expect(queries[0]?.get('to')).toBe('2026-10-11T17:00:00.000Z');
   await expect(incoming.locator('p')).toHaveText('ต่อเนื่อง · 4–5 ต.ค. 2569');
   await page.locator('[data-week="2026-09-28"]').click();
   await expect(incoming).toHaveAttribute('data-availability-day', '2026-10-04');

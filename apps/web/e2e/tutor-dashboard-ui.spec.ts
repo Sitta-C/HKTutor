@@ -118,8 +118,11 @@ async function mockDashboard(
   options: {
     empty?: boolean;
     fail?: boolean;
+    failAnalytics?: boolean;
+    analyticsGate?: Promise<void>;
     bookings?: TutorBookingView[];
     listings?: TeachingListing[];
+    slots?: TutorAvailabilitySlot[];
   } = {},
 ) {
   const calls: string[] = [];
@@ -133,9 +136,18 @@ async function mockDashboard(
       return json(route, { accessToken: 'ui-test-token', user: tutorUser });
     if (path === '/profiles/me') return json(route, profile);
     if (path === '/bookings/tutor') {
-      if (options.fail) return json(route, { message: 'Service unavailable' }, 500);
-      const items = options.empty ? [] : (options.bookings ?? teachingBookings);
       const params = new URL(request.url()).searchParams;
+      if (params.has('to')) await options.analyticsGate;
+      if (options.fail || (params.has('to') && options.failAnalytics))
+        return json(route, { message: 'Service unavailable' }, 500);
+      const items = (options.empty ? [] : (options.bookings ?? teachingBookings)).filter(
+        (item) =>
+          (!params.has('status') || item.status === params.get('status')) &&
+          (!params.has('from') ||
+            Date.parse(item.slot.startAtUtc) >= Date.parse(params.get('from') ?? '')) &&
+          (!params.has('to') ||
+            Date.parse(item.slot.startAtUtc) <= Date.parse(params.get('to') ?? '')),
+      );
       const pageNumber = Number(params.get('page') ?? 1);
       const pageSize = Number(params.get('pageSize') ?? 100);
       return json(route, {
@@ -145,7 +157,19 @@ async function mockDashboard(
     }
     if (path === '/tutors/me/listings')
       return json(route, options.empty ? [] : (options.listings ?? listings));
-    if (path === '/tutors/me/availability') return json(route, options.empty ? [] : slots);
+    if (path === '/tutors/me/availability') {
+      const params = new URL(request.url()).searchParams;
+      const from = Date.parse(params.get('from') ?? '');
+      const to = Date.parse(params.get('to') ?? '');
+      const items = (options.empty ? [] : (options.slots ?? slots)).filter(
+        (slot) =>
+          Date.parse(slot.startAtUtc) < to &&
+          (params.get('rangeMode') === 'overlap'
+            ? Date.parse(slot.endAtUtc) > from
+            : Date.parse(slot.startAtUtc) >= from),
+      );
+      return json(route, items);
+    }
     return json(route, { message: `Unexpected UI request: ${path}` }, 500);
   });
   return calls;
@@ -354,11 +378,226 @@ test('unavailable data shows an error instead of empty or zero dashboard summari
 }) => {
   await mockDashboard(page, { fail: true });
   await page.goto('/dashboard');
-  await expect(page.locator('main').getByRole('alert')).toHaveText(
+  await expect(page.locator('main').getByRole('alert')).toContainText(
     'ไม่สามารถโหลดข้อมูลสรุปแดชบอร์ดได้',
   );
   await expect(page.getByRole('heading', { name: 'คาบถัดไป' })).toHaveCount(0);
   await expect(page.getByRole('heading', { name: 'คำขอจองที่รอตอบ' })).toHaveCount(0);
+});
+
+function requestGate() {
+  let release = () => {};
+  const pending = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  return { pending, release: () => release() };
+}
+
+test('dashboard scopes booking reads while keeping requests and the next lesson outside the analytics month', async ({
+  page,
+}) => {
+  const queries: URLSearchParams[] = [];
+  page.on('request', (request) => {
+    const url = new URL(request.url());
+    if (url.pathname === '/api/v1/bookings/tutor') queries.push(url.searchParams);
+  });
+  await mockDashboard(page, {
+    bookings: [
+      booking('old-confirmed', 'Old lesson', 'CONFIRMED', '2026-09-15T06:00:00Z'),
+      booking('completed', 'Completed lesson', 'COMPLETED', '2026-10-01T06:00:00Z'),
+      booking('next-month', 'November student', 'CONFIRMED', '2026-11-01T06:00:00Z'),
+      booking('future-request', 'December student', 'PENDING', '2026-12-01T06:00:00Z'),
+    ],
+  });
+  await page.goto('/dashboard');
+  await expect(page.getByRole('region', { name: 'คาบถัดไป' })).toContainText('November student');
+  await expect(page.getByRole('region', { name: 'คำขอจองที่รอตอบ' })).toContainText(
+    'December student',
+  );
+  const analytics = page.getByRole('region', { name: 'ภาพรวมการสอน', exact: true });
+  await expect(analytics.locator('dl').first().locator('dd > span:first-child')).toHaveText([
+    '1',
+    '1',
+    '฿450.00',
+    '—',
+  ]);
+  const uniqueQueries = [...new Map(queries.map((query) => [query.toString(), query])).values()];
+  expect(uniqueQueries).toHaveLength(3);
+  expect(uniqueQueries.find((query) => query.get('status') === 'CONFIRMED')?.get('from')).toBe(
+    now.toISOString(),
+  );
+  const monthly = uniqueQueries.find((query) => query.has('to'));
+  expect(monthly?.get('from')).toBe('2026-09-30T17:00:00.000Z');
+  expect(monthly?.get('to')).toBe('2026-10-31T16:59:59.999Z');
+  expect(
+    uniqueQueries.every((query) => query.has('status') || (query.has('from') && query.has('to'))),
+  ).toBe(true);
+});
+
+test('today availability requests overlaps and displays overnight portions inside Bangkok today', async ({
+  page,
+}) => {
+  const queries: URLSearchParams[] = [];
+  page.on('request', (request) => {
+    const url = new URL(request.url());
+    if (url.pathname === '/api/v1/tutors/me/availability') queries.push(url.searchParams);
+  });
+  const slot = (id: string, startAtUtc: string, endAtUtc: string): TutorAvailabilitySlot => ({
+    id,
+    startAtUtc,
+    endAtUtc,
+    state: 'OPEN',
+    createdAt: '2026-10-01T00:00:00Z',
+  });
+  await mockDashboard(page, {
+    slots: [
+      slot('overnight', '2026-10-04T16:00:00Z', '2026-10-04T18:00:00Z'),
+      slot('late-night', '2026-10-05T16:00:00Z', '2026-10-05T19:00:00Z'),
+      slot('ended-midnight', '2026-10-04T15:00:00Z', '2026-10-04T17:00:00Z'),
+      slot('tomorrow', '2026-10-05T17:00:00Z', '2026-10-05T18:00:00Z'),
+    ],
+  });
+  await page.goto('/dashboard');
+  const availability = page.getByRole('region', { name: 'วันนี้ · เวลาตามกรุงเทพฯ' });
+  await expect(availability.getByRole('listitem')).toHaveCount(2);
+  await expect(availability.getByRole('listitem').first()).toContainText('00:00–01:00');
+  await expect(availability.getByRole('listitem').last()).toContainText('23:00–24:00');
+  expect(queries.length).toBeGreaterThan(0);
+  expect(
+    queries.every(
+      (query) =>
+        query.get('rangeMode') === 'overlap' &&
+        query.get('from') === '2026-10-04T17:00:00.000Z' &&
+        query.get('to') === '2026-10-05T17:00:00.000Z',
+    ),
+  ).toBe(true);
+});
+
+test('slow monthly analytics leave the teaching overview usable and metrics unavailable until loaded', async ({
+  page,
+}) => {
+  const gate = requestGate();
+  await mockDashboard(page, { analyticsGate: gate.pending });
+  try {
+    await page.goto('/dashboard');
+    await expect(page.getByRole('region', { name: 'คาบถัดไป' })).toContainText('Korpai');
+    await expect(
+      page.getByRole('region', { name: 'คำขอจองที่รอตอบ' }).getByRole('listitem'),
+    ).toHaveCount(2);
+    const analytics = page.getByRole('region', { name: 'ภาพรวมการสอน', exact: true });
+    await expect(analytics.locator('[data-loading-region]')).toBeVisible();
+    await expect(analytics.locator('dl').first().locator('dd > span:first-child')).toHaveText([
+      '—',
+      '—',
+      '—',
+      '—',
+    ]);
+    await expect(page.locator('[data-loading-kind]')).toHaveCount(0);
+    gate.release();
+    await expect(analytics.locator('dl').first().locator('dd > span:first-child')).toHaveText([
+      '2',
+      '2',
+      '฿900.00',
+      '—',
+    ]);
+  } finally {
+    gate.release();
+  }
+});
+
+test('monthly failures stay local and retry recovers real totals', async ({ page }) => {
+  const options = { failAnalytics: true };
+  await mockDashboard(page, options);
+  await page.goto('/dashboard');
+  const analytics = page.getByRole('region', { name: 'ภาพรวมการสอน', exact: true });
+  const alert = analytics.getByRole('alert');
+  await expect(alert).toContainText('ไม่สามารถโหลดภาพรวมการสอนของเดือนนี้ได้');
+  await expect(page.getByRole('region', { name: 'คาบถัดไป' })).toContainText('Korpai');
+  await expect(
+    page.getByRole('region', { name: 'คำขอจองที่รอตอบ' }).getByRole('listitem'),
+  ).toHaveCount(2);
+  await expect(analytics.locator('dl').first().locator('dd > span:first-child')).toHaveText([
+    '—',
+    '—',
+    '—',
+    '—',
+  ]);
+  options.failAnalytics = false;
+  await alert.getByRole('button', { name: 'ลองใหม่' }).click();
+  await expect(alert).toHaveCount(0);
+  await expect(analytics.locator('dl').first().locator('dd > span:first-child')).toHaveText([
+    '2',
+    '2',
+    '฿900.00',
+    '—',
+  ]);
+});
+
+test('summary retry recovers without reloading the page', async ({ page }) => {
+  const options = { fail: true };
+  await mockDashboard(page, options);
+  await page.goto('/dashboard');
+  const alert = page.locator('main').getByRole('alert');
+  await expect(alert).toContainText('ไม่สามารถโหลดข้อมูลสรุปแดชบอร์ดได้');
+  options.fail = false;
+  await alert.getByRole('button', { name: 'ลองใหม่' }).click();
+  await expect(page.getByRole('region', { name: 'คาบถัดไป' })).toContainText('Korpai');
+  await expect(
+    page.getByRole('region', { name: 'คำขอจองที่รอตอบ' }).getByRole('listitem'),
+  ).toHaveCount(2);
+});
+
+test('an older month response cannot overwrite the newly selected analytics month', async ({
+  page,
+}) => {
+  await mockDashboard(page);
+  const gate = requestGate();
+  await page.route('**/api/v1/bookings/tutor*', async (route) => {
+    const params = new URL(route.request().url()).searchParams;
+    if (params.get('from') !== '2026-08-31T17:00:00.000Z') return route.fallback();
+    await gate.pending;
+    return json(route, { items: [], total: 0 });
+  });
+  try {
+    await page.goto('/dashboard');
+    const analytics = page.getByRole('region', { name: 'ภาพรวมการสอน', exact: true });
+    const metrics = analytics.locator('dl').first().locator('dd > span:first-child');
+    await expect(metrics).toHaveText(['2', '2', '฿900.00', '—']);
+    const ruler = page.getByRole('group', { name: 'เดือนของภาพรวมการสอน' });
+    await ruler.getByRole('button', { name: 'กันยายน 2569', exact: true }).click();
+    await expect(analytics.locator('[data-loading-region]')).toBeVisible();
+    await expect(metrics).toHaveText(['—', '—', '—', '—']);
+    await ruler.getByRole('button', { name: 'ตุลาคม 2569', exact: true }).click();
+    await expect(metrics).toHaveText(['2', '2', '฿900.00', '—']);
+    const response = page.waitForResponse(
+      (item) => new URL(item.url()).searchParams.get('from') === '2026-08-31T17:00:00.000Z',
+    );
+    gate.release();
+    await response;
+    await expect(ruler.getByRole('status')).toHaveText('ตุลาคม 2569');
+    await expect(metrics).toHaveText(['2', '2', '฿900.00', '—']);
+  } finally {
+    gate.release();
+  }
+});
+
+test('a new booking shifting offset pages does not fail the dashboard or duplicate requests', async ({
+  page,
+}) => {
+  const items = Array.from({ length: 102 }, (_, index) =>
+    booking(`request-${index}`, `Student ${index}`, 'PENDING', '2026-10-06T03:00:00Z'),
+  );
+  await mockDashboard(page, { bookings: items });
+  await page.route('**/api/v1/bookings/tutor*', async (route) => {
+    const params = new URL(route.request().url()).searchParams;
+    if (params.get('status') !== 'PENDING' || params.get('page') !== '2') return route.fallback();
+    return json(route, { items: items.slice(99), total: 103 });
+  });
+  await page.goto('/dashboard');
+  const requests = page.getByRole('region', { name: 'คำขอจองที่รอตอบ' });
+  await expect(requests.getByRole('heading', { level: 2 })).toContainText('102');
+  await expect(requests.getByRole('listitem')).toHaveCount(5);
+  await expect(page.locator('main').getByRole('alert')).toHaveCount(0);
 });
 
 test('all subject courses remain visible independently of request pagination and month changes', async ({
@@ -414,7 +653,8 @@ test('all subject courses remain visible independently of request pagination and
     .getByRole('group', { name: 'เดือนของภาพรวมการสอน' })
     .getByRole('button', { name: 'ตุลาคม 2569', exact: true })
     .click();
-  expect(calls.length).toBe(callCount);
+  await expect(courses.locator('dd')).toHaveText(['0', '0', '0', '฿0.00']);
+  await expect.poll(() => calls.length).toBe(callCount + 2);
   await expectResponsiveShell(page);
   await page.evaluate(() => document.fonts.ready);
   await courses.screenshot({
@@ -537,7 +777,8 @@ test('subject index groups many subjects with stable colors and supports repeate
   await expect(physics).toHaveAttribute('aria-pressed', 'true');
   await expect(choices.first()).toHaveAttribute('aria-pressed', 'true');
   await expect(courses.locator('dd')).toHaveCount(4);
-  expect(calls.length).toBe(callCount);
+  await expect(courses.locator('dd')).toHaveText(['0', '0', '0', '฿0.00']);
+  await expect.poll(() => calls.length).toBe(callCount + 1);
   await expectResponsiveShell(page);
   await page.evaluate(() => document.fonts.ready);
   await courses.screenshot({
@@ -703,7 +944,7 @@ test('month ruler selects after scrolling, handles dragging and keyboard, and ex
   await expect(status).toHaveText('มกราคม 2572');
   await expect(ruler.getByRole('button')).toHaveCount(25);
   await expect.poll(isCentered).toBe(true);
-  expect(calls.length).toBe(callCount);
+  await expect.poll(() => calls.length).toBe(callCount + 7);
   await page.getByRole('button', { name: 'เปลี่ยนภาษาเป็นภาษาอังกฤษ' }).click();
   const english = page.getByRole('group', { name: 'Analytics month' });
   await expect(english.getByRole('status')).toHaveText('January 2029');

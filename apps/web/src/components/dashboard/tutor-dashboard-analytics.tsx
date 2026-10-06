@@ -1,9 +1,13 @@
 'use client';
 
 import Link from 'next/link';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 import { DashboardIcon } from '@/components/dashboard/dashboard-icon';
+import {
+  getTutorDashboardMonthQuery,
+  loadTutorDashboardBookings,
+} from '@/components/dashboard/tutor-dashboard-data';
 import {
   getTutorMonthOverview,
   groupTutorCoursesBySubject,
@@ -11,6 +15,7 @@ import {
 import { MonthRuler } from '@/components/date-time/month-ruler';
 import { ArrowIcon } from '@/components/public/public-ui';
 import { PaperCard, StatusBadge, notebookButtonClass } from '@/components/ui/notebook';
+import { NotebookLoadingRegion } from '@/components/ui/notebook-loading';
 import { SubjectCourseIndex } from '@/components/ui/subject-course-index';
 import { formatCalendarMonth, getBangkokToday, getCalendarLocale } from '@/lib/date-time';
 import { useLanguage } from '@/lib/i18n';
@@ -43,12 +48,10 @@ function formatAmounts(amounts: TutorBookingAmount[], language: Language): strin
 }
 
 export function TutorDashboardAnalytics({
-  bookings,
   listings,
   now,
   insights,
 }: {
-  bookings: TutorBookingView[];
   listings: TeachingListing[];
   now: number;
   insights?: TutorDashboardInsights;
@@ -57,9 +60,39 @@ export function TutorDashboardAnalytics({
   const text = copy.dashboard.tutor;
   const [month, setMonth] = useState(() => getBangkokToday(new Date(now)).slice(0, 7));
   const [selectedCourseId, setSelectedCourseId] = useState<string | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
+  const [result, setResult] = useState<{
+    month: string;
+    refreshKey: number;
+    bookings: TutorBookingView[];
+    failed: boolean;
+  } | null>(null);
+  const currentResult = result?.month === month && result.refreshKey === refreshKey ? result : null;
+  const isLoading = currentResult === null;
+  const loadError = currentResult?.failed ?? false;
+  const hasData = !isLoading && !loadError;
+
+  useEffect(() => {
+    let active = true;
+    loadTutorDashboardBookings(getTutorDashboardMonthQuery(month))
+      .then((items) => {
+        if (active) setResult({ month, refreshKey, bookings: items, failed: false });
+      })
+      .catch(() => {
+        if (active) setResult({ month, refreshKey, bookings: [], failed: true });
+      });
+    return () => {
+      active = false;
+    };
+  }, [month, refreshKey]);
   const summary = useMemo(
-    () => getTutorMonthOverview(bookings, listings, month),
-    [bookings, listings, month],
+    () =>
+      getTutorMonthOverview(
+        currentResult?.failed === false ? currentResult.bookings : [],
+        listings,
+        month,
+      ),
+    [currentResult, listings, month],
   );
   const selectedCourse = summary.courses.find((course) => course.listing.id === selectedCourseId);
   const subjectGroups = groupTutorCoursesBySubject(summary.courses);
@@ -89,7 +122,21 @@ export function TutorDashboardAnalytics({
         />
       </div>
 
-      <dl className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+      {isLoading && <NotebookLoadingRegion label={text.analyticsLoading} />}
+      {loadError && (
+        <PaperCard className={`${panelClass} !bg-sticky-pink/50`} role="alert">
+          <p className="text-sm text-red-800">{text.analyticsLoadError}</p>
+          <button
+            type="button"
+            className={notebookButtonClass({ tone: 'secondary', className: 'mt-4' })}
+            onClick={() => setRefreshKey((key) => key + 1)}
+          >
+            {text.retry}
+          </button>
+        </PaperCard>
+      )}
+
+      <dl className="grid grid-cols-2 gap-3 xl:grid-cols-4" aria-busy={isLoading}>
         {[
           { label: text.confirmedLessons, value: number(summary.confirmedCount) },
           { label: text.scheduledHours, value: number(summary.minutes / 60) },
@@ -101,7 +148,7 @@ export function TutorDashboardAnalytics({
           >
             <dt className="min-h-10 text-sm text-notebook-muted">{metric.label}</dt>
             <dd className="mt-3 break-words text-2xl font-bold tabular-nums text-tutor-deep">
-              <span>{metric.value}</span>
+              <span>{hasData ? metric.value : '—'}</span>
               <span className="mt-2 block text-xs font-normal text-notebook-muted">
                 {monthLabel}
               </span>
@@ -134,7 +181,9 @@ export function TutorDashboardAnalytics({
               {text.hoursUnit}
             </span>
           </div>
-          {maximumMinutes === 0 ? (
+          {!hasData ? (
+            <p className="py-8 text-sm text-notebook-muted">—</p>
+          ) : maximumMinutes === 0 ? (
             <div className="mt-6 flex min-h-48 flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-paper-edge bg-paper/70 text-center">
               <DashboardIcon name="calendar" className="h-7 w-7 text-tutor-deep/60" />
               <p className="px-4 text-sm text-notebook-muted">{text.noConfirmedLessons}</p>
@@ -304,7 +353,7 @@ export function TutorDashboardAnalytics({
                     <div key={metric.label}>
                       <dt className="text-xs text-notebook-muted">{metric.label}</dt>
                       <dd className="mt-2 break-words text-xl font-bold tabular-nums sm:text-2xl">
-                        {metric.value}
+                        {hasData ? metric.value : '—'}
                       </dd>
                     </div>
                   ))}

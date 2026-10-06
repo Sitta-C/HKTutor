@@ -13,6 +13,7 @@ import { AvailabilityState } from '@modules/tutors/tutors.dto';
 import type {
   AvailabilityPostRequestDto,
   AvailabilityPostResponseDto,
+  AvailabilityPrivateQueryDto,
   AvailabilityPrivateResponseDto,
   AvailabilityPublicResponseDto,
   AvailabilityQueryDto,
@@ -84,7 +85,7 @@ export class TutorAvailabilityService {
 
   async getAvailabilityPrivate(
     userId: string,
-    query: AvailabilityQueryDto,
+    query: AvailabilityPrivateQueryDto,
   ): Promise<AvailabilityPrivateResponseDto[]> {
     this.validateAvailabilityRange(query);
 
@@ -230,8 +231,17 @@ export class TutorAvailabilityService {
     }
   }
 
-  private availabilityRangeWhere(query: AvailabilityQueryDto): Prisma.AvailabilitySlotWhereInput {
+  private availabilityRangeWhere(
+    query: AvailabilityPrivateQueryDto,
+  ): Prisma.AvailabilitySlotWhereInput {
     if (query.from === undefined && query.to === undefined) return {};
+
+    if (query.rangeMode === 'overlap') {
+      return {
+        ...(query.from !== undefined && { endAtUtc: { gt: query.from } }),
+        ...(query.to !== undefined && { startAtUtc: { lt: query.to } }),
+      };
+    }
 
     return {
       startAtUtc: {

@@ -260,6 +260,9 @@ export const translations = {
       },
       tutor: {
         loadError: 'We could not load your dashboard summary.',
+        retry: 'Try again',
+        analyticsLoading: 'Loading teaching insights…',
+        analyticsLoadError: 'We could not load teaching insights for this month.',
         eyebrow: 'Your teaching desk',
         subtitle: 'Your teaching overview',
         nextSession: 'Next session',
@@ -710,6 +713,9 @@ export const translations = {
       },
       tutor: {
         loadError: 'ไม่สามารถโหลดข้อมูลสรุปแดชบอร์ดได้',
+        retry: 'ลองใหม่',
+        analyticsLoading: 'กำลังโหลดภาพรวมการสอน…',
+        analyticsLoadError: 'ไม่สามารถโหลดภาพรวมการสอนของเดือนนี้ได้',
         eyebrow: 'พื้นที่งานสอนของคุณ',
         subtitle: 'ภาพรวมงานสอนของคุณ',
         nextSession: 'คาบถัดไป',

@@ -17,7 +17,13 @@ import {
 } from '@/components/dashboard/tutor-dashboard-model';
 import { ArrowIcon } from '@/components/public/public-ui';
 import { BookmarkNoteSwitch } from '@/components/ui/bookmark-note-switch';
-import { PaperCard, StatusBadge, WashiTape, notebookArchiveClass } from '@/components/ui/notebook';
+import {
+  PaperCard,
+  StatusBadge,
+  WashiTape,
+  notebookArchiveClass,
+  notebookButtonClass,
+} from '@/components/ui/notebook';
 import { NotebookPagination } from '@/components/ui/notebook-pagination';
 import { getTutorAvailability } from '@/lib/api/availability';
 import { getTutorListings } from '@/lib/api/listings';
@@ -60,6 +66,7 @@ export function TutorDashboard({ user, onLogout }: TutorDashboardProps) {
   const [mountedAt] = useState(() => Date.now());
   const [showPastRequests, setShowPastRequests] = useState(false);
   const [requestPage, setRequestPage] = useState(1);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
     let active = true;
@@ -68,13 +75,16 @@ export function TutorDashboard({ user, onLogout }: TutorDashboardProps) {
     const to = new Date(from.getTime() + 24 * 60 * 60 * 1000);
 
     Promise.all([
-      loadTutorDashboardBookings(),
+      Promise.all([
+        loadTutorDashboardBookings({ status: 'PENDING' }),
+        loadTutorDashboardBookings({ status: 'CONFIRMED', from: new Date(mountedAt) }),
+      ]),
       getTutorListings(),
-      getTutorAvailability({ from, to }),
+      getTutorAvailability({ from, to, rangeMode: 'overlap' }),
     ])
       .then(([bookingResult, listingResult, slotResult]) => {
         if (!active) return;
-        setBookings(bookingResult);
+        setBookings(bookingResult.flat());
         setListings(listingResult);
         setSlots(slotResult);
         setLoadError(null);
@@ -88,7 +98,7 @@ export function TutorDashboard({ user, onLogout }: TutorDashboardProps) {
     return () => {
       active = false;
     };
-  }, [tutorCopy.loadError]);
+  }, [mountedAt, refreshKey, tutorCopy.loadError]);
 
   const { pendingBookings, nextBooking, todaySlots } = useMemo(
     () => getTutorDashboardSummary(bookings, listings, slots, mountedAt),
@@ -123,6 +133,17 @@ export function TutorDashboard({ user, onLogout }: TutorDashboardProps) {
       ) : loadError ? (
         <PaperCard className={`${panelClass} !bg-sticky-pink/50`} role="alert">
           <p className="text-sm text-red-800">{loadError}</p>
+          <button
+            type="button"
+            className={notebookButtonClass({ tone: 'secondary', className: 'mt-4' })}
+            onClick={() => {
+              setLoadError(null);
+              setIsLoading(true);
+              setRefreshKey((key) => key + 1);
+            }}
+          >
+            {tutorCopy.retry}
+          </button>
         </PaperCard>
       ) : (
         <>
@@ -204,7 +225,9 @@ export function TutorDashboard({ user, onLogout }: TutorDashboardProps) {
                     >
                       <span className="text-sm font-medium tabular-nums text-notebook-ink">
                         {formatBangkokTime(slot.startAtUtc, language)}–
-                        {formatBangkokTime(slot.endAtUtc, language)}
+                        {formatBangkokTime(slot.endAtUtc, language) === '00:00'
+                          ? '24:00'
+                          : formatBangkokTime(slot.endAtUtc, language)}
                       </span>
                       <StatusBadge tone={slot.state === 'OPEN' ? 'tutor' : 'neutral'}>
                         {slot.state === 'OPEN'
@@ -324,7 +347,7 @@ export function TutorDashboard({ user, onLogout }: TutorDashboardProps) {
               />
             </PaperCard>
           </div>
-          <TutorDashboardAnalytics bookings={bookings} listings={listings} now={mountedAt} />
+          <TutorDashboardAnalytics listings={listings} now={mountedAt} />
         </>
       )}
     </DashboardShell>

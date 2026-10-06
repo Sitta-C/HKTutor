@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { loadTutorDashboardBookings } from '@/components/dashboard/tutor-dashboard-data';
+import {
+  getTutorDashboardMonthQuery,
+  loadTutorDashboardBookings,
+} from '@/components/dashboard/tutor-dashboard-data';
 import {
   getTutorDashboardSummary,
   getTutorMonthOverview,
@@ -135,6 +138,30 @@ describe('tutor dashboard presentation', () => {
     expect(slots[0]?.id).toBe('reserved');
   });
 
+  it('includes and clips overnight or multi-day slots to today, excluding touching boundaries', () => {
+    const slot = (id: string, startAtUtc: string, endAtUtc: string): TutorAvailabilitySlot => ({
+      id,
+      startAtUtc,
+      endAtUtc,
+      state: 'OPEN',
+      createdAt: '2026-10-01T00:00:00Z',
+    });
+    const slots = [
+      slot('ended-at-midnight', '2026-10-04T15:00:00Z', '2026-10-04T17:00:00Z'),
+      slot('overnight', '2026-10-04T16:00:00Z', '2026-10-04T18:00:00Z'),
+      slot('multi-day', '2026-10-03T16:00:00Z', '2026-10-06T18:00:00Z'),
+      slot('next-day', '2026-10-05T17:00:00Z', '2026-10-05T18:00:00Z'),
+    ];
+    const before = slots.map((item) => ({ ...item }));
+    const result = getTutorDashboardSummary([], [], slots, now).todaySlots;
+    expect(result.map((item) => item.id)).toEqual(['overnight', 'multi-day']);
+    expect(result[0]?.startAtUtc).toBe('2026-10-04T17:00:00.000Z');
+    expect(result[0]?.endAtUtc).toBe('2026-10-04T18:00:00Z');
+    expect(result[1]?.startAtUtc).toBe('2026-10-04T17:00:00.000Z');
+    expect(result[1]?.endAtUtc).toBe('2026-10-05T17:00:00.000Z');
+    expect(slots).toEqual(before);
+  });
+
   it('counts actual publication states instead of treating archived listings as drafts', () => {
     const summary = getTutorDashboardSummary(
       [],
@@ -211,23 +238,66 @@ describe('tutor dashboard presentation', () => {
       .fn()
       .mockResolvedValueOnce({ items: items.slice(0, 100), total: 102 })
       .mockResolvedValueOnce({ items: items.slice(100), total: 102 });
-    const result = await loadTutorDashboardBookings(fetchPage);
+    const result = await loadTutorDashboardBookings({ status: 'PENDING' }, fetchPage);
     expect(result).toHaveLength(102);
     expect(result.at(-1)?.id).toBe('101');
-    expect(fetchPage).toHaveBeenNthCalledWith(2, { page: 2, pageSize: 100 });
+    expect(fetchPage).toHaveBeenNthCalledWith(2, { status: 'PENDING', page: 2, pageSize: 100 });
   });
 
-  it('rejects incomplete or duplicate API pages instead of presenting misleading totals', async () => {
+  it('rejects an empty page before the scoped booking load is complete', async () => {
     const first = booking('first', 'CONFIRMED', '2026-10-05T06:00:00Z');
     const incomplete = vi
       .fn()
-      .mockResolvedValueOnce({ items: [first], total: 2 })
-      .mockResolvedValueOnce({ items: [], total: 2 });
-    await expect(loadTutorDashboardBookings(incomplete)).rejects.toThrow('Incomplete');
+      .mockResolvedValueOnce({ items: [first], total: 101 })
+      .mockResolvedValueOnce({ items: [], total: 101 });
+    await expect(loadTutorDashboardBookings({ status: 'PENDING' }, incomplete)).rejects.toThrow(
+      'Incomplete',
+    );
+  });
+
+  it('deduplicates shifted pages and does not chase a growing booking total', async () => {
+    const items = Array.from({ length: 101 }, (_, index) =>
+      booking(String(index), 'CONFIRMED', '2026-10-05T06:00:00Z'),
+    );
     const duplicate = vi
       .fn()
-      .mockResolvedValueOnce({ items: [first], total: 2 })
-      .mockResolvedValueOnce({ items: [first], total: 2 });
-    await expect(loadTutorDashboardBookings(duplicate)).rejects.toThrow('changed');
+      .mockResolvedValueOnce({ items: items.slice(0, 100), total: 101 })
+      .mockResolvedValueOnce({ items: items.slice(99), total: 300 });
+    const query = getTutorDashboardMonthQuery('2026-10');
+    const result = await loadTutorDashboardBookings(query, duplicate);
+    expect(result).toHaveLength(101);
+    expect(new Set(result.map((item) => item.id)).size).toBe(101);
+    expect(duplicate).toHaveBeenCalledTimes(2);
+    expect(duplicate).toHaveBeenNthCalledWith(2, { ...query, page: 2, pageSize: 100 });
+    expect(getTutorMonthOverview(result, [], '2026-10').confirmedCount).toBe(101);
+  });
+
+  it('uses Bangkok month boundaries and excludes the API inclusive next-month endpoint', () => {
+    expect(getTutorDashboardMonthQuery('2026-10')).toEqual({
+      from: '2026-09-30T17:00:00.000Z',
+      to: '2026-10-31T16:59:59.999Z',
+    });
+    expect(getTutorDashboardMonthQuery('2026-12')).toEqual({
+      from: '2026-11-30T17:00:00.000Z',
+      to: '2026-12-31T16:59:59.999Z',
+    });
+    expect(getTutorDashboardMonthQuery('2028-02')).toEqual({
+      from: '2028-01-31T17:00:00.000Z',
+      to: '2028-02-29T16:59:59.999Z',
+    });
+  });
+
+  it('retains the future confirmed filter across all pages', async () => {
+    const query = { status: 'CONFIRMED' as const, from: new Date(now) };
+    const items = Array.from({ length: 101 }, (_, index) =>
+      booking(String(index), 'CONFIRMED', '2026-10-05T06:00:00Z'),
+    );
+    const fetchPage = vi
+      .fn()
+      .mockResolvedValueOnce({ items: items.slice(0, 100), total: 101 })
+      .mockResolvedValueOnce({ items: items.slice(100), total: 101 });
+    await expect(loadTutorDashboardBookings(query, fetchPage)).resolves.toHaveLength(101);
+    expect(fetchPage).toHaveBeenNthCalledWith(1, { ...query, pageSize: 100 });
+    expect(fetchPage).toHaveBeenNthCalledWith(2, { ...query, page: 2, pageSize: 100 });
   });
 });

@@ -276,6 +276,7 @@ export interface TutorAvailabilitySlot {
 export interface AvailabilityQuery {
   from?: string | Date;
   to?: string | Date;
+  rangeMode?: 'overlap';
 }
 
 export interface CreateAvailabilityPayload {
