@@ -15,6 +15,7 @@
     "db:seed": "prisma db seed",
     "db:verify:sprint1": "node scripts/verify-sprint1-database.mjs",
     "db:verify:bookings": "ts-node -r tsconfig-paths/register scripts/verify-booking-endpoint-concurrency.ts",
+    "db:verify:qualifications": "ts-node -r tsconfig-paths/register scripts/verify-qualification-document-concurrency.ts",
     "format": "prettier --write \"src/**/*.ts\" \"scripts/**/*.ts\" \"docs/examples/**/*.ts\" \"test/**/*.ts\"",
     "start": "nest start",
     "dev": "nest start --watch",

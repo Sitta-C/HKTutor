@@ -1,4 +1,4 @@
-import { Controller, ForbiddenException, Get, Query } from '@nestjs/common';
+import { Controller, ForbiddenException, Get, Logger, Query } from '@nestjs/common';
 import { ApiOkResponse, ApiQuery } from '@nestjs/swagger';
 import { Test } from '@nestjs/testing';
 import { Type } from 'class-transformer';
@@ -57,6 +57,16 @@ class ContractProbeController {
   @Get('plain-failure')
   readWithoutCode(): never {
     throw new ForbiddenException('probe is not allowed');
+  }
+
+  @Get('unexpected')
+  unexpected(): never {
+    throw new Error('private-provider-secret');
+  }
+
+  @Get('missing-error-label')
+  missingErrorLabel(): never {
+    throw new ForbiddenException({ code: 'PROBE_NOT_OWNED' });
   }
 }
 
@@ -141,6 +151,36 @@ describe('configureApplication', () => {
     const body = response.body as ValidationErrorBody;
 
     expect(body.message).toContain('property unexpected should not exist');
+  });
+
+  it('returns a complete generic envelope for unexpected failures without logging secrets', async () => {
+    const log = jest.spyOn(Logger.prototype, 'error').mockImplementation(() => {});
+    try {
+      const response = await request(app.getHttpServer())
+        .get('/api/v1/contract-probe/unexpected')
+        .expect(500);
+      expect(response.body).toEqual({
+        statusCode: 500,
+        error: 'Internal Server Error',
+        message: 'Internal server error',
+        code: 'INTERNAL_ERROR',
+      });
+      expect(log).toHaveBeenCalledWith('An unexpected API operation failed');
+    } finally {
+      log.mockRestore();
+    }
+  });
+
+  it('fills the error label for custom HTTP exceptions while preserving their code', async () => {
+    const response = await request(app.getHttpServer())
+      .get('/api/v1/contract-probe/missing-error-label')
+      .expect(403);
+    expect(response.body).toEqual({
+      statusCode: 403,
+      error: 'Forbidden',
+      message: 'Forbidden',
+      code: 'PROBE_NOT_OWNED',
+    });
   });
 
   it('publishes the API contract as OpenAPI JSON', async () => {

@@ -18,6 +18,11 @@ export interface StoredFile {
   sizeBytes: number;
 }
 
+export interface PreparedStorageUpload extends StoredFile {
+  purpose: StoragePurpose;
+  buffer: Buffer;
+}
+
 export const AVATAR_MAX_SIZE_BYTES = 2 * 1024 * 1024;
 export const DOCUMENT_MAX_SIZE_BYTES = 5 * 1024 * 1024;
 export const SIGNED_URL_MAX_TTL_SECONDS = 300;

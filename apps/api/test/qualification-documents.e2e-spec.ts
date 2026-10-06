@@ -23,6 +23,7 @@ import {
 import { QualificationStatus } from '@modules/qualification-documents/qualification-documents.dto';
 import { encodeQualificationCursor } from '@modules/qualification-documents/qualification-documents.model';
 import { QualificationDocumentsService } from '@modules/qualification-documents/qualification-documents.service';
+import { QualificationUploadRecoveryService } from '@modules/qualification-documents/qualification-upload-recovery.service';
 
 import type { DocumentMetadata } from '@modules/qualification-documents/qualification-documents.model';
 import type { INestApplication } from '@nestjs/common';
@@ -113,6 +114,7 @@ describe('S2-T07 qualification documents (HTTP contracts with isolated persisten
   let auditRecords: AuditData[] = [];
   let verificationStatus = 'PENDING';
   let transactionTail = Promise.resolve();
+  let intents = new Map<string, { objectPath: string; nextAttemptAt: Date }>();
   const findFirst = jest.fn<Promise<typeof document | null>, [Prisma.TutorDocumentFindFirstArgs]>();
   const findMany = jest.fn<Promise<Array<typeof document>>, [Prisma.TutorDocumentFindManyArgs]>();
   const createDocument = jest.fn(
@@ -160,7 +162,28 @@ describe('S2-T07 qualification documents (HTTP contracts with isolated persisten
       tutorProfile: { userId: TUTOR_ID },
     }),
   );
-  const lockTutor = jest.fn(() => Promise.resolve([{ userId: TUTOR_ID }]));
+  const lockTutor = jest.fn((sql: TemplateStringsArray, path?: string) => {
+    if (sql.join('').includes('QualificationUploadIntent')) {
+      const intent = path ? intents.get(path) : [...intents.values()][0];
+      return Promise.resolve(intent ? [{ objectPath: intent.objectPath }] : []);
+    }
+    return Promise.resolve([{ userId: TUTOR_ID }]);
+  });
+  const createIntent = jest.fn(
+    ({ data }: { data: { objectPath: string; nextAttemptAt: Date } }) => {
+      intents.set(data.objectPath, data);
+      return Promise.resolve(data);
+    },
+  );
+  const deleteIntent = jest.fn(({ where }: { where: { objectPath: string } }) => {
+    const intent = intents.get(where.objectPath);
+    intents.delete(where.objectPath);
+    return Promise.resolve(intent);
+  });
+  const retryIntent = jest.fn(() => Promise.resolve({ count: 1 }));
+  const findReference = jest.fn(({ where }: { where: { objectPath: string } }) =>
+    Promise.resolve(document.objectPath === where.objectPath ? { id: document.id } : null),
+  );
   const fetchMock = jest.fn<Promise<Response>, [RequestInfo | URL, RequestInit?]>();
   const verifyToken = jest.fn((token: string) => {
     const id = token === 'admin' ? ADMIN_ID : token === 'student' ? STUDENT_ID : TUTOR_ID;
@@ -187,7 +210,18 @@ describe('S2-T07 qualification documents (HTTP contracts with isolated persisten
   });
   const tx = {
     user: { findFirst: findTutorAccount },
-    tutorDocument: { findFirst, findMany, create: createDocument, updateMany: updateDocument },
+    tutorDocument: {
+      findFirst,
+      findMany,
+      findUnique: findReference,
+      create: createDocument,
+      updateMany: updateDocument,
+    },
+    qualificationUploadIntent: {
+      create: createIntent,
+      delete: deleteIntent,
+      updateMany: retryIntent,
+    },
     tutorDocumentAudit: { create: createAudit },
     tutorProfile: { update: updateTutor },
     $queryRaw: lockTutor,
@@ -200,13 +234,19 @@ describe('S2-T07 qualification documents (HTTP contracts with isolated persisten
       release = resolve;
     });
     await previous;
-    const before = { document, audits: [...auditRecords], verificationStatus };
+    const before = {
+      document,
+      audits: [...auditRecords],
+      verificationStatus,
+      intents: new Map(intents),
+    };
     try {
       return await work(tx);
     } catch (error) {
       document = before.document;
       auditRecords = before.audits;
       verificationStatus = before.verificationStatus;
+      intents = before.intents;
       throw error;
     } finally {
       release();
@@ -223,6 +263,7 @@ describe('S2-T07 qualification documents (HTTP contracts with isolated persisten
       controllers: [TutorQualificationDocumentsController, AdminTutorVerificationsController],
       providers: [
         QualificationDocumentsService,
+        QualificationUploadRecoveryService,
         JwtAuthGuard,
         RolesGuard,
         ResourceOwnershipGuard,
@@ -247,10 +288,11 @@ describe('S2-T07 qualification documents (HTTP contracts with isolated persisten
     document = fixture();
     auditRecords = [];
     verificationStatus = 'PENDING';
+    intents = new Map();
     findFirst
       .mockReset()
       .mockImplementation((args) => Promise.resolve(args.where?.reviewStatus ? null : document));
-    findMany.mockReset().mockResolvedValue([document]);
+    findMany.mockReset().mockImplementation(() => Promise.resolve([document]));
     createDocument.mockClear();
     updateDocument.mockClear();
     createAudit.mockClear();
@@ -300,6 +342,59 @@ describe('S2-T07 qualification documents (HTTP contracts with isolated persisten
       expect(lockTutor).toHaveBeenCalledWith(expect.anything(), TUTOR_ID);
     },
   );
+
+  it('preserves UTF-8 Thai document filenames', async () => {
+    const result = await request(app.getHttpServer())
+      .post(TUTOR_BASE)
+      .auth('tutor', { type: 'bearer' })
+      .field('documentType', 'DEGREE')
+      .attach('file', PDF, { filename: 'ใบรับรองการศึกษา.pdf', contentType: 'application/pdf' })
+      .expect(201);
+    expect(result.body).toMatchObject({ fileName: 'ใบรับรองการศึกษา.pdf' });
+    expect(document.originalName).toBe('ใบรับรองการศึกษา.pdf');
+    expect(intents.size).toBe(0);
+  });
+
+  it.each([
+    [TUTOR_BASE, 'tutor', 'post'],
+    [`${TUTOR_BASE}/${DOCUMENT_ID}/signed-url`, 'tutor', 'get'],
+    [`${ADMIN_BASE}/${DOCUMENT_ID}`, 'admin', 'get'],
+    [`${ADMIN_BASE}/${DOCUMENT_ID}/signed-url`, 'admin', 'get'],
+    [`${ADMIN_BASE}/${DOCUMENT_ID}`, 'admin', 'patch'],
+  ] as const)('rejects unknown query fields on %s', async (path, actor, method) => {
+    const response = request(app.getHttpServer())
+      [method](path)
+      .auth(actor, { type: 'bearer' })
+      .query({ expiresIn: 86400 });
+    if (method === 'post') {
+      response.field('documentType', 'DEGREE').attach('file', PDF, 'degree.pdf');
+    }
+    if (method === 'patch') {
+      response.send({ decision: 'APPROVED' });
+    }
+    await response.expect(400);
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(updateDocument).not.toHaveBeenCalled();
+  });
+
+  it('returns a complete sanitized envelope for unexpected persistence errors', async () => {
+    const log = jest.spyOn(Logger.prototype, 'error').mockImplementation(() => {});
+    findMany.mockRejectedValueOnce(new Error('provider-secret-object-path'));
+    try {
+      const result = await request(app.getHttpServer())
+        .get(TUTOR_BASE)
+        .auth('tutor', { type: 'bearer' })
+        .expect(500);
+      expect(result.body).toEqual({
+        statusCode: 500,
+        error: 'Internal Server Error',
+        message: 'Internal server error',
+        code: 'INTERNAL_ERROR',
+      });
+    } finally {
+      log.mockRestore();
+    }
+  });
 
   it('accepts the inclusive 5 MiB boundary', async () => {
     const buffer = Buffer.alloc(DOCUMENT_MAX_SIZE_BYTES);
@@ -438,8 +533,10 @@ describe('S2-T07 qualification documents (HTTP contracts with isolated persisten
       expect(auditRecords).toEqual([]);
       expect(document).toEqual(fixture());
       expect(errorLog).toHaveBeenCalledWith(
-        'Qualification upload rollback could not remove the new object; storage reconciliation is required',
+        'Qualification upload cleanup failed; persisted intent will retry',
       );
+      expect(intents.size).toBe(1);
+      expect(retryIntent).toHaveBeenCalled();
     } finally {
       errorLog.mockRestore();
     }
@@ -453,7 +550,7 @@ describe('S2-T07 qualification documents (HTTP contracts with isolated persisten
       .query({ status: 'APPROVED' })
       .auth('tutor', { type: 'bearer' })
       .expect(200);
-    expect(result.body).toMatchObject({
+    expect(result.body).toEqual({
       items: [
         {
           documentId: DOCUMENT_ID,
@@ -749,6 +846,73 @@ describe('S2-T07 qualification documents (HTTP contracts with isolated persisten
       .expect(409);
     expect(second.body).toMatchObject({ code: 'DOCUMENT_ALREADY_REVIEWED' });
     expect(verificationStatus).toBe('VERIFIED');
+    expect(auditRecords).toHaveLength(1);
+  });
+
+  it.each([
+    [TutorDocumentReviewStatus.VERIFIED, 'VERIFIED'],
+    [TutorDocumentReviewStatus.PENDING, 'PENDING'],
+    [TutorDocumentReviewStatus.REJECTED, 'REJECTED'],
+  ])('aggregates a rejected review with other %s evidence', async (otherStatus, expected) => {
+    findMany.mockImplementation(() =>
+      Promise.resolve([
+        document,
+        { ...fixture(), id: '40000000-0000-4000-8000-000000000003', reviewStatus: otherStatus },
+      ]),
+    );
+    const response = await request(app.getHttpServer())
+      .patch(`${ADMIN_BASE}/${DOCUMENT_ID}`)
+      .auth('admin', { type: 'bearer' })
+      .send({ decision: 'REJECTED', reason: 'Unreadable' })
+      .expect(200);
+    expect(response.body).toMatchObject({ tutorVerificationStatus: expected });
+    expect(verificationStatus).toBe(expected);
+  });
+
+  it('resets a rejected tutor to pending when new evidence is uploaded', async () => {
+    verificationStatus = 'REJECTED';
+    await request(app.getHttpServer())
+      .post(TUTOR_BASE)
+      .auth('tutor', { type: 'bearer' })
+      .field('documentType', 'CERTIFICATE')
+      .attach('file', PDF, 'certificate.pdf')
+      .expect(201);
+    expect(verificationStatus).toBe('PENDING');
+  });
+
+  it('retains an upload intent after ambiguous Storage failure for later recovery', async () => {
+    fetchMock
+      .mockResolvedValueOnce(storageResponse({ public: false }))
+      .mockRejectedValueOnce(new Error('connection lost after upload'));
+    await request(app.getHttpServer())
+      .post(TUTOR_BASE)
+      .auth('tutor', { type: 'bearer' })
+      .field('documentType', 'DEGREE')
+      .attach('file', PDF, 'degree.pdf')
+      .expect(503);
+    expect(intents.size).toBe(1);
+    expect(createDocument).not.toHaveBeenCalled();
+    await app.get(QualificationUploadRecoveryService).cleanup();
+    expect(intents.size).toBe(0);
+  });
+
+  it('keeps committed files after a metadata commit acknowledgement is lost', async () => {
+    const commit = transaction.getMockImplementation();
+    if (!commit) {
+      throw new Error('Missing transaction fixture');
+    }
+    transaction.mockImplementationOnce(async (work) => {
+      await commit(work);
+      throw new Error('commit acknowledgement lost');
+    });
+    await request(app.getHttpServer())
+      .post(TUTOR_BASE)
+      .auth('tutor', { type: 'bearer' })
+      .field('documentType', 'DEGREE')
+      .attach('file', PDF, 'degree.pdf')
+      .expect(503);
+    expect(intents.size).toBe(0);
+    expect(fetchMock.mock.calls.some(([, init]) => init?.method === 'DELETE')).toBe(false);
     expect(auditRecords).toHaveLength(1);
   });
 

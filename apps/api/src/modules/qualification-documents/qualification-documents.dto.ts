@@ -28,6 +28,9 @@ export enum QualificationDecision {
   REJECTED = 'REJECTED',
 }
 
+/** Binding no-query routes to this DTO makes global validation reject unknown query fields. */
+export class QualificationEmptyQueryDto {}
+
 export class UploadQualificationDto {
   @ApiProperty({ enum: QualificationDocumentType })
   @IsEnum(QualificationDocumentType)

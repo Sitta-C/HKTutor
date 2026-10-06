@@ -129,6 +129,9 @@ Service methods:
   or mismatched MIME signatures; return `{ objectPath, mimeType, sizeBytes }`. Paths are generated
   as `<user UUID>/<random UUID>.<detected extension>` with overwrites disabled. The caller can pass
   a multipart file's `buffer` and `mimetype`; never use its filename to construct the object path.
+- `prepareDocument(ownerUserId, file)` validates and reserves a unique path without network I/O;
+  `uploadPrepared(prepared)` uploads at that exact path. The qualification feature persists its
+  recovery intent between these calls so ambiguous Storage failures remain recoverable.
 - `remove('avatar' | 'document', objectPath)`: remove the specified object, including cleanup after
   a failed metadata write. This method does not check domain ownership.
 - `getAvatarPublicUrl(objectPath)`: compute the public avatar URL. Use only when the avatar bucket
@@ -182,10 +185,12 @@ and PNG with matching byte signatures are accepted, with an inclusive maximum of
 and invalid document types return 400. The API maps the infrastructure's oversize 413 to this
 card's 400 contract. Stored paths contain generated UUIDs, never original filenames. One pending
 document per tutor and document type is allowed; a competing upload returns 409. After a completed
-review, that type may be uploaded again. Uploading does not reset the tutor's verification status.
+review, that type may be uploaded again. UTF-8 filenames, including Thai, are preserved. Uploads
+recompute the aggregate profile state using the same rule as reviews.
 
 The 201 upload response is `{documentId,status,fileName,mimeType,size,createdAt}`. Lists contain
-`{items}` with `documentId,type,status,reviewedAt,rejectionReason` and the same safe file metadata.
+`{items}` with exactly `documentId,type,status,reviewedAt,rejectionReason` per item. The admin queue
+and detail additionally include safe file metadata.
 The tutor list supports optional `status`. All qualification status filters and responses use
 `PENDING | APPROVED | REJECTED`; `APPROVED` maps to the existing database `VERIFIED` enum. Tutor
 profile `verificationStatus` retains its existing `PENDING | VERIFIED | REJECTED` contract.
@@ -213,24 +218,42 @@ Review body is `{decision: "APPROVED" | "REJECTED", reason?: string}`. A rejecti
 trimmed reason of 1–500 characters; an approval may include a note of the same length. A completed
 document cannot be reviewed again (409). A transaction locks the tutor profile row, conditionally
 updates the pending document, updates tutor verification, and inserts one immutable `REVIEWED`
-audit event. Approval sets the profile to `VERIFIED`; rejection sets it to `REJECTED`. The latest
-committed review sets the tutor status, with reviews of different documents for that tutor
-serialized by the same profile lock. The response is
+audit event. The profile is `VERIFIED` when any document is approved; otherwise `PENDING` when any
+document is pending; otherwise `REJECTED`. Rejecting another document cannot revoke existing
+approved evidence. Uploads and reviews for the same tutor serialize on the profile lock. The response is
 `{documentId,status,reviewedAt,reviewedBy,tutorVerificationStatus}`. Approval notes live in the
 audit history; `rejectionReason` remains null on approved documents. Persistence failures roll
 back the entire review and return a sanitized 503.
 
-Upload metadata and its `UPLOADED` audit event also share a transaction. On a failed write, the
-service compensates by deleting only the new Storage object. PostgreSQL and Supabase cannot share
-one atomic transaction: if cleanup fails, the API returns 503 and logs a static reconciliation
-alert without paths or provider errors. Operators must reconcile orphan objects against
-`TutorDocument.objectPath`; abrupt process termination during upload also requires reconciliation.
+Uploads persist a `QualificationUploadIntent` before Storage I/O. Metadata, the `UPLOADED` audit,
+aggregate profile state, and intent consumption share one transaction. A failed metadata write
+attempts immediate cleanup. Storage timeouts keep their intent for recovery because the remote
+upload may have completed. A background worker checks up to five intents each minute, starting
+five minutes after an abandoned upload, and retries failed cleanup each minute. Work survives API
+restarts; monitor intent age/attempt counts and static recovery error logs for persistent outages.
+The worker locks each intent with `FOR UPDATE SKIP LOCKED`, checks document references, and only
+deletes unreferenced objects. Finalization locks the same intent, preventing deletion of committed
+files even if a commit acknowledgement is lost. Paths stay server-side and are never logged.
+PostgreSQL and Supabase cannot share an atomic transaction; objects orphaned before this recovery
+mechanism or created outside the API still require operator reconciliation.
+
+Every route validates query fields, including routes that accept no query parameters. Unknown
+fields return 400. Unexpected errors return the same `{statusCode,error,message,code}` envelope
+with a generic 500 message and static logging, without provider details.
 
 ### Migration and rollout
 
 `20261006150000_qualification_document_api` is a new forward migration. It adds the partial unique
 index for pending uploads and `TutorDocumentAudit` with foreign keys, bounded audit evidence,
 one-review uniqueness, and an append-only trigger. It preserves previous migrations and data.
+`20261006200000_qualification_upload_recovery` adds the durable upload intent table and reconciles
+existing tutor profile statuses from their document reviews. It preserves document and audit
+evidence, and leaves profiles without documents unchanged. Apply with qualification writes paused,
+then start the updated API so the background worker can recover abandoned uploads.
+`20261006201000_protect_qualification_metadata` enables RLS on all three qualification tables
+and revokes direct access from `PUBLIC`, `anon`, and `authenticated`. Application authorization
+remains in Nest; Prisma connects as the migration/table owner. Do not grant Supabase browser roles
+direct access to these private metadata/audit/recovery tables.
 Before deploying, inspect duplicate pending types with this read-only query and resolve them
 deliberately; the migration fails rather than deleting records automatically:
 
@@ -264,3 +287,16 @@ contention, and transactional failure propagation. Its persistence double models
 not prove PostgreSQL locks or Supabase expiry against live services. The SQL contract tests protect
 the migration invariants. Swagger and shared web wire types describe the API; frontend upload and
 admin review screens remain the separate S2-T08 task.
+
+For PostgreSQL concurrency and rollback verification, create an empty disposable loopback database
+whose name matches `hktutor_*_test`, apply migrations, then run:
+
+```bash
+HKTUTOR_ALLOW_DISPOSABLE_DB_VERIFY=1 pnpm db:verify:qualifications
+```
+
+Set `DATABASE_URL` explicitly to that disposable database for both commands. The script refuses
+remote hosts and lacks any seed dependency. It tests real upload/review contention, aggregate
+status, audit-trigger rollback, cleanup retries, reference protection, worker locking, and migration reconciliation with a
+simulated Storage transport. It inserts test actors/documents and retains immutable audit evidence;
+discard the test database afterward. It does not test live Supabase URL expiry.

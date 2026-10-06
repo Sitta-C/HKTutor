@@ -57,3 +57,51 @@ test('private preview audit evidence is bounded and append-only', async () => {
   assert.match(sql, /REFERENCES "TutorDocument"\("id"\) ON DELETE RESTRICT/);
   assert.match(sql, /REFERENCES "User"\("id"\) ON DELETE RESTRICT/);
 });
+
+test('upload recovery persists safe paths and attempts without storing file bytes or credentials', async () => {
+  const schema = await fs.readFile('apps/api/prisma/schema.prisma', 'utf8');
+  const intent = schema.match(/model QualificationUploadIntent\s*{([\s\S]*?)\n}/)?.[1];
+  assert.ok(intent);
+  assert.match(intent, /objectPath\s+String\s+@id/);
+  assert.match(intent, /nextAttemptAt\s+DateTime\s+@db.Timestamptz\(3\)/);
+  assert.match(intent, /attempts\s+Int\s+@default\(0\)/);
+  assert.doesNotMatch(intent, /buffer|fileBytes|signedUrl|secret|token/i);
+});
+
+test('recovery forward migration reconciles profile state without modifying document evidence', async () => {
+  const sql = await fs.readFile(
+    'apps/api/prisma/migrations/20261006200000_qualification_upload_recovery/migration.sql',
+    'utf8',
+  );
+  assert.match(sql, /CHECK \("attempts" >= 0\)/);
+  assert.match(sql, /CREATE INDEX "QualificationUploadIntent_nextAttemptAt_idx"/);
+  assert.match(
+    sql,
+    /UPDATE "TutorProfile" AS tutor[\s\S]*?WHEN EXISTS[\s\S]*?'verified'[\s\S]*?WHEN EXISTS[\s\S]*?'pending'[\s\S]*?ELSE 'rejected'/,
+  );
+  assert.match(
+    sql,
+    /WHERE EXISTS \(SELECT 1 FROM "TutorDocument" WHERE "tutorUserId" = tutor\."userId"\)/,
+  );
+  assert.doesNotMatch(sql, /UPDATE "TutorDocument"|DELETE FROM|DROP TABLE|TRUNCATE/i);
+});
+
+test('qualification metadata cannot bypass Nest authorization through Supabase browser roles', async () => {
+  const sql = await fs.readFile(
+    'apps/api/prisma/migrations/20261006201000_protect_qualification_metadata/migration.sql',
+    'utf8',
+  );
+  for (const table of ['TutorDocument', 'TutorDocumentAudit', 'QualificationUploadIntent']) {
+    assert.ok(sql.includes(`ALTER TABLE "${table}" ENABLE ROW LEVEL SECURITY`));
+  }
+  assert.match(
+    sql,
+    /REVOKE ALL ON TABLE "TutorDocument", "TutorDocumentAudit", "QualificationUploadIntent" FROM PUBLIC/,
+  );
+  assert.match(sql, /rolname IN \('anon', 'authenticated'\)/);
+  assert.match(sql, /FROM %I/);
+  assert.doesNotMatch(
+    sql,
+    /FORCE ROW LEVEL SECURITY|DISABLE ROW LEVEL SECURITY|CREATE POLICY|DROP TABLE|TRUNCATE/,
+  );
+});

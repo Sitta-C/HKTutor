@@ -129,6 +129,34 @@ describe('StorageService', () => {
     expect(first.objectPath).not.toBe(second.objectPath);
   });
 
+  it('prepares a path before network I/O and uploads exactly that path', async () => {
+    const prepared = service.prepareDocument(OWNER_ID, {
+      buffer: PDF,
+      mimeType: 'application/pdf',
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
+    fetchMock
+      .mockResolvedValueOnce(response({ public: false }))
+      .mockResolvedValueOnce(response({ Key: 'uploaded', Id: 'file-id' }));
+    const stored = await service.uploadPrepared(prepared);
+    expect(stored.objectPath).toBe(prepared.objectPath);
+    expect(fetchMock.mock.calls[1]?.[0]).toContain(prepared.objectPath);
+  });
+
+  it('rejects tampered prepared upload metadata before network I/O', async () => {
+    const prepared = service.prepareDocument(OWNER_ID, {
+      buffer: PDF,
+      mimeType: 'application/pdf',
+    });
+    await expect(service.uploadPrepared({ ...prepared, sizeBytes: 0 })).rejects.toThrow(
+      BadRequestException,
+    );
+    await expect(
+      service.uploadPrepared({ ...prepared, objectPath: `${OWNER_ID}/file.png` }),
+    ).rejects.toThrow(BadRequestException);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it.each([
     { buffer: Buffer.alloc(0), mimeType: 'image/png' },
     { buffer: PDF, mimeType: 'image/png' },

@@ -18,6 +18,7 @@ import {
 } from '@infrastructure/storage/storage.types';
 
 import type {
+  PreparedStorageUpload,
   StorageClient,
   StoragePurpose,
   StorageUpload,
@@ -48,6 +49,36 @@ export class StorageService {
 
   async uploadDocument(ownerUserId: string, file: StorageUpload): Promise<StoredFile> {
     return this.upload('document', ownerUserId, file);
+  }
+
+  prepareDocument(ownerUserId: string, file: StorageUpload): PreparedStorageUpload {
+    return this.prepare('document', ownerUserId, file);
+  }
+
+  async uploadPrepared(file: PreparedStorageUpload): Promise<StoredFile> {
+    // Revalidate before network I/O; prepared uploads are internal, never HTTP input.
+    this.validateObjectPath(file.objectPath);
+    const owner = file.objectPath.split('/')[0] ?? '';
+    const validated = this.prepare(file.purpose, owner, file);
+    if (
+      !file.objectPath.endsWith(`.${EXTENSIONS[validated.mimeType]}`) ||
+      file.sizeBytes !== validated.sizeBytes
+    ) {
+      throw new BadRequestException('Prepared upload metadata does not match its file');
+    }
+    if (file.purpose === 'document') {
+      await this.assertPrivateDocumentBucket();
+    }
+    await this.request(
+      () =>
+        this.client.storage.from(this.bucket(file.purpose)).upload(file.objectPath, file.buffer, {
+          contentType: file.mimeType,
+          cacheControl: file.purpose === 'avatar' ? '3600' : '0',
+          upsert: false,
+        }),
+      'File could not be uploaded',
+    );
+    return { objectPath: file.objectPath, mimeType: file.mimeType, sizeBytes: file.sizeBytes };
   }
 
   async remove(purpose: StoragePurpose, objectPath: string): Promise<void> {
@@ -91,6 +122,14 @@ export class StorageService {
     ownerUserId: string,
     file: StorageUpload,
   ): Promise<StoredFile> {
+    return this.uploadPrepared(this.prepare(purpose, ownerUserId, file));
+  }
+
+  private prepare(
+    purpose: StoragePurpose,
+    ownerUserId: string,
+    file: StorageUpload,
+  ): PreparedStorageUpload {
     if (!/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(ownerUserId)) {
       throw new BadRequestException('File owner must be a user UUID');
     }
@@ -112,20 +151,14 @@ export class StorageService {
     if (!extension) {
       throw new BadRequestException('File type is unsupported');
     }
-    if (purpose === 'document') {
-      await this.assertPrivateDocumentBucket();
-    }
     const objectPath = `${ownerUserId}/${randomUUID()}.${extension}`;
-    await this.request(
-      () =>
-        this.client.storage.from(this.bucket(purpose)).upload(objectPath, file.buffer, {
-          contentType: file.mimeType,
-          cacheControl: purpose === 'avatar' ? '3600' : '0',
-          upsert: false,
-        }),
-      'File could not be uploaded',
-    );
-    return { objectPath, mimeType: file.mimeType, sizeBytes: file.buffer.length };
+    return {
+      objectPath,
+      mimeType: file.mimeType,
+      sizeBytes: file.buffer.length,
+      purpose,
+      buffer: file.buffer,
+    };
   }
 
   private bucket(purpose: StoragePurpose): string {

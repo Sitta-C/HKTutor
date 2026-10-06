@@ -21,6 +21,7 @@ import { ResourceOwnershipGuard } from '@modules/auth/ownership.guard';
 import { Roles } from '@modules/auth/roles.decorator';
 import { RolesGuard } from '@modules/auth/roles.guard';
 import {
+  QualificationEmptyQueryDto,
   QualificationListQueryDto,
   QualificationQueueQueryDto,
   ReviewQualificationDto,
@@ -63,8 +64,10 @@ export class TutorQualificationDocumentsController {
   upload(
     @CurrentUser() user: AuthenticatedUser,
     @Body() dto: UploadQualificationDto,
+    @Query() _query: QualificationEmptyQueryDto,
     @UploadedFile() file: Express.Multer.File | undefined,
   ): Promise<QualificationUploadResponseDto> {
+    void _query;
     return this.documents.upload(user, dto, file);
   }
 
@@ -88,7 +91,9 @@ export class TutorQualificationDocumentsController {
   signedUrl(
     @CurrentUser() user: AuthenticatedUser,
     @Param('documentId', UuidParamPipe) documentId: string,
+    @Query() _query: QualificationEmptyQueryDto,
   ): Promise<QualificationSignedUrlResponseDto> {
+    void _query;
     return this.documents.signedUrl(user, documentId, 'tutor');
   }
 }
@@ -114,7 +119,9 @@ export class AdminTutorVerificationsController {
   detail(
     @CurrentUser() user: AuthenticatedUser,
     @Param('documentId', UuidParamPipe) documentId: string,
+    @Query() _query: QualificationEmptyQueryDto,
   ): Promise<QualificationDetailResponseDto> {
+    void _query;
     return this.documents.detail(user, documentId);
   }
 
@@ -124,7 +131,9 @@ export class AdminTutorVerificationsController {
   signedUrl(
     @CurrentUser() user: AuthenticatedUser,
     @Param('documentId', UuidParamPipe) documentId: string,
+    @Query() _query: QualificationEmptyQueryDto,
   ): Promise<QualificationSignedUrlResponseDto> {
+    void _query;
     return this.documents.signedUrl(user, documentId, 'admin');
   }
 
@@ -134,7 +143,9 @@ export class AdminTutorVerificationsController {
     @CurrentUser() user: AuthenticatedUser,
     @Param('documentId', UuidParamPipe) documentId: string,
     @Body() dto: ReviewQualificationDto,
+    @Query() _query: QualificationEmptyQueryDto,
   ): Promise<QualificationReviewResponseDto> {
+    void _query;
     return this.documents.review(user, documentId, dto);
   }
 }

@@ -48,9 +48,22 @@ export class QualificationDocumentResponseDto extends QualificationUploadRespons
   rejectionReason!: string | null;
 }
 
+export class QualificationListItemResponseDto {
+  @ApiProperty({ format: 'uuid' })
+  documentId!: string;
+  @ApiProperty({ example: 'DEGREE' })
+  type!: string;
+  @ApiProperty({ enum: QualificationStatus })
+  status!: QualificationStatus;
+  @ApiProperty({ type: String, nullable: true, format: 'date-time' })
+  reviewedAt!: string | null;
+  @ApiProperty({ type: String, nullable: true })
+  rejectionReason!: string | null;
+}
+
 export class QualificationListResponseDto {
-  @ApiProperty({ type: [QualificationDocumentResponseDto] })
-  items!: QualificationDocumentResponseDto[];
+  @ApiProperty({ type: [QualificationListItemResponseDto] })
+  items!: QualificationListItemResponseDto[];
 }
 
 export class QualificationTutorResponseDto {
@@ -208,7 +221,7 @@ export function ReviewQualificationDoc(): MethodDecorator {
     ApiOperation({
       summary: 'Review a pending qualification document once',
       description:
-        'ADMIN only. APPROVED maps to VERIFIED and REJECTED maps to REJECTED. Document, tutor status and audit update atomically; latest committed review sets the tutor status.',
+        'ADMIN only. Document, tutor status and audit update atomically. Tutor is VERIFIED if any document is approved, otherwise PENDING if any is pending, otherwise REJECTED.',
     }),
     ApiOkResponse({ type: QualificationReviewResponseDto }),
     ...errors(true, true),

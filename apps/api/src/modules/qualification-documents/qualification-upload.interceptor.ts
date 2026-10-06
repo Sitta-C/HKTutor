@@ -9,6 +9,7 @@ import type { Observable } from 'rxjs';
 @Injectable()
 export class QualificationUploadInterceptor
   extends FileInterceptor('file', {
+    defParamCharset: 'utf8',
     // Multer rejects at its limit; the service enforces the inclusive 5 MiB boundary.
     limits: { fileSize: DOCUMENT_MAX_SIZE_BYTES + 1, files: 1, fields: 1, fieldSize: 1024 },
   })

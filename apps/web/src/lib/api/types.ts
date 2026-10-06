@@ -19,7 +19,10 @@ export interface QualificationDocument extends QualificationUploadResponse {
 }
 
 export interface QualificationListResponse {
-  items: QualificationDocument[];
+  items: Pick<
+    QualificationDocument,
+    'documentId' | 'type' | 'status' | 'reviewedAt' | 'rejectionReason'
+  >[];
 }
 
 export interface QualificationTutor {

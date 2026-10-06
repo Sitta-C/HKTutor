@@ -6,10 +6,11 @@ import {
   TutorQualificationDocumentsController,
 } from '@modules/qualification-documents/qualification-documents.controller';
 import { QualificationDocumentsService } from '@modules/qualification-documents/qualification-documents.service';
+import { QualificationUploadRecoveryService } from '@modules/qualification-documents/qualification-upload-recovery.service';
 
 @Module({
   imports: [StorageModule],
   controllers: [TutorQualificationDocumentsController, AdminTutorVerificationsController],
-  providers: [QualificationDocumentsService],
+  providers: [QualificationDocumentsService, QualificationUploadRecoveryService],
 })
 export class QualificationDocumentsModule {}

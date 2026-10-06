@@ -3,7 +3,6 @@ import {
   ConflictException,
   ForbiddenException,
   Injectable,
-  Logger,
   NotFoundException,
   PayloadTooLargeException,
   ServiceUnavailableException,
@@ -35,11 +34,15 @@ import {
   DOCUMENT_SELECT,
   encodeQualificationCursor,
   toDocumentResponse,
+  toListItemResponse,
   toQualificationStatus,
   toReviewStatus,
 } from '@modules/qualification-documents/qualification-documents.model';
+import {
+  QualificationUploadRecoveryService,
+  UPLOAD_RECOVERY_GRACE_MS,
+} from '@modules/qualification-documents/qualification-upload-recovery.service';
 
-import type { StoredFile } from '@infrastructure/storage/storage.types';
 import type { AuthenticatedUser } from '@modules/auth/auth.guard';
 import type {
   QualificationListQueryDto,
@@ -60,11 +63,10 @@ import type {} from 'multer';
 
 @Injectable()
 export class QualificationDocumentsService {
-  private readonly logger = new Logger(QualificationDocumentsService.name);
-
   constructor(
     private readonly prisma: PrismaService,
     private readonly storage: StorageService,
+    private readonly recovery: QualificationUploadRecoveryService,
   ) {}
 
   async upload(
@@ -101,12 +103,19 @@ export class QualificationDocumentsService {
     ) {
       throw pendingConflict();
     }
-    let uploaded: StoredFile;
+    const uploaded = this.storage.prepareDocument(user.id, {
+      buffer: file.buffer,
+      mimeType: file.mimetype,
+    });
+    // Persist before Storage I/O so a timeout or process crash still leaves a recovery task.
+    await this.prisma.qualificationUploadIntent.create({
+      data: {
+        objectPath: uploaded.objectPath,
+        nextAttemptAt: new Date(Date.now() + UPLOAD_RECOVERY_GRACE_MS),
+      },
+    });
     try {
-      uploaded = await this.storage.uploadDocument(user.id, {
-        buffer: file.buffer,
-        mimeType: file.mimetype,
-      });
+      await this.storage.uploadPrepared(uploaded);
     } catch (error) {
       if (error instanceof PayloadTooLargeException) {
         throw new BadRequestException('Document must not exceed 5 MiB');
@@ -118,6 +127,14 @@ export class QualificationDocumentsService {
       document = await this.prisma.$transaction(async (tx) => {
         await this.lockTutor(tx, user.id);
         await this.assertTutor(user, tx);
+        const intents = await tx.$queryRaw<Array<{ objectPath: string }>>`
+          SELECT "objectPath" FROM "QualificationUploadIntent"
+          WHERE "objectPath" = ${uploaded.objectPath} FOR UPDATE`;
+        if (!intents.length) {
+          throw new ServiceUnavailableException(
+            'Document upload expired before metadata was saved',
+          );
+        }
         const created = await tx.tutorDocument.create({
           data: {
             tutorUserId: user.id,
@@ -136,17 +153,16 @@ export class QualificationDocumentsService {
             action: TutorDocumentAuditAction.UPLOADED,
           },
         });
+        await this.updateTutorVerification(tx, user.id);
+        await tx.qualificationUploadIntent.delete({ where: { objectPath: uploaded.objectPath } });
         return created;
       });
     } catch (error) {
       try {
-        await this.storage.remove('document', uploaded.objectPath);
+        await this.recovery.cleanup(uploaded.objectPath);
       } catch {
-        this.logger.error(
-          'Qualification upload rollback could not remove the new object; storage reconciliation is required',
-        );
         throw new ServiceUnavailableException(
-          'Document upload could not be completed or cleaned up',
+          'Document metadata could not be saved; cleanup will retry',
         );
       }
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
@@ -185,7 +201,7 @@ export class QualificationDocumentsService {
       select: DOCUMENT_SELECT,
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
     });
-    return { items: documents.map(toDocumentResponse) };
+    return { items: documents.map(toListItemResponse) };
   }
 
   async queue(
@@ -339,16 +355,13 @@ export class QualificationDocumentsService {
         if (!document) {
           throw documentNotFound();
         }
-        // All reviews for a tutor serialize so profile status follows the last committed decision.
+        // Serialize uploads and reviews so aggregation includes the latest committed evidence.
         await this.lockTutor(tx, document.tutorUserId);
         const reviewedAt = new Date();
         const approved = dto.decision === QualificationDecision.APPROVED;
         const reviewStatus = approved
           ? TutorDocumentReviewStatus.VERIFIED
           : TutorDocumentReviewStatus.REJECTED;
-        const tutorVerificationStatus = approved
-          ? TutorVerificationStatus.VERIFIED
-          : TutorVerificationStatus.REJECTED;
         const updated = await tx.tutorDocument.updateMany({
           where: {
             id: documentId,
@@ -370,11 +383,10 @@ export class QualificationDocumentsService {
             statusCode: 409,
           });
         }
-        await tx.tutorProfile.update({
-          where: { userId: document.tutorUserId },
-          data: { verificationStatus: tutorVerificationStatus },
-          select: { userId: true },
-        });
+        const tutorVerificationStatus = await this.updateTutorVerification(
+          tx,
+          document.tutorUserId,
+        );
         await tx.tutorDocumentAudit.create({
           data: {
             documentId,
@@ -405,6 +417,29 @@ export class QualificationDocumentsService {
     if (user.role !== role) {
       throw new ForbiddenException('You do not have permission to access qualification documents');
     }
+  }
+
+  private async updateTutorVerification(
+    tx: Prisma.TransactionClient,
+    tutorUserId: string,
+  ): Promise<TutorVerificationStatus> {
+    const documents = await tx.tutorDocument.findMany({
+      where: { tutorUserId },
+      select: { reviewStatus: true },
+    });
+    const verificationStatus = documents.some(
+      (doc) => doc.reviewStatus === TutorDocumentReviewStatus.VERIFIED,
+    )
+      ? TutorVerificationStatus.VERIFIED
+      : documents.some((doc) => doc.reviewStatus === TutorDocumentReviewStatus.PENDING)
+        ? TutorVerificationStatus.PENDING
+        : TutorVerificationStatus.REJECTED;
+    await tx.tutorProfile.update({
+      where: { userId: tutorUserId },
+      data: { verificationStatus },
+      select: { userId: true },
+    });
+    return verificationStatus;
   }
 
   private async assertTutor(

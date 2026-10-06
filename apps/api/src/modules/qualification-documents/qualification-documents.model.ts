@@ -5,7 +5,10 @@ import { TutorDocumentReviewStatus } from '@generated/prisma/enums';
 import { QualificationStatus } from '@modules/qualification-documents/qualification-documents.dto';
 
 import type { Prisma } from '@generated/prisma/client';
-import type { QualificationDocumentResponseDto } from '@modules/qualification-documents/qualification-documents.swagger';
+import type {
+  QualificationDocumentResponseDto,
+  QualificationListItemResponseDto,
+} from '@modules/qualification-documents/qualification-documents.swagger';
 
 export const DOCUMENT_SELECT = {
   id: true,
@@ -65,6 +68,16 @@ export function toDocumentResponse(document: DocumentMetadata): QualificationDoc
     mimeType: document.mimeType,
     size: document.sizeBytes,
     createdAt: document.createdAt.toISOString(),
+    reviewedAt: document.reviewedAt?.toISOString() ?? null,
+    rejectionReason: document.rejectionReason,
+  };
+}
+
+export function toListItemResponse(document: DocumentMetadata): QualificationListItemResponseDto {
+  return {
+    documentId: document.id,
+    type: document.documentType,
+    status: toQualificationStatus(document.reviewStatus),
     reviewedAt: document.reviewedAt?.toISOString() ?? null,
     rejectionReason: document.rejectionReason,
   };

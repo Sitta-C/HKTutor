@@ -191,6 +191,16 @@ model TutorDocumentAudit {
   @@index([documentId, createdAt, id], map: "TutorDocumentAudit_documentId_createdAt_id_idx")
 }
 
+/// Durable private upload intent. Removed atomically when document metadata commits.
+model QualificationUploadIntent {
+  objectPath    String   @id
+  createdAt     DateTime @default(now()) @db.Timestamptz(3)
+  nextAttemptAt DateTime @db.Timestamptz(3)
+  attempts      Int      @default(0)
+
+  @@index([nextAttemptAt], map: "QualificationUploadIntent_nextAttemptAt_idx")
+}
+
 model AvailabilitySlot {
   id             String       @id @default(uuid()) @db.Uuid
   tutorProfileId String       @db.Uuid
