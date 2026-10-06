@@ -9,7 +9,9 @@ test('tutor search has a responsive and accessible page shell', async ({ page })
   await mockTutorSearch(page);
   await page.goto('/tutors');
 
-  await expect(page.getByRole('heading', { level: 1, name: 'Find an exact match' })).toBeVisible();
+  await expect(
+    page.getByRole('heading', { level: 1, name: 'Find the course for you' }),
+  ).toBeVisible();
   await expect(page.getByRole('heading', { level: 2, name: 'Filters' })).toBeVisible();
   await expect(page.getByRole('link', { name: 'View times' })).toBeVisible();
   await expect(page.locator('main')).toHaveCount(1);
@@ -95,7 +97,7 @@ test('tutor search has a responsive and accessible page shell', async ({ page })
   await page.getByRole('button', { name: 'Switch language to Thai' }).click();
   await expect(page.locator('html')).toHaveAttribute('lang', 'th');
   await expect(
-    page.getByRole('heading', { level: 1, name: 'ค้นหาติวเตอร์ที่ตรงกับคุณ' }),
+    page.getByRole('heading', { level: 1, name: 'ค้นหาคอร์สที่ตรงกับคุณ' }),
   ).toBeVisible();
 });
 

@@ -184,7 +184,7 @@ for (const route of [
     });
     try {
       await page.goto(route);
-      await expect(page.locator('[data-loading-region]').first()).toBeVisible();
+      await expect(page.locator('[data-loading-region]:visible').first()).toBeVisible();
       await expect(page.locator('[data-loading-kind]')).toHaveCount(0);
       await expectShellVisible(page);
     } finally {

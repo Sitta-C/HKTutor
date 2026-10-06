@@ -42,6 +42,7 @@ export default function PublicTutorSearchShell({ children }: { children: ReactNo
   }
 
   const shellUser = profileUser ?? publicGuestUser;
+  const isSearchPage = pathname === '/tutors';
 
   return (
     <DashboardShell
@@ -52,13 +53,26 @@ export default function PublicTutorSearchShell({ children }: { children: ReactNo
         router.push('/');
       }}
       showSignOut={Boolean(user)}
+      {...(isSearchPage ? { navBadges: { bookings: '—' } } : {})}
       headerNavRight={
-        <>
-          <Link href="/dashboard/bookings">{copy.dashboard.header.myBookingsNav}</Link>
-          <Link href="/tutors" data-dashboard-action>
-            {copy.dashboard.header.findTutorCta}
-          </Link>
-        </>
+        isSearchPage ? (
+          user ? (
+            <Link href="/dashboard/bookings" data-dashboard-action>
+              {copy.dashboard.header.myBookingsNav}
+            </Link>
+          ) : (
+            <Link href="/" data-dashboard-action>
+              {tutorSearchCopy[language].signIn}
+            </Link>
+          )
+        ) : (
+          <>
+            <Link href="/dashboard/bookings">{copy.dashboard.header.myBookingsNav}</Link>
+            <Link href="/tutors" data-dashboard-action>
+              {copy.dashboard.header.findTutorCta}
+            </Link>
+          </>
+        )
       }
     >
       {children}

@@ -1,6 +1,6 @@
 # Implemented frontend behavior
 
-Updated 2026-10-06. This describes the current implementation, including interaction and layout
+Updated 2026-10-07. This describes the current implementation, including interaction and layout
 details moved from the root README. Follow the source for exact behavior and update this reference
 when behavior changes. See [frontend direction](frontend-direction.md) for design patterns and workflow.
 
@@ -77,6 +77,33 @@ header find-tutor CTA and existing shell navigation remain. Styles are isolated 
 shared shell and tutor layouts remain unchanged, and the pagination's standard text-button mode
 remains the default for other consumers. Thai/English copy and reduced-motion
 preferences are preserved.
+
+The public/student search page at `/tutors` uses **Course Index**. A filter memo sits left of one
+continuous ruled result sheet from 768px. Below 768px, the filter memo appears above results with a
+native Show/Hide button and begins collapsed. Hidden fields stay mounted, preserving draft values;
+changes alone do not search. Apply retains the original validation, closes valid mobile filters and
+returns focus to the visible toggle. Invalid Apply expands the filters, focuses the first invalid
+control, and keeps the result count unavailable. Clear resets all four fields and searches page one.
+Subject, grade and minimum rating use the existing shared `NotebookSelect`; maximum price retains
+its existing number input, step, hint and validation. Catalog loading/errors keep the two catalog
+selects disabled, independently of result loading/errors.
+
+Each search row is keyed by listing ID: the same tutor can have multiple separate courses, including
+across pages. Tutor identity, a plain mint verification tag without a checkmark, rating/reviews and
+experience accompany a blue grade tab, subject, upright hourly price on slightly tilted yellow paper,
+two-line description, Bangkok next availability and the view-times action. Null ratings show New tutor;
+missing future availability remains explicit. Narrow result sheets stack the same anatomy through a
+container query. No per-row tape or hover lift is used. The original encoded tutor/listing detail link
+is preserved. Pagination uses the response's page, totalPages and total with pageSize 10, fetching
+only the selected server page with the last applied query. Abort controllers and request IDs still
+protect against cancelled/stale responses; no API client, request contract or authentication changes
+were introduced. Loading retains the shell and inline result skeleton; result counts are unavailable
+until success, including validation/search errors, with zero only after successful empty results.
+
+Only the `/tutors` header changes: guests see Sign in and authenticated users see My bookings, with
+no link back to search. Its unloaded sidebar booking count is unavailable. Public tutor detail retains
+its existing header actions, selected-listing flow and guest login/onboarding return path. These search
+styles do not alter shared primitives, tutor UI or implement the unselected tutor-detail redesign.
 
 The tutor dashboard follows the Notebook Focus layout: the next confirmed session, today's
 availability, pending requests, monthly teaching analytics, and course performance. Today's availability

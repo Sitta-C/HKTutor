@@ -1,6 +1,6 @@
 # HKTutor frontend direction — Notebook Focus
 
-Updated 2026-10-06. This describes the implemented Notebook Focus direction and component
+Updated 2026-10-07. This describes the implemented Notebook Focus direction and component
 patterns in this repository. Maintainers review changes to shared design conventions through the
 normal PR process; this guide does not assert team approval of decisions from an individual chat.
 Read it as implementation context before UI work. The current task's explicit requirements take
@@ -62,6 +62,7 @@ See [implemented frontend behavior](implemented-behavior.md) for detailed intera
 | ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
 | Tutor dashboard              | Notebook Focus; teaching overview, pending requests, analytics, and course performance                                                                               | `apps/web/src/components/dashboard/tutor-dashboard.tsx`                                 |
 | Student dashboard            | **Desk Spread**: two notebook sheets joined by closely spaced wire loops; next booking and compact count strip on the left, booking-derived tutor index on the right | `apps/web/src/components/dashboard/student-dashboard.tsx` and its stylesheet            |
+| Student course search        | **Course Index**: left filter memo, continuous ruled course rows, grade tabs, yellow rate notes, and plain verification tags; mobile filters collapse                | `apps/web/src/components/tutors/tutor-search-page.tsx` and its stylesheet               |
 | Course management            | **Course Ledger**: one compact count strip, status tabs/search, and continuous ruled rows with a binding margin; grade above subject, rate/date/actions below        | `apps/web/src/components/listings/tutor-listings-page.tsx` and its stylesheet           |
 | Past requests                | Hidden by default; blue bookmark-note switch shows them; pale paper/perforated styling keeps past rows readable                                                      | `apps/web/src/components/ui/bookmark-note-switch.tsx`, `notebook.module.css`            |
 | Course performance selection | **Subject Index** with a subject directory and stable subcolors; show all courses of the selected subject without pagination                                         | `apps/web/src/components/ui/subject-course-index.tsx` and its stylesheet                |
@@ -109,6 +110,35 @@ remaining student redesign work; their individual layouts still require selectio
   one page suffices.
 - Counts and tutors describe only loaded booking records (up to 100), never lifetime activity or
   favorites. Preserve the existing pending/confirmed next-booking selection and booking-detail links.
+
+## Student course search
+
+The user selected **Course Index** for `/tutors` on 2026-10-07, with filters on the left,
+existing `NotebookSelect` dropdowns, more dimensional price paper, and verification as a text tag
+without a checkmark. This is implemented for guests and signed-in students.
+
+- Use one continuous result sheet with a restrained binding margin and ruled separators. Keep the
+  filter memo on the left from 768px; below that width it sits above results and starts collapsed.
+  The native toggle preserves mounted field values, explicit Apply/Clear controls, keyboard focus,
+  and validation messages. Successful Apply collapses mobile filters; invalid Apply keeps them open
+  and focuses the first invalid control.
+- Each row remains one course/listing. Lead with tutor identity and a small passive verification
+  tag, rating/review count and experience; show a blue grade tab above subject, yellow rate paper,
+  description, next availability and the original view-times link. The paper beneath the price tilts
+  slightly and has a subtle fold/shadow; price text and actions stay upright. Do not add tape or a
+  separate lifted card to each result. Container queries stack row anatomy when the result sheet
+  is narrow, including tablet and desktop columns.
+- Reuse `PaperCard`, `NotebookHeading`, `StatusBadge`, `NotebookSelect`, buttons and loading regions.
+  Styling is scoped to search; shared primitives and the tutor editor's **Note Window** are unchanged.
+  Grade/subject/rate/description provide continuity with Note Window. Tutor detail's redesign still
+  requires its own selection; this search layout does not approve a shared global course component.
+- The search header keeps one sign-in action for guests or My bookings for authenticated users;
+  remove its self-link to search. The booking badge is unavailable because this page does not load
+  bookings. The existing public tutor detail header keeps its original actions.
+- Preserve four filters, validation, query parameters, page size 10, server pagination, cancellation
+  and stale-response guards. Do not group by tutor, merge pages, add unsupported controls, or change
+  availability formatting. Keep explicit null-rating/no-availability states and unavailable result
+  counts until a successful response; zero belongs only to successful empty results.
 
 ## Scope and data
 
