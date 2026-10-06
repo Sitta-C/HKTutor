@@ -119,18 +119,32 @@ export function ListingMetric({
 export function ListingStatusBadge({
   status,
   labels,
+  variant = 'default',
 }: {
   status: ListingPublicationStatus;
   labels: Record<ListingPublicationStatus, string>;
+  variant?: 'default' | 'ledger';
 }) {
   const tone = {
     DRAFT: 'neutral',
     PUBLISHED: 'success',
     ARCHIVED: 'danger',
   } as const;
+  const ledgerTone = {
+    DRAFT: 'warning',
+    PUBLISHED: 'tutor',
+    ARCHIVED: 'neutral',
+  } as const;
 
   return (
-    <StatusBadge tone={tone[status]} className="min-h-7 shrink-0 gap-2 tracking-[0.08em]">
+    <StatusBadge
+      tone={variant === 'ledger' ? ledgerTone[status] : tone[status]}
+      className={
+        variant === 'ledger'
+          ? `min-h-7 shrink-0 gap-1.5 rounded-md text-[0.6875rem] ${status === 'ARCHIVED' ? 'border-dashed bg-paper-deep' : ''}`
+          : 'min-h-7 shrink-0 gap-2 tracking-[0.08em]'
+      }
+    >
       <span className="h-1.5 w-1.5 rounded-full bg-current" aria-hidden="true" />
       {labels[status]}
     </StatusBadge>

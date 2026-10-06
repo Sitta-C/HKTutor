@@ -34,16 +34,17 @@ older prototypes remain references, not instructions to restore superseded layou
 
 ## Selected patterns
 
-| Area                         | User-selected direction                                                                                                                 | Implementation reference                                                                |
-| ---------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
-| Tutor dashboard              | Notebook Focus; teaching overview, pending requests, analytics, and course performance                                                  | `apps/web/src/components/dashboard/tutor-dashboard.tsx`                                 |
-| Past requests                | Hidden by default; blue bookmark-note switch shows them; pale paper/perforated styling keeps past rows readable                         | `apps/web/src/components/ui/bookmark-note-switch.tsx`, `notebook.module.css`            |
-| Course performance selection | **Subject Index** with a subject directory and stable subcolors; show all courses of the selected subject without pagination            | `apps/web/src/components/ui/subject-course-index.tsx` and its stylesheet                |
-| Course details               | One course expanded at a time, directly beneath the clicked row; clicking again collapses it, with a light height transition            | `apps/web/src/components/ui/subject-course-index.tsx`                                   |
-| Month selection              | **Ruler Reel**, a compact single horizontal row with native scrolling/snap; preserve its original compact height                        | `apps/web/src/components/date-time/month-ruler.tsx` and its stylesheet                  |
-| Availability summary         | **Ledger Strip**: two counts in one ruled-paper surface; blue open-time icon, warm booked-time icon, a small timezone tag in the footer | `apps/web/src/components/availability/availability-summary.tsx` and its stylesheet      |
-| Availability header          | No redundant “My courses” header button; course navigation remains in the existing shell                                                | `apps/web/src/components/availability/manage-tutor-availability.tsx`                    |
-| Availability ranges          | Continuous notebook rows across dates, binding margin, compact status/delete controls, and explicit ended state                         | `apps/web/src/components/availability/manage-tutor-availability.tsx` and its stylesheet |
+| Area                         | User-selected direction                                                                                                                                       | Implementation reference                                                                |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| Tutor dashboard              | Notebook Focus; teaching overview, pending requests, analytics, and course performance                                                                        | `apps/web/src/components/dashboard/tutor-dashboard.tsx`                                 |
+| Course management            | **Course Ledger**: one compact count strip, status tabs/search, and continuous ruled rows with a binding margin; grade above subject, rate/date/actions below | `apps/web/src/components/listings/tutor-listings-page.tsx` and its stylesheet           |
+| Past requests                | Hidden by default; blue bookmark-note switch shows them; pale paper/perforated styling keeps past rows readable                                               | `apps/web/src/components/ui/bookmark-note-switch.tsx`, `notebook.module.css`            |
+| Course performance selection | **Subject Index** with a subject directory and stable subcolors; show all courses of the selected subject without pagination                                  | `apps/web/src/components/ui/subject-course-index.tsx` and its stylesheet                |
+| Course details               | One course expanded at a time, directly beneath the clicked row; clicking again collapses it, with a light height transition                                  | `apps/web/src/components/ui/subject-course-index.tsx`                                   |
+| Month selection              | **Ruler Reel**, a compact single horizontal row with native scrolling/snap; preserve its original compact height                                              | `apps/web/src/components/date-time/month-ruler.tsx` and its stylesheet                  |
+| Availability summary         | **Ledger Strip**: two counts in one ruled-paper surface; blue open-time icon, warm booked-time icon, a small timezone tag in the footer                       | `apps/web/src/components/availability/availability-summary.tsx` and its stylesheet      |
+| Availability header          | No redundant “My courses” header button; course navigation remains in the existing shell                                                                      | `apps/web/src/components/availability/manage-tutor-availability.tsx`                    |
+| Availability ranges          | Continuous notebook rows across dates, binding margin, compact status/delete controls, and explicit ended state                                               | `apps/web/src/components/availability/manage-tutor-availability.tsx` and its stylesheet |
 
 The course selector evolved from Binder Drawer to Subject Index. Do not revert to the earlier
 paginated drawer or nested-folder proposal just because an older preview shows it. Request-list
@@ -90,6 +91,10 @@ pagination is separate and remains in place; the no-pagination decision applies 
 - **Global confirmation component is still a proposal**, not an approved global implementation.
   Paper Dialog, Sticky Memo, Binder Notice, and Decision Sheet were previewed; no explicit design
   choice has been given. The existing availability delete dialog remains its own implemented flow.
-- `/dashboard/listings` has **no newly approved redesign yet**. Use the existing course-management
-  behavior with this visual direction and present options before changing its layout. Do not assume
-  that analytics or course-performance selectors belong on the course-management page.
+- `/dashboard/listings` uses the approved **Course Ledger** design, selected on 2026-10-06.
+  Keep the existing course-management search, publication filters, editing links, publication,
+  archive confirmation, and restoration. Published badges are blue, drafts warm, and archived
+  badges neutral; archived courses remain editable. Loading/error counts are unavailable rather
+  than zero. On mobile, use the existing native status select and wrap actions within each row.
+  Do not add analytics or course-performance selectors to this page. Course Slips and Margin Notes
+  remain unselected alternatives.
