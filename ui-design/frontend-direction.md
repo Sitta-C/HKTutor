@@ -102,7 +102,8 @@ remaining student redesign work; their individual layouts still require selectio
   removed. The right sheet is a tutor index from bookings, with four tutors per page using the
   shared `NotebookPagination`'s opt-in **paper-turn** variant. Previous/next are small icon-only
   circles with 44px touch targets, localized accessible names, keyboard focus, and disabled boundary
-  states. Keep the live record range; page-count text is available to assistive technology. The
+  states. The tab reads “Your tutors” / “ติวเตอร์ของคุณ”. Record-range and page-count numbers are
+  visually hidden and remain available to assistive technology. The
   standard text-button pagination remains the default for other consumers. Hide pagination when
   one page suffices.
 - Counts and tutors describe only loaded booking records (up to 100), never lifetime activity or

@@ -168,7 +168,7 @@ test('confirmed cross-midnight booking shows Bangkok date range and confirmation
   await expect(next.getByText('Your booking is confirmed')).toBeVisible();
   await expect(next).toContainText('23:30–00:30');
   await expect(next).toContainText(/5\s*–\s*6 Oct 2026/);
-  await expect(page.getByRole('navigation', { name: 'Tutor index pages' })).toHaveCount(0);
+  await expect(page.getByRole('navigation', { name: 'Tutor pages' })).toHaveCount(0);
 });
 
 test('right sheet paginates loaded tutors with keyboard and preserves original booking links', async ({
@@ -189,7 +189,7 @@ test('right sheet paginates loaded tutors with keyboard and preserves original b
   const calls = await mockDashboard(page, items);
   await page.goto('/dashboard');
   const index = page.getByRole('region', { name: 'Tutors from your bookings', exact: true });
-  const pages = index.getByRole('navigation', { name: 'Tutor index pages' });
+  const pages = index.getByRole('navigation', { name: 'Tutor pages' });
   const nextBooking = page.getByRole('region', { name: 'Next booking', exact: true });
   await expect(index.getByRole('listitem')).toHaveCount(4);
   await expect(index.getByRole('link').first()).toHaveAttribute(
@@ -273,7 +273,7 @@ for (const fail of [false, true]) {
           page.getByRole('region', { name: 'Booking overview', exact: true }).locator('dd'),
         ).toHaveText(['0', '0', '0']);
         await expect(page.getByText('No tutors in your loaded bookings.')).toBeVisible();
-        await expect(page.getByRole('navigation', { name: 'Tutor index pages' })).toHaveCount(0);
+        await expect(page.getByRole('navigation', { name: 'Tutor pages' })).toHaveCount(0);
       }
     } finally {
       release();

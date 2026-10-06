@@ -42,7 +42,10 @@ export function NotebookPagination({
           : 'mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-dashed border-paper-edge pt-4'
       }
     >
-      <p className="text-xs tabular-nums text-notebook-muted" aria-live="polite">
+      <p
+        className={paperTurn ? 'sr-only' : 'text-xs tabular-nums text-notebook-muted'}
+        aria-live="polite"
+      >
         {(page - 1) * pageSize + 1}–{Math.min(page * pageSize, total)} / {total}
       </p>
       <div className={paperTurn ? styles.pageTurnControls : 'flex flex-wrap items-center gap-2'}>

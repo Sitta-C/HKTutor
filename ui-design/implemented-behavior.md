@@ -62,7 +62,8 @@ first tutor insertion order and retains the last encountered booking for each tu
 opens that booking's encoded detail URL. Four tutors appear per page through the shared
 `NotebookPagination`'s student-only opt-in paper-turn presentation, with a live range, icon-only
 previous/next buttons, localized accessible names, keyboard focus, and disabled boundaries. The small
-visible controls retain 44px touch targets; page-count text is visually hidden and remains accessible.
+visible controls retain 44px touch targets; record-range and page-count numbers are visually hidden
+and remain accessible. The sheet tab reads “Your tutors” / “ติวเตอร์ของคุณ”.
 It is entirely frontend pagination: changing tutor pages does not fetch more records or change the
 left sheet. Pagination is hidden for zero to four tutors and resets to page one after the existing
 booking load succeeds. The dashboard keeps the original `getMyBookings({ pageSize: 100 })` load and
