@@ -38,6 +38,9 @@ touch, mouse, trackpad, scrollbar, and keyboard operation; their gentle opening 
 reduced-motion preferences. Clicking the time field again or outside the picker closes it and
 removes its space from the layout. The date/time groups use explicit gaps. The availability
 page shows time ranges without duration totals, a timezone preview box, or a reset action.
+The weekly summary uses a compact ruled-paper ledger for open and reserved slot counts, with a
+single timezone tag in its footer. Counts remain unavailable while loading or after a load error;
+an empty week displays zero. The ledger stacks its metrics on mobile and supports both languages.
 Weekly slots use ruled notebook rows with punched binding margins, green open statuses, and one
 booking status instead of a redundant disabled action. Ended ranges receive a muted overlay and an
 explicit label, updated while the page is open; ended cards have no interactive actions and cannot
