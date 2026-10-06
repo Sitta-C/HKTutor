@@ -1,7 +1,13 @@
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
 
-import { GetMyBookingsQueryDto, GetTutorBookingsQueryDto } from '@modules/bookings/bookings.dto';
+import {
+  ConfirmBookingDto,
+  GetMyBookingsQueryDto,
+  GetTutorBookingsQueryDto,
+  MAX_TUTOR_ACTION_TEXT_LENGTH,
+  RejectBookingDto,
+} from '@modules/bookings/bookings.dto';
 
 describe('booking list pagination DTOs', () => {
   it.each([GetMyBookingsQueryDto, GetTutorBookingsQueryDto])(
@@ -22,5 +28,43 @@ describe('booking list pagination DTOs', () => {
   ])('rejects %s (%s)', async (input) => {
     const query = plainToInstance(GetMyBookingsQueryDto, input);
     expect(await validate(query)).not.toHaveLength(0);
+  });
+});
+
+describe('tutor booking action DTOs', () => {
+  it.each([ConfirmBookingDto, RejectBookingDto])('accepts an empty body for %p', async (Dto) => {
+    await expect(validate(plainToInstance(Dto, {}))).resolves.toHaveLength(0);
+  });
+
+  it('accepts a confirmation note and a rejection reason', async () => {
+    const confirm = plainToInstance(ConfirmBookingDto, { note: 'See you in class.' });
+    const reject = plainToInstance(RejectBookingDto, { reason: 'I am no longer available.' });
+
+    await expect(validate(confirm)).resolves.toHaveLength(0);
+    await expect(validate(reject)).resolves.toHaveLength(0);
+  });
+
+  it.each(['', '   ', '\n'])('rejects a blank reason (%j)', async (reason) => {
+    const reject = plainToInstance(RejectBookingDto, { reason });
+
+    expect(await validate(reject)).not.toHaveLength(0);
+  });
+
+  it('rejects text longer than the documented maximum', async () => {
+    const reject = plainToInstance(RejectBookingDto, {
+      reason: 'x'.repeat(MAX_TUTOR_ACTION_TEXT_LENGTH + 1),
+    });
+    const confirm = plainToInstance(ConfirmBookingDto, {
+      note: 'x'.repeat(MAX_TUTOR_ACTION_TEXT_LENGTH + 1),
+    });
+
+    expect(await validate(reject)).not.toHaveLength(0);
+    expect(await validate(confirm)).not.toHaveLength(0);
+  });
+
+  it('rejects a non-string reason', async () => {
+    const reject = plainToInstance(RejectBookingDto, { reason: 42 });
+
+    expect(await validate(reject)).not.toHaveLength(0);
   });
 });

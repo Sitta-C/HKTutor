@@ -2,6 +2,7 @@ import { applyDecorators } from '@nestjs/common';
 import {
   ApiBadRequestResponse,
   ApiBearerAuth,
+  ApiBody,
   ApiConflictResponse,
   ApiCreatedResponse,
   ApiExtraModels,
@@ -21,11 +22,15 @@ import {
   BookingDetailResponseDto,
   BookingQuoteResponseDto,
   BookingResponseDto,
+  BookingSlotStatus,
+  ConfirmBookingDto,
   CreateBookingDto,
   GetBookingQuoteQueryDto,
   GetMyBookingsQueryDto,
   GetTutorBookingsQueryDto,
   MyBookingsResponseDto,
+  RejectBookingDto,
+  TutorBookingActionResponseDto,
   TutorBookingsResponseDto,
 } from '@modules/bookings/bookings.dto';
 
@@ -57,10 +62,10 @@ export function CreateBookingDoc(): MethodDecorator {
       },
     }),
     ApiBadRequestResponse({
-      description:
-        'A required booking field failed validation, the slot has already started, or the tutor tried to book their own slot',
+      description: 'A required booking field failed validation',
       schema: {
         example: {
+          code: 'VALIDATION_FAILED',
           error: 'Bad Request',
           message: ['slotId must be a UUID'],
           statusCode: 400,
@@ -73,6 +78,7 @@ export function CreateBookingDoc(): MethodDecorator {
         'The access token or its backing session is missing, invalid, expired, or revoked',
       schema: {
         example: {
+          code: 'UNAUTHENTICATED',
           error: 'Unauthorized',
           message: 'Invalid or expired authentication token',
           statusCode: 401,
@@ -84,6 +90,7 @@ export function CreateBookingDoc(): MethodDecorator {
       description: 'The referenced listing or slot does not exist',
       schema: {
         example: {
+          code: 'NOT_FOUND',
           error: 'Not Found',
           message: 'The selected slot does not exist.',
           statusCode: 404,
@@ -93,9 +100,10 @@ export function CreateBookingDoc(): MethodDecorator {
     }),
     ApiConflictResponse({
       description:
-        'The requested slot is already booked, unavailable, or the listing/slot tutor mismatch',
+        'The requested slot is already booked, has already started, or is no longer available; the listing is unpublished or its tutor does not match the slot; or the tutor is not verified',
       schema: {
         example: {
+          code: 'CONFLICT',
           error: 'Conflict',
           message: 'The selected slot is already booked.',
           statusCode: 409,
@@ -105,9 +113,10 @@ export function CreateBookingDoc(): MethodDecorator {
     }),
     ApiForbiddenResponse({
       description:
-        'The authenticated user is not a student, or active-student validation failed for the booking request',
+        'The authenticated user is not a student (a tutor booking their own slot is rejected here), active-student validation failed, or the student profile is incomplete',
       schema: {
         example: {
+          code: 'FORBIDDEN',
           error: 'Forbidden',
           message: 'Only active students can create bookings.',
           statusCode: 403,
@@ -171,6 +180,7 @@ export function GetBookingQuoteDoc(): MethodDecorator {
       description: 'listingId or slotId failed validation',
       schema: {
         example: {
+          code: 'VALIDATION_FAILED',
           error: 'Bad Request',
           message: ['slotId must be a UUID'],
           statusCode: 400,
@@ -183,6 +193,7 @@ export function GetBookingQuoteDoc(): MethodDecorator {
         'The access token or its backing session is missing, invalid, expired, or revoked',
       schema: {
         example: {
+          code: 'UNAUTHENTICATED',
           error: 'Unauthorized',
           message: 'Invalid or expired authentication token',
           statusCode: 401,
@@ -192,9 +203,10 @@ export function GetBookingQuoteDoc(): MethodDecorator {
     }),
     ApiForbiddenResponse({
       description:
-        'The authenticated user is not a student, or active-student validation failed for the quote request',
+        'The authenticated user is not a student, active-student validation failed, or the student profile is incomplete',
       schema: {
         example: {
+          code: 'FORBIDDEN',
           error: 'Forbidden',
           message: 'Only active students can request a quote.',
           statusCode: 403,
@@ -206,6 +218,7 @@ export function GetBookingQuoteDoc(): MethodDecorator {
       description: 'The referenced listing or slot does not exist',
       schema: {
         example: {
+          code: 'NOT_FOUND',
           error: 'Not Found',
           message: 'The selected slot does not exist.',
           statusCode: 404,
@@ -214,9 +227,11 @@ export function GetBookingQuoteDoc(): MethodDecorator {
       },
     }),
     ApiConflictResponse({
-      description: 'The slot is unavailable, or the listing/slot tutor mismatch',
+      description:
+        'The slot is already booked, has already started, or is no longer available; the listing is unpublished or its tutor does not match the slot; or the tutor is not verified',
       schema: {
         example: {
+          code: 'CONFLICT',
           error: 'Conflict',
           message: 'The selected slot is already booked.',
           statusCode: 409,
@@ -294,6 +309,7 @@ export function GetMyBookingsDoc(): MethodDecorator {
       description: 'status, from, or to failed validation, or from is later than to',
       schema: {
         example: {
+          code: 'VALIDATION_FAILED',
           error: 'Bad Request',
           message: ['from must not be later than to'],
           statusCode: 400,
@@ -306,6 +322,7 @@ export function GetMyBookingsDoc(): MethodDecorator {
         'The access token or its backing session is missing, invalid, expired, or revoked',
       schema: {
         example: {
+          code: 'UNAUTHENTICATED',
           error: 'Unauthorized',
           message: 'Invalid or expired authentication token',
           statusCode: 401,
@@ -317,8 +334,9 @@ export function GetMyBookingsDoc(): MethodDecorator {
       description: 'The authenticated user is not a student',
       schema: {
         example: {
+          code: 'FORBIDDEN',
           error: 'Forbidden',
-          message: 'Forbidden resource',
+          message: 'You do not have permission to access this resource',
           statusCode: 403,
         },
         type: 'object',
@@ -385,6 +403,7 @@ export function GetMyBookingDoc(): MethodDecorator {
         'The access token or its backing session is missing, invalid, expired, or revoked',
       schema: {
         example: {
+          code: 'UNAUTHENTICATED',
           error: 'Unauthorized',
           message: 'Invalid or expired authentication token',
           statusCode: 401,
@@ -396,8 +415,9 @@ export function GetMyBookingDoc(): MethodDecorator {
       description: 'The authenticated user is not a student',
       schema: {
         example: {
+          code: 'FORBIDDEN',
           error: 'Forbidden',
-          message: 'Forbidden resource',
+          message: 'You do not have permission to access this resource',
           statusCode: 403,
         },
         type: 'object',
@@ -408,8 +428,9 @@ export function GetMyBookingDoc(): MethodDecorator {
         'The booking does not exist, or exists but does not belong to the authenticated student (ownership-safe: identical response either way)',
       schema: {
         example: {
+          code: 'NOT_FOUND',
           error: 'Not Found',
-          message: 'Booking not found',
+          message: 'Resource not found',
           statusCode: 404,
         },
         type: 'object',
@@ -482,6 +503,7 @@ export function GetTutorBookingsDoc(): MethodDecorator {
       description: 'status, from, or to failed validation, or from is later than to',
       schema: {
         example: {
+          code: 'VALIDATION_FAILED',
           error: 'Bad Request',
           message: ['from must not be later than to'],
           statusCode: 400,
@@ -494,6 +516,7 @@ export function GetTutorBookingsDoc(): MethodDecorator {
         'The access token or its backing session is missing, invalid, expired, or revoked',
       schema: {
         example: {
+          code: 'UNAUTHENTICATED',
           error: 'Unauthorized',
           message: 'Invalid or expired authentication token',
           statusCode: 401,
@@ -505,12 +528,129 @@ export function GetTutorBookingsDoc(): MethodDecorator {
       description: 'The authenticated user is not a tutor',
       schema: {
         example: {
+          code: 'FORBIDDEN',
           error: 'Forbidden',
-          message: 'Forbidden resource',
+          message: 'You do not have permission to access this resource',
           statusCode: 403,
         },
         type: 'object',
       },
     }),
+  );
+}
+
+/** Confirm and reject share one error contract, including the `code` field clients switch on. */
+function tutorBookingActionErrorResponses(): MethodDecorator[] {
+  return [
+    ApiBadRequestResponse({
+      description: 'bookingId is not a valid UUID, or the request body failed validation',
+      schema: {
+        example: {
+          code: 'INVALID_UUID',
+          error: 'Bad Request',
+          message: 'bookingId must be a valid UUID',
+          statusCode: 400,
+        },
+        type: 'object',
+      },
+    }),
+    ApiUnauthorizedResponse({
+      description:
+        'The access token or its backing session is missing, invalid, expired, or revoked',
+      schema: {
+        example: {
+          code: 'UNAUTHENTICATED',
+          error: 'Unauthorized',
+          message: 'Invalid or expired authentication token',
+          statusCode: 401,
+        },
+        type: 'object',
+      },
+    }),
+    ApiForbiddenResponse({
+      description: 'The authenticated user is not a tutor, or the booking belongs to another tutor',
+      schema: {
+        example: {
+          code: 'BOOKING_NOT_OWNED',
+          error: 'Forbidden',
+          message: 'This booking belongs to another tutor',
+          statusCode: 403,
+        },
+        type: 'object',
+      },
+    }),
+    ApiNotFoundResponse({
+      description: 'No booking exists with this ID',
+      schema: {
+        example: {
+          code: 'BOOKING_NOT_FOUND',
+          error: 'Not Found',
+          message: 'Booking not found',
+          statusCode: 404,
+        },
+        type: 'object',
+      },
+    }),
+    ApiConflictResponse({
+      description:
+        'The booking is no longer pending (already confirmed, canceled, completed or expired), or a concurrent confirm/reject won the transition',
+      schema: {
+        example: {
+          code: 'BOOKING_NOT_PENDING',
+          error: 'Conflict',
+          message: 'Only a pending booking can be confirmed or rejected; this booking is CONFIRMED',
+          statusCode: 409,
+        },
+        type: 'object',
+      },
+    }),
+  ];
+}
+
+export function ConfirmTutorBookingDoc(): MethodDecorator {
+  return applyDecorators(
+    ApiExtraModels(ConfirmBookingDto, TutorBookingActionResponseDto),
+    ApiOperation({ summary: "Confirm one of the authenticated tutor's pending bookings" }),
+    ApiBearerAuth(JWT_BEARER_AUTH),
+    ApiBody({ required: false, type: ConfirmBookingDto }),
+    ApiOkResponse({
+      description:
+        'The pending booking became confirmed in one conditional update; the slot stays reserved',
+      schema: {
+        example: {
+          bookingId: '3c54a0d6-e3f3-4a38-bd55-3b4011ee31ae',
+          canceledAt: null,
+          slotStatus: BookingSlotStatus.RESERVED,
+          status: BookingStatus.CONFIRMED,
+        },
+        allOf: [{ $ref: getSchemaPath(TutorBookingActionResponseDto) }],
+        type: 'object',
+      },
+    }),
+    ...tutorBookingActionErrorResponses(),
+  );
+}
+
+export function RejectTutorBookingDoc(): MethodDecorator {
+  return applyDecorators(
+    ApiExtraModels(RejectBookingDto, TutorBookingActionResponseDto),
+    ApiOperation({ summary: "Reject one of the authenticated tutor's pending bookings" }),
+    ApiBearerAuth(JWT_BEARER_AUTH),
+    ApiBody({ required: false, type: RejectBookingDto }),
+    ApiOkResponse({
+      description:
+        'The pending booking became canceled and released its slot in the same transaction',
+      schema: {
+        example: {
+          bookingId: '3c54a0d6-e3f3-4a38-bd55-3b4011ee31ae',
+          canceledAt: '2026-10-04T09:04:31.001Z',
+          slotStatus: BookingSlotStatus.AVAILABLE,
+          status: BookingStatus.CANCELED,
+        },
+        allOf: [{ $ref: getSchemaPath(TutorBookingActionResponseDto) }],
+        type: 'object',
+      },
+    }),
+    ...tutorBookingActionErrorResponses(),
   );
 }

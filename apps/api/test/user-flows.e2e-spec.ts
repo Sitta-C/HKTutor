@@ -85,7 +85,7 @@ describe('End-to-End User Flow Verification (Student & Tutor)', () => {
   const prismaMock = {
     authSession: { findUnique: jest.fn() },
     availabilitySlot: { findFirst: jest.fn() },
-    booking: { findFirst: jest.fn() },
+    booking: { findFirst: jest.fn(), findUnique: jest.fn() },
     teachingListing: { findFirst: jest.fn() },
     user: { findUnique: jest.fn() },
   };
@@ -441,6 +441,11 @@ describe('End-to-End User Flow Verification (Student & Tutor)', () => {
           tutorId,
           displayName: 'Kru Anan',
         },
+      });
+      // ResourceOwnershipGuard loads the booking by id before the handler runs.
+      prismaMock.booking.findUnique.mockResolvedValue({
+        studentUserId: studentId,
+        tutorProfileId: tutorId,
       });
       const bookingDetailRes = await request(app.getHttpServer())
         .get(`/api/v1/bookings/me/${bookingId}`)

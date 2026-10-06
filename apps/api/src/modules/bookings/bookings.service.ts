@@ -19,6 +19,8 @@ import {
   BookingDetailResponseDto,
   BookingQuoteResponseDto,
   BookingResponseDto,
+  BookingSlotStatus,
+  ConfirmBookingDto,
   CreateBookingDto,
   DEFAULT_BOOKINGS_PAGE,
   DEFAULT_BOOKINGS_PAGE_SIZE,
@@ -26,6 +28,8 @@ import {
   GetMyBookingsQueryDto,
   GetTutorBookingsQueryDto,
   MyBookingsResponseDto,
+  RejectBookingDto,
+  TutorBookingActionResponseDto,
   TutorBookingsResponseDto,
 } from '@modules/bookings/bookings.dto';
 import {
@@ -41,10 +45,59 @@ export interface GetMyBookingDetailInput {
   studentUserId: string;
 }
 export type GetTutorBookingsInput = GetTutorBookingsQueryDto & { tutorUserId: string };
+export interface TutorBookingActionInput {
+  bookingId: string;
+  tutorUserId: string;
+}
+export type ConfirmTutorBookingInput = TutorBookingActionInput & ConfirmBookingDto;
+export type RejectTutorBookingInput = TutorBookingActionInput & RejectBookingDto;
 
 const MILLISECONDS_PER_HOUR = 60 * 60 * 1000;
 const BOOKING_CONFLICT_MESSAGE =
   'The selected slot could not be booked because its availability changed.';
+/** The database requires a non-empty cancellation reason, but the card keeps `reason` optional. */
+const DEFAULT_REJECTION_REASON = 'Rejected by the tutor';
+
+/**
+ * Shared with the controller's ownership rule so `ResourceOwnershipGuard` and this service answer a
+ * missing or foreign booking with the same body, whichever one rejects the request first.
+ */
+export const BOOKING_OWNERSHIP_ERRORS = {
+  foreignOwner: { code: 'BOOKING_NOT_OWNED', message: 'This booking belongs to another tutor' },
+  missing: { code: 'BOOKING_NOT_FOUND', message: 'Booking not found' },
+} as const;
+
+const bookingNotFound = (): NotFoundException =>
+  new NotFoundException({
+    code: BOOKING_OWNERSHIP_ERRORS.missing.code,
+    error: 'Not Found',
+    message: BOOKING_OWNERSHIP_ERRORS.missing.message,
+    statusCode: 404,
+  });
+
+const bookingNotOwned = (): ForbiddenException =>
+  new ForbiddenException({
+    code: BOOKING_OWNERSHIP_ERRORS.foreignOwner.code,
+    error: 'Forbidden',
+    message: BOOKING_OWNERSHIP_ERRORS.foreignOwner.message,
+    statusCode: 403,
+  });
+
+const bookingNotPending = (status: BookingStatus): ConflictException =>
+  new ConflictException({
+    code: 'BOOKING_NOT_PENDING',
+    error: 'Conflict',
+    message: `Only a pending booking can be confirmed or rejected; this booking is ${status}`,
+    statusCode: 409,
+  });
+
+const bookingTransitionConflict = (): ConflictException =>
+  new ConflictException({
+    code: 'BOOKING_TRANSITION_CONFLICT',
+    error: 'Conflict',
+    message: 'The booking was already updated by another request',
+    statusCode: 409,
+  });
 
 const bookingListingSelect = {
   deletedAt: true,
@@ -191,7 +244,7 @@ export class BookingsService {
       throw new ConflictException('The selected slot is no longer available.');
     }
     if (slot.startAtUtc.getTime() <= Date.now()) {
-      throw new BadRequestException('The selected slot has already started or is in the past.');
+      throw new ConflictException('The selected slot has already started or is in the past.');
     }
   }
 
@@ -513,6 +566,95 @@ export class BookingsService {
       total,
     };
   }
+
+  async confirmTutorBooking(
+    input: ConfirmTutorBookingInput,
+  ): Promise<TutorBookingActionResponseDto> {
+    return this.transitionPendingBooking(input, { status: BookingStatus.CONFIRMED });
+  }
+
+  async rejectTutorBooking(input: RejectTutorBookingInput): Promise<TutorBookingActionResponseDto> {
+    const reason = input.reason?.trim();
+
+    return this.transitionPendingBooking(input, {
+      canceledAt: new Date(),
+      canceledById: input.tutorUserId,
+      cancellationReason: reason && reason.length > 0 ? reason : DEFAULT_REJECTION_REASON,
+      status: BookingStatus.CANCELED,
+    });
+  }
+
+  /**
+   * Moves one PENDING booking owned by the acting tutor to its next status and reports the slot
+   * state that results. Canceling releases the slot implicitly: availability is derived from the
+   * bookings still holding it, and the partial unique index only counts PENDING/CONFIRMED rows.
+   */
+  private async transitionPendingBooking(
+    input: TutorBookingActionInput,
+    // Unchecked input so the transition can set the canceledById foreign key directly.
+    data: Prisma.BookingUncheckedUpdateManyInput,
+  ): Promise<TutorBookingActionResponseDto> {
+    const booking = await this.prisma.booking.findUnique({
+      select: { status: true, tutorProfileId: true },
+      where: { id: input.bookingId },
+    });
+
+    if (!booking) {
+      throw bookingNotFound();
+    }
+    if (booking.tutorProfileId !== input.tutorUserId) {
+      throw bookingNotOwned();
+    }
+    if (booking.status !== BookingStatus.PENDING) {
+      throw bookingNotPending(booking.status);
+    }
+
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        // The PENDING filter decides the winner when confirm and reject race: the loser updates
+        // zero rows, so no request ever observes or persists a half-applied transition.
+        const transition = await tx.booking.updateMany({
+          data,
+          where: {
+            id: input.bookingId,
+            status: BookingStatus.PENDING,
+            tutorProfileId: input.tutorUserId,
+          },
+        });
+
+        if (transition.count !== 1) {
+          throw bookingTransitionConflict();
+        }
+
+        const updated = await tx.booking.findUniqueOrThrow({
+          select: { canceledAt: true, id: true, slotId: true, status: true },
+          where: { id: input.bookingId },
+        });
+        const activeBookings = await tx.booking.count({
+          where: {
+            slotId: updated.slotId,
+            status: { in: [BookingStatus.PENDING, BookingStatus.CONFIRMED] },
+          },
+        });
+
+        return {
+          bookingId: updated.id,
+          canceledAt: updated.canceledAt?.toISOString() ?? null,
+          slotStatus: activeBookings > 0 ? BookingSlotStatus.RESERVED : BookingSlotStatus.AVAILABLE,
+          status: updated.status,
+        };
+      });
+    } catch (error) {
+      if (isDatabaseConflict(error)) {
+        this.logger.warn(
+          `Rejecting booking transition for ${input.bookingId}: database reported a conflict`,
+        );
+        throw bookingTransitionConflict();
+      }
+
+      throw error;
+    }
+  }
 }
 
 function bookingPagination(input: { page?: number; pageSize?: number }): {
@@ -524,13 +666,31 @@ function bookingPagination(input: { page?: number; pageSize?: number }): {
   return { skip: (page - 1) * take, take };
 }
 
+/** Prisma's own codes for the constraint violations a booking race can produce. */
+const CONFLICTING_PRISMA_CODES = new Set(['P2002', 'P2003', 'P2004']);
+/**
+ * A raw SQLSTATE never reaches `error.code` — `PrismaClientKnownRequestError.code` is always a
+ * `P####` value and an unrecognised database fault arrives as `PrismaClientUnknownRequestError`
+ * with no code at all. The only place a SQLSTATE surfaces is `meta.code`, for example on the `P2010`
+ * raised by a failing raw query such as the `SELECT ... FOR UPDATE` in `create()`.
+ *
+ * Only violations that mean "someone else changed the data first" belong here. A check-constraint
+ * violation (`23514`) means this service wrote an invalid row, which is a defect rather than a
+ * conflict, so it is deliberately absent and surfaces as a 500.
+ */
+const CONFLICTING_SQL_STATES = new Set(['23503', '23505']);
+
 function isDatabaseConflict(error: unknown): boolean {
   if (!error || typeof error !== 'object') {
     return false;
   }
 
-  const code = String((error as { code?: string }).code ?? '');
-  return ['P2002', 'P2003', 'P2004', '23503', '23505', '23514'].includes(code);
+  const { code, meta } = error as { code?: unknown; meta?: { code?: unknown } };
+  if (typeof code === 'string' && CONFLICTING_PRISMA_CODES.has(code)) {
+    return true;
+  }
+
+  return typeof meta?.code === 'string' && CONFLICTING_SQL_STATES.has(meta.code);
 }
 
 function deriveBookingAmounts(

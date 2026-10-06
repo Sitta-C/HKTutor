@@ -21,19 +21,30 @@ import type { BookingResponseDto } from '@modules/bookings/bookings.dto';
 import type { CreateBookingInput } from '@modules/bookings/bookings.service';
 import type { TestingModule } from '@nestjs/testing';
 
-type DatabaseError = Error & { code: string };
+type DatabaseError = Error & { code: string; meta?: { code?: string } };
 
 type TransactionCallback = (tx: {
   $queryRaw?: jest.Mock;
-  booking?: { create?: jest.Mock; findFirst?: jest.Mock };
+  booking?: {
+    count?: jest.Mock;
+    create?: jest.Mock;
+    findFirst?: jest.Mock;
+    findUniqueOrThrow?: jest.Mock;
+    updateMany?: jest.Mock;
+  };
   teachingListing?: { findUnique?: jest.Mock };
   tutorProfile?: { findFirst?: jest.Mock };
   user?: { findUnique?: jest.Mock };
 }) => Promise<unknown>;
 
-const createDatabaseError = (message: string, code: string): DatabaseError => {
+const createDatabaseError = (
+  message: string,
+  code: string,
+  meta?: { code?: string },
+): DatabaseError => {
   const error = new Error(message) as DatabaseError;
   error.code = code;
+  if (meta) error.meta = meta;
   return error;
 };
 
@@ -43,7 +54,12 @@ describe('BookingsService', () => {
   const mockPrismaService = {
     $transaction: jest.fn(),
     availabilitySlot: { findUnique: jest.fn() },
-    booking: { count: jest.fn(), findFirst: jest.fn(), findMany: jest.fn() },
+    booking: {
+      count: jest.fn(),
+      findFirst: jest.fn(),
+      findMany: jest.fn(),
+      findUnique: jest.fn(),
+    },
     teachingListing: { findUnique: jest.fn() },
     tutorProfile: { findFirst: jest.fn() },
     user: { findUnique: jest.fn() },
@@ -373,7 +389,7 @@ describe('BookingsService', () => {
       );
     });
 
-    it('should throw BadRequestException when the slot has already started', async () => {
+    it('should throw ConflictException when the slot has already started', async () => {
       const { listingId, slotId, studentUserId, tutorUserId } = createTestData();
 
       const mockSlot = {
@@ -398,7 +414,7 @@ describe('BookingsService', () => {
       };
 
       await expect(service.create(input)).rejects.toThrow(
-        new BadRequestException('The selected slot has already started or is in the past.'),
+        new ConflictException('The selected slot has already started or is in the past.'),
       );
     });
 
@@ -666,14 +682,20 @@ describe('BookingsService', () => {
       );
     });
 
-    it.each(['P2002', '23505'])(
+    it.each([
+      // Prisma's own unique-violation code, as `create()` sees it when the active-slot index trips.
+      ['P2002', undefined],
+      // A raw query carries the SQLSTATE in meta.code; `code` itself stays a P-code.
+      ['P2010', { code: '23505' }],
+    ])(
       'maps database conflict %s to a stable 409 without exposing database details',
-      async (code) => {
+      async (code, meta) => {
         const { listingId, slotId, studentUserId } = createTestData();
 
         const databaseError = createDatabaseError(
           'Unique constraint failed on the fields: (`studentUserId`,`slotId`)',
           code,
+          meta,
         );
 
         mockPrismaService.$transaction.mockRejectedValue(databaseError);
@@ -691,6 +713,22 @@ describe('BookingsService', () => {
         );
       },
     );
+
+    it.each([
+      // A check-constraint violation means this service wrote an invalid row: a defect, not a race.
+      ['a check-constraint violation', 'P2010', { code: '23514' }],
+      // An unrecognised database fault arrives without any code at all.
+      ['an unrecognised database fault', '', undefined],
+    ])('rethrows %s instead of reporting a conflict', async (_description, code, meta) => {
+      const { listingId, slotId, studentUserId } = createTestData();
+      const databaseError = createDatabaseError('database failed', code, meta);
+
+      mockPrismaService.$transaction.mockRejectedValue(databaseError);
+
+      await expect(service.create({ listingId, slotId, studentUserId })).rejects.toThrow(
+        databaseError,
+      );
+    });
 
     it('should throw error and rollback transaction on unexpected database error', async () => {
       const { listingId, slotId, studentUserId } = createTestData();
@@ -933,7 +971,7 @@ describe('BookingsService', () => {
       );
     });
 
-    it('throws BadRequestException when the slot has already started', async () => {
+    it('throws ConflictException when the slot has already started', async () => {
       const { listingId, slotId, studentUserId, tutorUserId } = createTestData();
 
       mockPrismaService.availabilitySlot.findUnique.mockResolvedValue({
@@ -945,7 +983,7 @@ describe('BookingsService', () => {
       });
 
       await expect(service.getQuote({ listingId, slotId, studentUserId })).rejects.toThrow(
-        new BadRequestException('The selected slot has already started or is in the past.'),
+        new ConflictException('The selected slot has already started or is in the past.'),
       );
       expect(mockPrismaService.booking.findFirst).not.toHaveBeenCalled();
     });
@@ -1177,6 +1215,35 @@ describe('BookingsService', () => {
       expect(result.total).toBe(57);
     });
 
+    it('combines the status and date filters and counts the same filtered set', async () => {
+      const { studentUserId } = createTestData();
+
+      mockPrismaService.booking.findMany.mockResolvedValue([]);
+      mockPrismaService.booking.count.mockResolvedValue(0);
+
+      await service.getMyBookings({
+        from: '2026-09-01T00:00:00.000Z',
+        status: BookingStatus.CONFIRMED,
+        studentUserId,
+        to: '2026-09-30T23:59:59.999Z',
+      });
+
+      const expectedWhere = {
+        slot: {
+          startAtUtc: {
+            gte: new Date('2026-09-01T00:00:00.000Z'),
+            lte: new Date('2026-09-30T23:59:59.999Z'),
+          },
+        },
+        status: BookingStatus.CONFIRMED,
+        studentUserId,
+      };
+      expect(mockPrismaService.booking.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: expectedWhere }),
+      );
+      expect(mockPrismaService.booking.count).toHaveBeenCalledWith({ where: expectedWhere });
+    });
+
     it('returns an empty result when the student has no bookings', async () => {
       const { studentUserId } = createTestData();
 
@@ -1199,7 +1266,7 @@ describe('BookingsService', () => {
         description: 'One-on-one algebra and calculus tutoring.',
         gradeLevel: { id: 'grade-id', name: 'Grade 10' },
         id: 'a22c4b4d-4f8e-4de6-9b3d-faae7db5eb6d',
-        pricePerHour: new Prisma.Decimal(450),
+        pricePerHour: new Prisma.Decimal(600),
         subject: { id: 'subject-id', name: 'Mathematics' },
       },
       netAmount: new Prisma.Decimal(450),
@@ -1239,7 +1306,7 @@ describe('BookingsService', () => {
           gradeLevelId: 'grade-id',
           gradeLevelName: 'Grade 10',
           id: row.listing.id,
-          pricePerHour: '450.00',
+          pricePerHour: '600.00',
           subjectId: 'subject-id',
           subjectName: 'Mathematics',
         },
@@ -1304,7 +1371,17 @@ describe('BookingsService', () => {
         startAtUtc: new Date('2026-09-15T10:04:06.784Z'),
       },
       status: BookingStatus.PENDING,
-      student: { studentProfile: { nickname: 'Nan' } },
+      student: {
+        studentProfile: {
+          firstName: 'Napat',
+          gradeLevel: 'Grade 10',
+          lastName: 'Suksawat',
+          nickname: 'Nan',
+          phone: '0800000000',
+          school: 'HKTutor Test School',
+        },
+      },
+      studentUserId: '6bb01222-1fce-4bc3-a69d-3d90db2fdf57',
       subtotalAmount: new Prisma.Decimal(450),
       ...overrides,
     });
@@ -1343,9 +1420,15 @@ describe('BookingsService', () => {
           where: { tutorProfileId: tutorUserId },
         }),
       );
-      expect(result.items).toEqual([expect.objectContaining({ student: { nickname: 'Nan' } })]);
+      const findManyCalls = mockPrismaService.booking.findMany.mock.calls as unknown as Array<
+        [{ select: { student: unknown } }]
+      >;
+      expect(findManyCalls[0]?.[0].select.student).toEqual({
+        select: { studentProfile: { select: { nickname: true } } },
+      });
+      expect(result.items[0]?.student).toStrictEqual({ nickname: 'Nan' });
       expect(result.items[0]).not.toHaveProperty('tutor');
-      expect(Object.keys(result.items[0] as object)).not.toContain('legalName');
+      expect(result.items[0]).not.toHaveProperty('studentUserId');
     });
 
     it('returns a null nickname when a historical booking no longer has a student profile', async () => {
@@ -1419,6 +1502,35 @@ describe('BookingsService', () => {
       expect(result.total).toBe(41);
     });
 
+    it('combines the status and date filters and counts the same filtered set', async () => {
+      const { tutorUserId } = createTestData();
+
+      mockPrismaService.booking.findMany.mockResolvedValue([]);
+      mockPrismaService.booking.count.mockResolvedValue(0);
+
+      await service.getTutorBookings({
+        from: '2026-09-01T00:00:00.000Z',
+        status: BookingStatus.CONFIRMED,
+        tutorUserId,
+        to: '2026-09-30T23:59:59.999Z',
+      });
+
+      const expectedWhere = {
+        slot: {
+          startAtUtc: {
+            gte: new Date('2026-09-01T00:00:00.000Z'),
+            lte: new Date('2026-09-30T23:59:59.999Z'),
+          },
+        },
+        status: BookingStatus.CONFIRMED,
+        tutorProfileId: tutorUserId,
+      };
+      expect(mockPrismaService.booking.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: expectedWhere }),
+      );
+      expect(mockPrismaService.booking.count).toHaveBeenCalledWith({ where: expectedWhere });
+    });
+
     it('returns a deterministic empty result when the tutor has no bookings', async () => {
       const { tutorUserId } = createTestData();
 
@@ -1428,6 +1540,203 @@ describe('BookingsService', () => {
       const result = await service.getTutorBookings({ tutorUserId });
 
       expect(result).toEqual({ items: [], total: 0 });
+    });
+  });
+
+  describe('tutor confirm and reject actions', () => {
+    const pendingBooking = (tutorUserId: string) => ({
+      status: BookingStatus.PENDING,
+      tutorProfileId: tutorUserId,
+    });
+
+    const stubTransition = (options: {
+      activeBookings?: number;
+      bookingId: string;
+      canceledAt?: Date | null;
+      slotId: string;
+      status?: BookingStatus;
+      transitionCount?: number;
+    }) => {
+      const updateMany = jest.fn().mockResolvedValue({ count: options.transitionCount ?? 1 });
+      const findUniqueOrThrow = jest.fn().mockResolvedValue({
+        canceledAt: options.canceledAt ?? null,
+        id: options.bookingId,
+        slotId: options.slotId,
+        status: options.status ?? BookingStatus.CONFIRMED,
+      });
+      const count = jest.fn().mockResolvedValue(options.activeBookings ?? 1);
+
+      mockPrismaService.$transaction.mockImplementation(async (callback: TransactionCallback) =>
+        callback({ booking: { count, findUniqueOrThrow, updateMany } }),
+      );
+
+      return { count, findUniqueOrThrow, updateMany };
+    };
+
+    it('confirms a pending booking and keeps the slot reserved', async () => {
+      const { bookingId, slotId, tutorUserId } = createTestData();
+
+      mockPrismaService.booking.findUnique.mockResolvedValue(pendingBooking(tutorUserId));
+      const { updateMany } = stubTransition({ bookingId, slotId });
+
+      await expect(service.confirmTutorBooking({ bookingId, tutorUserId })).resolves.toEqual({
+        bookingId,
+        canceledAt: null,
+        slotStatus: 'RESERVED',
+        status: BookingStatus.CONFIRMED,
+      });
+      expect(updateMany).toHaveBeenCalledWith({
+        data: { status: BookingStatus.CONFIRMED },
+        where: { id: bookingId, status: BookingStatus.PENDING, tutorProfileId: tutorUserId },
+      });
+    });
+
+    it('rejects a pending booking, records the reason and releases the slot', async () => {
+      const { bookingId, slotId, tutorUserId } = createTestData();
+      const canceledAt = new Date('2026-10-04T09:04:31.001Z');
+
+      mockPrismaService.booking.findUnique.mockResolvedValue(pendingBooking(tutorUserId));
+      const { updateMany } = stubTransition({
+        activeBookings: 0,
+        bookingId,
+        canceledAt,
+        slotId,
+        status: BookingStatus.CANCELED,
+      });
+
+      await expect(
+        service.rejectTutorBooking({ bookingId, reason: '  Double booked  ', tutorUserId }),
+      ).resolves.toEqual({
+        bookingId,
+        canceledAt: canceledAt.toISOString(),
+        slotStatus: 'AVAILABLE',
+        status: BookingStatus.CANCELED,
+      });
+
+      const updateManyCalls = updateMany.mock.calls as unknown as Array<
+        [
+          {
+            data: {
+              canceledAt: Date;
+              canceledById: string;
+              cancellationReason: string;
+              status: BookingStatus;
+            };
+          },
+        ]
+      >;
+      const data = updateManyCalls[0]?.[0].data;
+      expect(data?.cancellationReason).toBe('Double booked');
+      expect(data?.canceledById).toBe(tutorUserId);
+      expect(data?.status).toBe(BookingStatus.CANCELED);
+      // The database check constraint also requires canceledAt on a canceled booking.
+      expect(data?.canceledAt).toBeInstanceOf(Date);
+    });
+
+    it('stores a default reason when the tutor rejects without one', async () => {
+      const { bookingId, slotId, tutorUserId } = createTestData();
+
+      mockPrismaService.booking.findUnique.mockResolvedValue(pendingBooking(tutorUserId));
+      const { updateMany } = stubTransition({
+        activeBookings: 0,
+        bookingId,
+        canceledAt: new Date('2026-10-04T09:04:31.001Z'),
+        slotId,
+        status: BookingStatus.CANCELED,
+      });
+
+      await service.rejectTutorBooking({ bookingId, tutorUserId });
+
+      const updateManyCalls = updateMany.mock.calls as unknown as Array<
+        [{ data: { cancellationReason: string } }]
+      >;
+      // The database check constraint refuses a canceled booking without a non-empty reason.
+      expect(updateManyCalls[0]?.[0].data.cancellationReason).toBe('Rejected by the tutor');
+    });
+
+    it('returns 404 for a booking that does not exist, without opening a transaction', async () => {
+      const { bookingId, tutorUserId } = createTestData();
+
+      mockPrismaService.booking.findUnique.mockResolvedValue(null);
+
+      await expect(service.confirmTutorBooking({ bookingId, tutorUserId })).rejects.toMatchObject({
+        response: { code: 'BOOKING_NOT_FOUND', statusCode: 404 },
+      });
+      expect(mockPrismaService.$transaction).not.toHaveBeenCalled();
+    });
+
+    it('returns 403 for a booking that belongs to another tutor', async () => {
+      const { bookingId, tutorUserId } = createTestData();
+
+      mockPrismaService.booking.findUnique.mockResolvedValue({
+        status: BookingStatus.PENDING,
+        tutorProfileId: '99999999-9999-4999-8999-999999999999',
+      });
+
+      await expect(service.rejectTutorBooking({ bookingId, tutorUserId })).rejects.toMatchObject({
+        response: { code: 'BOOKING_NOT_OWNED', statusCode: 403 },
+      });
+      expect(mockPrismaService.$transaction).not.toHaveBeenCalled();
+    });
+
+    it.each([BookingStatus.CONFIRMED, BookingStatus.CANCELED, BookingStatus.COMPLETED])(
+      'returns 409 when the booking is already %s',
+      async (status) => {
+        const { bookingId, tutorUserId } = createTestData();
+
+        mockPrismaService.booking.findUnique.mockResolvedValue({
+          status,
+          tutorProfileId: tutorUserId,
+        });
+
+        await expect(service.confirmTutorBooking({ bookingId, tutorUserId })).rejects.toMatchObject(
+          {
+            response: { code: 'BOOKING_NOT_PENDING', statusCode: 409 },
+          },
+        );
+        expect(mockPrismaService.$transaction).not.toHaveBeenCalled();
+      },
+    );
+
+    it('returns 409 when a concurrent action already moved the booking', async () => {
+      const { bookingId, slotId, tutorUserId } = createTestData();
+
+      mockPrismaService.booking.findUnique.mockResolvedValue(pendingBooking(tutorUserId));
+      const { findUniqueOrThrow } = stubTransition({ bookingId, slotId, transitionCount: 0 });
+
+      await expect(service.confirmTutorBooking({ bookingId, tutorUserId })).rejects.toMatchObject({
+        response: { code: 'BOOKING_TRANSITION_CONFLICT', statusCode: 409 },
+      });
+      expect(findUniqueOrThrow).not.toHaveBeenCalled();
+    });
+
+    it('maps a database conflict during the transition to 409', async () => {
+      const { bookingId, tutorUserId } = createTestData();
+
+      mockPrismaService.booking.findUnique.mockResolvedValue(pendingBooking(tutorUserId));
+      // A unique violation on the active-slot index is a genuine race; a check-constraint
+      // violation would be a service defect, so it is deliberately not the case under test.
+      mockPrismaService.$transaction.mockRejectedValue(
+        createDatabaseError('Unique constraint failed on the fields: (`slotId`)', 'P2002'),
+      );
+
+      await expect(service.rejectTutorBooking({ bookingId, tutorUserId })).rejects.toMatchObject({
+        response: { code: 'BOOKING_TRANSITION_CONFLICT', statusCode: 409 },
+      });
+    });
+
+    it('rethrows a database defect during the transition instead of reporting a conflict', async () => {
+      const { bookingId, tutorUserId } = createTestData();
+      const databaseError = createDatabaseError('check constraint failed', 'P2010', {
+        code: '23514',
+      });
+
+      mockPrismaService.booking.findUnique.mockResolvedValue(pendingBooking(tutorUserId));
+      mockPrismaService.$transaction.mockRejectedValue(databaseError);
+
+      await expect(service.rejectTutorBooking({ bookingId, tutorUserId })).rejects.toThrow(
+        databaseError,
+      );
     });
   });
 });
