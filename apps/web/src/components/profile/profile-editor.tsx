@@ -19,6 +19,7 @@ import {
   validateStudentProfile,
   validateTutorProfile,
 } from '@/components/profile/profile-editor-model';
+import { TutorProfileSummary } from '@/components/profile/tutor-profile-summary';
 import {
   GraphPaper,
   PaperCard,
@@ -732,39 +733,20 @@ function SystemInfo({
   tutorMeta: Pick<TutorProfile, 'ratingAverage' | 'reviewCount' | 'verificationStatus'>;
 }) {
   const text = copy[language];
+  if (!student) {
+    return <TutorProfileSummary email={email} language={language} tutorMeta={tutorMeta} />;
+  }
   return (
     <div
-      className={`mt-5 grid gap-3 border-t border-dashed border-paper-edge pt-5 ${
-        student
-          ? 'sm:grid-cols-[minmax(0,2fr)_minmax(180px,1fr)]'
-          : 'sm:grid-cols-2 min-[721px]:grid-cols-[minmax(220px,1.8fr)_repeat(3,minmax(110px,1fr))]'
-      }`}
+      className="mt-5 grid gap-3 border-t border-dashed border-paper-edge pt-5 sm:grid-cols-[minmax(0,2fr)_minmax(180px,1fr)]"
       aria-label={text.profileStatus}
     >
       <ReadOnly label={text.accountEmail} value={email} />
-      {student ? (
-        <ReadOnly
-          label={text.profileStatus}
-          value={complete ? text.complete : text.incomplete}
-          statusTone={complete ? 'student' : 'pending'}
-        />
-      ) : (
-        <>
-          <ReadOnly
-            label={text.verification}
-            value={text.status[tutorMeta.verificationStatus]}
-            statusTone={
-              tutorMeta.verificationStatus === 'VERIFIED'
-                ? 'tutor'
-                : tutorMeta.verificationStatus === 'REJECTED'
-                  ? 'error'
-                  : 'pending'
-            }
-          />
-          <ReadOnly label={text.rating} value={tutorMeta.ratingAverage ?? text.newTutor} />
-          <ReadOnly label={text.reviews} value={String(tutorMeta.reviewCount)} />
-        </>
-      )}
+      <ReadOnly
+        label={text.profileStatus}
+        value={complete ? text.complete : text.incomplete}
+        statusTone={complete ? 'student' : 'pending'}
+      />
     </div>
   );
 }

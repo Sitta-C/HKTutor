@@ -57,6 +57,15 @@ summaries count each underlying slot once, and confirmed deletion removes the wh
 The bilingual privacy notice opens
 as a closable modal from registration and the dashboard instead of using a separate route.
 
+The tutor profile's read-only account summary places labels above plain paper fields, matching
+the profile form's typography, spacing, field height, and responsive columns. Tutor verification
+uses a standalone status badge; the score, five stars, review count, and review action share one
+compact row. Stars fill proportionally from the existing profile rating, and ratings, review counts,
+and verification states update from the existing profile API responses. Tutors without
+reviews see an explicit new-tutor state.
+The bilingual “Read all reviews” control currently explains that individual reviews are unavailable;
+it does not submit the profile form or call an unsupported reviews endpoint.
+
 The tutor dashboard follows the Notebook Focus layout: the next confirmed session, today's
 availability, pending requests, monthly teaching analytics, and course performance. Monthly
 analytics show confirmed/completed lessons, scheduled hours, booking value, and a weekly-hours
