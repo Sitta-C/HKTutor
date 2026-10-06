@@ -239,18 +239,32 @@
 }
 
 .tutorIndex {
+  position: relative;
   display: flex;
   min-width: 0;
   flex: 1;
   flex-direction: column;
 }
 
+.indexHeading {
+  padding-right: 50px;
+}
+
 .count {
-  padding: 2px 8px;
-  border-radius: 16px;
-  background: var(--color-sticky-green);
-  color: var(--color-emerald-900);
-  font-size: 0.75rem;
+  position: absolute;
+  top: -1px;
+  right: 22px;
+  width: 40px;
+  height: 58px;
+  padding: 20px 4px 12px;
+  background: color-mix(in srgb, var(--color-student) 22%, var(--color-paper));
+  color: color-mix(in srgb, var(--color-student-deep) 80%, var(--color-notebook-ink));
+  font-size: 0.875rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 22px;
+  text-align: center;
+  clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 82%, 0 100%);
 }
 
 .indexHelp {
@@ -392,6 +406,12 @@
     grid-template-columns: 58px minmax(0, 1fr);
     gap: 12px;
     padding: 10px;
+  }
+
+  .count {
+    right: 16px;
+    height: 52px;
+    padding-top: 14px;
   }
 
   .tutorName {
