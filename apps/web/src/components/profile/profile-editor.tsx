@@ -281,11 +281,7 @@ export default function ProfileEditor({ mode }: ProfileEditorProps) {
     : { ...user };
   const tone: ProfileTone = studentRole ? 'student' : 'tutor';
   const headerNav =
-    mode === 'edit' ? (
-      <Link href="/dashboard" data-dashboard-action>
-        {text.back}
-      </Link>
-    ) : (
+    mode === 'edit' ? null : (
       <button
         className={notebookButtonClass({ tone: 'secondary', className: 'px-3.5' })}
         type="button"

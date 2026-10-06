@@ -31,6 +31,8 @@ older prototypes remain references, not instructions to restore superseded layou
   support an actual error state. The current recovery link explains that reset is not supported.
 - Keep the “Why HKTutor?” navigation in the about page's top section; repeated clicks must scroll
   to its target again. Do not restore the removed duplicate CTA.
+- Profile editing at `/dashboard/profile` has no “Back to dashboard” header button; use the shell's
+  existing navigation. Keep the sign-out control in profile onboarding.
 
 ## Selected patterns
 
