@@ -1,6 +1,5 @@
 'use client';
 
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 
@@ -267,15 +266,7 @@ export default function ManageTutorAvailability() {
   const reservedSlotCount = availabilityWeek.slots.length - openSlotCount;
 
   return (
-    <DashboardShell
-      user={shellUser}
-      onLogout={handleLogout}
-      headerNavRight={
-        <Link href="/dashboard/listings" data-dashboard-action>
-          {copy.dashboard.header.myListingsNav}
-        </Link>
-      }
-    >
+    <DashboardShell user={shellUser} onLogout={handleLogout}>
       <div className="min-w-0 pb-12">
         <header className="mb-6 mt-7">
           <p className="font-note text-xl font-semibold leading-none text-amber-700 sm:text-2xl">
