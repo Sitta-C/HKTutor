@@ -666,13 +666,31 @@ function bookingPagination(input: { page?: number; pageSize?: number }): {
   return { skip: (page - 1) * take, take };
 }
 
+/** Prisma's own codes for the constraint violations a booking race can produce. */
+const CONFLICTING_PRISMA_CODES = new Set(['P2002', 'P2003', 'P2004']);
+/**
+ * A raw SQLSTATE never reaches `error.code` — `PrismaClientKnownRequestError.code` is always a
+ * `P####` value and an unrecognised database fault arrives as `PrismaClientUnknownRequestError`
+ * with no code at all. The only place a SQLSTATE surfaces is `meta.code`, for example on the `P2010`
+ * raised by a failing raw query such as the `SELECT ... FOR UPDATE` in `create()`.
+ *
+ * Only violations that mean "someone else changed the data first" belong here. A check-constraint
+ * violation (`23514`) means this service wrote an invalid row, which is a defect rather than a
+ * conflict, so it is deliberately absent and surfaces as a 500.
+ */
+const CONFLICTING_SQL_STATES = new Set(['23503', '23505']);
+
 function isDatabaseConflict(error: unknown): boolean {
   if (!error || typeof error !== 'object') {
     return false;
   }
 
-  const code = String((error as { code?: string }).code ?? '');
-  return ['P2002', 'P2003', 'P2004', '23503', '23505', '23514'].includes(code);
+  const { code, meta } = error as { code?: unknown; meta?: { code?: unknown } };
+  if (typeof code === 'string' && CONFLICTING_PRISMA_CODES.has(code)) {
+    return true;
+  }
+
+  return typeof meta?.code === 'string' && CONFLICTING_SQL_STATES.has(meta.code);
 }
 
 function deriveBookingAmounts(

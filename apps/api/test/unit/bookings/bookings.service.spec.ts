@@ -21,7 +21,7 @@ import type { BookingResponseDto } from '@modules/bookings/bookings.dto';
 import type { CreateBookingInput } from '@modules/bookings/bookings.service';
 import type { TestingModule } from '@nestjs/testing';
 
-type DatabaseError = Error & { code: string };
+type DatabaseError = Error & { code: string; meta?: { code?: string } };
 
 type TransactionCallback = (tx: {
   $queryRaw?: jest.Mock;
@@ -37,9 +37,14 @@ type TransactionCallback = (tx: {
   user?: { findUnique?: jest.Mock };
 }) => Promise<unknown>;
 
-const createDatabaseError = (message: string, code: string): DatabaseError => {
+const createDatabaseError = (
+  message: string,
+  code: string,
+  meta?: { code?: string },
+): DatabaseError => {
   const error = new Error(message) as DatabaseError;
   error.code = code;
+  if (meta) error.meta = meta;
   return error;
 };
 
@@ -677,14 +682,20 @@ describe('BookingsService', () => {
       );
     });
 
-    it.each(['P2002', '23505'])(
+    it.each([
+      // Prisma's own unique-violation code, as `create()` sees it when the active-slot index trips.
+      ['P2002', undefined],
+      // A raw query carries the SQLSTATE in meta.code; `code` itself stays a P-code.
+      ['P2010', { code: '23505' }],
+    ])(
       'maps database conflict %s to a stable 409 without exposing database details',
-      async (code) => {
+      async (code, meta) => {
         const { listingId, slotId, studentUserId } = createTestData();
 
         const databaseError = createDatabaseError(
           'Unique constraint failed on the fields: (`studentUserId`,`slotId`)',
           code,
+          meta,
         );
 
         mockPrismaService.$transaction.mockRejectedValue(databaseError);
@@ -702,6 +713,22 @@ describe('BookingsService', () => {
         );
       },
     );
+
+    it.each([
+      // A check-constraint violation means this service wrote an invalid row: a defect, not a race.
+      ['a check-constraint violation', 'P2010', { code: '23514' }],
+      // An unrecognised database fault arrives without any code at all.
+      ['an unrecognised database fault', '', undefined],
+    ])('rethrows %s instead of reporting a conflict', async (_description, code, meta) => {
+      const { listingId, slotId, studentUserId } = createTestData();
+      const databaseError = createDatabaseError('database failed', code, meta);
+
+      mockPrismaService.$transaction.mockRejectedValue(databaseError);
+
+      await expect(service.create({ listingId, slotId, studentUserId })).rejects.toThrow(
+        databaseError,
+      );
+    });
 
     it('should throw error and rollback transaction on unexpected database error', async () => {
       const { listingId, slotId, studentUserId } = createTestData();
@@ -1696,6 +1723,20 @@ describe('BookingsService', () => {
       await expect(service.rejectTutorBooking({ bookingId, tutorUserId })).rejects.toMatchObject({
         response: { code: 'BOOKING_TRANSITION_CONFLICT', statusCode: 409 },
       });
+    });
+
+    it('rethrows a database defect during the transition instead of reporting a conflict', async () => {
+      const { bookingId, tutorUserId } = createTestData();
+      const databaseError = createDatabaseError('check constraint failed', 'P2010', {
+        code: '23514',
+      });
+
+      mockPrismaService.booking.findUnique.mockResolvedValue(pendingBooking(tutorUserId));
+      mockPrismaService.$transaction.mockRejectedValue(databaseError);
+
+      await expect(service.rejectTutorBooking({ bookingId, tutorUserId })).rejects.toThrow(
+        databaseError,
+      );
     });
   });
 });
