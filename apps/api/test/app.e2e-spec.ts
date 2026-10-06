@@ -11,10 +11,19 @@ import type { App } from 'supertest/types';
 
 describe('AppModule (e2e)', () => {
   let app: INestApplication<App>;
-  const previousDatabaseUrl = process.env['DATABASE_URL'];
+  const testEnvironment = {
+    DATABASE_URL: 'postgresql://user:password@example.test:5432/hktutor',
+    SUPABASE_URL: 'https://storage.example.test',
+    SUPABASE_SECRET_KEY: 'sb_secret_unit_test',
+    SUPABASE_AVATAR_BUCKET: 'test-avatars',
+    SUPABASE_DOCUMENT_BUCKET: 'test-documents',
+  };
+  const previousEnvironment = Object.fromEntries(
+    Object.keys(testEnvironment).map((key) => [key, process.env[key]]),
+  );
 
   beforeAll(async () => {
-    process.env['DATABASE_URL'] = 'postgresql://user:password@example.test:5432/hktutor';
+    Object.assign(process.env, testEnvironment);
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
     })
@@ -38,10 +47,12 @@ describe('AppModule (e2e)', () => {
   afterAll(async () => {
     await app.close();
 
-    if (previousDatabaseUrl === undefined) {
-      delete process.env['DATABASE_URL'];
-    } else {
-      process.env['DATABASE_URL'] = previousDatabaseUrl;
+    for (const [key, value] of Object.entries(previousEnvironment)) {
+      if (value === undefined) {
+        delete process.env[key];
+      } else {
+        process.env[key] = value;
+      }
     }
   });
 });

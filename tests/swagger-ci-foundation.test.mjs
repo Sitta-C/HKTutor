@@ -48,7 +48,14 @@ test('CI runs the core project check and booking race verification', async () =>
     /DATABASE_URL: postgresql:\/\/postgres:postgres@127\.0\.0\.1:5432\/hktutor_ci\?schema=public/,
   );
   assert.match(workflow, /pnpm db:verify:bookings/);
-  assert.doesNotMatch(workflow, /SUPABASE_(?:SECRET|SERVICE_ROLE)_KEY/);
+  assert.match(workflow, /SUPABASE_URL: https:\/\/storage\.example\.test/);
+  assert.match(workflow, /SUPABASE_AVATAR_BUCKET: ci-avatars/);
+  assert.match(workflow, /SUPABASE_DOCUMENT_BUCKET: ci-documents/);
+  assert.deepEqual(
+    [...workflow.matchAll(/SUPABASE_SECRET_KEY:\s*([^\n]+)/g)].map((match) => match[1]),
+    ['sb_secret_ci_test_only'],
+  );
+  assert.doesNotMatch(workflow, /SUPABASE_SERVICE_ROLE_KEY/);
 });
 
 test('workspace check generates Prisma Client before linting', async () => {

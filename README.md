@@ -43,6 +43,11 @@ See [frontend direction](ui-design/frontend-direction.md) for the Notebook Focus
 [implemented frontend behavior](ui-design/implemented-behavior.md) for interaction, loading,
 responsive layout, and accessibility details.
 
+The API also supports private tutor qualification uploads, owner/admin signed previews, and an
+admin review queue with atomic review and audit records. See the
+[qualification API contract and rollout notes](apps/api/README.md#qualification-document-api-s2-t07).
+The corresponding upload and admin review screens are not implemented yet.
+
 The accepted student and tutor dashboard concepts, plus the tutor profile/certificate form, live
 in [`ui-design`](ui-design/). Open [`ui-design/index.html`](ui-design/index.html) directly or serve
 the directory as static files. [`ui-design/uidesign.md`](ui-design/uidesign.md) records the page
@@ -68,6 +73,9 @@ written to local storage. Refresh-token rotation detects reuse and revokes the a
 Copy `.env.example` to the ignored `.env` and replace every bracketed placeholder. Important values:
 
 - `DATABASE_URL` — PostgreSQL/Supabase connection string used only by the API
+- `SUPABASE_URL` and `SUPABASE_SECRET_KEY` — Supabase project origin and backend `sb_secret_` key
+- `SUPABASE_AVATAR_BUCKET` and `SUPABASE_DOCUMENT_BUCKET` — distinct, pre-created Storage buckets;
+  documents must be private. See the API README for file limits and service integration.
 - `JWT_ACCESS_SECRET` and `JWT_REFRESH_SECRET` — different random values, each at least 32 characters
 - `RESEND_API_KEY` and `EMAIL_FROM` — Resend API key and an approved sender
 - `APP_URL` — web URL embedded in email verification links

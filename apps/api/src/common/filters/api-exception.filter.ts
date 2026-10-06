@@ -1,4 +1,6 @@
-import { Catch, HttpException } from '@nestjs/common';
+import { STATUS_CODES } from 'node:http';
+
+import { Catch, HttpException, Logger } from '@nestjs/common';
 
 import type { ArgumentsHost, ExceptionFilter } from '@nestjs/common';
 import type { Response } from 'express';
@@ -24,18 +26,25 @@ const SERVER_FALLBACK_CODE = 'INTERNAL_ERROR';
 /**
  * Gives every HTTP error one envelope: `{ statusCode, error, message, code }`. An exception that
  * already sets its own `code` — `INVALID_UUID`, the booking ownership and transition errors — keeps
- * it untouched; anything else gets the default for its status. Non-HTTP exceptions are left to
- * Nest's own handler so unexpected failures keep their generic 500 and server-side logging.
+ * it untouched; unexpected failures return a generic 500 without exposing provider details.
  */
-@Catch(HttpException)
-export class ApiExceptionFilter implements ExceptionFilter<HttpException> {
-  catch(exception: HttpException, host: ArgumentsHost): void {
-    const status = exception.getStatus();
-    const thrown = exception.getResponse();
+@Catch()
+export class ApiExceptionFilter implements ExceptionFilter<unknown> {
+  private readonly logger = new Logger(ApiExceptionFilter.name);
+
+  catch(exception: unknown, host: ArgumentsHost): void {
+    const status = exception instanceof HttpException ? exception.getStatus() : 500;
+    const thrown =
+      exception instanceof HttpException ? exception.getResponse() : 'Internal server error';
+    if (!(exception instanceof HttpException)) {
+      this.logger.error('An unexpected API operation failed');
+    }
     const body: Record<string, unknown> =
-      typeof thrown === 'string' ? { message: thrown } : { ...(thrown as Record<string, unknown>) };
+      typeof thrown === 'string' ? { message: thrown } : { ...thrown };
 
     body['statusCode'] ??= status;
+    body['error'] ??= STATUS_CODES[status] ?? 'Error';
+    body['message'] ??= STATUS_CODES[status] ?? 'Request failed';
     body['code'] ??=
       DEFAULT_CODES[status] ?? (status >= 500 ? SERVER_FALLBACK_CODE : CLIENT_FALLBACK_CODE);
 

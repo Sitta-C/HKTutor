@@ -41,6 +41,8 @@ test('documents the required server-only and intentionally public environment va
     'SEED_STUDENT_PASSWORD',
     'SEED_TUTOR_EMAIL',
     'SEED_TUTOR_PASSWORD',
+    'SUPABASE_AVATAR_BUCKET',
+    'SUPABASE_DOCUMENT_BUCKET',
     'SUPABASE_SECRET_KEY',
     'SUPABASE_URL',
     'WEB_ORIGIN',
@@ -51,6 +53,8 @@ test('documents the required server-only and intentionally public environment va
   );
   assert.equal(template.SUPABASE_URL, 'https://[PROJECT_REF].supabase.co');
   assert.equal(template.SUPABASE_SECRET_KEY, 'sb_secret_[REPLACE_ME]');
+  assert.equal(template.SUPABASE_AVATAR_BUCKET, '[AVATAR_BUCKET]');
+  assert.equal(template.SUPABASE_DOCUMENT_BUCKET, '[DOCUMENT_BUCKET]');
   assert.equal(template.SEED_ADMIN_EMAIL, '[ADMIN_EMAIL]');
   assert.equal(template.SEED_ADMIN_PASSWORD, '[ADMIN_PASSWORD_AT_LEAST_10_CHARACTERS]');
   assert.equal(template.SEED_TUTOR_EMAIL, '[TUTOR_EMAIL]');

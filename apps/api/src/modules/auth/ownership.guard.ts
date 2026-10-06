@@ -111,6 +111,21 @@ export class ResourceOwnershipGuard implements CanActivate {
           : 'missing';
       case 'booking':
         return this.resolveBookingOwnership(resourceId, user, adminAccess);
+      case 'tutorDocument': {
+        const document = await this.prisma.tutorDocument.findFirst({
+          where: {
+            id: resourceId,
+            tutor: { user: { deletedAt: null, accountStatus: 'ACTIVE', role: Role.TUTOR } },
+          },
+          select: { tutorUserId: true },
+        });
+        if (!document) {
+          return 'missing';
+        }
+        return adminAccess || (user.role === Role.TUTOR && document.tutorUserId === user.id)
+          ? 'granted'
+          : 'foreignOwner';
+      }
     }
   }
 
