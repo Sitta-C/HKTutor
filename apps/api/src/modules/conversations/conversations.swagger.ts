@@ -14,7 +14,7 @@ import {
   getSchemaPath,
 } from '@nestjs/swagger';
 
-import { JWT_BEARER_AUTH } from '@/auth/auth.swagger';
+import { JWT_BEARER_AUTH } from '@modules/auth/auth.swagger';
 import {
   ConversationSummaryDto,
   CreateConversationDto,
@@ -22,7 +22,7 @@ import {
   MessageResponseDto,
   MyConversationsResponseDto,
   SendMessageDto,
-} from '@/conversations/conversations.dto';
+} from '@modules/conversations/conversations.dto';
 
 const CONVERSATION_ID_EXAMPLE = '6f1c2b8e-3d4a-4f5b-9c7d-2e8a1b0c9d3f';
 const STUDENT_ID_EXAMPLE = '2c9d7e1f-4a3b-4c5d-8e6f-7a8b9c0d1e2f';

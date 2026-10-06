@@ -11,11 +11,12 @@ import {
   UseGuards,
 } from '@nestjs/common';
 
-import { CurrentUser } from '@/auth/auth.decorator';
-import { JwtAuthGuard } from '@/auth/auth.guard';
-import { Roles } from '@/auth/roles.decorator';
-import { RolesGuard } from '@/auth/roles.guard';
-import { UuidParamPipe } from '@/common/pipes/uuid-param.pipe';
+import { UuidParamPipe } from '@common/pipes/uuid-param.pipe';
+import { Role } from '@generated/prisma/client';
+import { CurrentUser } from '@modules/auth/auth.decorator';
+import { JwtAuthGuard } from '@modules/auth/auth.guard';
+import { Roles } from '@modules/auth/roles.decorator';
+import { RolesGuard } from '@modules/auth/roles.guard';
 import {
   ConversationSummaryDto,
   CreateConversationDto,
@@ -23,17 +24,16 @@ import {
   MessageResponseDto,
   MyConversationsResponseDto,
   SendMessageDto,
-} from '@/conversations/conversations.dto';
-import { ConversationsService } from '@/conversations/conversations.service';
+} from '@modules/conversations/conversations.dto';
+import { ConversationsService } from '@modules/conversations/conversations.service';
 import {
   ConversationsControllerDoc,
   GetMyConversationsDoc,
   OpenConversationDoc,
   SendMessageDoc,
-} from '@/conversations/conversations.swagger';
-import { Role } from '@/generated/prisma/client';
+} from '@modules/conversations/conversations.swagger';
 
-import type { AuthenticatedUser } from '@/auth/auth.guard';
+import type { AuthenticatedUser } from '@modules/auth/auth.guard';
 import type { Response } from 'express';
 
 @ConversationsControllerDoc()

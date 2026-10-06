@@ -5,6 +5,9 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 
+import { Prisma } from '@generated/prisma/client';
+import { AccountStatus, Role } from '@generated/prisma/enums';
+import { PrismaService } from '@infrastructure/database/prisma.service';
 import {
   ConversationParticipantDto,
   ConversationSummaryDto,
@@ -15,11 +18,8 @@ import {
   MessageResponseDto,
   MyConversationsResponseDto,
   SendMessageDto,
-} from '@/conversations/conversations.dto';
-import { PrismaService } from '@/database/prisma.service';
-import { Prisma } from '@/generated/prisma/client';
-import { AccountStatus, Role } from '@/generated/prisma/enums';
-import { publicTutorWhere } from '@/tutors/public-tutor-access';
+} from '@modules/conversations/conversations.dto';
+import { publicTutorWhere } from '@modules/tutors/public-tutor-access';
 
 export type OpenConversationInput = CreateConversationDto & { studentUserId: string };
 export type GetMyConversationsInput = GetMyConversationsQueryDto & { role: Role; userId: string };

@@ -3,16 +3,16 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
 
-import { API_GLOBAL_PREFIX, configureApplication } from '@/app.setup';
-import { JwtAuthGuard } from '@/auth/auth.guard';
-import { JWT_BEARER_AUTH } from '@/auth/auth.swagger';
-import { RolesGuard } from '@/auth/roles.guard';
-import { ConversationsController } from '@/conversations/conversations.controller';
-import { ConversationsService } from '@/conversations/conversations.service';
-import { PrismaService } from '@/database/prisma.service';
-import { Role } from '@/generated/prisma/client';
+import { API_GLOBAL_PREFIX, configureApplication } from '@app/app.setup';
+import { Role } from '@generated/prisma/client';
+import { PrismaService } from '@infrastructure/database/prisma.service';
+import { JwtAuthGuard } from '@modules/auth/auth.guard';
+import { JWT_BEARER_AUTH } from '@modules/auth/auth.swagger';
+import { RolesGuard } from '@modules/auth/roles.guard';
+import { ConversationsController } from '@modules/conversations/conversations.controller';
+import { ConversationsService } from '@modules/conversations/conversations.service';
 
-import type { AuthenticatedRequest, AuthenticatedUser } from '@/auth/auth.guard';
+import type { AuthenticatedRequest, AuthenticatedUser } from '@modules/auth/auth.guard';
 import type { ExecutionContext, INestApplication, Type } from '@nestjs/common';
 import type { OpenAPIObject } from '@nestjs/swagger';
 import type { TestingModule } from '@nestjs/testing';
@@ -263,7 +263,7 @@ describe('ConversationsController OpenAPI contract', () => {
 
   beforeAll(async () => {
     process.env['DATABASE_URL'] = 'postgresql://user:password@example.test:5432/hktutor';
-    const { AppModule } = jest.requireActual<{ AppModule: Type<unknown> }>('@/app.module');
+    const { AppModule } = jest.requireActual<{ AppModule: Type<unknown> }>('@app/app.module');
 
     const moduleFixture = await Test.createTestingModule({ imports: [AppModule] })
       .overrideProvider(PrismaService)

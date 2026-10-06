@@ -1,12 +1,12 @@
 import { ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 
-import { ConversationsService } from '@/conversations/conversations.service';
-import { PrismaService } from '@/database/prisma.service';
-import { AccountStatus, Role } from '@/generated/prisma/enums';
-import { publicTutorWhere } from '@/tutors/public-tutor-access';
+import { AccountStatus, Role } from '@generated/prisma/enums';
+import { PrismaService } from '@infrastructure/database/prisma.service';
+import { ConversationsService } from '@modules/conversations/conversations.service';
+import { publicTutorWhere } from '@modules/tutors/public-tutor-access';
 
-import type { Prisma } from '@/generated/prisma/client';
+import type { Prisma } from '@generated/prisma/client';
 import type { TestingModule } from '@nestjs/testing';
 
 const STUDENT_ID = '6bb01222-1fce-4bc3-a69d-3d90db2fdf57';

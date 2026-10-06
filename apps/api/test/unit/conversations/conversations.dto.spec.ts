@@ -6,7 +6,7 @@ import {
   GetMyConversationsQueryDto,
   MESSAGE_BODY_MAX_LENGTH,
   SendMessageDto,
-} from '@/conversations/conversations.dto';
+} from '@modules/conversations/conversations.dto';
 
 const TUTOR_ID = 'ad08a291-dd8b-40c1-84e5-ddafca54c6fc';
 const CLIENT_MESSAGE_ID = '0f8fad5b-d9cb-469f-a165-70867728950e';
