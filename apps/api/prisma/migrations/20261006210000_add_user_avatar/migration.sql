@@ -18,4 +18,34 @@ ALTER TABLE "User" ADD CONSTRAINT "User_avatar_metadata_check" CHECK (
    "avatarObjectPath" ~ ('^' || "id"::text || '/[0-9a-f-]{36}\.webp$'))
 );
 
+CREATE TYPE "StorageObjectPurpose" AS ENUM ('AVATAR', 'QUALIFICATION_DOCUMENT');
+
+-- Preserve all pending qualification cleanup work while converting its queue into the shared one.
+ALTER TABLE "QualificationUploadIntent" RENAME TO "StorageCleanupIntent";
+ALTER TABLE "StorageCleanupIntent"
+  ADD COLUMN "purpose" "StorageObjectPurpose" NOT NULL DEFAULT 'QUALIFICATION_DOCUMENT';
+ALTER TABLE "StorageCleanupIntent" ALTER COLUMN "purpose" DROP DEFAULT;
+
+ALTER TABLE "StorageCleanupIntent"
+  DROP CONSTRAINT "QualificationUploadIntent_pkey",
+  DROP CONSTRAINT "QualificationUploadIntent_attempts_check",
+  DROP CONSTRAINT "QualificationUploadIntent_path_check",
+  ADD CONSTRAINT "StorageCleanupIntent_pkey" PRIMARY KEY ("purpose", "objectPath"),
+  ADD CONSTRAINT "StorageCleanupIntent_attempts_check" CHECK ("attempts" >= 0),
+  ADD CONSTRAINT "StorageCleanupIntent_path_check" CHECK (
+    (
+      "purpose" = 'AVATAR' AND
+      "objectPath" ~ '^[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}/[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}\.webp$'
+    )
+    OR
+    (
+      "purpose" = 'QUALIFICATION_DOCUMENT' AND
+      "objectPath" ~ '^[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}/[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}\.(pdf|jpg|png)$'
+    )
+  );
+
+DROP INDEX "QualificationUploadIntent_nextAttemptAt_idx";
+CREATE INDEX "StorageCleanupIntent_nextAttemptAt_purpose_idx"
+  ON "StorageCleanupIntent" ("nextAttemptAt", "purpose");
+
 COMMIT;

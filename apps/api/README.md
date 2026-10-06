@@ -354,15 +354,18 @@ with a generic 500 message and static logging, without provider details.
 `20261006150000_qualification_document_api` is a new forward migration. It adds the partial unique
 index for pending uploads and `TutorDocumentAudit` with foreign keys, bounded audit evidence,
 one-review uniqueness, and an append-only trigger. It preserves previous migrations and data.
-`20261006200000_qualification_upload_recovery` adds the shared `StorageCleanupIntent` queue and its
-purpose enum, then reconciles existing tutor profile statuses from their document reviews. It
-preserves document and audit evidence and leaves profiles without documents unchanged. Apply with
-qualification writes paused, then start the updated API. Automatic background recovery is currently
-deferred; pending intents remain available for explicit recovery or the future cron scheduler.
+`20261006200000_qualification_upload_recovery` adds the original qualification cleanup queue and
+reconciles existing tutor profile statuses from their document reviews. It preserves document and
+audit evidence and leaves profiles without documents unchanged. Automatic background recovery is
+currently deferred; pending intents remain available for explicit recovery or the future scheduler.
 `20261006201000_protect_qualification_metadata` enables RLS on both qualification metadata tables
-and the shared cleanup table, then revokes direct access from `PUBLIC`, `anon`, and `authenticated`.
-Application authorization remains in Nest; Prisma connects as the migration/table owner. Do not
-grant Supabase browser roles direct access to these private metadata/audit/recovery tables.
+and that cleanup queue, then revokes direct access from `PUBLIC`, `anon`, and `authenticated`.
+`20261006210000_add_user_avatar` adds avatar metadata and converts the qualification queue into the
+shared `StorageCleanupIntent` table. Existing pending rows receive the
+`QUALIFICATION_DOCUMENT` purpose; no queued cleanup work is discarded. Apply with qualification
+writes paused, then start the updated API. Application authorization remains in Nest; Prisma
+connects as the migration/table owner. Do not grant Supabase browser roles direct access to these
+private metadata/audit/recovery tables.
 Before deploying, inspect duplicate pending types with this read-only query and resolve them
 deliberately; the migration fails rather than deleting records automatically:
 
