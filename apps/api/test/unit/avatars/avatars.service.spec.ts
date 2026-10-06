@@ -7,14 +7,14 @@ import {
 import { Test } from '@nestjs/testing';
 import sharp from 'sharp';
 
-import { AccountStatus, Role } from '@generated/prisma/client';
+import { AccountStatus, Role, StorageObjectPurpose } from '@generated/prisma/client';
 import { PrismaService } from '@infrastructure/database/prisma.service';
+import {
+  STORAGE_CLEANUP_GRACE_MS,
+  StorageCleanupService,
+} from '@infrastructure/storage/storage-cleanup.service';
 import { StorageService } from '@infrastructure/storage/storage.service';
 import { CURRENT_PRIVACY_POLICY_VERSION } from '@modules/auth/auth.constants';
-import {
-  AVATAR_UPLOAD_GRACE_MS,
-  AvatarRecoveryService,
-} from '@modules/avatars/avatar-recovery.service';
 import { AvatarsService } from '@modules/avatars/avatars.service';
 import { publicTutorWhere } from '@modules/tutors/public-tutor-access';
 
@@ -40,8 +40,19 @@ describe('AvatarsService', () => {
   const db = {
     user: { findUnique: jest.fn(), update: jest.fn() },
     tutorProfile: { findFirst: jest.fn() },
-    avatarUploadIntent: {
-      create: jest.fn<Promise<unknown>, [{ data: { objectPath: string; nextAttemptAt: Date } }]>(),
+    storageCleanupIntent: {
+      create: jest.fn<
+        Promise<unknown>,
+        [
+          {
+            data: {
+              purpose: StorageObjectPurpose;
+              objectPath: string;
+              nextAttemptAt: Date;
+            };
+          },
+        ]
+      >(),
       delete: jest.fn(),
     },
     $queryRaw: jest.fn(),
@@ -54,7 +65,7 @@ describe('AvatarsService', () => {
     createSignedUrl: jest.fn(),
     remove: jest.fn(),
   };
-  const recovery = { recoverPending: jest.fn() };
+  const cleanup = { recoverPending: jest.fn() };
   let module: TestingModule;
   let service: AvatarsService;
   let file: Express.Multer.File;
@@ -102,13 +113,13 @@ describe('AvatarsService', () => {
       }),
     );
     storage.createSignedUrl.mockResolvedValue('https://storage.example.test/signed');
-    recovery.recoverPending.mockResolvedValue(undefined);
+    cleanup.recoverPending.mockResolvedValue(undefined);
     module = await Test.createTestingModule({
       providers: [
         AvatarsService,
         { provide: PrismaService, useValue: { ...db, $transaction: transaction } },
         { provide: StorageService, useValue: storage },
-        { provide: AvatarRecoveryService, useValue: recovery },
+        { provide: StorageCleanupService, useValue: cleanup },
       ],
     }).compile();
     service = module.get(AvatarsService);
@@ -172,14 +183,23 @@ describe('AvatarsService', () => {
         },
         select: { id: true },
       });
-      expect(db.avatarUploadIntent.create).toHaveBeenNthCalledWith(2, {
-        data: { objectPath: OLD_PATH, nextAttemptAt: anyDate },
+      expect(db.storageCleanupIntent.create).toHaveBeenNthCalledWith(2, {
+        data: {
+          purpose: StorageObjectPurpose.AVATAR,
+          objectPath: OLD_PATH,
+          nextAttemptAt: anyDate,
+        },
       });
-      expect(db.avatarUploadIntent.delete).toHaveBeenCalledWith({
-        where: { objectPath: NEW_PATH },
+      expect(db.storageCleanupIntent.delete).toHaveBeenCalledWith({
+        where: {
+          purpose_objectPath: {
+            purpose: StorageObjectPurpose.AVATAR,
+            objectPath: NEW_PATH,
+          },
+        },
       });
       expect(storage.remove).not.toHaveBeenCalled();
-      expect(db.avatarUploadIntent.create.mock.invocationCallOrder[0]).toBeLessThan(
+      expect(db.storageCleanupIntent.create.mock.invocationCallOrder[0]).toBeLessThan(
         storage.uploadPrepared.mock.invocationCallOrder[0] ?? 0,
       );
       expect(storage.uploadPrepared.mock.invocationCallOrder[0]).toBeLessThan(
@@ -192,10 +212,10 @@ describe('AvatarsService', () => {
     storage.uploadPrepared.mockRejectedValueOnce(new ServiceUnavailableException('timeout'));
     await expect(service.upload(user, file)).rejects.toBeInstanceOf(ServiceUnavailableException);
     expect(db.user.update).not.toHaveBeenCalled();
-    expect(db.avatarUploadIntent.delete).not.toHaveBeenCalled();
-    const intent = db.avatarUploadIntent.create.mock.calls[0]?.[0];
+    expect(db.storageCleanupIntent.delete).not.toHaveBeenCalled();
+    const intent = db.storageCleanupIntent.create.mock.calls[0]?.[0];
     expect(intent?.data.nextAttemptAt.getTime()).toBeGreaterThan(
-      Date.now() + AVATAR_UPLOAD_GRACE_MS - 1000,
+      Date.now() + STORAGE_CLEANUP_GRACE_MS - 1000,
     );
   });
 
@@ -210,7 +230,7 @@ describe('AvatarsService', () => {
     await expect(service.upload(user, file)).rejects.toThrow(
       'Avatar metadata could not be saved; cleanup will retry',
     );
-    expect(db.avatarUploadIntent.delete).not.toHaveBeenCalled();
+    expect(db.storageCleanupIntent.delete).not.toHaveBeenCalled();
   });
 
   it('removes all metadata atomically and queues deletion', async () => {
@@ -225,8 +245,12 @@ describe('AvatarsService', () => {
       },
       select: { id: true },
     });
-    expect(db.avatarUploadIntent.create).toHaveBeenCalledWith({
-      data: { objectPath: OLD_PATH, nextAttemptAt: anyDate },
+    expect(db.storageCleanupIntent.create).toHaveBeenCalledWith({
+      data: {
+        purpose: StorageObjectPurpose.AVATAR,
+        objectPath: OLD_PATH,
+        nextAttemptAt: anyDate,
+      },
     });
     expect(storage.remove).not.toHaveBeenCalled();
   });
@@ -251,7 +275,7 @@ describe('AvatarsService', () => {
     await expect(service.upload(user, file)).rejects.toThrow(
       'Avatar storage must use a private bucket',
     );
-    expect(db.avatarUploadIntent.create).not.toHaveBeenCalled();
+    expect(db.storageCleanupIntent.create).not.toHaveBeenCalled();
     expect(storage.uploadPrepared).not.toHaveBeenCalled();
   });
 

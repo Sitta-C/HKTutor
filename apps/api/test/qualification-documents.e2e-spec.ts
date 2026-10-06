@@ -9,6 +9,7 @@ import { StorageConfigService } from '@config/storage.config';
 import { Prisma } from '@generated/prisma/client';
 import { Role, TutorDocumentReviewStatus } from '@generated/prisma/enums';
 import { PrismaService } from '@infrastructure/database/prisma.service';
+import { StorageCleanupService } from '@infrastructure/storage/storage-cleanup.service';
 import { StorageService } from '@infrastructure/storage/storage.service';
 import { DOCUMENT_MAX_SIZE_BYTES } from '@infrastructure/storage/storage.types';
 import { CURRENT_PRIVACY_POLICY_VERSION } from '@modules/auth/auth.constants';
@@ -23,8 +24,8 @@ import {
 import { QualificationStatus } from '@modules/qualification-documents/qualification-documents.dto';
 import { encodeQualificationCursor } from '@modules/qualification-documents/qualification-documents.model';
 import { QualificationDocumentsService } from '@modules/qualification-documents/qualification-documents.service';
-import { QualificationUploadRecoveryService } from '@modules/qualification-documents/qualification-upload-recovery.service';
 
+import type { StorageObjectPurpose } from '@generated/prisma/enums';
 import type { DocumentMetadata } from '@modules/qualification-documents/qualification-documents.model';
 import type { INestApplication } from '@nestjs/common';
 import type { App } from 'supertest/types';
@@ -114,7 +115,10 @@ describe('S2-T07 qualification documents (HTTP contracts with isolated persisten
   let auditRecords: AuditData[] = [];
   let verificationStatus = 'PENDING';
   let transactionTail = Promise.resolve();
-  let intents = new Map<string, { objectPath: string; nextAttemptAt: Date }>();
+  let intents = new Map<
+    string,
+    { purpose: StorageObjectPurpose; objectPath: string; nextAttemptAt: Date }
+  >();
   const findFirst = jest.fn<Promise<typeof document | null>, [Prisma.TutorDocumentFindFirstArgs]>();
   const findMany = jest.fn<Promise<Array<typeof document>>, [Prisma.TutorDocumentFindManyArgs]>();
   const createDocument = jest.fn(
@@ -162,24 +166,43 @@ describe('S2-T07 qualification documents (HTTP contracts with isolated persisten
       tutorProfile: { userId: TUTOR_ID },
     }),
   );
-  const lockTutor = jest.fn((sql: TemplateStringsArray, path?: string) => {
-    if (sql.join('').includes('QualificationUploadIntent')) {
+  const lockTutor = jest.fn((sql: TemplateStringsArray, ...values: unknown[]) => {
+    if (sql.join('').includes('StorageCleanupIntent')) {
+      const path = values.find((value) => typeof value === 'string' && value.includes('/'));
       const intent = path ? intents.get(path) : [...intents.values()][0];
-      return Promise.resolve(intent ? [{ objectPath: intent.objectPath }] : []);
+      return Promise.resolve(
+        intent ? [{ purpose: intent.purpose, objectPath: intent.objectPath }] : [],
+      );
     }
     return Promise.resolve([{ userId: TUTOR_ID }]);
   });
   const createIntent = jest.fn(
-    ({ data }: { data: { objectPath: string; nextAttemptAt: Date } }) => {
+    ({
+      data,
+    }: {
+      data: {
+        purpose: StorageObjectPurpose;
+        objectPath: string;
+        nextAttemptAt: Date;
+      };
+    }) => {
       intents.set(data.objectPath, data);
       return Promise.resolve(data);
     },
   );
-  const deleteIntent = jest.fn(({ where }: { where: { objectPath: string } }) => {
-    const intent = intents.get(where.objectPath);
-    intents.delete(where.objectPath);
-    return Promise.resolve(intent);
-  });
+  const deleteIntent = jest.fn(
+    ({
+      where,
+    }: {
+      where: {
+        purpose_objectPath: { purpose: StorageObjectPurpose; objectPath: string };
+      };
+    }) => {
+      const intent = intents.get(where.purpose_objectPath.objectPath);
+      intents.delete(where.purpose_objectPath.objectPath);
+      return Promise.resolve(intent);
+    },
+  );
   const retryIntent = jest.fn(() => Promise.resolve({ count: 1 }));
   const findReference = jest.fn(({ where }: { where: { objectPath: string } }) =>
     Promise.resolve(document.objectPath === where.objectPath ? { id: document.id } : null),
@@ -217,7 +240,7 @@ describe('S2-T07 qualification documents (HTTP contracts with isolated persisten
       create: createDocument,
       updateMany: updateDocument,
     },
-    qualificationUploadIntent: {
+    storageCleanupIntent: {
       create: createIntent,
       delete: deleteIntent,
       updateMany: retryIntent,
@@ -263,7 +286,7 @@ describe('S2-T07 qualification documents (HTTP contracts with isolated persisten
       controllers: [TutorQualificationDocumentsController, AdminTutorVerificationsController],
       providers: [
         QualificationDocumentsService,
-        QualificationUploadRecoveryService,
+        StorageCleanupService,
         JwtAuthGuard,
         RolesGuard,
         ResourceOwnershipGuard,
@@ -534,7 +557,7 @@ describe('S2-T07 qualification documents (HTTP contracts with isolated persisten
       expect(auditRecords).toEqual([]);
       expect(document).toEqual(fixture());
       expect(errorLog).toHaveBeenCalledWith({
-        message: 'Qualification upload cleanup failed',
+        message: 'Storage cleanup failed',
         stage: 'remove_object',
         code: 'STORAGE_HTTP_503',
       });
@@ -900,7 +923,7 @@ describe('S2-T07 qualification documents (HTTP contracts with isolated persisten
       .expect(503);
     expect(intents.size).toBe(1);
     expect(createDocument).not.toHaveBeenCalled();
-    await app.get(QualificationUploadRecoveryService).cleanup();
+    await app.get(StorageCleanupService).cleanup();
     expect(intents.size).toBe(0);
   });
 

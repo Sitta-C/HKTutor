@@ -10,8 +10,14 @@ import { createClient } from '@supabase/supabase-js';
 import 'reflect-metadata';
 
 import { StorageConfigService } from '@config/storage.config';
-import { Role, TutorDocumentReviewStatus, TutorVerificationStatus } from '@generated/prisma/enums';
+import {
+  Role,
+  StorageObjectPurpose,
+  TutorDocumentReviewStatus,
+  TutorVerificationStatus,
+} from '@generated/prisma/enums';
 import { PrismaService } from '@infrastructure/database/prisma.service';
+import { StorageCleanupService } from '@infrastructure/storage/storage-cleanup.service';
 import { StorageService } from '@infrastructure/storage/storage.service';
 import { CURRENT_PRIVACY_POLICY_VERSION } from '@modules/auth/auth.constants';
 import {
@@ -19,7 +25,6 @@ import {
   QualificationDocumentType,
 } from '@modules/qualification-documents/qualification-documents.dto';
 import { QualificationDocumentsService } from '@modules/qualification-documents/qualification-documents.service';
-import { QualificationUploadRecoveryService } from '@modules/qualification-documents/qualification-upload-recovery.service';
 
 import type { AuthenticatedUser } from '@modules/auth/auth.guard';
 import type {} from 'multer';
@@ -99,8 +104,8 @@ const storage = new StorageService(
     },
   }),
 );
-const recovery = new QualificationUploadRecoveryService(prisma, storage);
-const documents = new QualificationDocumentsService(prisma, storage, recovery);
+const cleanup = new StorageCleanupService(prisma, storage);
+const documents = new QualificationDocumentsService(prisma, storage, cleanup);
 const pdf = Buffer.from('%PDF-1.4\n%%EOF');
 const file: Express.Multer.File = {
   fieldname: 'file',
@@ -251,14 +256,14 @@ async function verifyMetadataPrivacy(): Promise<void> {
     SELECT c.relrowsecurity AS "rlsEnabled" FROM pg_class c
     JOIN pg_namespace n ON n.oid = c.relnamespace
     WHERE n.nspname = 'public'
-      AND c.relname IN ('TutorDocument', 'TutorDocumentAudit', 'QualificationUploadIntent')`;
+      AND c.relname IN ('TutorDocument', 'TutorDocumentAudit', 'StorageCleanupIntent')`;
   assert.equal(tables.length, 3);
   assert.ok(tables.every((table) => table.rlsEnabled));
   const privileges = await prisma.$queryRaw<Array<{ allowed: boolean }>>`
     SELECT has_table_privilege(r.oid, c.oid, 'SELECT,INSERT,UPDATE,DELETE') AS allowed
     FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace CROSS JOIN pg_roles r
     WHERE n.nspname = 'public'
-      AND c.relname IN ('TutorDocument', 'TutorDocumentAudit', 'QualificationUploadIntent')
+      AND c.relname IN ('TutorDocument', 'TutorDocumentAudit', 'StorageCleanupIntent')
       AND r.rolname IN ('anon', 'authenticated')`;
   assert.ok(privileges.every((privilege) => !privilege.allowed));
 }
@@ -279,7 +284,12 @@ async function verify(): Promise<void> {
   const uploaded = successes[0];
   assert.ok(uploaded);
   assert.equal(await prisma.tutorDocument.count({ where: { tutorUserId: tutor.id } }), 1);
-  assert.equal(await prisma.qualificationUploadIntent.count(), 0);
+  assert.equal(
+    await prisma.storageCleanupIntent.count({
+      where: { purpose: StorageObjectPurpose.QUALIFICATION_DOCUMENT },
+    }),
+    0,
+  );
   assert.equal(objects.size, 1);
 
   const reviews = await Promise.allSettled(
@@ -343,15 +353,27 @@ async function verify(): Promise<void> {
     await dropFailureProbe();
   }
   assert.equal(await prisma.tutorDocument.count({ where: { tutorUserId: rollbackTutor.id } }), 0);
-  const intent = await prisma.qualificationUploadIntent.findFirstOrThrow();
+  const intent = await prisma.storageCleanupIntent.findFirstOrThrow({
+    where: { purpose: StorageObjectPurpose.QUALIFICATION_DOCUMENT },
+  });
   assert.equal(intent.attempts, 1);
   assert.ok(objects.has(intent.objectPath));
-  await prisma.qualificationUploadIntent.update({
-    where: { objectPath: intent.objectPath },
+  await prisma.storageCleanupIntent.update({
+    where: {
+      purpose_objectPath: {
+        purpose: StorageObjectPurpose.QUALIFICATION_DOCUMENT,
+        objectPath: intent.objectPath,
+      },
+    },
     data: { nextAttemptAt: new Date(0) },
   });
-  await recovery.recoverPending();
-  assert.equal(await prisma.qualificationUploadIntent.count(), 0);
+  await cleanup.recoverPending();
+  assert.equal(
+    await prisma.storageCleanupIntent.count({
+      where: { purpose: StorageObjectPurpose.QUALIFICATION_DOCUMENT },
+    }),
+    0,
+  );
   assert.ok(!objects.has(intent.objectPath));
 
   const pending = await documents.upload(
@@ -388,15 +410,26 @@ async function verify(): Promise<void> {
   const reference = await prisma.tutorDocument.findUniqueOrThrow({
     where: { id: pending.documentId },
   });
-  await prisma.qualificationUploadIntent.create({
-    data: { objectPath: reference.objectPath, nextAttemptAt: new Date(0) },
+  await prisma.storageCleanupIntent.create({
+    data: {
+      purpose: StorageObjectPurpose.QUALIFICATION_DOCUMENT,
+      objectPath: reference.objectPath,
+      nextAttemptAt: new Date(0),
+    },
   });
-  await recovery.cleanup(reference.objectPath);
+  await cleanup.cleanup({
+    purpose: StorageObjectPurpose.QUALIFICATION_DOCUMENT,
+    objectPath: reference.objectPath,
+  });
   assert.ok(objects.has(reference.objectPath), 'Recovery must preserve referenced objects');
 
   const prepared = storage.prepareDocument(tutor.id, { buffer: pdf, mimeType: 'application/pdf' });
-  await prisma.qualificationUploadIntent.create({
-    data: { objectPath: prepared.objectPath, nextAttemptAt: new Date(0) },
+  await prisma.storageCleanupIntent.create({
+    data: {
+      purpose: StorageObjectPurpose.QUALIFICATION_DOCUMENT,
+      objectPath: prepared.objectPath,
+      nextAttemptAt: new Date(0),
+    },
   });
   await storage.uploadPrepared(prepared);
   let releaseDeletion = () => {};
@@ -406,12 +439,16 @@ async function verify(): Promise<void> {
   const started = new Promise<void>((resolve) => {
     deletionStarted = resolve;
   });
-  const firstWorker = recovery.cleanup(prepared.objectPath);
+  const target = {
+    purpose: StorageObjectPurpose.QUALIFICATION_DOCUMENT,
+    objectPath: prepared.objectPath,
+  };
+  const firstWorker = cleanup.cleanup(target);
   await started;
-  const secondWorker = new QualificationUploadRecoveryService(prisma, storage);
+  const secondWorker = new StorageCleanupService(prisma, storage);
   assert.equal(
-    await secondWorker.cleanup(prepared.objectPath),
-    false,
+    await secondWorker.cleanup(target),
+    'empty',
     'Other workers must skip the locked intent',
   );
   releaseDeletion();

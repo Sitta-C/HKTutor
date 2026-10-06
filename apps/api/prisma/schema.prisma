@@ -61,6 +61,11 @@ enum TutorDocumentAuditAction {
   REVIEWED          @map("reviewed")
 }
 
+enum StorageObjectPurpose {
+  AVATAR
+  QUALIFICATION_DOCUMENT
+}
+
 model User {
   id                   String                   @id @default(uuid()) @db.Uuid
   avatarObjectPath     String?                  @unique
@@ -195,24 +200,16 @@ model TutorDocumentAudit {
   @@index([documentId, createdAt, id], map: "TutorDocumentAudit_documentId_createdAt_id_idx")
 }
 
-/// Durable private upload intent. Removed atomically when document metadata commits.
-model QualificationUploadIntent {
-  objectPath    String   @id
-  createdAt     DateTime @default(now()) @db.Timestamptz(3)
-  nextAttemptAt DateTime @db.Timestamptz(3)
-  attempts      Int      @default(0)
+/// Durable cleanup queue for incomplete uploads and superseded objects; never file history.
+model StorageCleanupIntent {
+  purpose       StorageObjectPurpose
+  objectPath    String
+  createdAt     DateTime             @default(now()) @db.Timestamptz(3)
+  nextAttemptAt DateTime             @db.Timestamptz(3)
+  attempts      Int                  @default(0)
 
-  @@index([nextAttemptAt], map: "QualificationUploadIntent_nextAttemptAt_idx")
-}
-
-/// Durable cleanup intent for incomplete uploads and superseded avatars; never image history.
-model AvatarUploadIntent {
-  objectPath    String   @id
-  createdAt     DateTime @default(now()) @db.Timestamptz(3)
-  nextAttemptAt DateTime @db.Timestamptz(3)
-  attempts      Int      @default(0)
-
-  @@index([nextAttemptAt], map: "AvatarUploadIntent_nextAttemptAt_idx")
+  @@id([purpose, objectPath])
+  @@index([nextAttemptAt, purpose], map: "StorageCleanupIntent_nextAttemptAt_purpose_idx")
 }
 
 model AvailabilitySlot {

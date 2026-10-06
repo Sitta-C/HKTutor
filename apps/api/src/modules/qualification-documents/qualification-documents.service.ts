@@ -11,11 +11,16 @@ import {
 import { Prisma } from '@generated/prisma/client';
 import {
   Role,
+  StorageObjectPurpose,
   TutorDocumentAuditAction,
   TutorDocumentReviewStatus,
   TutorVerificationStatus,
 } from '@generated/prisma/enums';
 import { PrismaService } from '@infrastructure/database/prisma.service';
+import {
+  STORAGE_CLEANUP_GRACE_MS,
+  StorageCleanupService,
+} from '@infrastructure/storage/storage-cleanup.service';
 import { StorageService } from '@infrastructure/storage/storage.service';
 import {
   DOCUMENT_MAX_SIZE_BYTES,
@@ -38,10 +43,6 @@ import {
   toQualificationStatus,
   toReviewStatus,
 } from '@modules/qualification-documents/qualification-documents.model';
-import {
-  QualificationUploadRecoveryService,
-  UPLOAD_RECOVERY_GRACE_MS,
-} from '@modules/qualification-documents/qualification-upload-recovery.service';
 
 import type { AuthenticatedUser } from '@modules/auth/auth.guard';
 import type {
@@ -66,7 +67,7 @@ export class QualificationDocumentsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly storage: StorageService,
-    private readonly recovery: QualificationUploadRecoveryService,
+    private readonly cleanup: StorageCleanupService,
   ) {}
 
   async upload(
@@ -108,10 +109,11 @@ export class QualificationDocumentsService {
       mimeType: file.mimetype,
     });
     // Persist before Storage I/O so a timeout or process crash still leaves a recovery task.
-    await this.prisma.qualificationUploadIntent.create({
+    await this.prisma.storageCleanupIntent.create({
       data: {
+        purpose: StorageObjectPurpose.QUALIFICATION_DOCUMENT,
         objectPath: uploaded.objectPath,
-        nextAttemptAt: new Date(Date.now() + UPLOAD_RECOVERY_GRACE_MS),
+        nextAttemptAt: new Date(Date.now() + STORAGE_CLEANUP_GRACE_MS),
       },
     });
     try {
@@ -128,8 +130,9 @@ export class QualificationDocumentsService {
         await this.lockTutor(tx, user.id);
         await this.assertTutor(user, tx);
         const intents = await tx.$queryRaw<Array<{ objectPath: string }>>`
-          SELECT "objectPath" FROM "QualificationUploadIntent"
-          WHERE "objectPath" = ${uploaded.objectPath} FOR UPDATE`;
+          SELECT "objectPath" FROM "StorageCleanupIntent"
+          WHERE "purpose" = ${StorageObjectPurpose.QUALIFICATION_DOCUMENT}::"StorageObjectPurpose"
+            AND "objectPath" = ${uploaded.objectPath} FOR UPDATE`;
         if (!intents.length) {
           throw new ServiceUnavailableException(
             'Document upload expired before metadata was saved',
@@ -154,12 +157,22 @@ export class QualificationDocumentsService {
           },
         });
         await this.updateTutorVerification(tx, user.id);
-        await tx.qualificationUploadIntent.delete({ where: { objectPath: uploaded.objectPath } });
+        await tx.storageCleanupIntent.delete({
+          where: {
+            purpose_objectPath: {
+              purpose: StorageObjectPurpose.QUALIFICATION_DOCUMENT,
+              objectPath: uploaded.objectPath,
+            },
+          },
+        });
         return created;
       });
     } catch (error) {
       try {
-        await this.recovery.cleanup(uploaded.objectPath);
+        await this.cleanup.cleanup({
+          purpose: StorageObjectPurpose.QUALIFICATION_DOCUMENT,
+          objectPath: uploaded.objectPath,
+        });
       } catch {
         throw new ServiceUnavailableException(
           'Document metadata could not be saved; cleanup will retry',

@@ -3,9 +3,9 @@ BEGIN;
 -- Application JWT authorization lives in Nest. Supabase client roles must not access these tables.
 ALTER TABLE "TutorDocument" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "TutorDocumentAudit" ENABLE ROW LEVEL SECURITY;
-ALTER TABLE "QualificationUploadIntent" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "StorageCleanupIntent" ENABLE ROW LEVEL SECURITY;
 
-REVOKE ALL ON TABLE "TutorDocument", "TutorDocumentAudit", "QualificationUploadIntent" FROM PUBLIC;
+REVOKE ALL ON TABLE "TutorDocument", "TutorDocumentAudit", "StorageCleanupIntent" FROM PUBLIC;
 
 -- Plain local PostgreSQL has no Supabase client roles; keep the same migrations portable.
 DO $$
@@ -14,7 +14,7 @@ DECLARE
 BEGIN
   FOR client_role IN SELECT rolname FROM pg_roles WHERE rolname IN ('anon', 'authenticated') LOOP
     EXECUTE format(
-      'REVOKE ALL ON TABLE "TutorDocument", "TutorDocumentAudit", "QualificationUploadIntent" FROM %I',
+      'REVOKE ALL ON TABLE "TutorDocument", "TutorDocumentAudit", "StorageCleanupIntent" FROM %I',
       client_role
     );
   END LOOP;

@@ -6,16 +6,16 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common';
 
-import { AccountStatus, Role } from '@generated/prisma/client';
+import { AccountStatus, Role, StorageObjectPurpose } from '@generated/prisma/client';
 import { PrismaService } from '@infrastructure/database/prisma.service';
+import {
+  STORAGE_CLEANUP_GRACE_MS,
+  StorageCleanupService,
+} from '@infrastructure/storage/storage-cleanup.service';
 import { StorageService } from '@infrastructure/storage/storage.service';
 import { SIGNED_URL_MAX_TTL_SECONDS } from '@infrastructure/storage/storage.types';
 import { CURRENT_PRIVACY_POLICY_VERSION } from '@modules/auth/auth.constants';
 import { normalizeAvatar } from '@modules/avatars/avatar-image';
-import {
-  AVATAR_UPLOAD_GRACE_MS,
-  AvatarRecoveryService,
-} from '@modules/avatars/avatar-recovery.service';
 import { publicTutorWhere } from '@modules/tutors/public-tutor-access';
 
 import type { Prisma } from '@generated/prisma/client';
@@ -40,7 +40,7 @@ export class AvatarsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly storage: StorageService,
-    private readonly recovery: AvatarRecoveryService,
+    private readonly cleanup: StorageCleanupService,
   ) {}
 
   async getMine(user: AuthenticatedUser): Promise<AvatarReadResponseDto> {
@@ -70,10 +70,11 @@ export class AvatarsService {
     await this.storage.assertPrivateAvatarBucket();
     const prepared = this.storage.prepareAvatar(user.id, normalized);
     // Persist the path before network I/O, including uploads whose outcome is ambiguous.
-    await this.prisma.avatarUploadIntent.create({
+    await this.prisma.storageCleanupIntent.create({
       data: {
+        purpose: StorageObjectPurpose.AVATAR,
         objectPath: prepared.objectPath,
-        nextAttemptAt: new Date(Date.now() + AVATAR_UPLOAD_GRACE_MS),
+        nextAttemptAt: new Date(Date.now() + STORAGE_CLEANUP_GRACE_MS),
       },
     });
     await this.storage.uploadPrepared(prepared);
@@ -82,8 +83,9 @@ export class AvatarsService {
         await this.lockOwner(tx, user.id);
         const account = await this.assertOwner(user, tx);
         const intents = await tx.$queryRaw<Array<{ objectPath: string }>>`
-          SELECT "objectPath" FROM "AvatarUploadIntent"
-          WHERE "objectPath" = ${prepared.objectPath} FOR UPDATE`;
+          SELECT "objectPath" FROM "StorageCleanupIntent"
+          WHERE "purpose" = ${StorageObjectPurpose.AVATAR}::"StorageObjectPurpose"
+            AND "objectPath" = ${prepared.objectPath} FOR UPDATE`;
         if (!intents.length) {
           throw new ServiceUnavailableException('Avatar upload expired before metadata was saved');
         }
@@ -101,10 +103,17 @@ export class AvatarsService {
           },
           select: { id: true },
         });
-        await tx.avatarUploadIntent.delete({ where: { objectPath: prepared.objectPath } });
+        await tx.storageCleanupIntent.delete({
+          where: {
+            purpose_objectPath: {
+              purpose: StorageObjectPurpose.AVATAR,
+              objectPath: prepared.objectPath,
+            },
+          },
+        });
         return { avatarUpdatedAt: avatarUpdatedAt.toISOString() };
       });
-      void this.recovery.recoverPending();
+      void this.cleanup.recoverPending();
       return result;
     } catch (error) {
       // Leave the upload intent to recover after the grace period; a commit may be ambiguous.
@@ -138,7 +147,7 @@ export class AvatarsService {
         select: { id: true },
       });
     });
-    void this.recovery.recoverPending();
+    void this.cleanup.recoverPending();
     return { avatarUpdatedAt: null };
   }
 
@@ -184,7 +193,13 @@ export class AvatarsService {
     objectPath: string | null,
   ): Promise<void> {
     if (objectPath) {
-      await tx.avatarUploadIntent.create({ data: { objectPath, nextAttemptAt: new Date() } });
+      await tx.storageCleanupIntent.create({
+        data: {
+          purpose: StorageObjectPurpose.AVATAR,
+          objectPath,
+          nextAttemptAt: new Date(),
+        },
+      });
     }
   }
 }

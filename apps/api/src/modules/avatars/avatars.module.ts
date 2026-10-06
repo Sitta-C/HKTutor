@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
 
+import { StorageCleanupModule } from '@infrastructure/storage/storage-cleanup.module';
 import { StorageModule } from '@infrastructure/storage/storage.module';
-import { AvatarRecoveryService } from '@modules/avatars/avatar-recovery.service';
 import {
   AvatarsController,
   PublicTutorAvatarsController,
@@ -9,8 +9,8 @@ import {
 import { AvatarsService } from '@modules/avatars/avatars.service';
 
 @Module({
-  imports: [StorageModule],
+  imports: [StorageModule, StorageCleanupModule],
   controllers: [AvatarsController, PublicTutorAvatarsController],
-  providers: [AvatarsService, AvatarRecoveryService],
+  providers: [AvatarsService],
 })
 export class AvatarsModule {}

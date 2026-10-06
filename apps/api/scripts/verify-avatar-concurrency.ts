@@ -9,11 +9,11 @@ import 'reflect-metadata';
 import sharp from 'sharp';
 
 import { StorageConfigService } from '@config/storage.config';
-import { Role } from '@generated/prisma/client';
+import { Role, StorageObjectPurpose } from '@generated/prisma/client';
 import { PrismaService } from '@infrastructure/database/prisma.service';
+import { StorageCleanupService } from '@infrastructure/storage/storage-cleanup.service';
 import { StorageService } from '@infrastructure/storage/storage.service';
 import { CURRENT_PRIVACY_POLICY_VERSION } from '@modules/auth/auth.constants';
-import { AvatarRecoveryService } from '@modules/avatars/avatar-recovery.service';
 import { AvatarsService } from '@modules/avatars/avatars.service';
 
 import type { AuthenticatedUser } from '@modules/auth/auth.guard';
@@ -96,13 +96,13 @@ const storage = new StorageService(
     },
   }),
 );
-const recovery = new AvatarRecoveryService(prisma, storage);
-const avatars = new AvatarsService(prisma, storage, recovery);
+const cleanup = new StorageCleanupService(prisma, storage);
+const avatars = new AvatarsService(prisma, storage, cleanup);
 const ownerIds: string[] = [];
 
 async function assertCurrentFileOnly(userId: string): Promise<string | null> {
-  await recovery.recoverPending();
-  await recovery.recoverPending();
+  await cleanup.recoverPending();
+  await cleanup.recoverPending();
   const current = await prisma.user.findUniqueOrThrow({
     where: { id: userId },
     select: { avatarObjectPath: true },
@@ -179,8 +179,12 @@ async function main(): Promise<void> {
       );
 
       // Recovery must preserve a committed reference even if an intent remains.
-      await prisma.avatarUploadIntent.create({
-        data: { objectPath: activePath, nextAttemptAt: new Date(0) },
+      await prisma.storageCleanupIntent.create({
+        data: {
+          purpose: StorageObjectPurpose.AVATAR,
+          objectPath: activePath,
+          nextAttemptAt: new Date(0),
+        },
       });
       await assertCurrentFileOnly(id);
 
@@ -191,19 +195,34 @@ async function main(): Promise<void> {
         (await prisma.user.findUniqueOrThrow({ where: { id } })).avatarObjectPath,
         activePath,
       );
-      await prisma.avatarUploadIntent.updateMany({
-        where: { objectPath: { startsWith: `${id}/` } },
+      await prisma.storageCleanupIntent.updateMany({
+        where: {
+          purpose: StorageObjectPurpose.AVATAR,
+          objectPath: { startsWith: `${id}/` },
+        },
         data: { nextAttemptAt: new Date(0) },
       });
       await assertCurrentFileOnly(id);
 
       deletionUnavailable = true;
       await avatars.upload(user, file);
-      await recovery.recoverPending();
-      assert.ok(await prisma.avatarUploadIntent.findUnique({ where: { objectPath: activePath } }));
+      await cleanup.recoverPending();
+      assert.ok(
+        await prisma.storageCleanupIntent.findUnique({
+          where: {
+            purpose_objectPath: {
+              purpose: StorageObjectPurpose.AVATAR,
+              objectPath: activePath,
+            },
+          },
+        }),
+      );
       deletionUnavailable = false;
-      await prisma.avatarUploadIntent.updateMany({
-        where: { objectPath: { startsWith: `${id}/` } },
+      await prisma.storageCleanupIntent.updateMany({
+        where: {
+          purpose: StorageObjectPurpose.AVATAR,
+          objectPath: { startsWith: `${id}/` },
+        },
         data: { nextAttemptAt: new Date(0) },
       });
       await assertCurrentFileOnly(id);
@@ -216,9 +235,12 @@ async function main(): Promise<void> {
   } finally {
     deletionUnavailable = false;
     ambiguousUpload = false;
-    await recovery.recoverPending();
-    await prisma.avatarUploadIntent.deleteMany({
-      where: { OR: ownerIds.map((id) => ({ objectPath: { startsWith: `${id}/` } })) },
+    await cleanup.recoverPending();
+    await prisma.storageCleanupIntent.deleteMany({
+      where: {
+        purpose: StorageObjectPurpose.AVATAR,
+        OR: ownerIds.map((id) => ({ objectPath: { startsWith: `${id}/` } })),
+      },
     });
     await prisma.user.deleteMany({ where: { id: { in: ownerIds } } });
     await prisma.$disconnect();

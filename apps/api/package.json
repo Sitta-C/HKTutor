@@ -30,7 +30,7 @@
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "typecheck:scripts": "tsc -p scripts/tsconfig.json",
-    "storage:recover:avatars": "ts-node -r tsconfig-paths/register scripts/recover-avatar-uploads.ts",
+    "storage:recover": "ts-node -r tsconfig-paths/register scripts/recover-storage-cleanup.ts",
     "db:verify:avatars": "ts-node -r tsconfig-paths/register scripts/verify-avatar-concurrency.ts"
   },
   "dependencies": {

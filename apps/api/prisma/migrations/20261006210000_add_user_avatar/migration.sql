@@ -18,26 +18,4 @@ ALTER TABLE "User" ADD CONSTRAINT "User_avatar_metadata_check" CHECK (
    "avatarObjectPath" ~ ('^' || "id"::text || '/[0-9a-f-]{36}\.webp$'))
 );
 
-CREATE TABLE "AvatarUploadIntent" (
-  "objectPath" TEXT NOT NULL,
-  "createdAt" TIMESTAMPTZ(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  "nextAttemptAt" TIMESTAMPTZ(3) NOT NULL,
-  "attempts" INTEGER NOT NULL DEFAULT 0,
-  CONSTRAINT "AvatarUploadIntent_pkey" PRIMARY KEY ("objectPath"),
-  CONSTRAINT "AvatarUploadIntent_attempts_check" CHECK ("attempts" >= 0)
-);
-
-CREATE INDEX "AvatarUploadIntent_nextAttemptAt_idx" ON "AvatarUploadIntent"("nextAttemptAt");
-
-ALTER TABLE "AvatarUploadIntent" ENABLE ROW LEVEL SECURITY;
-REVOKE ALL ON TABLE "AvatarUploadIntent" FROM PUBLIC;
-DO $$
-DECLARE
-  client_role TEXT;
-BEGIN
-  FOR client_role IN SELECT rolname FROM pg_roles WHERE rolname IN ('anon', 'authenticated') LOOP
-    EXECUTE format('REVOKE ALL ON TABLE "AvatarUploadIntent" FROM %I', client_role);
-  END LOOP;
-END $$;
-
 COMMIT;

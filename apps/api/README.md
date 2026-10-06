@@ -173,8 +173,10 @@ Avatar metadata is nullable directly on `User`: `avatarObjectPath`, `avatarMimeT
 `20261006210000_add_user_avatar` adds these columns without changing existing account/profile data.
 A check requires either all-null metadata or a positive, bounded WebP file owned by that user;
 object paths are unique. Photo presence does not affect onboarding completeness or verification.
-`AvatarUploadIntent` stores only durable cleanup work, not image history. Its table enables RLS and
-revokes access from `PUBLIC` and Supabase browser roles; Prisma must use the table owner/backend role.
+`StorageCleanupIntent` is the shared durable cleanup queue for avatars and qualification documents;
+it is not file history. A `purpose` discriminator selects the reference check and private bucket,
+while the composite key `(purpose, objectPath)` prevents collisions across buckets. Its table enables
+RLS and revokes access from `PUBLIC` and Supabase browser roles; Prisma must use the owner/backend role.
 
 | Method and route (under `/api/v1`) | Contract                                                                |
 | ---------------------------------- | ----------------------------------------------------------------------- |
@@ -219,13 +221,14 @@ Following the existing centralized-scheduler direction, API startup does not reg
 Operators (or a future scheduler) can run one batch of at most five objects:
 
 ```bash
-pnpm storage:recover:avatars
+pnpm storage:recover
 ```
 
-The command uses configured backend database/Storage credentials and deletes only objects with due,
-unreferenced avatar intents. Repeat batches to drain the queue; monitor pending age/attempts. It
-returns a nonzero exit code on recovery failure. Logs never include provider errors, object paths,
-URLs, or secrets.
+The command uses configured backend database/Storage credentials and deletes only due, unreferenced
+avatar or qualification-document objects. The purpose is mapped to a server-defined bucket; bucket
+names never come from requests or queue rows. Repeat batches to drain the queue and monitor pending
+age/attempts. The command returns a nonzero exit code on recovery failure. Logs never include
+provider errors, object paths, URLs, or secrets.
 
 Before starting the updated API, apply the new migration to a confirmed target using the established
 migration process and configure the private bucket. Live bucket verification must use synthetic
@@ -310,12 +313,18 @@ approved evidence. Uploads and reviews for the same tutor serialize on the profi
 audit history; `rejectionReason` remains null on approved documents. Persistence failures roll
 back the entire review and return a sanitized 503.
 
-Uploads persist a `QualificationUploadIntent` before Storage I/O. Metadata, the `UPLOADED` audit,
-aggregate profile state, and intent consumption share one transaction. A failed metadata write
+Uploads persist a qualification-document row in the shared `StorageCleanupIntent` queue before
+Storage I/O. Metadata, the `UPLOADED` audit, aggregate profile state, and intent consumption share
+one transaction. A failed metadata write
 attempts immediate cleanup. Storage timeouts keep their intent for recovery because the remote
-upload may have completed. A background worker checks up to five intents each minute, starting
-five minutes after an abandoned upload, and retries failed cleanup each minute. Work survives API
-restarts; monitor intent age/attempt counts and recovery error logs for persistent outages.
+upload may have completed. Automatic background recovery is deferred until the centralized cron
+scheduler is implemented: API startup does not register a timer or poll the recovery queue.
+Immediate cleanup after metadata failure remains active. Persisted intents survive restarts;
+abandoned uploads are retained until recovery is explicitly invoked. The shared cleanup service's
+`recoverPending()` entry point handles up to five due intents per call for future scheduler/operator
+use. New intents
+become due after five minutes; a failed cleanup reschedules eligibility by one minute, but does not
+schedule an automatic run. Monitor intent age/attempt counts and recovery error logs.
 Recovery logs contain only a static message, `stage`, and a bounded diagnostic `code`. Stages
 distinguish transaction startup/commit, intent claiming, reference checks, Storage removal, intent
 deletion, and retry scheduling. Codes include Prisma codes (such as `P2028` for transaction errors),
@@ -323,17 +332,16 @@ allowlisted SQLSTATE values (such as `P2010/42P01` for a missing table), Storage
 (such as `STORAGE_HTTP_403`), and known timeout/network codes. Unknown failures use `UNKNOWN` or
 `STORAGE_REQUEST_FAILED`; raw error messages, stacks, provider bodies, paths, and credentials are
 never logged. Storage HTTP responses remain sanitized 503s. If retry scheduling also fails, both
-failures are logged and the current batch stops; the durable intent is checked again on the next
-worker tick. A non-transactional due-intent probe skips the batch when no work is due; this probe
-does not claim ownership or authorize deletion. Recovery transactions explicitly allow up to
+failures are logged and the current batch stops; the durable intent remains for a later explicit
+run. Recovery transactions explicitly allow up to
 10 seconds to acquire a connection/start the transaction (`maxWait`), separately from the
 25-second execution limit (`timeout`). This avoids Prisma 7's default 2-second acquisition limit
 on a slow remote pooler without changing other API transaction settings. Startup timeouts log
-`stage: transaction_start` with `code: P2028/START_TIMEOUT`; probe failures log
-`stage: check_due_intents`. An empty recovery queue emits no error.
-The worker locks each intent with `FOR UPDATE SKIP LOCKED`, checks document references, and only
-deletes unreferenced objects. Finalization locks the same intent, preventing deletion of committed
-files even if a commit acknowledgement is lost. Paths stay server-side and are never logged.
+`stage: transaction_start` with `code: P2028/START_TIMEOUT`. An empty recovery queue emits no error.
+Cleanup locks each intent with `FOR UPDATE SKIP LOCKED`, then checks `User.avatarObjectPath` or
+`TutorDocument.objectPath` according to its purpose before deleting from the mapped bucket.
+Finalization locks the same composite intent, preventing deletion of committed files even if a
+commit acknowledgement is lost. Paths stay server-side and are never logged.
 PostgreSQL and Supabase cannot share an atomic transaction; objects orphaned before this recovery
 mechanism or created outside the API still require operator reconciliation.
 
@@ -346,14 +354,15 @@ with a generic 500 message and static logging, without provider details.
 `20261006150000_qualification_document_api` is a new forward migration. It adds the partial unique
 index for pending uploads and `TutorDocumentAudit` with foreign keys, bounded audit evidence,
 one-review uniqueness, and an append-only trigger. It preserves previous migrations and data.
-`20261006200000_qualification_upload_recovery` adds the durable upload intent table and reconciles
-existing tutor profile statuses from their document reviews. It preserves document and audit
-evidence, and leaves profiles without documents unchanged. Apply with qualification writes paused,
-then start the updated API so the background worker can recover abandoned uploads.
-`20261006201000_protect_qualification_metadata` enables RLS on all three qualification tables
-and revokes direct access from `PUBLIC`, `anon`, and `authenticated`. Application authorization
-remains in Nest; Prisma connects as the migration/table owner. Do not grant Supabase browser roles
-direct access to these private metadata/audit/recovery tables.
+`20261006200000_qualification_upload_recovery` adds the shared `StorageCleanupIntent` queue and its
+purpose enum, then reconciles existing tutor profile statuses from their document reviews. It
+preserves document and audit evidence and leaves profiles without documents unchanged. Apply with
+qualification writes paused, then start the updated API. Automatic background recovery is currently
+deferred; pending intents remain available for explicit recovery or the future cron scheduler.
+`20261006201000_protect_qualification_metadata` enables RLS on both qualification metadata tables
+and the shared cleanup table, then revokes direct access from `PUBLIC`, `anon`, and `authenticated`.
+Application authorization remains in Nest; Prisma connects as the migration/table owner. Do not
+grant Supabase browser roles direct access to these private metadata/audit/recovery tables.
 Before deploying, inspect duplicate pending types with this read-only query and resolve them
 deliberately; the migration fails rather than deleting records automatically:
 

@@ -58,13 +58,15 @@ test('private preview audit evidence is bounded and append-only', async () => {
   assert.match(sql, /REFERENCES "User"\("id"\) ON DELETE RESTRICT/);
 });
 
-test('upload recovery persists safe paths and attempts without storing file bytes or credentials', async () => {
+test('shared storage cleanup persists typed paths and attempts without file bytes or credentials', async () => {
   const schema = await fs.readFile('apps/api/prisma/schema.prisma', 'utf8');
-  const intent = schema.match(/model QualificationUploadIntent\s*{([\s\S]*?)\n}/)?.[1];
+  const intent = schema.match(/model StorageCleanupIntent\s*{([\s\S]*?)\n}/)?.[1];
   assert.ok(intent);
-  assert.match(intent, /objectPath\s+String\s+@id/);
+  assert.match(intent, /purpose\s+StorageObjectPurpose/);
+  assert.match(intent, /objectPath\s+String/);
   assert.match(intent, /nextAttemptAt\s+DateTime\s+@db.Timestamptz\(3\)/);
   assert.match(intent, /attempts\s+Int\s+@default\(0\)/);
+  assert.match(intent, /@@id\(\[purpose, objectPath\]\)/);
   assert.doesNotMatch(intent, /buffer|fileBytes|signedUrl|secret|token/i);
 });
 
@@ -74,7 +76,9 @@ test('recovery forward migration reconciles profile state without modifying docu
     'utf8',
   );
   assert.match(sql, /CHECK \("attempts" >= 0\)/);
-  assert.match(sql, /CREATE INDEX "QualificationUploadIntent_nextAttemptAt_idx"/);
+  assert.match(sql, /CREATE INDEX "StorageCleanupIntent_nextAttemptAt_purpose_idx"/);
+  assert.match(sql, /'AVATAR', 'QUALIFICATION_DOCUMENT'/);
+  assert.match(sql, /PRIMARY KEY \("purpose", "objectPath"\)/);
   assert.match(
     sql,
     /UPDATE "TutorProfile" AS tutor[\s\S]*?WHEN EXISTS[\s\S]*?'verified'[\s\S]*?WHEN EXISTS[\s\S]*?'pending'[\s\S]*?ELSE 'rejected'/,
@@ -91,12 +95,12 @@ test('qualification metadata cannot bypass Nest authorization through Supabase b
     'apps/api/prisma/migrations/20261006201000_protect_qualification_metadata/migration.sql',
     'utf8',
   );
-  for (const table of ['TutorDocument', 'TutorDocumentAudit', 'QualificationUploadIntent']) {
+  for (const table of ['TutorDocument', 'TutorDocumentAudit', 'StorageCleanupIntent']) {
     assert.ok(sql.includes(`ALTER TABLE "${table}" ENABLE ROW LEVEL SECURITY`));
   }
   assert.match(
     sql,
-    /REVOKE ALL ON TABLE "TutorDocument", "TutorDocumentAudit", "QualificationUploadIntent" FROM PUBLIC/,
+    /REVOKE ALL ON TABLE "TutorDocument", "TutorDocumentAudit", "StorageCleanupIntent" FROM PUBLIC/,
   );
   assert.match(sql, /rolname IN \('anon', 'authenticated'\)/);
   assert.match(sql, /FROM %I/);

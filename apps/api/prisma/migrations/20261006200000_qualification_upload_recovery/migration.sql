@@ -1,18 +1,29 @@
 BEGIN;
 
-CREATE TABLE "QualificationUploadIntent" (
+CREATE TYPE "StorageObjectPurpose" AS ENUM ('AVATAR', 'QUALIFICATION_DOCUMENT');
+
+CREATE TABLE "StorageCleanupIntent" (
+  "purpose" "StorageObjectPurpose" NOT NULL,
   "objectPath" TEXT NOT NULL,
   "createdAt" TIMESTAMPTZ(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
   "nextAttemptAt" TIMESTAMPTZ(3) NOT NULL,
   "attempts" INTEGER NOT NULL DEFAULT 0,
-  CONSTRAINT "QualificationUploadIntent_pkey" PRIMARY KEY ("objectPath"),
-  CONSTRAINT "QualificationUploadIntent_attempts_check" CHECK ("attempts" >= 0),
-  CONSTRAINT "QualificationUploadIntent_path_check" CHECK (
-    "objectPath" ~ '^[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}/[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}\.(pdf|jpg|png)$'
+  CONSTRAINT "StorageCleanupIntent_pkey" PRIMARY KEY ("purpose", "objectPath"),
+  CONSTRAINT "StorageCleanupIntent_attempts_check" CHECK ("attempts" >= 0),
+  CONSTRAINT "StorageCleanupIntent_path_check" CHECK (
+    (
+      "purpose" = 'AVATAR' AND
+      "objectPath" ~ '^[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}/[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}\.webp$'
+    )
+    OR
+    (
+      "purpose" = 'QUALIFICATION_DOCUMENT' AND
+      "objectPath" ~ '^[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}/[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}\.(pdf|jpg|png)$'
+    )
   )
 );
-CREATE INDEX "QualificationUploadIntent_nextAttemptAt_idx"
-  ON "QualificationUploadIntent" ("nextAttemptAt");
+CREATE INDEX "StorageCleanupIntent_nextAttemptAt_purpose_idx"
+  ON "StorageCleanupIntent" ("nextAttemptAt", "purpose");
 
 -- Reconcile derived profile state without changing immutable document reviews or audit evidence.
 UPDATE "TutorProfile" AS tutor
