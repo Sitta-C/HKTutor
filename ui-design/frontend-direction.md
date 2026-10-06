@@ -33,6 +33,12 @@ older prototypes remain references, not instructions to restore superseded layou
   to its target again. Do not restore the removed duplicate CTA.
 - Profile editing at `/dashboard/profile` has no “Back to dashboard” header button; use the shell's
   existing navigation. Keep the sign-out control in profile onboarding.
+- The tutor profile's student-view preview uses **Profile Page**, selected on 2026-10-06.
+  Keep its heading/helper outside one paper surface, with tutor identity and a plain verification
+  line at the top, teaching experience on a small yellow sticky note, and biography on subtle ruled
+  lines. Place the yellow writing tip below the paper. Stack the experience note when the preview
+  column is narrow, including desktop sidebars. Preserve live form updates, empty placeholders,
+  all verification states, bilingual copy, and the existing student-account summary.
 
 ## Selected patterns
 

@@ -48,6 +48,8 @@ import {
 } from '@/lib/profile-navigation';
 import { sanitizeReturnTo } from '@/lib/return-to';
 
+import previewStyles from './profile-page-preview.module.css';
+
 import type {
   ProfileFieldErrors,
   ProfileFieldName,
@@ -816,34 +818,57 @@ function TutorPreview({
   const text = copy[language];
   const name = data.displayName.trim() || text.displayName;
   return (
-    <aside className="self-start min-[1061px]:sticky min-[1061px]:top-24">
-      <PaperCard className="p-5 sm:p-6">
-        <WashiTape tone="blue" className="-top-2 right-8 rotate-3" />
-        <PreviewTitle
-          icon="eye"
-          title={text.studentView}
-          body={text.studentViewBody}
-          tone="tutor"
-        />
-        <StickyNote tone="blue" className="p-4">
-          <Identity
-            name={name}
-            detail={text.tutor}
-            secondaryDetail={`${text.experienceShort} ${data.experienceYears || '0'} ${text.years}`}
-            initials={initials(name, 'T')}
-            role="tutor"
-            badge={text.status[status]}
-            badgeIcon={status === 'VERIFIED' ? 'check' : 'info'}
-          />
-          <p className="relative z-10 mt-4 whitespace-pre-wrap border-t border-blue-200/80 pt-4 text-xs leading-5 text-notebook-muted">
-            {data.bio.trim() || text.bioHint}
-          </p>
-        </StickyNote>
-        <StickyNote tone="yellow" className="mt-4 p-4">
-          <b className="text-sm text-notebook-ink">{text.standOut}</b>
-          <p className="mt-1 text-xs leading-5 text-notebook-muted">{text.standOutBody}</p>
-        </StickyNote>
+    <aside
+      className={`${previewStyles.preview} min-w-0 self-start min-[1061px]:sticky min-[1061px]:top-24`}
+      aria-labelledby="tutor-student-view-title"
+    >
+      <header className={previewStyles.header}>
+        <h2 id="tutor-student-view-title" className="font-note">
+          <DashboardIcon name="eye" className="h-[18px] w-[18px] shrink-0 text-tutor-deep" />
+          {text.studentView}
+        </h2>
+        <p>{text.studentViewBody}</p>
+      </header>
+      <PaperCard className={previewStyles.paper}>
+        <WashiTape tone="blue" className={`${previewStyles.tape}`} />
+        <div className={previewStyles.identityRow}>
+          <div className={previewStyles.identity}>
+            <Identity name={name} detail={text.tutor} initials={initials(name, 'T')} role="tutor" />
+            <p
+              className={`${previewStyles.verification} ${
+                status === 'VERIFIED'
+                  ? 'text-emerald-800'
+                  : status === 'REJECTED'
+                    ? 'text-red-700'
+                    : 'text-amber-700'
+              }`}
+            >
+              <DashboardIcon
+                name={status === 'VERIFIED' ? 'shield' : 'info'}
+                className="h-4 w-4 shrink-0"
+              />
+              {text.status[status]}
+            </p>
+          </div>
+          <StickyNote tone="yellow" className={previewStyles.experience}>
+            <strong className="font-note">
+              {data.experienceYears || '0'} {text.years}
+            </strong>
+            <span>{text.teachingExperience}</span>
+          </StickyNote>
+        </div>
+        <div className={previewStyles.about}>
+          <p className={previewStyles.aboutLabel}>{text.aboutMe}</p>
+          <p className={previewStyles.bio}>{data.bio.trim() || text.bioHint}</p>
+        </div>
       </PaperCard>
+      <StickyNote tone="yellow" className={previewStyles.tip}>
+        <DashboardIcon name="info" className="mt-1 h-[18px] w-[18px] shrink-0 text-amber-700" />
+        <div>
+          <h3 className="font-note">{text.standOut}</h3>
+          <p>{text.standOutBody}</p>
+        </div>
+      </StickyNote>
     </aside>
   );
 }
@@ -1002,6 +1027,7 @@ function initials(value: string, fallback: string) {
 
 const copy = {
   en: {
+    aboutMe: 'About me',
     account: 'Account',
     accountEmail: 'Account email',
     accountSummary: 'Account summary',
@@ -1069,6 +1095,7 @@ const copy = {
     studentView: 'Student view',
     studentViewBody: 'This is how your profile appears to students.',
     tutor: 'Tutor',
+    teachingExperience: 'Teaching experience',
     tutorSubtitle: 'Tell students about your teaching experience.',
     tutorTitle: 'Your tutor profile',
     tutorVisibility:
@@ -1095,6 +1122,7 @@ const copy = {
     },
   },
   th: {
+    aboutMe: 'เกี่ยวกับฉัน',
     account: 'บัญชี',
     accountEmail: 'อีเมลบัญชี',
     accountSummary: 'สรุปบัญชี',
@@ -1162,6 +1190,7 @@ const copy = {
     studentView: 'มุมมองนักเรียน',
     studentViewBody: 'โปรไฟล์ของคุณจะแสดงต่อนักเรียนแบบนี้',
     tutor: 'ติวเตอร์',
+    teachingExperience: 'ประสบการณ์สอน',
     tutorSubtitle: 'บอกนักเรียนเกี่ยวกับประสบการณ์การสอนของคุณ',
     tutorTitle: 'โปรไฟล์ติวเตอร์ของคุณ',
     tutorVisibility:
