@@ -11,12 +11,19 @@ import { NotebookLoading } from '@/components/ui/notebook-loading';
 import { NotebookPagination } from '@/components/ui/notebook-pagination';
 import { getMyBookings } from '@/lib/api/bookings';
 import { getUserDisplayName } from '@/lib/dashboard-navigation';
-import { formatBangkokDateRange, formatBangkokTime } from '@/lib/date-time';
+import {
+  formatBangkokDateParts,
+  formatBangkokDateRange,
+  formatBangkokShortDate,
+  formatBangkokTime,
+  getBangkokIsoDate,
+} from '@/lib/date-time';
 import { useLanguage } from '@/lib/i18n';
 
 import styles from './student-dashboard.module.css';
 
 import type { AuthUser, BookingView } from '@/lib/api/types';
+import type { DateTimeLanguage } from '@/lib/date-time';
 
 const TUTORS_PER_PAGE = 4;
 
@@ -126,29 +133,34 @@ export function StudentDashboard({ user, onLogout }: StudentDashboardProps) {
               </div>
               {nextBooking ? (
                 <>
-                  <div className={styles.dateStrip}>
-                    <DashboardIcon name="calendar" className="h-5 w-5 shrink-0" />
-                    <time dateTime={nextBooking.slot.startAtUtc}>
+                  <div className={styles.appointmentDetails}>
+                    <AppointmentDate value={nextBooking.slot.startAtUtc} language={language} />
+                    <div className={styles.lessonDetails}>
+                      <p className={styles.lessonTime}>
+                        <time dateTime={nextBooking.slot.startAtUtc}>
+                          {formatBangkokTime(nextBooking.slot.startAtUtc, language)}
+                        </time>
+                        {'–'}
+                        <time dateTime={nextBooking.slot.endAtUtc}>
+                          {formatBangkokTime(nextBooking.slot.endAtUtc, language)}
+                        </time>
+                      </p>
+                      <h3 className={styles.tutorName}>{nextBooking.tutor.displayName}</h3>
+                      <p className={styles.subject}>
+                        {nextBooking.listing.subjectName} · {nextBooking.listing.gradeLevelName}
+                      </p>
+                    </div>
+                  </div>
+                  {getBangkokIsoDate(nextBooking.slot.startAtUtc) !==
+                    getBangkokIsoDate(nextBooking.slot.endAtUtc) && (
+                    <p className={styles.scope}>
                       {formatBangkokDateRange(
                         nextBooking.slot.startAtUtc,
                         nextBooking.slot.endAtUtc,
                         language,
                       )}
-                    </time>
-                  </div>
-                  <p className={styles.lessonTime}>
-                    <time dateTime={nextBooking.slot.startAtUtc}>
-                      {formatBangkokTime(nextBooking.slot.startAtUtc, language)}
-                    </time>
-                    {' – '}
-                    <time dateTime={nextBooking.slot.endAtUtc}>
-                      {formatBangkokTime(nextBooking.slot.endAtUtc, language)}
-                    </time>
-                  </p>
-                  <h3 className={styles.tutorName}>{nextBooking.tutor.displayName}</h3>
-                  <p className={styles.subject}>
-                    {nextBooking.listing.subjectName} · {nextBooking.listing.gradeLevelName}
-                  </p>
+                    </p>
+                  )}
                   <StickyNote
                     tone={nextBooking.status === 'PENDING' ? 'yellow' : 'green'}
                     className={`${styles.memo} ${nextBooking.status === 'CONFIRMED' ? styles.confirmedMemo : ''}`}
@@ -194,11 +206,7 @@ export function StudentDashboard({ user, onLogout }: StudentDashboardProps) {
             </section>
           </PaperCard>
 
-          <div className={styles.binding} aria-hidden="true" data-student-binding>
-            {Array.from({ length: 6 }, (_, index) => (
-              <span className={styles.ring} key={index} />
-            ))}
-          </div>
+          <div className={styles.binding} aria-hidden="true" data-student-binding />
 
           <PaperCard className={styles.leaf} aria-labelledby="student-tutor-index">
             <p className={styles.indexTab}>{studentCopy.tutorIndexTab}</p>
@@ -245,6 +253,7 @@ export function StudentDashboard({ user, onLogout }: StudentDashboardProps) {
                   total={tutorBookings.length}
                   pageSize={TUTORS_PER_PAGE}
                   label={studentCopy.tutorsPagination}
+                  variant="paper-turn"
                   onPageChange={setTutorPage}
                 />
                 {tutorPageCount > 1 && <p className={styles.scope}>{studentCopy.tutorsScope}</p>}
@@ -258,3 +267,18 @@ export function StudentDashboard({ user, onLogout }: StudentDashboardProps) {
 }
 
 export default StudentDashboard;
+
+function AppointmentDate({ value, language }: { value: string; language: DateTimeLanguage }) {
+  const { day, month, year } = formatBangkokDateParts(value, language);
+  return (
+    <time
+      className={styles.dateTile}
+      dateTime={value}
+      aria-label={formatBangkokShortDate(value, language)}
+    >
+      <span aria-hidden="true">{month}</span>
+      <strong aria-hidden="true">{day}</strong>
+      <span aria-hidden="true">{year}</span>
+    </time>
+  );
+}

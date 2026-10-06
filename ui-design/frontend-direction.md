@@ -58,18 +58,18 @@ See [implemented frontend behavior](implemented-behavior.md) for detailed intera
 
 ## Selected patterns
 
-| Area                         | Implemented direction                                                                                                                                         | Implementation reference                                                                |
-| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
-| Tutor dashboard              | Notebook Focus; teaching overview, pending requests, analytics, and course performance                                                                        | `apps/web/src/components/dashboard/tutor-dashboard.tsx`                                 |
-| Student dashboard            | **Desk Spread**: two notebook sheets joined by six rings; next booking and compact count strip on the left, booking-derived tutor index on the right          | `apps/web/src/components/dashboard/student-dashboard.tsx` and its stylesheet            |
-| Course management            | **Course Ledger**: one compact count strip, status tabs/search, and continuous ruled rows with a binding margin; grade above subject, rate/date/actions below | `apps/web/src/components/listings/tutor-listings-page.tsx` and its stylesheet           |
-| Past requests                | Hidden by default; blue bookmark-note switch shows them; pale paper/perforated styling keeps past rows readable                                               | `apps/web/src/components/ui/bookmark-note-switch.tsx`, `notebook.module.css`            |
-| Course performance selection | **Subject Index** with a subject directory and stable subcolors; show all courses of the selected subject without pagination                                  | `apps/web/src/components/ui/subject-course-index.tsx` and its stylesheet                |
-| Course details               | One course expanded at a time, directly beneath the clicked row; clicking again collapses it, with a light height transition                                  | `apps/web/src/components/ui/subject-course-index.tsx`                                   |
-| Month selection              | **Ruler Reel**, a compact single horizontal row with native scrolling/snap; preserve its original compact height                                              | `apps/web/src/components/date-time/month-ruler.tsx` and its stylesheet                  |
-| Availability summary         | **Ledger Strip**: two counts in one ruled-paper surface; blue open-time icon, warm booked-time icon, a small timezone tag in the footer                       | `apps/web/src/components/availability/availability-summary.tsx` and its stylesheet      |
-| Availability header          | No redundant “My courses” header button; course navigation remains in the existing shell                                                                      | `apps/web/src/components/availability/manage-tutor-availability.tsx`                    |
-| Availability ranges          | Continuous notebook rows across dates, binding margin, compact status/delete controls, and explicit ended state                                               | `apps/web/src/components/availability/manage-tutor-availability.tsx` and its stylesheet |
+| Area                         | Implemented direction                                                                                                                                                | Implementation reference                                                                |
+| ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| Tutor dashboard              | Notebook Focus; teaching overview, pending requests, analytics, and course performance                                                                               | `apps/web/src/components/dashboard/tutor-dashboard.tsx`                                 |
+| Student dashboard            | **Desk Spread**: two notebook sheets joined by closely spaced wire loops; next booking and compact count strip on the left, booking-derived tutor index on the right | `apps/web/src/components/dashboard/student-dashboard.tsx` and its stylesheet            |
+| Course management            | **Course Ledger**: one compact count strip, status tabs/search, and continuous ruled rows with a binding margin; grade above subject, rate/date/actions below        | `apps/web/src/components/listings/tutor-listings-page.tsx` and its stylesheet           |
+| Past requests                | Hidden by default; blue bookmark-note switch shows them; pale paper/perforated styling keeps past rows readable                                                      | `apps/web/src/components/ui/bookmark-note-switch.tsx`, `notebook.module.css`            |
+| Course performance selection | **Subject Index** with a subject directory and stable subcolors; show all courses of the selected subject without pagination                                         | `apps/web/src/components/ui/subject-course-index.tsx` and its stylesheet                |
+| Course details               | One course expanded at a time, directly beneath the clicked row; clicking again collapses it, with a light height transition                                         | `apps/web/src/components/ui/subject-course-index.tsx`                                   |
+| Month selection              | **Ruler Reel**, a compact single horizontal row with native scrolling/snap; preserve its original compact height                                                     | `apps/web/src/components/date-time/month-ruler.tsx` and its stylesheet                  |
+| Availability summary         | **Ledger Strip**: two counts in one ruled-paper surface; blue open-time icon, warm booked-time icon, a small timezone tag in the footer                              | `apps/web/src/components/availability/availability-summary.tsx` and its stylesheet      |
+| Availability header          | No redundant “My courses” header button; course navigation remains in the existing shell                                                                             | `apps/web/src/components/availability/manage-tutor-availability.tsx`                    |
+| Availability ranges          | Continuous notebook rows across dates, binding margin, compact status/delete controls, and explicit ended state                                                      | `apps/web/src/components/availability/manage-tutor-availability.tsx` and its stylesheet |
 
 The course selector evolved from Binder Drawer to Subject Index. Do not revert to the earlier
 paginated drawer or nested-folder proposal just because an older preview shows it. Request-list
@@ -83,20 +83,28 @@ remaining student redesign work; their individual layouts still require selectio
 
 - Keep the existing student mint, warm paper, shared shell, Bai Jamjuree body type, and note fonts.
   Mint identifies student context and grouping; booking status keeps the shared badge's meaning.
-- Use restrained stationery: small passive category tabs, an upright mint date strip, thin paper
+- Use restrained stationery: small passive category tabs, a compact calendar tile, thin paper
   separators, subtle ruled list rows, one short tape accent, and a memo explaining the next booking's
   actual status. Do not rotate dates, names, copy, or actions. Note typography is limited to the memo
   heading. Yellow supports a pending-request explanation; confirmed copy uses a pale green memo.
+- The next appointment uses a compact mint surface: a month/day/year calendar tile on the left,
+  with time, tutor name, and subject/grade on the right. Keep the localized start date readable to
+  assistive technology; show the full date range beneath it when a booking crosses Bangkok midnight.
 - The dashboard sheets use 8px corners, soft existing shadows, and 22px inner spacing (16px on
-  small screens). The desktop split favors the appointment sheet slightly. Six decorative rings
-  connect the sheets as minimal 36px circular outlines, without shaded metal or separate hole marks;
-  below 1024px the sheets stack in reading order with a horizontal connector.
+  small screens). The desktop split favors the appointment sheet slightly. Closely spaced flat wire
+  loops follow the user's spiral-notebook reference and repeat every 24px along the binding. Their
+  length follows the sheets without a fixed ring count. Below 1024px the sheets stack in reading
+  order with the same wire pattern running horizontally between them.
   Rings and this two-sheet composition are dashboard details, not required decorations on every
   student page. These styles remain scoped to the student dashboard's CSS module.
 - Show next booking first, then one passive three-count strip. Keep one find-tutor CTA in the
   header and existing shell navigation. The disabled tutor search and duplicate quick actions are
   removed. The right sheet is a tutor index from bookings, with four tutors per page using the
-  unchanged shared `NotebookPagination`; hide pagination when one page suffices.
+  shared `NotebookPagination`'s opt-in **paper-turn** variant. Previous/next are small icon-only
+  circles with 44px touch targets, localized accessible names, keyboard focus, and disabled boundary
+  states. Keep the live record range; page-count text is available to assistive technology. The
+  standard text-button pagination remains the default for other consumers. Hide pagination when
+  one page suffices.
 - Counts and tutors describe only loaded booking records (up to 100), never lifetime activity or
   favorites. Preserve the existing pending/confirmed next-booking selection and booking-detail links.
 

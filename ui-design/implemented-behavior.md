@@ -45,11 +45,13 @@ reviews see an explicit new-tutor state.
 The bilingual “Read all reviews” control currently explains that individual reviews are unavailable;
 it does not submit the profile form or call an unsupported reviews endpoint.
 
-The student dashboard at `/dashboard` uses **Desk Spread**: two warm-paper sheets connected by six
-minimal circular outline rings on desktop, stacked in reading order with a horizontal connector on
-narrow screens.
-The left sheet shows the next booking's Bangkok date range, start/end time, tutor, subject/grade, and
-shared business-status badge. A short memo explicitly distinguishes a pending request's proposed
+The student dashboard at `/dashboard` uses **Desk Spread**: two warm-paper sheets connected by closely
+spaced flat wire loops on desktop, stacked in reading order with a horizontal wire connector on
+narrow screens. The decorative pattern repeats every 24px and follows the sheet length.
+The left sheet shows the next booking's month/day/year calendar tile beside start/end time, tutor,
+and subject/grade on one compact mint surface. Dates use Bangkok time, Thai Buddhist years, and English
+Gregorian years, with an accessible full-date label and a full date range for cross-day bookings.
+The shared business-status badge and a short memo explicitly distinguish a pending request's proposed
 time from a confirmed appointment. The existing selection stays unchanged: earliest start strictly
 after dashboard mount among PENDING and CONFIRMED bookings. A compact strip beneath it shows upcoming,
 all pending, and completed counts from loaded records, explicitly scoped to at most 100 bookings;
@@ -58,7 +60,9 @@ pending and upcoming can overlap. It does not provide learning analytics or life
 The right sheet lists tutors derived from that same booking response. The existing Map preserves
 first tutor insertion order and retains the last encountered booking for each tutor; each row still
 opens that booking's encoded detail URL. Four tutors appear per page through the shared
-`NotebookPagination`, with a live range, page count, keyboard controls, and disabled boundary buttons.
+`NotebookPagination`'s student-only opt-in paper-turn presentation, with a live range, icon-only
+previous/next buttons, localized accessible names, keyboard focus, and disabled boundaries. The small
+visible controls retain 44px touch targets; page-count text is visually hidden and remains accessible.
 It is entirely frontend pagination: changing tutor pages does not fetch more records or change the
 left sheet. Pagination is hidden for zero to four tutors and resets to page one after the existing
 booking load succeeds. The dashboard keeps the original `getMyBookings({ pageSize: 100 })` load and
@@ -67,7 +71,8 @@ shared shell and student Mint loading note; loading/errors keep sidebar counts u
 summary counts/empty states. Zero appears only after a successful response. The disabled search,
 quick-action block, repeated pending panel, and duplicate find-tutor CTAs are removed; a single
 header find-tutor CTA and existing shell navigation remain. Styles are isolated to Student Dashboard;
-shared shell, primitives, and tutor layouts remain unchanged. Thai/English copy and reduced-motion
+shared shell and tutor layouts remain unchanged, and the pagination's standard text-button mode
+remains the default for other consumers. Thai/English copy and reduced-motion
 preferences are preserved.
 
 The tutor dashboard follows the Notebook Focus layout: the next confirmed session, today's

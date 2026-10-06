@@ -30,6 +30,23 @@ export function formatBangkokShortDate(value: string | Date, language: DateTimeL
   }).format(new Date(value));
 }
 
+export function formatBangkokDateParts(
+  value: string | Date,
+  language: DateTimeLanguage,
+): { day: string; month: string; year: string } {
+  const parts = new Intl.DateTimeFormat(getCalendarLocale(language), {
+    day: 'numeric',
+    month: 'short',
+    timeZone: BANGKOK_TIME_ZONE,
+    year: 'numeric',
+  }).formatToParts(new Date(value));
+  return {
+    day: parts.find((part) => part.type === 'day')?.value ?? '',
+    month: parts.find((part) => part.type === 'month')?.value ?? '',
+    year: parts.find((part) => part.type === 'year')?.value ?? '',
+  };
+}
+
 export function formatBangkokDateRange(
   start: string | Date,
   end: string | Date,

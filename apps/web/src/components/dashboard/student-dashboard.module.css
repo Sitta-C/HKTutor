@@ -95,23 +95,44 @@
   line-height: 1.6;
 }
 
-.dateStrip {
+.appointmentDetails {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr);
+  align-items: start;
+  gap: 18px;
+  margin-top: 22px;
+  padding: 14px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--color-student) 12%, var(--color-paper));
+}
+
+.dateTile {
   display: flex;
   align-items: center;
-  gap: 10px;
-  margin-top: 22px;
-  padding: 12px 14px;
-  border-radius: 6px;
-  background: color-mix(in srgb, var(--color-student) 12%, var(--color-paper));
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 6px;
+  border: 1px solid color-mix(in srgb, var(--color-student-deep) 15%, var(--color-paper));
+  border-radius: 8px;
+  background: var(--color-paper);
   color: color-mix(in srgb, var(--color-student-deep) 80%, var(--color-notebook-ink));
-  font-size: 1.125rem;
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.65;
+}
+
+.dateTile strong {
+  font-size: 2.25rem;
   font-weight: 700;
-  overflow-wrap: anywhere;
+  line-height: 1.2;
+}
+
+.lessonDetails {
+  min-width: 0;
 }
 
 .lessonTime {
-  margin-top: 18px;
-  font-size: clamp(1.5rem, 3vw, 1.875rem);
+  font-size: clamp(1.25rem, 2.5vw, 1.75rem);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   line-height: 1.4;
@@ -203,21 +224,18 @@
 .binding {
   position: relative;
   z-index: 2;
-  display: flex;
-  min-height: 320px;
-  flex-direction: column;
-  align-items: center;
-  justify-content: space-between;
-  padding: 36px 0;
   pointer-events: none;
 }
 
-.ring {
-  width: 36px;
-  height: 36px;
-  flex-shrink: 0;
-  border: 1.5px solid var(--color-stone-400);
-  border-radius: 50%;
+.binding::before {
+  position: absolute;
+  inset: 20px -8px;
+  background: var(--color-stone-600);
+  mask-image: url('./student-binding-ring.svg');
+  mask-position: center top;
+  mask-repeat: repeat-y;
+  mask-size: 44px 24px;
+  content: '';
 }
 
 .tutorIndex {
@@ -348,9 +366,14 @@
 
   .binding {
     height: 28px;
-    min-height: 0;
-    flex-direction: row;
-    padding: 0 16px;
+  }
+
+  .binding::before {
+    inset: -8px 16px;
+    mask-image: url('./student-binding-ring-horizontal.svg');
+    mask-position: left center;
+    mask-repeat: repeat-x;
+    mask-size: 24px 44px;
   }
 
   .indexTab {
@@ -365,8 +388,18 @@
     padding: 16px;
   }
 
-  .dateStrip {
+  .appointmentDetails {
+    grid-template-columns: 58px minmax(0, 1fr);
+    gap: 12px;
+    padding: 10px;
+  }
+
+  .tutorName {
     font-size: 1rem;
+  }
+
+  .subject {
+    font-size: 0.75rem;
   }
 }
 

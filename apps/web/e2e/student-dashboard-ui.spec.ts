@@ -141,8 +141,8 @@ test('earliest future pending booking remains next, with honest status and loade
   await expect(next.getByText('PENDING', { exact: true })).toBeVisible();
   await expect(next.getByText('This request is pending')).toBeVisible();
   await expect(next.getByText('Your booking is confirmed')).toHaveCount(0);
-  await expect(next).toContainText('10:00 – 11:00');
-  await expect(next).toContainText('5 Oct 2026');
+  await expect(next).toContainText('10:00–11:00');
+  await expect(next.getByLabel('5 Oct 2026', { exact: true })).toBeVisible();
   const summary = page.getByRole('region', { name: 'Booking overview', exact: true });
   await expect(summary.locator('dd')).toHaveText(['2', '2', '1']);
   await expect(summary).toContainText('up to 100 records');
@@ -166,7 +166,7 @@ test('confirmed cross-midnight booking shows Bangkok date range and confirmation
   const next = page.getByRole('region', { name: 'Next booking', exact: true });
   await expect(next.getByText('CONFIRMED', { exact: true })).toBeVisible();
   await expect(next.getByText('Your booking is confirmed')).toBeVisible();
-  await expect(next).toContainText('23:30 – 00:30');
+  await expect(next).toContainText('23:30–00:30');
   await expect(next).toContainText(/5\s*–\s*6 Oct 2026/);
   await expect(page.getByRole('navigation', { name: 'Tutor index pages' })).toHaveCount(0);
 });
@@ -201,6 +201,10 @@ test('right sheet paginates loaded tutors with keyboard and preserves original b
   const initialCallCount = calls.length;
   const leftBefore = await nextBooking.innerText();
   const next = pages.getByRole('button', { name: 'Next', exact: true });
+  await expect(next).toHaveText('');
+  const touchTarget = await next.boundingBox();
+  expect(touchTarget?.width).toBeGreaterThanOrEqual(44);
+  expect(touchTarget?.height).toBeGreaterThanOrEqual(44);
   await next.focus();
   await page.keyboard.press('Enter');
   await expect(pages).toContainText('Page 2 of 3');
