@@ -26,71 +26,22 @@ rewrites that path to the API on port 3001. The API documentation is available a
 
 ### Current product surface
 
-The implemented web flow is login (`/`), registration (`/register`), email verification
-(`/register/verify`, with `/register/verifypage` redirected as a legacy alias), role-specific profile
-onboarding (`/onboarding/profile`), a protected dashboard (`/dashboard`), profile editing
-(`/dashboard/profile`), tutor availability management (`/dashboard/availability`), and the
-informational `/about-me` page. The availability screen creates and deletes future Bangkok-time
-ranges while exchanging UTC timestamps with the API, protecting reserved slots, and presenting a
-Gregorian calendar in English or a Buddhist calendar in Thai. Separate start/end dates support
-overnight and multi-day availability. Time fields expand into three-row hour/minute wheels with vertical-only
-touch, mouse, trackpad, scrollbar, and keyboard operation; their gentle opening transition respects
-reduced-motion preferences. Clicking the time field again or outside the picker closes it and
-removes its space from the layout. The date/time groups use explicit gaps. The availability
-page shows time ranges without duration totals, a timezone preview box, or a reset action.
-The weekly summary uses a compact ruled-paper ledger for open and reserved slot counts, with a
-single timezone tag in its footer. Counts remain unavailable while loading or after a load error;
-an empty week displays zero. The ledger stacks its metrics on mobile and supports both languages.
-Weekly slots use ruled notebook rows with punched binding margins, green open statuses, and one
-booking status instead of a redundant disabled action. Ended ranges receive a muted overlay and an
-explicit label, updated while the page is open; ended cards have no interactive actions and cannot
-be deleted, including if a range expires while its confirmation is open. Statuses and compact delete
-buttons sit at the top right of each card. Delete buttons open a keyboard-accessible confirmation
-dialog styled as a notebook slip, with separate start/end dates and prominent times; canceling does
-not send a delete request, and reserved slots remain protected.
-Cross-day slots render as one continuous notebook card spanning the occupied Bangkok date rows and
-covering their separators, with the start at the top, the end at the bottom, and one status/action.
-Localized endpoint dates and the shared day gutter remain visible on mobile. Midnight endings display
-as 24:00 and do not create an empty row on the next date. Weekly
-views include incoming portions from earlier weeks using the existing API's optional query fields;
-summaries count each underlying slot once, and confirmed deletion removes the whole slot.
-The bilingual privacy notice opens
-as a closable modal from registration and the dashboard instead of using a separate route.
+The implemented web flow includes authentication and email verification, profile onboarding/editing,
+role-specific dashboards, tutor availability and course management, tutor discovery, student booking,
+and the informational `/about-me` page. Availability supports overnight and multi-day ranges with
+Bangkok-time presentation and UTC timestamps on the wire. Day and week views use the private
+availability overlap filter to include carry-over slots without loading past history. Reserved slots
+remain protected.
 
-The tutor profile's read-only account summary places labels above plain paper fields, matching
-the profile form's typography, spacing, field height, and responsive columns. Tutor verification
-uses a standalone status badge; the score, five stars, review count, and review action share one
-compact row. Stars fill proportionally from the existing profile rating, and ratings, review counts,
-and verification states update from the existing profile API responses. Tutors without
-reviews see an explicit new-tutor state.
-The bilingual “Read all reviews” control currently explains that individual reviews are unavailable;
-it does not submit the profile form or call an unsupported reviews endpoint.
+The tutor dashboard shows the next confirmed lesson, today's availability, pending requests, and
+monthly teaching analytics. It uses existing read-only API filters to load pending requests, future
+confirmed lessons, and the selected analytics month separately. Monthly loading/errors stay within
+analytics and failed loads offer retry actions. Booking value represents scheduled lessons, not
+received revenue; earnings and individual reviews remain unavailable without supporting data.
 
-The tutor dashboard follows the Notebook Focus layout: the next confirmed session, today's
-availability, pending requests, monthly teaching analytics, and course performance. Monthly
-analytics show confirmed/completed lessons, scheduled hours, booking value, and a weekly-hours
-chart based on Bangkok lesson dates. A compact, single-row Ruler Reel selects the centered month when
-scrolling stops. It supports mouse dragging, native touch/trackpad scrolling, clicking, and keyboard
-navigation, keeps 25 months mounted, and replenishes the range at its ends. It uses native scroll
-snap, honors reduced motion, and updates analytics once per settled selection rather than during
-every scroll frame. Earnings and review containers display an unavailable state
-until real data is supplied; booking value is not treated as received revenue. It uses the existing
-read-only endpoints and loads all booking pages before showing totals. Requests use five-item
-pagination. Course performance uses a Subject Index: subjects appear in a color-coded directory
-beside a ruled paper folder containing all courses for the selected subject, without pagination.
-On narrow screens the directory sits above the folder. Subject groups come from existing listing
-IDs and retain stable accent colors. Keyboard navigation and native buttons support selecting
-one course at a time. Clicking a course row expands its summary directly beneath that row with a
-lightweight CSS height transition; clicking it again collapses the summary, and selecting a different
-course opens that row instead. Collapsed details are excluded from focus and accessibility navigation.
-Reduced-motion preferences disable the transition.
-Changing subjects clears unrelated course details; changing the month keeps
-the selected subject and course. Changing the past-request filter resets requests to their first page.
-Course/profile/availability management stays in existing routes;
-the create-course action appears only when the tutor has no listings.
-Past lesson requests are hidden by default. A reusable blue bookmark-note switch can include
-them in the request list. Pale blue paper and a perforated margin distinguish past lessons
-without reducing the readability of their details.
+See [frontend direction](ui-design/frontend-direction.md) for the Notebook Focus patterns and
+[implemented frontend behavior](ui-design/implemented-behavior.md) for interaction, loading,
+responsive layout, and accessibility details.
 
 The accepted student and tutor dashboard concepts, plus the tutor profile/certificate form, live
 in [`ui-design`](ui-design/). Open [`ui-design/index.html`](ui-design/index.html) directly or serve

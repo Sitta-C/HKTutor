@@ -93,3 +93,12 @@ pnpm db:seed
 
 The optional `db:verify:sprint1` command runs only against an explicitly approved local disposable
 database; see the repository README for its safety gate.
+
+## Private availability range queries
+
+`GET /api/v1/tutors/me/availability` accepts optional UTC `from` and `to` bounds. By default it
+filters slot start times (`from <= startAtUtc < to`). Opt into `rangeMode=overlap` to include
+slots spanning the range (`endAtUtc > from` and `startAtUtc < to`); omitted bounds are unrestricted.
+This mode excludes slots ending exactly at `from` or starting exactly at `to`. It retains tutor
+ownership, soft-delete filtering, and derived reservation states. The public availability endpoint
+keeps its existing future-start behavior and does not accept `rangeMode`.

@@ -1,9 +1,11 @@
 # HKTutor frontend direction — Notebook Focus
 
-Updated 2026-10-06. This records the user's design decisions from the dashboard and public-page
-redesign conversation. Read it before proposing or implementing UI changes, including in a new chat.
-The user's current request takes precedence. Follow the implemented components for exact behavior;
-older prototypes remain references, not instructions to restore superseded layouts.
+Updated 2026-10-06. This describes the implemented Notebook Focus direction and component
+patterns in this repository. Maintainers review changes to shared design conventions through the
+normal PR process; this guide does not assert team approval of decisions from an individual chat.
+Read it as implementation context before UI work. The current task's explicit requirements take
+precedence. Follow the source for exact behavior; older prototypes remain historical references.
+See [implemented frontend behavior](implemented-behavior.md) for detailed interactions and layout.
 
 ## Visual direction
 
@@ -19,7 +21,7 @@ older prototypes remain references, not instructions to restore superseded layou
   every metric. Counts should be easier to scan than supporting timezone information.
 - Creative details are welcome; they should remain readable, consistent, and lightweight.
   Reuse or extend a component when the same pattern recurs rather than duplicating its markup.
-- Loading follows the user-approved hierarchy: use `NotebookLoading` sticky notes only while a page
+- Loading follows the implemented hierarchy: use `NotebookLoading` sticky notes only while a page
   or all primary dashboard content is unavailable. Keep the dashboard shell visible during content
   loading. Use `NotebookLoadingRegion` skeletons or compact text for lists, timetable changes, tutor
   results/catalogs, booking details, and booking quotes. Action buttons keep their existing pending
@@ -30,7 +32,7 @@ older prototypes remain references, not instructions to restore superseded layou
   onboarding Lavender, availability Aqua, listing list Sand, new listing Rose, edit listing
   Periwinkle, booking list Pistachio, booking detail Dusty rose, booking confirmation Lemon,
   tutor search Coral, and tutor detail Fog. Do not reuse a loading color for a new loading context.
-  The colors are scoped to loading notes; other approved sticky-note components keep their colors.
+  The colors are scoped to loading notes; other implemented sticky-note components keep their colors.
 
 ## Information and actions
 
@@ -56,7 +58,7 @@ older prototypes remain references, not instructions to restore superseded layou
 
 ## Selected patterns
 
-| Area                         | User-selected direction                                                                                                                                       | Implementation reference                                                                |
+| Area                         | Implemented direction                                                                                                                                         | Implementation reference                                                                |
 | ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
 | Tutor dashboard              | Notebook Focus; teaching overview, pending requests, analytics, and course performance                                                                        | `apps/web/src/components/dashboard/tutor-dashboard.tsx`                                 |
 | Course management            | **Course Ledger**: one compact count strip, status tabs/search, and continuous ruled rows with a binding margin; grade above subject, rate/date/actions below | `apps/web/src/components/listings/tutor-listings-page.tsx` and its stylesheet           |
@@ -100,7 +102,7 @@ pagination is separate and remains in place; the no-pagination decision applies 
 5. Preserve Thai/English copy, Bangkok timezone, keyboard operation, visible focus, non-color status
    cues, and reduced-motion preferences. Check mobile (including 320px), tablet, and desktop.
 6. Verify the relevant flow and layout, and preserve unrelated working-tree changes. Keep conventional
-   commits focused; the user's established workflow is commit locally without pushing unless asked.
+   commits focused. Commit locally without pushing unless explicitly requested.
 
 ## References and unselected proposals
 
@@ -115,15 +117,12 @@ pagination is separate and remains in place; the no-pagination decision applies 
   its existing size and behavior. Arrow Ruler and Open Ruler remain unselected alternatives.
 
 - Existing source and this guide are the portable reference for new chats.
-- The original **Notebook Focus** exploration is in
-  `/Users/1st/Documents/HKTutor/Documents/dashboard-redesign`. This local folder is optional when
-  unavailable in another checkout; it contains illustrative data and proposed interactions.
 - `ui-design/uidesign.md` supplies page/data mapping and historical prototypes. Use this newer guide
   and current source for the visual direction when older descriptions conflict.
 - **Global confirmation component is still a proposal**, not an approved global implementation.
   Paper Dialog, Sticky Memo, Binder Notice, and Decision Sheet were previewed; no explicit design
   choice has been given. The existing availability delete dialog remains its own implemented flow.
-- `/dashboard/listings` uses the approved **Course Ledger** design, selected on 2026-10-06.
+- `/dashboard/listings` uses the implemented **Course Ledger** design, selected on 2026-10-06.
   Keep the existing course-management search, publication filters, editing links, publication,
   archive confirmation, and restoration. Published badges are blue, drafts warm, and archived
   badges neutral; archived courses remain editable. Loading/error counts are unavailable rather
