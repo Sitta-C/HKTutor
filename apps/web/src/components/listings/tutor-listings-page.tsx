@@ -196,27 +196,28 @@ export default function TutorListingsPage() {
   const confirmationIcon = isPublishConfirmation ? 'check' : 'archive';
 
   return (
-    <DashboardShell
-      user={profileUser}
-      onLogout={handleLogout}
-      headerNavRight={
-        <Link href="/dashboard/listings/new" data-dashboard-action>
-          {copy.newListing}
-        </Link>
-      }
-    >
+    <DashboardShell user={profileUser} onLogout={handleLogout}>
       <div className={styles.page}>
-        <header className="mb-6 mt-7">
-          <p className="text-xs font-bold tracking-wide text-tutor-deep">{copy.eyebrow}</p>
-          <h1 className="mt-2 flex flex-wrap items-center gap-3 text-3xl font-bold tracking-[-0.045em] text-notebook-ink sm:text-4xl">
-            <span>{copy.title}</span>
-            <span className="inline-flex items-center rounded-full border border-blue-200 bg-sticky-blue px-2.5 py-1 text-xs font-bold tracking-wide text-tutor-deep">
-              {copy.tutorRole}
-            </span>
-          </h1>
-          <p className="mt-3 max-w-2xl text-sm leading-6 text-notebook-muted sm:text-base">
-            {copy.subtitle}
-          </p>
+        <header className={styles.pageHeader}>
+          <div className={styles.headingContent}>
+            <p className="text-xs font-bold tracking-wide text-tutor-deep">{copy.eyebrow}</p>
+            <h1 className="mt-2 flex flex-wrap items-center gap-3 text-3xl font-bold tracking-[-0.045em] text-notebook-ink sm:text-4xl">
+              <span>{copy.title}</span>
+              <span className="inline-flex items-center rounded-full border border-blue-200 bg-sticky-blue px-2.5 py-1 text-xs font-bold tracking-wide text-tutor-deep">
+                {copy.tutorRole}
+              </span>
+            </h1>
+            <p className="mt-3 max-w-2xl text-sm leading-6 text-notebook-muted sm:text-base">
+              {copy.subtitle}
+            </p>
+          </div>
+          <Link
+            href="/dashboard/listings/new"
+            className={listingButtonClass('primary', `${styles.newListing} ${styles.primary}`)}
+          >
+            <ListingIcon name="add" />
+            {copy.newListing}
+          </Link>
         </header>
 
         <PaperCard className={styles.summary} aria-label={copy.overviewLabel}>

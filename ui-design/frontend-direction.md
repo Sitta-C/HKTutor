@@ -96,6 +96,9 @@ pagination is separate and remains in place; the no-pagination decision applies 
   archive confirmation, and restoration. Published badges are blue, drafts warm, and archived
   badges neutral; archived courses remain editable. Loading/error counts are unavailable rather
   than zero. On mobile, use the existing native status select and wrap actions within each row.
+  The create action uses the selected **Page Header** placement: one tutor-blue button with a plus
+  icon beside the page heading on desktop, full width beneath the introduction on mobile. Keep it
+  in the page content rather than the global navigation; preserve the existing create route.
   Archive and publish confirmation use one native alert dialog with the same composed paper,
   binding, summary, button, and responsive styles as the availability delete alert. Use tutor blue for
   publishing and the existing muted red warning for archiving; scope each accent by action so composed
