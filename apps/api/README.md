@@ -24,7 +24,8 @@ All controller routes receive the global `/api/v1` prefix. Authentication endpoi
 
 ## Source layout
 
-- `src/modules/` contains runtime features: auth, bookings, health, profiles, and tutors.
+- `src/modules/` contains runtime features: auth, bookings, health, profiles,
+  qualification-documents, and tutors.
 - `src/infrastructure/` contains technical adapters shared by features: database, email, and storage.
 - `src/common/` and `src/config/` contain cross-feature utilities and configuration.
 - `src/generated/` contains generated Prisma code and must not be edited manually.
@@ -154,3 +155,112 @@ Unit tests exercise the real SDK against a mocked HTTP transport; they do not ca
 Before releasing an upload feature, use synthetic files in the intended Supabase environment to
 verify upload/download/delete, bucket restrictions, blocked unauthenticated document access, and
 short-lived signed downloads.
+
+## Qualification document API (S2-T07)
+
+The `qualification-documents` feature imports the shared Storage service. It implements the parent
+[S2-T07 card](https://trello.com/c/9sRBSvot) and its seven endpoint cards:
+
+| Card                                    | Method and route (all under `/api/v1`)                          | Access       |
+| --------------------------------------- | --------------------------------------------------------------- | ------------ |
+| [API-01](https://trello.com/c/1GvPZaue) | `POST /tutors/me/qualification-documents`                       | TUTOR        |
+| [API-02](https://trello.com/c/TBGIYMnx) | `GET /tutors/me/qualification-documents`                        | TUTOR        |
+| [API-03](https://trello.com/c/NESH78DY) | `GET /tutors/me/qualification-documents/:documentId/signed-url` | Owning TUTOR |
+| [API-04](https://trello.com/c/0KvS9Aw1) | `GET /admin/tutor-verifications`                                | ADMIN        |
+| [API-05](https://trello.com/c/oUj5OkTe) | `GET /admin/tutor-verifications/:documentId`                    | ADMIN        |
+| [API-06](https://trello.com/c/JUPjBjwD) | `GET /admin/tutor-verifications/:documentId/signed-url`         | ADMIN        |
+| [API-07](https://trello.com/c/EmD1McpO) | `PATCH /admin/tutor-verifications/:documentId`                  | ADMIN        |
+
+JWT authentication runs before role and ownership checks. Tutor operations require an active tutor
+profile and the current privacy policy consent. Records belonging to deleted, inactive, or no
+longer tutor accounts are excluded. Tutor IDs and reviewer IDs come from the authenticated user.
+
+Upload uses multipart fields `file` and `documentType`. The initial allowed types are `DEGREE` and
+`CERTIFICATE`, matching the qualification form's degree/certificate categories. Only PDF, JPEG,
+and PNG with matching byte signatures are accepted, with an inclusive maximum of 5 MiB
+(5242880 bytes). Empty files, unsupported types, excess bytes, unknown fields, multiple files,
+and invalid document types return 400. The API maps the infrastructure's oversize 413 to this
+card's 400 contract. Stored paths contain generated UUIDs, never original filenames. One pending
+document per tutor and document type is allowed; a competing upload returns 409. After a completed
+review, that type may be uploaded again. Uploading does not reset the tutor's verification status.
+
+The 201 upload response is `{documentId,status,fileName,mimeType,size,createdAt}`. Lists contain
+`{items}` with `documentId,type,status,reviewedAt,rejectionReason` and the same safe file metadata.
+The tutor list supports optional `status`. All qualification status filters and responses use
+`PENDING | APPROVED | REJECTED`; `APPROVED` maps to the existing database `VERIFIED` enum. Tutor
+profile `verificationStatus` retains its existing `PENDING | VERIFIED | REJECTED` contract.
+Legacy document category strings remain readable; new uploads accept only the two types above.
+Metadata responses never contain `objectPath`, public download URLs, or service credentials.
+
+The admin queue supports `status`, `cursor`, and `limit`, returning `{items,nextCursor}`. It defaults
+to `PENDING` and 20 rows, accepts limits 1–100, and orders by descending `createdAt`, then `id`.
+Pass the returned cursor unchanged with the same status filter; invalid or mismatched cursors
+return 400. This is keyset pagination rather than a snapshot of a changing review queue. Each
+item's tutor data is limited to `userId`, `displayName`, and `verificationStatus`. Detail returns
+`{document,tutor,reviewHistory}`; completed reviews predating the audit table use their existing
+immutable reviewer/time/rejection fields as historical evidence.
+
+Signed URL endpoints return `{url,expiresAt}`, use `Cache-Control: no-store`, and request a
+300-second Storage lifetime. Times are UTC ISO 8601. `expiresAt` is measured before the Storage
+request so it is conservative. Issuing a URL writes a `SIGNED_URL_ISSUED` audit event containing
+the document, actor, issue time, and expiry; the URL is returned only after auditing succeeds.
+Audit rows never persist the URL/token. Wrong tutor ownership returns 403, missing records 404,
+and invalid UUIDs 400. A URL holder can access the document until Storage expiry; do not persist,
+log, or share signed URLs. Issuance is audited; subsequent downloads from Supabase are not API
+access events.
+
+Review body is `{decision: "APPROVED" | "REJECTED", reason?: string}`. A rejection requires a
+trimmed reason of 1–500 characters; an approval may include a note of the same length. A completed
+document cannot be reviewed again (409). A transaction locks the tutor profile row, conditionally
+updates the pending document, updates tutor verification, and inserts one immutable `REVIEWED`
+audit event. Approval sets the profile to `VERIFIED`; rejection sets it to `REJECTED`. The latest
+committed review sets the tutor status, with reviews of different documents for that tutor
+serialized by the same profile lock. The response is
+`{documentId,status,reviewedAt,reviewedBy,tutorVerificationStatus}`. Approval notes live in the
+audit history; `rejectionReason` remains null on approved documents. Persistence failures roll
+back the entire review and return a sanitized 503.
+
+Upload metadata and its `UPLOADED` audit event also share a transaction. On a failed write, the
+service compensates by deleting only the new Storage object. PostgreSQL and Supabase cannot share
+one atomic transaction: if cleanup fails, the API returns 503 and logs a static reconciliation
+alert without paths or provider errors. Operators must reconcile orphan objects against
+`TutorDocument.objectPath`; abrupt process termination during upload also requires reconciliation.
+
+### Migration and rollout
+
+`20261006150000_qualification_document_api` is a new forward migration. It adds the partial unique
+index for pending uploads and `TutorDocumentAudit` with foreign keys, bounded audit evidence,
+one-review uniqueness, and an append-only trigger. It preserves previous migrations and data.
+Before deploying, inspect duplicate pending types with this read-only query and resolve them
+deliberately; the migration fails rather than deleting records automatically:
+
+```sql
+SELECT "tutorUserId", "documentType", COUNT(*)
+FROM "TutorDocument"
+WHERE "reviewStatus" = 'pending'
+GROUP BY "tutorUserId", "documentType"
+HAVING COUNT(*) > 1;
+```
+
+Apply the pending migration to the confirmed target before starting this API version, using the
+repository's established migration deployment process. No new environment variables are needed.
+The document bucket must be private with the exact MIME allowlist and size limit above. After
+deployment, verify synthetic uploads, tutor ownership, admin preview/review, and signed URL
+expiry in the intended environment. Do not run the seed against retained data.
+
+### Verification
+
+```bash
+pnpm --filter @hktutor/api test --runInBand qualification-documents
+pnpm --filter @hktutor/api test:e2e --runInBand qualification-documents
+pnpm verify:workspace
+pnpm check
+```
+
+The HTTP suite runs real validation, JWT/session/role/ownership guards, feature services, and the
+Storage SDK with isolated database and HTTP transports. It covers the seven contracts, byte-size
+boundaries, spoofed MIME signatures, authorization, pagination, audit failures, conditional review
+contention, and transactional failure propagation. Its persistence double models rollback; it does
+not prove PostgreSQL locks or Supabase expiry against live services. The SQL contract tests protect
+the migration invariants. Swagger and shared web wire types describe the API; frontend upload and
+admin review screens remain the separate S2-T08 task.

@@ -1,5 +1,65 @@
 export type UserRole = 'STUDENT' | 'TUTOR' | 'ADMIN';
 
+export type QualificationDocumentType = 'DEGREE' | 'CERTIFICATE';
+export type QualificationStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
+
+export interface QualificationUploadResponse {
+  documentId: string;
+  status: QualificationStatus;
+  fileName: string;
+  mimeType: 'application/pdf' | 'image/jpeg' | 'image/png';
+  size: number;
+  createdAt: string;
+}
+
+export interface QualificationDocument extends QualificationUploadResponse {
+  type: string;
+  reviewedAt: string | null;
+  rejectionReason: string | null;
+}
+
+export interface QualificationListResponse {
+  items: QualificationDocument[];
+}
+
+export interface QualificationTutor {
+  userId: string;
+  displayName: string;
+  verificationStatus: TutorProfile['verificationStatus'];
+}
+
+export interface QualificationQueueResponse {
+  items: (QualificationDocument & { tutor: QualificationTutor })[];
+  nextCursor: string | null;
+}
+
+export interface QualificationDetailResponse {
+  document: QualificationDocument;
+  tutor: QualificationTutor;
+  reviewHistory: {
+    status: QualificationStatus;
+    reviewedBy: string;
+    reviewedAt: string;
+    reason: string | null;
+  }[];
+}
+
+export interface QualificationSignedUrlResponse {
+  url: string;
+  expiresAt: string;
+}
+
+export type ReviewQualificationPayload =
+  { decision: 'APPROVED'; reason?: string } | { decision: 'REJECTED'; reason: string };
+
+export interface QualificationReviewResponse {
+  documentId: string;
+  status: 'APPROVED' | 'REJECTED';
+  reviewedAt: string;
+  reviewedBy: string;
+  tutorVerificationStatus: TutorProfile['verificationStatus'];
+}
+
 export interface AuthUser {
   id: string;
   email: string;

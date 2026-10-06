@@ -55,31 +55,38 @@ enum TutorDocumentReviewStatus {
   REJECTED @map("rejected")
 }
 
+enum TutorDocumentAuditAction {
+  UPLOADED          @map("uploaded")
+  SIGNED_URL_ISSUED @map("signed_url_issued")
+  REVIEWED          @map("reviewed")
+}
+
 model User {
-  id                 String                   @id @default(uuid()) @db.Uuid
+  id                   String                   @id @default(uuid()) @db.Uuid
   /// A partial unique index for non-deleted users is migration-managed.
-  email              String                   @db.Citext
+  email                String                   @db.Citext
   /// Null is reserved for deterministic, non-loginable search fixtures.
-  passwordHash       String?
-  emailVerifiedAt    DateTime?                @db.Timestamptz(3)
-  role               Role
-  accountStatus      AccountStatus            @default(ACTIVE)
+  passwordHash         String?
+  emailVerifiedAt      DateTime?                @db.Timestamptz(3)
+  role                 Role
+  accountStatus        AccountStatus            @default(ACTIVE)
   /// Consent time and policy version are nullable together for provisioned/demo users; a migration-managed check prevents a partial consent state.
-  consentAcceptedAt  DateTime?                @db.Timestamptz(3)
-  policyVersion      String?
-  createdAt          DateTime                 @default(now()) @db.Timestamptz(3)
-  updatedAt          DateTime                 @updatedAt @db.Timestamptz(3)
-  deletedAt          DateTime?                @db.Timestamptz(3)
-  tutorProfile       TutorProfile?
-  studentProfile     StudentProfile?
-  studentBookings    Booking[]                @relation("BookingStudent")
-  canceledBookings   Booking[]                @relation("BookingCanceledBy")
-  studentConversations Conversation[]         @relation("ConversationStudent")
-  tutorConversations Conversation[]           @relation("ConversationTutor")
-  sentMessages       Message[]                @relation("MessageSender")
-  reviewedDocuments  TutorDocument[]          @relation("TutorDocumentReviewer")
-  authSessions       AuthSession[]
-  verificationTokens EmailVerificationToken[]
+  consentAcceptedAt    DateTime?                @db.Timestamptz(3)
+  policyVersion        String?
+  createdAt            DateTime                 @default(now()) @db.Timestamptz(3)
+  updatedAt            DateTime                 @updatedAt @db.Timestamptz(3)
+  deletedAt            DateTime?                @db.Timestamptz(3)
+  tutorProfile         TutorProfile?
+  studentProfile       StudentProfile?
+  studentBookings      Booking[]                @relation("BookingStudent")
+  canceledBookings     Booking[]                @relation("BookingCanceledBy")
+  studentConversations Conversation[]           @relation("ConversationStudent")
+  tutorConversations   Conversation[]           @relation("ConversationTutor")
+  sentMessages         Message[]                @relation("MessageSender")
+  reviewedDocuments    TutorDocument[]          @relation("TutorDocumentReviewer")
+  documentAuditEvents  TutorDocumentAudit[]
+  authSessions         AuthSession[]
+  verificationTokens   EmailVerificationToken[]
 }
 
 model StudentProfile {
@@ -162,9 +169,26 @@ model TutorDocument {
   updatedAt       DateTime                  @updatedAt @db.Timestamptz(3)
   tutor           TutorProfile              @relation(fields: [tutorUserId], references: [userId], onDelete: Restrict, onUpdate: Cascade)
   reviewer        User?                     @relation("TutorDocumentReviewer", fields: [reviewerUserId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  auditEvents     TutorDocumentAudit[]
 
   @@index([tutorUserId, reviewStatus, createdAt], map: "TutorDocument_tutorUserId_reviewStatus_createdAt_idx")
   @@index([reviewStatus, createdAt], map: "TutorDocument_reviewStatus_createdAt_idx")
+}
+
+/// Append-only qualification access/review evidence; never stores object paths or signed URLs.
+model TutorDocumentAudit {
+  id          String                     @id @default(uuid()) @db.Uuid
+  documentId  String                     @db.Uuid
+  actorUserId String                     @db.Uuid
+  action      TutorDocumentAuditAction
+  decision    TutorDocumentReviewStatus?
+  reason      String?
+  expiresAt   DateTime?                  @db.Timestamptz(3)
+  createdAt   DateTime                   @default(now()) @db.Timestamptz(3)
+  document    TutorDocument              @relation(fields: [documentId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  actor       User                       @relation(fields: [actorUserId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@index([documentId, createdAt, id], map: "TutorDocumentAudit_documentId_createdAt_id_idx")
 }
 
 model AvailabilitySlot {

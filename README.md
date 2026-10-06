@@ -35,6 +35,11 @@ ranges while exchanging UTC timestamps with the API, protecting reserved slots, 
 Gregorian calendar in English or a Buddhist calendar in Thai. The bilingual privacy notice opens
 as a closable modal from registration and the dashboard instead of using a separate route.
 
+The API also supports private tutor qualification uploads, owner/admin signed previews, and an
+admin review queue with atomic review and audit records. See the
+[qualification API contract and rollout notes](apps/api/README.md#qualification-document-api-s2-t07).
+The corresponding upload and admin review screens are not implemented yet.
+
 The accepted student and tutor dashboard concepts, plus the tutor profile/certificate form, live
 in [`ui-design`](ui-design/). Open [`ui-design/index.html`](ui-design/index.html) directly or serve
 the directory as static files. [`ui-design/uidesign.md`](ui-design/uidesign.md) records the page
