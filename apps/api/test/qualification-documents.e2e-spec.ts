@@ -530,12 +530,20 @@ describe('S2-T07 qualification documents (HTTP contracts with isolated persisten
         .attach('file', PDF, { filename: 'degree.pdf', contentType: 'application/pdf' })
         .expect(503);
       expect(JSON.stringify(result.body)).not.toContain('provider-secret-object-path');
+      expect(result.body).not.toHaveProperty('failureCode');
       expect(auditRecords).toEqual([]);
       expect(document).toEqual(fixture());
-      expect(errorLog).toHaveBeenCalledWith(
-        'Qualification upload cleanup failed; persisted intent will retry',
-      );
+      expect(errorLog).toHaveBeenCalledWith({
+        message: 'Qualification upload cleanup failed',
+        stage: 'remove_object',
+        code: 'STORAGE_HTTP_503',
+      });
       expect(intents.size).toBe(1);
+      expect(JSON.stringify(errorLog.mock.calls)).not.toContain('provider-secret-object-path');
+      expect(JSON.stringify(errorLog.mock.calls)).not.toContain(ENVIRONMENT.SUPABASE_SECRET_KEY);
+      for (const objectPath of intents.keys()) {
+        expect(JSON.stringify(errorLog.mock.calls)).not.toContain(objectPath);
+      }
       expect(retryIntent).toHaveBeenCalled();
     } finally {
       errorLog.mockRestore();

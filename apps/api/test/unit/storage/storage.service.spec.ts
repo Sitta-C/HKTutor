@@ -8,6 +8,7 @@ import { Test } from '@nestjs/testing';
 import { createClient } from '@supabase/supabase-js';
 
 import { StorageConfigService } from '@config/storage.config';
+import { StorageRequestError } from '@infrastructure/storage/storage-request-error';
 import { StorageModule } from '@infrastructure/storage/storage.module';
 import { StorageService } from '@infrastructure/storage/storage.service';
 import {
@@ -314,5 +315,50 @@ describe('StorageService', () => {
     await expect(service.remove('document', OBJECT_PATH)).rejects.toThrow(
       new ServiceUnavailableException('Stored file could not be deleted'),
     );
+  });
+
+  it.each([
+    { error: { status: 403, code: 'private-value' }, expectedCode: 'STORAGE_HTTP_403' },
+    { error: { status: 404 }, expectedCode: 'STORAGE_HTTP_404' },
+    { error: { status: 503 }, expectedCode: 'STORAGE_HTTP_503' },
+    { error: { name: 'TimeoutError' }, expectedCode: 'STORAGE_TIMEOUT' },
+    { error: { name: 'AbortError' }, expectedCode: 'STORAGE_ABORTED' },
+    { error: { cause: { code: 'ECONNRESET' } }, expectedCode: 'ECONNRESET' },
+    { error: { cause: { code: 'ENOTFOUND' } }, expectedCode: 'ENOTFOUND' },
+    { error: { code: 'sb_secret_private' }, expectedCode: 'STORAGE_REQUEST_FAILED' },
+    { error: { status: 'sb_secret_private' }, expectedCode: 'STORAGE_REQUEST_FAILED' },
+    { error: { status: 403.5 }, expectedCode: 'STORAGE_REQUEST_FAILED' },
+  ])(
+    'keeps only $expectedCode for diagnostics without changing the HTTP response',
+    async ({ error, expectedCode }) => {
+      fetchMock.mockRejectedValue(
+        Object.assign(new Error('sb_secret_private /private/path?token=private'), error),
+      );
+      try {
+        await service.remove('document', OBJECT_PATH);
+        throw new Error('Expected deletion to fail');
+      } catch (failure) {
+        expect(failure).toBeInstanceOf(StorageRequestError);
+        if (!(failure instanceof StorageRequestError)) {
+          throw failure;
+        }
+        expect(failure.failureCode).toBe(expectedCode);
+        expect(failure.getResponse()).toEqual({
+          message: 'Stored file could not be deleted',
+          error: 'Service Unavailable',
+          statusCode: 503,
+        });
+        expect(JSON.stringify(failure)).not.toContain('sb_secret_private');
+        expect(JSON.stringify(failure)).not.toContain('token=private');
+        expect(JSON.stringify(failure)).not.toContain('/private/path');
+      }
+    },
+  );
+
+  it('preserves the real SDK provider status for recovery diagnostics', async () => {
+    fetchMock.mockResolvedValue(response({ message: 'private-value', statusCode: '403' }, 403));
+    await expect(service.remove('document', OBJECT_PATH)).rejects.toMatchObject({
+      failureCode: 'STORAGE_HTTP_403',
+    });
   });
 });

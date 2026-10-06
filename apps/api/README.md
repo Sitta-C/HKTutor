@@ -235,7 +235,22 @@ aggregate profile state, and intent consumption share one transaction. A failed 
 attempts immediate cleanup. Storage timeouts keep their intent for recovery because the remote
 upload may have completed. A background worker checks up to five intents each minute, starting
 five minutes after an abandoned upload, and retries failed cleanup each minute. Work survives API
-restarts; monitor intent age/attempt counts and static recovery error logs for persistent outages.
+restarts; monitor intent age/attempt counts and recovery error logs for persistent outages.
+Recovery logs contain only a static message, `stage`, and a bounded diagnostic `code`. Stages
+distinguish transaction startup/commit, intent claiming, reference checks, Storage removal, intent
+deletion, and retry scheduling. Codes include Prisma codes (such as `P2028` for transaction errors),
+allowlisted SQLSTATE values (such as `P2010/42P01` for a missing table), Storage HTTP statuses
+(such as `STORAGE_HTTP_403`), and known timeout/network codes. Unknown failures use `UNKNOWN` or
+`STORAGE_REQUEST_FAILED`; raw error messages, stacks, provider bodies, paths, and credentials are
+never logged. Storage HTTP responses remain sanitized 503s. If retry scheduling also fails, both
+failures are logged and the current batch stops; the durable intent is checked again on the next
+worker tick. A non-transactional due-intent probe skips the batch when no work is due; this probe
+does not claim ownership or authorize deletion. Recovery transactions explicitly allow up to
+10 seconds to acquire a connection/start the transaction (`maxWait`), separately from the
+25-second execution limit (`timeout`). This avoids Prisma 7's default 2-second acquisition limit
+on a slow remote pooler without changing other API transaction settings. Startup timeouts log
+`stage: transaction_start` with `code: P2028/START_TIMEOUT`; probe failures log
+`stage: check_due_intents`. An empty recovery queue emits no error.
 The worker locks each intent with `FOR UPDATE SKIP LOCKED`, checks document references, and only
 deletes unreferenced objects. Finalization locks the same intent, preventing deletion of committed
 files even if a commit acknowledgement is lost. Paths stay server-side and are never logged.

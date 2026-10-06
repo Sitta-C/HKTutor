@@ -10,6 +10,7 @@ import {
 import { filetypemime } from 'magic-bytes.js';
 
 import { StorageConfigService } from '@config/storage.config';
+import { StorageRequestError } from '@infrastructure/storage/storage-request-error';
 import {
   AVATAR_MAX_SIZE_BYTES,
   DOCUMENT_MAX_SIZE_BYTES,
@@ -198,12 +199,15 @@ export class StorageService {
     try {
       const { data, error } = await operation();
       if (error || data === null) {
-        throw new Error('Storage request failed');
+        throw new StorageRequestError(message, error);
       }
       return data;
-    } catch {
+    } catch (error) {
       // Provider errors may contain paths or credentials; expose only our stable message.
-      throw new ServiceUnavailableException(message);
+      if (error instanceof StorageRequestError) {
+        throw error;
+      }
+      throw new StorageRequestError(message, error);
     }
   }
 }
