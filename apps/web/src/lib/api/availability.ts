@@ -24,6 +24,7 @@ export function getTutorAvailability(
   const params = new URLSearchParams();
   if (query.from !== undefined) params.set('from', toIsoString(query.from));
   if (query.to !== undefined) params.set('to', toIsoString(query.to));
+  if (query.rangeMode !== undefined) params.set('rangeMode', query.rangeMode);
 
   const queryString = params.toString();
   return authenticatedFetch<TutorAvailabilitySlot[]>(

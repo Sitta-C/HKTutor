@@ -1,0 +1,502 @@
+.weekGrid {
+  --availability-row-height: 84px;
+  display: grid;
+  grid-template-columns: 120px minmax(0, 1fr);
+  column-gap: 16px;
+  padding-top: 20px;
+}
+
+.dayLabel {
+  grid-column: 1;
+  align-self: start;
+  padding-top: 2px;
+  color: var(--color-notebook-ink);
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.dayLabel > span {
+  display: block;
+  margin-top: 4px;
+  color: var(--color-notebook-muted);
+  font-size: 12px;
+  font-weight: 400;
+}
+
+.shortWeekday {
+  display: none;
+}
+
+.daySeparator {
+  grid-column: 1 / -1;
+  align-self: center;
+  border-top: 1px dashed var(--color-paper-edge);
+}
+
+.row {
+  position: relative;
+  isolation: isolate;
+  display: grid;
+  z-index: 1;
+  grid-column: 2;
+  grid-template-columns: 30px minmax(0, 1fr);
+  overflow: hidden;
+  background: var(--color-paper);
+  border: 1px solid var(--color-paper-edge);
+  border-radius: 14px;
+}
+
+.row::before {
+  position: absolute;
+  z-index: -1;
+  inset: 0 0 0 30px;
+  pointer-events: none;
+  content: '';
+  background: repeating-linear-gradient(
+    to bottom,
+    transparent 0 31px,
+    color-mix(in srgb, var(--color-notebook-line) 55%, transparent) 31px 32px
+  );
+}
+
+.binding {
+  display: flex;
+  flex-direction: column;
+  gap: 13px;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in srgb, var(--color-sticky-green) 60%, var(--color-paper));
+  border-right: 1px solid var(--color-paper-edge);
+}
+
+.binding span {
+  width: 7px;
+  height: 7px;
+  background: var(--color-paper-deep);
+  border-radius: 50%;
+  box-shadow: inset 0 1px 1px color-mix(in srgb, var(--color-notebook-muted) 35%, transparent);
+}
+
+.row[data-state='booked'] .binding {
+  background: color-mix(in srgb, var(--color-sticky-yellow) 50%, var(--color-paper));
+}
+
+.row[data-state='past'] .binding {
+  background: var(--color-paper-edge);
+}
+
+.row[data-state='past'] {
+  pointer-events: none;
+}
+
+.row[data-state='past']::after {
+  position: absolute;
+  z-index: 2;
+  inset: 0;
+  pointer-events: none;
+  content: '';
+  background: var(--color-notebook-muted);
+  opacity: 0.22;
+}
+
+.rowBody {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: start;
+  min-width: 0;
+  padding: 17px 14px;
+}
+
+.spanningRow .binding {
+  gap: 0;
+  justify-content: space-around;
+  padding: 20px 0;
+}
+
+.spanningRow .rowBody {
+  align-items: stretch;
+}
+
+.spanTimes {
+  display: grid;
+  grid-template-rows: auto minmax(20px, 1fr) auto;
+  min-width: 0;
+}
+
+.spanEndpoint {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0 8px;
+  align-items: baseline;
+}
+
+.endpointLabel {
+  color: var(--color-notebook-muted);
+  font-size: 11px;
+}
+
+.spanEndpoint .dateRange {
+  grid-column: 2;
+  margin-top: 0;
+}
+
+.spanConnector {
+  width: 1px;
+  margin: 8px 0 8px 7px;
+  background: var(--color-paper-edge);
+}
+
+.time {
+  color: var(--color-notebook-ink);
+  font-size: 18px;
+  font-weight: 800;
+  line-height: 1.5;
+  font-variant-numeric: tabular-nums;
+}
+
+.timeRange {
+  display: inline-flex;
+  gap: 0;
+  align-items: center;
+  white-space: nowrap;
+}
+
+.detail {
+  margin-top: 3px;
+  color: var(--color-notebook-muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.dateRange {
+  margin-top: 3px;
+  color: var(--color-notebook-muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.rowActions {
+  position: relative;
+  z-index: 3;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 9px;
+  align-items: center;
+  justify-content: flex-end;
+  align-self: start;
+  justify-self: end;
+}
+
+.badge {
+  gap: 5px;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  border: 0;
+  border-radius: 7px;
+}
+
+.deleteButton {
+  gap: 5px;
+  min-width: 34px;
+  min-height: 34px;
+  padding: 0 8px;
+  color: var(--color-red-700);
+  font-size: 12px;
+  border-radius: 7px;
+  box-shadow: none;
+}
+
+.deleteButton:hover {
+  background: var(--color-red-50);
+  border-color: var(--color-red-200);
+  box-shadow: none;
+  transform: none;
+}
+
+.deleteDialog {
+  --dialog-danger: color-mix(in srgb, var(--color-red-700) 75%, var(--color-notebook-muted));
+  width: min(390px, calc(100vw - 32px));
+  max-height: calc(100dvh - 32px);
+  padding: 24px;
+  margin: auto;
+  overflow-y: auto;
+  color: var(--color-notebook-ink);
+  background: var(--color-paper);
+  border: 1px solid var(--color-paper-edge);
+  border-radius: 18px;
+  box-shadow: 0 8px 28px color-mix(in srgb, var(--color-notebook-ink) 12%, transparent);
+}
+
+.dialogHeader {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.dialogIcon {
+  display: grid;
+  flex-shrink: 0;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  color: var(--dialog-danger);
+  background: color-mix(in srgb, var(--dialog-danger) 10%, var(--color-paper));
+  border-radius: 11px;
+}
+
+.dialogTitle {
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.4;
+  letter-spacing: -0.025em;
+}
+
+.dialogDescription {
+  margin-top: 12px;
+  color: var(--color-notebook-muted);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.dialogSummary {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr);
+  margin-top: 20px;
+  overflow: hidden;
+  background: var(--color-paper);
+  border: 1px solid var(--color-paper-edge);
+  border-radius: 10px;
+}
+
+.dialogBinding {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-around;
+  padding: 14px 0;
+  background: color-mix(in srgb, var(--dialog-danger) 10%, var(--color-paper));
+  border-right: 1px solid var(--color-paper-edge);
+}
+
+.dialogBinding span {
+  width: 6px;
+  height: 6px;
+  background: var(--color-paper-deep);
+  border-radius: 50%;
+  box-shadow: inset 0 1px 1px color-mix(in srgb, var(--color-notebook-muted) 30%, transparent);
+}
+
+.dialogRange {
+  position: relative;
+  isolation: isolate;
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+  padding: 14px;
+}
+
+.dialogRange::before {
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  pointer-events: none;
+  content: '';
+  background: repeating-linear-gradient(
+    to bottom,
+    transparent 0 31px,
+    color-mix(in srgb, var(--color-notebook-line) 55%, transparent) 31px 32px
+  );
+}
+
+.dialogEndpoint {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  column-gap: 10px;
+}
+
+.dialogLabel {
+  grid-column: 1;
+  color: var(--color-notebook-muted);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.dialogDate {
+  grid-column: 1;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.6;
+}
+
+.dialogTime {
+  grid-area: 1 / 2 / 3 / 3;
+  align-self: center;
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.35;
+  font-variant-numeric: tabular-nums;
+}
+
+.dialogActions {
+  display: grid;
+  grid-template-columns: 1fr 1.15fr;
+  gap: 10px;
+  margin-top: 22px;
+}
+
+.deleteDialog::backdrop {
+  background: color-mix(in srgb, var(--color-notebook-ink) 55%, transparent);
+}
+
+.deleteDialog[open] {
+  animation: confirm-delete-in 160ms ease-out;
+}
+
+.dialogAction {
+  min-width: 0;
+  min-height: 44px;
+  padding: 10px 12px;
+  font-size: 14px;
+  font-weight: 600;
+  border-radius: 9px;
+  box-shadow: none;
+}
+
+.dialogAction:hover {
+  box-shadow: none;
+  transform: none;
+}
+
+.dialogDelete {
+  color: var(--color-paper);
+  background: var(--dialog-danger);
+  border-color: var(--dialog-danger);
+}
+
+.dialogDelete:hover {
+  background: color-mix(in srgb, var(--dialog-danger) 90%, var(--color-notebook-ink));
+  border-color: var(--dialog-danger);
+}
+
+@keyframes confirm-delete-in {
+  from {
+    opacity: 0;
+    transform: translateY(5px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (max-width: 640px) {
+  .weekGrid {
+    --availability-row-height: 120px;
+    grid-template-columns: 52px minmax(0, 1fr);
+    column-gap: 10px;
+  }
+
+  .dayLabel {
+    font-size: 13px;
+  }
+
+  .dayLabel > span {
+    font-size: 11px;
+  }
+
+  .fullWeekday {
+    display: none;
+  }
+
+  .shortWeekday {
+    display: block;
+  }
+
+  .row {
+    grid-template-columns: 22px minmax(0, 1fr);
+  }
+
+  .row::before {
+    left: 22px;
+  }
+
+  .rowBody {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+    gap: 8px;
+    padding: 12px 9px;
+  }
+
+  .time {
+    font-size: 16px;
+  }
+
+  .rowBody > div:first-child {
+    grid-area: 2 / 1;
+  }
+
+  .rowActions {
+    grid-area: 1 / 1;
+  }
+
+  .badge {
+    justify-content: center;
+    padding: 4px 6px;
+    font-size: 11px;
+    white-space: normal;
+  }
+
+  .detail {
+    display: none;
+  }
+
+  .deleteDialog {
+    padding: 20px;
+  }
+
+  .dialogHeader {
+    gap: 10px;
+  }
+
+  .dialogTitle {
+    font-size: 20px;
+  }
+
+  .dialogSummary {
+    grid-template-columns: 20px minmax(0, 1fr);
+  }
+
+  .dialogRange {
+    padding: 12px;
+  }
+
+  .dialogActions {
+    gap: 8px;
+  }
+
+  .dialogAction {
+    padding-right: 9px;
+    padding-left: 9px;
+  }
+}
+
+@media (pointer: coarse) {
+  .deleteButton {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  .dialogAction {
+    min-height: 44px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .deleteDialog[open] {
+    animation: none;
+  }
+}

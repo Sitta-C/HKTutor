@@ -3,6 +3,7 @@ import { Transform, Type } from 'class-transformer';
 import {
   IsDate,
   IsEnum,
+  IsIn,
   IsInt,
   IsNumber,
   IsOptional,
@@ -393,6 +394,16 @@ export class AvailabilityQueryDto {
   @Type(() => Date)
   @IsDate()
   to?: Date;
+}
+
+export class AvailabilityPrivateQueryDto extends AvailabilityQueryDto {
+  @ApiPropertyOptional({
+    enum: ['overlap'],
+    description: 'Include slots overlapping the range; omitted means filter by slot start time',
+  })
+  @IsOptional()
+  @IsIn(['overlap'])
+  rangeMode?: 'overlap';
 }
 
 export class AvailabilityPrivateResponseDto {

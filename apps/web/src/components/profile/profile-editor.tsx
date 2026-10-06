@@ -19,9 +19,9 @@ import {
   validateStudentProfile,
   validateTutorProfile,
 } from '@/components/profile/profile-editor-model';
+import { TutorProfileSummary } from '@/components/profile/tutor-profile-summary';
 import {
   GraphPaper,
-  NotebookPage,
   PaperCard,
   StatusBadge,
   StickyNote,
@@ -29,6 +29,7 @@ import {
   notebookButtonClass,
   notebookInputClass,
 } from '@/components/ui/notebook';
+import { NotebookLoading } from '@/components/ui/notebook-loading';
 import { useNotebookToast } from '@/components/ui/notebook-toast';
 import {
   acceptCurrentPrivacyNotice,
@@ -47,6 +48,8 @@ import {
   resolveOnboardingHandoff,
 } from '@/lib/profile-navigation';
 import { sanitizeReturnTo } from '@/lib/return-to';
+
+import previewStyles from './profile-page-preview.module.css';
 
 import type {
   ProfileFieldErrors,
@@ -271,7 +274,14 @@ export default function ProfileEditor({ mode }: ProfileEditorProps) {
     router.replace('/');
   };
 
-  if (authLoading || isLoading || !user) return <Loading label={text.loading} />;
+  if (authLoading || isLoading || !user) {
+    return (
+      <NotebookLoading
+        kind={mode === 'onboarding' ? 'profileOnboarding' : 'profileEdit'}
+        label={text.loading}
+      />
+    );
+  }
 
   const savedShellName = studentRole
     ? initialStudent.nickname.trim()
@@ -281,11 +291,7 @@ export default function ProfileEditor({ mode }: ProfileEditorProps) {
     : { ...user };
   const tone: ProfileTone = studentRole ? 'student' : 'tutor';
   const headerNav =
-    mode === 'edit' ? (
-      <Link href="/dashboard" data-dashboard-action>
-        {text.back}
-      </Link>
-    ) : (
+    mode === 'edit' ? null : (
       <button
         className={notebookButtonClass({ tone: 'secondary', className: 'px-3.5' })}
         type="button"
@@ -727,39 +733,20 @@ function SystemInfo({
   tutorMeta: Pick<TutorProfile, 'ratingAverage' | 'reviewCount' | 'verificationStatus'>;
 }) {
   const text = copy[language];
+  if (!student) {
+    return <TutorProfileSummary email={email} language={language} tutorMeta={tutorMeta} />;
+  }
   return (
     <div
-      className={`mt-5 grid gap-3 border-t border-dashed border-paper-edge pt-5 ${
-        student
-          ? 'sm:grid-cols-[minmax(0,2fr)_minmax(180px,1fr)]'
-          : 'sm:grid-cols-2 min-[721px]:grid-cols-[minmax(220px,1.8fr)_repeat(3,minmax(110px,1fr))]'
-      }`}
+      className="mt-5 grid gap-3 border-t border-dashed border-paper-edge pt-5 sm:grid-cols-[minmax(0,2fr)_minmax(180px,1fr)]"
       aria-label={text.profileStatus}
     >
       <ReadOnly label={text.accountEmail} value={email} />
-      {student ? (
-        <ReadOnly
-          label={text.profileStatus}
-          value={complete ? text.complete : text.incomplete}
-          statusTone={complete ? 'student' : 'pending'}
-        />
-      ) : (
-        <>
-          <ReadOnly
-            label={text.verification}
-            value={text.status[tutorMeta.verificationStatus]}
-            statusTone={
-              tutorMeta.verificationStatus === 'VERIFIED'
-                ? 'tutor'
-                : tutorMeta.verificationStatus === 'REJECTED'
-                  ? 'error'
-                  : 'pending'
-            }
-          />
-          <ReadOnly label={text.rating} value={tutorMeta.ratingAverage ?? text.newTutor} />
-          <ReadOnly label={text.reviews} value={String(tutorMeta.reviewCount)} />
-        </>
-      )}
+      <ReadOnly
+        label={text.profileStatus}
+        value={complete ? text.complete : text.incomplete}
+        statusTone={complete ? 'student' : 'pending'}
+      />
     </div>
   );
 }
@@ -820,34 +807,57 @@ function TutorPreview({
   const text = copy[language];
   const name = data.displayName.trim() || text.displayName;
   return (
-    <aside className="self-start min-[1061px]:sticky min-[1061px]:top-24">
-      <PaperCard className="p-5 sm:p-6">
-        <WashiTape tone="blue" className="-top-2 right-8 rotate-3" />
-        <PreviewTitle
-          icon="eye"
-          title={text.studentView}
-          body={text.studentViewBody}
-          tone="tutor"
-        />
-        <StickyNote tone="blue" className="p-4">
-          <Identity
-            name={name}
-            detail={text.tutor}
-            secondaryDetail={`${text.experienceShort} ${data.experienceYears || '0'} ${text.years}`}
-            initials={initials(name, 'T')}
-            role="tutor"
-            badge={text.status[status]}
-            badgeIcon={status === 'VERIFIED' ? 'check' : 'info'}
-          />
-          <p className="relative z-10 mt-4 whitespace-pre-wrap border-t border-blue-200/80 pt-4 text-xs leading-5 text-notebook-muted">
-            {data.bio.trim() || text.bioHint}
-          </p>
-        </StickyNote>
-        <StickyNote tone="yellow" className="mt-4 p-4">
-          <b className="text-sm text-notebook-ink">{text.standOut}</b>
-          <p className="mt-1 text-xs leading-5 text-notebook-muted">{text.standOutBody}</p>
-        </StickyNote>
+    <aside
+      className={`${previewStyles.preview} min-w-0 self-start min-[1061px]:sticky min-[1061px]:top-24`}
+      aria-labelledby="tutor-student-view-title"
+    >
+      <header className={previewStyles.header}>
+        <h2 id="tutor-student-view-title" className="font-note">
+          <DashboardIcon name="eye" className="h-[18px] w-[18px] shrink-0 text-tutor-deep" />
+          {text.studentView}
+        </h2>
+        <p>{text.studentViewBody}</p>
+      </header>
+      <PaperCard className={previewStyles.paper}>
+        <WashiTape tone="blue" className={`${previewStyles.tape}`} />
+        <div className={previewStyles.identityRow}>
+          <div className={previewStyles.identity}>
+            <Identity name={name} detail={text.tutor} initials={initials(name, 'T')} role="tutor" />
+            <p
+              className={`${previewStyles.verification} ${
+                status === 'VERIFIED'
+                  ? 'text-emerald-800'
+                  : status === 'REJECTED'
+                    ? 'text-red-700'
+                    : 'text-amber-700'
+              }`}
+            >
+              <DashboardIcon
+                name={status === 'VERIFIED' ? 'shield' : 'info'}
+                className="h-4 w-4 shrink-0"
+              />
+              {text.status[status]}
+            </p>
+          </div>
+          <StickyNote tone="yellow" className={previewStyles.experience}>
+            <strong className="font-note">
+              {data.experienceYears || '0'} {text.years}
+            </strong>
+            <span>{text.teachingExperience}</span>
+          </StickyNote>
+        </div>
+        <div className={previewStyles.about}>
+          <p className={previewStyles.aboutLabel}>{text.aboutMe}</p>
+          <p className={previewStyles.bio}>{data.bio.trim() || text.bioHint}</p>
+        </div>
       </PaperCard>
+      <StickyNote tone="yellow" className={previewStyles.tip}>
+        <DashboardIcon name="info" className="mt-1 h-[18px] w-[18px] shrink-0 text-amber-700" />
+        <div>
+          <h3 className="font-note">{text.standOut}</h3>
+          <p>{text.standOutBody}</p>
+        </div>
+      </StickyNote>
     </aside>
   );
 }
@@ -971,20 +981,6 @@ function Alert({ children }: { children: ReactNode }) {
     </p>
   );
 }
-function Loading({ label }: { label: string }) {
-  return (
-    <NotebookPage className="flex items-center justify-center p-6">
-      <StickyNote tone="yellow" className="min-w-56 px-8 py-7 text-center">
-        <WashiTape className="-top-2 left-1/2 -translate-x-1/2" />
-        <span className="mx-auto block h-7 w-7 animate-spin rounded-full border-2 border-notebook-ink border-t-transparent motion-reduce:animate-[spin_1.8s_linear_infinite]" />
-        <p className="mt-4 font-note text-xl font-semibold text-notebook-ink" role="status">
-          {label}
-        </p>
-      </StickyNote>
-    </NotebookPage>
-  );
-}
-
 function focusFirstError(errors: FieldErrors) {
   const field = Object.keys(errors)[0];
   if (field) requestAnimationFrame(() => document.getElementById(field)?.focus());
@@ -1006,6 +1002,7 @@ function initials(value: string, fallback: string) {
 
 const copy = {
   en: {
+    aboutMe: 'About me',
     account: 'Account',
     accountEmail: 'Account email',
     accountSummary: 'Account summary',
@@ -1073,6 +1070,7 @@ const copy = {
     studentView: 'Student view',
     studentViewBody: 'This is how your profile appears to students.',
     tutor: 'Tutor',
+    teachingExperience: 'Teaching experience',
     tutorSubtitle: 'Tell students about your teaching experience.',
     tutorTitle: 'Your tutor profile',
     tutorVisibility:
@@ -1099,6 +1097,7 @@ const copy = {
     },
   },
   th: {
+    aboutMe: 'เกี่ยวกับฉัน',
     account: 'บัญชี',
     accountEmail: 'อีเมลบัญชี',
     accountSummary: 'สรุปบัญชี',
@@ -1166,6 +1165,7 @@ const copy = {
     studentView: 'มุมมองนักเรียน',
     studentViewBody: 'โปรไฟล์ของคุณจะแสดงต่อนักเรียนแบบนี้',
     tutor: 'ติวเตอร์',
+    teachingExperience: 'ประสบการณ์สอน',
     tutorSubtitle: 'บอกนักเรียนเกี่ยวกับประสบการณ์การสอนของคุณ',
     tutorTitle: 'โปรไฟล์ติวเตอร์ของคุณ',
     tutorVisibility:

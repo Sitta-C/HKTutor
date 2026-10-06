@@ -20,6 +20,7 @@ import type { DateTimeLanguage } from '@/lib/date-time';
 
 interface LocalizedDatePickerProps {
   value: string;
+  name?: string;
   min?: string;
   language: DateTimeLanguage;
   label: string;
@@ -31,6 +32,7 @@ interface LocalizedDatePickerProps {
 
 export function LocalizedDatePicker({
   value,
+  name = 'date',
   min,
   language,
   label,
@@ -138,7 +140,7 @@ export function LocalizedDatePicker({
       ref={rootRef}
     >
       <span id={labelId}>{label}</span>
-      <input type="hidden" name="date" value={value} />
+      <input type="hidden" name={name} value={value} />
       <button
         ref={triggerRef}
         type="button"

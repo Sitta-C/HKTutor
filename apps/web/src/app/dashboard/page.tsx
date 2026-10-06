@@ -3,9 +3,9 @@
 import { useRouter } from 'next/navigation';
 
 import AdminDashboard from '@/components/dashboard/admin-dashboard';
+import { DashboardLoading } from '@/components/dashboard/dashboard-loading';
 import StudentDashboard from '@/components/dashboard/student-dashboard';
 import TutorDashboard from '@/components/dashboard/tutor-dashboard';
-import { NotebookPage, StickyNote, WashiTape } from '@/components/ui/notebook';
 import { useLanguage } from '@/lib/i18n';
 import { useProfileSession } from '@/lib/use-profile-session';
 
@@ -24,23 +24,7 @@ export default function DashboardPage() {
 
   // Prevent flashing content or incorrect role during session loading or when unauthenticated
   if (isLoading || !user) {
-    return (
-      <NotebookPage className="relative flex items-center justify-center overflow-hidden p-6">
-        <div
-          className="pointer-events-none absolute -right-16 -top-16 h-56 w-56 rotate-6 rounded-3xl bg-sticky-blue/45"
-          aria-hidden="true"
-        />
-        <div role="status" aria-live="polite" className="relative z-10 text-center">
-          <StickyNote tone="yellow" className="min-w-56 px-8 py-7">
-            <WashiTape className="-top-2 left-1/2 -translate-x-1/2" />
-            <span className="mx-auto block h-7 w-7 animate-spin rounded-full border-2 border-notebook-ink border-t-transparent" />
-            <p className="mt-4 font-note text-xl font-semibold text-notebook-ink">
-              {copy.dashboard.common.loading}
-            </p>
-          </StickyNote>
-        </div>
-      </NotebookPage>
-    );
+    return <DashboardLoading />;
   }
 
   if (profileError) {

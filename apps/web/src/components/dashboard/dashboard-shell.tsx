@@ -8,6 +8,7 @@ import { useEffect, useRef, useState } from 'react';
 import { DashboardIcon } from '@/components/dashboard/dashboard-icon';
 import { DashboardNotificationMenu } from '@/components/dashboard/dashboard-notification-menu';
 import PrivacyNoticeModal from '@/components/privacy-notice-modal';
+import { LanguageSwitch } from '@/components/public/public-ui';
 import { NotebookPage, WashiTape } from '@/components/ui/notebook';
 import {
   getDashboardNavItems,
@@ -43,7 +44,6 @@ const roleStyles = {
     avatar: 'bg-student-deep text-white',
     badge: 'bg-sticky-green text-student-deep',
     decoration: 'bg-sticky-green/55',
-    dot: 'bg-student',
     hover: 'hover:bg-sticky-green/60',
     icon: 'bg-emerald-50 text-student-deep',
   },
@@ -53,7 +53,6 @@ const roleStyles = {
     avatar: 'bg-tutor-deep text-white',
     badge: 'bg-sticky-blue text-tutor-deep',
     decoration: 'bg-sticky-blue/60',
-    dot: 'bg-tutor',
     hover: 'hover:bg-sticky-blue/60',
     icon: 'bg-blue-50 text-tutor-deep',
   },
@@ -63,7 +62,6 @@ const roleStyles = {
     avatar: 'bg-admin-deep text-white',
     badge: 'bg-sticky-yellow text-admin-deep',
     decoration: 'bg-sticky-yellow/70',
-    dot: 'bg-admin',
     hover: 'hover:bg-sticky-yellow/60',
     icon: 'bg-amber-50 text-admin-deep',
   },
@@ -74,7 +72,6 @@ const roleStyles = {
     avatar: string;
     badge: string;
     decoration: string;
-    dot: string;
     hover: string;
     icon: string;
   }
@@ -97,7 +94,7 @@ export function DashboardShell({
   userAvatarUrl,
   showSignOut = true,
 }: DashboardShellProps) {
-  const { language, copy, toggleLanguage } = useLanguage();
+  const { language, copy } = useLanguage();
   const pathname = usePathname();
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isMobileSidebar, setIsMobileSidebar] = useState(false);
@@ -472,16 +469,7 @@ export function DashboardShell({
               {visualVariant === 'profile' && (
                 <DashboardNotificationMenu userRole={user.role} copy={copy.dashboard.header} />
               )}
-              <button
-                type="button"
-                onClick={toggleLanguage}
-                aria-label={copy.common.languageButtonLabel}
-                aria-pressed={language === 'th'}
-                className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-paper-edge bg-paper/90 px-3 text-xs font-extrabold text-notebook-ink shadow-sm transition hover:-translate-y-0.5 hover:bg-sticky-yellow/45 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-notebook-ink/25"
-              >
-                <span className={classes('h-2 w-2 rounded-full', theme.dot)} />
-                <span>{language.toUpperCase()}</span>
-              </button>
+              <LanguageSwitch />
 
               {headerNavRight}
             </nav>

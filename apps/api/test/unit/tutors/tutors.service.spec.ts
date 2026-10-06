@@ -442,6 +442,29 @@ describe('Tutor listing and availability services', () => {
       );
     });
 
+    it.each([
+      [
+        { from: START_AT, to: END_AT },
+        { endAtUtc: { gt: START_AT }, startAtUtc: { lt: END_AT } },
+      ],
+      [{ from: START_AT }, { endAtUtc: { gt: START_AT } }],
+      [{ to: END_AT }, { startAtUtc: { lt: END_AT } }],
+      [{}, {}],
+    ])(
+      'uses strict overlap boundaries without losing tutor ownership or soft-delete filters (%p)',
+      async (bounds, range) => {
+        const prisma = createPrisma();
+        prisma.availabilitySlot.findMany.mockResolvedValue([]);
+        const service = new TutorsService(prisma as unknown as PrismaService);
+        await service.getAvailabilityPrivate(USER_ID, { ...bounds, rangeMode: 'overlap' });
+        expect(prisma.availabilitySlot.findMany).toHaveBeenCalledWith(
+          expect.objectContaining({
+            where: { deletedAt: null, tutorProfileId: USER_ID, ...range },
+          }),
+        );
+      },
+    );
+
     it('rejects an inverted query range with a stable domain code', async () => {
       const prisma = createPrisma();
       const service = new TutorsService(prisma as unknown as PrismaService);

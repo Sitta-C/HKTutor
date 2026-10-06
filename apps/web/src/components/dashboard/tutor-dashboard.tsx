@@ -3,14 +3,38 @@
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 
-import { getBookingStatusLabel } from '@/components/bookings/booking-ui';
+import { formatDuration } from '@/components/bookings/booking-ui';
 import { DashboardIcon } from '@/components/dashboard/dashboard-icon';
+import { DashboardLoading } from '@/components/dashboard/dashboard-loading';
 import DashboardShell from '@/components/dashboard/dashboard-shell';
+import { TutorDashboardAnalytics } from '@/components/dashboard/tutor-dashboard-analytics';
+import { loadTutorDashboardBookings } from '@/components/dashboard/tutor-dashboard-data';
+import {
+  getTutorDashboardSummary,
+  isPastTutorRequest,
+  paginateDashboardItems,
+  TUTOR_DASHBOARD_PAGE_SIZE,
+} from '@/components/dashboard/tutor-dashboard-model';
+import { ArrowIcon } from '@/components/public/public-ui';
+import { BookmarkNoteSwitch } from '@/components/ui/bookmark-note-switch';
+import {
+  PaperCard,
+  StatusBadge,
+  WashiTape,
+  notebookArchiveClass,
+  notebookButtonClass,
+} from '@/components/ui/notebook';
+import { NotebookPagination } from '@/components/ui/notebook-pagination';
 import { getTutorAvailability } from '@/lib/api/availability';
-import { getTutorBookings } from '@/lib/api/bookings';
 import { getTutorListings } from '@/lib/api/listings';
 import { getUserDisplayName } from '@/lib/dashboard-navigation';
-import { formatBangkokDateTime, getBangkokToday } from '@/lib/date-time';
+import {
+  BANGKOK_TIME_ZONE,
+  formatBangkokShortDate,
+  formatBangkokTime,
+  getBangkokToday,
+  getCalendarLocale,
+} from '@/lib/date-time';
 import { useLanguage } from '@/lib/i18n';
 
 import type {
@@ -19,11 +43,16 @@ import type {
   TutorAvailabilitySlot,
   TutorBookingView,
 } from '@/lib/api/types';
+import type { Language } from '@/lib/i18n';
 
 export interface TutorDashboardProps {
   user: AuthUser;
   onLogout: () => Promise<void>;
 }
+
+const panelClass = 'min-w-0 !rounded-2xl p-5 !shadow-none sm:p-6';
+const textLinkClass =
+  'inline-flex min-h-11 items-center gap-2 rounded-sm text-sm font-semibold text-tutor-deep underline decoration-tutor-deep/30 underline-offset-4 transition-colors hover:text-blue-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tutor-deep/40 focus-visible:ring-offset-2';
 
 export function TutorDashboard({ user, onLogout }: TutorDashboardProps) {
   const { copy, language } = useLanguage();
@@ -33,7 +62,11 @@ export function TutorDashboard({ user, onLogout }: TutorDashboardProps) {
   const [listings, setListings] = useState<TeachingListing[]>([]);
   const [slots, setSlots] = useState<TutorAvailabilitySlot[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
   const [mountedAt] = useState(() => Date.now());
+  const [showPastRequests, setShowPastRequests] = useState(false);
+  const [requestPage, setRequestPage] = useState(1);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
     let active = true;
@@ -42,295 +75,281 @@ export function TutorDashboard({ user, onLogout }: TutorDashboardProps) {
     const to = new Date(from.getTime() + 24 * 60 * 60 * 1000);
 
     Promise.all([
-      getTutorBookings({ pageSize: 100 }),
+      Promise.all([
+        loadTutorDashboardBookings({ status: 'PENDING' }),
+        loadTutorDashboardBookings({ status: 'CONFIRMED', from: new Date(mountedAt) }),
+      ]),
       getTutorListings(),
-      getTutorAvailability({ from, to }),
+      getTutorAvailability({ from, to, rangeMode: 'overlap' }),
     ])
       .then(([bookingResult, listingResult, slotResult]) => {
         if (!active) return;
-        setBookings(bookingResult.items);
+        setBookings(bookingResult.flat());
         setListings(listingResult);
         setSlots(slotResult);
         setLoadError(null);
       })
       .catch(() => {
         if (active) setLoadError(tutorCopy.loadError);
+      })
+      .finally(() => {
+        if (active) setIsLoading(false);
       });
     return () => {
       active = false;
     };
-  }, [tutorCopy.loadError]);
+  }, [mountedAt, refreshKey, tutorCopy.loadError]);
 
-  const pendingBookings = bookings.filter((booking) => booking.status === 'PENDING');
-  const upcomingBookings = useMemo(
-    () =>
-      bookings
-        .filter(
-          (booking) =>
-            (booking.status === 'PENDING' || booking.status === 'CONFIRMED') &&
-            new Date(booking.slot.startAtUtc).getTime() > mountedAt,
-        )
-        .sort(
-          (left, right) =>
-            new Date(left.slot.startAtUtc).getTime() - new Date(right.slot.startAtUtc).getTime(),
-        ),
-    [bookings, mountedAt],
+  const { pendingBookings, nextBooking, todaySlots } = useMemo(
+    () => getTutorDashboardSummary(bookings, listings, slots, mountedAt),
+    [bookings, listings, slots, mountedAt],
   );
-  const nextBooking = upcomingBookings[0];
-  const publishedListings = listings.filter((listing) => listing.publicationStatus === 'PUBLISHED');
+  const pastRequestCount = pendingBookings.filter((booking) =>
+    isPastTutorRequest(booking, mountedAt),
+  ).length;
+  const visiblePendingBookings = showPastRequests
+    ? pendingBookings
+    : pendingBookings.filter((booking) => !isPastTutorRequest(booking, mountedAt));
 
-  const headerNav = (
-    <>
-      <Link href="/dashboard/listings">{copy.dashboard.header.myListingsNav}</Link>
-      <Link href="/dashboard/listings/new" data-dashboard-action>
-        {copy.dashboard.header.newListingCta}
-      </Link>
-    </>
-  );
+  const requests = paginateDashboardItems(visiblePendingBookings, requestPage);
 
   return (
-    <DashboardShell user={user} onLogout={onLogout} headerNavRight={headerNav}>
-      <div className="dash-greeting">
-        <p className="dash-eyebrow">{copy.dashboard.common.eyebrow}</p>
-        <h1>
-          <span>{copy.dashboard.common.welcomeBack.replace('{name}', displayName)}</span>
-          <span className="dash-role-chip dash-role-chip-tutor">
-            {copy.dashboard.common.tutorChip}
-          </span>
+    <DashboardShell user={user} onLogout={onLogout}>
+      <div className="mb-7 mt-7 sm:mb-8 sm:mt-9">
+        <p className="text-xs font-bold uppercase tracking-[0.16em] text-tutor-deep">
+          {tutorCopy.eyebrow}
+        </p>
+        <h1 className="mt-3 text-2xl font-bold leading-tight tracking-tight text-notebook-ink sm:text-3xl">
+          {copy.dashboard.common.welcomeBack.replace('{name}', displayName)}
         </h1>
-        <p>{tutorCopy.subtitle}</p>
+        <p className="mt-3 text-sm leading-6 text-notebook-muted">
+          {tutorCopy.subtitle} · {formatBangkokShortDate(new Date(mountedAt), language)} ·{' '}
+          {copy.dashboard.common.bangkokTimeWithZone}
+        </p>
       </div>
 
-      <section>
-        {loadError && (
-          <p
-            className="mb-5 rounded-xl border border-[#e2b7ae] bg-[#fff4f1] p-4 text-sm text-[#a34334]"
-            role="alert"
+      {isLoading ? (
+        <DashboardLoading embedded />
+      ) : loadError ? (
+        <PaperCard className={`${panelClass} !bg-sticky-pink/50`} role="alert">
+          <p className="text-sm text-red-800">{loadError}</p>
+          <button
+            type="button"
+            className={notebookButtonClass({ tone: 'secondary', className: 'mt-4' })}
+            onClick={() => {
+              setLoadError(null);
+              setIsLoading(true);
+              setRefreshKey((key) => key + 1);
+            }}
           >
-            {loadError}
-          </p>
-        )}
-        {/* ROW 1: 4 summary cards */}
-        <div className="dash-summary dash-summary-tutor">
-          <div className="dash-card">
-            <h2>
-              <span className="dot" style={{ backgroundColor: 'var(--tutor)' }} />
-              <span>{tutorCopy.nextSession}</span>
-            </h2>
-            <p className="text-xs font-bold uppercase tracking-wider text-[#5e5a52]">
-              {copy.dashboard.common.bangkokTimeWithZone}
-            </p>
-            <div className="py-2.5 text-sm text-[#5e5a52]">
-              {nextBooking
-                ? `${nextBooking.student.nickname ?? tutorCopy.unavailableStudent} · ${formatBangkokDateTime(nextBooking.slot.startAtUtc, language)}`
-                : tutorCopy.noUpcomingSessions}
-            </div>
-            {nextBooking && (
-              <span className="dash-pill done">
-                {getBookingStatusLabel(nextBooking.status, copy.dashboard.booking)}
-              </span>
-            )}
-          </div>
-
-          <div className="dash-card">
-            <h2>
-              <span className="dot" style={{ backgroundColor: 'var(--tutor)' }} />
-              <span>{tutorCopy.requests}</span>
-            </h2>
-            <div className="dash-big">{pendingBookings.length}</div>
-            <p className="dash-sub">{tutorCopy.awaitingYourReply}</p>
-            <div className="mt-2.5 flex flex-col gap-1.5 text-xs text-[#5e5a52]">
-              <div className="flex items-center justify-between">
-                <span>
-                  <b>{pendingBookings.length}</b> {tutorCopy.thisWeekCount}
-                </span>
-                <span className="dash-pill pending">{tutorCopy.pendingBadge}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span>
-                  <b>0</b> {tutorCopy.rescheduleCount}
-                </span>
-                <span className="dash-pill pending">{tutorCopy.reviewBadge}</span>
-              </div>
-            </div>
-          </div>
-
-          <div className="dash-card">
-            <h2>
-              <span className="dot" style={{ backgroundColor: 'var(--tutor)' }} />
-              <span>{tutorCopy.earnings}</span>
-            </h2>
-            <div className="dash-earnings-value">
-              <strong>0฿</strong>
-              <span>{tutorCopy.thisMonth}</span>
-            </div>
-            <div className="mt-2.5 flex flex-col gap-1.5 text-xs text-[#5e5a52]">
-              <div className="flex items-center justify-between">
-                <span>{tutorCopy.sessionsDoneZero}</span>
-                <span className="dash-pill done">{tutorCopy.paidBadge}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span>{tutorCopy.profileStrength}</span>
-                <b>0%</b>
-              </div>
-            </div>
-            <div className="dash-strength" aria-hidden="true">
-              <i style={{ width: '0%' }} />
-            </div>
-          </div>
-
-          <div className="dash-card">
-            <h2>
-              <span className="dot" style={{ backgroundColor: 'var(--tutor)' }} />
-              <span>{tutorCopy.quickActions}</span>
-            </h2>
-            <div className="dash-qa dash-qa-tutor">
-              <Link href="/dashboard/listings/new">
-                <span className="ico" aria-hidden="true">
-                  <DashboardIcon name="plus" />
-                </span>
-                <span>{tutorCopy.newListingAction}</span>
-              </Link>
-              <Link href="/dashboard/availability">
-                <span className="ico" aria-hidden="true">
-                  <DashboardIcon name="calendar" />
-                </span>
-                <span>{tutorCopy.openSlotsAction}</span>
-              </Link>
-              <Link href="/dashboard/profile">
-                <span className="ico" aria-hidden="true">
-                  <DashboardIcon name="profile" />
-                </span>
-                <span>{tutorCopy.editProfileAction}</span>
-              </Link>
-            </div>
-          </div>
-        </div>
-
-        {/* ROW 2: Booking requests panel */}
-        <div className="dash-card tutors-panel p-6 sm:p-7">
-          <div className="mb-5 flex flex-wrap items-center justify-between gap-4">
-            <h2 className="flex items-center gap-2 text-2xl font-extrabold tracking-tight">
-              <span>{tutorCopy.bookingRequests}</span>
-              <span
-                className="inline-flex h-6 min-w-[1.5rem] items-center justify-center rounded-full px-1.5 text-xs font-extrabold"
-                style={{
-                  background: 'var(--tutor-soft)',
-                  color: 'var(--tutor-deep)',
-                }}
-              >
-                {pendingBookings.length}
-              </span>
-            </h2>
-            <div className="flex flex-1 flex-wrap items-center justify-end gap-3 sm:flex-initial">
-              <label className="dash-search dash-search-tutor">
-                <svg
-                  width="18"
-                  height="18"
-                  viewBox="0 0 20 20"
-                  fill="none"
-                  aria-hidden="true"
-                  className="shrink-0 text-[#8a857b]"
-                >
-                  <circle cx="9" cy="9" r="6" stroke="currentColor" strokeWidth="1.6" />
-                  <path
-                    d="m14.5 14.5 3 3"
-                    stroke="currentColor"
-                    strokeWidth="1.6"
-                    strokeLinecap="round"
-                  />
-                </svg>
-                <input
-                  type="search"
-                  placeholder={tutorCopy.searchPlaceholder}
-                  aria-label={tutorCopy.searchPlaceholder}
-                  disabled
-                />
-              </label>
-              <Link href="/dashboard/availability" className="dash-btn-dark">
-                <span className="ico" aria-hidden="true">
-                  <DashboardIcon name="calendar" />
-                </span>
-                <span>{tutorCopy.openCalendar}</span>
-              </Link>
-            </div>
-          </div>
-
-          {pendingBookings.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-[#ebe6dd] bg-[#faf8f4] p-8 text-center">
-              <p className="text-base font-bold text-[#1a1916]">{tutorCopy.noBookingRequestsYet}</p>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {pendingBookings.map((booking) => (
-                <div
-                  key={booking.id}
-                  className="rounded-2xl border border-[#ebe6dd] bg-[#faf8f4] p-4"
-                >
-                  <strong>{booking.student.nickname ?? tutorCopy.unavailableStudent}</strong>
-                  <p className="mt-1 text-sm text-[#5e5a52]">
-                    {booking.listing.subjectName} · {booking.listing.gradeLevelName} ·{' '}
-                    {formatBangkokDateTime(booking.slot.startAtUtc, language)}
-                  </p>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* ROW 3: My listings panel */}
-        <div className="dash-card tutors-panel mt-5 p-6 sm:p-7">
-          <div className="mb-5 flex flex-wrap items-center justify-between gap-4">
-            <h2 className="flex items-center gap-2 text-2xl font-extrabold tracking-tight">
-              <span>{tutorCopy.myListings}</span>
-              <span
-                className="inline-flex h-6 min-w-[1.5rem] items-center justify-center rounded-full px-1.5 text-xs font-extrabold"
-                style={{
-                  background: 'var(--tutor-soft)',
-                  color: 'var(--tutor-deep)',
-                }}
-              >
-                {listings.length}
-              </span>
-            </h2>
-            <Link href="/dashboard/listings/new" className="dash-btn-dark">
-              <span className="ico" aria-hidden="true">
-                <DashboardIcon name="plus" />
-              </span>
-              <span>{tutorCopy.newListingAction}</span>
-            </Link>
-          </div>
-
-          {listings.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-[#ebe6dd] bg-[#faf8f4] p-8 text-center">
-              <p className="text-base font-bold text-[#1a1916]">{tutorCopy.noListingsYetTitle}</p>
-              <p className="mt-1 text-xs text-[#5e5a52]">{tutorCopy.noListingsYetDescription}</p>
-            </div>
-          ) : (
-            <p className="rounded-xl bg-[#f4f7fb] p-5 text-sm text-[#5e5a52]">
-              {publishedListings.length} {tutorCopy.publishedBadge} ·{' '}
-              {listings.length - publishedListings.length} {tutorCopy.draftBadge}
-            </p>
-          )}
-        </div>
-
-        {/* ROW 4: Today Bangkok time availability panel */}
-        <div className="dash-card tutors-panel mt-5 p-6 sm:p-7">
-          <div className="mb-4 flex flex-wrap items-center justify-between gap-4">
-            <h2 className="text-2xl font-extrabold tracking-tight">{tutorCopy.todayBangkokTime}</h2>
-            <Link
-              href="/dashboard/availability"
-              className="text-sm font-bold text-notebook-ink underline decoration-margin-guide decoration-2 underline-offset-4 transition hover:text-amber-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-notebook-ink/25"
+            {tutorCopy.retry}
+          </button>
+        </PaperCard>
+      ) : (
+        <>
+          <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1.55fr)_minmax(280px,1fr)]">
+            <PaperCard
+              className={`${panelClass} relative self-stretch !bg-sticky-blue/45`}
+              aria-labelledby="tutor-next-session"
             >
-              {tutorCopy.manageAvailability}
-            </Link>
-          </div>
+              <WashiTape tone="yellow" className="left-6 top-0 h-4 w-20 -translate-y-1/2" />
+              <div className="flex flex-wrap items-center gap-3">
+                <h2
+                  id="tutor-next-session"
+                  className="flex items-center gap-2 text-sm font-bold text-tutor-deep"
+                >
+                  <DashboardIcon name="calendar" className="h-4 w-4" />
+                  {tutorCopy.nextSession}
+                </h2>
+                {nextBooking && (
+                  <StatusBadge tone="success">{copy.dashboard.booking.confirmed}</StatusBadge>
+                )}
+              </div>
+              {nextBooking ? (
+                <>
+                  <div className="mt-6 flex items-start gap-4 sm:gap-5">
+                    <SessionDate value={nextBooking.slot.startAtUtc} language={language} />
+                    <div className="min-w-0 flex-1">
+                      <h3 className="break-words text-xl font-bold text-notebook-ink sm:text-2xl">
+                        {nextBooking.student.nickname ?? tutorCopy.unavailableStudent}
+                      </h3>
+                      <p className="mt-1.5 text-sm leading-6 text-notebook-muted">
+                        {nextBooking.listing.subjectName} · {nextBooking.listing.gradeLevelName}
+                      </p>
+                      <p className="mt-3 text-lg font-semibold tabular-nums text-notebook-ink">
+                        {formatBangkokTime(nextBooking.slot.startAtUtc, language)}–
+                        {formatBangkokTime(nextBooking.slot.endAtUtc, language)}
+                      </p>
+                    </div>
+                  </div>
+                  <p className="mt-6 border-t border-tutor-deep/15 pt-4 text-sm text-notebook-muted">
+                    {formatDuration(
+                      nextBooking.slot.startAtUtc,
+                      nextBooking.slot.endAtUtc,
+                      copy.dashboard.booking,
+                    )}
+                    {' · '}
+                    {formatBookingAmount(nextBooking, language)}
+                  </p>
+                </>
+              ) : (
+                <p className="py-12 text-base font-semibold leading-7 text-notebook-muted">
+                  {tutorCopy.noUpcomingSessions}
+                </p>
+              )}
+            </PaperCard>
 
-          <div className="rounded-xl bg-[#f4f7fb] p-6 text-center text-sm text-[#5e5a52]">
-            {slots.length > 0 ? `${slots.length} ${tutorCopy.slotsToday}` : tutorCopy.noSlotsToday}
+            <PaperCard
+              className={`${panelClass} !bg-white self-stretch`}
+              aria-labelledby="tutor-today-availability"
+            >
+              <div className="flex items-center justify-between gap-3 border-b border-dashed border-paper-edge pb-4">
+                <h2 id="tutor-today-availability" className="text-base font-bold text-notebook-ink">
+                  {tutorCopy.todayBangkokTime}
+                </h2>
+                <DashboardIcon
+                  name="availability"
+                  className="h-4 w-4 shrink-0 text-notebook-muted"
+                />
+              </div>
+              {todaySlots.length === 0 ? (
+                <p className="py-6 text-sm leading-6 text-notebook-muted">
+                  {tutorCopy.noSlotsToday}
+                </p>
+              ) : (
+                <ul className="divide-y divide-dashed divide-paper-edge">
+                  {todaySlots.map((slot) => (
+                    <li
+                      key={slot.id}
+                      className="flex flex-wrap items-center justify-between gap-2 py-3.5"
+                    >
+                      <span className="text-sm font-medium tabular-nums text-notebook-ink">
+                        {formatBangkokTime(slot.startAtUtc, language)}–
+                        {formatBangkokTime(slot.endAtUtc, language) === '00:00'
+                          ? '24:00'
+                          : formatBangkokTime(slot.endAtUtc, language)}
+                      </span>
+                      <StatusBadge tone={slot.state === 'OPEN' ? 'tutor' : 'neutral'}>
+                        {slot.state === 'OPEN'
+                          ? copy.dashboard.availability.open
+                          : copy.dashboard.availability.reserved}
+                      </StatusBadge>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <Link href="/dashboard/availability" className={`${textLinkClass} mt-1`}>
+                {tutorCopy.manageAvailability}
+                <ArrowIcon />
+              </Link>
+            </PaperCard>
+
+            <PaperCard
+              className={`${panelClass} !bg-white xl:col-span-2`}
+              aria-labelledby="tutor-booking-requests"
+            >
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-paper-edge pb-4">
+                <h2
+                  id="tutor-booking-requests"
+                  className="flex items-center gap-2.5 text-base font-bold text-notebook-ink"
+                >
+                  {tutorCopy.bookingRequests}
+                  <span
+                    className="rounded-full bg-sticky-blue/65 px-2.5 py-0.5 text-xs tabular-nums text-tutor-deep"
+                    aria-live="polite"
+                  >
+                    {visiblePendingBookings.length}
+                  </span>
+                </h2>
+                <p className="text-xs text-notebook-muted">{tutorCopy.sortedByLesson}</p>
+              </div>
+              {pastRequestCount > 0 && (
+                <BookmarkNoteSwitch
+                  checked={showPastRequests}
+                  onCheckedChange={(checked) => {
+                    setShowPastRequests(checked);
+                    setRequestPage(1);
+                  }}
+                  aria-controls="tutor-request-list"
+                  aria-label={tutorCopy.showPastRequests}
+                  className="mt-4"
+                >
+                  {tutorCopy.showPastRequests}{' '}
+                  <span className="text-notebook-muted">({pastRequestCount})</span>
+                </BookmarkNoteSwitch>
+              )}
+              <div id="tutor-request-list">
+                {visiblePendingBookings.length === 0 ? (
+                  <p className="py-10 text-center text-sm leading-6 text-notebook-muted">
+                    {pendingBookings.length === 0
+                      ? tutorCopy.noBookingRequestsYet
+                      : tutorCopy.noCurrentBookingRequests}
+                  </p>
+                ) : (
+                  <ul className="divide-y divide-paper-edge">
+                    {requests.items.map((booking) => {
+                      const studentName = booking.student.nickname ?? tutorCopy.unavailableStudent;
+                      const isPast = isPastTutorRequest(booking, mountedAt);
+                      return (
+                        <li
+                          key={booking.id}
+                          className={`flex items-start gap-3 sm:gap-4 ${isPast ? notebookArchiveClass('my-4') : 'py-5 last:pb-1'}`}
+                        >
+                          <span
+                            className={`mt-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-semibold ${isPast ? 'bg-sticky-blue/65 text-tutor-deep' : 'bg-paper-deep text-notebook-muted'}`}
+                            aria-hidden="true"
+                          >
+                            {studentName.slice(0, 1).toUpperCase()}
+                          </span>
+                          <div className="min-w-0 flex-1">
+                            <h3 className="break-words text-sm font-bold text-notebook-ink">
+                              {studentName}
+                            </h3>
+                            <p className="mt-1 text-sm leading-6 text-notebook-muted">
+                              {booking.listing.subjectName} · {booking.listing.gradeLevelName}
+                            </p>
+                            <p className="mt-1 text-sm font-medium leading-6 tabular-nums text-notebook-ink">
+                              <time dateTime={booking.slot.startAtUtc}>
+                                {formatBangkokShortDate(booking.slot.startAtUtc, language)}
+                              </time>
+                              {' · '}
+                              {formatBangkokTime(booking.slot.startAtUtc, language)}–
+                              {formatBangkokTime(booking.slot.endAtUtc, language)}
+                            </p>
+                            <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-notebook-muted">
+                              <StatusBadge tone={isPast ? 'neutral' : 'warning'}>
+                                {copy.dashboard.booking.pending}
+                              </StatusBadge>
+                              {isPast && (
+                                <span className="inline-flex items-center gap-1.5 font-medium text-tutor-deep">
+                                  <span
+                                    aria-hidden="true"
+                                    className="h-1.5 w-1.5 rounded-full border border-current"
+                                  />
+                                  {tutorCopy.pastLesson}
+                                </span>
+                              )}
+                              <span>{formatBookingAmount(booking, language)}</span>
+                            </div>
+                          </div>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </div>
+              <NotebookPagination
+                page={requests.page}
+                total={visiblePendingBookings.length}
+                pageSize={TUTOR_DASHBOARD_PAGE_SIZE}
+                label={tutorCopy.requestsPagination}
+                onPageChange={setRequestPage}
+              />
+            </PaperCard>
           </div>
-        </div>
-      </section>
+          <TutorDashboardAnalytics listings={listings} now={mountedAt} />
+        </>
+      )}
     </DashboardShell>
   );
 }
@@ -339,4 +358,30 @@ export default TutorDashboard;
 
 function bangkokDayBoundary(date: string): Date {
   return new Date(`${date}T00:00:00+07:00`);
+}
+
+function SessionDate({ value, language }: { value: string; language: Language }) {
+  const date = new Date(value);
+  const locale = getCalendarLocale(language);
+  const parts = (options: Intl.DateTimeFormatOptions) =>
+    new Intl.DateTimeFormat(locale, { ...options, timeZone: BANGKOK_TIME_ZONE }).format(date);
+  return (
+    <time
+      dateTime={value}
+      className="flex min-w-16 shrink-0 flex-col items-center rounded-xl bg-white px-3 py-2.5 text-tutor-deep"
+    >
+      <span className="text-xs">{parts({ month: 'short' })}</span>
+      <span className="my-1 text-3xl font-bold leading-none tabular-nums">
+        {parts({ day: 'numeric' })}
+      </span>
+      <span className="text-xs tabular-nums">{parts({ year: 'numeric' })}</span>
+    </time>
+  );
+}
+
+function formatBookingAmount(booking: TutorBookingView, language: Language): string {
+  return new Intl.NumberFormat(getCalendarLocale(language), {
+    style: 'currency',
+    currency: booking.currency,
+  }).format(Number(booking.netAmount));
 }

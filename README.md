@@ -26,14 +26,22 @@ rewrites that path to the API on port 3001. The API documentation is available a
 
 ### Current product surface
 
-The implemented web flow is login (`/`), registration (`/register`), email verification
-(`/register/verify`, with `/register/verifypage` redirected as a legacy alias), role-specific profile
-onboarding (`/onboarding/profile`), a protected dashboard (`/dashboard`), profile editing
-(`/dashboard/profile`), tutor availability management (`/dashboard/availability`), and the
-informational `/about-me` page. The availability screen creates and deletes future Bangkok-time
-ranges while exchanging UTC timestamps with the API, protecting reserved slots, and presenting a
-Gregorian calendar in English or a Buddhist calendar in Thai. The bilingual privacy notice opens
-as a closable modal from registration and the dashboard instead of using a separate route.
+The implemented web flow includes authentication and email verification, profile onboarding/editing,
+role-specific dashboards, tutor availability and course management, tutor discovery, student booking,
+and the informational `/about-me` page. Availability supports overnight and multi-day ranges with
+Bangkok-time presentation and UTC timestamps on the wire. Day and week views use the private
+availability overlap filter to include carry-over slots without loading past history. Reserved slots
+remain protected.
+
+The tutor dashboard shows the next confirmed lesson, today's availability, pending requests, and
+monthly teaching analytics. It uses existing read-only API filters to load pending requests, future
+confirmed lessons, and the selected analytics month separately. Monthly loading/errors stay within
+analytics and failed loads offer retry actions. Booking value represents scheduled lessons, not
+received revenue; earnings and individual reviews remain unavailable without supporting data.
+
+See [frontend direction](ui-design/frontend-direction.md) for the Notebook Focus patterns and
+[implemented frontend behavior](ui-design/implemented-behavior.md) for interaction, loading,
+responsive layout, and accessibility details.
 
 The API also supports private tutor qualification uploads, owner/admin signed previews, and an
 admin review queue with atomic review and audit records. See the
@@ -139,6 +147,8 @@ The local authentication implementation covers registration, verification-link r
 verification, login, refresh rotation, logout, current-user lookup, and route protection. Password
 reset, email change, multi-factor authentication, and session-management UI are intentionally out
 of scope for this small demo.
+The login page's "Forgot password?" action opens a dismissible notice explaining that password reset
+is not available yet.
 
 Domain models for tutor profiles, teaching listings, availability slots, and bookings already
 exist in Prisma. The tutor availability flow is connected to its production API; other domain web

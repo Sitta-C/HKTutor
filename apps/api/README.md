@@ -300,3 +300,12 @@ remote hosts and lacks any seed dependency. It tests real upload/review contenti
 status, audit-trigger rollback, cleanup retries, reference protection, worker locking, and migration reconciliation with a
 simulated Storage transport. It inserts test actors/documents and retains immutable audit evidence;
 discard the test database afterward. It does not test live Supabase URL expiry.
+
+## Private availability range queries
+
+`GET /api/v1/tutors/me/availability` accepts optional UTC `from` and `to` bounds. By default it
+filters slot start times (`from <= startAtUtc < to`). Opt into `rangeMode=overlap` to include
+slots spanning the range (`endAtUtc > from` and `startAtUtc < to`); omitted bounds are unrestricted.
+This mode excludes slots ending exactly at `from` or starting exactly at `to`. It retains tutor
+ownership, soft-delete filtering, and derived reservation states. The public availability endpoint
+keeps its existing future-start behavior and does not accept `rangeMode`.
