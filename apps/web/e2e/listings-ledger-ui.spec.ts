@@ -197,6 +197,39 @@ test('preserves search, filtering, edit links and publication actions in the led
   ]);
 });
 
+test('keeps publication blue and archiving warning red when switching alerts', async ({ page }) => {
+  const writes = await mockListings(page, { language: 'en' });
+  await page.goto('/dashboard/listings');
+  for (const action of ['publish', 'archive', 'publish'] as const) {
+    const publishing = action === 'publish';
+    await page
+      .getByRole('article', { name: publishing ? 'Physics' : 'Mathematics', exact: true })
+      .getByRole('button', { name: publishing ? 'Publish' : 'Archive', exact: true })
+      .click();
+    const dialog = page.getByRole('alertdialog');
+    const accent = await page.evaluate((publish) => {
+      const sample = document.createElement('span');
+      sample.style.color = publish
+        ? 'var(--color-tutor-deep)'
+        : 'color-mix(in srgb, var(--color-red-700) 75%, var(--color-notebook-muted))';
+      document.body.append(sample);
+      const color = getComputedStyle(sample).color;
+      sample.remove();
+      return color;
+    }, publishing);
+    await expect(dialog.getByRole('button', { name: 'Confirm', exact: true })).toHaveCSS(
+      'background-color',
+      accent,
+    );
+    await expect(dialog.locator(':scope > div').first().locator('span').first()).toHaveCSS(
+      'color',
+      accent,
+    );
+    await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
+  }
+  expect(writes).toEqual([]);
+});
+
 for (const subject of ['Physics', 'English']) {
   test(`confirms publication of ${subject} without requests on cancel or Escape`, async ({
     page,

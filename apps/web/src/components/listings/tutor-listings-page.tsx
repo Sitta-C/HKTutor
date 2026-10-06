@@ -480,6 +480,7 @@ export default function TutorListingsPage() {
         aria-describedby="listing-confirmation-description listing-confirmation-summary"
         aria-busy={busyId !== null}
         className={styles.confirmationDialog}
+        data-action={confirmationCandidate?.action}
         onCancel={(event) => {
           if (busyId !== null) event.preventDefault();
         }}

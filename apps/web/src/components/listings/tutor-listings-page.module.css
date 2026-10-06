@@ -282,7 +282,15 @@
 /* Compose the existing availability alert so both confirmations share one visual source. */
 .confirmationDialog {
   composes: deleteDialog from '../availability/manage-tutor-availability.module.css';
+}
+
+/* Action selectors take precedence over the composed delete alert in either CSS load order. */
+.confirmationDialog[data-action='publish'] {
   --dialog-danger: var(--color-tutor-deep);
+}
+
+.confirmationDialog[data-action='archive'] {
+  --dialog-danger: color-mix(in srgb, var(--color-red-700) 75%, var(--color-notebook-muted));
 }
 
 .dialogHeader {
