@@ -49,6 +49,8 @@ async function mockAvailability(
     deleted?: string[];
     slots?: TutorAvailabilitySlot[];
     additionalSlots?: TutorAvailabilitySlot[];
+    availabilityGate?: Promise<void>;
+    loadError?: boolean;
   } = {},
 ) {
   const created: CreateAvailabilityPayload[] = [];
@@ -107,12 +109,17 @@ async function mockAvailability(
         body = { ...slot, tutorProfileId: 'tutor-ui' };
       }
     } else if (path === '/tutors/me/availability' && request.method() === 'GET') {
+      await options.availabilityGate;
       const from = url.searchParams.get('from');
       const to = url.searchParams.get('to');
       body = slots.filter(
         (slot) =>
           (from === null || slot.startAtUtc >= from) && (to === null || slot.startAtUtc < to),
       );
+      if (options.loadError) {
+        status = 503;
+        body = { message: 'Availability unavailable' };
+      }
     } else if (path.startsWith('/tutors/me/availability/') && request.method() === 'DELETE') {
       const id = decodeURIComponent(path.split('/').at(-1) ?? '');
       options.deleted?.push(id);
@@ -138,6 +145,59 @@ async function mockAvailability(
   await expect(page.getByRole('heading', { name: 'เพิ่มช่วงเวลาว่าง' })).toBeVisible();
   return created;
 }
+
+test('ledger summary keeps weekly counts, one timezone label, and bilingual responsive content', async ({
+  page,
+}, testInfo) => {
+  await mockAvailability(page);
+  const summary = page.locator('[data-availability-summary]');
+  await expect(summary).toHaveAttribute('aria-busy', 'false');
+  const metrics = summary.locator('dl > div');
+  await expect(metrics).toHaveCount(2);
+  await expect(metrics.nth(0).getByRole('term')).toHaveText('ช่วงเวลาว่าง');
+  await expect(metrics.nth(1).getByRole('term')).toHaveText('ช่วงเวลาที่ถูกจอง');
+  await expect(metrics.nth(0).getByRole('definition').first()).toHaveText('4ช่วง');
+  await expect(metrics.nth(1).getByRole('definition').first()).toHaveText('1ช่วง');
+  await expect(page.getByText('เวลาไทย · UTC+7', { exact: true })).toHaveCount(1);
+  await expect(summary.getByText('เขตเวลา · Asia/Bangkok', { exact: true })).toBeVisible();
+  expect(
+    await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth),
+  ).toBeLessThanOrEqual(1);
+  await summary.screenshot({ path: testInfo.outputPath('availability-ledger-th.png') });
+  await page.getByRole('button', { name: 'สัปดาห์ถัดไป', exact: true }).click();
+  await expect(metrics.nth(0).getByRole('definition').first()).toHaveText('0ช่วง');
+  await expect(metrics.nth(1).getByRole('definition').first()).toHaveText('0ช่วง');
+  await page.getByRole('button', { name: 'เปลี่ยนภาษาเป็นภาษาอังกฤษ' }).click();
+  await expect(metrics.nth(0).getByRole('term')).toHaveText('Open slots');
+  await expect(metrics.nth(1).getByRole('term')).toHaveText('Reserved slots');
+  await expect(metrics.nth(0).getByRole('definition').first()).toHaveText('0slots');
+  await expect(summary.getByText('Asia/Bangkok · UTC+7', { exact: true })).toBeVisible();
+});
+
+test('ledger waits for real counts while availability loads', async ({ page }) => {
+  let releaseAvailability = () => {};
+  const availabilityGate = new Promise<void>((resolve) => {
+    releaseAvailability = resolve;
+  });
+  await mockAvailability(page, { availabilityGate });
+  const summary = page.locator('[data-availability-summary]');
+  try {
+    await expect(summary).toHaveAttribute('aria-busy', 'true');
+    await expect(summary.locator('dl > div > dd:first-of-type')).toHaveText(['—', '—']);
+  } finally {
+    releaseAvailability();
+  }
+  await expect(summary).toHaveAttribute('aria-busy', 'false');
+  await expect(summary.locator('dl > div > dd:first-of-type')).toHaveText(['4ช่วง', '1ช่วง']);
+});
+
+test('ledger does not report zero counts when availability fails to load', async ({ page }) => {
+  await mockAvailability(page, { loadError: true });
+  const summary = page.locator('[data-availability-summary]');
+  await expect(summary).toHaveAttribute('aria-busy', 'false');
+  await expect(page.getByRole('button', { name: 'ลองใหม่', exact: true })).toBeVisible();
+  await expect(summary.locator('dl > div > dd:first-of-type')).toHaveText(['—', '—']);
+});
 
 test('vertical wheels unfold gently, wrap values, and support mouse and keyboard', async ({
   page,
