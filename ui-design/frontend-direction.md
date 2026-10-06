@@ -115,3 +115,10 @@ pagination is separate and remains in place; the no-pagination decision applies 
   heading and prominent ready count, four continuous ruled checklist rows, and publication eligibility
   in its footer. Move eligibility out of the form into this note. Keep the existing form, student
   preview, validation, and publication behavior; the rest of Sticky Studio remains a proposal.
+- Listing subject and grade fields use the shared `NotebookSelect` native dropdown, with a 48px
+  regular size and 44px compact size, a single blue chevron, and visible focus/error/disabled states.
+  Group subject, grade, and hourly rate in three columns when space permits and stack on mobile.
+  Keep the form paper sized to its own contents instead of stretching to the preview column.
+  Hourly rate buttons and keyboard arrows increment/decrement by 50 baht while manual entry still
+  accepts positive prices with up to two decimal places. Keep the description field compact and
+  manually resizable.

@@ -18,9 +18,11 @@ import {
   emptyListingForm,
   formatTutorExperience,
   readListingEditorError,
+  stepListingPrice,
   validateListingForm,
 } from '@/components/listings/tutor-listing-editor-model';
 import { GraphPaper, PaperCard, StickyNote, WashiTape } from '@/components/ui/notebook';
+import { NotebookSelect } from '@/components/ui/notebook-select';
 import { useNotebookToast } from '@/components/ui/notebook-toast';
 import {
   createTutorListing,
@@ -340,7 +342,7 @@ export default function TutorListingEditor({
           </div>
         )}
 
-        <div className="mt-6 grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1.45fr)_minmax(300px,.75fr)]">
+        <div className="mt-6 grid min-w-0 items-start gap-5 xl:grid-cols-[minmax(0,1.45fr)_minmax(300px,.75fr)]">
           <PaperCard className="min-w-0 overflow-hidden p-0">
             <WashiTape tone="blue" className="-top-2 left-8 rotate-2" />
             <form noValidate onSubmit={handleSubmit}>
@@ -351,13 +353,13 @@ export default function TutorListingEditor({
                 </p>
               </div>
 
-              <div className="grid gap-5 p-5 sm:grid-cols-2 sm:p-6">
+              <div className="grid gap-x-4 gap-y-5 p-5 sm:grid-cols-2 sm:p-6 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(160px,.85fr)]">
                 <Field label={copy.subject} error={errors.subjectId} id="listing-subject-error">
-                  <select
+                  <NotebookSelect
+                    id="listing-subject"
                     value={form.subjectId}
                     onChange={(event) => updateField('subjectId', event.target.value)}
                     disabled={catalogUnavailable}
-                    className={listingFieldClass}
                     aria-invalid={Boolean(errors.subjectId)}
                     aria-describedby={errors.subjectId ? 'listing-subject-error' : undefined}
                   >
@@ -367,15 +369,15 @@ export default function TutorListingEditor({
                         {subject.name}
                       </option>
                     ))}
-                  </select>
+                  </NotebookSelect>
                 </Field>
 
                 <Field label={copy.gradeLevel} error={errors.gradeLevelId} id="listing-grade-error">
-                  <select
+                  <NotebookSelect
+                    id="listing-grade"
                     value={form.gradeLevelId}
                     onChange={(event) => updateField('gradeLevelId', event.target.value)}
                     disabled={catalogUnavailable}
-                    className={listingFieldClass}
                     aria-invalid={Boolean(errors.gradeLevelId)}
                     aria-describedby={errors.gradeLevelId ? 'listing-grade-error' : undefined}
                   >
@@ -385,28 +387,66 @@ export default function TutorListingEditor({
                         {grade.name}
                       </option>
                     ))}
-                  </select>
+                  </NotebookSelect>
                 </Field>
 
-                <Field label={copy.price} error={errors.pricePerHour} id="listing-price-error">
-                  <div className="relative">
+                <Field
+                  label={copy.price}
+                  error={errors.pricePerHour}
+                  id="listing-price-error"
+                  className="sm:col-span-2 md:col-span-1"
+                >
+                  <div className="relative flex min-h-12 items-center rounded-lg border border-paper-edge bg-paper focus-within:border-tutor focus-within:ring-4 focus-within:ring-sticky-blue/70">
                     <input
+                      id="listing-price"
                       type="number"
                       min="0.01"
-                      step="0.01"
+                      step="any"
                       inputMode="decimal"
                       value={form.pricePerHour}
                       onChange={(event) => updateField('pricePerHour', event.target.value)}
+                      onKeyDown={(event) => {
+                        if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
+                          event.preventDefault();
+                          updateField(
+                            'pricePerHour',
+                            stepListingPrice(form.pricePerHour, event.key === 'ArrowUp' ? 1 : -1),
+                          );
+                        }
+                      }}
                       placeholder="450"
-                      className={`${listingFieldClass} pr-16`}
+                      className="h-12 min-w-0 w-full rounded-lg bg-transparent pl-3 pr-2 text-base font-medium text-notebook-ink focus-visible:outline-none aria-invalid:outline-2 aria-invalid:outline-red-400 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                       aria-invalid={Boolean(errors.pricePerHour)}
                       aria-describedby={
                         errors.pricePerHour ? 'listing-price-error' : 'listing-price-help'
                       }
                     />
-                    <span className="pointer-events-none absolute right-4 top-1/2 mt-1 -translate-y-1/2 text-sm font-bold text-notebook-muted">
+                    <span className="pointer-events-none shrink-0 pr-2 text-xs font-semibold text-notebook-muted">
                       {copy.currency}
                     </span>
+                    <div className="flex shrink-0 flex-col self-stretch border-l border-paper-edge pointer-coarse:flex-row">
+                      <button
+                        type="button"
+                        aria-label={copy.increasePrice}
+                        onClick={() =>
+                          updateField('pricePerHour', stepListingPrice(form.pricePerHour, 1))
+                        }
+                        className="flex flex-1 items-center justify-center rounded-tr-lg px-3 text-tutor-deep hover:bg-sticky-blue focus-visible:outline-2 focus-visible:outline-tutor-deep pointer-coarse:min-h-11 pointer-coarse:min-w-11"
+                      >
+                        <span aria-hidden="true">+</span>
+                      </button>
+                      <button
+                        type="button"
+                        aria-label={copy.decreasePrice}
+                        disabled={Boolean(form.pricePerHour) && Number(form.pricePerHour) <= 0.01}
+                        onClick={() =>
+                          updateField('pricePerHour', stepListingPrice(form.pricePerHour, -1))
+                        }
+                        className="flex flex-1 items-center justify-center rounded-br-lg border-t border-paper-edge px-3 text-tutor-deep hover:bg-sticky-blue focus-visible:outline-2 focus-visible:outline-tutor-deep disabled:cursor-not-allowed disabled:text-notebook-muted pointer-coarse:min-h-11 pointer-coarse:min-w-11 pointer-coarse:border-l pointer-coarse:border-t-0"
+                      >
+                        <span aria-hidden="true">−</span>
+                      </button>
+                    </div>
                   </div>
                   {!errors.pricePerHour && (
                     <p
@@ -422,16 +462,17 @@ export default function TutorListingEditor({
                   label={copy.description}
                   error={errors.description}
                   id="listing-description-error"
-                  className="sm:col-span-2"
+                  className="sm:col-span-2 md:col-span-3"
                   trailing={`${descriptionLength} / 1000`}
                 >
                   <textarea
+                    id="listing-description"
                     value={form.description}
                     onChange={(event) => updateField('description', event.target.value)}
-                    rows={8}
+                    rows={6}
                     maxLength={1000}
                     placeholder={copy.descriptionPlaceholder}
-                    className={`${listingFieldClass} min-h-44 resize-y py-3 leading-6`}
+                    className={`${listingFieldClass} min-h-40 resize-y py-3 leading-6`}
                     aria-invalid={Boolean(errors.description)}
                     aria-describedby={
                       errors.description ? 'listing-description-error' : 'listing-description-help'
@@ -673,11 +714,11 @@ function Field({
   trailing?: string;
 }) {
   return (
-    <label
+    <div
       className={`flex min-w-0 flex-col gap-1.5 text-sm font-bold text-notebook-ink ${className}`}
     >
       <span className="flex items-center justify-between gap-3">
-        <span>{label}</span>
+        <label htmlFor={id.replace('-error', '')}>{label}</label>
         {trailing && <span className="text-xs font-semibold text-notebook-muted">{trailing}</span>}
       </span>
       {children}
@@ -686,7 +727,7 @@ function Field({
           {error}
         </span>
       )}
-    </label>
+    </div>
   );
 }
 
@@ -744,6 +785,8 @@ const englishCopy = {
   gradeError: 'Choose a grade level.',
   price: 'Price per hour',
   currency: 'THB',
+  increasePrice: 'Increase price by 50 baht',
+  decreasePrice: 'Decrease price by 50 baht',
   priceHelp: 'Enter Thai baht with up to two decimal places.',
   priceError: 'Enter a price greater than zero with no more than two decimal places.',
   canPublish: 'Profile verified. You can publish this listing.',
@@ -818,6 +861,8 @@ const thaiCopy: typeof englishCopy = {
   gradeError: 'กรุณาเลือกระดับชั้น',
   price: 'ราคาต่อชั่วโมง',
   currency: 'บาท',
+  increasePrice: 'เพิ่มราคา 50 บาท',
+  decreasePrice: 'ลดราคา 50 บาท',
   priceHelp: 'กรอกราคาเป็นเงินบาทและมีทศนิยมได้ไม่เกินสองตำแหน่ง',
   priceError: 'กรุณากรอกราคามากกว่าศูนย์และมีทศนิยมไม่เกินสองตำแหน่ง',
   canPublish: 'โปรไฟล์ยืนยันแล้ว สามารถเผยแพร่ได้',
