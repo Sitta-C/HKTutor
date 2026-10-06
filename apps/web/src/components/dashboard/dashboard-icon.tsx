@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 
 export type DashboardIconName =
+  | 'arrow-right'
   | 'availability'
   | 'bell'
   | 'bookings'
@@ -18,6 +19,7 @@ export type DashboardIconName =
   | 'search'
   | 'settings'
   | 'shield'
+  | 'star'
   | 'support'
   | 'trash';
 
@@ -29,6 +31,7 @@ export function DashboardIcon({
   className?: string;
 }) {
   const paths: Record<DashboardIconName, ReactNode> = {
+    'arrow-right': <path d="M5 12h14m-6-6 6 6-6 6" />,
     availability: (
       <>
         <rect x="4" y="5.5" width="16" height="15" rx="2" />
@@ -120,6 +123,7 @@ export function DashboardIcon({
         <path d="m9.5 12 1.7 1.5 3.4-3.5" />
       </>
     ),
+    star: <path d="m12 3 2.8 5.7 6.3.9-4.5 4.4 1.1 6.2L12 17.3l-5.7 3 1.1-6.2L2.9 9.6l6.3-.9z" />,
     support: (
       <>
         <path d="M4 13v-1a8 8 0 0 1 16 0v1" />
