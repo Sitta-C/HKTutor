@@ -159,6 +159,11 @@ Before releasing an upload feature, use synthetic files in the intended Supabase
 verify upload/download/delete, bucket restrictions, blocked unauthenticated document access, and
 short-lived signed downloads.
 
+CI booking verification starts the full API against disposable PostgreSQL. Its workflow supplies
+test-only Storage configuration (`storage.example.test`, a dummy secret key, and distinct dummy
+bucket names) to satisfy startup validation; the booking probe does not call live Storage. Keep
+real Supabase credentials out of this job.
+
 ## Qualification document API (S2-T07)
 
 The `qualification-documents` feature imports the shared Storage service. It implements the parent
