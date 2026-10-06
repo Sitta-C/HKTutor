@@ -48,13 +48,13 @@ const conversationSummary = {
 };
 
 const storedMessage = {
-  body: US2_1_MESSAGE,
   clientMessageId: CLIENT_MESSAGE_ID,
   conversationId: CONVERSATION_ID,
-  createdAt: '2026-09-30T08:05:00.000Z',
   id: MESSAGE_ID,
   readAt: null,
   senderUserId: STUDENT_ID,
+  sentAt: '2026-09-30T08:05:00.000Z',
+  text: US2_1_MESSAGE,
 };
 
 describe('ConversationsController', () => {
@@ -193,15 +193,15 @@ describe('conversation routes', () => {
 
       await request(app.getHttpServer())
         .post(messagesPath)
-        .send({ body: `  ${US2_1_MESSAGE}  `, clientMessageId: CLIENT_MESSAGE_ID })
+        .send({ clientMessageId: CLIENT_MESSAGE_ID, text: `  ${US2_1_MESSAGE}  ` })
         .expect(201)
         .expect(storedMessage);
 
       expect(sendMessage).toHaveBeenCalledWith({
-        body: US2_1_MESSAGE,
         clientMessageId: CLIENT_MESSAGE_ID,
         conversationId: CONVERSATION_ID,
         senderUserId: STUDENT_ID,
+        text: US2_1_MESSAGE,
       });
     });
 
@@ -211,22 +211,22 @@ describe('conversation routes', () => {
 
       await request(app.getHttpServer())
         .post(messagesPath)
-        .send({ body: 'Yes, I do.' })
+        .send({ text: 'Yes, I do.' })
         .expect(201);
 
       expect(sendMessage).toHaveBeenCalledWith({
-        body: 'Yes, I do.',
         conversationId: CONVERSATION_ID,
         senderUserId: TUTOR_ID,
+        text: 'Yes, I do.',
       });
     });
 
     it.each([
-      ['an empty body', { body: '' }],
-      ['a whitespace-only body', { body: '   \n\t ' }],
-      ['a body over 2000 characters', { body: 'a'.repeat(2001) }],
-      ['a malformed clientMessageId', { body: 'Hello', clientMessageId: 'retry-1' }],
-      ['a senderUserId in the body', { body: 'Hello', senderUserId: OTHER_STUDENT_ID }],
+      ['an empty text', { text: '' }],
+      ['a whitespace-only text', { text: '   \n\t ' }],
+      ['a text over 2000 characters', { text: 'a'.repeat(2001) }],
+      ['a malformed clientMessageId', { clientMessageId: 'retry-1', text: 'Hello' }],
+      ['a senderUserId in the body', { senderUserId: OTHER_STUDENT_ID, text: 'Hello' }],
     ])('rejects %s with 400 and stores nothing', async (_label, payload) => {
       await request(app.getHttpServer()).post(messagesPath).send(payload).expect(400);
 
@@ -236,7 +236,7 @@ describe('conversation routes', () => {
     it('rejects a malformed conversationId with 400 and stores nothing', async () => {
       const response = await request(app.getHttpServer())
         .post('/api/v1/conversations/not-a-uuid/messages')
-        .send({ body: 'Hello' })
+        .send({ text: 'Hello' })
         .expect(400);
 
       expect(response.body).toMatchObject({
@@ -249,7 +249,7 @@ describe('conversation routes', () => {
     it('rejects an admin with 403 and stores nothing', async () => {
       currentUser = signedInAs(Role.ADMIN);
 
-      await request(app.getHttpServer()).post(messagesPath).send({ body: 'Hello' }).expect(403);
+      await request(app.getHttpServer()).post(messagesPath).send({ text: 'Hello' }).expect(403);
 
       expect(sendMessage).not.toHaveBeenCalled();
     });
@@ -328,7 +328,7 @@ describe('ConversationsController OpenAPI contract', () => {
     expect(operation?.security).toEqual([{ [JWT_BEARER_AUTH]: [] }]);
   });
 
-  it('documents the message body limits and keeps the sender out of the request body', () => {
+  it('documents the message text limits and keeps the sender out of the request body', () => {
     const schema = document.components?.schemas?.['SendMessageDto'] as
       | {
           properties?: Record<string, { maxLength?: number; minLength?: number }>;
@@ -336,9 +336,9 @@ describe('ConversationsController OpenAPI contract', () => {
         }
       | undefined;
 
-    expect(schema?.properties?.['body']).toMatchObject({ maxLength: 2000, minLength: 1 });
+    expect(schema?.properties?.['text']).toMatchObject({ maxLength: 2000, minLength: 1 });
     expect(schema?.properties?.['clientMessageId']).toBeDefined();
     expect(schema?.properties?.['senderUserId']).toBeUndefined();
-    expect(schema?.required).toEqual(['body']);
+    expect(schema?.required).toEqual(['text']);
   });
 });

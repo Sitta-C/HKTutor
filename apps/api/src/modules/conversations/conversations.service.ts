@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+
 import {
   ConflictException,
   ForbiddenException,
@@ -33,10 +35,10 @@ export interface OpenConversationResult {
 const conversationSelect = { createdAt: true, id: true } satisfies Prisma.ConversationSelect;
 
 const lastMessageSelect = {
-  body: true,
-  createdAt: true,
   id: true,
   senderUserId: true,
+  sentAt: true,
+  text: true,
 } satisfies Prisma.MessageSelect;
 
 const messageSelect = {
@@ -52,7 +54,7 @@ type SelectedMessage = Prisma.MessageGetPayload<{ select: typeof messageSelect }
 
 interface ConversationPair {
   studentUserId: string;
-  tutorProfileId: string;
+  tutorUserId: string;
 }
 
 interface ConversationListRow {
@@ -60,12 +62,12 @@ interface ConversationListRow {
   createdAt: Date;
   studentUserId: string;
   studentNickname: string | null;
-  tutorProfileId: string;
+  tutorUserId: string;
   tutorDisplayName: string;
   lastMessageId: string | null;
   lastMessageSenderUserId: string | null;
-  lastMessageBody: string | null;
-  lastMessageCreatedAt: Date | null;
+  lastMessageText: string | null;
+  lastMessageSentAt: Date | null;
 }
 
 @Injectable()
@@ -83,7 +85,7 @@ export class ConversationsService {
       throw new NotFoundException('Tutor not found');
     }
 
-    const pair = { studentUserId: input.studentUserId, tutorProfileId: tutor.userId };
+    const pair = { studentUserId: input.studentUserId, tutorUserId: tutor.userId };
     const otherParticipant = { displayName: tutor.displayName, id: tutor.userId };
 
     const existing = await this.findConversationByPair(pair);
@@ -122,7 +124,7 @@ export class ConversationsService {
     const { skip, take } = conversationPagination(input);
     const participantFilter = viewerIsStudent
       ? Prisma.sql`c."studentUserId" = ${input.userId}`
-      : Prisma.sql`c."tutorProfileId" = ${input.userId}`;
+      : Prisma.sql`c."tutorUserId" = ${input.userId}`;
 
     const [rows, total] = await Promise.all([
       this.prisma.$queryRaw<ConversationListRow[]>(Prisma.sql`
@@ -131,27 +133,27 @@ export class ConversationsService {
           c."createdAt",
           c."studentUserId",
           sp."nickname" AS "studentNickname",
-          c."tutorProfileId",
+          c."tutorUserId",
           tp."displayName" AS "tutorDisplayName",
           last_message."id" AS "lastMessageId",
           last_message."senderUserId" AS "lastMessageSenderUserId",
-          last_message."body" AS "lastMessageBody",
-          last_message."createdAt" AS "lastMessageCreatedAt"
+          last_message."text" AS "lastMessageText",
+          last_message."sentAt" AS "lastMessageSentAt"
         FROM "Conversation" c
-        JOIN "TutorProfile" tp ON tp."userId" = c."tutorProfileId"
+        JOIN "TutorProfile" tp ON tp."userId" = c."tutorUserId"
         LEFT JOIN "StudentProfile" sp ON sp."userId" = c."studentUserId"
         LEFT JOIN LATERAL (
-          SELECT m."id", m."senderUserId", m."body", m."createdAt"
+          SELECT m."id", m."senderUserId", m."text", m."sentAt"
           FROM "Message" m
           WHERE m."conversationId" = c."id"
-          ORDER BY m."createdAt" DESC, m."id" DESC
+          ORDER BY m."sentAt" DESC, m."id" DESC
           LIMIT 1
         ) last_message ON TRUE
         WHERE ${participantFilter}
-        ORDER BY COALESCE(last_message."createdAt", c."createdAt") DESC, c."id" DESC
+        ORDER BY COALESCE(last_message."sentAt", c."createdAt") DESC, c."id" DESC
         LIMIT ${take} OFFSET ${skip}`),
       this.prisma.conversation.count({
-        where: viewerIsStudent ? { studentUserId: input.userId } : { tutorProfileId: input.userId },
+        where: viewerIsStudent ? { studentUserId: input.userId } : { tutorUserId: input.userId },
       }),
     ]);
 
@@ -166,14 +168,14 @@ export class ConversationsService {
   async sendMessage(input: SendMessageInput): Promise<MessageResponseDto> {
     const conversation = await this.prisma.conversation.findUnique({
       where: { id: input.conversationId },
-      select: { studentUserId: true, tutorProfileId: true },
+      select: { studentUserId: true, tutorUserId: true },
     });
     if (!conversation) {
       throw new NotFoundException('Conversation not found');
     }
     if (
       input.senderUserId !== conversation.studentUserId &&
-      input.senderUserId !== conversation.tutorProfileId
+      input.senderUserId !== conversation.tutorUserId
     ) {
       throw new ForbiddenException('Only participants can send messages in this conversation.');
     }
@@ -181,16 +183,17 @@ export class ConversationsService {
     try {
       const message = await this.prisma.message.create({
         data: {
-          body: input.body,
-          clientMessageId: input.clientMessageId ?? null,
+          // The database requires a key, so a message sent without one gets a fresh UUID.
+          clientMessageId: input.clientMessageId ?? randomUUID(),
           conversationId: input.conversationId,
           senderUserId: input.senderUserId,
+          text: input.text,
         },
         select: messageSelect,
       });
       return toMessageResponse(message);
     } catch (error) {
-      if (!input.clientMessageId || !isUniqueViolation(error)) throw error;
+      if (input.clientMessageId === undefined || !isUniqueViolation(error)) throw error;
 
       // A retry reused clientMessageId, so return the message the first attempt stored.
       const original = await this.findMessageByClientId(input.senderUserId, input.clientMessageId);
@@ -229,7 +232,7 @@ export class ConversationsService {
 
   private findConversationByPair(pair: ConversationPair): Promise<SelectedConversation | null> {
     return this.prisma.conversation.findUnique({
-      where: { studentUserId_tutorProfileId: pair },
+      where: { studentUserId_tutorUserId: pair },
       select: conversationSelect,
     });
   }
@@ -240,7 +243,7 @@ export class ConversationsService {
   ): Promise<ConversationSummaryDto> {
     const lastMessage = await this.prisma.message.findFirst({
       where: { conversationId: conversation.id },
-      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      orderBy: [{ sentAt: 'desc' }, { id: 'desc' }],
       select: lastMessageSelect,
     });
     return buildSummary(conversation, otherParticipant, lastMessage);
@@ -250,8 +253,8 @@ export class ConversationsService {
     senderUserId: string,
     clientMessageId: string,
   ): Promise<SelectedMessage | null> {
-    return this.prisma.message.findFirst({
-      where: { clientMessageId, senderUserId },
+    return this.prisma.message.findUnique({
+      where: { senderUserId_clientMessageId: { clientMessageId, senderUserId } },
       select: messageSelect,
     });
   }
@@ -266,13 +269,9 @@ function conversationPagination(input: { page?: number; pageSize?: number }): {
   return { skip: (page - 1) * take, take };
 }
 
+/** Prisma reports a unique violation from a client query as P2002; a raw SQLSTATE never reaches `code`. */
 function isUniqueViolation(error: unknown): boolean {
-  if (!error || typeof error !== 'object') {
-    return false;
-  }
-
-  const code = String((error as { code?: string }).code ?? '');
-  return code === 'P2002' || code === '23505';
+  return typeof error === 'object' && error !== null && 'code' in error && error.code === 'P2002';
 }
 
 function buildSummary(
@@ -287,10 +286,10 @@ function buildSummary(
       lastMessage === null
         ? null
         : {
-            body: lastMessage.body,
-            createdAt: lastMessage.createdAt.toISOString(),
             id: lastMessage.id,
             senderUserId: lastMessage.senderUserId,
+            sentAt: lastMessage.sentAt.toISOString(),
+            text: lastMessage.text,
           },
     otherParticipant,
   };
@@ -301,7 +300,7 @@ function listRowParticipant(
   viewerIsStudent: boolean,
 ): ConversationParticipantDto {
   if (viewerIsStudent) {
-    return { displayName: row.tutorDisplayName, id: row.tutorProfileId };
+    return { displayName: row.tutorDisplayName, id: row.tutorUserId };
   }
 
   // Starting a conversation requires a student profile, so the nickname is always present.
@@ -313,28 +312,28 @@ function listRowLastMessage(row: ConversationListRow): LastMessage | null {
   if (
     row.lastMessageId === null ||
     row.lastMessageSenderUserId === null ||
-    row.lastMessageBody === null ||
-    row.lastMessageCreatedAt === null
+    row.lastMessageText === null ||
+    row.lastMessageSentAt === null
   ) {
     return null;
   }
 
   return {
-    body: row.lastMessageBody,
-    createdAt: row.lastMessageCreatedAt,
     id: row.lastMessageId,
     senderUserId: row.lastMessageSenderUserId,
+    sentAt: row.lastMessageSentAt,
+    text: row.lastMessageText,
   };
 }
 
 function toMessageResponse(message: SelectedMessage): MessageResponseDto {
   return {
-    body: message.body,
     clientMessageId: message.clientMessageId,
     conversationId: message.conversationId,
-    createdAt: message.createdAt.toISOString(),
     id: message.id,
     readAt: message.readAt?.toISOString() ?? null,
     senderUserId: message.senderUserId,
+    sentAt: message.sentAt.toISOString(),
+    text: message.text,
   };
 }

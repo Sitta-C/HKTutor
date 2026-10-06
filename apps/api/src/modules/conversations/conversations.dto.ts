@@ -14,11 +14,11 @@ import {
 const trimString = ({ value }: { value: unknown }): unknown =>
   typeof value === 'string' ? value.trim() : value;
 
-export const MESSAGE_BODY_MAX_LENGTH = 2000;
+export const MESSAGE_TEXT_MAX_LENGTH = 2000;
 
-// Counts Unicode code points, as PostgreSQL's char_length does in the Message body check.
-// @MaxLength counts some emoji differently, so a body could pass here and fail in the database.
-const MESSAGE_BODY_MAX_LENGTH_PATTERN = new RegExp(`^[\\s\\S]{0,${MESSAGE_BODY_MAX_LENGTH}}$`, 'u');
+// Counts Unicode code points, as PostgreSQL's CHAR_LENGTH does in Message_text_check.
+// @MaxLength counts some emoji differently, so a text could pass here and fail in the database.
+const MESSAGE_TEXT_MAX_LENGTH_PATTERN = new RegExp(`^[\\s\\S]{0,${MESSAGE_TEXT_MAX_LENGTH}}$`, 'u');
 
 export const DEFAULT_CONVERSATIONS_PAGE = 1;
 export const DEFAULT_CONVERSATIONS_PAGE_SIZE = 20;
@@ -35,19 +35,20 @@ export class SendMessageDto {
   @ApiProperty({
     description: 'Trimmed before validation',
     example: 'Do you teach quadratic equations?',
-    maxLength: MESSAGE_BODY_MAX_LENGTH,
+    maxLength: MESSAGE_TEXT_MAX_LENGTH,
     minLength: 1,
   })
   @Transform(trimString)
   @IsString()
   @IsNotEmpty()
-  @Matches(MESSAGE_BODY_MAX_LENGTH_PATTERN, {
-    message: `body must be at most ${MESSAGE_BODY_MAX_LENGTH} characters`,
+  @Matches(MESSAGE_TEXT_MAX_LENGTH_PATTERN, {
+    message: `text must be at most ${MESSAGE_TEXT_MAX_LENGTH} characters`,
   })
-  body!: string;
+  text!: string;
 
   @ApiPropertyOptional({
-    description: 'Client-generated key; resending with the same key returns the original message',
+    description:
+      'Client-generated key; resending with the same key returns the original message. The server generates one when it is omitted.',
     example: '0f8fad5b-d9cb-469f-a165-70867728950e',
   })
   @IsOptional()
@@ -87,14 +88,14 @@ export class MessageResponseDto {
   @ApiProperty({ example: '2c9d7e1f-4a3b-4c5d-8e6f-7a8b9c0d1e2f' })
   senderUserId!: string;
 
-  @ApiProperty({ example: '0f8fad5b-d9cb-469f-a165-70867728950e', nullable: true, type: String })
-  clientMessageId!: string | null;
+  @ApiProperty({ example: '0f8fad5b-d9cb-469f-a165-70867728950e' })
+  clientMessageId!: string;
 
   @ApiProperty({ example: 'Do you teach quadratic equations?' })
-  body!: string;
+  text!: string;
 
   @ApiProperty({ example: '2026-09-30T08:05:00.000Z' })
-  createdAt!: string;
+  sentAt!: string;
 
   @ApiProperty({ example: null, nullable: true, type: String })
   readAt!: string | null;
@@ -119,10 +120,10 @@ export class ConversationLastMessageDto {
   senderUserId!: string;
 
   @ApiProperty({ example: 'Do you teach quadratic equations?' })
-  body!: string;
+  text!: string;
 
   @ApiProperty({ example: '2026-09-30T08:05:00.000Z' })
-  createdAt!: string;
+  sentAt!: string;
 }
 
 export class ConversationSummaryDto {

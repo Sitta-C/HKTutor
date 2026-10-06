@@ -30,10 +30,10 @@ const TUTOR_ID_EXAMPLE = 'ad08a291-dd8b-40c1-84e5-ddafca54c6fc';
 const MESSAGE_ID_EXAMPLE = 'b7e4c1a2-5f6d-4e8b-9a0c-3d2f1e4b5a69';
 
 const lastMessageExample = {
-  body: 'Do you teach quadratic equations?',
-  createdAt: '2026-09-30T08:05:00.000Z',
   id: MESSAGE_ID_EXAMPLE,
   senderUserId: STUDENT_ID_EXAMPLE,
+  sentAt: '2026-09-30T08:05:00.000Z',
+  text: 'Do you teach quadratic equations?',
 };
 
 const conversationSummaryExample = {
@@ -148,8 +148,8 @@ export function SendMessageDoc(): MethodDecorator {
     }),
     ApiBadRequestResponse({
       description:
-        'The body is blank or longer than 2000 characters, clientMessageId or conversationId is not a UUID, or the body contained an unknown field',
-      schema: errorSchema('Bad Request', ['body should not be empty'], 400),
+        'The text is blank or longer than 2000 characters, clientMessageId or conversationId is not a UUID, or the request body contained an unknown field',
+      schema: errorSchema('Bad Request', ['text should not be empty'], 400),
     }),
     apiUnauthorizedResponse(),
     ApiForbiddenResponse({

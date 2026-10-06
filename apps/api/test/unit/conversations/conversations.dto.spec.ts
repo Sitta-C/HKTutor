@@ -4,7 +4,7 @@ import { validate } from 'class-validator';
 import {
   CreateConversationDto,
   GetMyConversationsQueryDto,
-  MESSAGE_BODY_MAX_LENGTH,
+  MESSAGE_TEXT_MAX_LENGTH,
   SendMessageDto,
 } from '@modules/conversations/conversations.dto';
 
@@ -23,64 +23,64 @@ const validateMessage = async (input: Record<string, unknown>) => {
 
 describe('SendMessageDto', () => {
   it('accepts the US2-1 example message', async () => {
-    const { dto, errors } = await validateMessage({ body: 'Do you teach quadratic equations?' });
+    const { dto, errors } = await validateMessage({ text: 'Do you teach quadratic equations?' });
 
     expect(errors).toHaveLength(0);
-    expect(dto.body).toBe('Do you teach quadratic equations?');
-    expect(dto.body).toHaveLength(33);
+    expect(dto.text).toBe('Do you teach quadratic equations?');
+    expect(dto.text).toHaveLength(33);
   });
 
   it('trims surrounding whitespace before validating', async () => {
-    const { dto, errors } = await validateMessage({ body: '  \n Hello \t ' });
+    const { dto, errors } = await validateMessage({ text: '  \n Hello \t ' });
 
     expect(errors).toHaveLength(0);
-    expect(dto.body).toBe('Hello');
+    expect(dto.text).toBe('Hello');
   });
 
   it.each([
-    ['', 'an empty body'],
-    ['   \n\t ', 'a whitespace-only body'],
-    [123, 'a non-string body'],
-    [undefined, 'a missing body'],
-  ])('rejects %p (%s)', async (body) => {
-    const { errors } = await validateMessage({ body });
+    ['', 'an empty text'],
+    ['   \n\t ', 'a whitespace-only text'],
+    [123, 'a non-string text'],
+    [undefined, 'a missing text'],
+  ])('rejects %p (%s)', async (text) => {
+    const { errors } = await validateMessage({ text });
 
-    expect(errors.map((error) => error.property)).toEqual(['body']);
+    expect(errors.map((error) => error.property)).toEqual(['text']);
   });
 
   it('accepts exactly 2000 characters and rejects 2001', async () => {
-    const atLimit = await validateMessage({ body: 'a'.repeat(MESSAGE_BODY_MAX_LENGTH) });
-    const overLimit = await validateMessage({ body: 'a'.repeat(MESSAGE_BODY_MAX_LENGTH + 1) });
+    const atLimit = await validateMessage({ text: 'a'.repeat(MESSAGE_TEXT_MAX_LENGTH) });
+    const overLimit = await validateMessage({ text: 'a'.repeat(MESSAGE_TEXT_MAX_LENGTH + 1) });
 
     expect(atLimit.errors).toHaveLength(0);
-    expect(overLimit.errors.map((error) => error.property)).toEqual(['body']);
+    expect(overLimit.errors.map((error) => error.property)).toEqual(['text']);
     expect(overLimit.errors[0]?.constraints).toHaveProperty('matches');
   });
 
   it('applies the limit after trimming', async () => {
-    const { errors } = await validateMessage({ body: ` ${'a'.repeat(MESSAGE_BODY_MAX_LENGTH)} ` });
+    const { errors } = await validateMessage({ text: ` ${'a'.repeat(MESSAGE_TEXT_MAX_LENGTH)} ` });
 
     expect(errors).toHaveLength(0);
   });
 
   it('counts characters the way the database check does', async () => {
-    const astral = await validateMessage({ body: GRINNING_FACE.repeat(MESSAGE_BODY_MAX_LENGTH) });
+    const astral = await validateMessage({ text: GRINNING_FACE.repeat(MESSAGE_TEXT_MAX_LENGTH) });
     const withSelectors = await validateMessage({
-      body: RED_HEART.repeat(MESSAGE_BODY_MAX_LENGTH / 2 + 1),
+      text: RED_HEART.repeat(MESSAGE_TEXT_MAX_LENGTH / 2 + 1),
     });
 
     expect(astral.errors).toHaveLength(0);
-    expect(withSelectors.errors.map((error) => error.property)).toEqual(['body']);
+    expect(withSelectors.errors.map((error) => error.property)).toEqual(['text']);
   });
 
   it('accepts a UUID clientMessageId', async () => {
-    const { errors } = await validateMessage({ body: 'Hello', clientMessageId: CLIENT_MESSAGE_ID });
+    const { errors } = await validateMessage({ clientMessageId: CLIENT_MESSAGE_ID, text: 'Hello' });
 
     expect(errors).toHaveLength(0);
   });
 
   it('rejects a malformed clientMessageId', async () => {
-    const { errors } = await validateMessage({ body: 'Hello', clientMessageId: 'retry-1' });
+    const { errors } = await validateMessage({ clientMessageId: 'retry-1', text: 'Hello' });
 
     expect(errors.map((error) => error.property)).toEqual(['clientMessageId']);
   });
