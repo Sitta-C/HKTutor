@@ -78,11 +78,13 @@ test('role selection never reads from localStorage, cookies, or URL search param
 
 test('dashboard shell enforces accessibility, responsive toggle, and visible focus states', async () => {
   const shellSource = await read('apps/web/src/components/dashboard/dashboard-shell.tsx');
+  const languageSwitch = await read('apps/web/src/components/public/public-ui.tsx');
 
   // Accessible buttons and aria labels
   assert.match(shellSource, /aria-label={copy\.dashboard\.sidebar\.closeSidebar}/);
   assert.match(shellSource, /aria-label={copy\.dashboard\.sidebar\.openSidebar}/);
-  assert.match(shellSource, /aria-pressed={language === 'th'}/);
+  assert.match(shellSource, /<LanguageSwitch\s*\/>/);
+  assert.match(languageSwitch, /aria-pressed={language === 'th'}/);
   assert.match(shellSource, /aria-hidden="true"/);
   assert.match(shellSource, /aria-controls="dashboard-sidebar"/);
   assert.match(shellSource, /aria-expanded=/);

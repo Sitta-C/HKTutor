@@ -41,6 +41,8 @@ older prototypes remain references, not instructions to restore superseded layou
 - Keep one necessary registration/login CTA in public headers. Password recovery is a small
   accent text link beside the password label, not a large pink assistance banner. Pink paper can
   support an actual error state. The current recovery link explains that reset is not supported.
+- Dashboard headers use the same `LanguageSwitch` as the login/public header: a globe icon with the
+  TH/EN label and a light rounded hover state, without the former boxed button or colored role dot.
 - Keep the “Why HKTutor?” navigation in the about page's top section; repeated clicks must scroll
   to its target again. Do not restore the removed duplicate CTA.
 - Profile editing at `/dashboard/profile` has no “Back to dashboard” header button; use the shell's
