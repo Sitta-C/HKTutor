@@ -10,6 +10,7 @@ import {
 import { filetypemime } from 'magic-bytes.js';
 
 import { StorageConfigService } from '@config/storage.config';
+import { StorageRequestError } from '@infrastructure/storage/storage-request-error';
 import {
   AVATAR_MAX_SIZE_BYTES,
   DOCUMENT_MAX_SIZE_BYTES,
@@ -53,6 +54,20 @@ export class StorageService {
 
   prepareDocument(ownerUserId: string, file: StorageUpload): PreparedStorageUpload {
     return this.prepare('document', ownerUserId, file);
+  }
+
+  prepareAvatar(ownerUserId: string, file: StorageUpload): PreparedStorageUpload {
+    return this.prepare('avatar', ownerUserId, file);
+  }
+
+  async assertPrivateAvatarBucket(): Promise<void> {
+    const bucket = await this.request(
+      () => this.client.storage.getBucket(this.bucket('avatar')),
+      'Avatar bucket could not be checked',
+    );
+    if (bucket.public !== false) {
+      throw new ServiceUnavailableException('Avatar storage must use a private bucket');
+    }
   }
 
   async uploadPrepared(file: PreparedStorageUpload): Promise<StoredFile> {
@@ -198,12 +213,15 @@ export class StorageService {
     try {
       const { data, error } = await operation();
       if (error || data === null) {
-        throw new Error('Storage request failed');
+        throw new StorageRequestError(message, error);
       }
       return data;
-    } catch {
+    } catch (error) {
       // Provider errors may contain paths or credentials; expose only our stable message.
-      throw new ServiceUnavailableException(message);
+      if (error instanceof StorageRequestError) {
+        throw error;
+      }
+      throw new StorageRequestError(message, error);
     }
   }
 }

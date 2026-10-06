@@ -29,7 +29,9 @@
     "test:cov": "jest --coverage",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "jest --config ./test/jest-e2e.json",
-    "typecheck:scripts": "tsc -p scripts/tsconfig.json"
+    "typecheck:scripts": "tsc -p scripts/tsconfig.json",
+    "storage:recover": "ts-node -r tsconfig-paths/register scripts/recover-storage-cleanup.ts",
+    "db:verify:avatars": "ts-node -r tsconfig-paths/register scripts/verify-avatar-concurrency.ts"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",
@@ -51,7 +53,8 @@
     "pg": "^8.23.0",
     "reflect-metadata": "^0.2.2",
     "resend": "^6.26.0",
-    "rxjs": "^7.8.1"
+    "rxjs": "^7.8.1",
+    "sharp": "0.35.3"
   },
   "devDependencies": {
     "@hktutor/eslint-config": "workspace:*",

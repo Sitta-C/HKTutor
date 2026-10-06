@@ -1,7 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { getMyProfile } from '@/lib/api/profiles';
-import { clearCurrentProfileCache, loadCurrentProfile } from '@/lib/current-profile';
+import {
+  clearCurrentProfileCache,
+  loadCurrentProfile,
+  updateCurrentProfileAvatar,
+} from '@/lib/current-profile';
 
 import type { MyProfileResponse } from '@/lib/api/types';
 
@@ -48,5 +52,19 @@ describe('current profile cache', () => {
     await loadCurrentProfile('student-2');
 
     expect(getMyProfile).toHaveBeenCalledTimes(4);
+  });
+
+  it('updates only the current owner avatar without losing profile fields', async () => {
+    await loadCurrentProfile('student-1');
+    updateCurrentProfileAvatar('other-user', 'wrong-owner-version');
+    expect((await loadCurrentProfile('student-1')).avatarUpdatedAt).toBeUndefined();
+    updateCurrentProfileAvatar('student-1', '2026-10-06T07:00:00Z');
+    expect(await loadCurrentProfile('student-1')).toEqual({
+      ...profile,
+      avatarUpdatedAt: '2026-10-06T07:00:00Z',
+    });
+    updateCurrentProfileAvatar('student-1', null);
+    expect((await loadCurrentProfile('student-1')).avatarUpdatedAt).toBeNull();
+    expect(getMyProfile).toHaveBeenCalledOnce();
   });
 });

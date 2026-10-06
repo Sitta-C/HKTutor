@@ -46,6 +46,7 @@ export class ProfilesService {
     const account = await this.prisma.user.findUnique({
       where: { id: user.id },
       select: {
+        avatarUpdatedAt: true,
         policyVersion: true,
         studentProfile: { select: studentProfileSelect },
         tutorProfile: { select: tutorProfileSelect },
@@ -61,6 +62,7 @@ export class ProfilesService {
 
     if (user.role === Role.STUDENT) {
       return {
+        avatarUpdatedAt: account.avatarUpdatedAt ?? null,
         consentCurrent,
         policyVersion: CURRENT_PRIVACY_POLICY_VERSION,
         profile: account.studentProfile,
@@ -75,6 +77,7 @@ export class ProfilesService {
         profile?.firstName?.trim() && profile.lastName?.trim() && profile.nickname?.trim(),
       );
       return {
+        avatarUpdatedAt: account.avatarUpdatedAt ?? null,
         consentCurrent,
         policyVersion: CURRENT_PRIVACY_POLICY_VERSION,
         profile,

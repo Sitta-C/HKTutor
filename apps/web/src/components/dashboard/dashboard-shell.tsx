@@ -1,6 +1,5 @@
 'use client';
 
-import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
@@ -8,6 +7,7 @@ import { useEffect, useRef, useState } from 'react';
 import { DashboardIcon } from '@/components/dashboard/dashboard-icon';
 import { DashboardNotificationMenu } from '@/components/dashboard/dashboard-notification-menu';
 import PrivacyNoticeModal from '@/components/privacy-notice-modal';
+import { OwnProfileAvatar } from '@/components/profile/profile-avatar';
 import { LanguageSwitch } from '@/components/public/public-ui';
 import { NotebookPage, WashiTape } from '@/components/ui/notebook';
 import {
@@ -32,6 +32,7 @@ export interface DashboardShellProps {
   visualVariant?: 'default' | 'profile';
   navBadges?: Partial<Record<string, string>>;
   userAvatarUrl?: string | null;
+  avatarEnabled?: boolean;
   showSignOut?: boolean;
 }
 
@@ -92,6 +93,7 @@ export function DashboardShell({
   visualVariant = 'default',
   navBadges,
   userAvatarUrl,
+  avatarEnabled = true,
   showSignOut = true,
 }: DashboardShellProps) {
   const { language, copy } = useLanguage();
@@ -396,6 +398,8 @@ export function DashboardShell({
             {isSidebarCollapsed ? (
               <>
                 <SidebarAvatar
+                  userId={user.id}
+                  enabled={avatarEnabled && user.role !== 'ADMIN'}
                   displayName={displayName}
                   imageUrl={userAvatarUrl}
                   initial={userInitial}
@@ -421,6 +425,8 @@ export function DashboardShell({
                 />
                 <div className="flex min-w-0 items-center gap-3">
                   <SidebarAvatar
+                    userId={user.id}
+                    enabled={avatarEnabled && user.role !== 'ADMIN'}
                     displayName={displayName}
                     imageUrl={userAvatarUrl}
                     initial={userInitial}
@@ -509,27 +515,29 @@ function SidebarAvatar({
   imageUrl,
   initial,
   className,
+  userId,
+  enabled,
 }: {
   displayName: string;
   imageUrl: string | null | undefined;
   initial: string;
   className: string;
+  userId: string;
+  enabled: boolean;
 }) {
   return (
-    <span
+    <OwnProfileAvatar
+      userId={userId}
+      enabled={enabled}
+      name={displayName}
+      imageUrl={imageUrl}
+      fallback={initial}
+      sizes="48px"
       className={classes(
-        'relative flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full border-2 border-paper text-base font-black shadow-sm ring-1 ring-paper-edge',
+        'h-12 w-12 border-2 border-paper text-base font-black shadow-sm ring-1 ring-paper-edge',
         className,
       )}
-      role="img"
-      aria-label={displayName}
-    >
-      {imageUrl ? (
-        <Image src={imageUrl} alt="" fill sizes="48px" className="object-cover" unoptimized />
-      ) : (
-        <span aria-hidden="true">{initial}</span>
-      )}
-    </span>
+    />
   );
 }
 

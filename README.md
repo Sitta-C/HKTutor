@@ -43,6 +43,11 @@ See [frontend direction](ui-design/frontend-direction.md) for the Notebook Focus
 [implemented frontend behavior](ui-design/implemented-behavior.md) for interaction, loading,
 responsive layout, and accessibility details.
 
+Students and tutors can optionally upload, replace, or remove a profile photo during onboarding or
+from `/dashboard/profile`. JPEG, PNG, and static WebP inputs up to 2 MiB are normalized server-side.
+Student photos remain in the owner's private account area; eligible tutor photos also appear in
+public search/detail pages. Avatar files use private Storage with short-lived signed URLs.
+
 The API also supports private tutor qualification uploads, owner/admin signed previews, and an
 admin review queue with atomic review and audit records. See the
 [qualification API contract and rollout notes](apps/api/README.md#qualification-document-api-s2-t07).
@@ -75,7 +80,7 @@ Copy `.env.example` to the ignored `.env` and replace every bracketed placeholde
 - `DATABASE_URL` — PostgreSQL/Supabase connection string used only by the API
 - `SUPABASE_URL` and `SUPABASE_SECRET_KEY` — Supabase project origin and backend `sb_secret_` key
 - `SUPABASE_AVATAR_BUCKET` and `SUPABASE_DOCUMENT_BUCKET` — distinct, pre-created Storage buckets;
-  documents must be private. See the API README for file limits and service integration.
+  both must be private. See the API README for file limits and service integration.
 - `JWT_ACCESS_SECRET` and `JWT_REFRESH_SECRET` — different random values, each at least 32 characters
 - `RESEND_API_KEY` and `EMAIL_FROM` — Resend API key and an approved sender
 - `APP_URL` — web URL embedded in email verification links

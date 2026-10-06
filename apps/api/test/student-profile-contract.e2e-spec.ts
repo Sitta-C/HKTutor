@@ -311,6 +311,7 @@ describe('Student profile contract (e2e)', () => {
       const response = await request(app.getHttpServer()).get('/api/v1/profiles/me').expect(200);
 
       expect(readBody(response.body)).toEqual({
+        avatarUpdatedAt: null,
         consentCurrent: true,
         policyVersion: CURRENT_PRIVACY_POLICY_VERSION,
         profile: null,

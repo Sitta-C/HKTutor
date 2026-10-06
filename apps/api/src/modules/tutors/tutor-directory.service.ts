@@ -58,6 +58,7 @@ const publicListingSelect = {
 } satisfies Prisma.TeachingListingSelect;
 
 const publicTutorSelect = {
+  user: { select: { avatarUpdatedAt: true } },
   bio: true,
   displayName: true,
   experienceYears: true,
@@ -81,6 +82,7 @@ const publicSearchSelect = (now: Date) =>
     subject: { select: { name: true } },
     tutorProfile: {
       select: {
+        user: { select: { avatarUpdatedAt: true } },
         availabilitySlots: {
           orderBy: { startAtUtc: 'asc' },
           take: 1,
@@ -259,6 +261,7 @@ function mapPublicSearchListing(
   const tutor = listing.tutorProfile;
 
   return {
+    avatarUpdatedAt: tutor.user.avatarUpdatedAt,
     description: listing.description,
     displayName: tutor.displayName,
     experienceYears: tutor.experienceYears,
@@ -279,6 +282,7 @@ function mapPublicTutor(
   verificationStatus: PublicTutorVerificationStatus,
 ): PublicTutorDetailResponseDto['tutor'] {
   return {
+    avatarUpdatedAt: tutor.user.avatarUpdatedAt,
     bio: tutor.bio,
     displayName: tutor.displayName,
     experienceYears: tutor.experienceYears,
