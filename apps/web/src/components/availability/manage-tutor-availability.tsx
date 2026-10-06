@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 
+import { AvailabilitySummary } from '@/components/availability/availability-summary';
 import {
   buildAvailabilityWeek,
   buildAvailabilityWeekLayout,
@@ -282,36 +283,19 @@ export default function ManageTutorAvailability() {
           </p>
           <h1 className="mt-2 flex flex-wrap items-center gap-3 text-3xl font-bold tracking-[-0.045em] text-notebook-ink sm:text-4xl">
             <span>{availabilityCopy.title}</span>
-            <StatusBadge tone="tutor" className="tracking-wide">
-              {availabilityCopy.timezone}
-            </StatusBadge>
           </h1>
           <p className="mt-3 max-w-2xl text-sm leading-6 text-notebook-muted sm:text-base">
             {availabilityCopy.subtitle}
           </p>
         </header>
 
-        <div
-          className="mb-5 grid gap-3 sm:grid-cols-3"
-          aria-label={availabilityCopy.weekOf.replace('{date}', weekLabel)}
-        >
-          <SummaryCard
-            label={availabilityCopy.openSlots}
-            value={String(openSlotCount)}
-            help={availabilityCopy.openSlotsHelp}
-          />
-          <SummaryCard
-            label={availabilityCopy.reservedSlots}
-            value={String(reservedSlotCount)}
-            help={availabilityCopy.reservedSlotsHelp}
-          />
-          <SummaryCard
-            label={availabilityCopy.timezoneLabel}
-            value="UTC+7"
-            help="Asia/Bangkok"
-            compact
-          />
-        </div>
+        <AvailabilitySummary
+          label={availabilityCopy.weekOf.replace('{date}', weekLabel)}
+          openSlotCount={openSlotCount}
+          reservedSlotCount={reservedSlotCount}
+          isLoading={isLoading}
+          hasError={loadError !== null}
+        />
 
         <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1.35fr)_minmax(300px,.75fr)]">
           <PaperCard
@@ -813,35 +797,5 @@ function InlineState({
         </button>
       )}
     </div>
-  );
-}
-
-function SummaryCard({
-  label,
-  value,
-  help,
-  compact = false,
-}: {
-  label: string;
-  value: string;
-  help: string;
-  compact?: boolean;
-}) {
-  return (
-    <PaperCard className="group relative min-h-36 overflow-hidden p-4 transition hover:-translate-y-0.5 hover:shadow-paper sm:p-5">
-      <WashiTape tone="blue" className="-right-5 -top-1 rotate-12 opacity-70" />
-      <p className="relative z-10 flex items-center gap-2 text-xs font-bold text-notebook-muted before:h-2 before:w-2 before:rounded-full before:bg-tutor">
-        {label}
-      </p>
-      <p
-        className={`relative z-10 mt-3 font-black tracking-[-0.045em] text-notebook-ink ${
-          compact ? 'text-xl' : 'text-3xl'
-        }`}
-      >
-        {value}
-      </p>
-      <p className="relative z-10 mt-1 text-xs leading-5 text-notebook-muted">{help}</p>
-      <span className="absolute -bottom-9 -right-8 h-24 w-24 rounded-full bg-sticky-blue/45 transition group-hover:scale-110" />
-    </PaperCard>
   );
 }
