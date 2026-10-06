@@ -61,6 +61,7 @@ See [implemented frontend behavior](implemented-behavior.md) for detailed intera
 | Area                         | Implemented direction                                                                                                                                         | Implementation reference                                                                |
 | ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
 | Tutor dashboard              | Notebook Focus; teaching overview, pending requests, analytics, and course performance                                                                        | `apps/web/src/components/dashboard/tutor-dashboard.tsx`                                 |
+| Student dashboard            | **Desk Spread**: two notebook sheets joined by six rings; next booking and compact count strip on the left, booking-derived tutor index on the right          | `apps/web/src/components/dashboard/student-dashboard.tsx` and its stylesheet            |
 | Course management            | **Course Ledger**: one compact count strip, status tabs/search, and continuous ruled rows with a binding margin; grade above subject, rate/date/actions below | `apps/web/src/components/listings/tutor-listings-page.tsx` and its stylesheet           |
 | Past requests                | Hidden by default; blue bookmark-note switch shows them; pale paper/perforated styling keeps past rows readable                                               | `apps/web/src/components/ui/bookmark-note-switch.tsx`, `notebook.module.css`            |
 | Course performance selection | **Subject Index** with a subject directory and stable subcolors; show all courses of the selected subject without pagination                                  | `apps/web/src/components/ui/subject-course-index.tsx` and its stylesheet                |
@@ -73,6 +74,30 @@ See [implemented frontend behavior](implemented-behavior.md) for detailed intera
 The course selector evolved from Binder Drawer to Subject Index. Do not revert to the earlier
 paginated drawer or nested-folder proposal just because an older preview shows it. Request-list
 pagination is separate and remains in place; the no-pagination decision applies to course selection.
+
+## Student stationery baseline
+
+The user selected **Desk Spread** for the student dashboard on 2026-10-06 and requested implementation
+with ring binding and frontend tutor pagination. This is the implemented starting point for the
+remaining student redesign work; their individual layouts still require selection.
+
+- Keep the existing student mint, warm paper, shared shell, Bai Jamjuree body type, and note fonts.
+  Mint identifies student context and grouping; booking status keeps the shared badge's meaning.
+- Use restrained stationery: small passive category tabs, an upright mint date strip, thin paper
+  separators, subtle ruled list rows, one short tape accent, and a memo explaining the next booking's
+  actual status. Do not rotate dates, names, copy, or actions. Note typography is limited to the memo
+  heading. Yellow supports a pending-request explanation; confirmed copy uses a pale green memo.
+- The dashboard sheets use 8px corners, soft existing shadows, and 22px inner spacing (16px on
+  small screens). The desktop split favors the appointment sheet slightly. Six decorative rings
+  connect the sheets; below 1024px the sheets stack in reading order with a horizontal connector.
+  Rings and this two-sheet composition are dashboard details, not required decorations on every
+  student page. These styles remain scoped to the student dashboard's CSS module.
+- Show next booking first, then one passive three-count strip. Keep one find-tutor CTA in the
+  header and existing shell navigation. The disabled tutor search and duplicate quick actions are
+  removed. The right sheet is a tutor index from bookings, with four tutors per page using the
+  unchanged shared `NotebookPagination`; hide pagination when one page suffices.
+- Counts and tutors describe only loaded booking records (up to 100), never lifetime activity or
+  favorites. Preserve the existing pending/confirmed next-booking selection and booking-detail links.
 
 ## Scope and data
 

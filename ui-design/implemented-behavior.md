@@ -45,6 +45,30 @@ reviews see an explicit new-tutor state.
 The bilingual “Read all reviews” control currently explains that individual reviews are unavailable;
 it does not submit the profile form or call an unsupported reviews endpoint.
 
+The student dashboard at `/dashboard` uses **Desk Spread**: two warm-paper sheets connected by six
+decorative rings on desktop, stacked in reading order with a horizontal connector on narrow screens.
+The left sheet shows the next booking's Bangkok date range, start/end time, tutor, subject/grade, and
+shared business-status badge. A short memo explicitly distinguishes a pending request's proposed
+time from a confirmed appointment. The existing selection stays unchanged: earliest start strictly
+after dashboard mount among PENDING and CONFIRMED bookings. A compact strip beneath it shows upcoming,
+all pending, and completed counts from loaded records, explicitly scoped to at most 100 bookings;
+pending and upcoming can overlap. It does not provide learning analytics or lifetime statistics.
+
+The right sheet lists tutors derived from that same booking response. The existing Map preserves
+first tutor insertion order and retains the last encountered booking for each tutor; each row still
+opens that booking's encoded detail URL. Four tutors appear per page through the shared
+`NotebookPagination`, with a live range, page count, keyboard controls, and disabled boundary buttons.
+It is entirely frontend pagination: changing tutor pages does not fetch more records or change the
+left sheet. Pagination is hidden for zero to four tutors and resets to page one after the existing
+booking load succeeds. The dashboard keeps the original `getMyBookings({ pageSize: 100 })` load and
+language-dependent effect, without following server totals or adding requests. Loading retains the
+shared shell and student Mint loading note; loading/errors keep sidebar counts unavailable and hide
+summary counts/empty states. Zero appears only after a successful response. The disabled search,
+quick-action block, repeated pending panel, and duplicate find-tutor CTAs are removed; a single
+header find-tutor CTA and existing shell navigation remain. Styles are isolated to Student Dashboard;
+shared shell, primitives, and tutor layouts remain unchanged. Thai/English copy and reduced-motion
+preferences are preserved.
+
 The tutor dashboard follows the Notebook Focus layout: the next confirmed session, today's
 availability, pending requests, monthly teaching analytics, and course performance. Today's availability
 uses the same overlap query and clips cross-day slots to the Bangkok day; midnight endings show 24:00. Monthly
