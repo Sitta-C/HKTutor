@@ -104,7 +104,8 @@ pagination is separate and remains in place; the no-pagination decision applies 
 
 - Availability week navigation uses the selected **Week Reel** in place of the previous/current/next
   button group. Keep it small: one ruler row at the dashboard ruler's height (about 64px), at most
-  26rem wide, with only 8px spacing above it and a compact heading/helper. Week labels show day ranges
+  26rem wide, aligned to the right edge of the schedule card, with only 8px spacing above it and a
+  compact heading/helper. Week labels show day ranges
   over localized month/year context, including both months/years when a week crosses a boundary.
   Preserve Monday-starting Bangkok weeks, the existing availability requests, current-week refresh,
   keyboard focus, mouse dragging, native touch/trackpad scrolling, and reduced motion. Month and week

@@ -319,14 +319,16 @@ export default function ManageTutorAvailability() {
                   {availabilityCopy.thisWeek}
                 </button>
               </div>
-              <WeekRuler
-                value={weekStart}
-                language={language}
-                label={availabilityCopy.weekPicker}
-                hint={availabilityCopy.weekPickerHint}
-                selectedLabel={availabilityCopy.selectedWeek}
-                onChange={changeWeek}
-              />
+              <div className="flex justify-end">
+                <WeekRuler
+                  value={weekStart}
+                  language={language}
+                  label={availabilityCopy.weekPicker}
+                  hint={availabilityCopy.weekPickerHint}
+                  selectedLabel={availabilityCopy.selectedWeek}
+                  onChange={changeWeek}
+                />
+              </div>
             </div>
 
             {isLoading ? (
