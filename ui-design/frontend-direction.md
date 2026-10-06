@@ -89,7 +89,8 @@ remaining student redesign work; their individual layouts still require selectio
   heading. Yellow supports a pending-request explanation; confirmed copy uses a pale green memo.
 - The dashboard sheets use 8px corners, soft existing shadows, and 22px inner spacing (16px on
   small screens). The desktop split favors the appointment sheet slightly. Six decorative rings
-  connect the sheets; below 1024px the sheets stack in reading order with a horizontal connector.
+  connect the sheets as minimal 36px circular outlines, without shaded metal or separate hole marks;
+  below 1024px the sheets stack in reading order with a horizontal connector.
   Rings and this two-sheet composition are dashboard details, not required decorations on every
   student page. These styles remain scoped to the student dashboard's CSS module.
 - Show next booking first, then one passive three-count strip. Keep one find-tutor CTA in the

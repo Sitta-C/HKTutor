@@ -46,7 +46,8 @@ The bilingual “Read all reviews” control currently explains that individual 
 it does not submit the profile form or call an unsupported reviews endpoint.
 
 The student dashboard at `/dashboard` uses **Desk Spread**: two warm-paper sheets connected by six
-decorative rings on desktop, stacked in reading order with a horizontal connector on narrow screens.
+minimal circular outline rings on desktop, stacked in reading order with a horizontal connector on
+narrow screens.
 The left sheet shows the next booking's Bangkok date range, start/end time, tutor, subject/grade, and
 shared business-status badge. A short memo explicitly distinguishes a pending request's proposed
 time from a confirmed appointment. The existing selection stays unchanged: earliest start strictly
