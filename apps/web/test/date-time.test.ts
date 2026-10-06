@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   addIsoDays,
   formatBangkokDate,
+  formatBangkokDateRange,
   formatBangkokDateTime,
   formatBangkokWeekRange,
   formatBangkokYear,
@@ -48,5 +49,24 @@ describe('localized calendars', () => {
     expect(days[0]).toMatchObject({ isoDate: '2026-08-31', inCurrentMonth: false });
     expect(days[41]).toMatchObject({ isoDate: '2026-10-11', inCurrentMonth: false });
     expect(shiftIsoMonth('2026-01-31', 1)).toBe('2026-02-28');
+  });
+
+  it('compacts cross-day ranges without repeating the month or year', () => {
+    const start = '2026-10-06T11:00:00.000Z';
+    const end = '2026-10-07T12:00:00.000Z';
+    expect(formatBangkokDateRange(start, end, 'th')).toBe('6–7 ต.ค. 2569');
+    expect(formatBangkokDateRange(start, end, 'en')).toMatch(/6\s*–\s*7 Oct 2026/);
+  });
+
+  it('keeps both months and calendar years when a range crosses Bangkok midnight', () => {
+    expect(
+      formatBangkokDateRange('2026-10-31T16:00:00.000Z', '2026-10-31T18:00:00.000Z', 'th'),
+    ).toBe('31 ต.ค. – 1 พ.ย. 2569');
+    expect(
+      formatBangkokDateRange('2026-12-31T16:00:00.000Z', '2026-12-31T18:00:00.000Z', 'th'),
+    ).toBe('31 ธ.ค. 2569 – 1 ม.ค. 2570');
+    expect(
+      formatBangkokDateRange('2026-12-31T16:00:00.000Z', '2026-12-31T18:00:00.000Z', 'en'),
+    ).toMatch(/31 Dec 2026\s*–\s*1 Jan 2027/);
   });
 });

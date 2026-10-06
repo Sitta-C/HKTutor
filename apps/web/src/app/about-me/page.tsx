@@ -42,16 +42,16 @@ export default function AboutMePage() {
   return (
     <NotebookPage className="flex flex-col overflow-hidden">
       <header className="relative z-20 border-b border-paper-edge/70 bg-paper/85 backdrop-blur-sm">
-        <div className="mx-auto flex w-full max-w-[1200px] items-center justify-between px-5 py-5 sm:px-8 sm:py-6 lg:px-10">
+        <div className="mx-auto flex w-full max-w-[1200px] flex-wrap items-center justify-between gap-4 px-5 py-5 sm:px-8 sm:py-6 lg:px-10">
           <BrandMark />
 
-          <nav className="flex items-center gap-1 text-sm sm:gap-4 lg:gap-6">
-            <Link
+          <nav className="flex flex-wrap items-center gap-1 text-sm sm:gap-4 lg:gap-6">
+            <a
               href="#why-hktutor"
-              className="hidden rounded-lg px-2 py-2 font-semibold text-notebook-muted transition-colors hover:text-notebook-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-notebook-ink/30 sm:inline"
+              className="rounded-lg px-2 py-2 font-semibold text-notebook-muted transition-colors hover:text-notebook-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-notebook-ink/30"
             >
               {aboutCopy.nav}
-            </Link>
+            </a>
             <Link
               href="/"
               className="hidden rounded-lg px-2 py-2 font-semibold text-notebook-muted transition-colors hover:text-notebook-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-notebook-ink/30 lg:inline"
@@ -87,9 +87,6 @@ export default function AboutMePage() {
               <Link href="/register" className={notebookButtonClass({ className: 'group px-5' })}>
                 {aboutCopy.cta}
                 <ArrowIcon className="h-4 w-4 transition-transform group-hover:translate-x-1" />
-              </Link>
-              <Link href="#why-hktutor" className={notebookButtonClass({ tone: 'secondary' })}>
-                {aboutCopy.nav}
               </Link>
             </div>
           </div>

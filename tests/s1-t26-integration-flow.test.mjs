@@ -49,11 +49,15 @@ test('gates every private flow route and connects both dashboards to live bookin
   }
   assert.match(profileSession, /resolveDashboardGate\(currentProfileResult\)/);
   assert.match(profileSession, /withReturnTo\(ONBOARDING_PROFILE_PATH, currentPath\)/);
-  assert.match(tutorDashboard, /getTutorBookings\(\{ pageSize: 100 \}\)/);
+  assert.match(tutorDashboard, /loadTutorDashboardBookings\(\{ status: 'PENDING' \}\)/);
+  assert.match(tutorDashboard, /status: 'CONFIRMED', from: new Date\(mountedAt\)/);
   assert.match(tutorDashboard, /getTutorAvailability/);
   assert.match(tutorDashboard, /getTutorListings\(\)/);
   assert.match(studentDashboard, /getMyBookings\(\{ pageSize: 100 \}\)/);
-  assert.match(studentDashboard, /navBadges=\{\{ bookings: String\(bookings\.length\) \}\}/);
+  assert.match(
+    studentDashboard,
+    /bookings: isLoading \|\| loadError \? '—' : String\(bookings\.length\)/,
+  );
   assert.match(bookingApi, /authenticatedFetch<TutorBookingsResponse>\(`\/bookings\/tutor/);
 });
 

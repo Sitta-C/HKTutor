@@ -7,13 +7,13 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   GraphPaper,
   NotebookHeading,
-  NotebookPage,
   PaperCard,
   StatusBadge,
   StickyNote,
   WashiTape,
   notebookButtonClass,
 } from '@/components/ui/notebook';
+import { NotebookLoadingRegion } from '@/components/ui/notebook-loading';
 import { ApiError } from '@/lib/api/error';
 import { getPublicTutor, getPublicTutorAvailability } from '@/lib/api/tutors';
 import { useAuth } from '@/lib/auth-context';
@@ -83,11 +83,7 @@ export default function PublicTutorAvailabilityPage({ tutorId }: { tutorId: stri
   );
 
   if (isLoading || !isCurrentTutorLoaded) {
-    return (
-      <StickyNote tone="yellow" className="p-6 text-sm font-semibold" role="status">
-        {text.loading}
-      </StickyNote>
-    );
+    return <NotebookLoadingRegion label={text.loading} />;
   }
 
   if (error || !detail) {
@@ -212,13 +208,7 @@ function formatTutorRate(value: number, language: 'en' | 'th'): string {
 
 export function PublicTutorAvailabilityLoading() {
   const { copy } = useLanguage();
-  return (
-    <NotebookPage className="flex min-h-[50dvh] items-center justify-center p-6">
-      <StickyNote tone="yellow" className="p-6 text-sm font-semibold" role="status">
-        {copy.dashboard.tutorAvailability.loading}
-      </StickyNote>
-    </NotebookPage>
-  );
+  return <NotebookLoadingRegion label={copy.dashboard.tutorAvailability.loading} />;
 }
 
 function formatSlot(slot: PublicAvailabilitySlot, language: 'en' | 'th'): string {

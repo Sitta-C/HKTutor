@@ -1,0 +1,144 @@
+.ledger {
+  margin-bottom: 20px;
+  overflow: hidden;
+  color: var(--color-notebook-ink);
+  background: var(--color-paper);
+  border: 1px solid var(--color-paper-edge);
+  border-radius: 14px;
+  box-shadow: 0 4px 10px -3px color-mix(in srgb, var(--color-notebook-ink) 8%, transparent);
+}
+
+.metrics {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin: 0;
+}
+
+.metric {
+  min-width: 0;
+  padding: 24px;
+  background: repeating-linear-gradient(
+    to bottom,
+    transparent 0 31px,
+    color-mix(in srgb, var(--color-notebook-line) 65%, transparent) 31px 32px
+  );
+}
+
+.metric + .metric {
+  border-left: 1px solid var(--color-paper-edge);
+}
+
+.label {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  font-size: 14px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.openIcon,
+.bookedIcon {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+}
+
+.openIcon {
+  color: var(--color-tutor-deep);
+}
+
+.bookedIcon {
+  color: color-mix(in srgb, var(--color-amber-700) 75%, var(--color-notebook-muted));
+}
+
+.amount {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: baseline;
+  margin: 16px 0 0;
+}
+
+.number {
+  font-size: 42px;
+  font-weight: 700;
+  line-height: 1.15;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.04em;
+  overflow-wrap: anywhere;
+}
+
+.unit,
+.help,
+.zoneLabel {
+  color: var(--color-notebook-muted);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.help {
+  margin: 11px 0 0;
+  overflow-wrap: anywhere;
+}
+
+.footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 20px;
+  background: var(--color-paper-deep);
+  border-top: 1px solid var(--color-paper-edge);
+}
+
+.zoneLabel {
+  display: inline-flex;
+  gap: 7px;
+  align-items: center;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.zoneIcon {
+  flex-shrink: 0;
+  width: 14px;
+  height: 14px;
+}
+
+.zoneTag {
+  max-width: 100%;
+  padding: 5px 10px;
+  color: var(--color-tutor-deep);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+  background: color-mix(in srgb, var(--color-tutor) 6%, var(--color-paper));
+  border: 1px solid color-mix(in srgb, var(--color-tutor-deep) 22%, var(--color-paper-edge));
+  border-radius: 6px;
+}
+
+@media (max-width: 560px) {
+  .metrics {
+    grid-template-columns: 1fr;
+  }
+
+  .metric {
+    padding: 20px;
+  }
+
+  .metric + .metric {
+    border-top: 1px solid var(--color-paper-edge);
+    border-left: 0;
+  }
+
+  .number {
+    font-size: 36px;
+  }
+
+  .footer {
+    padding: 12px 18px;
+  }
+}

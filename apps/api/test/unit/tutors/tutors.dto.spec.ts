@@ -3,6 +3,7 @@ import { validate } from 'class-validator';
 
 import {
   AvailabilityPostRequestDto,
+  AvailabilityPrivateQueryDto,
   AvailabilityQueryDto,
   ListingPatchRequestDto,
   ListingPostRequestDto,
@@ -176,6 +177,39 @@ describe('availability DTOs', () => {
     });
 
     expect(await validate(invalid)).not.toHaveLength(0);
+  });
+
+  it('accepts private overlap mode and inherits date validation', async () => {
+    const dto = plainToInstance(AvailabilityPrivateQueryDto, {
+      from: '2026-10-17T08:00:00.000Z',
+      to: '2026-10-17T09:00:00.000Z',
+      rangeMode: 'overlap',
+    });
+    await expect(
+      validate(dto, { whitelist: true, forbidNonWhitelisted: true }),
+    ).resolves.toHaveLength(0);
+    expect(dto.from).toBeInstanceOf(Date);
+    expect(dto.rangeMode).toBe('overlap');
+    expect(
+      await validate(
+        plainToInstance(AvailabilityPrivateQueryDto, { from: 'invalid', rangeMode: 'overlap' }),
+      ),
+    ).not.toHaveLength(0);
+  });
+
+  it.each(['unknown', 'false', true, ['overlap']])(
+    'rejects an invalid private range mode (%p)',
+    async (rangeMode) => {
+      expect(
+        await validate(plainToInstance(AvailabilityPrivateQueryDto, { rangeMode })),
+      ).not.toHaveLength(0);
+    },
+  );
+
+  it('does not accept private overlap mode on the public availability query', async () => {
+    const dto = plainToInstance(AvailabilityQueryDto, { rangeMode: 'overlap' });
+    const errors = await validate(dto, { whitelist: true, forbidNonWhitelisted: true });
+    expect(errors.some((error) => error.property === 'rangeMode')).toBe(true);
   });
 
   it('transforms valid query timestamps and rejects malformed values', async () => {

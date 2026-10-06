@@ -1,0 +1,120 @@
+.panel {
+  display: none;
+}
+
+.panel[data-open='true'] {
+  display: grid;
+  grid-template-rows: 1fr;
+  animation: unfold 200ms cubic-bezier(0.2, 0.7, 0.3, 1) both;
+}
+
+@keyframes unfold {
+  from {
+    grid-template-rows: 0fr;
+    opacity: 0;
+    transform: translateY(-0.25rem);
+  }
+  to {
+    grid-template-rows: 1fr;
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.panelContent {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.chevron {
+  transition: transform 200ms ease;
+}
+
+.rotated {
+  transform: rotate(180deg);
+}
+
+.wheels {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 1.5rem minmax(0, 1fr);
+  align-items: center;
+}
+
+.selection {
+  position: absolute;
+  top: 44px;
+  right: 0;
+  left: 0;
+  height: 44px;
+  pointer-events: none;
+  background: var(--color-paper-deep);
+  border-radius: 0.6rem;
+}
+
+.track {
+  position: relative;
+  height: 132px;
+  min-width: 0;
+  padding: 44px 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  touch-action: pan-y;
+  overscroll-behavior: contain;
+  scroll-snap-type: y mandatory;
+  scrollbar-color: var(--color-paper-edge) transparent;
+  scrollbar-width: thin;
+  mask-image: linear-gradient(to bottom, transparent, black 22%, black 78%, transparent);
+}
+
+.track:focus-visible {
+  outline: 2px solid var(--color-tutor);
+  outline-offset: -2px;
+  border-radius: 0.6rem;
+}
+
+.track::-webkit-scrollbar {
+  width: 6px;
+}
+
+.track::-webkit-scrollbar-thumb {
+  background: var(--color-paper-edge);
+  border-radius: 1rem;
+}
+
+.option,
+.selected {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 44px;
+  user-select: none;
+  scroll-snap-align: center;
+  color: var(--color-notebook-muted);
+  font-size: 1.6875rem;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+.selected {
+  color: var(--color-notebook-ink);
+  font-weight: 700;
+}
+
+@media (pointer: fine) {
+  .track {
+    cursor: grab;
+  }
+  .track:active {
+    cursor: grabbing;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .panel[data-open='true'] {
+    animation: none;
+  }
+  .chevron {
+    transition: none;
+  }
+}

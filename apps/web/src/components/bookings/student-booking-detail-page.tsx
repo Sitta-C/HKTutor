@@ -18,6 +18,7 @@ import {
   WashiTape,
   notebookButtonClass,
 } from '@/components/ui/notebook';
+import { NotebookLoadingRegion } from '@/components/ui/notebook-loading';
 import { getMyBooking } from '@/lib/api/bookings';
 import { useLanguage } from '@/lib/i18n';
 
@@ -58,11 +59,7 @@ export default function StudentBookingDetailPage({ bookingId }: { bookingId: str
   }, [bookingId]);
 
   if (isLoading || !isCurrentBookingLoaded) {
-    return (
-      <StickyNote tone="yellow" className="p-6 text-sm font-semibold" role="status">
-        {text.loading}
-      </StickyNote>
-    );
+    return <NotebookLoadingRegion label={text.loading} />;
   }
 
   if (error || !booking) {

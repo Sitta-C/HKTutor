@@ -24,7 +24,7 @@ import { TutorListingsService } from '@modules/tutors/tutor-listings.service';
 import {
   AvailabilityPostRequestDto,
   AvailabilityPostResponseDto,
-  AvailabilityQueryDto,
+  AvailabilityPrivateQueryDto,
   AvailabilityPrivateResponseDto,
   ListingPatchRequestDto,
   ListingPostRequestDto,
@@ -140,7 +140,7 @@ export class TutorsPrivateController {
   @GetMyAvailabilityDoc()
   getAvailabilityPrivate(
     @CurrentUser() user: AuthenticatedUser,
-    @Query() query: AvailabilityQueryDto,
+    @Query() query: AvailabilityPrivateQueryDto,
   ): Promise<AvailabilityPrivateResponseDto[]> {
     return this.availability.getAvailabilityPrivate(user.id, query);
   }

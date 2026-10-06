@@ -20,6 +20,13 @@ export function formatTutorExperience(years: number, language: 'en' | 'th'): str
   return language === 'th' ? `ประสบการณ์ ${years} ปี` : `${years} years experience`;
 }
 
+export function stepListingPrice(value: string, direction: 1 | -1): string {
+  const price = Number(value);
+  const currentCents = Number.isFinite(price) ? Math.round(price * 100) : 0;
+  const nextCents = Math.max(1, currentCents + direction * 5000);
+  return String(nextCents / 100);
+}
+
 export function validateListingForm(
   form: ListingFormData,
   copy: {

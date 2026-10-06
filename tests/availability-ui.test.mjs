@@ -60,11 +60,13 @@ test('keeps availability refreshes race-safe and dashboard states structurally v
 test('protects reserved slots and exposes the required availability states', async () => {
   const page = await read('apps/web/src/components/availability/manage-tutor-availability.tsx');
   const types = await read('apps/web/src/lib/api/types.ts');
+  const loading = await read('apps/web/src/components/ui/notebook-loading.tsx');
 
   assert.match(types, /export type AvailabilityState = 'OPEN' \| 'RESERVED'/);
   assert.match(page, /slot\.state !== 'OPEN'/);
   assert.match(page, /caught\.status === 409/);
   assert.match(page, /availabilityCopy\.reservedError/);
   assert.match(page, /role="alert"/);
-  assert.match(page, /role="status"/);
+  assert.match(page, /NotebookLoadingRegion label=\{availabilityCopy\.loading\}/);
+  assert.match(loading, /role="status"/);
 });

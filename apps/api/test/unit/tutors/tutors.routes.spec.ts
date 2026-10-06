@@ -84,6 +84,37 @@ describe('tutor availability routes', () => {
     expect(getAvailabilityPublic).not.toHaveBeenCalled();
   });
 
+  it('validates private overlap mode and passes UTC bounds with the authenticated tutor', async () => {
+    getAvailabilityPrivate.mockResolvedValue([]);
+    await request(app.getHttpServer())
+      .get('/api/v1/tutors/me/availability')
+      .query({
+        from: '2026-10-04T17:00:00.000Z',
+        to: '2026-10-11T17:00:00.000Z',
+        rangeMode: 'overlap',
+      })
+      .expect(200);
+    expect(getAvailabilityPrivate).toHaveBeenCalledWith(TUTOR_ID, {
+      from: new Date('2026-10-04T17:00:00.000Z'),
+      to: new Date('2026-10-11T17:00:00.000Z'),
+      rangeMode: 'overlap',
+    });
+  });
+
+  it('rejects unknown range modes before calling private availability', async () => {
+    await request(app.getHttpServer())
+      .get('/api/v1/tutors/me/availability?rangeMode=unknown')
+      .expect(400);
+    expect(getAvailabilityPrivate).not.toHaveBeenCalled();
+  });
+
+  it('keeps the private overlap option out of the public route contract', async () => {
+    await request(app.getHttpServer())
+      .get(`/api/v1/tutors/${TUTOR_ID}/availability?rangeMode=overlap`)
+      .expect(400);
+    expect(getAvailabilityPublic).not.toHaveBeenCalled();
+  });
+
   it('rejects an admin from tutor-private routes before calling the service', async () => {
     currentUser = { ...currentUser, email: 'admin@example.com', role: Role.ADMIN };
 
