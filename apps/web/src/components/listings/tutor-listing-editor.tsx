@@ -21,7 +21,7 @@ import {
   stepListingPrice,
   validateListingForm,
 } from '@/components/listings/tutor-listing-editor-model';
-import { GraphPaper, PaperCard, StickyNote, WashiTape } from '@/components/ui/notebook';
+import { PaperCard, StickyNote, WashiTape } from '@/components/ui/notebook';
 import { NotebookSelect } from '@/components/ui/notebook-select';
 import { useNotebookToast } from '@/components/ui/notebook-toast';
 import {
@@ -35,6 +35,8 @@ import {
 import { useLanguage } from '@/lib/i18n';
 import { getTutorProfile } from '@/lib/profile-navigation';
 import { useProfileSession } from '@/lib/use-profile-session';
+
+import styles from './tutor-listing-editor.module.css';
 
 import type {
   ListingFormData,
@@ -560,22 +562,19 @@ export default function TutorListingEditor({
           </PaperCard>
 
           <aside className="min-w-0 xl:sticky xl:top-24 xl:self-start">
-            <PaperCard className="p-5 sm:p-6">
-              <WashiTape tone="blue" className="-top-2 right-8 rotate-3" />
-              <div className="flex items-center gap-2.5">
-                <span
-                  className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-sticky-blue text-tutor-deep"
-                  aria-hidden="true"
-                >
-                  <ListingIcon name="listing" />
-                </span>
-                <h2 className="text-lg font-extrabold text-notebook-ink">{copy.previewTitle}</h2>
-              </div>
-              <p className="mb-4 mt-1.5 text-xs leading-5 text-notebook-muted">
-                {copy.previewBody}
-              </p>
-              <GraphPaper className="p-4">
-                <div className="flex items-center gap-3">
+            <section className={styles.preview} aria-labelledby="listing-preview-title">
+              <header className={styles.previewHeader}>
+                <div>
+                  <h2 id="listing-preview-title" className="font-note text-lg font-semibold">
+                    {copy.previewTitle}
+                  </h2>
+                  <p className="mt-1 text-xs leading-5 text-notebook-muted">{copy.previewBody}</p>
+                </div>
+                <ListingStatusBadge status={status} labels={statusLabels} variant="ledger" />
+              </header>
+              <PaperCard className={styles.previewPaper}>
+                <WashiTape tone="blue" className={`${styles.previewTape}`} />
+                <div className={styles.previewPerson}>
                   <ListingPreviewAvatar
                     displayName={profileDisplayName}
                     imageUrl={profileImageUrl}
@@ -590,12 +589,14 @@ export default function TutorListingEditor({
                   </div>
                 </div>
 
-                <div className="mt-3 flex flex-wrap gap-2">
-                  <span className="inline-flex min-h-7 items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 text-xs font-bold text-emerald-800">
+                <div className={styles.previewTrust}>
+                  <span
+                    className={`${styles.previewVerification} ${isVerified ? 'text-emerald-800' : 'text-amber-800'}`}
+                  >
                     <ListingIcon name={isVerified ? 'check' : 'info'} />
                     {isVerified ? copy.verified : copy.verificationPending}
                   </span>
-                  <span className="inline-flex min-h-7 items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-2.5 text-xs font-bold text-amber-800">
+                  <span className={styles.previewRating}>
                     <ListingIcon name="star" />
                     {profile?.ratingAverage
                       ? `${profile.ratingAverage} · ${profile.reviewCount} ${copy.reviews}`
@@ -603,32 +604,31 @@ export default function TutorListingEditor({
                   </span>
                 </div>
 
-                <div className="mt-5 border-y border-dashed border-paper-edge py-5">
-                  <p className="text-xs font-extrabold uppercase tracking-[0.14em] text-tutor-deep">
-                    {selectedSubject?.name || copy.subjectFallback}
-                  </p>
-                  <h3 className="mt-1 text-xl font-black tracking-[-0.025em] text-notebook-ink">
-                    {selectedSubject?.name || copy.subjectFallback} ·{' '}
-                    {selectedGrade?.name || copy.gradeFallback}
-                  </h3>
-                  <p className="mt-4 min-w-0 whitespace-pre-wrap break-words text-sm leading-6 text-notebook-muted [overflow-wrap:anywhere]">
-                    {form.description.trim() || copy.descriptionFallback}
-                  </p>
-                </div>
-
-                <div className="mt-5 flex flex-wrap items-end justify-between gap-3">
-                  <div>
-                    <strong className="text-2xl font-black tracking-[-0.04em] text-notebook-ink">
+                <div className={styles.previewOffer}>
+                  <div className="min-w-0">
+                    <p className={styles.previewGrade}>
+                      {selectedGrade?.name || copy.gradeFallback}
+                    </p>
+                    <h3 className={styles.previewSubject}>
+                      {selectedSubject?.name || copy.subjectFallback}
+                    </h3>
+                  </div>
+                  <StickyNote tone="yellow" className={styles.previewPrice}>
+                    <strong className={styles.previewAmount}>
                       {form.pricePerHour && Number(form.pricePerHour) > 0
                         ? formatPrice(Number(form.pricePerHour), language)
                         : '—'}
                     </strong>
-                    <span className="ml-1 text-sm text-notebook-muted">/{copy.hour}</span>
-                  </div>
-                  <ListingStatusBadge status={status} labels={statusLabels} />
+                    <span className={styles.previewUnit}>/ {copy.hour}</span>
+                  </StickyNote>
                 </div>
-              </GraphPaper>
-            </PaperCard>
+                <p
+                  className={`${styles.previewDescription} min-w-0 whitespace-pre-wrap break-words text-notebook-muted [overflow-wrap:anywhere]`}
+                >
+                  {form.description.trim() || copy.descriptionFallback}
+                </p>
+              </PaperCard>
+            </section>
 
             <StickyNote
               tone="blue"

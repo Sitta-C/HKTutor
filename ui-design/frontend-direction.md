@@ -122,3 +122,10 @@ pagination is separate and remains in place; the no-pagination decision applies 
   Hourly rate buttons and keyboard arrows increment/decrement by 50 baht while manual entry still
   accepts positive prices with up to two decimal places. Keep the description field compact and
   manually resizable.
+- The tutor listing editor's student preview uses **Note Window**, selected on 2026-10-06.
+  Place the preview heading/helper and current publication badge outside one compact paper surface.
+  Lead with tutor identity and experience, followed by compact verification/review metadata.
+  Show grade as a blue tab above the subject, with hourly price on a yellow sticky note and the
+  description on subtle ruled lines. Stack the price beneath the subject when the preview column
+  is narrow, including narrow desktop sidebars. Preserve actual profile data, live form updates,
+  empty placeholders, and all publication statuses. Course Slip and Binder Preview remain unselected.
