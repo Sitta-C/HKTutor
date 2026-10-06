@@ -1,0 +1,102 @@
+.stage {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  padding: 2rem 1rem;
+}
+
+.page {
+  min-height: 100dvh;
+}
+
+.content {
+  min-height: 20rem;
+}
+
+.stage .note {
+  width: 18rem;
+  max-width: 100%;
+  padding: 1.75rem 1.5rem;
+  text-align: center;
+  border-color: rgb(41 37 36 / 8%);
+}
+
+.note p {
+  margin-top: 1rem;
+  overflow-wrap: anywhere;
+  font-size: 1.25rem;
+  font-weight: 600;
+  line-height: 1.7;
+}
+
+.stage .tape {
+  top: -0.5rem;
+  left: 50%;
+  width: 4.75rem;
+  height: 1rem;
+  transform: translateX(-50%) rotate(-2deg);
+  background-color: rgb(252 251 247 / 60%);
+}
+
+.spinner {
+  display: block;
+  width: 1.75rem;
+  height: 1.75rem;
+  margin-inline: auto;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: loading-spin 0.9s linear infinite;
+}
+
+.region {
+  min-width: 0;
+  padding: 1.5rem;
+  font-size: 0.875rem;
+  line-height: 1.7;
+  color: var(--color-notebook-muted);
+  background: var(--color-paper);
+  border: 1px solid var(--color-paper-edge);
+  border-radius: 0.625rem;
+}
+
+.lines {
+  display: grid;
+  gap: 0.75rem;
+  margin-top: 1.25rem;
+}
+
+.lines span {
+  width: 90%;
+  height: 0.75rem;
+  background: var(--color-notebook-line);
+  border-radius: 0.1875rem;
+}
+
+.lines span:nth-child(2) {
+  width: 72%;
+}
+
+.lines span:last-child {
+  width: 52%;
+}
+
+.inline {
+  margin-block: 0.75rem;
+  font-size: 0.875rem;
+  line-height: 1.7;
+  color: var(--color-notebook-muted);
+}
+
+@keyframes loading-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spinner {
+    animation: none;
+  }
+}

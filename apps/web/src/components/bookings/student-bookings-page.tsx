@@ -8,10 +8,10 @@ import {
   GraphPaper,
   NotebookHeading,
   PaperCard,
-  StickyNote,
   WashiTape,
   notebookButtonClass,
 } from '@/components/ui/notebook';
+import { NotebookLoadingRegion } from '@/components/ui/notebook-loading';
 import { getMyBookings } from '@/lib/api/bookings';
 import { ApiError } from '@/lib/api/error';
 import { useLanguage } from '@/lib/i18n';
@@ -115,12 +115,7 @@ export default function StudentBookingsPage() {
           ))}
         </div>
 
-        {isLoading && (
-          <StickyNote tone="yellow" className="p-5 text-sm font-semibold" role="status">
-            <span className="mr-2 inline-block h-2 w-2 animate-pulse rounded-full bg-amber-600" />
-            {text.loading}
-          </StickyNote>
-        )}
+        {isLoading && <NotebookLoadingRegion label={text.loading} />}
 
         {!isLoading && error !== null && (
           <div

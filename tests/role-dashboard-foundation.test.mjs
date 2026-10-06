@@ -150,7 +150,9 @@ test('dashboard page derives role only from the centralized profile session', as
 
   // Guards against flashing content during loading or unauthenticated
   assert.match(pageSource, /if\s*\(\s*isLoading\s*\|\|\s*!user\s*\)/);
-  assert.match(pageSource, /role="status"/);
+  assert.match(pageSource, /<DashboardLoading\s*\/>/);
+  const loadingSource = await read('apps/web/src/components/ui/notebook-loading.tsx');
+  assert.match(loadingSource, /role="status"/);
 
   assert.match(profileSession, /if \(!allowGuest\) router\.replace\('\/'\)/);
 

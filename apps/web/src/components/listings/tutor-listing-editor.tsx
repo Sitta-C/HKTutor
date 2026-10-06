@@ -281,14 +281,22 @@ export default function TutorListingEditor({
   };
 
   if (sessionLoading || !user) {
-    return <ListingPageState>{copy.loading}</ListingPageState>;
+    return (
+      <ListingPageState kind={isEditing ? 'listingEdit' : 'listingCreate'}>
+        {copy.loading}
+      </ListingPageState>
+    );
   }
   if (user.role !== 'TUTOR') return null;
   if (profileError || !profile || !profileUser) {
-    return <ListingPageState>{profileError ?? pageError ?? copy.loadError}</ListingPageState>;
+    return <ListingPageState error>{profileError ?? pageError ?? copy.loadError}</ListingPageState>;
   }
   if (isLoading) {
-    return <ListingPageState>{copy.loading}</ListingPageState>;
+    return (
+      <ListingPageState kind={isEditing ? 'listingEdit' : 'listingCreate'}>
+        {copy.loading}
+      </ListingPageState>
+    );
   }
 
   const status = listing?.publicationStatus ?? 'DRAFT';

@@ -344,26 +344,6 @@
   composes: dialogDelete from '../availability/manage-tutor-availability.module.css';
 }
 
-.loading {
-  padding: 1.5rem;
-  border-radius: 0.625rem;
-  font-size: 0.875rem;
-  color: var(--color-notebook-muted);
-}
-
-.loadingLine {
-  display: block;
-  width: 70%;
-  height: 0.75rem;
-  margin-top: 1rem;
-  border-radius: 0.1875rem;
-  background: var(--color-notebook-line);
-}
-
-.loadingLine:last-child {
-  width: 45%;
-}
-
 @media (max-width: 639px) {
   .summary {
     gap: 0.75rem;

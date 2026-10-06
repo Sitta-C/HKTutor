@@ -19,6 +19,18 @@ older prototypes remain references, not instructions to restore superseded layou
   every metric. Counts should be easier to scan than supporting timezone information.
 - Creative details are welcome; they should remain readable, consistent, and lightweight.
   Reuse or extend a component when the same pattern recurs rather than duplicating its markup.
+- Loading follows the user-approved hierarchy: use `NotebookLoading` sticky notes only while a page
+  or all primary dashboard content is unavailable. Keep the dashboard shell visible during content
+  loading. Use `NotebookLoadingRegion` skeletons or compact text for lists, timetable changes, tutor
+  results/catalogs, booking details, and booking quotes. Action buttons keep their existing pending
+  label/disabled behavior. Student dashboard counts and empty states wait for a successful response;
+  loading/error counts stay unavailable. Errors show an alert rather than a spinning loading note.
+- Each sticky-note loading context has a distinct reserved color in `notebook-loading-palette.ts`:
+  dashboard session Apricot, tutor dashboard Sky, student dashboard Mint, profile edit Butter,
+  onboarding Lavender, availability Aqua, listing list Sand, new listing Rose, edit listing
+  Periwinkle, booking list Pistachio, booking detail Dusty rose, booking confirmation Lemon,
+  tutor search Coral, and tutor detail Fog. Do not reuse a loading color for a new loading context.
+  The colors are scoped to loading notes; other approved sticky-note components keep their colors.
 
 ## Information and actions
 

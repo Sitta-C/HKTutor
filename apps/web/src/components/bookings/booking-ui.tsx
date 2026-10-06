@@ -2,14 +2,8 @@
 
 import Link from 'next/link';
 
-import {
-  NotebookPage,
-  PaperCard,
-  StatusBadge,
-  StickyNote,
-  WashiTape,
-  notebookButtonClass,
-} from '@/components/ui/notebook';
+import { PaperCard, StatusBadge, WashiTape, notebookButtonClass } from '@/components/ui/notebook';
+import { NotebookLoadingRegion } from '@/components/ui/notebook-loading';
 import { ApiError } from '@/lib/api/error';
 import { useLanguage } from '@/lib/i18n';
 
@@ -21,17 +15,7 @@ export type BookingText = Translation['dashboard']['booking'];
 
 export function BookingLoading() {
   const { copy } = useLanguage();
-  return (
-    <NotebookPage className="flex min-h-[50dvh] items-center justify-center p-6">
-      <StickyNote tone="green" className="min-w-64 px-8 py-7 text-center">
-        <WashiTape className="-top-2 left-1/2 -translate-x-1/2" />
-        <span className="mx-auto block h-7 w-7 animate-spin rounded-full border-2 border-student-deep border-t-transparent" />
-        <p className="mt-4 font-note text-xl font-semibold text-notebook-ink" role="status">
-          {copy.dashboard.booking.loading}
-        </p>
-      </StickyNote>
-    </NotebookPage>
-  );
+  return <NotebookLoadingRegion label={copy.dashboard.booking.loading} />;
 }
 
 export function formatBangkokRange(

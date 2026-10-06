@@ -21,7 +21,6 @@ import {
 } from '@/components/profile/profile-editor-model';
 import {
   GraphPaper,
-  NotebookPage,
   PaperCard,
   StatusBadge,
   StickyNote,
@@ -29,6 +28,7 @@ import {
   notebookButtonClass,
   notebookInputClass,
 } from '@/components/ui/notebook';
+import { NotebookLoading } from '@/components/ui/notebook-loading';
 import { useNotebookToast } from '@/components/ui/notebook-toast';
 import {
   acceptCurrentPrivacyNotice,
@@ -273,7 +273,14 @@ export default function ProfileEditor({ mode }: ProfileEditorProps) {
     router.replace('/');
   };
 
-  if (authLoading || isLoading || !user) return <Loading label={text.loading} />;
+  if (authLoading || isLoading || !user) {
+    return (
+      <NotebookLoading
+        kind={mode === 'onboarding' ? 'profileOnboarding' : 'profileEdit'}
+        label={text.loading}
+      />
+    );
+  }
 
   const savedShellName = studentRole
     ? initialStudent.nickname.trim()
@@ -992,20 +999,6 @@ function Alert({ children }: { children: ReactNode }) {
     </p>
   );
 }
-function Loading({ label }: { label: string }) {
-  return (
-    <NotebookPage className="flex items-center justify-center p-6">
-      <StickyNote tone="yellow" className="min-w-56 px-8 py-7 text-center">
-        <WashiTape className="-top-2 left-1/2 -translate-x-1/2" />
-        <span className="mx-auto block h-7 w-7 animate-spin rounded-full border-2 border-notebook-ink border-t-transparent motion-reduce:animate-[spin_1.8s_linear_infinite]" />
-        <p className="mt-4 font-note text-xl font-semibold text-notebook-ink" role="status">
-          {label}
-        </p>
-      </StickyNote>
-    </NotebookPage>
-  );
-}
-
 function focusFirstError(errors: FieldErrors) {
   const field = Object.keys(errors)[0];
   if (field) requestAnimationFrame(() => document.getElementById(field)?.focus());

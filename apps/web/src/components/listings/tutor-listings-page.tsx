@@ -12,6 +12,7 @@ import {
   listingButtonClass,
 } from '@/components/listings/listing-ui';
 import { GraphPaper, PaperCard, StickyNote } from '@/components/ui/notebook';
+import { NotebookLoadingRegion } from '@/components/ui/notebook-loading';
 import {
   archiveTutorListing,
   getTutorListings,
@@ -183,7 +184,7 @@ export default function TutorListingsPage() {
 
   if (user.role !== 'TUTOR') return null;
   if (profileError || !profileUser || !tutorProfile) {
-    return <ListingPageState>{profileError ?? copy.loadError}</ListingPageState>;
+    return <ListingPageState error>{profileError ?? copy.loadError}</ListingPageState>;
   }
 
   const statusLabels = {
@@ -323,11 +324,7 @@ export default function TutorListingsPage() {
 
           <div aria-busy={isLoading}>
             {isLoading ? (
-              <PaperCard className={styles.loading}>
-                <p role="status">{copy.loading}</p>
-                <span className={styles.loadingLine} aria-hidden="true" />
-                <span className={styles.loadingLine} aria-hidden="true" />
-              </PaperCard>
+              <NotebookLoadingRegion label={copy.loading} />
             ) : loadFailed ? null : visibleListings.length === 0 ? (
               <GraphPaper className="flex flex-col items-center justify-center border-dashed px-5 py-8 text-center">
                 <span className="flex h-12 w-12 items-center justify-center rounded-lg bg-sticky-blue text-tutor-deep shadow-sm">

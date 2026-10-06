@@ -14,13 +14,17 @@ import { LocalizedDatePicker } from '@/components/date-time/localized-date-picke
 import { TimeWheelPicker } from '@/components/date-time/time-wheel-picker';
 import {
   GraphPaper,
-  NotebookPage,
   PaperCard,
   StatusBadge,
   StickyNote,
   WashiTape,
   notebookButtonClass,
 } from '@/components/ui/notebook';
+import {
+  NotebookLoading,
+  NotebookLoadingRegion,
+  NotebookPageError,
+} from '@/components/ui/notebook-loading';
 import { useNotebookToast } from '@/components/ui/notebook-toast';
 import {
   bangkokDateTimeToUtc,
@@ -251,11 +255,11 @@ export default function ManageTutorAvailability() {
   };
 
   if (sessionLoading || !user) {
-    return <FullPageState message={availabilityCopy.loading} />;
+    return <NotebookLoading kind="availabilitySession" label={availabilityCopy.loading} />;
   }
   if (user.role !== 'TUTOR') return null;
   if (profileError) {
-    return <FullPageState message={profileError} />;
+    return <NotebookPageError label={profileError} />;
   }
 
   const shellUser = profileUser ?? user;
@@ -342,7 +346,9 @@ export default function ManageTutorAvailability() {
             </div>
 
             {isLoading ? (
-              <InlineState message={availabilityCopy.loading} />
+              <div className="mt-5">
+                <NotebookLoadingRegion label={availabilityCopy.loading} />
+              </div>
             ) : loadError !== null ? (
               <InlineState
                 message={loadError || availabilityCopy.loadError}
@@ -745,20 +751,6 @@ function EmptyState({ message }: { message: string }) {
     <GraphPaper className="mt-5 flex min-h-40 items-center justify-center border-dashed p-8 text-center text-sm text-notebook-muted">
       {message}
     </GraphPaper>
-  );
-}
-
-function FullPageState({ message }: { message: string }) {
-  return (
-    <NotebookPage className="flex items-center justify-center p-6">
-      <StickyNote tone="blue" className="min-w-64 px-8 py-7 text-center">
-        <WashiTape tone="blue" className="-top-2 left-1/2 -translate-x-1/2" />
-        <span className="mx-auto block h-7 w-7 animate-spin rounded-full border-2 border-tutor-deep border-t-transparent motion-reduce:animate-[spin_1.8s_linear_infinite]" />
-        <p className="mt-4 font-note text-xl font-semibold text-notebook-ink" role="status">
-          {message}
-        </p>
-      </StickyNote>
-    </NotebookPage>
   );
 }
 

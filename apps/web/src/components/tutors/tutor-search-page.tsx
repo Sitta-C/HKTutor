@@ -16,11 +16,11 @@ import {
   NotebookHeading,
   PaperCard,
   StatusBadge,
-  StickyNote,
   WashiTape,
   notebookButtonClass,
   notebookInputClass,
 } from '@/components/ui/notebook';
+import { NotebookLoadingRegion } from '@/components/ui/notebook-loading';
 import {
   TUTOR_SEARCH_PAGE_SIZE,
   getGradeLevelCatalog,
@@ -213,9 +213,7 @@ export default function TutorSearchPage() {
           </div>
 
           {catalogLoading && (
-            <StickyNote tone="yellow" className="mb-4 p-3 text-sm" role="status">
-              {text.loadingCatalog}
-            </StickyNote>
+            <NotebookLoadingRegion label={text.loadingCatalog} presentation="text" />
           )}
           {catalogError && (
             <p
@@ -555,6 +553,7 @@ function SearchState({
   clearLabel?: string | undefined;
   onClear?: (() => void) | undefined;
 }) {
+  if (tone === 'loading') return <NotebookLoadingRegion label={message} />;
   return (
     <GraphPaper
       className={`p-10 text-center ${

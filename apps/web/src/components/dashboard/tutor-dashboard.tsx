@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from 'react';
 
 import { formatDuration } from '@/components/bookings/booking-ui';
 import { DashboardIcon } from '@/components/dashboard/dashboard-icon';
+import { DashboardLoading } from '@/components/dashboard/dashboard-loading';
 import DashboardShell from '@/components/dashboard/dashboard-shell';
 import { TutorDashboardAnalytics } from '@/components/dashboard/tutor-dashboard-analytics';
 import { loadTutorDashboardBookings } from '@/components/dashboard/tutor-dashboard-data';
@@ -118,9 +119,7 @@ export function TutorDashboard({ user, onLogout }: TutorDashboardProps) {
       </div>
 
       {isLoading ? (
-        <PaperCard className={`${panelClass} !bg-white py-12 text-center`} role="status">
-          <p className="text-sm text-notebook-muted">{copy.dashboard.common.loading}</p>
-        </PaperCard>
+        <DashboardLoading embedded />
       ) : loadError ? (
         <PaperCard className={`${panelClass} !bg-sticky-pink/50`} role="alert">
           <p className="text-sm text-red-800">{loadError}</p>
