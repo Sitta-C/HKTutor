@@ -96,9 +96,11 @@ pagination is separate and remains in place; the no-pagination decision applies 
   archive confirmation, and restoration. Published badges are blue, drafts warm, and archived
   badges neutral; archived courses remain editable. Loading/error counts are unavailable rather
   than zero. On mobile, use the existing native status select and wrap actions within each row.
-  Archive confirmation uses a native alert dialog with the same composed paper, binding, summary,
-  button, and responsive styles as the availability delete alert. Use the tutor-blue accent for
-  archiving, show the selected subject/grade/rate, and explain that the offer can return to a draft.
+  Archive and publish confirmation use one native alert dialog with the same composed paper,
+  binding, summary, button, and responsive styles as the availability delete alert. Use tutor blue for
+  both actions and show the selected subject/grade/rate. Archive copy explains restoration; publish
+  copy explains student visibility. Publishing from either a draft or an archived course sends the
+  existing request only after explicit confirmation; verification requirements remain unchanged.
   Cancel receives initial focus; Escape/cancel restores trigger focus. Keep failures visible inside
   the dialog and prevent dismissal while the request is in progress.
   Do not add analytics or course-performance selectors to this page. Course Slips and Margin Notes

@@ -49,6 +49,8 @@ async function mockListings(
     beforeRead?: () => Promise<void>;
     beforeArchive?: () => Promise<void>;
     failArchive?: boolean;
+    beforePublish?: () => Promise<void>;
+    failPublish?: boolean;
   } = {},
 ) {
   const writes: Array<{ path: string; body: unknown }> = [];
@@ -105,6 +107,13 @@ async function mockListings(
         return;
       }
       writes.push({ path, body: request.postData() ? request.postDataJSON() : null });
+      if (path.endsWith('/publish')) {
+        await options.beforePublish?.();
+        if (options.failPublish) {
+          await route.fulfill({ status: 500, json: { message: 'Unavailable' } });
+          return;
+        }
+      }
       if (path.endsWith('/status') && request.postDataJSON().publicationStatus === 'ARCHIVED') {
         await options.beforeArchive?.();
         if (options.failArchive) {
@@ -144,6 +153,10 @@ test('preserves search, filtering, edit links and publication actions in the led
     '/dashboard/listings/physics/edit',
   );
   await physics.getByRole('button', { name: 'Publish', exact: true }).click();
+  await page
+    .getByRole('alertdialog', { name: 'Publish this listing?' })
+    .getByRole('button', { name: 'Confirm', exact: true })
+    .click();
   await expect(physics.getByText('Published', { exact: true })).toBeVisible();
   await search.fill('');
   const math = ledger.getByRole('article', { name: 'Mathematics', exact: true });
@@ -182,6 +195,102 @@ test('preserves search, filtering, edit links and publication actions in the led
     { path: '/tutors/me/listings/math/status', body: { publicationStatus: 'ARCHIVED' } },
     { path: '/tutors/me/listings/math/status', body: { publicationStatus: 'DRAFT' } },
   ]);
+});
+
+for (const subject of ['Physics', 'English']) {
+  test(`confirms publication of ${subject} without requests on cancel or Escape`, async ({
+    page,
+  }) => {
+    const writes = await mockListings(page, { language: 'en' });
+    await page.goto('/dashboard/listings');
+    const course = page.getByRole('article', { name: subject, exact: true });
+    const publish = course.getByRole('button', { name: 'Publish', exact: true });
+    const dialog = page.getByRole('alertdialog', { name: 'Publish this listing?' });
+    await publish.click();
+    await expect(dialog.getByRole('heading', { name: subject, exact: true })).toBeVisible();
+    await expect(dialog.getByRole('button', { name: 'Cancel', exact: true })).toBeFocused();
+    await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
+    await expect(publish).toBeFocused();
+    await publish.click();
+    await page.keyboard.press('Escape');
+    await expect(dialog).toHaveCount(0);
+    await expect(publish).toBeFocused();
+    expect(writes).toEqual([]);
+    await publish.click();
+    await dialog.getByRole('button', { name: 'Confirm', exact: true }).click();
+    await expect(dialog).toHaveCount(0);
+    await expect(course.getByText('Published', { exact: true })).toBeVisible();
+    expect(writes).toEqual([
+      {
+        path: `/tutors/me/listings/${subject === 'Physics' ? 'physics' : 'english'}/publish`,
+        body: null,
+      },
+    ]);
+  });
+}
+
+test('fits the Thai publish alert at 320px and publishes only the selected course', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 320, height: 900 });
+  const writes = await mockListings(page);
+  await page.goto('/dashboard/listings');
+  const physics = page.getByRole('article', { name: 'Physics', exact: true });
+  await physics.getByRole('button', { name: 'เผยแพร่', exact: true }).click();
+  const dialog = page.getByRole('alertdialog', { name: 'เผยแพร่ประกาศนี้?' });
+  await expect(
+    dialog.getByText('นักเรียนจะเห็นประกาศนี้ ตรวจสอบรายละเอียดก่อนยืนยันการเผยแพร่'),
+  ).toBeVisible();
+  expect(
+    await dialog.evaluate((element) => {
+      const rect = element.getBoundingClientRect();
+      return (
+        rect.left >= 0 &&
+        rect.right <= window.innerWidth &&
+        element.scrollWidth <= element.clientWidth
+      );
+    }),
+  ).toBe(true);
+  expect(writes).toEqual([]);
+  await dialog.getByRole('button', { name: 'ยืนยัน', exact: true }).click();
+  await expect(physics.getByText('เผยแพร่แล้ว', { exact: true })).toBeVisible();
+  expect(writes).toEqual([{ path: '/tutors/me/listings/physics/publish', body: null }]);
+});
+
+test('keeps publish failures in the alert with the draft unchanged', async ({ page }) => {
+  await mockListings(page, { language: 'en', failPublish: true });
+  await page.goto('/dashboard/listings');
+  const physics = page.getByRole('article', { name: 'Physics', exact: true });
+  await physics.getByRole('button', { name: 'Publish', exact: true }).click();
+  const dialog = page.getByRole('alertdialog', { name: 'Publish this listing?' });
+  await dialog.getByRole('button', { name: 'Confirm', exact: true }).click();
+  await expect(dialog.getByRole('alert')).toHaveText(
+    'Unable to update this listing. Check your profile status and try again.',
+  );
+  await expect(dialog.getByRole('button', { name: 'Confirm', exact: true })).toBeEnabled();
+  await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
+  await expect(physics.getByText('Draft', { exact: true })).toBeVisible();
+});
+
+test('prevents duplicate publication and dismissal until publishing finishes', async ({ page }) => {
+  let release = () => {};
+  const pending = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const writes = await mockListings(page, { language: 'en', beforePublish: () => pending });
+  await page.goto('/dashboard/listings');
+  const physics = page.getByRole('article', { name: 'Physics', exact: true });
+  await physics.getByRole('button', { name: 'Publish', exact: true }).click();
+  const dialog = page.getByRole('alertdialog', { name: 'Publish this listing?' });
+  await dialog.getByRole('button', { name: 'Confirm', exact: true }).click();
+  await expect(dialog.getByRole('button', { name: 'Working…', exact: true })).toBeDisabled();
+  await expect(dialog.getByRole('button', { name: 'Cancel', exact: true })).toBeDisabled();
+  await page.keyboard.press('Escape');
+  await expect(dialog).toBeVisible();
+  release();
+  await expect(dialog).toHaveCount(0);
+  await expect(physics.getByText('Published', { exact: true })).toBeVisible();
+  expect(writes).toHaveLength(1);
 });
 
 test('fits the Thai ledger and archive alert at 320px and respects verification', async ({

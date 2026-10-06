@@ -28,6 +28,7 @@ import styles from './tutor-listings-page.module.css';
 import type { ListingPublicationStatus, TeachingListing } from '@/lib/api/types';
 
 type ListingFilter = 'ALL' | ListingPublicationStatus;
+type ListingConfirmation = { listingId: string; action: 'archive' | 'publish' };
 
 export default function TutorListingsPage() {
   const {
@@ -52,19 +53,23 @@ export default function TutorListingsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [loadFailed, setLoadFailed] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
-  const [archiveCandidate, setArchiveCandidate] = useState<string | null>(null);
-  const archiveDialogRef = useRef<HTMLDialogElement>(null);
+  const [confirmationCandidate, setConfirmationCandidate] = useState<ListingConfirmation | null>(
+    null,
+  );
+  const confirmationDialogRef = useRef<HTMLDialogElement>(null);
   const [error, setError] = useState<string | null>(null);
   const tutorProfile = profile ? getTutorProfile(profile) : null;
   const isVerified = tutorProfile?.verificationStatus === 'VERIFIED';
-  const listingToArchive = listings.find((listing) => listing.id === archiveCandidate);
+  const listingToConfirm = listings.find(
+    (listing) => listing.id === confirmationCandidate?.listingId,
+  );
 
   useEffect(() => {
-    const dialog = archiveDialogRef.current;
+    const dialog = confirmationDialogRef.current;
     if (!dialog) return;
-    if (archiveCandidate !== null && !dialog.open) dialog.showModal();
-    if (archiveCandidate === null && dialog.open) dialog.close();
-  }, [archiveCandidate]);
+    if (confirmationCandidate !== null && !dialog.open) dialog.showModal();
+    if (confirmationCandidate === null && dialog.open) dialog.close();
+  }, [confirmationCandidate]);
 
   useEffect(() => {
     if (!user || user.role !== 'TUTOR') return;
@@ -117,6 +122,11 @@ export default function TutorListingsPage() {
     });
   }, [filter, language, listings, search]);
 
+  const requestConfirmation = (listingId: string, action: ListingConfirmation['action']) => {
+    setError(null);
+    setConfirmationCandidate({ listingId, action });
+  };
+
   const handlePublish = async (listingId: string) => {
     if (!isVerified) {
       setError(copy.actionError);
@@ -127,6 +137,7 @@ export default function TutorListingsPage() {
     try {
       const updated = await publishTutorListing(listingId);
       setListings((current) => current.map((item) => (item.id === listingId ? updated : item)));
+      setConfirmationCandidate(null);
     } catch {
       setError(copy.actionError);
     } finally {
@@ -153,7 +164,7 @@ export default function TutorListingsPage() {
     try {
       const updated = await archiveTutorListing(listingId);
       setListings((current) => current.map((item) => (item.id === listingId ? updated : item)));
-      setArchiveCandidate(null);
+      setConfirmationCandidate(null);
     } catch {
       setError(copy.actionError);
     } finally {
@@ -181,6 +192,8 @@ export default function TutorListingsPage() {
     ARCHIVED: copy.archived,
   };
   const countsAvailable = !isLoading && !loadFailed;
+  const isPublishConfirmation = confirmationCandidate?.action === 'publish';
+  const confirmationIcon = isPublishConfirmation ? 'check' : 'archive';
 
   return (
     <DashboardShell
@@ -404,7 +417,10 @@ export default function TutorListingsPage() {
                           <button
                             type="button"
                             disabled={busyId === listing.id || !isVerified}
-                            onClick={() => void handlePublish(listing.id)}
+                            id={`publish-trigger-${listing.id}`}
+                            aria-haspopup="dialog"
+                            aria-controls="listing-confirmation-dialog"
+                            onClick={() => requestConfirmation(listing.id, 'publish')}
                             className={ledgerButtonClass('primary')}
                           >
                             {busyId === listing.id ? copy.working : copy.publish}
@@ -415,11 +431,8 @@ export default function TutorListingsPage() {
                             type="button"
                             id={`archive-trigger-${listing.id}`}
                             aria-haspopup="dialog"
-                            aria-controls="listing-archive-dialog"
-                            onClick={() => {
-                              setError(null);
-                              setArchiveCandidate(listing.id);
-                            }}
+                            aria-controls="listing-confirmation-dialog"
+                            onClick={() => requestConfirmation(listing.id, 'archive')}
                             className={ledgerButtonClass('secondary', styles.archiveAction)}
                           >
                             <ListingIcon name="archive" />
@@ -439,7 +452,10 @@ export default function TutorListingsPage() {
                             <button
                               type="button"
                               disabled={busyId === listing.id || !isVerified}
-                              onClick={() => void handlePublish(listing.id)}
+                              id={`publish-trigger-${listing.id}`}
+                              aria-haspopup="dialog"
+                              aria-controls="listing-confirmation-dialog"
+                              onClick={() => requestConfirmation(listing.id, 'publish')}
                               className={ledgerButtonClass('primary')}
                             >
                               {busyId === listing.id ? copy.working : copy.publish}
@@ -456,44 +472,44 @@ export default function TutorListingsPage() {
         </div>
       </div>
       <dialog
-        ref={archiveDialogRef}
-        id="listing-archive-dialog"
+        ref={confirmationDialogRef}
+        id="listing-confirmation-dialog"
         role="alertdialog"
         aria-modal="true"
-        aria-labelledby="listing-archive-title"
-        aria-describedby="listing-archive-description listing-archive-summary"
+        aria-labelledby="listing-confirmation-title"
+        aria-describedby="listing-confirmation-description listing-confirmation-summary"
         aria-busy={busyId !== null}
-        className={styles.archiveDialog}
+        className={styles.confirmationDialog}
         onCancel={(event) => {
           if (busyId !== null) event.preventDefault();
         }}
-        onClose={() => setArchiveCandidate(null)}
+        onClose={() => setConfirmationCandidate(null)}
       >
         <div className={styles.dialogHeader}>
           <span className={styles.dialogIcon} aria-hidden="true">
-            <ListingIcon name="archive" />
+            <ListingIcon name={confirmationIcon} />
           </span>
-          <h2 id="listing-archive-title" className={styles.dialogTitle}>
-            {copy.archiveConfirm}
+          <h2 id="listing-confirmation-title" className={styles.dialogTitle}>
+            {isPublishConfirmation ? copy.publishConfirm : copy.archiveConfirm}
           </h2>
         </div>
-        <p id="listing-archive-description" className={styles.dialogDescription}>
-          {copy.archiveExplanation}
+        <p id="listing-confirmation-description" className={styles.dialogDescription}>
+          {isPublishConfirmation ? copy.publishExplanation : copy.archiveExplanation}
         </p>
-        <div id="listing-archive-summary" className={styles.dialogSummary}>
+        <div id="listing-confirmation-summary" className={styles.dialogSummary}>
           <div className={styles.dialogBinding} aria-hidden="true">
             <span />
             <span />
             <span />
           </div>
-          {listingToArchive && (
+          {listingToConfirm && (
             <div className={styles.dialogCourse}>
-              <p className="text-xs text-notebook-muted">{listingToArchive.gradeLevel.name}</p>
+              <p className="text-xs text-notebook-muted">{listingToConfirm.gradeLevel.name}</p>
               <h3 className="text-base font-bold [overflow-wrap:anywhere]">
-                {listingToArchive.subject.name}
+                {listingToConfirm.subject.name}
               </h3>
               <p className="mt-1 text-base font-bold tabular-nums">
-                {formatPrice(listingToArchive.pricePerHour, language)}
+                {formatPrice(listingToConfirm.pricePerHour, language)}
                 <span className="ml-1 text-xs font-normal text-notebook-muted">/{copy.hour}</span>
               </p>
             </div>
@@ -509,23 +525,28 @@ export default function TutorListingsPage() {
             type="button"
             autoFocus
             disabled={busyId !== null}
-            onClick={() => setArchiveCandidate(null)}
+            onClick={() => setConfirmationCandidate(null)}
             className={listingButtonClass('secondary', styles.dialogAction)}
           >
             {copy.cancel}
           </button>
           <button
             type="button"
-            disabled={busyId !== null || !listingToArchive}
+            disabled={busyId !== null || !listingToConfirm}
             onClick={() => {
-              if (listingToArchive) void handleArchive(listingToArchive.id);
+              if (!listingToConfirm) return;
+              if (isPublishConfirmation) {
+                void handlePublish(listingToConfirm.id);
+              } else {
+                void handleArchive(listingToConfirm.id);
+              }
             }}
             className={listingButtonClass(
               'primary',
               `${styles.dialogAction} ${styles.dialogConfirm}`,
             )}
           >
-            <ListingIcon name="archive" />
+            <ListingIcon name={confirmationIcon} />
             {busyId !== null ? copy.working : copy.confirm}
           </button>
         </div>
@@ -587,6 +608,9 @@ const englishCopy = {
   publishedOn: 'Published',
   edit: 'Edit',
   publish: 'Publish',
+  publishConfirm: 'Publish this listing?',
+  publishExplanation:
+    'Students will be able to see this offer. Check the details before confirming.',
   restoreDraft: 'Restore draft',
   archive: 'Archive',
   archiveConfirm: 'Archive this listing?',
@@ -639,6 +663,8 @@ const thaiCopy: typeof englishCopy = {
   publishedOn: 'เผยแพร่เมื่อ',
   edit: 'แก้ไข',
   publish: 'เผยแพร่',
+  publishConfirm: 'เผยแพร่ประกาศนี้?',
+  publishExplanation: 'นักเรียนจะเห็นประกาศนี้ ตรวจสอบรายละเอียดก่อนยืนยันการเผยแพร่',
   restoreDraft: 'คืนเป็นฉบับร่าง',
   archive: 'เก็บถาวร',
   archiveConfirm: 'เก็บประกาศนี้ไว้ถาวร?',

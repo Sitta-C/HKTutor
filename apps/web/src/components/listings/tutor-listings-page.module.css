@@ -280,7 +280,7 @@
 }
 
 /* Compose the existing availability alert so both confirmations share one visual source. */
-.archiveDialog {
+.confirmationDialog {
   composes: deleteDialog from '../availability/manage-tutor-availability.module.css';
   --dialog-danger: var(--color-tutor-deep);
 }
