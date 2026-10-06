@@ -51,6 +51,7 @@ async function mockAvailability(
     additionalSlots?: TutorAvailabilitySlot[];
     availabilityGate?: Promise<void>;
     loadError?: boolean;
+    requestedUntil?: string[];
   } = {},
 ) {
   const created: CreateAvailabilityPayload[] = [];
@@ -112,6 +113,7 @@ async function mockAvailability(
       await options.availabilityGate;
       const from = url.searchParams.get('from');
       const to = url.searchParams.get('to');
+      if (to) options.requestedUntil?.push(to);
       body = slots.filter(
         (slot) =>
           (from === null || slot.startAtUtc >= from) && (to === null || slot.startAtUtc < to),
@@ -164,7 +166,7 @@ test('ledger summary keeps weekly counts, one timezone label, and bilingual resp
     await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth),
   ).toBeLessThanOrEqual(1);
   await summary.screenshot({ path: testInfo.outputPath('availability-ledger-th.png') });
-  await page.getByRole('button', { name: 'สัปดาห์ถัดไป', exact: true }).click();
+  await page.locator('[data-week="2026-10-12"]').click();
   await expect(metrics.nth(0).getByRole('definition').first()).toHaveText('0ช่วง');
   await expect(metrics.nth(1).getByRole('definition').first()).toHaveText('0ช่วง');
   await page.getByRole('button', { name: 'เปลี่ยนภาษาเป็นภาษาอังกฤษ' }).click();
@@ -777,10 +779,10 @@ test('weekly views carry earlier slots and deleting a spanning bar removes the w
   await expect(incoming).toHaveAttribute('data-availability-day', '2026-10-05');
   await expect(incoming.locator('strong')).toHaveText('00:00–07:00');
   await expect(incoming.locator('p')).toHaveText('ต่อเนื่อง · 4–5 ต.ค. 2569');
-  await page.getByRole('button', { name: 'สัปดาห์ก่อนหน้า', exact: true }).click();
+  await page.locator('[data-week="2026-09-28"]').click();
   await expect(incoming).toHaveAttribute('data-availability-day', '2026-10-04');
   await expect(incoming.locator('strong')).toHaveText('23:00–24:00');
-  await page.getByRole('button', { name: 'สัปดาห์ถัดไป', exact: true }).click();
+  await page.locator('[data-week="2026-10-05"]').click();
   await expect(incoming).toHaveAttribute('data-availability-day', '2026-10-05');
   const continuation = page.locator(
     '[data-availability-slot="overnight-slot"][data-availability-end-day="2026-10-10"]',
@@ -821,7 +823,7 @@ test('a continuous multi-week bar clearly marks clipped endpoints without adding
   await expect(bar.getByText('ต่อไป', { exact: true })).toBeVisible();
   await expect(page.locator('[data-availability-date]')).toHaveCount(7);
   await expect(bar.locator('p')).toHaveText(['5 ต.ค. 2569', '11 ต.ค. 2569']);
-  await page.getByRole('button', { name: 'สัปดาห์ถัดไป', exact: true }).click();
+  await page.locator('[data-week="2026-10-12"]').click();
   await expect(bar).toHaveCount(1);
   await expect(bar.locator('strong')).toHaveText(['00:00', '03:00']);
   await expect(bar.getByText('ต่อเนื่อง', { exact: true })).toBeVisible();
@@ -833,4 +835,138 @@ test('a continuous multi-week bar clearly marks clipped endpoints without adding
   expect(
     await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth),
   ).toBeLessThanOrEqual(1);
+});
+
+test('compact week reel changes the existing API range with scrolling, dragging, keyboard, and reset', async ({
+  page,
+  hasTouch,
+}, testInfo) => {
+  const requestedUntil: string[] = [];
+  await mockAvailability(page, { requestedUntil });
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
+  const ruler = page.getByRole('group', { name: 'เลือกสัปดาห์', exact: true });
+  const track = ruler.locator('[data-week-track]');
+  const selected = ruler.getByRole('button', { pressed: true });
+  await expect(selected).toHaveAttribute('data-week', '2026-10-05');
+  await expect(ruler.getByRole('button')).toHaveCount(25);
+  expect((await ruler.boundingBox())?.height).toBeLessThanOrEqual(72);
+  expect((await ruler.boundingBox())?.width).toBeLessThanOrEqual(416);
+  const isCentered = () =>
+    track.evaluate((element) => {
+      const button = element.querySelector<HTMLButtonElement>('[aria-pressed="true"]');
+      return button
+        ? Math.abs(
+            button.offsetLeft +
+              button.offsetWidth / 2 -
+              element.scrollLeft -
+              element.clientWidth / 2,
+          ) <= 1
+        : false;
+    });
+  await ruler.locator('[data-week="2026-09-28"]').click();
+  await expect(selected).toHaveAttribute('data-week', '2026-09-28');
+  await expect(ruler.getByRole('status')).toContainText('กันยายน');
+  await expect(ruler.getByRole('status')).toContainText('ตุลาคม');
+  await expect.poll(() => requestedUntil.at(-1)).toBe('2026-10-04T17:00:00.000Z');
+  await page.getByRole('button', { name: 'สัปดาห์นี้', exact: true }).click();
+  await expect(selected).toHaveAttribute('data-week', '2026-10-05');
+  await expect.poll(() => requestedUntil.at(-1)).toBe('2026-10-11T17:00:00.000Z');
+  await selected.focus();
+  await page.keyboard.press('ArrowRight');
+  await expect(selected).toHaveAttribute('data-week', '2026-10-12');
+  await expect(selected).toBeFocused();
+  await expect.poll(isCentered).toBe(true);
+  await track.hover();
+  await page.mouse.wheel(128, 0);
+  await expect(selected).toHaveAttribute('data-week', '2026-10-19');
+  await expect.poll(isCentered).toBe(true);
+  const bounds = await track.boundingBox();
+  expect(bounds).not.toBeNull();
+  if (bounds) {
+    const x = bounds.x + bounds.width * 0.7;
+    const y = bounds.y + bounds.height / 2;
+    await page.mouse.move(x, y);
+    await page.mouse.down();
+    await page.mouse.move(x - 128, y, { steps: 8 });
+    await page.waitForTimeout(250);
+    await expect(selected).toHaveAttribute('data-week', '2026-10-19');
+    await page.mouse.up();
+    await expect(selected).toHaveAttribute('data-week', '2026-10-26');
+    await expect.poll(isCentered).toBe(true);
+  }
+  await selected.focus();
+  for (let index = 0; index < 3; index++) await page.keyboard.press('PageDown');
+  await expect(selected).toHaveAttribute('data-week', '2027-01-18');
+  await expect(ruler.getByRole('button')).toHaveCount(25);
+  await expect(selected).toBeFocused();
+  await expect.poll(isCentered).toBe(true);
+  await ruler.locator('[data-week="2026-12-28"]').click();
+  await expect(ruler.getByRole('status')).toContainText('2569');
+  await expect(ruler.getByRole('status')).toContainText('2570');
+  expect(
+    await selected
+      .locator('span')
+      .last()
+      .evaluate((span) => span.scrollWidth <= span.clientWidth),
+  ).toBe(true);
+  await page.getByRole('button', { name: 'สัปดาห์นี้', exact: true }).click();
+  await expect(selected).toHaveAttribute('data-week', '2026-10-05');
+  if (hasTouch) {
+    await expect.poll(isCentered).toBe(true);
+    const touchBounds = await track.boundingBox();
+    expect(touchBounds).not.toBeNull();
+    if (touchBounds) {
+      const client = await page.context().newCDPSession(page);
+      const x = touchBounds.x + touchBounds.width * 0.75;
+      const y = touchBounds.y + touchBounds.height / 2;
+      await client.send('Input.dispatchTouchEvent', {
+        type: 'touchStart',
+        touchPoints: [{ x, y }],
+      });
+      for (let step = 1; step <= 8; step++) {
+        await client.send('Input.dispatchTouchEvent', {
+          type: 'touchMove',
+          touchPoints: [{ x: x - step * 16, y }],
+        });
+        await page.waitForTimeout(32);
+      }
+      await page.waitForTimeout(100);
+      await expect(selected).toHaveAttribute('data-week', '2026-10-05');
+      await client.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+      await expect(selected).toHaveAttribute('data-week', '2026-10-12');
+      await expect.poll(isCentered).toBe(true);
+      await client.detach();
+      await page.getByRole('button', { name: 'สัปดาห์นี้', exact: true }).click();
+      await expect(selected).toHaveAttribute('data-week', '2026-10-05');
+    }
+  }
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await selected.focus();
+  await page.keyboard.press('ArrowLeft');
+  await expect(selected).toHaveAttribute('data-week', '2026-09-28');
+  await expect.poll(isCentered).toBe(true);
+  for (const width of [320, 768, 1440]) {
+    await page.setViewportSize({ width, height: 1000 });
+    await expect.poll(isCentered).toBe(true);
+    await expect(selected).toHaveAttribute('data-week', '2026-09-28');
+    expect(
+      await page.evaluate(() => document.documentElement.scrollWidth - innerWidth),
+    ).toBeLessThanOrEqual(1);
+    expect((await ruler.boundingBox())?.height).toBeLessThanOrEqual(72);
+    await page.locator('[aria-labelledby="availability-week-title"]').screenshot({
+      path: testInfo.outputPath(`week-reel-th-${width}.png`),
+      animations: 'disabled',
+    });
+  }
+  await page.getByRole('button', { name: 'เปลี่ยนภาษาเป็นภาษาอังกฤษ' }).click();
+  const english = page.getByRole('group', { name: 'Choose a week', exact: true });
+  await expect(english.getByRole('status')).toContainText('September');
+  await expect(english.getByRole('status')).toContainText('October');
+  await expect(english.getByRole('status')).toContainText('2026');
+  await page.getByRole('button', { name: 'This week', exact: true }).click();
+  await expect(english.getByRole('button', { pressed: true })).toHaveAttribute(
+    'data-week',
+    '2026-10-05',
+  );
+  await expect(page.locator('[data-availability-slot="open-slot"]')).toBeVisible();
 });

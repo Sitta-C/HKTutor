@@ -4,13 +4,13 @@ import { CalendarRuler } from '@/components/date-time/calendar-ruler';
 
 import type { DateTimeLanguage } from '@/lib/date-time';
 
-export function MonthRuler(props: {
+export function WeekRuler(props: {
   value: string;
   language: DateTimeLanguage;
   label: string;
   hint: string;
   selectedLabel: string;
-  onChange: (month: string) => void;
+  onChange: (weekStart: string) => void;
 }) {
-  return <CalendarRuler unit="month" {...props} />;
+  return <CalendarRuler unit="week" {...props} />;
 }

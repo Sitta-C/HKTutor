@@ -12,6 +12,7 @@ import { DashboardIcon } from '@/components/dashboard/dashboard-icon';
 import DashboardShell from '@/components/dashboard/dashboard-shell';
 import { LocalizedDatePicker } from '@/components/date-time/localized-date-picker';
 import { TimeWheelPicker } from '@/components/date-time/time-wheel-picker';
+import { WeekRuler } from '@/components/date-time/week-ruler';
 import {
   GraphPaper,
   PaperCard,
@@ -33,7 +34,6 @@ import {
   getBangkokWeekRange,
   getBangkokWeekStart,
   getTutorAvailability,
-  shiftBangkokWeek,
 } from '@/lib/api/availability';
 import { ApiError } from '@/lib/api/error';
 import {
@@ -298,51 +298,35 @@ export default function ManageTutorAvailability() {
             aria-labelledby="availability-week-title"
           >
             <WashiTape tone="blue" className="-top-2 left-8 rotate-2" />
-            <div className="flex flex-col gap-4 border-b border-dashed border-paper-edge pb-5 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <h2
-                  id="availability-week-title"
-                  className="text-lg font-extrabold text-notebook-ink"
-                >
-                  {availabilityCopy.weekOf.replace('{date}', weekLabel)}
-                </h2>
-                <p className="mt-1 max-w-md text-xs leading-5 text-notebook-muted">
-                  {availabilityCopy.weekDescription}
-                </p>
-              </div>
-              <div className="flex flex-wrap gap-2">
+            <div className="space-y-2 border-b border-dashed border-paper-edge pb-3">
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <h2
+                    id="availability-week-title"
+                    className="text-base font-bold text-notebook-ink"
+                  >
+                    {availabilityCopy.weekOf.replace('{date}', weekLabel)}
+                  </h2>
+                  <p className="mt-1 max-w-md text-xs leading-5 text-notebook-muted">
+                    {availabilityCopy.weekDescription}
+                  </p>
+                </div>
                 <button
                   type="button"
-                  className={notebookButtonClass({
-                    tone: 'secondary',
-                    className: 'min-h-10 w-10 px-0 py-2 text-lg',
-                  })}
-                  aria-label={availabilityCopy.previousWeek}
-                  onClick={() => changeWeek(shiftBangkokWeek(weekStart, -1))}
-                >
-                  ‹
-                </button>
-                <button
-                  type="button"
-                  className={availabilitySecondaryButtonClass}
-                  onClick={() => {
-                    changeWeek(thisWeek);
-                  }}
+                  className="inline-flex min-h-11 shrink-0 items-center rounded-md px-1 text-xs font-semibold text-tutor-deep underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tutor-deep"
+                  onClick={() => changeWeek(thisWeek)}
                 >
                   {availabilityCopy.thisWeek}
                 </button>
-                <button
-                  type="button"
-                  className={notebookButtonClass({
-                    tone: 'secondary',
-                    className: 'min-h-10 w-10 px-0 py-2 text-lg',
-                  })}
-                  aria-label={availabilityCopy.nextWeek}
-                  onClick={() => changeWeek(shiftBangkokWeek(weekStart, 1))}
-                >
-                  ›
-                </button>
               </div>
+              <WeekRuler
+                value={weekStart}
+                language={language}
+                label={availabilityCopy.weekPicker}
+                hint={availabilityCopy.weekPickerHint}
+                selectedLabel={availabilityCopy.selectedWeek}
+                onChange={changeWeek}
+              />
             </div>
 
             {isLoading ? (

@@ -1,6 +1,14 @@
 .window {
-  --month-width: 5.75rem;
-  --month-edge: color-mix(in srgb, var(--color-tutor-deep) 28%, white);
+  --ruler-width: 5.75rem;
+  --ruler-edge: color-mix(in srgb, var(--color-tutor-deep) 28%, white);
+}
+
+.weekWindow {
+  --ruler-width: 8rem;
+}
+
+.weekWindow .item {
+  padding-inline: 0.5rem;
 }
 
 .window::before {
@@ -9,10 +17,10 @@
   top: 0.875rem;
   bottom: 0.25rem;
   left: 50%;
-  width: var(--month-width);
+  width: var(--ruler-width);
   pointer-events: none;
   content: '';
-  border: 1px solid var(--month-edge);
+  border: 1px solid var(--ruler-edge);
   border-radius: 0.5rem;
   transform: translateX(-50%);
 }
@@ -42,14 +50,14 @@
 .track {
   padding: 0.875rem 0 0.25rem;
   overscroll-behavior-x: contain;
-  scrollbar-color: var(--month-edge) transparent;
+  scrollbar-color: var(--ruler-edge) transparent;
   scrollbar-width: thin;
   scroll-snap-type: x mandatory;
 }
 
 .track::before,
 .track::after {
-  flex: 0 0 calc((100% - var(--month-width)) / 2);
+  flex: 0 0 calc((100% - var(--ruler-width)) / 2);
   content: '';
 }
 
@@ -58,18 +66,18 @@
 }
 
 .track::-webkit-scrollbar-thumb {
-  background: var(--month-edge);
+  background: var(--ruler-edge);
   border-radius: 1rem;
 }
 
-.month {
+.item {
   position: relative;
-  flex: 0 0 var(--month-width);
+  flex: 0 0 var(--ruler-width);
   min-height: 2.75rem;
   scroll-snap-align: center;
 }
 
-.month::before {
+.item::before {
   position: absolute;
   top: -0.5625rem;
   right: 0;
@@ -79,8 +87,8 @@
   content: '';
   background: repeating-linear-gradient(
     to right,
-    var(--month-edge) 0 1px,
-    transparent 1px calc(var(--month-width) / 4)
+    var(--ruler-edge) 0 1px,
+    transparent 1px calc(var(--ruler-width) / 4)
   );
 }
 
