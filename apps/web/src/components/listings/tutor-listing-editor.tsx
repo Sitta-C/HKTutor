@@ -1,6 +1,5 @@
 'use client';
 
-import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
@@ -21,6 +20,7 @@ import {
   stepListingPrice,
   validateListingForm,
 } from '@/components/listings/tutor-listing-editor-model';
+import { OwnProfileAvatar } from '@/components/profile/profile-avatar';
 import { PaperCard, StickyNote, WashiTape } from '@/components/ui/notebook';
 import { NotebookSelect } from '@/components/ui/notebook-select';
 import { useNotebookToast } from '@/components/ui/notebook-toast';
@@ -583,6 +583,7 @@ export default function TutorListingEditor({
                 <WashiTape tone="blue" className={`${styles.previewTape}`} />
                 <div className={styles.previewPerson}>
                   <ListingPreviewAvatar
+                    userId={user.id}
                     displayName={profileDisplayName}
                     imageUrl={profileImageUrl}
                   />
@@ -741,22 +742,21 @@ function Field({
 function ListingPreviewAvatar({
   displayName,
   imageUrl,
+  userId,
 }: {
   displayName: string;
   imageUrl?: string | null;
+  userId: string;
 }) {
   return (
-    <span
-      className="relative flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full border-2 border-paper bg-tutor-deep text-sm font-black text-white shadow-sm ring-1 ring-paper-edge"
-      role="img"
-      aria-label={displayName}
-    >
-      {imageUrl ? (
-        <Image src={imageUrl} alt="" fill sizes="44px" className="object-cover" unoptimized />
-      ) : (
-        <span aria-hidden="true">{displayName.charAt(0).toUpperCase() || 'T'}</span>
-      )}
-    </span>
+    <OwnProfileAvatar
+      userId={userId}
+      name={displayName}
+      imageUrl={imageUrl}
+      fallback={displayName.charAt(0).toUpperCase() || 'T'}
+      sizes="44px"
+      className="h-11 w-11 border-2 border-paper bg-tutor-deep text-sm font-black text-white shadow-sm ring-1 ring-paper-edge"
+    />
   );
 }
 

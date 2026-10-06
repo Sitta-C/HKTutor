@@ -46,6 +46,7 @@ export default function PublicTutorSearchShell({ children }: { children: ReactNo
   return (
     <DashboardShell
       user={shellUser}
+      avatarEnabled={Boolean(user)}
       onLogout={async () => {
         if (user) await logout();
         router.push('/');

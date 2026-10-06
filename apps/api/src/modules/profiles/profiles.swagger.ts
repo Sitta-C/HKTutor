@@ -75,6 +75,9 @@ class TutorProfileResponseDto {
 }
 
 class MyProfileResponseDto {
+  @ApiProperty({ type: String, format: 'date-time', nullable: true })
+  avatarUpdatedAt!: Date | null;
+
   @ApiProperty({ enum: Role, enumName: 'Role', example: Role.STUDENT })
   role!: Role;
 

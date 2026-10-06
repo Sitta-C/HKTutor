@@ -169,6 +169,9 @@ export class ListingResponseDto {
 }
 
 export class TutorSearchResultDto {
+  @ApiProperty({ type: String, format: 'date-time', nullable: true })
+  avatarUpdatedAt!: Date | null;
+
   @ApiProperty({ example: '10000000-0000-4000-8000-000000000001', format: 'uuid' })
   listingId!: string;
 
@@ -229,6 +232,9 @@ export class TutorSearchResponseDto {
 }
 
 export class PublicTutorProfileDto {
+  @ApiProperty({ type: String, format: 'date-time', nullable: true })
+  avatarUpdatedAt!: Date | null;
+
   @ApiProperty({ example: '20000000-0000-4000-8000-000000000001', format: 'uuid' })
   tutorId!: string;
 

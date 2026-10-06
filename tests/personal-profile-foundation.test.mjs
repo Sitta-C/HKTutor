@@ -121,15 +121,19 @@ test('adds profile onboarding/edit pages and redirects verified users to onboard
   assert.doesNotMatch(editor, /profile-form-card|profile-grid|profile-summary-row/);
 });
 
-test('keeps profile identity and the production sidebar ready for future avatar URLs', async () => {
+test('connects profile identity and the production sidebar to shared signed avatar rendering', async () => {
   const profileEditor = await read('apps/web/src/components/profile/profile-editor.tsx');
   const dashboardShell = await read('apps/web/src/components/dashboard/dashboard-shell.tsx');
+  const avatar = await read('apps/web/src/components/profile/profile-avatar.tsx');
 
   assert.doesNotMatch(profileEditor, /visualVariant=/);
   assert.match(profileEditor, /imageUrl\?: string \| null/);
-  assert.match(profileEditor, /imageUrl \? \(/);
-  assert.match(profileEditor, /<Image src={imageUrl}/);
-  assert.match(profileEditor, /<span aria-hidden="true">{letters}<\/span>/);
+  assert.match(profileEditor, /<OwnProfileAvatar/);
+  assert.match(profileEditor, /<AvatarEditor/);
+  assert.match(avatar, /loadAvatar\(key, publicTutorId\)/);
+  assert.match(avatar, /<Image[\s\S]*src={url}/);
+  assert.match(avatar, /unoptimized/);
+  assert.match(avatar, /<span aria-hidden="true">{fallback}<\/span>/);
   assert.match(dashboardShell, /userAvatarUrl\?: string \| null/);
   assert.match(dashboardShell, /imageUrl={userAvatarUrl}/);
   assert.match(dashboardShell, /function SidebarAvatar/);

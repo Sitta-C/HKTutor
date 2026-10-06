@@ -1,5 +1,19 @@
 export type UserRole = 'STUDENT' | 'TUTOR' | 'ADMIN';
 
+export interface Avatar {
+  url: string;
+  expiresAt: string;
+  updatedAt: string;
+}
+
+export interface AvatarReadResponse {
+  avatar: Avatar | null;
+}
+
+export interface AvatarMutationResponse {
+  avatarUpdatedAt: string | null;
+}
+
 export type QualificationDocumentType = 'DEGREE' | 'CERTIFICATE';
 export type QualificationStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
 
@@ -142,6 +156,7 @@ export type PatchTeachingListingPayload = {
     Partial<Omit<SaveTeachingListingPayload, Field>>;
 }[keyof SaveTeachingListingPayload];
 export interface MyProfileResponse {
+  avatarUpdatedAt?: string | null;
   role: UserRole;
   consentCurrent: boolean;
   policyVersion: string;
@@ -170,6 +185,7 @@ export interface TutorSearchQuery {
 }
 
 export interface TutorSearchResult {
+  avatarUpdatedAt?: string | null;
   listingId: string;
   tutorId: string;
   displayName: string;
@@ -193,6 +209,7 @@ export interface TutorSearchResponse {
 }
 
 export interface PublicTutorProfile {
+  avatarUpdatedAt?: string | null;
   tutorId: string;
   displayName: string;
   bio: string;

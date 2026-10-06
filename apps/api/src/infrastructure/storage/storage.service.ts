@@ -56,6 +56,20 @@ export class StorageService {
     return this.prepare('document', ownerUserId, file);
   }
 
+  prepareAvatar(ownerUserId: string, file: StorageUpload): PreparedStorageUpload {
+    return this.prepare('avatar', ownerUserId, file);
+  }
+
+  async assertPrivateAvatarBucket(): Promise<void> {
+    const bucket = await this.request(
+      () => this.client.storage.getBucket(this.bucket('avatar')),
+      'Avatar bucket could not be checked',
+    );
+    if (bucket.public !== false) {
+      throw new ServiceUnavailableException('Avatar storage must use a private bucket');
+    }
+  }
+
   async uploadPrepared(file: PreparedStorageUpload): Promise<StoredFile> {
     // Revalidate before network I/O; prepared uploads are internal, never HTTP input.
     this.validateObjectPath(file.objectPath);

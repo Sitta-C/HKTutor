@@ -55,6 +55,19 @@ describe('StorageService', () => {
     fetchMock.mockReset();
   });
 
+  it('requires the avatar bucket to be private for the avatar feature', async () => {
+    fetchMock.mockResolvedValueOnce(response({ id: 'test-avatars', public: false }));
+    await expect(service.assertPrivateAvatarBucket()).resolves.toBeUndefined();
+    fetchMock.mockResolvedValueOnce(response({ id: 'test-avatars', public: true }));
+    await expect(service.assertPrivateAvatarBucket()).rejects.toThrow(
+      'Avatar storage must use a private bucket',
+    );
+    fetchMock.mockRejectedValueOnce(new Error('provider secret details'));
+    await expect(service.assertPrivateAvatarBucket()).rejects.toThrow(
+      'Avatar bucket could not be checked',
+    );
+  });
+
   it('can be injected by a feature importing StorageModule', async () => {
     const module = await Test.createTestingModule({
       imports: [StorageModule],

@@ -24,7 +24,9 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "verify:workspace": "node --test tests/*.test.mjs",
-    "check": "pnpm db:generate && pnpm format:check && pnpm lint && pnpm test && pnpm build"
+    "check": "pnpm db:generate && pnpm format:check && pnpm lint && pnpm test && pnpm build",
+    "storage:recover:avatars": "pnpm --filter @hktutor/api storage:recover:avatars",
+    "db:verify:avatars": "pnpm --filter @hktutor/api db:verify:avatars"
   },
   "devDependencies": {
     "@hktutor/eslint-config": "workspace:*",

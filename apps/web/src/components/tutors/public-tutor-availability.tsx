@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 
+import { ProfileAvatar } from '@/components/profile/profile-avatar';
 import {
   GraphPaper,
   NotebookHeading,
@@ -111,6 +112,14 @@ export default function PublicTutorAvailabilityPage({ tutorId }: { tutorId: stri
           ← {text.back}
         </Link>
         <div className="mt-6 flex flex-wrap items-end justify-between gap-3">
+          <ProfileAvatar
+            name={detail.tutor.displayName}
+            publicTutorId={tutorId}
+            avatarUpdatedAt={detail.tutor.avatarUpdatedAt}
+            fallback={detail.tutor.displayName.charAt(0).toUpperCase() || 'T'}
+            sizes="64px"
+            className="h-16 w-16 bg-tutor-deep text-xl font-black text-white shadow-sm"
+          />
           <NotebookHeading
             eyebrow={text.eyebrow}
             title={detail.tutor.displayName}

@@ -51,7 +51,7 @@ test('keeps listing form feedback accessible and within the API contract', async
   assert.match(editor, /role="alert"/);
   assert.match(editor, /role="status"/);
   assert.match(editor, /profileImageUrl\?: string \| null/);
-  assert.match(editor, /<Image src={imageUrl}/);
+  assert.match(editor, /<OwnProfileAvatar[\s\S]*userId={userId}[\s\S]*imageUrl={imageUrl}/);
   assert.match(editor, /\[overflow-wrap:anywhere\]/);
   assert.match(model, /`ประสบการณ์ \$\{years\} ปี`/);
 });

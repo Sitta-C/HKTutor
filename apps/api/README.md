@@ -24,7 +24,7 @@ All controller routes receive the global `/api/v1` prefix. Authentication endpoi
 
 ## Source layout
 
-- `src/modules/` contains runtime features: auth, bookings, health, profiles,
+- `src/modules/` contains runtime features: auth, avatars, bookings, health, profiles,
   qualification-documents, and tutors.
 - `src/infrastructure/` contains technical adapters shared by features: database, email, and storage.
 - `src/common/` and `src/config/` contain cross-feature utilities and configuration.
@@ -113,14 +113,15 @@ Configure these server-only values in the root `.env` (also forwarded only to th
 Create/configure the buckets beforehand; application startup does not create buckets or change
 Storage policies. Set the global Storage file limit to at least 5 MiB and bucket limits as follows:
 
-| Purpose  | Maximum bytes   | Allowed MIME types                           | Access                          |
-| -------- | --------------- | -------------------------------------------- | ------------------------------- |
-| Avatar   | 2097152 (2 MiB) | `image/jpeg`, `image/png`, `image/webp`      | Public only for public profiles |
-| Document | 5242880 (5 MiB) | `application/pdf`, `image/jpeg`, `image/png` | Private                         |
+| Purpose  | Maximum bytes   | Allowed MIME types                           | Access                |
+| -------- | --------------- | -------------------------------------------- | --------------------- |
+| Avatar   | 2097152 (2 MiB) | `image/webp` (normalized)                    | Private (signed URLs) |
+| Document | 5242880 (5 MiB) | `application/pdf`, `image/jpeg`, `image/png` | Private               |
 
 Secret keys bypass RLS, so do not add broad anonymous/authenticated upload or document-read policies.
-Review existing policies too. The service checks document bucket privacy before uploading or
-signing a document URL and refuses a public bucket. SDK requests time out after 15 seconds.
+Review existing policies too. The document service checks its bucket privacy before upload/signing;
+the avatar feature also requires a private avatar bucket before upload/signing. Public buckets are
+rejected. SDK requests time out after 15 seconds.
 
 Service methods:
 
@@ -129,8 +130,9 @@ Service methods:
   or mismatched MIME signatures; return `{ objectPath, mimeType, sizeBytes }`. Paths are generated
   as `<user UUID>/<random UUID>.<detected extension>` with overwrites disabled. The caller can pass
   a multipart file's `buffer` and `mimetype`; never use its filename to construct the object path.
-- `prepareDocument(ownerUserId, file)` validates and reserves a unique path without network I/O;
-  `uploadPrepared(prepared)` uploads at that exact path. The qualification feature persists its
+- `prepareAvatar(ownerUserId, file)` and `prepareDocument(ownerUserId, file)` validate and reserve
+  a unique path without network I/O;
+  `uploadPrepared(prepared)` uploads at that exact path. Each upload feature persists its
   recovery intent between these calls so ambiguous Storage failures remain recoverable.
 - `remove('avatar' | 'document', objectPath)`: remove the specified object, including cleanup after
   a failed metadata write. This method does not check domain ownership.
@@ -141,8 +143,8 @@ Service methods:
   Anyone holding the URL can use it until expiry. This also supports private avatar buckets.
 
 The byte-signature check detects file types; it does not fully parse files, strip image metadata,
-resize images, or scan for malware. A future avatar endpoint should decode/re-encode images as
-needed and restrict multipart file count/size before buffering; document endpoints should apply
+resize images, or scan for malware. The avatar feature decodes/re-encodes images and restricts
+multipart file count/size before buffering; document endpoints should apply
 their own review and retention rules. Original names remain feature metadata. Storage provider
 errors and network exceptions become sanitized 503 responses; invalid files/paths produce 400
 and oversized buffers produce 413.
@@ -163,6 +165,84 @@ CI booking verification starts the full API against disposable PostgreSQL. Its w
 test-only Storage configuration (`storage.example.test`, a dummy secret key, and distinct dummy
 bucket names) to satisfy startup validation; the booking probe does not call live Storage. Keep
 real Supabase credentials out of this job.
+
+## Student and tutor avatars
+
+Avatar metadata is nullable directly on `User`: `avatarObjectPath`, `avatarMimeType`,
+`avatarSizeBytes`, and `avatarUpdatedAt`. The forward migration
+`20261006210000_add_user_avatar` adds these columns without changing existing account/profile data.
+A check requires either all-null metadata or a positive, bounded WebP file owned by that user;
+object paths are unique. Photo presence does not affect onboarding completeness or verification.
+`AvatarUploadIntent` stores only durable cleanup work, not image history. Its table enables RLS and
+revokes access from `PUBLIC` and Supabase browser roles; Prisma must use the table owner/backend role.
+
+| Method and route (under `/api/v1`) | Contract                                                                |
+| ---------------------------------- | ----------------------------------------------------------------------- |
+| `GET /profiles/me/avatar`          | Owner-only `{ avatar: { url, expiresAt, updatedAt } \| null }`          |
+| `POST /profiles/me/avatar`         | One multipart `file`; 201 `{ avatarUpdatedAt }` after metadata commits  |
+| `DELETE /profiles/me/avatar`       | 200 `{ avatarUpdatedAt: null }`; repeated removal succeeds              |
+| `GET /tutors/:tutorId/avatar`      | Anonymous read only for tutors passing existing public visibility rules |
+
+Owner routes require JWT authentication, student/tutor role, an active non-deleted account, and
+current privacy consent. The user ID comes from the session; no body/query owner ID is accepted.
+Uploads are available before the role-specific profile row is created. Admins cannot use these
+owner routes, and there is no public student avatar endpoint. Public tutor reads use the same
+verified/active/non-deleted/tutor-role filter as the directory. Private URL responses use
+`Cache-Control: private, no-store`. Signing failure does not break profile or directory reads.
+
+Upload accepts exactly one JPEG, PNG, or static WebP up to and including 2097152 bytes (2 MiB),
+without extra multipart fields. Empty/missing, unsupported, MIME-mismatched, animated, undecodable,
+and images above 16 megapixels return 400; oversized uploads return 413. Upload attempts are limited
+to ten per minute per IP (429). Sharp applies EXIF orientation, centers/crops within 512×512 without
+upscaling, and encodes WebP at quality 82 without retaining EXIF/location metadata. Original filenames
+are not persisted or used in paths. Storage failures are sanitized 503s.
+
+Set `SUPABASE_AVATAR_BUCKET` to a pre-created **private** bucket accepting `image/webp` with a
+2097152-byte limit. Do not switch an existing public bucket blindly; use a separate private bucket
+if its existing consumers require public access. No browser upload/read policies are needed.
+URLs are signed for at most 300 seconds and remain bearer links until expiry; never persist them.
+`GET /profiles/me`, tutor search, and tutor detail expose nullable `avatarUpdatedAt` as a version;
+the web fetches signed URLs separately, deduplicates requests, renews before expiry/on visibility,
+and shows initials if files are absent or fail to load. Photo mutations update the owner's in-memory
+profile cache without overwriting unsaved profile fields. This version has no crop/zoom editor.
+
+Uploads persist a unique cleanup intent before Storage I/O. Finalization serializes on the `User`
+row, checks ownership/consent again, locks the intent, then installs the new reference and queues the
+old path in one transaction. The new intent is consumed in that transaction. Deletion clears all
+metadata and queues the former reference atomically. Concurrent writes cannot accidentally queue
+the new current image for deletion. An ambiguous upload/metadata outcome retains its intent;
+recovery checks references under the intent lock before deleting an object.
+
+Mutations trigger one bounded recovery batch for due work. Abandoned uploads become eligible after
+five minutes; failed cleanup becomes eligible again after one minute. Intents survive restarts.
+Following the existing centralized-scheduler direction, API startup does not register a timer.
+Operators (or a future scheduler) can run one batch of at most five objects:
+
+```bash
+pnpm storage:recover:avatars
+```
+
+The command uses configured backend database/Storage credentials and deletes only objects with due,
+unreferenced avatar intents. Repeat batches to drain the queue; monitor pending age/attempts. It
+returns a nonzero exit code on recovery failure. Logs never include provider errors, object paths,
+URLs, or secrets.
+
+Before starting the updated API, apply the new migration to a confirmed target using the established
+migration process and configure the private bucket. Live bucket verification must use synthetic
+files to check upload/sign/download/delete, refusal of a public bucket, blocked anonymous direct
+reads, student privacy, and eligible tutor visibility. Unit/API/browser checks use mocked Storage
+and are not evidence that the intended Supabase bucket is configured correctly.
+
+The optional real PostgreSQL constraint/concurrency probe uses simulated Storage and requires an
+explicitly opted-in disposable loopback database named `hktutor_*_test`, with migrations applied:
+
+```bash
+HKTUTOR_ALLOW_DISPOSABLE_DB_VERIFY=1 pnpm db:verify:avatars
+```
+
+It creates and removes only its synthetic accounts/intents and checks concurrent upload/deletion,
+metadata constraints, ambiguous uploads, reference protection, and cleanup retry. Never run it
+against a shared or production database.
 
 ## Qualification document API (S2-T07)
 

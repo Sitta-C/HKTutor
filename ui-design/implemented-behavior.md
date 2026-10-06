@@ -77,3 +77,13 @@ the create-course action appears only when the tutor has no listings.
 Past lesson requests are hidden by default. A reusable blue bookmark-note switch can include
 them in the request list. Pale blue paper and a perforated margin distinguish past lessons
 without reducing the readability of their details.
+
+## Profile photos
+
+Student and tutor onboarding/edit pages include an optional photo section with local preview,
+explicit upload, cancel selection, and removal. Photos save separately from the profile form;
+changing a photo preserves unsaved field edits. Thai/English copy states file limits and visibility.
+The controls wrap at 320px and retain labels, visible keyboard focus, pending/error states, and a
+live success notice. Saved photos appear in sidebar/account previews and the tutor course preview;
+eligible tutor photos also appear in public search/detail. Private signed URLs renew while pages
+stay open and when returning to a visible tab. Missing/failed images fall back to initials.

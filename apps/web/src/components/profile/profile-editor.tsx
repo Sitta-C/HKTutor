@@ -1,6 +1,5 @@
 'use client';
 
-import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
@@ -8,6 +7,8 @@ import { useEffect, useState } from 'react';
 import { DashboardIcon, type DashboardIconName } from '@/components/dashboard/dashboard-icon';
 import DashboardShell from '@/components/dashboard/dashboard-shell';
 import PrivacyConsent from '@/components/privacy-consent';
+import { AvatarEditor } from '@/components/profile/avatar-editor';
+import { OwnProfileAvatar } from '@/components/profile/profile-avatar';
 import {
   emptyStudentForm,
   emptyTutorForm,
@@ -104,6 +105,7 @@ export default function ProfileEditor({ mode }: ProfileEditorProps) {
   const toast = useNotebookToast();
   const router = useRouter();
   const text = copy[language];
+  const [avatarUpdatedAt, setAvatarUpdatedAt] = useState<string | null>(null);
   const [student, setStudent] = useState<StudentForm>(emptyStudentForm);
   const [initialStudent, setInitialStudent] = useState<StudentForm>(emptyStudentForm);
   const [tutor, setTutor] = useState<TutorForm>(emptyTutorForm);
@@ -136,6 +138,7 @@ export default function ProfileEditor({ mode }: ProfileEditorProps) {
       .then((result) => {
         if (!active) return;
         setConsentCurrent(result.consentCurrent);
+        setAvatarUpdatedAt(result.avatarUpdatedAt ?? null);
         const studentProfile = getStudentProfile(result);
         if (user.role === 'STUDENT' && studentProfile) {
           setStudent(studentProfile);
@@ -196,6 +199,7 @@ export default function ProfileEditor({ mode }: ProfileEditorProps) {
         await acceptCurrentPrivacyNotice();
         const result = await loadCurrentProfile(user.id, { force: true });
         setConsentCurrent(result.consentCurrent);
+        setAvatarUpdatedAt(result.avatarUpdatedAt ?? null);
         setAcceptedNotice(false);
         setConsentError(null);
 
@@ -361,6 +365,15 @@ export default function ProfileEditor({ mode }: ProfileEditorProps) {
                 </h2>
               </div>
               {error && <Alert>{error}</Alert>}
+              <AvatarEditor
+                userId={user.id}
+                name={savedShellName || user.email}
+                role={tone}
+                language={language}
+                avatarUpdatedAt={avatarUpdatedAt}
+                onChanged={setAvatarUpdatedAt}
+                disabled={isSaving}
+              />
               {studentRole ? (
                 <StudentFields
                   data={student}
@@ -425,9 +438,14 @@ export default function ProfileEditor({ mode }: ProfileEditorProps) {
             </form>
           </PaperCard>
           {studentRole ? (
-            <StudentSummary data={student} language={language} />
+            <StudentSummary userId={user.id} data={student} language={language} />
           ) : (
-            <TutorPreview data={tutor} language={language} status={tutorMeta.verificationStatus} />
+            <TutorPreview
+              userId={user.id}
+              data={tutor}
+              language={language}
+              status={tutorMeta.verificationStatus}
+            />
           )}
         </div>
       )}
@@ -751,7 +769,15 @@ function SystemInfo({
   );
 }
 
-function StudentSummary({ data, language }: { data: StudentForm; language: 'en' | 'th' }) {
+function StudentSummary({
+  data,
+  language,
+  userId,
+}: {
+  userId: string;
+  data: StudentForm;
+  language: 'en' | 'th';
+}) {
   const text = copy[language];
   const nickname = data.nickname.trim() || text.nickname;
   return (
@@ -766,6 +792,7 @@ function StudentSummary({ data, language }: { data: StudentForm; language: 'en' 
         />
         <StickyNote tone="green" className="p-4">
           <Identity
+            userId={userId}
             name={nickname}
             detail={text.studentAccount}
             initials={initials(nickname, 'S')}
@@ -796,10 +823,12 @@ function StudentSummary({ data, language }: { data: StudentForm; language: 'en' 
 }
 
 function TutorPreview({
+  userId,
   data,
   language,
   status,
 }: {
+  userId: string;
   data: TutorForm;
   language: 'en' | 'th';
   status: TutorProfile['verificationStatus'];
@@ -822,7 +851,13 @@ function TutorPreview({
         <WashiTape tone="blue" className={`${previewStyles.tape}`} />
         <div className={previewStyles.identityRow}>
           <div className={previewStyles.identity}>
-            <Identity name={name} detail={text.tutor} initials={initials(name, 'T')} role="tutor" />
+            <Identity
+              userId={userId}
+              name={name}
+              detail={text.tutor}
+              initials={initials(name, 'T')}
+              role="tutor"
+            />
             <p
               className={`${previewStyles.verification} ${
                 status === 'VERIFIED'
@@ -893,6 +928,7 @@ function PreviewTitle({
   );
 }
 function Identity({
+  userId,
   name,
   detail,
   secondaryDetail,
@@ -902,6 +938,7 @@ function Identity({
   badge,
   badgeIcon,
 }: {
+  userId: string;
   name: string;
   detail: string;
   secondaryDetail?: string;
@@ -913,17 +950,14 @@ function Identity({
 }) {
   return (
     <div className="relative z-10 flex items-center gap-3">
-      <span
-        className={`relative flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-full border-2 border-paper text-lg font-black text-white shadow-sm ring-1 ring-paper-edge ${profileTone[role].avatar}`}
-        role="img"
-        aria-label={name}
-      >
-        {imageUrl ? (
-          <Image src={imageUrl} alt="" fill sizes="56px" className="object-cover" unoptimized />
-        ) : (
-          <span aria-hidden="true">{letters}</span>
-        )}
-      </span>
+      <OwnProfileAvatar
+        userId={userId}
+        name={name}
+        imageUrl={imageUrl}
+        fallback={letters}
+        sizes="56px"
+        className={`h-14 w-14 border-2 border-paper text-lg font-black text-white shadow-sm ring-1 ring-paper-edge ${profileTone[role].avatar}`}
+      />
       <div className="min-w-0">
         <h3 className="truncate text-base font-extrabold text-notebook-ink">{name}</h3>
         <p className="mt-0.5 text-xs text-notebook-muted">{detail}</p>
