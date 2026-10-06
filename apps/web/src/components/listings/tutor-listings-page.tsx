@@ -198,8 +198,8 @@ export default function TutorListingsPage() {
   return (
     <DashboardShell user={profileUser} onLogout={handleLogout}>
       <div className={styles.page}>
-        <header className={styles.pageHeader}>
-          <div className={styles.headingContent}>
+        <header className="mb-6 mt-7 flex flex-col items-stretch justify-between gap-5 sm:flex-row sm:items-center sm:gap-6">
+          <div className="min-w-0 flex-1">
             <p className="text-xs font-bold tracking-wide text-tutor-deep">{copy.eyebrow}</p>
             <h1 className="mt-2 flex flex-wrap items-center gap-3 text-3xl font-bold tracking-[-0.045em] text-notebook-ink sm:text-4xl">
               <span>{copy.title}</span>
@@ -213,7 +213,10 @@ export default function TutorListingsPage() {
           </div>
           <Link
             href="/dashboard/listings/new"
-            className={listingButtonClass('primary', `${styles.newListing} ${styles.primary}`)}
+            className={listingButtonClass(
+              'primary',
+              `w-full shrink-0 whitespace-normal sm:w-auto sm:whitespace-nowrap ${styles.newListing} ${styles.primary}`,
+            )}
           >
             <ListingIcon name="add" />
             {copy.newListing}

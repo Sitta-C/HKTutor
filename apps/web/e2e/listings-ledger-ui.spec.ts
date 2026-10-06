@@ -197,6 +197,57 @@ test('preserves search, filtering, edit links and publication actions in the led
   ]);
 });
 
+for (const language of ['th', 'en'] as const) {
+  test(`preserves create action placement and spacing after returning from the editor in ${language}`, async ({
+    page,
+  }) => {
+    await mockListings(page, { language });
+    for (const width of [320, 639, 640, 768, 1440]) {
+      await page.setViewportSize({ width, height: 1100 });
+      await page.goto('/dashboard/listings');
+      const create = page.getByRole('link', {
+        name: language === 'th' ? 'สร้างประกาศใหม่' : 'New listing',
+        exact: true,
+      });
+      for (const returning of [false, true]) {
+        if (returning) {
+          await create.focus();
+          await page.keyboard.press('Enter');
+          await page.waitForURL('**/dashboard/listings/new');
+          await page.goBack();
+        }
+        await expect(create).toBeVisible();
+        await expect(create).toHaveCount(1);
+        await expect(page.getByRole('article')).toHaveCount(3);
+        const layout = await create.evaluate((element) => {
+          const header = element.closest('header');
+          const introduction = header?.querySelector('div');
+          const summary = header?.nextElementSibling;
+          const main = element.closest('main');
+          if (!header || !introduction || !summary || !main) {
+            throw new Error('The create action must belong to the page introduction.');
+          }
+          return {
+            header: header.getBoundingClientRect().toJSON(),
+            introduction: introduction.getBoundingClientRect().toJSON(),
+            action: element.getBoundingClientRect().toJSON(),
+            summary: summary.getBoundingClientRect().toJSON(),
+            overflow: main.scrollWidth - main.clientWidth,
+          };
+        });
+        expect(layout.overflow).toBeLessThanOrEqual(1);
+        expect(layout.summary.top - layout.header.bottom).toBeGreaterThanOrEqual(23);
+        if (width < 640) {
+          expect(layout.action.top - layout.introduction.bottom).toBeGreaterThanOrEqual(19);
+          expect(Math.abs(layout.action.width - layout.header.width)).toBeLessThanOrEqual(1);
+        } else {
+          expect(layout.action.left - layout.introduction.right).toBeGreaterThanOrEqual(23);
+        }
+      }
+    }
+  });
+}
+
 test('keeps publication blue and archiving warning red when switching alerts', async ({ page }) => {
   const writes = await mockListings(page, { language: 'en' });
   await page.goto('/dashboard/listings');
