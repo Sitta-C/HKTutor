@@ -323,7 +323,6 @@ export default function TutorListingEditor({
                 {copy.subtitle}
               </p>
             </div>
-            <ListingStatusBadge status={status} labels={statusLabels} />
           </div>
         </header>
 
