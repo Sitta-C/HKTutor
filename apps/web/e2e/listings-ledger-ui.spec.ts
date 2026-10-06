@@ -47,6 +47,8 @@ async function mockListings(
     fail?: boolean;
     empty?: boolean;
     beforeRead?: () => Promise<void>;
+    beforeArchive?: () => Promise<void>;
+    failArchive?: boolean;
   } = {},
 ) {
   const writes: Array<{ path: string; body: unknown }> = [];
@@ -103,6 +105,13 @@ async function mockListings(
         return;
       }
       writes.push({ path, body: request.postData() ? request.postDataJSON() : null });
+      if (path.endsWith('/status') && request.postDataJSON().publicationStatus === 'ARCHIVED') {
+        await options.beforeArchive?.();
+        if (options.failArchive) {
+          await route.fulfill({ status: 500, json: { message: 'Unavailable' } });
+          return;
+        }
+      }
       const updated: TeachingListing = {
         ...item,
         publicationStatus: path.endsWith('/publish')
@@ -138,11 +147,26 @@ test('preserves search, filtering, edit links and publication actions in the led
   await expect(physics.getByText('Published', { exact: true })).toBeVisible();
   await search.fill('');
   const math = ledger.getByRole('article', { name: 'Mathematics', exact: true });
+  const dialog = page.getByRole('alertdialog', { name: 'Archive this listing?' });
   await math.getByRole('button', { name: 'Archive', exact: true }).click();
-  await math.getByRole('button', { name: 'Cancel', exact: true }).click();
+  await expect(dialog.getByRole('button', { name: 'Cancel', exact: true })).toBeFocused();
+  await expect(dialog.getByRole('heading', { name: 'Mathematics', exact: true })).toBeVisible();
+  await page.keyboard.press('Tab');
+  await expect(dialog.getByRole('button', { name: 'Confirm', exact: true })).toBeFocused();
+  await page.keyboard.press('Tab');
+  await page.keyboard.press('Tab');
+  await expect(dialog.getByRole('button', { name: 'Cancel', exact: true })).toBeFocused();
+  await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
+  await expect(math.getByRole('button', { name: 'Archive', exact: true })).toBeFocused();
   expect(writes).toHaveLength(1);
   await math.getByRole('button', { name: 'Archive', exact: true }).click();
-  await math.getByRole('button', { name: 'Confirm', exact: true }).click();
+  await dialog.getByRole('button', { name: 'Confirm', exact: true }).focus();
+  await page.keyboard.press('Escape');
+  await expect(dialog).toHaveCount(0);
+  await expect(math.getByRole('button', { name: 'Archive', exact: true })).toBeFocused();
+  expect(writes).toHaveLength(1);
+  await math.getByRole('button', { name: 'Archive', exact: true }).click();
+  await dialog.getByRole('button', { name: 'Confirm', exact: true }).click();
   await expect(math.getByText('Archived', { exact: true })).toBeVisible();
   await math.getByRole('button', { name: 'Restore draft', exact: true }).click();
   await expect(math.getByText('Draft', { exact: true })).toBeVisible();
@@ -160,7 +184,7 @@ test('preserves search, filtering, edit links and publication actions in the led
   ]);
 });
 
-test('fits the Thai ledger and inline confirmation at 320px and respects verification', async ({
+test('fits the Thai ledger and archive alert at 320px and respects verification', async ({
   page,
 }) => {
   await page.setViewportSize({ width: 320, height: 900 });
@@ -175,7 +199,8 @@ test('fits the Thai ledger and inline confirmation at 320px and respects verific
   }
   const math = ledger.getByRole('article', { name: 'Mathematics', exact: true });
   await math.getByRole('button', { name: 'เก็บถาวร', exact: true }).click();
-  await expect(math.getByRole('button', { name: 'ยืนยัน', exact: true })).toBeVisible();
+  const dialog = page.getByRole('alertdialog', { name: 'เก็บประกาศนี้ไว้ถาวร?' });
+  await expect(dialog.getByRole('button', { name: 'ยืนยัน', exact: true })).toBeVisible();
   const fits = await page.locator('main').evaluate((element) => {
     return [...element.querySelectorAll('article, button, input, select')].every((child) => {
       if (!child.getClientRects().length) return true;
@@ -188,8 +213,56 @@ test('fits the Thai ledger and inline confirmation at 320px and respects verific
     });
   });
   expect(fits).toBe(true);
-  await math.getByRole('button', { name: 'ยกเลิก', exact: true }).click();
+  expect(
+    await dialog.evaluate((element) => {
+      const rect = element.getBoundingClientRect();
+      return (
+        rect.left >= 0 &&
+        rect.right <= window.innerWidth &&
+        element.scrollWidth <= element.clientWidth
+      );
+    }),
+  ).toBe(true);
+  await dialog.getByRole('button', { name: 'ยกเลิก', exact: true }).click();
   expect(writes).toEqual([]);
+});
+
+test('keeps an archive failure visible in the alert without changing the course status', async ({
+  page,
+}) => {
+  await mockListings(page, { language: 'en', failArchive: true });
+  await page.goto('/dashboard/listings');
+  const math = page.getByRole('article', { name: 'Mathematics', exact: true });
+  await math.getByRole('button', { name: 'Archive', exact: true }).click();
+  const dialog = page.getByRole('alertdialog', { name: 'Archive this listing?' });
+  await dialog.getByRole('button', { name: 'Confirm', exact: true }).click();
+  await expect(dialog.getByRole('alert')).toHaveText(
+    'Unable to update this listing. Check your profile status and try again.',
+  );
+  await expect(dialog.getByRole('button', { name: 'Confirm', exact: true })).toBeEnabled();
+  await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
+  await expect(math.getByText('Published', { exact: true })).toBeVisible();
+});
+
+test('keeps the alert open and prevents duplicate requests while archiving', async ({ page }) => {
+  let release = () => {};
+  const pending = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const writes = await mockListings(page, { language: 'en', beforeArchive: () => pending });
+  await page.goto('/dashboard/listings');
+  const math = page.getByRole('article', { name: 'Mathematics', exact: true });
+  await math.getByRole('button', { name: 'Archive', exact: true }).click();
+  const dialog = page.getByRole('alertdialog', { name: 'Archive this listing?' });
+  await dialog.getByRole('button', { name: 'Confirm', exact: true }).click();
+  await expect(dialog.getByRole('button', { name: 'Working…', exact: true })).toBeDisabled();
+  await expect(dialog.getByRole('button', { name: 'Cancel', exact: true })).toBeDisabled();
+  await page.keyboard.press('Escape');
+  await expect(dialog).toBeVisible();
+  release();
+  await expect(dialog).toHaveCount(0);
+  await expect(math.getByText('Archived', { exact: true })).toBeVisible();
+  expect(writes).toHaveLength(1);
 });
 
 test('keeps counts unavailable on load failure and does not show an empty account', async ({

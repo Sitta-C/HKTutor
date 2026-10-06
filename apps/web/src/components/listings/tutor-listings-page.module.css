@@ -279,15 +279,52 @@
   background: var(--color-red-50);
 }
 
-.confirmation {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.375rem;
-  border: 1px solid var(--color-red-200);
-  border-radius: 0.5rem;
-  background: var(--color-red-50);
+/* Compose the existing availability alert so both confirmations share one visual source. */
+.archiveDialog {
+  composes: deleteDialog from '../availability/manage-tutor-availability.module.css';
+  --dialog-danger: var(--color-tutor-deep);
+}
+
+.dialogHeader {
+  composes: dialogHeader from '../availability/manage-tutor-availability.module.css';
+}
+
+.dialogIcon {
+  composes: dialogIcon from '../availability/manage-tutor-availability.module.css';
+}
+
+.dialogTitle {
+  composes: dialogTitle from '../availability/manage-tutor-availability.module.css';
+  overflow-wrap: anywhere;
+}
+
+.dialogDescription {
+  composes: dialogDescription from '../availability/manage-tutor-availability.module.css';
+}
+
+.dialogSummary {
+  composes: dialogSummary from '../availability/manage-tutor-availability.module.css';
+}
+
+.dialogBinding {
+  composes: dialogBinding from '../availability/manage-tutor-availability.module.css';
+}
+
+.dialogCourse {
+  composes: dialogRange from '../availability/manage-tutor-availability.module.css';
+  gap: 0.25rem;
+}
+
+.dialogActions {
+  composes: dialogActions from '../availability/manage-tutor-availability.module.css';
+}
+
+.dialogAction {
+  composes: dialogAction from '../availability/manage-tutor-availability.module.css';
+}
+
+.dialogConfirm {
+  composes: dialogDelete from '../availability/manage-tutor-availability.module.css';
 }
 
 .loading {
