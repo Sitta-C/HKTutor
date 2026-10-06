@@ -2,7 +2,6 @@ import { applyDecorators } from '@nestjs/common';
 import {
   ApiBadRequestResponse,
   ApiBearerAuth,
-  ApiConflictResponse,
   ApiCreatedResponse,
   ApiExtraModels,
   ApiForbiddenResponse,
@@ -30,8 +29,8 @@ const TUTOR_ID_EXAMPLE = 'ad08a291-dd8b-40c1-84e5-ddafca54c6fc';
 const MESSAGE_ID_EXAMPLE = 'b7e4c1a2-5f6d-4e8b-9a0c-3d2f1e4b5a69';
 
 const lastMessageExample = {
-  id: MESSAGE_ID_EXAMPLE,
-  senderUserId: STUDENT_ID_EXAMPLE,
+  messageId: MESSAGE_ID_EXAMPLE,
+  senderId: STUDENT_ID_EXAMPLE,
   sentAt: '2026-09-30T08:05:00.000Z',
   text: 'Do you teach quadratic equations?',
 };
@@ -43,14 +42,27 @@ const conversationSummaryExample = {
   otherParticipant: { displayName: 'Anan Suksawat', id: TUTOR_ID_EXAMPLE },
 };
 
-function errorSchema(error: string, message: string | string[], statusCode: number) {
-  return { example: { error, message, statusCode }, type: 'object' };
+/** The body ApiExceptionFilter sends for an HTTP error. */
+interface ErrorExample {
+  code: string;
+  error: string;
+  message: string | string[];
+  statusCode: number;
+}
+
+function errorSchema(example: ErrorExample) {
+  return { example, type: 'object' };
 }
 
 function apiUnauthorizedResponse(): MethodDecorator {
   return ApiUnauthorizedResponse({
     description: 'The access token or its backing session is missing, invalid, expired, or revoked',
-    schema: errorSchema('Unauthorized', 'Invalid or expired authentication token', 401),
+    schema: errorSchema({
+      code: 'UNAUTHENTICATED',
+      error: 'Unauthorized',
+      message: 'Invalid or expired authentication token',
+      statusCode: 401,
+    }),
   });
 }
 
@@ -82,21 +94,32 @@ export function OpenConversationDoc(): MethodDecorator {
     }),
     ApiBadRequestResponse({
       description: 'tutorId failed validation or the body contained an unknown field',
-      schema: errorSchema('Bad Request', ['tutorId must be a UUID'], 400),
+      schema: errorSchema({
+        code: 'VALIDATION_FAILED',
+        error: 'Bad Request',
+        message: ['tutorId must be a UUID'],
+        statusCode: 400,
+      }),
     }),
     apiUnauthorizedResponse(),
     ApiForbiddenResponse({
       description:
         'The caller is not an active student, or has not completed their student profile',
-      schema: errorSchema(
-        'Forbidden',
-        'Students must complete their profile before starting a conversation.',
-        403,
-      ),
+      schema: errorSchema({
+        code: 'FORBIDDEN',
+        error: 'Forbidden',
+        message: 'Students must complete their profile before starting a conversation.',
+        statusCode: 403,
+      }),
     }),
     ApiNotFoundResponse({
       description: 'The tutor does not exist or is not verified, active, and undeleted',
-      schema: errorSchema('Not Found', 'Tutor not found', 404),
+      schema: errorSchema({
+        code: 'NOT_FOUND',
+        error: 'Not Found',
+        message: 'Tutor not found',
+        statusCode: 404,
+      }),
     }),
   );
 }
@@ -117,12 +140,22 @@ export function GetMyConversationsDoc(): MethodDecorator {
     }),
     ApiBadRequestResponse({
       description: 'page or pageSize failed validation',
-      schema: errorSchema('Bad Request', ['pageSize must not be greater than 100'], 400),
+      schema: errorSchema({
+        code: 'VALIDATION_FAILED',
+        error: 'Bad Request',
+        message: ['pageSize must not be greater than 100'],
+        statusCode: 400,
+      }),
     }),
     apiUnauthorizedResponse(),
     ApiForbiddenResponse({
       description: 'The caller is not a student or a tutor',
-      schema: errorSchema('Forbidden', 'You do not have permission to access this resource', 403),
+      schema: errorSchema({
+        code: 'FORBIDDEN',
+        error: 'Forbidden',
+        message: 'You do not have permission to access this resource',
+        statusCode: 403,
+      }),
     }),
   );
 }
@@ -133,44 +166,41 @@ export function SendMessageDoc(): MethodDecorator {
     ApiOperation({ summary: 'Send a message in a conversation' }),
     ApiBearerAuth(JWT_BEARER_AUTH),
     ApiCreatedResponse({
-      description:
-        'The message was stored; resending the same clientMessageId returns the original message',
+      description: 'The message was stored',
       schema: {
         allOf: [{ $ref: getSchemaPath(MessageResponseDto) }],
-        example: {
-          ...lastMessageExample,
-          clientMessageId: '0f8fad5b-d9cb-469f-a165-70867728950e',
-          conversationId: CONVERSATION_ID_EXAMPLE,
-          readAt: null,
-        },
+        example: { ...lastMessageExample, conversationId: CONVERSATION_ID_EXAMPLE, readAt: null },
         type: 'object',
       },
     }),
     ApiBadRequestResponse({
       description:
-        'The text is blank or longer than 2000 characters, clientMessageId or conversationId is not a UUID, or the request body contained an unknown field',
-      schema: errorSchema('Bad Request', ['text should not be empty'], 400),
+        'The text is blank or longer than 2000 characters, conversationId is not a UUID, or the request body contained an unknown field',
+      schema: errorSchema({
+        code: 'VALIDATION_FAILED',
+        error: 'Bad Request',
+        message: ['text should not be empty'],
+        statusCode: 400,
+      }),
     }),
     apiUnauthorizedResponse(),
     ApiForbiddenResponse({
       description: 'The caller is not a participant in the conversation',
-      schema: errorSchema(
-        'Forbidden',
-        'Only participants can send messages in this conversation.',
-        403,
-      ),
+      schema: errorSchema({
+        code: 'FORBIDDEN',
+        error: 'Forbidden',
+        message: 'Only participants can send messages in this conversation.',
+        statusCode: 403,
+      }),
     }),
     ApiNotFoundResponse({
       description: 'The conversation does not exist',
-      schema: errorSchema('Not Found', 'Conversation not found', 404),
-    }),
-    ApiConflictResponse({
-      description: 'clientMessageId was already used for a message in another conversation',
-      schema: errorSchema(
-        'Conflict',
-        'clientMessageId was already used in another conversation.',
-        409,
-      ),
+      schema: errorSchema({
+        code: 'NOT_FOUND',
+        error: 'Not Found',
+        message: 'Conversation not found',
+        statusCode: 404,
+      }),
     }),
   );
 }

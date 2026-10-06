@@ -9,7 +9,6 @@ import {
 } from '@modules/conversations/conversations.dto';
 
 const TUTOR_ID = 'ad08a291-dd8b-40c1-84e5-ddafca54c6fc';
-const CLIENT_MESSAGE_ID = '0f8fad5b-d9cb-469f-a165-70867728950e';
 
 // One character stored as two UTF-16 units.
 const GRINNING_FACE = '\u{1F600}';
@@ -48,6 +47,12 @@ describe('SendMessageDto', () => {
     expect(errors.map((error) => error.property)).toEqual(['text']);
   });
 
+  it('accepts a one-character message', async () => {
+    const { errors } = await validateMessage({ text: 'a' });
+
+    expect(errors).toHaveLength(0);
+  });
+
   it('accepts exactly 2000 characters and rejects 2001', async () => {
     const atLimit = await validateMessage({ text: 'a'.repeat(MESSAGE_TEXT_MAX_LENGTH) });
     const overLimit = await validateMessage({ text: 'a'.repeat(MESSAGE_TEXT_MAX_LENGTH + 1) });
@@ -71,18 +76,6 @@ describe('SendMessageDto', () => {
 
     expect(astral.errors).toHaveLength(0);
     expect(withSelectors.errors.map((error) => error.property)).toEqual(['text']);
-  });
-
-  it('accepts a UUID clientMessageId', async () => {
-    const { errors } = await validateMessage({ clientMessageId: CLIENT_MESSAGE_ID, text: 'Hello' });
-
-    expect(errors).toHaveLength(0);
-  });
-
-  it('rejects a malformed clientMessageId', async () => {
-    const { errors } = await validateMessage({ clientMessageId: 'retry-1', text: 'Hello' });
-
-    expect(errors.map((error) => error.property)).toEqual(['clientMessageId']);
   });
 });
 

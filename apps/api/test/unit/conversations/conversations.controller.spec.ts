@@ -48,11 +48,10 @@ const conversationSummary = {
 };
 
 const storedMessage = {
-  clientMessageId: CLIENT_MESSAGE_ID,
   conversationId: CONVERSATION_ID,
-  id: MESSAGE_ID,
+  messageId: MESSAGE_ID,
   readAt: null,
-  senderUserId: STUDENT_ID,
+  senderId: STUDENT_ID,
   sentAt: '2026-09-30T08:05:00.000Z',
   text: US2_1_MESSAGE,
 };
@@ -193,12 +192,11 @@ describe('conversation routes', () => {
 
       await request(app.getHttpServer())
         .post(messagesPath)
-        .send({ clientMessageId: CLIENT_MESSAGE_ID, text: `  ${US2_1_MESSAGE}  ` })
+        .send({ text: `  ${US2_1_MESSAGE}  ` })
         .expect(201)
         .expect(storedMessage);
 
       expect(sendMessage).toHaveBeenCalledWith({
-        clientMessageId: CLIENT_MESSAGE_ID,
         conversationId: CONVERSATION_ID,
         senderUserId: STUDENT_ID,
         text: US2_1_MESSAGE,
@@ -207,7 +205,7 @@ describe('conversation routes', () => {
 
     it('lets a tutor reply', async () => {
       currentUser = signedInAs(Role.TUTOR);
-      sendMessage.mockResolvedValue({ ...storedMessage, senderUserId: TUTOR_ID });
+      sendMessage.mockResolvedValue({ ...storedMessage, senderId: TUTOR_ID });
 
       await request(app.getHttpServer())
         .post(messagesPath)
@@ -225,7 +223,7 @@ describe('conversation routes', () => {
       ['an empty text', { text: '' }],
       ['a whitespace-only text', { text: '   \n\t ' }],
       ['a text over 2000 characters', { text: 'a'.repeat(2001) }],
-      ['a malformed clientMessageId', { clientMessageId: 'retry-1', text: 'Hello' }],
+      ['a clientMessageId in the body', { clientMessageId: CLIENT_MESSAGE_ID, text: 'Hello' }],
       ['a senderUserId in the body', { senderUserId: OTHER_STUDENT_ID, text: 'Hello' }],
     ])('rejects %s with 400 and stores nothing', async (_label, payload) => {
       await request(app.getHttpServer()).post(messagesPath).send(payload).expect(400);
@@ -333,13 +331,14 @@ describe('ConversationsController OpenAPI contract', () => {
       document.paths[`/${API_GLOBAL_PREFIX}/conversations/{conversationId}/messages`]?.post;
 
     expect(operation?.summary).toBe('Send a message in a conversation');
-    for (const status of ['201', '400', '401', '403', '404', '409']) {
+    for (const status of ['201', '400', '401', '403', '404']) {
       expect(operation?.responses[status]).toBeDefined();
     }
+    expect(operation?.responses['409']).toBeUndefined();
     expect(operation?.security).toEqual([{ [JWT_BEARER_AUTH]: [] }]);
   });
 
-  it('documents the message text limits and keeps the sender out of the request body', () => {
+  it('documents the API-02 request body as text only, with its limits', () => {
     const schema = document.components?.schemas?.['SendMessageDto'] as
       | {
           properties?: Record<string, { maxLength?: number; minLength?: number }>;
@@ -347,9 +346,18 @@ describe('ConversationsController OpenAPI contract', () => {
         }
       | undefined;
 
+    expect(Object.keys(schema?.properties ?? {})).toEqual(['text']);
     expect(schema?.properties?.['text']).toMatchObject({ maxLength: 2000, minLength: 1 });
-    expect(schema?.properties?.['clientMessageId']).toBeDefined();
-    expect(schema?.properties?.['senderUserId']).toBeUndefined();
     expect(schema?.required).toEqual(['text']);
+  });
+
+  it('documents the API-02 message response fields', () => {
+    const schema = document.components?.schemas?.['MessageResponseDto'] as
+      { properties?: Record<string, { nullable?: boolean }>; required?: string[] } | undefined;
+    const fields = ['messageId', 'conversationId', 'senderId', 'text', 'sentAt', 'readAt'];
+
+    expect(Object.keys(schema?.properties ?? {})).toEqual(fields);
+    expect(schema?.required).toEqual(fields);
+    expect(schema?.properties?.['readAt']).toMatchObject({ nullable: true });
   });
 });

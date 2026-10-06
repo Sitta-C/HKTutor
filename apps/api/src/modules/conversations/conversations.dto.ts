@@ -45,15 +45,6 @@ export class SendMessageDto {
     message: `text must be at most ${MESSAGE_TEXT_MAX_LENGTH} characters`,
   })
   text!: string;
-
-  @ApiPropertyOptional({
-    description:
-      'Client-generated key; resending with the same key returns the original message. The server generates one when it is omitted.',
-    example: '0f8fad5b-d9cb-469f-a165-70867728950e',
-  })
-  @IsOptional()
-  @IsUUID()
-  clientMessageId?: string;
 }
 
 export class GetMyConversationsQueryDto {
@@ -80,16 +71,13 @@ export class GetMyConversationsQueryDto {
 
 export class MessageResponseDto {
   @ApiProperty({ example: 'b7e4c1a2-5f6d-4e8b-9a0c-3d2f1e4b5a69' })
-  id!: string;
+  messageId!: string;
 
   @ApiProperty({ example: '6f1c2b8e-3d4a-4f5b-9c7d-2e8a1b0c9d3f' })
   conversationId!: string;
 
   @ApiProperty({ example: '2c9d7e1f-4a3b-4c5d-8e6f-7a8b9c0d1e2f' })
-  senderUserId!: string;
-
-  @ApiProperty({ example: '0f8fad5b-d9cb-469f-a165-70867728950e' })
-  clientMessageId!: string;
+  senderId!: string;
 
   @ApiProperty({ example: 'Do you teach quadratic equations?' })
   text!: string;
@@ -97,7 +85,12 @@ export class MessageResponseDto {
   @ApiProperty({ example: '2026-09-30T08:05:00.000Z' })
   sentAt!: string;
 
-  @ApiProperty({ example: null, nullable: true, type: String })
+  @ApiProperty({
+    description: 'Null until the other participant reads the message',
+    example: null,
+    nullable: true,
+    type: String,
+  })
   readAt!: string | null;
 }
 
@@ -114,10 +107,10 @@ export class ConversationParticipantDto {
 
 export class ConversationLastMessageDto {
   @ApiProperty({ example: 'b7e4c1a2-5f6d-4e8b-9a0c-3d2f1e4b5a69' })
-  id!: string;
+  messageId!: string;
 
   @ApiProperty({ example: '2c9d7e1f-4a3b-4c5d-8e6f-7a8b9c0d1e2f' })
-  senderUserId!: string;
+  senderId!: string;
 
   @ApiProperty({ example: 'Do you teach quadratic equations?' })
   text!: string;

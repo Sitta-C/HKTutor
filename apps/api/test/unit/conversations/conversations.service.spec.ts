@@ -1,4 +1,4 @@
-import { ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common';
+import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 
 import { AccountStatus, Role } from '@generated/prisma/enums';
@@ -16,13 +16,19 @@ const TUTOR_ID = '1772b6be-ebb5-40b7-b5bd-1c1fcfe26857';
 const CONVERSATION_ID = '6f1c2b8e-3d4a-4f5b-9c7d-2e8a1b0c9d3f';
 const OTHER_CONVERSATION_ID = '3e2d1c0b-9a8f-4e7d-b6c5-a4b3c2d1e0f9';
 const MESSAGE_ID = 'b7e4c1a2-5f6d-4e8b-9a0c-3d2f1e4b5a69';
-const CLIENT_MESSAGE_ID = '0f8fad5b-d9cb-469f-a165-70867728950e';
 const US2_1_MESSAGE = 'Do you teach quadratic equations?';
 const CREATED_AT = new Date('2026-09-30T08:00:00.000Z');
 const SENT_AT = new Date('2026-09-30T08:05:00.000Z');
 const UUID_V4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 
 type DatabaseError = Error & { code: string };
+
+interface CreatedMessageData {
+  clientMessageId: string;
+  conversationId: string;
+  senderUserId: string;
+  text: string;
+}
 
 const createDatabaseError = (code: string): DatabaseError =>
   Object.assign(new Error(`Database error ${code}`), { code });
@@ -45,7 +51,6 @@ const lastMessage = {
 
 const storedMessage = (overrides: Record<string, unknown> = {}) => ({
   ...lastMessage,
-  clientMessageId: CLIENT_MESSAGE_ID,
   conversationId: CONVERSATION_ID,
   readAt: null,
   ...overrides,
@@ -57,7 +62,7 @@ describe('ConversationsService', () => {
   const mockPrismaService = {
     $queryRaw: jest.fn(),
     conversation: { count: jest.fn(), create: jest.fn(), findUnique: jest.fn() },
-    message: { create: jest.fn(), findFirst: jest.fn(), findUnique: jest.fn() },
+    message: { create: jest.fn(), findFirst: jest.fn() },
     tutorProfile: { findFirst: jest.fn() },
     user: { findUnique: jest.fn() },
   };
@@ -123,8 +128,8 @@ describe('ConversationsService', () => {
           createdAt: CREATED_AT.toISOString(),
           id: CONVERSATION_ID,
           lastMessage: {
-            id: MESSAGE_ID,
-            senderUserId: STUDENT_ID,
+            messageId: MESSAGE_ID,
+            senderId: STUDENT_ID,
             sentAt: SENT_AT.toISOString(),
             text: US2_1_MESSAGE,
           },
@@ -244,8 +249,8 @@ describe('ConversationsService', () => {
             createdAt: CREATED_AT.toISOString(),
             id: CONVERSATION_ID,
             lastMessage: {
-              id: MESSAGE_ID,
-              senderUserId: STUDENT_ID,
+              messageId: MESSAGE_ID,
+              senderId: STUDENT_ID,
               sentAt: SENT_AT.toISOString(),
               text: US2_1_MESSAGE,
             },
@@ -309,56 +314,54 @@ describe('ConversationsService', () => {
   describe('sendMessage', () => {
     const participants = { studentUserId: STUDENT_ID, tutorUserId: TUTOR_ID };
 
-    const createdData = (): { clientMessageId: string } | undefined =>
+    const createdData = (call = 0): CreatedMessageData | undefined =>
       (
         mockPrismaService.message.create.mock.calls as unknown as Array<
-          [{ data: { clientMessageId: string } }]
+          [{ data: CreatedMessageData }]
         >
-      )[0]?.[0].data;
+      )[call]?.[0].data;
 
-    it('stores the US2-1 message from the student and returns it', async () => {
+    it('stores the US2-1 message from the student and returns the API-02 fields', async () => {
       mockPrismaService.conversation.findUnique.mockResolvedValue(participants);
       mockPrismaService.message.create.mockResolvedValue(storedMessage());
 
       await expect(
         service.sendMessage({
-          clientMessageId: CLIENT_MESSAGE_ID,
           conversationId: CONVERSATION_ID,
           senderUserId: STUDENT_ID,
           text: US2_1_MESSAGE,
         }),
       ).resolves.toEqual({
-        clientMessageId: CLIENT_MESSAGE_ID,
         conversationId: CONVERSATION_ID,
-        id: MESSAGE_ID,
+        messageId: MESSAGE_ID,
         readAt: null,
-        senderUserId: STUDENT_ID,
+        senderId: STUDENT_ID,
         sentAt: SENT_AT.toISOString(),
         text: US2_1_MESSAGE,
       });
-      expect(mockPrismaService.message.create).toHaveBeenCalledWith(
-        expect.objectContaining({
-          data: {
-            clientMessageId: CLIENT_MESSAGE_ID,
-            conversationId: CONVERSATION_ID,
-            senderUserId: STUDENT_ID,
-            text: US2_1_MESSAGE,
-          },
-        }),
-      );
-    });
-
-    it('generates a clientMessageId when the client sends none', async () => {
-      mockPrismaService.conversation.findUnique.mockResolvedValue(participants);
-      mockPrismaService.message.create.mockResolvedValue(storedMessage());
-
-      await service.sendMessage({
+      expect(createdData()).toMatchObject({
         conversationId: CONVERSATION_ID,
         senderUserId: STUDENT_ID,
         text: US2_1_MESSAGE,
       });
+    });
 
-      expect(createdData()?.clientMessageId).toMatch(UUID_V4);
+    it('generates a fresh clientMessageId for every message', async () => {
+      mockPrismaService.conversation.findUnique.mockResolvedValue(participants);
+      mockPrismaService.message.create.mockResolvedValue(storedMessage());
+      const sendHello = () =>
+        service.sendMessage({
+          conversationId: CONVERSATION_ID,
+          senderUserId: STUDENT_ID,
+          text: 'Hello',
+        });
+
+      await sendHello();
+      await sendHello();
+
+      expect(createdData(0)?.clientMessageId).toMatch(UUID_V4);
+      expect(createdData(1)?.clientMessageId).toMatch(UUID_V4);
+      expect(createdData(1)?.clientMessageId).not.toBe(createdData(0)?.clientMessageId);
     });
 
     it('lets the tutor reply in the same conversation', async () => {
@@ -369,22 +372,16 @@ describe('ConversationsService', () => {
 
       await expect(
         service.sendMessage({
-          clientMessageId: CLIENT_MESSAGE_ID,
           conversationId: CONVERSATION_ID,
           senderUserId: TUTOR_ID,
           text: 'Yes, I do.',
         }),
-      ).resolves.toMatchObject({ senderUserId: TUTOR_ID, text: 'Yes, I do.' });
-      expect(mockPrismaService.message.create).toHaveBeenCalledWith(
-        expect.objectContaining({
-          data: {
-            clientMessageId: CLIENT_MESSAGE_ID,
-            conversationId: CONVERSATION_ID,
-            senderUserId: TUTOR_ID,
-            text: 'Yes, I do.',
-          },
-        }),
-      );
+      ).resolves.toMatchObject({ senderId: TUTOR_ID, text: 'Yes, I do.' });
+      expect(createdData()).toMatchObject({
+        conversationId: CONVERSATION_ID,
+        senderUserId: TUTOR_ID,
+        text: 'Yes, I do.',
+      });
     });
 
     it('returns 404 for a conversation that does not exist and stores nothing', async () => {
@@ -412,64 +409,22 @@ describe('ConversationsService', () => {
       expect(mockPrismaService.message.create).not.toHaveBeenCalled();
     });
 
-    it('returns the original message when a retry reuses clientMessageId', async () => {
-      mockPrismaService.conversation.findUnique.mockResolvedValue(participants);
-      mockPrismaService.message.create.mockRejectedValue(createDatabaseError('P2002'));
-      mockPrismaService.message.findUnique.mockResolvedValue(storedMessage());
-
-      await expect(
-        service.sendMessage({
-          clientMessageId: CLIENT_MESSAGE_ID,
-          conversationId: CONVERSATION_ID,
-          senderUserId: STUDENT_ID,
-          text: US2_1_MESSAGE,
-        }),
-      ).resolves.toMatchObject({ clientMessageId: CLIENT_MESSAGE_ID, id: MESSAGE_ID });
-      expect(mockPrismaService.message.findUnique).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: {
-            senderUserId_clientMessageId: {
-              clientMessageId: CLIENT_MESSAGE_ID,
-              senderUserId: STUDENT_ID,
-            },
-          },
-        }),
-      );
-    });
-
-    it('returns 409 when clientMessageId was already used in another conversation', async () => {
-      mockPrismaService.conversation.findUnique.mockResolvedValue(participants);
-      mockPrismaService.message.create.mockRejectedValue(createDatabaseError('P2002'));
-      mockPrismaService.message.findUnique.mockResolvedValue(
-        storedMessage({ conversationId: OTHER_CONVERSATION_ID }),
-      );
-
-      await expect(
-        service.sendMessage({
-          clientMessageId: CLIENT_MESSAGE_ID,
-          conversationId: CONVERSATION_ID,
-          senderUserId: STUDENT_ID,
-          text: 'Hello',
-        }),
-      ).rejects.toThrow(ConflictException);
-    });
-
     it.each([
-      ['a duplicate error without clientMessageId', 'P2002', undefined],
-      ['an unrelated database error', 'P1001', CLIENT_MESSAGE_ID],
-    ])('rethrows %s', async (_label, code, clientMessageId) => {
+      ['a duplicate key', 'P2002'],
+      ['an unrelated database error', 'P1001'],
+    ])('rethrows %s without retrying', async (_label, code) => {
       const error = createDatabaseError(code);
       mockPrismaService.conversation.findUnique.mockResolvedValue(participants);
       mockPrismaService.message.create.mockRejectedValue(error);
 
       await expect(
         service.sendMessage({
-          ...(clientMessageId === undefined ? {} : { clientMessageId }),
           conversationId: CONVERSATION_ID,
           senderUserId: STUDENT_ID,
           text: 'Hello',
         }),
       ).rejects.toBe(error);
+      expect(mockPrismaService.message.create).toHaveBeenCalledTimes(1);
     });
   });
 });

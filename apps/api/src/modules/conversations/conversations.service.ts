@@ -1,11 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
-import {
-  ConflictException,
-  ForbiddenException,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
+import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 
 import { Prisma } from '@generated/prisma/client';
 import { AccountStatus, Role } from '@generated/prisma/enums';
@@ -43,7 +38,6 @@ const lastMessageSelect = {
 
 const messageSelect = {
   ...lastMessageSelect,
-  clientMessageId: true,
   conversationId: true,
   readAt: true,
 } satisfies Prisma.MessageSelect;
@@ -180,29 +174,17 @@ export class ConversationsService {
       throw new ForbiddenException('Only participants can send messages in this conversation.');
     }
 
-    try {
-      const message = await this.prisma.message.create({
-        data: {
-          // The database requires a key, so a message sent without one gets a fresh UUID.
-          clientMessageId: input.clientMessageId ?? randomUUID(),
-          conversationId: input.conversationId,
-          senderUserId: input.senderUserId,
-          text: input.text,
-        },
-        select: messageSelect,
-      });
-      return toMessageResponse(message);
-    } catch (error) {
-      if (input.clientMessageId === undefined || !isUniqueViolation(error)) throw error;
-
-      // A retry reused clientMessageId, so return the message the first attempt stored.
-      const original = await this.findMessageByClientId(input.senderUserId, input.clientMessageId);
-      if (!original) throw error;
-      if (original.conversationId !== input.conversationId) {
-        throw new ConflictException('clientMessageId was already used in another conversation.');
-      }
-      return toMessageResponse(original);
-    }
+    const message = await this.prisma.message.create({
+      data: {
+        // The database requires a key per sender, and API-02 does not take one from the client.
+        clientMessageId: randomUUID(),
+        conversationId: input.conversationId,
+        senderUserId: input.senderUserId,
+        text: input.text,
+      },
+      select: messageSelect,
+    });
+    return toMessageResponse(message);
   }
 
   private async assertActiveStudentWithProfile(studentUserId: string): Promise<void> {
@@ -248,16 +230,6 @@ export class ConversationsService {
     });
     return buildSummary(conversation, otherParticipant, lastMessage);
   }
-
-  private findMessageByClientId(
-    senderUserId: string,
-    clientMessageId: string,
-  ): Promise<SelectedMessage | null> {
-    return this.prisma.message.findUnique({
-      where: { senderUserId_clientMessageId: { clientMessageId, senderUserId } },
-      select: messageSelect,
-    });
-  }
 }
 
 function conversationPagination(input: { page?: number; pageSize?: number }): {
@@ -286,8 +258,8 @@ function buildSummary(
       lastMessage === null
         ? null
         : {
-            id: lastMessage.id,
-            senderUserId: lastMessage.senderUserId,
+            messageId: lastMessage.id,
+            senderId: lastMessage.senderUserId,
             sentAt: lastMessage.sentAt.toISOString(),
             text: lastMessage.text,
           },
@@ -328,11 +300,10 @@ function listRowLastMessage(row: ConversationListRow): LastMessage | null {
 
 function toMessageResponse(message: SelectedMessage): MessageResponseDto {
   return {
-    clientMessageId: message.clientMessageId,
     conversationId: message.conversationId,
-    id: message.id,
+    messageId: message.id,
     readAt: message.readAt?.toISOString() ?? null,
-    senderUserId: message.senderUserId,
+    senderId: message.senderUserId,
     sentAt: message.sentAt.toISOString(),
     text: message.text,
   };
