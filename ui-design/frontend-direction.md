@@ -109,3 +109,9 @@ pagination is separate and remains in place; the no-pagination decision applies 
   the dialog and prevent dismissal while the request is in progress.
   Do not add analytics or course-performance selectors to this page. Course Slips and Margin Notes
   remain unselected alternatives.
+- The tutor listing editor's **Before publishing** checklist is the selected first incremental
+  update from Sticky Studio. Place it directly beneath the student preview in the right-hand column,
+  before the existing yellow writing tips. Use one blue sticky note with centered blue tape, a note-font
+  heading and prominent ready count, four continuous ruled checklist rows, and publication eligibility
+  in its footer. Move eligibility out of the form into this note. Keep the existing form, student
+  preview, validation, and publication behavior; the rest of Sticky Studio remains a proposal.

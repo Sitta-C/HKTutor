@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 
+import { DashboardIcon } from '@/components/dashboard/dashboard-icon';
 import DashboardShell from '@/components/dashboard/dashboard-shell';
 import {
   ListingIcon,
@@ -350,30 +351,6 @@ export default function TutorListingEditor({
                 </p>
               </div>
 
-              <StickyNote tone="blue" className="mx-5 mt-5 p-4 sm:mx-6">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <p className="text-sm font-extrabold text-notebook-ink">{copy.readinessTitle}</p>
-                  <span className="text-xs font-bold text-notebook-muted">
-                    {completedChecks}/{publishChecks.length} {copy.readyLabel}
-                  </span>
-                </div>
-                <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                  {publishChecks.map((check) => (
-                    <div
-                      key={check.label}
-                      className={`flex min-h-10 items-center gap-2 rounded-lg border px-3 text-xs font-bold ${
-                        check.complete
-                          ? 'border-emerald-200 bg-emerald-50/90 text-emerald-800'
-                          : 'border-blue-200 bg-white/75 text-notebook-muted'
-                      }`}
-                    >
-                      <ListingIcon name={check.complete ? 'check' : 'info'} />
-                      <span>{check.label}</span>
-                    </div>
-                  ))}
-                </div>
-              </StickyNote>
-
               <div className="grid gap-5 p-5 sm:grid-cols-2 sm:p-6">
                 <Field label={copy.subject} error={errors.subjectId} id="listing-subject-error">
                   <select
@@ -440,13 +417,6 @@ export default function TutorListingEditor({
                     </p>
                   )}
                 </Field>
-
-                <StickyNote tone={isVerified ? 'green' : 'yellow'} className="p-4">
-                  <p className="text-sm font-extrabold text-notebook-ink">{copy.publishRule}</p>
-                  <p className="mt-2 text-xs leading-5 text-notebook-muted">
-                    {isVerified ? copy.canPublish : copy.cannotPublish}
-                  </p>
-                </StickyNote>
 
                 <Field
                   label={copy.description}
@@ -619,6 +589,59 @@ export default function TutorListingEditor({
               </GraphPaper>
             </PaperCard>
 
+            <StickyNote
+              tone="blue"
+              className="mt-5 px-5 py-6 sm:px-6"
+              role="region"
+              aria-labelledby="listing-readiness-title"
+            >
+              <WashiTape
+                tone="blue"
+                className="-top-2 left-1/2 max-h-4 max-w-20 -translate-x-1/2"
+              />
+              <div className="flex items-center justify-between gap-3">
+                <h2
+                  id="listing-readiness-title"
+                  className="font-note text-xl font-semibold text-notebook-ink"
+                >
+                  {copy.readinessTitle}
+                </h2>
+                <span
+                  className="shrink-0 font-note text-4xl font-semibold leading-none text-tutor-deep"
+                  role="status"
+                >
+                  {completedChecks}/{publishChecks.length}
+                  <span className="sr-only"> {copy.readyLabel}</span>
+                </span>
+              </div>
+              <ul className="mt-4">
+                {publishChecks.map((check) => (
+                  <li
+                    key={check.label}
+                    className={`flex items-start gap-2.5 border-b border-notebook-ink/10 py-3 text-sm leading-6 ${
+                      check.complete ? 'text-notebook-ink' : 'text-notebook-muted'
+                    }`}
+                  >
+                    <span className="mt-0.5 shrink-0">
+                      <ListingIcon name={check.complete ? 'check' : 'info'} />
+                    </span>
+                    <span>{check.label}</span>
+                  </li>
+                ))}
+              </ul>
+              <div
+                className={`mt-4 flex items-start gap-2.5 text-sm leading-6 ${
+                  isVerified ? 'text-emerald-800' : 'text-amber-800'
+                }`}
+              >
+                <DashboardIcon
+                  name={isVerified ? 'shield' : 'info'}
+                  className="mt-0.5 h-5 w-5 shrink-0"
+                />
+                <p>{isVerified ? copy.canPublish : copy.cannotPublish}</p>
+              </div>
+            </StickyNote>
+
             <StickyNote tone="yellow" className="mt-4 p-4 text-sm leading-6">
               <strong className="block text-notebook-ink">{copy.qualityTitle}</strong>
               <ul className="mt-2 space-y-1.5 text-xs text-notebook-muted">
@@ -707,7 +730,7 @@ const englishCopy = {
   back: 'Back to listings',
   detailsTitle: 'Course details',
   detailsBody: 'Required fields are saved as a draft until you choose to publish.',
-  readinessTitle: 'Publication readiness',
+  readinessTitle: 'Before publishing',
   readyLabel: 'ready',
   checkSubject: 'Subject selected',
   checkGrade: 'Grade level selected',
@@ -723,8 +746,7 @@ const englishCopy = {
   currency: 'THB',
   priceHelp: 'Enter Thai baht with up to two decimal places.',
   priceError: 'Enter a price greater than zero with no more than two decimal places.',
-  publishRule: 'Publication eligibility',
-  canPublish: 'Your verified tutor profile can publish this listing.',
+  canPublish: 'Profile verified. You can publish this listing.',
   cannotPublish: 'Save this listing as a draft until your tutor profile is verified.',
   description: 'Listing description',
   descriptionPlaceholder:
@@ -782,7 +804,7 @@ const thaiCopy: typeof englishCopy = {
   back: 'กลับไปคอร์สของฉัน',
   detailsTitle: 'รายละเอียดคอร์ส',
   detailsBody: 'ข้อมูลที่กรอกจะบันทึกเป็นฉบับร่างจนกว่าคุณจะเลือกเผยแพร่',
-  readinessTitle: 'ความพร้อมก่อนเผยแพร่',
+  readinessTitle: 'ก่อนเผยแพร่',
   readyLabel: 'รายการพร้อม',
   checkSubject: 'เลือกรายวิชาแล้ว',
   checkGrade: 'เลือกระดับชั้นแล้ว',
@@ -798,8 +820,7 @@ const thaiCopy: typeof englishCopy = {
   currency: 'บาท',
   priceHelp: 'กรอกราคาเป็นเงินบาทและมีทศนิยมได้ไม่เกินสองตำแหน่ง',
   priceError: 'กรุณากรอกราคามากกว่าศูนย์และมีทศนิยมไม่เกินสองตำแหน่ง',
-  publishRule: 'สิทธิ์ในการเผยแพร่',
-  canPublish: 'โปรไฟล์ติวเตอร์ของคุณผ่านการยืนยันและเผยแพร่ประกาศนี้ได้',
+  canPublish: 'โปรไฟล์ยืนยันแล้ว สามารถเผยแพร่ได้',
   cannotPublish: 'บันทึกประกาศนี้เป็นฉบับร่างได้ และเผยแพร่เมื่อโปรไฟล์ติวเตอร์ผ่านการยืนยันแล้ว',
   description: 'คำอธิบายคอร์ส',
   descriptionPlaceholder: 'อธิบายว่านักเรียนจะได้เรียนรู้อะไร แนวทางการสอน และคอร์สนี้เหมาะกับใคร',
