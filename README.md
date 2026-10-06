@@ -60,6 +60,9 @@ written to local storage. Refresh-token rotation detects reuse and revokes the a
 Copy `.env.example` to the ignored `.env` and replace every bracketed placeholder. Important values:
 
 - `DATABASE_URL` — PostgreSQL/Supabase connection string used only by the API
+- `SUPABASE_URL` and `SUPABASE_SECRET_KEY` — Supabase project origin and backend `sb_secret_` key
+- `SUPABASE_AVATAR_BUCKET` and `SUPABASE_DOCUMENT_BUCKET` — distinct, pre-created Storage buckets;
+  documents must be private. See the API README for file limits and service integration.
 - `JWT_ACCESS_SECRET` and `JWT_REFRESH_SECRET` — different random values, each at least 32 characters
 - `RESEND_API_KEY` and `EMAIL_FROM` — Resend API key and an approved sender
 - `APP_URL` — web URL embedded in email verification links

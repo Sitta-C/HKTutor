@@ -95,11 +95,11 @@ test('organizes API features and infrastructure behind explicit aliases', async 
   }
 });
 
-test('keeps later-sprint infrastructure out while allowing Prisma only in the API', async () => {
+test('keeps unrelated infrastructure out while allowing Prisma and Supabase only in the API', async () => {
   const root = await readJson('package.json');
   const web = await readJson('apps/web/package.json');
   const api = await readJson('apps/api/package.json');
-  const forbidden = /redis|bullmq|bee-queue|amqplib|socket\.io|@supabase\/supabase-js|docker/i;
+  const forbidden = /redis|bullmq|bee-queue|amqplib|socket\.io|docker/i;
   for (const manifest of [root, web, api]) {
     const names = Object.keys({
       ...manifest.dependencies,
@@ -111,14 +111,15 @@ test('keeps later-sprint infrastructure out while allowing Prisma only in the AP
     );
   }
 
-  const prismaPackage = /^(?:@prisma\/|prisma$)/;
+  assert.ok(api.dependencies['@supabase/supabase-js'], 'API Storage requires the Supabase SDK');
+  const apiOnlyPackage = /^(?:@prisma\/|prisma$|@supabase\/supabase-js$)/;
   for (const manifest of [root, web]) {
     const names = Object.keys({
       ...manifest.dependencies,
       ...manifest.devDependencies,
     });
     assert.equal(
-      names.some((name) => prismaPackage.test(name)),
+      names.some((name) => apiOnlyPackage.test(name)),
       false,
     );
   }

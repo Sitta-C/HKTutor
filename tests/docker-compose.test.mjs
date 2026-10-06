@@ -16,6 +16,10 @@ const composeConfig = () =>
       JWT_ACCESS_SECRET: 'test-access-secret-that-is-at-least-32-characters',
       JWT_REFRESH_SECRET: 'test-refresh-secret-that-is-at-least-32-characters',
       RESEND_API_KEY: 're_test_placeholder',
+      SUPABASE_URL: 'https://storage.example.test',
+      SUPABASE_SECRET_KEY: 'sb_secret_unit_test',
+      SUPABASE_AVATAR_BUCKET: 'test-avatars',
+      SUPABASE_DOCUMENT_BUCKET: 'test-documents',
     },
   });
 
@@ -50,6 +54,13 @@ test('publishes the same-origin web entrypoint and keeps the API service private
     'test-refresh-secret-that-is-at-least-32-characters',
   );
   assert.equal(config.services.api.environment.RESEND_API_KEY, 're_test_placeholder');
+  assert.equal(config.services.api.environment.SUPABASE_URL, 'https://storage.example.test');
+  assert.equal(config.services.api.environment.SUPABASE_SECRET_KEY, 'sb_secret_unit_test');
+  assert.equal(config.services.api.environment.SUPABASE_AVATAR_BUCKET, 'test-avatars');
+  assert.equal(config.services.api.environment.SUPABASE_DOCUMENT_BUCKET, 'test-documents');
+  for (const key of Object.keys(config.services.web.environment)) {
+    assert.ok(!key.startsWith('SUPABASE_'), 'Storage credentials belong only in the API');
+  }
   assert.match(config.services.api.healthcheck.test.join(' '), /\/api\/v1\/health/);
   assert.equal(config.services.api.build.dockerfile, 'apps/api/Dockerfile');
   assert.equal(config.services.web.build.dockerfile, 'apps/web/Dockerfile');
