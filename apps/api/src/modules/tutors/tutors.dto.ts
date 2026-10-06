@@ -3,6 +3,7 @@ import { Transform, Type } from 'class-transformer';
 import {
   IsDate,
   IsEnum,
+  IsIn,
   IsInt,
   IsNumber,
   IsOptional,
@@ -168,6 +169,9 @@ export class ListingResponseDto {
 }
 
 export class TutorSearchResultDto {
+  @ApiProperty({ type: String, format: 'date-time', nullable: true })
+  avatarUpdatedAt!: Date | null;
+
   @ApiProperty({ example: '10000000-0000-4000-8000-000000000001', format: 'uuid' })
   listingId!: string;
 
@@ -228,6 +232,9 @@ export class TutorSearchResponseDto {
 }
 
 export class PublicTutorProfileDto {
+  @ApiProperty({ type: String, format: 'date-time', nullable: true })
+  avatarUpdatedAt!: Date | null;
+
   @ApiProperty({ example: '20000000-0000-4000-8000-000000000001', format: 'uuid' })
   tutorId!: string;
 
@@ -393,6 +400,16 @@ export class AvailabilityQueryDto {
   @Type(() => Date)
   @IsDate()
   to?: Date;
+}
+
+export class AvailabilityPrivateQueryDto extends AvailabilityQueryDto {
+  @ApiPropertyOptional({
+    enum: ['overlap'],
+    description: 'Include slots overlapping the range; omitted means filter by slot start time',
+  })
+  @IsOptional()
+  @IsIn(['overlap'])
+  rangeMode?: 'overlap';
 }
 
 export class AvailabilityPrivateResponseDto {

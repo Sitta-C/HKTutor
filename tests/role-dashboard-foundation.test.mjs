@@ -78,11 +78,13 @@ test('role selection never reads from localStorage, cookies, or URL search param
 
 test('dashboard shell enforces accessibility, responsive toggle, and visible focus states', async () => {
   const shellSource = await read('apps/web/src/components/dashboard/dashboard-shell.tsx');
+  const languageSwitch = await read('apps/web/src/components/public/public-ui.tsx');
 
   // Accessible buttons and aria labels
   assert.match(shellSource, /aria-label={copy\.dashboard\.sidebar\.closeSidebar}/);
   assert.match(shellSource, /aria-label={copy\.dashboard\.sidebar\.openSidebar}/);
-  assert.match(shellSource, /aria-pressed={language === 'th'}/);
+  assert.match(shellSource, /<LanguageSwitch\s*\/>/);
+  assert.match(languageSwitch, /aria-pressed={language === 'th'}/);
   assert.match(shellSource, /aria-hidden="true"/);
   assert.match(shellSource, /aria-controls="dashboard-sidebar"/);
   assert.match(shellSource, /aria-expanded=/);
@@ -112,12 +114,12 @@ test('role-specific views render distinct content with honest empty states', asy
   assert.doesNotMatch(studentSource, /manageAvailability/);
 
   // Tutor view features
-  assert.match(tutorSource, /dash-role-chip-tutor/);
+  assert.match(tutorSource, /tutorCopy\.eyebrow/);
   assert.match(tutorSource, /tutorCopy\.bookingRequests/);
-  assert.match(tutorSource, /tutorCopy\.myListings/);
+  assert.match(tutorSource, /TutorDashboardAnalytics/);
   assert.match(tutorSource, /tutorCopy\.todayBangkokTime/);
   assert.match(tutorSource, /tutorCopy\.noUpcomingSessions/);
-  assert.match(tutorSource, /dash-earnings-value/);
+  assert.doesNotMatch(tutorSource, /dash-earnings-value|dash-strength|dash-qa|type="search"/);
   assert.doesNotMatch(i18nSource, /thisMonth:\s*['"]0฿/);
   // Tutor view must not have student-specific panels
   assert.doesNotMatch(tutorSource, /studentCopy\.yourTutors/);
@@ -150,7 +152,9 @@ test('dashboard page derives role only from the centralized profile session', as
 
   // Guards against flashing content during loading or unauthenticated
   assert.match(pageSource, /if\s*\(\s*isLoading\s*\|\|\s*!user\s*\)/);
-  assert.match(pageSource, /role="status"/);
+  assert.match(pageSource, /<DashboardLoading\s*\/>/);
+  const loadingSource = await read('apps/web/src/components/ui/notebook-loading.tsx');
+  assert.match(loadingSource, /role="status"/);
 
   assert.match(profileSession, /if \(!allowGuest\) router\.replace\('\/'\)/);
 

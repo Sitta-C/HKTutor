@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import AuthShell, { EyeIcon } from '@/components/auth-shell';
 import {
@@ -32,6 +32,7 @@ export default function Login() {
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const passwordHelpRef = useRef<HTMLDialogElement>(null);
 
   useEffect(() => {
     if (!isAuthLoading && user) router.replace(returnTo);
@@ -56,7 +57,7 @@ export default function Login() {
 
   return (
     <AuthShell page="login">
-      <PaperCard className="w-full max-w-[624px] px-6 py-10 sm:px-12 sm:py-14 lg:px-[4.25rem] lg:py-[4.5rem]">
+      <PaperCard className="w-full max-w-[624px] px-6 pb-6 pt-10 sm:px-12 sm:pb-8 sm:pt-14 lg:px-[4.25rem] lg:pb-8 lg:pt-[4.5rem]">
         <WashiTape tone="blue" className="left-1/2 top-0 -translate-x-1/2 -translate-y-1/2" />
         <div className="mx-auto max-w-[490px]">
           <NotebookHeading
@@ -69,12 +70,13 @@ export default function Login() {
 
           <form onSubmit={handleSubmit} className="space-y-4">
             {errorMessage && (
-              <p
-                className="rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-700"
+              <StickyNote
+                tone="pink"
+                className="px-4 py-3 text-sm leading-relaxed text-stone-700"
                 role="alert"
               >
                 {errorMessage}
-              </p>
+              </StickyNote>
             )}
 
             <NotebookField htmlFor="email" label={copy.login.emailLabel}>
@@ -114,22 +116,28 @@ export default function Login() {
               </div>
             </NotebookField>
 
-            <StickyNote tone="pink" className="!mt-5 -rotate-1 px-4 py-3">
-              <p className="font-note text-lg font-semibold leading-snug text-stone-700">
-                {copy.login.trouble}
-              </p>
-            </StickyNote>
+            <div className="!mt-2 flex justify-end">
+              <button
+                type="button"
+                aria-haspopup="dialog"
+                aria-controls="password-help"
+                onClick={() => passwordHelpRef.current?.showModal()}
+                className="min-h-10 cursor-pointer rounded-sm px-1 !text-sm font-medium text-amber-700 underline decoration-amber-700/40 underline-offset-4 transition-colors hover:text-amber-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-notebook-ink/30 focus-visible:ring-offset-2"
+              >
+                {copy.login.forgotPassword}
+              </button>
+            </div>
 
             <NotebookButton
               type="submit"
               disabled={isLoading || isAuthLoading}
-              className="!mt-6 h-[3.65rem] w-full text-base"
+              className="!mt-4 h-[3.65rem] w-full text-base"
             >
               {isLoading ? copy.login.loading : copy.login.submit}
             </NotebookButton>
           </form>
 
-          <p className="mt-8 text-center text-sm text-notebook-muted">
+          <p className="mt-6 text-center text-sm text-notebook-muted">
             {copy.login.newTo}{' '}
             <Link
               href="/register"
@@ -140,6 +148,23 @@ export default function Login() {
           </p>
         </div>
       </PaperCard>
+      <dialog
+        id="password-help"
+        ref={passwordHelpRef}
+        aria-labelledby="password-help-title"
+        aria-describedby="password-help-description"
+        className="m-auto w-[min(92vw,420px)] rounded-[1.5rem] border border-paper-edge bg-paper p-6 text-notebook-ink shadow-paper backdrop:bg-stone-900/45 sm:p-8"
+      >
+        <h2 id="password-help-title" className="text-xl font-bold">
+          {copy.login.forgotPassword}
+        </h2>
+        <p id="password-help-description" className="mt-3 text-sm leading-7 text-notebook-muted">
+          {copy.login.passwordResetUnavailable}
+        </p>
+        <form method="dialog" className="mt-6 text-right">
+          <NotebookButton type="submit">{copy.login.closePasswordHelp}</NotebookButton>
+        </form>
+      </dialog>
     </AuthShell>
   );
 }

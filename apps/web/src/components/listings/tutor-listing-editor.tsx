@@ -1,10 +1,10 @@
 'use client';
 
-import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 
+import { DashboardIcon } from '@/components/dashboard/dashboard-icon';
 import DashboardShell from '@/components/dashboard/dashboard-shell';
 import {
   ListingIcon,
@@ -17,9 +17,12 @@ import {
   emptyListingForm,
   formatTutorExperience,
   readListingEditorError,
+  stepListingPrice,
   validateListingForm,
 } from '@/components/listings/tutor-listing-editor-model';
-import { GraphPaper, PaperCard, StickyNote, WashiTape } from '@/components/ui/notebook';
+import { OwnProfileAvatar } from '@/components/profile/profile-avatar';
+import { PaperCard, StickyNote, WashiTape } from '@/components/ui/notebook';
+import { NotebookSelect } from '@/components/ui/notebook-select';
 import { useNotebookToast } from '@/components/ui/notebook-toast';
 import {
   createTutorListing,
@@ -32,6 +35,8 @@ import {
 import { useLanguage } from '@/lib/i18n';
 import { getTutorProfile } from '@/lib/profile-navigation';
 import { useProfileSession } from '@/lib/use-profile-session';
+
+import styles from './tutor-listing-editor.module.css';
 
 import type {
   ListingFormData,
@@ -276,14 +281,22 @@ export default function TutorListingEditor({
   };
 
   if (sessionLoading || !user) {
-    return <ListingPageState>{copy.loading}</ListingPageState>;
+    return (
+      <ListingPageState kind={isEditing ? 'listingEdit' : 'listingCreate'}>
+        {copy.loading}
+      </ListingPageState>
+    );
   }
   if (user.role !== 'TUTOR') return null;
   if (profileError || !profile || !profileUser) {
-    return <ListingPageState>{profileError ?? pageError ?? copy.loadError}</ListingPageState>;
+    return <ListingPageState error>{profileError ?? pageError ?? copy.loadError}</ListingPageState>;
   }
   if (isLoading) {
-    return <ListingPageState>{copy.loading}</ListingPageState>;
+    return (
+      <ListingPageState kind={isEditing ? 'listingEdit' : 'listingCreate'}>
+        {copy.loading}
+      </ListingPageState>
+    );
   }
 
   const status = listing?.publicationStatus ?? 'DRAFT';
@@ -318,7 +331,6 @@ export default function TutorListingEditor({
                 {copy.subtitle}
               </p>
             </div>
-            <ListingStatusBadge status={status} labels={statusLabels} />
           </div>
         </header>
 
@@ -339,7 +351,7 @@ export default function TutorListingEditor({
           </div>
         )}
 
-        <div className="mt-6 grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1.45fr)_minmax(300px,.75fr)]">
+        <div className="mt-6 grid min-w-0 items-start gap-5 xl:grid-cols-[minmax(0,1.45fr)_minmax(300px,.75fr)]">
           <PaperCard className="min-w-0 overflow-hidden p-0">
             <WashiTape tone="blue" className="-top-2 left-8 rotate-2" />
             <form noValidate onSubmit={handleSubmit}>
@@ -350,37 +362,13 @@ export default function TutorListingEditor({
                 </p>
               </div>
 
-              <StickyNote tone="blue" className="mx-5 mt-5 p-4 sm:mx-6">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <p className="text-sm font-extrabold text-notebook-ink">{copy.readinessTitle}</p>
-                  <span className="text-xs font-bold text-notebook-muted">
-                    {completedChecks}/{publishChecks.length} {copy.readyLabel}
-                  </span>
-                </div>
-                <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                  {publishChecks.map((check) => (
-                    <div
-                      key={check.label}
-                      className={`flex min-h-10 items-center gap-2 rounded-lg border px-3 text-xs font-bold ${
-                        check.complete
-                          ? 'border-emerald-200 bg-emerald-50/90 text-emerald-800'
-                          : 'border-blue-200 bg-white/75 text-notebook-muted'
-                      }`}
-                    >
-                      <ListingIcon name={check.complete ? 'check' : 'info'} />
-                      <span>{check.label}</span>
-                    </div>
-                  ))}
-                </div>
-              </StickyNote>
-
-              <div className="grid gap-5 p-5 sm:grid-cols-2 sm:p-6">
+              <div className="grid gap-x-4 gap-y-5 p-5 sm:grid-cols-2 sm:p-6 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(160px,.85fr)]">
                 <Field label={copy.subject} error={errors.subjectId} id="listing-subject-error">
-                  <select
+                  <NotebookSelect
+                    id="listing-subject"
                     value={form.subjectId}
                     onChange={(event) => updateField('subjectId', event.target.value)}
                     disabled={catalogUnavailable}
-                    className={listingFieldClass}
                     aria-invalid={Boolean(errors.subjectId)}
                     aria-describedby={errors.subjectId ? 'listing-subject-error' : undefined}
                   >
@@ -390,15 +378,15 @@ export default function TutorListingEditor({
                         {subject.name}
                       </option>
                     ))}
-                  </select>
+                  </NotebookSelect>
                 </Field>
 
                 <Field label={copy.gradeLevel} error={errors.gradeLevelId} id="listing-grade-error">
-                  <select
+                  <NotebookSelect
+                    id="listing-grade"
                     value={form.gradeLevelId}
                     onChange={(event) => updateField('gradeLevelId', event.target.value)}
                     disabled={catalogUnavailable}
-                    className={listingFieldClass}
                     aria-invalid={Boolean(errors.gradeLevelId)}
                     aria-describedby={errors.gradeLevelId ? 'listing-grade-error' : undefined}
                   >
@@ -408,28 +396,66 @@ export default function TutorListingEditor({
                         {grade.name}
                       </option>
                     ))}
-                  </select>
+                  </NotebookSelect>
                 </Field>
 
-                <Field label={copy.price} error={errors.pricePerHour} id="listing-price-error">
-                  <div className="relative">
+                <Field
+                  label={copy.price}
+                  error={errors.pricePerHour}
+                  id="listing-price-error"
+                  className="sm:col-span-2 md:col-span-1"
+                >
+                  <div className="relative flex min-h-12 items-center rounded-lg border border-paper-edge bg-paper focus-within:border-tutor focus-within:ring-4 focus-within:ring-sticky-blue/70">
                     <input
+                      id="listing-price"
                       type="number"
                       min="0.01"
-                      step="0.01"
+                      step="any"
                       inputMode="decimal"
                       value={form.pricePerHour}
                       onChange={(event) => updateField('pricePerHour', event.target.value)}
+                      onKeyDown={(event) => {
+                        if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
+                          event.preventDefault();
+                          updateField(
+                            'pricePerHour',
+                            stepListingPrice(form.pricePerHour, event.key === 'ArrowUp' ? 1 : -1),
+                          );
+                        }
+                      }}
                       placeholder="450"
-                      className={`${listingFieldClass} pr-16`}
+                      className="h-12 min-w-0 w-full rounded-lg bg-transparent pl-3 pr-2 text-base font-medium text-notebook-ink focus-visible:outline-none aria-invalid:outline-2 aria-invalid:outline-red-400 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                       aria-invalid={Boolean(errors.pricePerHour)}
                       aria-describedby={
                         errors.pricePerHour ? 'listing-price-error' : 'listing-price-help'
                       }
                     />
-                    <span className="pointer-events-none absolute right-4 top-1/2 mt-1 -translate-y-1/2 text-sm font-bold text-notebook-muted">
+                    <span className="pointer-events-none shrink-0 pr-2 text-xs font-semibold text-notebook-muted">
                       {copy.currency}
                     </span>
+                    <div className="flex shrink-0 flex-col self-stretch border-l border-paper-edge pointer-coarse:flex-row">
+                      <button
+                        type="button"
+                        aria-label={copy.increasePrice}
+                        onClick={() =>
+                          updateField('pricePerHour', stepListingPrice(form.pricePerHour, 1))
+                        }
+                        className="flex flex-1 items-center justify-center rounded-tr-lg px-3 text-tutor-deep hover:bg-sticky-blue focus-visible:outline-2 focus-visible:outline-tutor-deep pointer-coarse:min-h-11 pointer-coarse:min-w-11"
+                      >
+                        <span aria-hidden="true">+</span>
+                      </button>
+                      <button
+                        type="button"
+                        aria-label={copy.decreasePrice}
+                        disabled={Boolean(form.pricePerHour) && Number(form.pricePerHour) <= 0.01}
+                        onClick={() =>
+                          updateField('pricePerHour', stepListingPrice(form.pricePerHour, -1))
+                        }
+                        className="flex flex-1 items-center justify-center rounded-br-lg border-t border-paper-edge px-3 text-tutor-deep hover:bg-sticky-blue focus-visible:outline-2 focus-visible:outline-tutor-deep disabled:cursor-not-allowed disabled:text-notebook-muted pointer-coarse:min-h-11 pointer-coarse:min-w-11 pointer-coarse:border-l pointer-coarse:border-t-0"
+                      >
+                        <span aria-hidden="true">−</span>
+                      </button>
+                    </div>
                   </div>
                   {!errors.pricePerHour && (
                     <p
@@ -441,27 +467,21 @@ export default function TutorListingEditor({
                   )}
                 </Field>
 
-                <StickyNote tone={isVerified ? 'green' : 'yellow'} className="p-4">
-                  <p className="text-sm font-extrabold text-notebook-ink">{copy.publishRule}</p>
-                  <p className="mt-2 text-xs leading-5 text-notebook-muted">
-                    {isVerified ? copy.canPublish : copy.cannotPublish}
-                  </p>
-                </StickyNote>
-
                 <Field
                   label={copy.description}
                   error={errors.description}
                   id="listing-description-error"
-                  className="sm:col-span-2"
+                  className="sm:col-span-2 md:col-span-3"
                   trailing={`${descriptionLength} / 1000`}
                 >
                   <textarea
+                    id="listing-description"
                     value={form.description}
                     onChange={(event) => updateField('description', event.target.value)}
-                    rows={8}
+                    rows={6}
                     maxLength={1000}
                     placeholder={copy.descriptionPlaceholder}
-                    className={`${listingFieldClass} min-h-44 resize-y py-3 leading-6`}
+                    className={`${listingFieldClass} min-h-40 resize-y py-3 leading-6`}
                     aria-invalid={Boolean(errors.description)}
                     aria-describedby={
                       errors.description ? 'listing-description-error' : 'listing-description-help'
@@ -549,23 +569,21 @@ export default function TutorListingEditor({
           </PaperCard>
 
           <aside className="min-w-0 xl:sticky xl:top-24 xl:self-start">
-            <PaperCard className="p-5 sm:p-6">
-              <WashiTape tone="blue" className="-top-2 right-8 rotate-3" />
-              <div className="flex items-center gap-2.5">
-                <span
-                  className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-sticky-blue text-tutor-deep"
-                  aria-hidden="true"
-                >
-                  <ListingIcon name="listing" />
-                </span>
-                <h2 className="text-lg font-extrabold text-notebook-ink">{copy.previewTitle}</h2>
-              </div>
-              <p className="mb-4 mt-1.5 text-xs leading-5 text-notebook-muted">
-                {copy.previewBody}
-              </p>
-              <GraphPaper className="p-4">
-                <div className="flex items-center gap-3">
+            <section className={styles.preview} aria-labelledby="listing-preview-title">
+              <header className={styles.previewHeader}>
+                <div>
+                  <h2 id="listing-preview-title" className="font-note text-lg font-semibold">
+                    {copy.previewTitle}
+                  </h2>
+                  <p className="mt-1 text-xs leading-5 text-notebook-muted">{copy.previewBody}</p>
+                </div>
+                <ListingStatusBadge status={status} labels={statusLabels} variant="ledger" />
+              </header>
+              <PaperCard className={styles.previewPaper}>
+                <WashiTape tone="blue" className={`${styles.previewTape}`} />
+                <div className={styles.previewPerson}>
                   <ListingPreviewAvatar
+                    userId={user.id}
                     displayName={profileDisplayName}
                     imageUrl={profileImageUrl}
                   />
@@ -579,12 +597,14 @@ export default function TutorListingEditor({
                   </div>
                 </div>
 
-                <div className="mt-3 flex flex-wrap gap-2">
-                  <span className="inline-flex min-h-7 items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 text-xs font-bold text-emerald-800">
+                <div className={styles.previewTrust}>
+                  <span
+                    className={`${styles.previewVerification} ${isVerified ? 'text-emerald-800' : 'text-amber-800'}`}
+                  >
                     <ListingIcon name={isVerified ? 'check' : 'info'} />
                     {isVerified ? copy.verified : copy.verificationPending}
                   </span>
-                  <span className="inline-flex min-h-7 items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-2.5 text-xs font-bold text-amber-800">
+                  <span className={styles.previewRating}>
                     <ListingIcon name="star" />
                     {profile?.ratingAverage
                       ? `${profile.ratingAverage} · ${profile.reviewCount} ${copy.reviews}`
@@ -592,32 +612,84 @@ export default function TutorListingEditor({
                   </span>
                 </div>
 
-                <div className="mt-5 border-y border-dashed border-paper-edge py-5">
-                  <p className="text-xs font-extrabold uppercase tracking-[0.14em] text-tutor-deep">
-                    {selectedSubject?.name || copy.subjectFallback}
-                  </p>
-                  <h3 className="mt-1 text-xl font-black tracking-[-0.025em] text-notebook-ink">
-                    {selectedSubject?.name || copy.subjectFallback} ·{' '}
-                    {selectedGrade?.name || copy.gradeFallback}
-                  </h3>
-                  <p className="mt-4 min-w-0 whitespace-pre-wrap break-words text-sm leading-6 text-notebook-muted [overflow-wrap:anywhere]">
-                    {form.description.trim() || copy.descriptionFallback}
-                  </p>
-                </div>
-
-                <div className="mt-5 flex flex-wrap items-end justify-between gap-3">
-                  <div>
-                    <strong className="text-2xl font-black tracking-[-0.04em] text-notebook-ink">
+                <div className={styles.previewOffer}>
+                  <div className="min-w-0">
+                    <p className={styles.previewGrade}>
+                      {selectedGrade?.name || copy.gradeFallback}
+                    </p>
+                    <h3 className={styles.previewSubject}>
+                      {selectedSubject?.name || copy.subjectFallback}
+                    </h3>
+                  </div>
+                  <StickyNote tone="yellow" className={styles.previewPrice}>
+                    <strong className={styles.previewAmount}>
                       {form.pricePerHour && Number(form.pricePerHour) > 0
                         ? formatPrice(Number(form.pricePerHour), language)
                         : '—'}
                     </strong>
-                    <span className="ml-1 text-sm text-notebook-muted">/{copy.hour}</span>
-                  </div>
-                  <ListingStatusBadge status={status} labels={statusLabels} />
+                    <span className={styles.previewUnit}>/ {copy.hour}</span>
+                  </StickyNote>
                 </div>
-              </GraphPaper>
-            </PaperCard>
+                <p
+                  className={`${styles.previewDescription} min-w-0 whitespace-pre-wrap break-words text-notebook-muted [overflow-wrap:anywhere]`}
+                >
+                  {form.description.trim() || copy.descriptionFallback}
+                </p>
+              </PaperCard>
+            </section>
+
+            <StickyNote
+              tone="blue"
+              className="mt-5 px-5 py-6 sm:px-6"
+              role="region"
+              aria-labelledby="listing-readiness-title"
+            >
+              <WashiTape
+                tone="blue"
+                className="-top-2 left-1/2 max-h-4 max-w-20 -translate-x-1/2"
+              />
+              <div className="flex items-center justify-between gap-3">
+                <h2
+                  id="listing-readiness-title"
+                  className="font-note text-xl font-semibold text-notebook-ink"
+                >
+                  {copy.readinessTitle}
+                </h2>
+                <span
+                  className="shrink-0 font-note text-4xl font-semibold leading-none text-tutor-deep"
+                  role="status"
+                >
+                  {completedChecks}/{publishChecks.length}
+                  <span className="sr-only"> {copy.readyLabel}</span>
+                </span>
+              </div>
+              <ul className="mt-4">
+                {publishChecks.map((check) => (
+                  <li
+                    key={check.label}
+                    className={`flex items-start gap-2.5 border-b border-notebook-ink/10 py-3 text-sm leading-6 ${
+                      check.complete ? 'text-notebook-ink' : 'text-notebook-muted'
+                    }`}
+                  >
+                    <span className="mt-0.5 shrink-0">
+                      <ListingIcon name={check.complete ? 'check' : 'info'} />
+                    </span>
+                    <span>{check.label}</span>
+                  </li>
+                ))}
+              </ul>
+              <div
+                className={`mt-4 flex items-start gap-2.5 text-sm leading-6 ${
+                  isVerified ? 'text-emerald-800' : 'text-amber-800'
+                }`}
+              >
+                <DashboardIcon
+                  name={isVerified ? 'shield' : 'info'}
+                  className="mt-0.5 h-5 w-5 shrink-0"
+                />
+                <p>{isVerified ? copy.canPublish : copy.cannotPublish}</p>
+              </div>
+            </StickyNote>
 
             <StickyNote tone="yellow" className="mt-4 p-4 text-sm leading-6">
               <strong className="block text-notebook-ink">{copy.qualityTitle}</strong>
@@ -650,11 +722,11 @@ function Field({
   trailing?: string;
 }) {
   return (
-    <label
+    <div
       className={`flex min-w-0 flex-col gap-1.5 text-sm font-bold text-notebook-ink ${className}`}
     >
       <span className="flex items-center justify-between gap-3">
-        <span>{label}</span>
+        <label htmlFor={id.replace('-error', '')}>{label}</label>
         {trailing && <span className="text-xs font-semibold text-notebook-muted">{trailing}</span>}
       </span>
       {children}
@@ -663,29 +735,28 @@ function Field({
           {error}
         </span>
       )}
-    </label>
+    </div>
   );
 }
 
 function ListingPreviewAvatar({
   displayName,
   imageUrl,
+  userId,
 }: {
   displayName: string;
   imageUrl?: string | null;
+  userId: string;
 }) {
   return (
-    <span
-      className="relative flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full border-2 border-paper bg-tutor-deep text-sm font-black text-white shadow-sm ring-1 ring-paper-edge"
-      role="img"
-      aria-label={displayName}
-    >
-      {imageUrl ? (
-        <Image src={imageUrl} alt="" fill sizes="44px" className="object-cover" unoptimized />
-      ) : (
-        <span aria-hidden="true">{displayName.charAt(0).toUpperCase() || 'T'}</span>
-      )}
-    </span>
+    <OwnProfileAvatar
+      userId={userId}
+      name={displayName}
+      imageUrl={imageUrl}
+      fallback={displayName.charAt(0).toUpperCase() || 'T'}
+      sizes="44px"
+      className="h-11 w-11 border-2 border-paper bg-tutor-deep text-sm font-black text-white shadow-sm ring-1 ring-paper-edge"
+    />
   );
 }
 
@@ -707,7 +778,7 @@ const englishCopy = {
   back: 'Back to listings',
   detailsTitle: 'Course details',
   detailsBody: 'Required fields are saved as a draft until you choose to publish.',
-  readinessTitle: 'Publication readiness',
+  readinessTitle: 'Before publishing',
   readyLabel: 'ready',
   checkSubject: 'Subject selected',
   checkGrade: 'Grade level selected',
@@ -721,10 +792,11 @@ const englishCopy = {
   gradeError: 'Choose a grade level.',
   price: 'Price per hour',
   currency: 'THB',
+  increasePrice: 'Increase price by 50 baht',
+  decreasePrice: 'Decrease price by 50 baht',
   priceHelp: 'Enter Thai baht with up to two decimal places.',
   priceError: 'Enter a price greater than zero with no more than two decimal places.',
-  publishRule: 'Publication eligibility',
-  canPublish: 'Your verified tutor profile can publish this listing.',
+  canPublish: 'Profile verified. You can publish this listing.',
   cannotPublish: 'Save this listing as a draft until your tutor profile is verified.',
   description: 'Listing description',
   descriptionPlaceholder:
@@ -782,7 +854,7 @@ const thaiCopy: typeof englishCopy = {
   back: 'กลับไปคอร์สของฉัน',
   detailsTitle: 'รายละเอียดคอร์ส',
   detailsBody: 'ข้อมูลที่กรอกจะบันทึกเป็นฉบับร่างจนกว่าคุณจะเลือกเผยแพร่',
-  readinessTitle: 'ความพร้อมก่อนเผยแพร่',
+  readinessTitle: 'ก่อนเผยแพร่',
   readyLabel: 'รายการพร้อม',
   checkSubject: 'เลือกรายวิชาแล้ว',
   checkGrade: 'เลือกระดับชั้นแล้ว',
@@ -796,10 +868,11 @@ const thaiCopy: typeof englishCopy = {
   gradeError: 'กรุณาเลือกระดับชั้น',
   price: 'ราคาต่อชั่วโมง',
   currency: 'บาท',
+  increasePrice: 'เพิ่มราคา 50 บาท',
+  decreasePrice: 'ลดราคา 50 บาท',
   priceHelp: 'กรอกราคาเป็นเงินบาทและมีทศนิยมได้ไม่เกินสองตำแหน่ง',
   priceError: 'กรุณากรอกราคามากกว่าศูนย์และมีทศนิยมไม่เกินสองตำแหน่ง',
-  publishRule: 'สิทธิ์ในการเผยแพร่',
-  canPublish: 'โปรไฟล์ติวเตอร์ของคุณผ่านการยืนยันและเผยแพร่ประกาศนี้ได้',
+  canPublish: 'โปรไฟล์ยืนยันแล้ว สามารถเผยแพร่ได้',
   cannotPublish: 'บันทึกประกาศนี้เป็นฉบับร่างได้ และเผยแพร่เมื่อโปรไฟล์ติวเตอร์ผ่านการยืนยันแล้ว',
   description: 'คำอธิบายคอร์ส',
   descriptionPlaceholder: 'อธิบายว่านักเรียนจะได้เรียนรู้อะไร แนวทางการสอน และคอร์สนี้เหมาะกับใคร',

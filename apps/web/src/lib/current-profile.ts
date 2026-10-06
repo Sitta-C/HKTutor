@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 
 import { getMyProfile } from '@/lib/api/profiles';
+import { clearAvatarCache } from '@/lib/avatar';
 
 import type { MyProfileResponse } from '@/lib/api/types';
 
@@ -20,9 +21,21 @@ interface ProfileCache {
 const idleState: CurrentProfileState = { status: 'idle', profile: null, error: null };
 const loadingState: CurrentProfileState = { status: 'loading', profile: null, error: null };
 let cache: ProfileCache | null = null;
+const listeners = new Set<() => void>();
 
 export function clearCurrentProfileCache(): void {
   cache = null;
+  clearAvatarCache();
+}
+
+export function updateCurrentProfileAvatar(userId: string, avatarUpdatedAt: string | null): void {
+  clearAvatarCache();
+  if (cache?.userId === userId && cache.profile) {
+    cache.profile = { ...cache.profile, avatarUpdatedAt };
+    for (const listener of listeners) {
+      listener();
+    }
+  }
 }
 
 export function loadCurrentProfile(
@@ -59,6 +72,12 @@ export function useCurrentProfile(userId: string | null, enabled: boolean) {
     if (!enabled || !userId) return;
 
     let active = true;
+    const syncAvatar = () => {
+      if (active && cache?.userId === userId && cache.profile) {
+        setResult({ userId, state: { status: 'success', profile: cache.profile, error: null } });
+      }
+    };
+    listeners.add(syncAvatar);
     loadCurrentProfile(userId)
       .then((profile) => {
         if (active) {
@@ -71,6 +90,7 @@ export function useCurrentProfile(userId: string | null, enabled: boolean) {
 
     return () => {
       active = false;
+      listeners.delete(syncAvatar);
     };
   }, [enabled, userId]);
 

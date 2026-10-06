@@ -61,6 +61,11 @@ jobs:
           DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/hktutor_ci?schema=public
           HKTUTOR_ALLOW_DISPOSABLE_DB_VERIFY: '1'
           NODE_ENV: test
+          # Booking verification starts AppModule; Storage is configured with test-only values.
+          SUPABASE_URL: https://storage.example.test
+          SUPABASE_SECRET_KEY: sb_secret_ci_test_only
+          SUPABASE_AVATAR_BUCKET: ci-avatars
+          SUPABASE_DOCUMENT_BUCKET: ci-documents
           SEED_ADMIN_EMAIL: admin@hktutor.test
           SEED_ADMIN_PASSWORD: admin-pass-123
           SEED_STUDENT_EMAIL: student@hktutor.test

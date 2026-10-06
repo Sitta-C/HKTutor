@@ -30,10 +30,27 @@ export function formatBangkokShortDate(value: string | Date, language: DateTimeL
   }).format(new Date(value));
 }
 
-export function formatBangkokWeekday(value: string | Date, language: DateTimeLanguage): string {
+export function formatBangkokDateRange(
+  start: string | Date,
+  end: string | Date,
+  language: DateTimeLanguage,
+): string {
+  return new Intl.DateTimeFormat(getCalendarLocale(language), {
+    day: 'numeric',
+    month: 'short',
+    timeZone: BANGKOK_TIME_ZONE,
+    year: 'numeric',
+  }).formatRange(new Date(start), new Date(end));
+}
+
+export function formatBangkokWeekday(
+  value: string | Date,
+  language: DateTimeLanguage,
+  width: 'long' | 'short' = 'long',
+): string {
   return new Intl.DateTimeFormat(getCalendarLocale(language), {
     timeZone: BANGKOK_TIME_ZONE,
-    weekday: 'long',
+    weekday: width,
   }).format(new Date(value));
 }
 

@@ -71,6 +71,7 @@ function publicSearchListing(overrides: Record<string, unknown> = {}) {
     pricePerHour: decimal(500),
     subject: { name: subject.name },
     tutorProfile: {
+      user: { avatarUpdatedAt: null },
       availabilitySlots: [{ startAtUtc: new Date('2026-09-12T02:00:00.000Z') }],
       displayName: 'Kru Anan',
       experienceYears: 5,
@@ -85,6 +86,7 @@ function publicSearchListing(overrides: Record<string, unknown> = {}) {
 
 function publicTutor(overrides: Record<string, unknown> = {}) {
   return {
+    user: { avatarUpdatedAt: null },
     bio: 'Experienced mathematics tutor.',
     displayName: 'Kru Anan',
     experienceYears: 5,
@@ -107,6 +109,9 @@ function publicTutor(overrides: Record<string, unknown> = {}) {
 
 function expectNoPrivateFields(value: unknown): void {
   const forbidden = new Set([
+    'avatarObjectPath',
+    'avatarMimeType',
+    'avatarSizeBytes',
     'accountStatus',
     'consentAcceptedAt',
     'deletedAt',
@@ -141,6 +146,7 @@ describe('TutorDirectoryService', () => {
     await expect(service.searchPublicTutors({})).resolves.toEqual({
       items: [
         {
+          avatarUpdatedAt: null,
           description: 'Experienced mathematics tutor.',
           displayName: 'Kru Anan',
           experienceYears: 5,
@@ -324,6 +330,7 @@ describe('TutorDirectoryService', () => {
     await expect(service.getPublicTutor(TUTOR_ID)).resolves.toEqual({
       listings: [],
       tutor: {
+        avatarUpdatedAt: null,
         bio: 'Experienced mathematics tutor.',
         displayName: 'Kru Anan',
         experienceYears: 5,

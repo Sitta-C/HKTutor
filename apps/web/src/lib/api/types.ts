@@ -1,5 +1,82 @@
 export type UserRole = 'STUDENT' | 'TUTOR' | 'ADMIN';
 
+export interface Avatar {
+  url: string;
+  expiresAt: string;
+  updatedAt: string;
+}
+
+export interface AvatarReadResponse {
+  avatar: Avatar | null;
+}
+
+export interface AvatarMutationResponse {
+  avatarUpdatedAt: string | null;
+}
+
+export type QualificationDocumentType = 'DEGREE' | 'CERTIFICATE';
+export type QualificationStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
+
+export interface QualificationUploadResponse {
+  documentId: string;
+  status: QualificationStatus;
+  fileName: string;
+  mimeType: 'application/pdf' | 'image/jpeg' | 'image/png';
+  size: number;
+  createdAt: string;
+}
+
+export interface QualificationDocument extends QualificationUploadResponse {
+  type: string;
+  reviewedAt: string | null;
+  rejectionReason: string | null;
+}
+
+export interface QualificationListResponse {
+  items: Pick<
+    QualificationDocument,
+    'documentId' | 'type' | 'status' | 'reviewedAt' | 'rejectionReason'
+  >[];
+}
+
+export interface QualificationTutor {
+  userId: string;
+  displayName: string;
+  verificationStatus: TutorProfile['verificationStatus'];
+}
+
+export interface QualificationQueueResponse {
+  items: (QualificationDocument & { tutor: QualificationTutor })[];
+  nextCursor: string | null;
+}
+
+export interface QualificationDetailResponse {
+  document: QualificationDocument;
+  tutor: QualificationTutor;
+  reviewHistory: {
+    status: QualificationStatus;
+    reviewedBy: string;
+    reviewedAt: string;
+    reason: string | null;
+  }[];
+}
+
+export interface QualificationSignedUrlResponse {
+  url: string;
+  expiresAt: string;
+}
+
+export type ReviewQualificationPayload =
+  { decision: 'APPROVED'; reason?: string } | { decision: 'REJECTED'; reason: string };
+
+export interface QualificationReviewResponse {
+  documentId: string;
+  status: 'APPROVED' | 'REJECTED';
+  reviewedAt: string;
+  reviewedBy: string;
+  tutorVerificationStatus: TutorProfile['verificationStatus'];
+}
+
 export interface AuthUser {
   id: string;
   email: string;
@@ -79,6 +156,7 @@ export type PatchTeachingListingPayload = {
     Partial<Omit<SaveTeachingListingPayload, Field>>;
 }[keyof SaveTeachingListingPayload];
 export interface MyProfileResponse {
+  avatarUpdatedAt?: string | null;
   role: UserRole;
   consentCurrent: boolean;
   policyVersion: string;
@@ -107,6 +185,7 @@ export interface TutorSearchQuery {
 }
 
 export interface TutorSearchResult {
+  avatarUpdatedAt?: string | null;
   listingId: string;
   tutorId: string;
   displayName: string;
@@ -130,6 +209,7 @@ export interface TutorSearchResponse {
 }
 
 export interface PublicTutorProfile {
+  avatarUpdatedAt?: string | null;
   tutorId: string;
   displayName: string;
   bio: string;
@@ -276,6 +356,7 @@ export interface TutorAvailabilitySlot {
 export interface AvailabilityQuery {
   from?: string | Date;
   to?: string | Date;
+  rangeMode?: 'overlap';
 }
 
 export interface CreateAvailabilityPayload {

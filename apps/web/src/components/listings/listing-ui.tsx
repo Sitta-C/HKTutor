@@ -1,12 +1,11 @@
 import {
-  NotebookPage,
   PaperCard,
   StatusBadge,
-  StickyNote,
   WashiTape,
   notebookButtonClass,
   notebookInputClass,
 } from '@/components/ui/notebook';
+import { NotebookLoading, NotebookPageError } from '@/components/ui/notebook-loading';
 
 import type { ListingPublicationStatus } from '@/lib/api/types';
 import type { ReactNode } from 'react';
@@ -119,34 +118,47 @@ export function ListingMetric({
 export function ListingStatusBadge({
   status,
   labels,
+  variant = 'default',
 }: {
   status: ListingPublicationStatus;
   labels: Record<ListingPublicationStatus, string>;
+  variant?: 'default' | 'ledger';
 }) {
   const tone = {
     DRAFT: 'neutral',
     PUBLISHED: 'success',
     ARCHIVED: 'danger',
   } as const;
+  const ledgerTone = {
+    DRAFT: 'warning',
+    PUBLISHED: 'tutor',
+    ARCHIVED: 'neutral',
+  } as const;
 
   return (
-    <StatusBadge tone={tone[status]} className="min-h-7 shrink-0 gap-2 tracking-[0.08em]">
+    <StatusBadge
+      tone={variant === 'ledger' ? ledgerTone[status] : tone[status]}
+      className={
+        variant === 'ledger'
+          ? `min-h-7 shrink-0 gap-1.5 rounded-md text-[0.6875rem] ${status === 'ARCHIVED' ? 'border-dashed bg-paper-deep' : ''}`
+          : 'min-h-7 shrink-0 gap-2 tracking-[0.08em]'
+      }
+    >
       <span className="h-1.5 w-1.5 rounded-full bg-current" aria-hidden="true" />
       {labels[status]}
     </StatusBadge>
   );
 }
 
-export function ListingPageState({ children }: { children: ReactNode }) {
-  return (
-    <NotebookPage className="flex items-center justify-center p-6">
-      <StickyNote tone="blue" className="min-w-64 px-8 py-7 text-center">
-        <WashiTape tone="blue" className="-top-2 left-1/2 -translate-x-1/2" />
-        <span className="mx-auto block h-7 w-7 animate-spin rounded-full border-2 border-tutor-deep border-t-transparent motion-reduce:animate-[spin_1.8s_linear_infinite]" />
-        <p className="mt-4 font-note text-xl font-semibold text-notebook-ink" role="status">
-          {children}
-        </p>
-      </StickyNote>
-    </NotebookPage>
-  );
+export function ListingPageState({
+  children,
+  kind = 'listingsSession',
+  error = false,
+}: {
+  children: ReactNode;
+  kind?: 'listingsSession' | 'listingCreate' | 'listingEdit';
+  error?: boolean;
+}) {
+  if (error) return <NotebookPageError label={children} />;
+  return <NotebookLoading kind={kind} label={children} />;
 }

@@ -21,6 +21,7 @@ import {
   WashiTape,
   notebookButtonClass,
 } from '@/components/ui/notebook';
+import { NotebookLoadingRegion } from '@/components/ui/notebook-loading';
 import { createBookingOnce, getBookingQuote } from '@/lib/api/bookings';
 import { ApiError } from '@/lib/api/error';
 import { useLanguage } from '@/lib/i18n';
@@ -115,9 +116,7 @@ export default function BookingConfirmationPage() {
       />
 
       {!missingSelection && (!selectionLoaded || isQuoteLoading) && (
-        <StickyNote tone="yellow" className="p-6 text-sm font-semibold shadow-sm" role="status">
-          {text.loading}
-        </StickyNote>
+        <NotebookLoadingRegion label={text.loading} />
       )}
 
       {missingSelection && (

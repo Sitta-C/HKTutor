@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+import { ProfileAvatar } from '@/components/profile/profile-avatar';
 import { tutorSearchCopy } from '@/components/tutors/tutor-search-copy';
 import {
   formatTutorSearchSummary,
@@ -16,11 +17,11 @@ import {
   NotebookHeading,
   PaperCard,
   StatusBadge,
-  StickyNote,
   WashiTape,
   notebookButtonClass,
   notebookInputClass,
 } from '@/components/ui/notebook';
+import { NotebookLoadingRegion } from '@/components/ui/notebook-loading';
 import {
   TUTOR_SEARCH_PAGE_SIZE,
   getGradeLevelCatalog,
@@ -213,9 +214,7 @@ export default function TutorSearchPage() {
           </div>
 
           {catalogLoading && (
-            <StickyNote tone="yellow" className="mb-4 p-3 text-sm" role="status">
-              {text.loadingCatalog}
-            </StickyNote>
+            <NotebookLoadingRegion label={text.loadingCatalog} presentation="text" />
           )}
           {catalogError && (
             <p
@@ -493,12 +492,14 @@ function TutorResultCard({
     <article className="relative flex flex-col gap-5 overflow-hidden rounded-[1.35rem] border border-paper-edge bg-paper p-5 shadow-[0_6px_16px_-12px_rgba(46,39,25,0.18)] transition hover:-translate-y-0.5 hover:shadow-[0_10px_22px_-14px_rgba(46,39,25,0.2)] sm:p-6 lg:flex-row lg:items-center">
       <WashiTape tone="blue" className="-right-7 top-2 rotate-12 opacity-60" />
       <div className="flex min-w-0 flex-1 gap-4">
-        <div
-          className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-student-deep text-lg font-black text-white shadow-sm"
-          aria-hidden="true"
-        >
-          {getInitials(result.displayName)}
-        </div>
+        <ProfileAvatar
+          name={result.displayName}
+          publicTutorId={result.tutorId}
+          avatarUpdatedAt={result.avatarUpdatedAt}
+          fallback={getInitials(result.displayName)}
+          sizes="56px"
+          className="h-14 w-14 bg-student-deep text-lg font-black text-white shadow-sm"
+        />
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <h3 className="truncate text-lg font-extrabold text-notebook-ink">
@@ -555,6 +556,7 @@ function SearchState({
   clearLabel?: string | undefined;
   onClear?: (() => void) | undefined;
 }) {
+  if (tone === 'loading') return <NotebookLoadingRegion label={message} />;
   return (
     <GraphPaper
       className={`p-10 text-center ${

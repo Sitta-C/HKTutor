@@ -347,12 +347,19 @@ export function GetMyAvailabilityDoc(): MethodDecorator {
   return applyDecorators(
     ApiOperation({ summary: 'Get the current tutor’s availability slots' }),
     ...availabilityRangeQueries(),
+    ApiQuery({
+      name: 'rangeMode',
+      enum: ['overlap'],
+      required: false,
+      description:
+        'With overlap: endAtUtc > from and startAtUtc < to. Without it: from <= startAtUtc < to. Omitted bounds are unrestricted.',
+    }),
     ApiOkResponse({
       description: 'Tutor-owned slots ordered by start time with their derived reservation state',
       type: [AvailabilityPrivateResponseDto],
     }),
     ApiBadRequestResponse({
-      description: 'The date range is invalid (INVALID_TIME_RANGE)',
+      description: 'The rangeMode failed validation or date range is invalid (INVALID_TIME_RANGE)',
       type: ApiErrorResponseDto,
     }),
     ApiUnauthorizedResponse({ description: unauthorizedDescription, type: ApiErrorResponseDto }),

@@ -14,6 +14,7 @@
     "db:migrate:status": "pnpm --filter @hktutor/api db:migrate:status",
     "db:seed": "pnpm --filter @hktutor/api db:seed",
     "db:verify:bookings": "pnpm --filter @hktutor/api db:verify:bookings",
+    "db:verify:qualifications": "pnpm --filter @hktutor/api db:verify:qualifications",
     "db:verify:sprint1": "pnpm --filter @hktutor/api db:verify:sprint1",
     "test": "pnpm -r --if-present test",
     "lint": "pnpm lint:root && pnpm -r --if-present lint",
@@ -23,7 +24,9 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "verify:workspace": "node --test tests/*.test.mjs",
-    "check": "pnpm db:generate && pnpm format:check && pnpm lint && pnpm test && pnpm build"
+    "check": "pnpm db:generate && pnpm format:check && pnpm lint && pnpm test && pnpm build",
+    "storage:recover": "pnpm --filter @hktutor/api storage:recover",
+    "db:verify:avatars": "pnpm --filter @hktutor/api db:verify:avatars"
   },
   "devDependencies": {
     "@hktutor/eslint-config": "workspace:*",

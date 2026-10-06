@@ -4,16 +4,17 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 
+import { ProfileAvatar } from '@/components/profile/profile-avatar';
 import {
   GraphPaper,
   NotebookHeading,
-  NotebookPage,
   PaperCard,
   StatusBadge,
   StickyNote,
   WashiTape,
   notebookButtonClass,
 } from '@/components/ui/notebook';
+import { NotebookLoadingRegion } from '@/components/ui/notebook-loading';
 import { ApiError } from '@/lib/api/error';
 import { getPublicTutor, getPublicTutorAvailability } from '@/lib/api/tutors';
 import { useAuth } from '@/lib/auth-context';
@@ -83,11 +84,7 @@ export default function PublicTutorAvailabilityPage({ tutorId }: { tutorId: stri
   );
 
   if (isLoading || !isCurrentTutorLoaded) {
-    return (
-      <StickyNote tone="yellow" className="p-6 text-sm font-semibold" role="status">
-        {text.loading}
-      </StickyNote>
-    );
+    return <NotebookLoadingRegion label={text.loading} />;
   }
 
   if (error || !detail) {
@@ -115,6 +112,14 @@ export default function PublicTutorAvailabilityPage({ tutorId }: { tutorId: stri
           ← {text.back}
         </Link>
         <div className="mt-6 flex flex-wrap items-end justify-between gap-3">
+          <ProfileAvatar
+            name={detail.tutor.displayName}
+            publicTutorId={tutorId}
+            avatarUpdatedAt={detail.tutor.avatarUpdatedAt}
+            fallback={detail.tutor.displayName.charAt(0).toUpperCase() || 'T'}
+            sizes="64px"
+            className="h-16 w-16 bg-tutor-deep text-xl font-black text-white shadow-sm"
+          />
           <NotebookHeading
             eyebrow={text.eyebrow}
             title={detail.tutor.displayName}
@@ -212,13 +217,7 @@ function formatTutorRate(value: number, language: 'en' | 'th'): string {
 
 export function PublicTutorAvailabilityLoading() {
   const { copy } = useLanguage();
-  return (
-    <NotebookPage className="flex min-h-[50dvh] items-center justify-center p-6">
-      <StickyNote tone="yellow" className="p-6 text-sm font-semibold" role="status">
-        {copy.dashboard.tutorAvailability.loading}
-      </StickyNote>
-    </NotebookPage>
-  );
+  return <NotebookLoadingRegion label={copy.dashboard.tutorAvailability.loading} />;
 }
 
 function formatSlot(slot: PublicAvailabilitySlot, language: 'en' | 'th'): string {

@@ -1,10 +1,11 @@
 'use client';
 
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 
 import DashboardShell from '@/components/dashboard/dashboard-shell';
-import { NotebookPage, StickyNote, WashiTape } from '@/components/ui/notebook';
+import { tutorSearchCopy } from '@/components/tutors/tutor-search-copy';
+import { NotebookLoading } from '@/components/ui/notebook-loading';
 import { useLanguage } from '@/lib/i18n';
 import { useProfileSession } from '@/lib/use-profile-session';
 
@@ -23,22 +24,20 @@ export default function PublicTutorSearchShell({ children }: { children: ReactNo
     allowGuest: true,
     profileMode: 'optional',
   });
-  const { copy } = useLanguage();
+  const { copy, language } = useLanguage();
   const router = useRouter();
+  const pathname = usePathname();
 
   if (isLoading) {
     return (
-      <NotebookPage className="flex min-h-dvh items-center justify-center p-6">
-        <StickyNote
-          tone="green"
-          className="relative min-w-64 p-6 text-center text-sm font-semibold"
-          role="status"
-          aria-live="polite"
-        >
-          <WashiTape className="-top-2 left-1/2 -translate-x-1/2" />
-          {copy.dashboard.common.loading}
-        </StickyNote>
-      </NotebookPage>
+      <NotebookLoading
+        kind={pathname.startsWith('/tutors/') ? 'tutorDetailSession' : 'tutorSearchSession'}
+        label={
+          pathname.startsWith('/tutors/')
+            ? copy.dashboard.tutorAvailability.loading
+            : tutorSearchCopy[language].loading
+        }
+      />
     );
   }
 
@@ -47,6 +46,7 @@ export default function PublicTutorSearchShell({ children }: { children: ReactNo
   return (
     <DashboardShell
       user={shellUser}
+      avatarEnabled={Boolean(user)}
       onLogout={async () => {
         if (user) await logout();
         router.push('/');

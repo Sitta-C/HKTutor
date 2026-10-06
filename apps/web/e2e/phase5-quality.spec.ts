@@ -126,22 +126,28 @@ async function mockTutorSearch(page: Page) {
       });
     }
     if (request.method() === 'GET' && path === '/tutors') {
-      return json(route, [
-        {
-          listingId,
-          tutorId,
-          displayName: 'Teacher Anan',
-          description: 'Algebra and geometry lessons tailored to the student.',
-          experienceYears: 5,
-          subject: 'Mathematics',
-          grade: 'Grade 10',
-          pricePerHour: 500,
-          ratingAverage: 4.8,
-          reviewCount: 24,
-          verificationStatus: 'VERIFIED',
-          nextAvailableAt: '2099-09-20T03:00:00.000Z',
-        },
-      ]);
+      return json(route, {
+        items: [
+          {
+            listingId,
+            tutorId,
+            displayName: 'Teacher Anan',
+            description: 'Algebra and geometry lessons tailored to the student.',
+            experienceYears: 5,
+            subject: 'Mathematics',
+            grade: 'Grade 10',
+            pricePerHour: 500,
+            ratingAverage: 4.8,
+            reviewCount: 24,
+            verificationStatus: 'VERIFIED',
+            nextAvailableAt: '2099-09-20T03:00:00.000Z',
+          },
+        ],
+        page: 1,
+        pageSize: 10,
+        total: 1,
+        totalPages: 1,
+      });
     }
 
     return json(route, { message: `Unhandled quality request: ${request.method()} ${path}` }, 500);

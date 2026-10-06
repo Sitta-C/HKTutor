@@ -58,7 +58,6 @@ export default function AuthShell({ page, children }: { page: AuthPage; children
   const { copy } = useLanguage();
   const isLogin = page === 'login';
   const navHref = isLogin ? '/register' : '/';
-  const secondaryHref = isLogin ? '/about-me' : navHref;
   const navCopy = isLogin ? copy.shell.login : copy.shell.register;
 
   return (
@@ -70,10 +69,10 @@ export default function AuthShell({ page, children }: { page: AuthPage; children
           <BrandMark />
           <div className="mt-5 hidden w-44 border-t border-dashed border-stone-400 pt-3 text-sm sm:block">
             <Link
-              href={secondaryHref}
+              href="/about-me"
               className="group flex items-center justify-between gap-4 text-notebook-muted hover:text-amber-700"
             >
-              <span>{navCopy.secondary}</span>
+              <span>{copy.shell.login.secondary}</span>
               <ArrowIcon className="h-4 w-4 transition-transform group-hover:translate-x-1" />
             </Link>
           </div>
@@ -81,9 +80,6 @@ export default function AuthShell({ page, children }: { page: AuthPage; children
 
         <nav className="flex items-center gap-4 text-sm sm:gap-7 lg:gap-10">
           <LanguageSwitch />
-          <Link href={navHref} className="hidden transition-colors hover:text-amber-700 sm:inline">
-            {navCopy.nav}
-          </Link>
           <Link
             href={navHref}
             className={notebookButtonClass({
@@ -91,7 +87,7 @@ export default function AuthShell({ page, children }: { page: AuthPage; children
               className: 'border-amber-200 bg-sticky-yellow sm:px-6',
             })}
           >
-            {navCopy.cta}
+            {isLogin ? navCopy.nav : navCopy.cta}
           </Link>
         </nav>
       </header>

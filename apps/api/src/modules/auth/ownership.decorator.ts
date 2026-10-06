@@ -3,7 +3,12 @@ import { SetMetadata } from '@nestjs/common';
 export const OWNERSHIP_KEY = 'auth:ownership';
 
 export type OwnedResource =
-  'availabilitySlot' | 'booking' | 'studentProfile' | 'teachingListing' | 'tutorProfile';
+  | 'availabilitySlot'
+  | 'booking'
+  | 'studentProfile'
+  | 'teachingListing'
+  | 'tutorDocument'
+  | 'tutorProfile';
 
 /** Body the guard answers with for one ownership outcome, so a route keeps its documented code. */
 export interface OwnershipError {
@@ -20,8 +25,8 @@ export interface OwnershipRule {
    * a route opts out here. Routes whose contract has to tell the two apart pass `errors`: the guard
    * then answers 403 with `foreignOwner` and keeps a domain-specific 404 body for `missing`.
    *
-   * Only `booking`, `studentProfile` and `tutorProfile` can distinguish the two outcomes; listing
-   * and availability-slot rules always report a missing resource.
+   * Only `booking`, `studentProfile`, `tutorDocument` and `tutorProfile` distinguish the outcomes;
+   * listing and availability-slot rules always report a missing resource.
    */
   errors?: {
     foreignOwner?: OwnershipError;
