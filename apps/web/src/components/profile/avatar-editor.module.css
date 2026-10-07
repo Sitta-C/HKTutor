@@ -95,20 +95,9 @@
 }
 
 .stamp {
-  position: relative;
   width: 120px;
   margin: 0;
   padding: 12px 10px 8px;
-  border: 1px dashed var(--avatar-accent);
-  background: var(--color-paper);
-}
-
-.stamp::before {
-  position: absolute;
-  inset: -5px;
-  border: 4px dotted var(--color-paper);
-  pointer-events: none;
-  content: '';
 }
 
 .stamp figcaption {

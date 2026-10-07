@@ -321,8 +321,9 @@ The user selected **Ink Portrait Index**, combining Ink & Sketch and Portrait In
 2026-10-08 for student and tutor profile editing and onboarding.
 
 - Use a compact paper with a brush-highlighted heading, role tab, punched binding margin and
-  subtle ruled lines. The portrait sits in a dashed stamp frame with a circular photo and a small
-  paint wash. Finish with a thin ruler edge; student accents are mint and tutor accents blue.
+  subtle ruled lines. The circular portrait sits in a small paint wash, with its handwritten caption
+  below. The user removed the rectangular dashed photo frame on 2026-10-08; keep this area unframed.
+  Finish with a thin ruler edge; student accents are mint and tutor accents blue.
 - Choose photo uses a black fountain-pen action with a small gold nib/clip. Keep existing upload,
   cancel and remove actions, disabled/saving states, validation, previews and success/error toasts.
   Stack the portrait above the copy in narrow containers, including desktop form columns.
