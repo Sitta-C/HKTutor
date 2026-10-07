@@ -192,6 +192,17 @@
   padding: 16px 0;
   border-bottom: 1px solid var(--color-paper-edge);
 }
+.offPageSelection {
+  padding-top: 10px;
+  color: var(--detail-accent);
+  font-size: 12px;
+}
+.returnToCourse {
+  min-height: 44px;
+  text-align: left;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
 .course[data-selected='true'] {
   border-left: 3px solid var(--color-student-deep);
   padding-left: 10px;
@@ -421,6 +432,7 @@
   box-shadow: inset 0 -3px var(--color-student-deep);
 }
 .courseButton:focus-visible,
+.returnToCourse:focus-visible,
 .slotButton:focus-visible,
 .dateIndex button:focus-visible,
 .back:focus-visible {

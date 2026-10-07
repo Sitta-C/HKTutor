@@ -2,10 +2,11 @@
 
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { DashboardIcon } from '@/components/dashboard/dashboard-icon';
 import { ProfileAvatar } from '@/components/profile/profile-avatar';
+import { PublicTutorCourseRuler } from '@/components/tutors/public-tutor-course-ruler';
 import { publicTutorDetailCopy } from '@/components/tutors/public-tutor-detail-copy';
 import {
   formatPublicTutorSlot,
@@ -23,6 +24,8 @@ import { withReturnTo } from '@/lib/return-to';
 import styles from './public-tutor-availability.module.css';
 
 import type { PublicAvailabilitySlot, PublicTutorDetail } from '@/lib/api/types';
+
+const COURSES_PER_PAGE = 3;
 
 export default function PublicTutorAvailabilityPage({ tutorId }: { tutorId: string }) {
   const { copy, language } = useLanguage();
@@ -42,6 +45,13 @@ export default function PublicTutorAvailabilityPage({ tutorId }: { tutorId: stri
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<unknown | null>(null);
   const [loadedTutorId, setLoadedTutorId] = useState<string | null>(null);
+  const [coursePageSelection, setCoursePageSelection] = useState<{
+    tutorId: string;
+    listingId: string;
+    page: number;
+  } | null>(null);
+  const selectedCourseButtonRef = useRef<HTMLButtonElement>(null);
+  const focusSelectedCourseRef = useRef(false);
   const isCurrentTutorLoaded = loadedTutorId === tutorId;
 
   useEffect(() => {
@@ -87,6 +97,35 @@ export default function PublicTutorAvailabilityPage({ tutorId }: { tutorId: stri
     () => detail?.listings.find((listing) => listing.listingId === effectiveListingId) ?? null,
     [detail, effectiveListingId],
   );
+  const selectedCoursePage =
+    Math.floor(
+      Math.max(
+        0,
+        detail?.listings.findIndex((listing) => listing.listingId === effectiveListingId) ?? 0,
+      ) / COURSES_PER_PAGE,
+    ) + 1;
+  const coursePageCount = Math.max(1, Math.ceil((detail?.listings.length ?? 0) / COURSES_PER_PAGE));
+  const coursePage =
+    coursePageSelection?.tutorId === tutorId && coursePageSelection.listingId === effectiveListingId
+      ? Math.min(coursePageCount, Math.max(1, coursePageSelection.page))
+      : selectedCoursePage;
+  const visibleListings = detail?.listings.slice(
+    (coursePage - 1) * COURSES_PER_PAGE,
+    coursePage * COURSES_PER_PAGE,
+  );
+  const chooseCoursePage = useCallback(
+    (page: number) => {
+      focusSelectedCourseRef.current = false;
+      setCoursePageSelection({ tutorId, listingId: effectiveListingId, page });
+    },
+    [effectiveListingId, tutorId],
+  );
+  useEffect(() => {
+    if (focusSelectedCourseRef.current && coursePage === selectedCoursePage) {
+      selectedCourseButtonRef.current?.focus();
+      focusSelectedCourseRef.current = false;
+    }
+  }, [coursePage, selectedCoursePage]);
   const days = useMemo(() => groupPublicTutorSlots(slots, language), [slots, language]);
   const selectedDay = days.find((day) => day.key === selectedDate);
   const visibleDays = selectedDay ? [selectedDay] : days;
@@ -178,11 +217,35 @@ export default function PublicTutorAvailabilityPage({ tutorId }: { tutorId: stri
               {detail.listings.length} {detailText.courses}
             </span>
           </div>
+          {coursePageCount > 1 && (
+            <PublicTutorCourseRuler
+              page={coursePage}
+              pageSize={COURSES_PER_PAGE}
+              total={detail.listings.length}
+              language={language}
+              onChange={chooseCoursePage}
+            />
+          )}
+          {selectedListing && coursePage !== selectedCoursePage && (
+            <div className={styles.offPageSelection}>
+              <p>{detailText.selectedCoursePage.replace('{page}', String(selectedCoursePage))}</p>
+              <button
+                type="button"
+                className={styles.returnToCourse}
+                onClick={() => {
+                  chooseCoursePage(selectedCoursePage);
+                  focusSelectedCourseRef.current = true;
+                }}
+              >
+                {detailText.returnToCourse} →
+              </button>
+            </div>
+          )}
           {detail.listings.length === 0 ? (
             <p className={styles.empty}>{detailText.noListings}</p>
           ) : (
-            <ul>
-              {detail.listings.map((listing) => {
+            <ul id="public-tutor-course-list">
+              {visibleListings?.map((listing) => {
                 const selected = effectiveListingId === listing.listingId;
                 return (
                   <li key={listing.listingId} className={styles.course} data-selected={selected}>
@@ -199,11 +262,15 @@ export default function PublicTutorAvailabilityPage({ tutorId }: { tutorId: stri
                     <p className={styles.description}>{listing.description}</p>
                     <div className={styles.courseActions}>
                       <button
+                        ref={selected ? selectedCourseButtonRef : undefined}
                         type="button"
                         aria-pressed={selected}
                         aria-label={`${detailText.select}: ${listing.subject} · ${listing.grade}`}
                         className={styles.courseButton}
-                        onClick={() => setSelectedListingId(listing.listingId)}
+                        onClick={() => {
+                          focusSelectedCourseRef.current = false;
+                          setSelectedListingId(listing.listingId);
+                        }}
                       >
                         <span className={styles.courseStub} aria-hidden="true">
                           {selected ? (

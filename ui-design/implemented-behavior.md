@@ -135,6 +135,19 @@ tilted yellow paper, and description. Narrow directory columns stack the price b
 Selection has explicit text and a native button's pressed state, with the currently selected
 subject/grade/rate repeated in a polite live region above the appointment rows.
 
+The course directory displays three loaded listings per page using **Page Tabs / Scrolling Ruler**.
+The effective requested/fallback listing determines the initial page. A single-line page number and
+course range sit beneath ruler ticks and a centered pointer, with 32px buttons for fine pointers and
+44px touch buttons. Native scroll snap, mouse dragging, touch/trackpad scrolling and clicking select
+the page after scrolling settles; keyboard arrows, Home and End stay within the finite page range.
+There is no visible range/page-count footer; a bilingual screen-reader live status announces the
+current page and range. The ruler is omitted for zero to three courses. Browsing pages leaves the
+selected listing, date filter and booking action unchanged, even when the selected course is off
+page. An off-page note returns to its page and restores focus to the selected ticket. Choosing a
+different course updates the pad normally. Page state follows the current tutor and effective
+listing, and paging does not change the URL or fetch more records. This component and its mint
+styles are local to detail; the tutor's month/week rulers remain unchanged.
+
 Choice buttons use **Paper Tickets**, selected on 2026-10-07. Course and time tickets fit their labels,
 with compact padding and narrow stubs. Course tickets have an empty circle or selected check in a
 perforated stub and one explicit selection label.

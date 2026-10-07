@@ -142,6 +142,206 @@ async function noOverflow(page: Page) {
   expect(await main.evaluate((el) => el.scrollWidth - el.clientWidth)).toBeLessThanOrEqual(1);
 }
 
+const paginatedDetail: PublicTutorDetail = {
+  ...detail,
+  listings: Array.from({ length: 10 }, (_, index) => ({
+    listingId: `course/${index + 1}`,
+    subject: `Course ${index + 1}`,
+    grade: 'Grade 11',
+    pricePerHour: 400 + index * 10,
+    description: 'Preview course description with the original complete public listing data.',
+  })),
+};
+
+for (const language of ['th', 'en'] as const) {
+  for (const student of [false, true]) {
+    test(`${language} ${student ? 'student' : 'guest'} course ruler keeps selection across finite local pages`, async ({
+      page,
+    }, testInfo) => {
+      const { calls, unexpected } = await mockDetail(page, {
+        language,
+        data: paginatedDetail,
+        ...(student ? { role: 'STUDENT' } : {}),
+      });
+      await page.goto('/tutors/tutor-anna?listingId=course%2F8');
+      const ruler = page.getByRole('navigation', {
+        name: language === 'th' ? 'หน้ารายการคอร์ส' : 'Course pages',
+        exact: true,
+      });
+      const courses = page.locator('#public-tutor-course-list');
+      const current = ruler.locator('[aria-current="page"]');
+      const selectedHeading = page.getByRole('heading', {
+        name: 'Course 8 · Grade 11',
+        exact: true,
+      });
+      await expect(current).toHaveAttribute('data-course-page', '3');
+      await expect(courses.getByRole('button')).toHaveCount(3);
+      await expect(courses.getByRole('button', { pressed: true })).toContainText(
+        language === 'th' ? 'เลือกอยู่' : 'Selected',
+      );
+      await expect(selectedHeading).toBeVisible();
+      const initialRequests = calls.length;
+      const bounds = await ruler.boundingBox();
+      expect(bounds?.height).toBeLessThanOrEqual(64);
+      const textHeight = await current.evaluate((button) => {
+        const range = document.createRange();
+        range.selectNodeContents(button);
+        return range.getBoundingClientRect().height;
+      });
+      expect(textHeight).toBeLessThanOrEqual(20);
+      const statusBounds = await ruler.getByRole('status').boundingBox();
+      expect(statusBounds?.height).toBeLessThanOrEqual(1);
+
+      await current.focus();
+      await page.keyboard.press('Home');
+      await expect(current).toHaveAttribute('data-course-page', '1');
+      await expect(current).toBeFocused();
+      await expect(courses.getByRole('heading', { name: 'Course 1', exact: true })).toBeVisible();
+      await expect(selectedHeading).toBeVisible();
+      await expect(courses.getByRole('button', { pressed: true })).toHaveCount(0);
+      await page
+        .getByRole('button', {
+          name: language === 'th' ? 'กลับไปคอร์สที่เลือก →' : 'Back to selected course →',
+          exact: true,
+        })
+        .click();
+      await expect(current).toHaveAttribute('data-course-page', '3');
+      await expect(courses.getByRole('button', { pressed: true })).toBeFocused();
+
+      await ruler.locator('[data-course-page="2"]').click();
+      await expect(current).toHaveAttribute('data-course-page', '2');
+      // Native scrolling settles to a page without selecting a different listing.
+      await ruler.locator('[data-course-page-track]').evaluate((track) => {
+        track.dispatchEvent(new WheelEvent('wheel'));
+        track.scrollTo({ left: 0, behavior: 'instant' });
+      });
+      await expect(current).toHaveAttribute('data-course-page', '1');
+      await expect(selectedHeading).toBeVisible();
+
+      const track = ruler.locator('[data-course-page-track]');
+      await track.scrollIntoViewIfNeeded();
+      const trackBounds = await track.boundingBox();
+      if (!trackBounds) throw new Error('Course ruler is missing');
+      if (testInfo.project.use.hasTouch) {
+        const client = await page.context().newCDPSession(page);
+        const x = trackBounds.x + trackBounds.width - 24;
+        const y = trackBounds.y + 24;
+        await client.send('Input.dispatchTouchEvent', {
+          type: 'touchStart',
+          touchPoints: [{ x, y }],
+        });
+        for (let step = 1; step <= 8; step++) {
+          await client.send('Input.dispatchTouchEvent', {
+            type: 'touchMove',
+            touchPoints: [{ x: x - step * 14, y }],
+          });
+          await page.waitForTimeout(32);
+        }
+        await page.waitForTimeout(100);
+        await expect(current).toHaveAttribute('data-course-page', '1');
+        await client.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+        await client.detach();
+      } else {
+        await page.mouse.move(trackBounds.x + trackBounds.width - 24, trackBounds.y + 24);
+        await page.mouse.down();
+        await page.mouse.move(trackBounds.x + trackBounds.width - 136, trackBounds.y + 24, {
+          steps: 12,
+        });
+        await page.mouse.up();
+      }
+      await expect(current).toHaveAttribute('data-course-page', '2');
+      await expect(selectedHeading).toBeVisible();
+      await current.focus();
+      await page.keyboard.press('End');
+      await expect(current).toHaveAttribute('data-course-page', '4');
+      await expect(courses.getByRole('button')).toHaveCount(1);
+      await expect(courses.getByRole('heading', { name: 'Course 10', exact: true })).toBeVisible();
+      await page.keyboard.press('ArrowRight');
+      await expect(current).toHaveAttribute('data-course-page', '4');
+      await expect(current).toBeFocused();
+      await page.keyboard.press('Home');
+      await page.keyboard.press('ArrowLeft');
+      await expect(current).toHaveAttribute('data-course-page', '1');
+      await expect(current).toBeFocused();
+      await noOverflow(page);
+      expect(calls).toHaveLength(initialRequests);
+      expect(unexpected).toEqual([]);
+      await page.screenshot({
+        path: testInfo.outputPath(`course-ruler-${language}-${student ? 'student' : 'guest'}.png`),
+        fullPage: true,
+      });
+      // Booking uses the selected off-page course, even though page one is being browsed.
+      const choose =
+        language === 'th'
+          ? student
+            ? 'เลือกเวลานี้'
+            : 'เข้าสู่ระบบเพื่อเลือกเวลานี้'
+          : student
+            ? 'Choose this time'
+            : 'Sign in to choose this time';
+      await page
+        .getByRole('button', { name: new RegExp(`^${choose} ·`) })
+        .first()
+        .click();
+      const bookingPath = '/dashboard/bookings/new?listingId=course%2F8&slotId=slot%2F8a';
+      await expect(page).toHaveURL(
+        student
+          ? new RegExp('/dashboard/bookings/new\\?listingId=course%2F8&slotId=slot%2F8a')
+          : 'http://localhost:3000/?returnTo=' + encodeURIComponent(bookingPath),
+      );
+    });
+  }
+}
+
+test('choosing a course on another page updates the pad and booking without extra requests', async ({
+  page,
+}) => {
+  const { calls } = await mockDetail(page, { data: paginatedDetail, role: 'STUDENT' });
+  await page.goto('/tutors/tutor-anna?listingId=course%2F8');
+  const ruler = page.getByRole('navigation', { name: 'Course pages', exact: true });
+  await expect(ruler.locator('[aria-current="page"]')).toHaveAttribute('data-course-page', '3');
+  const initialRequests = calls.length;
+  await ruler.locator('[aria-current="page"]').focus();
+  await page.keyboard.press('Home');
+  await page
+    .getByRole('button', { name: 'Choose this course: Course 2 · Grade 11', exact: true })
+    .click();
+  await expect(ruler.locator('[aria-current="page"]')).toHaveAttribute('data-course-page', '1');
+  await expect(
+    page.getByRole('heading', { name: 'Course 2 · Grade 11', exact: true }),
+  ).toBeVisible();
+  expect(calls).toHaveLength(initialRequests);
+  await page
+    .getByRole('button', { name: /^Choose this time ·/ })
+    .first()
+    .click();
+  await expect(page).toHaveURL(/listingId=course%2F2&slotId=slot%2F8a$/);
+});
+
+for (const query of ['', '?listingId=missing']) {
+  test(`paginated course fallback ${query || 'without listingId'}`, async ({ page }) => {
+    await mockDetail(page, { data: paginatedDetail });
+    await page.goto('/tutors/tutor-anna' + query);
+    await expect(
+      page
+        .getByRole('navigation', { name: 'Course pages', exact: true })
+        .locator('[aria-current="page"]'),
+    ).toHaveAttribute('data-course-page', '1');
+    await expect(
+      page.getByRole('button', { name: /^Choose this course: Course 1 ·/ }),
+    ).toHaveAttribute('aria-pressed', 'true');
+  });
+}
+
+test('three or fewer courses have no page ruler', async ({ page }) => {
+  await mockDetail(page, {
+    data: { ...paginatedDetail, listings: paginatedDetail.listings.slice(0, 3) },
+  });
+  await page.goto('/tutors/tutor-anna');
+  await expect(page.locator('#public-tutor-course-list').getByRole('button')).toHaveCount(3);
+  await expect(page.getByRole('navigation', { name: 'Course pages', exact: true })).toHaveCount(0);
+});
+
 for (const language of ['th', 'en'] as const) {
   for (const student of [false, true]) {
     test(`${language} ${student ? 'student' : 'guest'} preserves requested course, local day index and booking path`, async ({

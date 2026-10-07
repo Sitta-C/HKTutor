@@ -179,6 +179,16 @@ The user selected **Appointment Pad** (option 3) and requested implementation on
   native-button day index filters loaded slots only; All dates restores them without fetching.
   Compact day/month ticket labels retain full dates in accessible names and day gutters, with
   Thai Buddhist/English Gregorian years.
+- Course pagination uses the selected **Page Tabs / Scrolling Ruler**, with three already loaded
+  courses per page. Keep the ruler compact: page number and course range share one line, with the
+  existing centered pointer, ruler ticks, scroll snap, mouse dragging and native touch/trackpad
+  scrolling. Arrow keys, Home and End stay within the finite page range. There is no visible
+  record-range/page-count footer; a localized live status remains available to assistive technology.
+  Hide the ruler when three or fewer courses suffice. Open the page containing the effective
+  requested/fallback course. Browsing pages keeps the selected course and appointment pad intact;
+  an off-page selection note can return to its page and focus its selected ticket. Choosing another
+  course updates the pad normally. Page state and mint styles remain scoped to public tutor detail;
+  tutor calendar rulers and API pagination are unchanged.
 - Use 8px paper corners, thin borders, existing paper shadows, subtle stacked pad edges and one
   blue tape accent. Reuse notebook primitives and tokens; feature styles/copy/models stay local.
   The chosen tutor profile/listing editors and shared primitives remain unchanged.
