@@ -17,7 +17,6 @@ import {
   NotebookHeading,
   PaperCard,
   StatusBadge,
-  notebookButtonClass,
   notebookInputClass,
 } from '@/components/ui/notebook';
 import { NotebookLoadingRegion } from '@/components/ui/notebook-loading';
@@ -290,19 +289,15 @@ export default function TutorSearchPage() {
                 error={fieldErrors.minimumRating}
               />
               <div className={styles.filterActions}>
-                <button
-                  type="submit"
-                  className={notebookButtonClass()}
-                  disabled={status === 'loading'}
-                >
-                  {text.apply}
+                <button type="submit" className={styles.ticket} disabled={status === 'loading'}>
+                  <span className={styles.ticketLabel}>{text.apply}</span>
+                  <span className={styles.ticketStub} aria-hidden="true">
+                    <DashboardIcon name="search" className="h-4 w-4" />
+                  </span>
                 </button>
-                <button
-                  type="button"
-                  className={notebookButtonClass({ tone: 'secondary' })}
-                  onClick={clearFilters}
-                >
+                <button type="button" className={styles.clearAction} onClick={clearFilters}>
                   {text.clear}
+                  <ClearIcon />
                 </button>
               </div>
             </form>
@@ -547,9 +542,12 @@ function TutorResultCard({
       <p className={styles.availability}>{nextAvailable}</p>
       <Link
         href={`/tutors/${encodeURIComponent(result.tutorId)}?listingId=${encodeURIComponent(result.listingId)}`}
-        className={notebookButtonClass({ className: styles.courseAction })}
+        className={`${styles.ticket} ${styles.courseAction}`}
       >
-        {text.viewTimes}
+        <span className={styles.ticketLabel}>{text.viewTimes}</span>
+        <span className={styles.ticketStub} aria-hidden="true">
+          <DashboardIcon name="arrow-right" className="h-4 w-4" />
+        </span>
       </Link>
     </article>
   );
@@ -577,15 +575,29 @@ function SearchState({
       <p className="text-base font-extrabold">{message}</p>
       {hint && <p className="mt-2 text-sm text-notebook-muted">{hint}</p>}
       {clearLabel && onClear && (
-        <button
-          type="button"
-          className={notebookButtonClass({ tone: 'secondary', className: 'mt-4' })}
-          onClick={onClear}
-        >
+        <button type="button" className={`${styles.clearAction} mt-4`} onClick={onClear}>
           {clearLabel}
+          <ClearIcon />
         </button>
       )}
     </div>
+  );
+}
+
+function ClearIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className="h-4 w-4 shrink-0"
+      aria-hidden="true"
+    >
+      <path d="m14 4 6 6a2 2 0 0 1 0 3l-7 7H8l-5-5a2 2 0 0 1 0-3l8-8a2 2 0 0 1 3 0ZM7 8l9 9M13 20h8" />
+    </svg>
   );
 }
 

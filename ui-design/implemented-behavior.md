@@ -106,6 +106,17 @@ protect against cancelled/stale responses; no API client, request contract or au
 were introduced. Loading retains the shell and inline result skeleton; result counts are unavailable
 until success, including validation/search errors, with zero only after successful empty results.
 
+Search actions use **Paper Tickets**. Apply filters and View times are content-sized deep-mint
+tickets with a decorative right icon stub, dashed seam, small notches and a 2px bottom paper edge.
+Clear and empty-result Clear all filters are quieter underlined mint actions with a decorative eraser.
+Apply and Clear stay on one horizontal row in both languages, including at 320px; both have 44px
+minimum targets. The mobile Show/Hide filters ticket uses pale mint and a dashed border. Result
+sheets up to 350px place the view-times ticket below availability so its label remains legible.
+Native disabled Apply, enabled Clear during loading, keyboard focus and all original handlers remain
+unchanged. Styling is local to `tutor-search-page.module.css`; guest sign-in remains in its existing
+header position. Browser checks cover action alignment, target sizes, unclipped labels and focus
+alongside the existing request, validation, pagination and loading/error/empty flows.
+
 Search pagination uses **Ticket Pair**: Previous/Next are adjacent paper tickets with inset dashed
 edges, a perforated center seam and top/bottom notches. The next ticket is pale mint. Wider result
 sheets show the page count left and tickets right; sheets up to 450px put the count above a full-width

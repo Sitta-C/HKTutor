@@ -218,6 +218,44 @@ for (const language of ['en', 'th'] as const) {
         expect(filters?.x).toBeLessThan(result?.x ?? 0);
       }
       await page.evaluate(() => document.fonts.ready);
+      await openFilters(page);
+      const apply = page.getByRole('button', {
+        name: language === 'th' ? 'ใช้ตัวกรอง' : 'Apply filters',
+        exact: true,
+      });
+      const clear = page.getByRole('button', {
+        name: language === 'th' ? 'ล้าง' : 'Clear',
+        exact: true,
+      });
+      const applyBounds = await apply.boundingBox();
+      const clearBounds = await clear.boundingBox();
+      expect(applyBounds).not.toBeNull();
+      expect(clearBounds).not.toBeNull();
+      expect(applyBounds?.y).toBe(clearBounds?.y);
+      expect((applyBounds?.x ?? 0) + (applyBounds?.width ?? 0)).toBeLessThanOrEqual(
+        clearBounds?.x ?? 0,
+      );
+      for (const action of [apply, clear, first.getByRole('link')]) {
+        const bounds = await action.boundingBox();
+        expect(bounds?.height).toBeGreaterThanOrEqual(44);
+        expect(bounds?.width).toBeGreaterThanOrEqual(44);
+        expect(await action.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(
+          true,
+        );
+        await action.focus();
+        await expect(action).toBeFocused();
+        await expect(action).toHaveCSS('outline-style', 'solid');
+      }
+      await page.locator('#tutor-search-filters').screenshot({
+        path: testInfo.outputPath(
+          `filter-actions-${language}-${student ? 'student' : 'guest'}.png`,
+        ),
+        animations: 'disabled',
+      });
+      await first.screenshot({
+        path: testInfo.outputPath(`course-action-${language}-${student ? 'student' : 'guest'}.png`),
+        animations: 'disabled',
+      });
       await noOverflow(page);
       const pagination = main.getByRole('navigation');
       await expect(pagination.getByRole('button').first()).toBeDisabled();

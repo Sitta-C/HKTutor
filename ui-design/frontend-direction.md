@@ -134,10 +134,18 @@ without a checkmark. This is implemented for guests and signed-in students.
   slightly and has a subtle fold/shadow; price text and actions stay upright. Do not add tape or a
   separate lifted card to each result. Container queries stack row anatomy when the result sheet
   is narrow, including tablet and desktop columns.
-- Reuse `PaperCard`, `NotebookHeading`, `StatusBadge`, `NotebookSelect`, buttons and loading regions.
+- Reuse `PaperCard`, `NotebookHeading`, `StatusBadge`, `NotebookSelect` and loading regions.
   Styling is scoped to search; shared primitives and the tutor editor's **Note Window** are unchanged.
   Grade/subject/rate/description provide continuity with Note Window and the public tutor detail's
   Appointment Pad. These layouts do not establish a shared global course component.
+- The user selected **Paper Tickets** for search actions on 2026-10-07: Apply filters and View times
+  use compact deep-mint tickets with a right icon stub, dashed seam, small notches and a 2px paper
+  edge. Clear and empty-result Clear all filters use quieter underlined mint actions with a
+  decorative eraser. Apply and Clear always occupy the same horizontal row, including Thai/English
+  at 320px. The mobile Show/Hide filters ticket is pale mint with a dashed border. Keep native
+  button/link semantics, upright text, visible focus and at least 44px targets; narrow result sheets
+  place the view-times ticket below availability. Guest sign-in stays in the existing header only.
+  Action styling remains local to search, separate from detail tickets and shared buttons.
 - The search header keeps one sign-in action for guests and no booking action for authenticated
   users. Remove its self-link to search. My bookings is omitted from all student/public headers,
   including the booking list, request and detail pages; the sidebar booking link remains available.
