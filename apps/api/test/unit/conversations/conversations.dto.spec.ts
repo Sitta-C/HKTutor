@@ -113,22 +113,26 @@ describe('GetMyConversationsQueryDto', () => {
     await expect(validate(query)).resolves.toHaveLength(0);
   });
 
-  it('transforms valid page parameters', async () => {
-    const query = plainToInstance(GetMyConversationsQueryDto, { page: '2', pageSize: '25' });
+  it('accepts a cursor and transforms the limit', async () => {
+    const query = plainToInstance(GetMyConversationsQueryDto, {
+      cursor: 'eyJhY3Rpdml0eUF0Ijoi',
+      limit: '25',
+    });
 
     await expect(validate(query)).resolves.toHaveLength(0);
-    expect(query).toMatchObject({ page: 2, pageSize: 25 });
+    expect(query).toMatchObject({ cursor: 'eyJhY3Rpdml0eUF0Ijoi', limit: 25 });
   });
 
   it.each([
-    [{ page: '0' }, 'page below one'],
-    [{ page: '1.5' }, 'non-integer page'],
-    [{ pageSize: '0' }, 'page size below one'],
-    [{ pageSize: '101' }, 'page size above the maximum'],
-  ])('rejects %s (%s)', async (input) => {
-    const query = plainToInstance(GetMyConversationsQueryDto, input);
+    ['a limit of 0', { limit: '0' }, 'limit'],
+    ['a limit over 50', { limit: '51' }, 'limit'],
+    ['a fractional limit', { limit: '1.5' }, 'limit'],
+    ['an empty cursor', { cursor: '' }, 'cursor'],
+    ['a cursor over 512 characters', { cursor: 'a'.repeat(513) }, 'cursor'],
+  ])('rejects %s', async (_label, input, property) => {
+    const errors = await validate(plainToInstance(GetMyConversationsQueryDto, input));
 
-    expect(await validate(query)).not.toHaveLength(0);
+    expect(errors.map((error) => error.property)).toEqual([property]);
   });
 });
 

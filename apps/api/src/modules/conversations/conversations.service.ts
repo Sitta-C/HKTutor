@@ -11,10 +11,13 @@ import { Prisma } from '@generated/prisma/client';
 import { AccountStatus, Role } from '@generated/prisma/enums';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import {
+  decodeConversationCursor,
+  encodeConversationCursor,
+} from '@modules/conversations/conversations.cursor';
+import {
   ConversationSummaryDto,
   CreateConversationDto,
-  DEFAULT_CONVERSATIONS_PAGE,
-  DEFAULT_CONVERSATIONS_PAGE_SIZE,
+  DEFAULT_CONVERSATIONS_LIMIT,
   DEFAULT_MESSAGES_PAGE_SIZE,
   GetMessagesQueryDto,
   GetMyConversationsQueryDto,
@@ -98,6 +101,8 @@ interface ConversationListRow {
   lastMessageSenderUserId: string | null;
   lastMessageText: string | null;
   lastMessageSentAt: Date | null;
+  activityAt: Date;
+  unreadCount: number;
 }
 
 @Injectable()
@@ -133,48 +138,62 @@ export class ConversationsService {
       throw new ForbiddenException('Only students and tutors have conversations.');
     }
 
+    const cursor = input.cursor === undefined ? undefined : decodeConversationCursor(input.cursor);
+    const limit = input.limit ?? DEFAULT_CONVERSATIONS_LIMIT;
     const viewerIsStudent = input.role === Role.STUDENT;
-    const { skip, take } = conversationPagination(input);
     const participantFilter = viewerIsStudent
       ? Prisma.sql`c."studentUserId" = ${input.userId}`
       : Prisma.sql`c."tutorUserId" = ${input.userId}`;
+    const afterCursor =
+      cursor === undefined
+        ? Prisma.empty
+        : Prisma.sql`AND (COALESCE(last_message."sentAt", c."createdAt"), c."id") < (${cursor.activityAt}::timestamptz, ${cursor.id}::uuid)`;
 
-    const [rows, total] = await Promise.all([
-      this.prisma.$queryRaw<ConversationListRow[]>(Prisma.sql`
-        SELECT
-          c."id",
-          c."createdAt",
-          c."studentUserId",
-          sp."nickname" AS "studentNickname",
-          c."tutorUserId",
-          tp."displayName" AS "tutorDisplayName",
-          last_message."id" AS "lastMessageId",
-          last_message."senderUserId" AS "lastMessageSenderUserId",
-          last_message."text" AS "lastMessageText",
-          last_message."sentAt" AS "lastMessageSentAt"
-        FROM "Conversation" c
-        JOIN "TutorProfile" tp ON tp."userId" = c."tutorUserId"
-        LEFT JOIN "StudentProfile" sp ON sp."userId" = c."studentUserId"
-        LEFT JOIN LATERAL (
-          SELECT m."id", m."senderUserId", m."text", m."sentAt"
-          FROM "Message" m
-          WHERE m."conversationId" = c."id"
-          ORDER BY m."sentAt" DESC, m."id" DESC
-          LIMIT 1
-        ) last_message ON TRUE
-        WHERE ${participantFilter}
-        ORDER BY COALESCE(last_message."sentAt", c."createdAt") DESC, c."id" DESC
-        LIMIT ${take} OFFSET ${skip}`),
-      this.prisma.conversation.count({
-        where: viewerIsStudent ? { studentUserId: input.userId } : { tutorUserId: input.userId },
-      }),
-    ]);
+    // One extra row tells whether another page follows, without counting every conversation.
+    const rows = await this.prisma.$queryRaw<ConversationListRow[]>(Prisma.sql`
+      SELECT
+        c."id",
+        c."createdAt",
+        c."studentUserId",
+        sp."nickname" AS "studentNickname",
+        c."tutorUserId",
+        tp."displayName" AS "tutorDisplayName",
+        last_message."id" AS "lastMessageId",
+        last_message."senderUserId" AS "lastMessageSenderUserId",
+        last_message."text" AS "lastMessageText",
+        last_message."sentAt" AS "lastMessageSentAt",
+        COALESCE(last_message."sentAt", c."createdAt") AS "activityAt",
+        unread."unreadCount"
+      FROM "Conversation" c
+      JOIN "TutorProfile" tp ON tp."userId" = c."tutorUserId"
+      LEFT JOIN "StudentProfile" sp ON sp."userId" = c."studentUserId"
+      LEFT JOIN LATERAL (
+        SELECT m."id", m."senderUserId", m."text", m."sentAt"
+        FROM "Message" m
+        WHERE m."conversationId" = c."id"
+        ORDER BY m."sentAt" DESC, m."id" DESC
+        LIMIT 1
+      ) last_message ON TRUE
+      CROSS JOIN LATERAL (
+        SELECT count(*)::int AS "unreadCount"
+        FROM "Message" m
+        WHERE m."conversationId" = c."id"
+          AND m."senderUserId" <> ${input.userId}
+          AND m."readAt" IS NULL
+      ) unread
+      WHERE ${participantFilter}
+        ${afterCursor}
+      ORDER BY COALESCE(last_message."sentAt", c."createdAt") DESC, c."id" DESC
+      LIMIT ${limit + 1}`);
+    const page = rows.slice(0, limit);
+    const last = page.at(-1);
 
     return {
-      items: rows.map((row) =>
-        buildSummary(row, listRowParticipant(row, viewerIsStudent), listRowLastMessage(row)),
-      ),
-      total,
+      items: page.map((row) => buildSummary(row, viewerIsStudent)),
+      nextCursor:
+        rows.length > limit && last !== undefined
+          ? encodeConversationCursor({ activityAt: last.activityAt.toISOString(), id: last.id })
+          : null,
     };
   }
 
@@ -373,15 +392,6 @@ export class ConversationsService {
   }
 }
 
-function conversationPagination(input: { page?: number; pageSize?: number }): {
-  skip: number;
-  take: number;
-} {
-  const page = input.page ?? DEFAULT_CONVERSATIONS_PAGE;
-  const take = input.pageSize ?? DEFAULT_CONVERSATIONS_PAGE_SIZE;
-  return { skip: (page - 1) * take, take };
-}
-
 /**
  * The other participant's user ID. API-01 takes tutorId from a student and participantId from a
  * tutor, so a missing or extra key fails here, as does the caller's own ID, before any query.
@@ -430,14 +440,11 @@ function toOpenConversationResponse(
   };
 }
 
-function buildSummary(
-  conversation: SelectedConversation,
-  otherParticipant: OtherParticipantDto,
-  lastMessage: LastMessage | null,
-): ConversationSummaryDto {
+function buildSummary(row: ConversationListRow, viewerIsStudent: boolean): ConversationSummaryDto {
+  const lastMessage = listRowLastMessage(row);
   return {
-    conversationId: conversation.id,
-    createdAt: conversation.createdAt.toISOString(),
+    conversationId: row.id,
+    createdAt: row.createdAt.toISOString(),
     lastMessage:
       lastMessage === null
         ? null
@@ -447,7 +454,8 @@ function buildSummary(
             sentAt: lastMessage.sentAt.toISOString(),
             text: lastMessage.text,
           },
-    otherParticipant,
+    otherParticipant: listRowParticipant(row, viewerIsStudent),
+    unreadCount: row.unreadCount,
   };
 }
 

@@ -54,6 +54,7 @@ const conversationSummary = {
   createdAt: '2026-09-30T08:00:00.000Z',
   lastMessage: null,
   otherParticipant: { displayName: 'Anan Suksawat', userId: TUTOR_ID },
+  unreadCount: 0,
 };
 
 const storedMessage = {
@@ -191,21 +192,30 @@ describe('conversation routes', () => {
   });
 
   describe('GET /conversations', () => {
-    it('lists the session user’s conversations with parsed paging', async () => {
+    it('lists the session user’s conversations with a parsed cursor and limit', async () => {
       currentUser = signedInAs(Role.TUTOR);
-      getMyConversations.mockResolvedValue({ items: [conversationSummary], total: 1 });
+      getMyConversations.mockResolvedValue({ items: [conversationSummary], nextCursor: null });
 
       await request(app.getHttpServer())
-        .get('/api/v1/conversations?page=2&pageSize=5')
+        .get('/api/v1/conversations?cursor=eyJpZCI6IngifQ&limit=5')
         .expect(200)
-        .expect({ items: [conversationSummary], total: 1 });
+        .expect({ items: [conversationSummary], nextCursor: null });
 
       expect(getMyConversations).toHaveBeenCalledWith({
-        page: 2,
-        pageSize: 5,
+        cursor: 'eyJpZCI6IngifQ',
+        limit: 5,
         role: Role.TUTOR,
         userId: TUTOR_ID,
       });
+    });
+
+    it.each([
+      ['a limit over 50', '?limit=51'],
+      ['the old page parameter', '?page=2'],
+    ])('rejects %s with 400 before calling the service', async (_label, query) => {
+      await request(app.getHttpServer()).get(`/api/v1/conversations${query}`).expect(400);
+
+      expect(getMyConversations).not.toHaveBeenCalled();
     });
 
     it('rejects an admin with 403 before calling the service', async () => {
@@ -452,12 +462,27 @@ describe('ConversationsController OpenAPI contract', () => {
       (parameter) => parameter.name,
     );
 
+    const response = document.components?.schemas?.['MyConversationsResponseDto'] as
+      { properties?: Record<string, { nullable?: boolean }>; required?: string[] } | undefined;
+    const item = document.components?.schemas?.['ConversationSummaryDto'] as
+      { properties?: Record<string, unknown> } | undefined;
+
     expect(operation?.summary).toBe('List my conversations');
-    expect(parameterNames).toEqual(expect.arrayContaining(['page', 'pageSize']));
+    expect(parameterNames).toEqual(expect.arrayContaining(['cursor', 'limit']));
+    expect(parameterNames).not.toContain('page');
     for (const status of ['200', '400', '401', '403']) {
       expect(operation?.responses[status]).toBeDefined();
     }
     expect(operation?.security).toEqual([{ [JWT_BEARER_AUTH]: [] }]);
+    expect(Object.keys(response?.properties ?? {})).toEqual(['items', 'nextCursor']);
+    expect(response?.properties?.['nextCursor']).toMatchObject({ nullable: true });
+    expect(Object.keys(item?.properties ?? {})).toEqual([
+      'conversationId',
+      'createdAt',
+      'otherParticipant',
+      'lastMessage',
+      'unreadCount',
+    ]);
   });
 
   it('publishes the API-02 message history contract', () => {

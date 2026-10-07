@@ -60,6 +60,7 @@ const conversationSummaryExample = {
   createdAt: '2026-09-30T08:00:00.000Z',
   lastMessage: lastMessageExample,
   otherParticipant: { displayName: 'Anan Suksawat', userId: TUTOR_ID_EXAMPLE },
+  unreadCount: 1,
 };
 
 /** The body ApiExceptionFilter sends for an HTTP error. */
@@ -152,23 +153,28 @@ export function OpenConversationDoc(): MethodDecorator {
 export function GetMyConversationsDoc(): MethodDecorator {
   return applyDecorators(
     ApiExtraModels(GetMyConversationsQueryDto, MyConversationsResponseDto),
-    ApiOperation({ summary: 'List my conversations' }),
+    ApiOperation({
+      description:
+        'Latest activity first. Send nextCursor back as cursor to load the next page. A conversation that gets a new message while you page moves to the top, so it shows on the first page again rather than later.',
+      summary: 'List my conversations',
+    }),
     ApiBearerAuth(JWT_BEARER_AUTH),
     ApiOkResponse({
       description:
-        "The caller's conversations, most recent activity first, with the other participant and the latest message",
+        "The caller's conversations with the other participant, the latest message and the unread count",
       schema: {
         allOf: [{ $ref: getSchemaPath(MyConversationsResponseDto) }],
-        example: { items: [conversationSummaryExample], total: 1 },
+        example: { items: [conversationSummaryExample], nextCursor: null },
         type: 'object',
       },
     }),
     ApiBadRequestResponse({
-      description: 'page or pageSize failed validation',
+      description:
+        'cursor is not one this list returned, limit is outside 1-50, or the query has an unknown field',
       schema: errorSchema({
         code: 'VALIDATION_FAILED',
         error: 'Bad Request',
-        message: ['pageSize must not be greater than 100'],
+        message: 'Invalid conversation list cursor',
         statusCode: 400,
       }),
     }),
