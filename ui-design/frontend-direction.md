@@ -159,9 +159,9 @@ The user selected **Appointment Pad** (option 3) and requested implementation on
   768px, stack profile, courses and times. Use blue grade tabs, subject, a slightly tilted yellow
   price paper with upright text, full descriptions, and explicit selected-course text/button state.
   Narrow directory columns stack price beneath the subject, as in **Note Window**.
-- Choice controls use **Paper Tickets**, selected on 2026-10-07: a full-width course ticket with a
-  selection stub, connected day tickets and a mint time-action ticket with a perforated arrow stub
-  and seam notches. Use 4px corners, soft 2px paper edges and at least 44px targets. Keep upright
+- Choice controls use **Paper Tickets**, selected on 2026-10-07: compact, content-sized course and
+  time tickets with narrow stubs, connected day tickets and a mint time action with a perforated
+  arrow stub and seam notches. Use 4px corners, soft 2px paper edges and at least 44px targets. Keep upright
   bilingual labels, explicit pressed/disabled states, visible focus and reduced motion. These
   styles remain local to public tutor detail, independent of search's **Ticket Pair** pagination.
 - Keep the selected subject/grade/rate at the top of the pad. Group existing slots by their Bangkok

@@ -282,12 +282,13 @@
   overflow-wrap: anywhere;
 }
 .courseActions {
-  margin-top: 14px;
+  margin-top: 12px;
 }
 .courseButton {
   display: flex;
-  width: 100%;
-  min-height: 46px;
+  width: fit-content;
+  max-width: 100%;
+  min-height: 44px;
   align-items: center;
   border: 1px solid var(--color-paper-edge);
   border-radius: 4px;
@@ -312,8 +313,8 @@
 }
 .courseStub {
   display: grid;
-  width: 41px;
-  flex: 0 0 41px;
+  width: 32px;
+  flex: 0 0 32px;
   align-self: stretch;
   place-items: center;
   border-right: 1px dashed var(--color-paper-edge);
@@ -331,7 +332,7 @@
 .ticketLabel {
   flex: 1;
   min-width: 0;
-  padding: 9px 11px;
+  padding: 7px 9px;
   overflow-wrap: anywhere;
 }
 .pad.pad {
@@ -395,7 +396,7 @@
   border: 1px solid var(--color-paper-edge);
   border-right-style: dashed;
   border-radius: 0;
-  padding: 8px 10px;
+  padding: 6px 8px;
   background: var(--color-paper);
   color: var(--color-notebook-ink);
   font-size: 12px;
@@ -507,9 +508,9 @@
 .slotButton {
   position: relative;
   display: flex;
-  width: 100%;
+  width: fit-content;
   max-width: 100%;
-  min-height: 46px;
+  min-height: 44px;
   align-items: center;
   justify-content: space-between;
   border: 1px solid var(--detail-accent);
@@ -530,8 +531,8 @@
 }
 .timeStub {
   display: grid;
-  width: 39px;
-  flex: 0 0 39px;
+  width: 30px;
+  flex: 0 0 30px;
   align-self: stretch;
   place-items: center;
   border-left: 1px dashed currentColor;
@@ -541,7 +542,7 @@
 .slotButton::before,
 .slotButton::after {
   position: absolute;
-  right: 35px;
+  right: 26px;
   width: 7px;
   height: 4px;
   content: '';

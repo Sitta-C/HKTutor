@@ -127,8 +127,9 @@ tilted yellow paper, and description. Narrow directory columns stack the price b
 Selection has explicit text and a native button's pressed state, with the currently selected
 subject/grade/rate repeated in a polite live region above the appointment rows.
 
-Choice buttons use **Paper Tickets**, selected on 2026-10-07. Course tickets span their directory
-row, with an empty circle or selected check in a perforated stub and one explicit selection label.
+Choice buttons use **Paper Tickets**, selected on 2026-10-07. Course and time tickets fit their labels,
+with compact padding and narrow stubs. Course tickets have an empty circle or selected check in a
+perforated stub and one explicit selection label.
 Day tickets connect along dashed seams, with a mint pressed state and underline; their compact
 day/month text retains the complete localized date in its accessible name. Time actions are mint
 tickets with a separate arrow stub, seam notches and soft paper-edge shadows. Labels stay upright;
