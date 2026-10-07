@@ -324,6 +324,8 @@ The user selected **Ink Portrait Index**, combining Ink & Sketch and Portrait In
   subtle ruled lines. The circular portrait sits in a small paint wash, with its handwritten caption
   below. The user removed the rectangular dashed photo frame on 2026-10-08; keep this area unframed.
   Finish with a thin ruler edge; student accents are mint and tutor accents blue.
+- Keep the portrait caption **this is me** in English in both interface languages. Show the
+  localized separate-saving explanation directly, without a Little note prefix.
 - Choose photo uses a black fountain-pen action with a small gold nib/clip. Keep existing upload,
   cancel and remove actions, disabled/saving states, validation, previews and success/error toasts.
   Stack the portrait above the copy in narrow containers, including desktop form columns.

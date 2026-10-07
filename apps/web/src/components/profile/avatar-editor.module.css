@@ -259,12 +259,6 @@
   line-height: 1.7;
 }
 
-.note {
-  margin-right: 6px;
-  color: var(--avatar-accent);
-  font-size: 15px;
-}
-
 .ruler {
   height: 15px;
   border-top: 1px solid var(--color-paper-edge);

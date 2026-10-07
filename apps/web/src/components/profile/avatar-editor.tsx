@@ -16,10 +16,9 @@ const copy = {
   th: {
     title: 'รูปโปรไฟล์',
     portrait: 'เติมตัวตนลงในหน้าสมุด',
-    caption: 'ตัวฉัน',
+    caption: 'this is me',
     student: 'นักเรียน',
     tutor: 'ติวเตอร์',
-    note: 'บันทึกเล็ก ๆ',
     hint: 'JPEG, PNG หรือ WebP ไม่เกิน 2 MiB · ไม่บังคับ',
     studentPrivacy: 'รูปนี้แสดงเฉพาะในพื้นที่ส่วนตัวของคุณ',
     tutorPrivacy: 'รูปนี้แสดงบนโปรไฟล์สาธารณะเมื่อบัญชีผ่านเงื่อนไขการเผยแพร่',
@@ -42,7 +41,6 @@ const copy = {
     caption: 'this is me',
     student: 'Student',
     tutor: 'Tutor',
-    note: 'little note',
     hint: 'JPEG, PNG or WebP, up to 2 MiB · Optional',
     studentPrivacy: 'This photo appears only in your private account area.',
     tutorPrivacy: 'This photo appears on your public profile when your account is eligible.',
@@ -154,7 +152,9 @@ export function AvatarEditor({
                 className={styles.avatar ?? ''}
               />
             </div>
-            <figcaption className="font-note">{text.caption}</figcaption>
+            <figcaption className="font-note" lang="en">
+              {text.caption}
+            </figcaption>
           </figure>
           <div className={styles.copy}>
             <p className={styles.portrait}>{text.portrait}</p>
@@ -240,10 +240,7 @@ export function AvatarEditor({
             {file && <p className="mt-2 break-all text-xs text-notebook-muted">{file.name}</p>}
           </div>
         </div>
-        <p className={styles.footer}>
-          <span className={`font-note ${styles.note}`}>{text.note} — </span>
-          {text.separate}
-        </p>
+        <p className={styles.footer}>{text.separate}</p>
         {error && (
           <p role="alert" className="mt-3 text-sm text-red-700">
             {error}
