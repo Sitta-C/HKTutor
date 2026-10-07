@@ -15,6 +15,8 @@ test('defines the approved pnpm workspace', async () => {
     assert.equal(typeof root.scripts[script], 'string');
   }
   assert.match(root.scripts.check, /format:check/);
+  assert.match(root.scripts.dev, /^pnpm db:generate && pnpm --parallel /);
+  assert.doesNotMatch(root.scripts.dev, /migrate|seed/);
 });
 
 test('defines buildable web and API packages', async () => {
