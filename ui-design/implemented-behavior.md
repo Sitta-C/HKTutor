@@ -56,6 +56,11 @@ time from a confirmed appointment. The existing selection stays unchanged: earli
 after dashboard mount among PENDING and CONFIRMED bookings. A compact strip beneath it shows upcoming,
 all pending, and completed counts from loaded records, explicitly scoped to at most 100 bookings;
 pending and upcoming can overlap. It does not provide learning analytics or lifetime statistics.
+One compact mint **My bookings** paper ticket sits at the bottom-right of the overview, below the
+counts and scope notes, separated by a dashed paper rule. Its upright bilingual label and arrow
+stub lead to `/dashboard/bookings`, with a 44px target, visible keyboard focus and reduced motion.
+This secondary action is scoped to the dashboard overview and appears after a successful load,
+including empty results; header booking actions remain removed.
 
 The right sheet lists tutors derived from that same booking response. The existing Map preserves
 first tutor insertion order and retains the last encountered booking for each tutor; each row still

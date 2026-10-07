@@ -203,6 +203,14 @@ export function StudentDashboard({ user, onLogout }: StudentDashboardProps) {
                 </div>
               </dl>
               <p className={styles.scope}>{studentCopy.upcomingIncludesPending}</p>
+              <div className={styles.summaryActions}>
+                <Link href="/dashboard/bookings" className={styles.bookingsAction}>
+                  <span>{studentCopy.myBookingsAction}</span>
+                  <span className={styles.actionStub} aria-hidden="true">
+                    <DashboardIcon name="arrow-right" className="h-4 w-4" />
+                  </span>
+                </Link>
+              </div>
             </section>
           </PaperCard>
 

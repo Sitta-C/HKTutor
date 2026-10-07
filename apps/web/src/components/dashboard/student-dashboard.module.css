@@ -221,6 +221,55 @@
   font-variant-numeric: tabular-nums;
 }
 
+.summaryActions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px dashed var(--color-paper-edge);
+}
+
+.bookingsAction {
+  display: inline-flex;
+  max-width: 100%;
+  min-height: 44px;
+  align-items: center;
+  border: 1px solid color-mix(in srgb, var(--color-student-deep) 35%, var(--color-paper-edge));
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--color-sticky-green) 55%, var(--color-paper));
+  color: var(--color-student-deep);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  line-height: 1.65;
+  text-decoration: none;
+  box-shadow: 0 2px 0 var(--color-paper-edge);
+  transition: background-color 150ms;
+}
+
+.bookingsAction > span:first-child {
+  min-width: 0;
+  padding: 7px 10px;
+  overflow-wrap: anywhere;
+}
+
+.actionStub {
+  display: grid;
+  width: 32px;
+  flex: 0 0 32px;
+  align-self: stretch;
+  place-items: center;
+  border-left: 1px dashed color-mix(in srgb, var(--color-student-deep) 35%, var(--color-paper-edge));
+}
+
+.bookingsAction:hover {
+  background: var(--color-sticky-green);
+}
+
+.bookingsAction:focus-visible {
+  outline: 2px solid var(--color-student-deep);
+  outline-offset: 3px;
+}
+
 .binding {
   position: relative;
   z-index: 2;
@@ -424,7 +473,8 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .tutorLink {
+  .tutorLink,
+  .bookingsAction {
     transition: none;
   }
 }
