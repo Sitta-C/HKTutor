@@ -196,6 +196,10 @@ amount on subtly tilted yellow paper, full ruled description and subtotal/discou
 footer contains the waiting explanation, prominent total and original submit/change-time actions.
 Container queries stack the date rail first and full-width actions last below 600px of paper width.
 The existing notebook primitives, role colors and shell are retained; styling is scoped to bookings.
+Send request and View booking details use deep-mint Paper Tickets, with a right icon stub,
+perforated seam, small notches and 2px paper edges. They retain native button semantics, 44px minimum
+targets, visible focus, reduced motion and disabled sending styling, and fill the width on mobile.
+Secondary recovery actions remain text links. The styles stay local to the request page.
 
 Time presentation follows Appointment Pad: both date/time endpoints for lessons occupying multiple
 Bangkok dates, 24:00 for exact midnight on the last occupied date, with actual endpoint dates and

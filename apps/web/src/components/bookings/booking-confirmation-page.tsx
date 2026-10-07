@@ -12,7 +12,7 @@ import {
 import { bookingRequestCopy } from '@/components/bookings/booking-request-copy';
 import { formatBangkokDateTime, getBookingErrorMessage } from '@/components/bookings/booking-ui';
 import { DashboardIcon } from '@/components/dashboard/dashboard-icon';
-import { NotebookHeading, PaperCard, notebookButtonClass } from '@/components/ui/notebook';
+import { NotebookHeading, PaperCard } from '@/components/ui/notebook';
 import { NotebookLoadingRegion } from '@/components/ui/notebook-loading';
 import { createBookingOnce, getBookingQuote } from '@/lib/api/bookings';
 import { ApiError } from '@/lib/api/error';
@@ -154,13 +154,17 @@ export default function BookingConfirmationPage() {
                 <div className={styles.actions}>
                   <button
                     type="button"
-                    className={notebookButtonClass()}
+                    className={styles.ticket}
                     disabled={isSubmitting}
                     aria-busy={isSubmitting}
                     onClick={() => void submit()}
                   >
-                    <DashboardIcon name="arrow-right" className="h-4 w-4 shrink-0" />
-                    {isSubmitting ? text.sendingRequest : requestText.send}
+                    <span className={styles.ticketLabel}>
+                      {isSubmitting ? text.sendingRequest : requestText.send}
+                    </span>
+                    <span className={styles.ticketStub} aria-hidden="true">
+                      <DashboardIcon name="arrow-right" className="h-4 w-4" />
+                    </span>
                   </button>
                   <Link
                     href={`/tutors/${encodeURIComponent(activeQuote.tutor.tutorId)}?listingId=${encodeURIComponent(activeQuote.listing.id)}`}
@@ -208,13 +212,15 @@ export default function BookingConfirmationPage() {
               <div className={styles.actions}>
                 <button
                   type="button"
-                  className={notebookButtonClass()}
+                  className={styles.ticket}
                   onClick={() =>
                     router.push(`/dashboard/bookings/${encodeURIComponent(activeCreated.id)}`)
                   }
                 >
-                  <DashboardIcon name="bookings" className="h-4 w-4 shrink-0" />
-                  {requestText.details}
+                  <span className={styles.ticketLabel}>{requestText.details}</span>
+                  <span className={styles.ticketStub} aria-hidden="true">
+                    <DashboardIcon name="bookings" className="h-4 w-4" />
+                  </span>
                 </button>
                 <Link href="/dashboard/bookings" className={styles.link}>
                   {text.backToBookings}

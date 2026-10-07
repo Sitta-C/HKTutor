@@ -220,6 +220,10 @@ The user selected **Appointment Docket** and requested implementation on 2026-10
   waiting-for-confirmation note, the prominent request total and one send action. Narrow paper
   containers stack the rail above the same content, then total and full-width send action.
   Use 8px corners, thin borders and existing paper/note shadows. Dates, amounts and actions stay upright.
+- Send request and View booking details use deep-mint **Paper Tickets** with a narrow right icon
+  stub, dashed seam, small notches and a 2px paper edge, matching tutor/search actions. Keep 44px
+  minimum targets, full-width mobile actions, visible focus and explicit disabled sending styling.
+  Secondary recovery actions remain text links; ticket styling is local to the request page.
 - Continue the public tutor detail's Appointment Pad anatomy. Cross-day times show Start/End and
   both localized dates; exact midnight uses 24:00 on the last occupied date, with actual endpoints
   retained in the accessible range. Keep Thai Buddhist/English Gregorian years and Bangkok time.
