@@ -1,0 +1,158 @@
+import { formatBookingDocketSlot } from '@/components/bookings/booking-docket-model';
+import { formatDuration, formatMoney } from '@/components/bookings/booking-ui';
+import { StatusBadge } from '@/components/ui/notebook';
+import { formatBangkokDateParts } from '@/lib/date-time';
+
+import styles from './booking-docket.module.css';
+
+import type { BookingRequestCopy } from '@/components/bookings/booking-request-copy';
+import type { BookingLanguage, BookingText } from '@/components/bookings/booking-ui';
+import type { BookingQuote, BookingResponse, BookingStatus } from '@/lib/api/types';
+import type { ReactElement } from 'react';
+
+// Presentation only: quote and booking-detail consumers can supply their existing response data.
+export function BookingDocketSummary({
+  summary,
+  amounts,
+  language,
+  text,
+  requestText,
+}: {
+  summary: Pick<BookingQuote, 'tutor' | 'listing' | 'slot'>;
+  amounts: Pick<BookingResponse, 'subtotalAmount' | 'discountAmount' | 'currency'>;
+  language: BookingLanguage;
+  text: BookingText;
+  requestText: BookingRequestCopy;
+}): ReactElement {
+  const { tutor, listing, slot } = summary;
+  const date = formatBangkokDateParts(slot.startAtUtc, language);
+  const time = formatBookingDocketSlot(slot, language);
+  const verified = tutor.verificationStatus === 'VERIFIED';
+  const initials =
+    tutor.displayName
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((part) => Array.from(part)[0])
+      .join('')
+      .toUpperCase() || '?';
+
+  return (
+    <div className={styles.summary} data-booking-summary>
+      <div className={styles.timeRail}>
+        <div className={styles.calendar} aria-hidden="true">
+          <span>{date.month}</span>
+          <strong>{date.day}</strong>
+          <small>{date.year}</small>
+        </div>
+        <div className={styles.timeBody}>
+          <p className={styles.label}>{requestText.time}</p>
+          <div role="group" aria-label={time.label}>
+            {time.endDate ? (
+              <div className={styles.endpoints} aria-hidden="true">
+                <div>
+                  <span className={styles.label}>{requestText.start}</span>
+                  <time dateTime={slot.startAtUtc}>{time.start}</time>
+                  <p>{time.startDate}</p>
+                </div>
+                <div>
+                  <span className={styles.label}>{requestText.end}</span>
+                  <time dateTime={slot.endAtUtc}>{time.end}</time>
+                  <p>{time.endDate}</p>
+                </div>
+              </div>
+            ) : (
+              <div aria-hidden="true">
+                <p className={styles.clock}>
+                  <time dateTime={slot.startAtUtc}>{time.start}</time>–
+                  <time dateTime={slot.endAtUtc}>{time.end}</time>
+                </p>
+                <p className={styles.date}>{time.startDate}</p>
+              </div>
+            )}
+          </div>
+          <p className={styles.duration}>{formatDuration(slot.startAtUtc, slot.endAtUtc, text)}</p>
+          <p className={styles.zone}>{text.bangkokTime}</p>
+        </div>
+      </div>
+      <div className={styles.content}>
+        <div className={styles.person}>
+          <span className={styles.avatar} aria-hidden="true">
+            {initials}
+          </span>
+          <div className="min-w-0">
+            <h2>{tutor.displayName}</h2>
+            <p className={verified ? styles.verified : styles.label}>
+              {verified ? requestText.verified : requestText.verificationUnavailable}
+            </p>
+          </div>
+        </div>
+        <div className={styles.offer}>
+          <div>
+            <p className={styles.grade}>{listing.gradeLevelName}</p>
+            <h3>{listing.subjectName}</h3>
+          </div>
+          <div className={styles.rate}>
+            <strong>{formatMoney(listing.pricePerHour, amounts.currency)}</strong>
+            <span>/ {requestText.hour}</span>
+          </div>
+        </div>
+        <p className={styles.description}>{listing.description}</p>
+        <dl className={styles.amounts}>
+          <div>
+            <dt>{text.subtotal}</dt>
+            <dd>{formatMoney(amounts.subtotalAmount, amounts.currency)}</dd>
+          </div>
+          <div>
+            <dt>{text.discount}</dt>
+            <dd>{formatMoney(amounts.discountAmount, amounts.currency)}</dd>
+          </div>
+        </dl>
+      </div>
+    </div>
+  );
+}
+
+export function BookingDocketTotal({
+  amount,
+  currency,
+  label,
+}: {
+  amount: string;
+  currency: string;
+  label: string;
+}): ReactElement {
+  return (
+    <div className={styles.total}>
+      <span>{label}</span>
+      <strong>
+        {amount} <small>{currency}</small>
+      </strong>
+    </div>
+  );
+}
+
+export function BookingDocketStatus({
+  status,
+  text,
+}: {
+  status: BookingStatus;
+  text: BookingRequestCopy;
+}): ReactElement {
+  const tones = {
+    PENDING: 'warning',
+    CONFIRMED: 'success',
+    COMPLETED: 'neutral',
+    CANCELED: 'danger',
+    EXPIRED: 'danger',
+  } as const;
+  const labels = {
+    PENDING: text.pending,
+    CONFIRMED: text.confirmed,
+    COMPLETED: text.completed,
+    CANCELED: text.canceled,
+    EXPIRED: text.expired,
+  };
+  return <StatusBadge tone={tones[status]}>{labels[status]}</StatusBadge>;
+}

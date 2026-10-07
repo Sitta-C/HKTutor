@@ -206,7 +206,39 @@ The user selected **Appointment Pad** (option 3) and requested implementation on
   its unloaded sidebar booking count is unavailable. Do not extend the fetched range or add
   reviews/slot actions.
 - Tutor identity, blue grade tab, upright price, selected subject/grade and Bangkok date/time are
-  the reference anatomy for subsequent booking proposals. Booking layouts still require selection.
+  the reference anatomy for booking presentation. The request page uses Appointment Docket below;
+  booking list/detail layouts still require selection.
+
+## Student booking request
+
+The user selected **Appointment Docket** and requested implementation on 2026-10-07 for
+`/dashboard/bookings/new?listingId=...&slotId=...`.
+
+- Use one content-sized paper: a mint date/time rail on the left, tutor identity and plain
+  verification, blue grade tab, subject, upright hourly amount on slightly tilted yellow paper,
+  ruled description and amount breakdown on the right. Below a dashed seam, place a short
+  waiting-for-confirmation note, the prominent request total and one send action. Narrow paper
+  containers stack the rail above the same content, then total and full-width send action.
+  Use 8px corners, thin borders and existing paper/note shadows. Dates, amounts and actions stay upright.
+- Continue the public tutor detail's Appointment Pad anatomy. Cross-day times show Start/End and
+  both localized dates; exact midnight uses 24:00 on the last occupied date, with actual endpoints
+  retained in the accessible range. Keep Thai Buddhist/English Gregorian years and Bangkok time.
+- Quote loading keeps the shell and one inline loading region inside the paper. Missing-selection
+  and quote errors retain their existing recovery links; submit errors sit beside the action.
+  Keep sending labels/disabled behavior, change-time, 409 recovery with `conflict=1`, sign-in,
+  booking-detail/list and find-tutor links. This page does not load a booking count; its sidebar
+  count stays unavailable rather than displaying zero. Other booking-shell consumers are unchanged.
+- After submission, keep the same docket with the response status and created-response amounts.
+  PENDING explicitly says **Awaiting tutor confirmation / รอติวเตอร์ยืนยัน**, with warm status styling;
+  success never implies payment or confirmation. Other returned statuses use their own localized
+  label and neutral follow-up copy. Verification is translated when supplied; absent verification
+  is unavailable, never assumed verified. Do not add rating, experience or photos absent from the quote.
+- `BookingDocketSummary`, `BookingDocketTotal` and `BookingDocketStatus` are booking-only presentation
+  components available to the later list/detail work. Summary accepts existing tutor/listing/slot
+  data and separate response amounts; it fetches nothing. Existing `booking-ui` formatting/error
+  helpers and current list/detail consumers are unchanged. The list/detail redesign remains unselected.
+- Preserve quote/create requests, selectionKey guards, createBookingOnce and the duplicate-submit
+  gate. No API/client/payload/price-calculation, payment, coupon or scheduling workflow changes.
 
 ## Scope and data
 

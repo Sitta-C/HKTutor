@@ -189,6 +189,38 @@ header has no Find a tutor or My bookings action. The sidebar booking count is u
 detail does not load bookings. CSS, view models and bilingual copy are local to this feature; tutor editors, shared
 primitives and API contracts are unchanged.
 
+The student request page at `/dashboard/bookings/new?listingId=...&slotId=...` uses
+**Appointment Docket**, selected on 2026-10-07. One paper combines a mint calendar/time rail,
+tutor initials/name and plain localized verification, blue grade tab, subject, upright hourly
+amount on subtly tilted yellow paper, full ruled description and subtotal/discount rows. A dashed
+footer contains the waiting explanation, prominent total and original submit/change-time actions.
+Container queries stack the date rail first and full-width actions last below 600px of paper width.
+The existing notebook primitives, role colors and shell are retained; styling is scoped to bookings.
+
+Time presentation follows Appointment Pad: both date/time endpoints for lessons occupying multiple
+Bangkok dates, 24:00 for exact midnight on the last occupied date, with actual endpoint dates and
+00:00 in the accessible range. Date tiles are decorative duplicates of the accessible range.
+Duration still uses the existing helper; no monetary value is calculated in the browser.
+
+Quote loading retains the shell and an inline skeleton within the paper. Missing selection and
+quote errors retain their existing find-tutor/sign-in recovery. Submit errors remain by the send
+action; 409 still offers the encoded tutor/listing link with `conflict=1`. The send button retains its
+pending label and disabled behavior. The success heading reads Lesson request sent / ส่งคำขอเรียนแล้ว;
+its status region uses the exact returned status and a warm **Awaiting tutor confirmation /
+รอติวเตอร์ยืนยัน** label for PENDING. Other statuses keep their own localized label and a neutral
+follow-up explanation. It never claims payment or treats successful submission as confirmation.
+The same summary remains visible, with breakdown and total from the created response. Detail,
+booking-list and find-tutor recovery links and the created timestamp remain available.
+
+`booking-docket.tsx` contains presentation-only summary, total and status components for subsequent
+booking-list/detail reuse. It accepts existing response data without fetching. Absent quote
+verification shows unavailable; no tutor photo, rating or experience request is added. The original
+quote effect, selectionKey guards, createBookingOnce, duplicate-submit gate, API clients and POST
+listingId/slotId payload remain unchanged, including existing authentication retry/session-expiry
+behavior. The request route's sidebar booking count is unavailable because it does not load the
+list; other consumers of StudentBookingShell are unchanged. Existing shared booking helpers and
+current booking list/detail presentation are preserved.
+
 The tutor dashboard follows the Notebook Focus layout: the next confirmed session, today's
 availability, pending requests, monthly teaching analytics, and course performance. Today's availability
 uses the same overlap query and clips cross-day slots to the Bangkok day; midnight endings show 24:00. Monthly
