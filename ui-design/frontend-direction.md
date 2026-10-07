@@ -100,9 +100,10 @@ remaining student redesign work; their individual layouts still require selectio
   Rings and this two-sheet composition are dashboard details, not required decorations on every
   student page. These styles remain scoped to the student dashboard's CSS module.
 - Show next booking first, then one passive three-count strip. Place one compact deep-mint
-  **Find a tutor** paper ticket below the tutor index description and above its list or empty state,
-  aligned right, with an upright label, dashed arrow stub, visible focus and a 44px target. It opens
-  `/tutors`. During loading/errors, keep the action below the greeting so discovery stays available.
+  **Find a tutor** paper ticket to the right of the dashboard greeting as the page's primary booking
+  entry point. Below 640px, stack it beneath the greeting, aligned left. Keep an upright label,
+  dashed arrow stub, visible focus and a 48px target. It opens `/tutors` and stays in the same location
+  during loading/errors/empty results, independent of the tutor index.
   The dashboard header has no find-tutor action; the overview has no My bookings action, and existing
   shell navigation remains. The disabled tutor search and duplicate quick actions are
   removed. The right sheet is a tutor index from bookings, with four tutors per page using the

@@ -56,12 +56,12 @@ time from a confirmed appointment. The existing selection stays unchanged: earli
 after dashboard mount among PENDING and CONFIRMED bookings. A compact strip beneath it shows upcoming,
 all pending, and completed counts from loaded records, explicitly scoped to at most 100 bookings;
 pending and upcoming can overlap. It does not provide learning analytics or lifetime statistics.
-The overview has no My bookings action. One compact deep-mint **Find a tutor** paper ticket sits
-below the tutor index description, above its list or empty state, aligned right. Its upright
-bilingual label and dashed arrow stub lead to `/tutors`, with a 44px target, visible keyboard focus
-and reduced motion. During loading/errors, the same single action appears below the greeting to
-keep tutor discovery available. The dashboard header has no find-tutor action; header booking
-actions remain removed.
+The overview has no My bookings action. One deep-mint **Find a tutor** paper ticket sits to the right
+of the dashboard greeting as the page's primary booking entry point. Below 640px, it stacks beneath
+the greeting, aligned left. Its upright bilingual label and dashed arrow stub lead to `/tutors`,
+with a 48px target, visible keyboard focus and reduced motion. The action remains in the same
+location during loading/errors/empty results, independent of the tutor index. The dashboard's
+global header has no find-tutor action; header booking actions remain removed.
 
 The right sheet lists tutors derived from that same booking response. The existing Map preserves
 first tutor insertion order and retains the last encountered booking for each tutor; each row still
@@ -79,7 +79,7 @@ language-dependent effect, without following server totals or adding requests. L
 shared shell and student Mint loading note; loading/errors keep sidebar counts unavailable and hide
 summary counts/empty states. Zero appears only after a successful response. The disabled search,
 quick-action block, repeated pending panel, and duplicate find-tutor CTAs are removed; a single
-find-tutor CTA in the tutor index and existing shell navigation remain. Styles are isolated to Student Dashboard;
+find-tutor CTA beside the greeting and existing shell navigation remain. Styles are isolated to Student Dashboard;
 shared shell and tutor layouts remain unchanged, and the pagination's standard text-button mode
 remains the default for other consumers. Thai/English copy and reduced-motion
 preferences are preserved.

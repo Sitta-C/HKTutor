@@ -89,14 +89,6 @@ export function StudentDashboard({ user, onLogout }: StudentDashboardProps) {
     (currentTutorPage - 1) * TUTORS_PER_PAGE,
     currentTutorPage * TUTORS_PER_PAGE,
   );
-  const findTutorAction = (
-    <Link href="/tutors" className={styles.findTutorAction}>
-      <span>{studentCopy.findTutorAction}</span>
-      <span className={styles.actionStub} aria-hidden="true">
-        <DashboardIcon name="arrow-right" className="h-4 w-4" />
-      </span>
-    </Link>
-  );
 
   return (
     <DashboardShell
@@ -105,14 +97,19 @@ export function StudentDashboard({ user, onLogout }: StudentDashboardProps) {
       navBadges={{ bookings: isLoading || loadError ? '—' : String(bookings.length) }}
     >
       <div className={styles.greeting}>
-        <p className={styles.eyebrow}>{studentCopy.plannerEyebrow}</p>
-        <h1>{copy.dashboard.common.welcomeBack.replace('{name}', displayName)}</h1>
-        <p className={styles.intro}>
-          {studentCopy.plannerSubtitle} · {copy.dashboard.common.bangkokTimeWithZone}
-        </p>
-        {(isLoading || loadError) && (
-          <div className={styles.unavailableActions}>{findTutorAction}</div>
-        )}
+        <div className={styles.greetingCopy}>
+          <p className={styles.eyebrow}>{studentCopy.plannerEyebrow}</p>
+          <h1>{copy.dashboard.common.welcomeBack.replace('{name}', displayName)}</h1>
+          <p className={styles.intro}>
+            {studentCopy.plannerSubtitle} · {copy.dashboard.common.bangkokTimeWithZone}
+          </p>
+        </div>
+        <Link href="/tutors" className={styles.findTutorAction}>
+          <span>{studentCopy.findTutorAction}</span>
+          <span className={styles.actionStub} aria-hidden="true">
+            <DashboardIcon name="arrow-right" className="h-4 w-4" />
+          </span>
+        </Link>
       </div>
 
       {isLoading ? (
@@ -222,7 +219,6 @@ export function StudentDashboard({ user, onLogout }: StudentDashboardProps) {
                 <span className={styles.count}>{tutorBookings.length}</span>
               </div>
               <p className={styles.indexHelp}>{studentCopy.tutorIndexDescription}</p>
-              <div className={styles.tutorActions}>{findTutorAction}</div>
               {tutorBookings.length === 0 ? (
                 <div className={styles.empty}>
                   <p className={styles.emptyTitle}>{studentCopy.noTutorsYetTitle}</p>
