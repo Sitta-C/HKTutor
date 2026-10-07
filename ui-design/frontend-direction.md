@@ -315,6 +315,21 @@ The user selected the **tutor-aligned Profile Page** and requested implementatio
   fields, catalog requests, profile/API contracts or photo behavior. Tutor edit/onboarding, its
   selected Profile Page preview and rating/verification summary remain unchanged.
 
+## Profile photo editor
+
+The user selected **Ink Portrait Index**, combining Ink & Sketch and Portrait Index, on
+2026-10-08 for student and tutor profile editing and onboarding.
+
+- Use a compact paper with a brush-highlighted heading, role tab, punched binding margin and
+  subtle ruled lines. The portrait sits in a dashed stamp frame with a circular photo and a small
+  paint wash. Finish with a thin ruler edge; student accents are mint and tutor accents blue.
+- Choose photo uses a black fountain-pen action with a small gold nib/clip. Keep existing upload,
+  cancel and remove actions, disabled/saving states, validation, previews and success/error toasts.
+  Stack the portrait above the copy in narrow containers, including desktop form columns.
+- Keep bilingual text and the actual role-specific privacy explanation: student photos are private;
+  tutor photos can appear publicly when eligible. Photo saving remains separate from profile fields.
+  Styles stay local to `avatar-editor.module.css`; public avatars and profile previews are unchanged.
+
 ## Action notifications
 
 The user approved completing **NotebookToast** success/error feedback across Student and Tutor
