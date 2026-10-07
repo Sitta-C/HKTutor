@@ -111,9 +111,37 @@ and do not change shared `NotebookPagination` consumers. Browser checks assert t
 layout and borders, alongside the keyboard and pagination flow.
 
 Only the `/tutors` header changes: guests see Sign in and authenticated users see My bookings, with
-no link back to search. Its unloaded sidebar booking count is unavailable. Public tutor detail retains
-its existing header actions, selected-listing flow and guest login/onboarding return path. These search
-styles do not alter shared primitives, tutor UI or implement the unselected tutor-detail redesign.
+no link back to search. Its unloaded sidebar booking count is unavailable. These search styles do not
+alter shared primitives or tutor UI.
+
+Public tutor detail at `/tutors/[tutorId]?listingId=...` uses **Appointment Pad**, selected as option 3
+on 2026-10-07. One profile paper leads with tutor name, initial avatar and plain verification, actual
+rating/review aggregate, a yellow experience note and ruled biography. Null rating shows New tutor
+alongside the actual review count. Individual reviews remain unavailable; no endpoint or action is
+added. The profile composition follows the tutor's selected **Profile Page** preview.
+
+From 768px, a continuous course directory sits left of a mint-bound appointment pad with subtle
+stacked paper edges. Below 768px, profile, courses and times stack in reading order. Each course keeps
+the **Note Window**/**Course Index** anatomy: blue grade tab, subject, upright hourly rate on slightly
+tilted yellow paper, and description. Narrow directory columns stack the price beneath the subject.
+Selection has explicit text and a native button's pressed state, with the currently selected
+subject/grade/rate repeated in a polite live region above the appointment rows.
+
+Loaded slots are grouped by their Bangkok start date, preserving API day/slot order. Each date has
+one shared gutter beside ruled time/action rows. Cross-day slots retain one underlying slot/action
+and show the localized end date and time explicitly, including midnight endings. Thai uses Buddhist
+years and English Gregorian years. Native day-index buttons filter the already loaded dates only;
+All dates restores the full loaded set. Changing course or date does not fetch availability again.
+Narrow pads wrap the action beneath the time, retaining 44px targets, visible focus and reduced motion.
+
+The original public detail and availability requests still load the same 30-day window, with the same
+stale-response guard. Requested listing IDs, effective/fallback selection, encoded listing/slot
+booking URLs, guest login/onboarding return paths and disabled non-STUDENT actions are preserved.
+`conflict=1` retains its recovery notice. Loading retains the existing shell and inline skeleton;
+error/404 retains the back link; empty listings and slots are explicit after success. The existing
+detail header actions remain, and the sidebar booking count is unavailable because detail does not
+load bookings. CSS, view models and bilingual copy are local to this feature; tutor editors, shared
+primitives and API contracts are unchanged.
 
 The tutor dashboard follows the Notebook Focus layout: the next confirmed session, today's
 availability, pending requests, monthly teaching analytics, and course performance. Today's availability

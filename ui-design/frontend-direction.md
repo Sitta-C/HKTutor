@@ -63,6 +63,7 @@ See [implemented frontend behavior](implemented-behavior.md) for detailed intera
 | Tutor dashboard              | Notebook Focus; teaching overview, pending requests, analytics, and course performance                                                                               | `apps/web/src/components/dashboard/tutor-dashboard.tsx`                                 |
 | Student dashboard            | **Desk Spread**: two notebook sheets joined by closely spaced wire loops; next booking and compact count strip on the left, booking-derived tutor index on the right | `apps/web/src/components/dashboard/student-dashboard.tsx` and its stylesheet            |
 | Student course search        | **Course Index**: left filter memo, continuous ruled course rows, grade tabs, yellow rate notes, and plain verification tags; mobile filters collapse                | `apps/web/src/components/tutors/tutor-search-page.tsx` and its stylesheet               |
+| Public tutor detail          | **Appointment Pad**: Profile Page above a course directory and mint-bound date/time pad; selected course remains visible above the ruled appointment rows            | `apps/web/src/components/tutors/public-tutor-availability.tsx` and its stylesheet       |
 | Course management            | **Course Ledger**: one compact count strip, status tabs/search, and continuous ruled rows with a binding margin; grade above subject, rate/date/actions below        | `apps/web/src/components/listings/tutor-listings-page.tsx` and its stylesheet           |
 | Past requests                | Hidden by default; blue bookmark-note switch shows them; pale paper/perforated styling keeps past rows readable                                                      | `apps/web/src/components/ui/bookmark-note-switch.tsx`, `notebook.module.css`            |
 | Course performance selection | **Subject Index** with a subject directory and stable subcolors; show all courses of the selected subject without pagination                                         | `apps/web/src/components/ui/subject-course-index.tsx` and its stylesheet                |
@@ -130,8 +131,8 @@ without a checkmark. This is implemented for guests and signed-in students.
   is narrow, including tablet and desktop columns.
 - Reuse `PaperCard`, `NotebookHeading`, `StatusBadge`, `NotebookSelect`, buttons and loading regions.
   Styling is scoped to search; shared primitives and the tutor editor's **Note Window** are unchanged.
-  Grade/subject/rate/description provide continuity with Note Window. Tutor detail's redesign still
-  requires its own selection; this search layout does not approve a shared global course component.
+  Grade/subject/rate/description provide continuity with Note Window and the public tutor detail's
+  Appointment Pad. These layouts do not establish a shared global course component.
 - The search header keeps one sign-in action for guests or My bookings for authenticated users;
   remove its self-link to search. The booking badge is unavailable because this page does not load
   bookings. The existing public tutor detail header keeps its original actions.
@@ -145,6 +146,33 @@ without a checkmark. This is implemented for guests and signed-in students.
   and stale-response guards. Do not group by tutor, merge pages, add unsupported controls, or change
   availability formatting. Keep explicit null-rating/no-availability states and unavailable result
   counts until a successful response; zero belongs only to successful empty results.
+
+## Public tutor detail
+
+The user selected **Appointment Pad** (option 3) and requested implementation on 2026-10-07 for
+`/tutors/[tutorId]?listingId=...`, for guests and signed-in students.
+
+- Begin with one **Profile Page** paper: tutor identity, plain verification, actual rating/review
+  aggregate, a yellow teaching-experience note, and ruled biography. Null rating displays New tutor;
+  no review detail action or invented metadata is added.
+- Place the continuous course directory left of a mint-bound appointment pad from 768px. Below
+  768px, stack profile, courses and times. Use blue grade tabs, subject, a slightly tilted yellow
+  price paper with upright text, full descriptions, and explicit selected-course text/button state.
+  Narrow directory columns stack price beneath the subject, as in **Note Window**.
+- Keep the selected subject/grade/rate at the top of the pad. Group existing slots by their Bangkok
+  start date, with a shared date gutter and ruled time/action rows. Cross-day slots remain one
+  action and show their end date/time explicitly. A local native-button day index filters loaded
+  slots only; All dates restores them without fetching. Dates retain Thai Buddhist/English Gregorian
+  years, keyboard focus and accessible full-date labels.
+- Use 8px paper corners, thin borders, existing paper shadows, subtle stacked pad edges and one
+  blue tape accent. Reuse notebook primitives and tokens; feature styles/copy/models stay local.
+  The chosen tutor profile/listing editors and shared primitives remain unchanged.
+- Preserve the original detail and 30-day availability requests, requested/fallback listing
+  selection, encoded booking link, guest login return path, wrong-role guards, conflict recovery,
+  and loading/error/404/empty states. Keep the existing detail header actions; its unloaded sidebar
+  booking count is unavailable. Do not extend the fetched range or add reviews/slot actions.
+- Tutor identity, blue grade tab, upright price, selected subject/grade and Bangkok date/time are
+  the reference anatomy for subsequent booking proposals. Booking layouts still require selection.
 
 ## Scope and data
 
