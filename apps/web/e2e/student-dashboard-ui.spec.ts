@@ -147,7 +147,8 @@ test('earliest future pending booking remains next, with honest status and loade
   await expect(summary.locator('dd')).toHaveText(['2', '2', '1']);
   await expect(summary).toContainText('up to 100 records');
   await expect(page.locator('input[type="search"]')).toHaveCount(0);
-  await expect(page.locator('header a[href="/tutors"]')).toHaveCount(1);
+  await expect(page.locator('header a[href="/tutors"]')).toHaveCount(0);
+  await expect(page.locator('main a[href="/tutors"]')).toHaveCount(1);
   // Development effect replay and restoring a saved language may repeat the original load.
   expect(calls.length).toBeGreaterThan(0);
   for (const call of calls) {
@@ -189,13 +190,11 @@ test('right sheet paginates loaded tutors with keyboard and preserves original b
   const calls = await mockDashboard(page, items);
   await page.goto('/dashboard');
   const index = page.getByRole('region', { name: 'Tutors from your bookings', exact: true });
+  const tutorLinks = index.getByRole('list').getByRole('link');
   const pages = index.getByRole('navigation', { name: 'Tutor pages' });
   const nextBooking = page.getByRole('region', { name: 'Next booking', exact: true });
   await expect(index.getByRole('listitem')).toHaveCount(4);
-  await expect(index.getByRole('link').first()).toHaveAttribute(
-    'href',
-    '/dashboard/bookings/latest%2Fbooking',
-  );
+  await expect(tutorLinks.first()).toHaveAttribute('href', '/dashboard/bookings/latest%2Fbooking');
   await expect(pages).toContainText('1–4 / 11');
   await expect(pages.getByRole('button', { name: 'Previous', exact: true })).toBeDisabled();
   const initialCallCount = calls.length;
@@ -208,7 +207,7 @@ test('right sheet paginates loaded tutors with keyboard and preserves original b
   await next.focus();
   await page.keyboard.press('Enter');
   await expect(pages).toContainText('Page 2 of 3');
-  await expect(index.getByRole('link').first()).toContainText('Tutor 05');
+  await expect(tutorLinks.first()).toContainText('Tutor 05');
   await expect(next).toBeFocused();
   await page.keyboard.press('Space');
   await expect(index.getByRole('listitem')).toHaveCount(3);
@@ -219,13 +218,13 @@ test('right sheet paginates loaded tutors with keyboard and preserves original b
   await pages.getByRole('button', { name: 'Previous', exact: true }).click();
   await pages.getByRole('button', { name: 'Previous', exact: true }).click();
   await expect(pages).toContainText('Page 1 of 3');
-  const link = index.getByRole('link').first();
+  const link = tutorLinks.first();
   await page.keyboard.press('Tab');
   await link.focus();
   await expect(link).toHaveCSS('outline-style', 'solid');
   await expect(link).toHaveCSS('transition-property', 'none');
   await expectResponsiveShell(page);
-  await index.getByRole('link').nth(1).focus();
+  await tutorLinks.nth(1).focus();
   await page.keyboard.press('Enter');
   await expect(page).toHaveURL(/\/dashboard\/bookings\/booking-1$/);
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('Tutor 02');

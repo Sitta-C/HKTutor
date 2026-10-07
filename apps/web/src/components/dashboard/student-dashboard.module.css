@@ -221,23 +221,29 @@
   font-variant-numeric: tabular-nums;
 }
 
-.summaryActions {
+.tutorActions,
+.unavailableActions {
   display: flex;
   justify-content: flex-end;
-  margin-top: 16px;
-  padding-top: 12px;
-  border-top: 1px dashed var(--color-paper-edge);
 }
 
-.bookingsAction {
+.tutorActions {
+  margin-bottom: 16px;
+}
+
+.unavailableActions {
+  margin-top: 16px;
+}
+
+.findTutorAction {
   display: inline-flex;
   max-width: 100%;
   min-height: 44px;
   align-items: center;
-  border: 1px solid color-mix(in srgb, var(--color-student-deep) 35%, var(--color-paper-edge));
+  border: 1px solid var(--color-student-deep);
   border-radius: 4px;
-  background: color-mix(in srgb, var(--color-sticky-green) 55%, var(--color-paper));
-  color: var(--color-student-deep);
+  background: var(--color-student-deep);
+  color: var(--color-paper);
   font-size: 0.8125rem;
   font-weight: 600;
   line-height: 1.65;
@@ -246,7 +252,7 @@
   transition: background-color 150ms;
 }
 
-.bookingsAction > span:first-child {
+.findTutorAction > span:first-child {
   min-width: 0;
   padding: 7px 10px;
   overflow-wrap: anywhere;
@@ -258,14 +264,15 @@
   flex: 0 0 32px;
   align-self: stretch;
   place-items: center;
-  border-left: 1px dashed color-mix(in srgb, var(--color-student-deep) 35%, var(--color-paper-edge));
+  border-left: 1px dashed color-mix(in srgb, var(--color-paper) 65%, transparent);
+  background: color-mix(in srgb, var(--color-student-deep) 85%, var(--color-paper));
 }
 
-.bookingsAction:hover {
-  background: var(--color-sticky-green);
+.findTutorAction:hover {
+  background: color-mix(in srgb, var(--color-student-deep) 85%, var(--color-notebook-ink));
 }
 
-.bookingsAction:focus-visible {
+.findTutorAction:focus-visible {
   outline: 2px solid var(--color-student-deep);
   outline-offset: 3px;
 }
@@ -474,7 +481,7 @@
 
 @media (prefers-reduced-motion: reduce) {
   .tutorLink,
-  .bookingsAction {
+  .findTutorAction {
     transition: none;
   }
 }
