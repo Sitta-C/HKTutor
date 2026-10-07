@@ -17,12 +17,16 @@ export function BookingDocketSummary({
   language,
   text,
   requestText,
+  presentation = 'request',
+  timeLabel = requestText.time,
 }: {
   summary: Pick<BookingQuote, 'tutor' | 'listing' | 'slot'>;
   amounts: Pick<BookingResponse, 'subtotalAmount' | 'discountAmount' | 'currency'>;
   language: BookingLanguage;
   text: BookingText;
   requestText: BookingRequestCopy;
+  presentation?: 'request' | 'detail';
+  timeLabel?: string;
 }): ReactElement {
   const { tutor, listing, slot } = summary;
   const date = formatBangkokDateParts(slot.startAtUtc, language);
@@ -38,79 +42,114 @@ export function BookingDocketSummary({
       .join('')
       .toUpperCase() || '?';
 
-  return (
-    <div className={styles.summary} data-booking-summary>
-      <div className={styles.timeRail}>
-        <div className={styles.calendar} aria-hidden="true">
-          <span>{date.month}</span>
-          <strong>{date.day}</strong>
-          <small>{date.year}</small>
+  const timeRail = (
+    <div className={styles.timeRail}>
+      <div className={styles.calendar} aria-hidden="true">
+        <span>{date.month}</span>
+        <strong>{date.day}</strong>
+        <small>{date.year}</small>
+      </div>
+      <div className={styles.timeBody}>
+        <p className={styles.label}>{timeLabel}</p>
+        <div role="group" aria-label={time.label}>
+          {time.endDate ? (
+            <div className={styles.endpoints} aria-hidden="true">
+              <div>
+                <span className={styles.label}>{requestText.start}</span>
+                <time dateTime={slot.startAtUtc}>{time.start}</time>
+                <p>{time.startDate}</p>
+              </div>
+              <div>
+                <span className={styles.label}>{requestText.end}</span>
+                <time dateTime={slot.endAtUtc}>{time.end}</time>
+                <p>{time.endDate}</p>
+              </div>
+            </div>
+          ) : (
+            <div aria-hidden="true">
+              <p className={styles.clock}>
+                <time dateTime={slot.startAtUtc}>{time.start}</time>–
+                <time dateTime={slot.endAtUtc}>{time.end}</time>
+              </p>
+              <p className={styles.date}>{time.startDate}</p>
+            </div>
+          )}
         </div>
-        <div className={styles.timeBody}>
-          <p className={styles.label}>{requestText.time}</p>
-          <div role="group" aria-label={time.label}>
-            {time.endDate ? (
-              <div className={styles.endpoints} aria-hidden="true">
-                <div>
-                  <span className={styles.label}>{requestText.start}</span>
-                  <time dateTime={slot.startAtUtc}>{time.start}</time>
-                  <p>{time.startDate}</p>
-                </div>
-                <div>
-                  <span className={styles.label}>{requestText.end}</span>
-                  <time dateTime={slot.endAtUtc}>{time.end}</time>
-                  <p>{time.endDate}</p>
-                </div>
-              </div>
-            ) : (
-              <div aria-hidden="true">
-                <p className={styles.clock}>
-                  <time dateTime={slot.startAtUtc}>{time.start}</time>–
-                  <time dateTime={slot.endAtUtc}>{time.end}</time>
-                </p>
-                <p className={styles.date}>{time.startDate}</p>
-              </div>
-            )}
-          </div>
-          <p className={styles.duration}>{formatDuration(slot.startAtUtc, slot.endAtUtc, text)}</p>
-          <p className={styles.zone}>{text.bangkokTime}</p>
+        <p className={styles.duration}>{formatDuration(slot.startAtUtc, slot.endAtUtc, text)}</p>
+        <p className={styles.zone}>{text.bangkokTime}</p>
+      </div>
+    </div>
+  );
+  const courseContent = (
+    <div className={styles.content}>
+      <div className={styles.person}>
+        <span className={styles.avatar} aria-hidden="true">
+          {initials}
+        </span>
+        <div className="min-w-0">
+          <h2>{tutor.displayName}</h2>
+          <p className={verified ? styles.verified : styles.label}>
+            {verified ? requestText.verified : requestText.verificationUnavailable}
+          </p>
         </div>
       </div>
-      <div className={styles.content}>
-        <div className={styles.person}>
-          <span className={styles.avatar} aria-hidden="true">
-            {initials}
-          </span>
-          <div className="min-w-0">
-            <h2>{tutor.displayName}</h2>
-            <p className={verified ? styles.verified : styles.label}>
-              {verified ? requestText.verified : requestText.verificationUnavailable}
-            </p>
-          </div>
+      <div className={styles.offer}>
+        <div>
+          <p className={styles.grade}>{listing.gradeLevelName}</p>
+          <h3>{listing.subjectName}</h3>
         </div>
-        <div className={styles.offer}>
-          <div>
-            <p className={styles.grade}>{listing.gradeLevelName}</p>
-            <h3>{listing.subjectName}</h3>
-          </div>
+        {presentation === 'request' && (
           <div className={styles.rate}>
             <strong>{formatMoney(listing.pricePerHour, amounts.currency)}</strong>
             <span>/ {requestText.hour}</span>
           </div>
-        </div>
-        <p className={styles.description}>{listing.description}</p>
-        <dl className={styles.amounts}>
-          <div>
-            <dt>{text.subtotal}</dt>
-            <dd>{formatMoney(amounts.subtotalAmount, amounts.currency)}</dd>
-          </div>
-          <div>
-            <dt>{text.discount}</dt>
-            <dd>{formatMoney(amounts.discountAmount, amounts.currency)}</dd>
-          </div>
-        </dl>
+        )}
       </div>
+      <p className={styles.description}>{listing.description}</p>
+      {presentation === 'request' && <BookingDocketAmounts amounts={amounts} text={text} />}
     </div>
+  );
+
+  return (
+    <div
+      className={
+        presentation === 'detail' ? `${styles.summary} ${styles.detailSummary}` : styles.summary
+      }
+      data-booking-summary
+    >
+      {presentation === 'detail' ? (
+        <>
+          {courseContent}
+          {timeRail}
+        </>
+      ) : (
+        <>
+          {timeRail}
+          {courseContent}
+        </>
+      )}
+    </div>
+  );
+}
+
+export function BookingDocketAmounts({
+  amounts,
+  text,
+}: {
+  amounts: Pick<BookingResponse, 'subtotalAmount' | 'discountAmount' | 'currency'>;
+  text: BookingText;
+}): ReactElement {
+  return (
+    <dl className={styles.amounts}>
+      <div>
+        <dt>{text.subtotal}</dt>
+        <dd>{formatMoney(amounts.subtotalAmount, amounts.currency)}</dd>
+      </div>
+      <div>
+        <dt>{text.discount}</dt>
+        <dd>{formatMoney(amounts.discountAmount, amounts.currency)}</dd>
+      </div>
+    </dl>
   );
 }
 

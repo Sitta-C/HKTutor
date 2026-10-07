@@ -40,7 +40,7 @@ export default function StudentBookingShell({ children }: { children: ReactNode 
   return (
     <DashboardShell
       user={profileUser ?? user}
-      {...(pathname === '/dashboard/bookings/new' ? { navBadges: { bookings: '–' } } : {})}
+      navBadges={{ bookings: '—' }}
       onLogout={async () => {
         await logout();
         router.replace('/');

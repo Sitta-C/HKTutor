@@ -222,8 +222,46 @@ verification shows unavailable; no tutor photo, rating or experience request is 
 quote effect, selectionKey guards, createBookingOnce, duplicate-submit gate, API clients and POST
 listingId/slotId payload remain unchanged, including existing authentication retry/session-expiry
 behavior. The request route's sidebar booking count is unavailable because it does not load the
-list; other consumers of StudentBookingShell are unchanged. Existing shared booking helpers and
-current booking list/detail presentation are preserved.
+list; the shell also keeps list/detail counts unavailable without extra reads. Existing shared booking
+helpers and the request's default docket presentation are preserved.
+
+The student booking list and detail use **Margin Index**, selected on 2026-10-07. List filters are
+six native pressed-state buttons in a desktop left index, with a two-column grid above the ledger
+below 640px. They preserve ALL/PENDING/CONFIRMED/COMPLETED/CANCELED/EXPIRED and the original server
+status query, page size 10 and page-one reset. Rows keep the exact API order; there is no frontend
+sorting, grouping or cross-page filtering. Each continuous ruled row has a binding margin,
+Bangkok date/time, blue grade tab, subject, tutor, localized business-status badge and persisted
+net amount. A dashed right stub contains the pale-mint detail ticket, with the same encoded URL.
+Narrow paper containers stack course, status/amount and a full-width 44px action.
+
+List counts use the selected status response's total, and remain unavailable until that particular
+filter/page/retry request succeeds. Native event handlers mark content loading immediately, including
+when returning to a previously loaded filter while another request is pending. The selection key and
+existing active-response guard prevent previous counts or late responses from appearing as current
+results. Errors retain the existing retry/sign-in behavior; empty states appear only after success,
+with zero only then. Filtered empty copy suggests another status without implying an empty account.
+The shell's sidebar badge remains unavailable on list, detail and request because the shell does not
+load an aggregate. No extra booking request or count propagation was introduced. Standard
+`NotebookPagination` uses page/total with page size 10; previous/next remain disabled at boundaries,
+and pagination is omitted for one page.
+
+Detail keeps `getMyBooking`, its active-response/current-ID guards, existing resource error messages,
+session-expiry behavior and original back/find-tutor links. Loading and errors retain the shared
+shell, heading and one paper. The opt-in `BookingDocketSummary` detail presentation reuses tutor
+identity, verification/unavailable copy, grade, subject, full ruled description and the date/time
+anatomy from the request. Its DOM order is course information then one mint time band. The current
+hourly rate is omitted; persisted subtotal/discount/currency and net total appear beneath a dashed
+seam through `BookingDocketAmounts`/`BookingDocketTotal`. No money is recomputed. PENDING explicitly
+means awaiting tutor confirmation and uses requested-time copy; other statuses use their real label
+and an appropriate confirmed/neutral explanation. No paid/meeting/cancel/reschedule affordance is added.
+
+List and detail use the docket's Bangkok helper for cross-day Start/End dates, exact-midnight 24:00
+and accessible actual endpoints, with Thai Buddhist and English Gregorian years. Detail has one time
+presentation, plus its decorative calendar tile. New styles stay local to bookings. The request's
+default docket composition and shared `booking-ui` helpers/dashboard badge remain intact. Browser
+checks intercept all API traffic and cover both languages at 320/768/1440px, responsive filters,
+long content, loading/error/empty/404, all statuses, session expiry, order, pagination, keyboard focus,
+midnight, stale filter responses and persisted amounts that differ from the current hourly price.
 
 The tutor dashboard follows the Notebook Focus layout: the next confirmed session, today's
 availability, pending requests, monthly teaching analytics, and course performance. Today's availability

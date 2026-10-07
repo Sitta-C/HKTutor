@@ -231,7 +231,8 @@ The user selected **Appointment Docket** and requested implementation on 2026-10
   and quote errors retain their existing recovery links; submit errors sit beside the action.
   Keep sending labels/disabled behavior, change-time, 409 recovery with `conflict=1`, sign-in,
   booking-detail/list and find-tutor links. This page does not load a booking count; its sidebar
-  count stays unavailable rather than displaying zero. Other booking-shell consumers are unchanged.
+  count stays unavailable rather than displaying zero. The same shell now keeps list/detail counts unavailable
+  without requesting an aggregate.
 - After submission, keep the same docket with the response status and created-response amounts.
   PENDING explicitly says **Awaiting tutor confirmation / รอติวเตอร์ยืนยัน**, with warm status styling;
   success never implies payment or confirmation. Other returned statuses use their own localized
@@ -240,9 +241,47 @@ The user selected **Appointment Docket** and requested implementation on 2026-10
 - `BookingDocketSummary`, `BookingDocketTotal` and `BookingDocketStatus` are booking-only presentation
   components available to the later list/detail work. Summary accepts existing tutor/listing/slot
   data and separate response amounts; it fetches nothing. Existing `booking-ui` formatting/error
-  helpers and current list/detail consumers are unchanged. The list/detail redesign remains unselected.
+  helpers and dashboard status consumers are unchanged. The request remains the default composition; list/detail use the selected Margin Index below.
 - Preserve quote/create requests, selectionKey guards, createBookingOnce and the duplicate-submit
   gate. No API/client/payload/price-calculation, payment, coupon or scheduling workflow changes.
+
+## Student booking list and detail
+
+The user selected **Margin Index** and requested implementation on 2026-10-07 for
+`/dashboard/bookings` and `/dashboard/bookings/[bookingId]`.
+
+- Put the six existing server status filters in a narrow left index on desktop, and a two-column
+  native-button index above the paper below 640px. Use mint selection, explicit pressed states,
+  upright bilingual labels, visible focus and at least 44px targets. Status categories have no
+  invented per-status counts, and switching status resets the existing server page to one.
+- Keep one continuous ruled ledger with a punched binding margin. Each booking leads with Bangkok
+  date/time, then a blue grade tab, subject and tutor; the actual business status, persisted net
+  amount and pale-mint View details ticket sit in a perforated right stub. Narrow paper
+  containers stack the same information and full-width ticket without nested cards or per-row tape.
+  Preserve API order and each underlying booking as one row, including cross-day lessons.
+- Detail reuses `BookingDocketSummary`'s opt-in detail presentation: tutor/course/description first,
+  one horizontal mint date/time band next, then status explanation and persisted subtotal, discount
+  and total beneath a dashed seam. Omit the current hourly rate from this historical booking view.
+  Keep request summaries' default layout, rate paper, quote/create amounts and submitting flow intact.
+  `BookingDocketAmounts` shares the existing amount markup; no component fetches or calculates prices.
+- Time uses the request docket's Bangkok helper, Start/End dates for occupied cross-day ranges,
+  24:00 on the last occupied date for exact midnight endings, Thai Buddhist/English Gregorian years
+  and the actual complete endpoints in the accessible range. Show time once in the detail summary.
+- PENDING explicitly reads Awaiting tutor confirmation / รอติวเตอร์ยืนยัน; confirmed and other
+  statuses use their own labels and explanations. Keep the shared business-status colors and the
+  dashboard's existing `BookingStatusBadge` unchanged. Role selection and business status remain
+  distinct; no payment, cancellation, rescheduling, attendance, meeting or chat controls are added.
+- Heading counts describe the selected server status only. Counts remain unavailable during loading,
+  retries, filter/page changes and errors; zero appears only after a successful empty response.
+  The booking shell uses an unavailable sidebar badge for list, detail and request because it does
+  not own an aggregate booking response. Do not add requests to populate it or use a filtered total
+  as an all-status shell count. Loading/error/empty/detail-not-found content retains the shell and paper.
+- Reuse standard `NotebookPagination` with the original page size 10 and server page/total. Hide it
+  when one page suffices. Preserve original API clients/queries, active-response and current-ID guards,
+  retry, session expiry, encoded detail links, back-to-bookings and find-tutor destinations.
+  List/detail styles are scoped to `student-bookings.module.css`; shared primitives and tutor UI
+  retain their existing behavior. Browser checks cover TH/EN at 320px, 768px and 1440px, long text,
+  all statuses, loading/error/empty/404, session expiry, stale filter responses and persisted amounts.
 
 ## Scope and data
 

@@ -4,34 +4,35 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 
 import {
-  BookingStatusBadge,
-  formatBangkokRange,
-  formatDuration,
-  formatMoney,
-  getBookingErrorMessage,
-} from '@/components/bookings/booking-ui';
-import {
-  GraphPaper,
-  NotebookHeading,
-  PaperCard,
-  StickyNote,
-  WashiTape,
-  notebookButtonClass,
-} from '@/components/ui/notebook';
+  BookingDocketAmounts,
+  BookingDocketStatus,
+  BookingDocketSummary,
+  BookingDocketTotal,
+} from '@/components/bookings/booking-docket';
+import { bookingRequestCopy } from '@/components/bookings/booking-request-copy';
+import { getBookingErrorMessage } from '@/components/bookings/booking-ui';
+import { studentBookingsCopy } from '@/components/bookings/student-bookings-copy';
+import { DashboardIcon } from '@/components/dashboard/dashboard-icon';
+import { NotebookHeading, PaperCard } from '@/components/ui/notebook';
 import { NotebookLoadingRegion } from '@/components/ui/notebook-loading';
 import { getMyBooking } from '@/lib/api/bookings';
 import { useLanguage } from '@/lib/i18n';
+
+import styles from './student-bookings.module.css';
 
 import type { BookingDetail } from '@/lib/api/types';
 
 export default function StudentBookingDetailPage({ bookingId }: { bookingId: string }) {
   const { copy, language } = useLanguage();
   const text = copy.dashboard.booking;
+  const pageText = studentBookingsCopy[language];
+  const requestText = bookingRequestCopy[language];
   const [booking, setBooking] = useState<BookingDetail | null>(null);
   const [error, setError] = useState<unknown | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [loadedBookingId, setLoadedBookingId] = useState<string | null>(null);
   const isCurrentBookingLoaded = loadedBookingId === bookingId;
+  const loading = isLoading || !isCurrentBookingLoaded;
 
   useEffect(() => {
     let active = true;
@@ -58,90 +59,75 @@ export default function StudentBookingDetailPage({ bookingId }: { bookingId: str
     };
   }, [bookingId]);
 
-  if (isLoading || !isCurrentBookingLoaded) {
-    return <NotebookLoadingRegion label={text.loading} />;
-  }
-
-  if (error || !booking) {
-    return (
-      <div
-        className="rounded-xl border border-red-200 bg-red-50 p-6 text-sm text-red-800"
-        role="alert"
-      >
-        <p>{getBookingErrorMessage(error, text)}</p>
-        <Link href="/dashboard/bookings" className="mt-4 inline-block font-bold underline">
-          {text.backToBookings}
-        </Link>
-      </div>
-    );
-  }
-
   return (
-    <div className="mx-auto w-full max-w-[1120px] py-8 pb-12">
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-        <NotebookHeading eyebrow={text.bookingDetails} title={booking.tutor.displayName} />
-        <BookingStatusBadge status={booking.status} text={text} />
-      </div>
-
-      <PaperCard className="relative overflow-hidden p-6 shadow-[0_18px_40px_-12px_rgba(46,39,25,0.14)] sm:p-8">
-        <WashiTape tone="blue" className="-right-5 top-4 rotate-12" />
-        <div className="grid gap-4 md:grid-cols-3">
-          <InfoBox label={text.subject} value={booking.listing.subjectName} />
-          <InfoBox label={text.grade} value={booking.listing.gradeLevelName} />
-          <InfoBox
-            label={text.lessonTime}
-            value={formatBangkokRange(booking.slot.startAtUtc, booking.slot.endAtUtc, language)}
-          />
-        </div>
-        <StickyNote tone="yellow" className="mt-6 p-5">
-          <p className="text-xs font-extrabold uppercase tracking-[0.1em] text-notebook-muted">
-            {text.lessonTime}
-          </p>
-          <p className="mt-2 text-lg font-extrabold text-notebook-ink">
-            {formatBangkokRange(booking.slot.startAtUtc, booking.slot.endAtUtc, language)}
-          </p>
-          <p className="mt-1 text-sm text-notebook-muted">
-            {text.bangkokTime} ·{' '}
-            {formatDuration(booking.slot.startAtUtc, booking.slot.endAtUtc, text)}
-          </p>
-        </StickyNote>
-        <div className="mt-6">
-          <h2 className="font-note text-2xl font-bold text-notebook-ink">{text.description}</h2>
-          <p className="mt-2 text-sm leading-6 text-notebook-muted">
-            {booking.listing.description}
-          </p>
-        </div>
-        <div className="mt-6 grid gap-3 border-t border-dashed border-paper-edge pt-5 text-sm md:grid-cols-3">
-          <InfoBox
-            label={text.subtotal}
-            value={formatMoney(booking.subtotalAmount, booking.currency)}
-          />
-          <InfoBox
-            label={text.discount}
-            value={formatMoney(booking.discountAmount, booking.currency)}
-          />
-          <InfoBox label={text.total} value={formatMoney(booking.netAmount, booking.currency)} />
-        </div>
-        <div className="mt-6 flex flex-wrap gap-3">
-          <Link href="/dashboard/bookings" className={notebookButtonClass({ tone: 'secondary' })}>
-            {text.backToBookings}
+    <div className={styles.page}>
+      <NotebookHeading
+        eyebrow={text.bookingsEyebrow}
+        title={text.bookingDetails}
+        className={styles.heading ?? ''}
+      />
+      <PaperCard className={styles.paper} aria-busy={loading}>
+        {loading ? (
+          <div className={styles.state}>
+            <NotebookLoadingRegion label={text.loading} />
+          </div>
+        ) : error || !booking ? (
+          <div className={`${styles.state} ${styles.error}`} role="alert">
+            <p>{getBookingErrorMessage(error, text)}</p>
+            <Link href="/dashboard/bookings" className={styles.link}>
+              {text.backToBookings}
+            </Link>
+          </div>
+        ) : (
+          <>
+            <div className={styles.detailStatus}>
+              <span>{text.bookingDetails}</span>
+              <BookingDocketStatus status={booking.status} text={requestText} />
+            </div>
+            <BookingDocketSummary
+              summary={booking}
+              amounts={booking}
+              language={language}
+              text={text}
+              requestText={requestText}
+              presentation="detail"
+              timeLabel={booking.status === 'PENDING' ? requestText.time : text.lessonTime}
+            />
+            <div className={styles.detailFooter}>
+              <p className={styles.notice} data-status={booking.status}>
+                {booking.status === 'PENDING'
+                  ? pageText.pendingNotice
+                  : booking.status === 'CONFIRMED'
+                    ? pageText.confirmedNotice
+                    : pageText.otherNotice}
+              </p>
+              <div className={styles.detailAmounts}>
+                <BookingDocketAmounts amounts={booking} text={text} />
+              </div>
+              <div className={styles.detailTotal}>
+                <BookingDocketTotal
+                  amount={booking.netAmount}
+                  currency={booking.currency}
+                  label={pageText.amount}
+                />
+              </div>
+            </div>
+          </>
+        )}
+      </PaperCard>
+      {!loading && booking && error === null && (
+        <div className={styles.detailLinks}>
+          <Link href="/dashboard/bookings" className={styles.ticket}>
+            <span className={styles.ticketLabel}>{text.backToBookings}</span>
+            <span className={styles.ticketStub} aria-hidden="true">
+              <DashboardIcon name="arrow-right" className="h-4 w-4" />
+            </span>
           </Link>
-          <Link href="/tutors" className={notebookButtonClass({ tone: 'secondary' })}>
+          <Link href="/tutors" className={styles.link}>
             {text.findTutor}
           </Link>
         </div>
-      </PaperCard>
+      )}
     </div>
-  );
-}
-
-function InfoBox({ label, value }: { label: string; value: string }) {
-  return (
-    <GraphPaper className="rounded-xl p-4">
-      <p className="text-xs font-extrabold uppercase tracking-[0.1em] text-notebook-muted">
-        {label}
-      </p>
-      <p className="mt-2 text-sm font-extrabold text-notebook-ink">{value}</p>
-    </GraphPaper>
   );
 }

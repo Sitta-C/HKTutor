@@ -227,7 +227,8 @@ test('right sheet paginates loaded tutors with keyboard and preserves original b
   await tutorLinks.nth(1).focus();
   await page.keyboard.press('Enter');
   await expect(page).toHaveURL(/\/dashboard\/bookings\/booking-1$/);
-  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Tutor 02');
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Booking details');
+  await expect(page.locator('[data-booking-summary]')).toContainText('Tutor 02');
 });
 
 for (const fail of [false, true]) {

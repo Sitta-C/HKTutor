@@ -504,3 +504,46 @@
     transition: none;
   }
 }
+
+/* Opt-in Margin Index detail composition; the request docket keeps its original layout. */
+.detailSummary {
+  display: flex;
+  flex-direction: column;
+}
+.detailSummary .timeRail {
+  display: flex;
+  align-items: flex-start;
+  gap: 20px;
+  padding: 18px 26px;
+  border-right: 0;
+  border-top: 1px dashed var(--color-paper-edge);
+  border-bottom: 0;
+}
+.detailSummary .timeRail::after {
+  display: none;
+}
+.detailSummary .calendar {
+  width: 65px;
+  flex-shrink: 0;
+  margin: 0;
+}
+.detailSummary .calendar strong {
+  font-size: 28px;
+}
+.detailSummary .zone {
+  margin-top: 4px;
+}
+.detailSummary .endpoints {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 32px;
+}
+@container (max-width: 600px) {
+  .detailSummary .timeRail {
+    gap: 14px;
+    padding: 18px;
+  }
+  .detailSummary .endpoints {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 18px;
+  }
+}
