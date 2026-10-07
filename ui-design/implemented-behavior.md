@@ -106,7 +106,9 @@ sheets show the page count left and tickets right; sheets up to 450px put the co
 pair. Both native buttons have 48px minimum height, localized text, decorative arrow icons, visible
 keyboard focus and explicit disabled boundaries. Reduced motion removes transitions. Pagination
 still appears only after successful results with more than one server page. These styles are local
-to search and do not change shared `NotebookPagination` consumers.
+to search in `tutor-search-pagination.module.css`, independent of the result-sheet stylesheet,
+and do not change shared `NotebookPagination` consumers. Browser checks assert the actual ticket
+layout and borders, alongside the keyboard and pagination flow.
 
 Only the `/tutors` header changes: guests see Sign in and authenticated users see My bookings, with
 no link back to search. Its unloaded sidebar booking count is unavailable. Public tutor detail retains

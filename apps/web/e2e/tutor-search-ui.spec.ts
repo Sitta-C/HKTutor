@@ -218,11 +218,20 @@ for (const language of ['en', 'th'] as const) {
       await noOverflow(page);
       const pagination = main.getByRole('navigation');
       await expect(pagination.getByRole('button').first()).toBeDisabled();
+      const tickets = pagination.locator('div').filter({ has: page.getByRole('button') });
+      await expect(tickets).toHaveCSS('display', 'grid');
+      await expect(tickets).toHaveCSS('border-top-width', '1px');
+      await expect(pagination.getByRole('button').last()).toHaveCSS('border-left-style', 'dashed');
       for (const button of await pagination.getByRole('button').all()) {
+        await expect(button).toHaveCSS('display', 'flex');
         const bounds = await button.boundingBox();
         expect(bounds?.height).toBeGreaterThanOrEqual(44);
         expect(bounds?.width).toBeGreaterThanOrEqual(44);
       }
+      const previousBounds = await pagination.getByRole('button').first().boundingBox();
+      const nextBounds = await pagination.getByRole('button').last().boundingBox();
+      expect(previousBounds?.y).toBe(nextBounds?.y);
+      expect(previousBounds?.x).toBeLessThan(nextBounds?.x ?? 0);
       await pagination.screenshot({
         path: testInfo.outputPath(`pagination-${language}-${student ? 'student' : 'guest'}.png`),
         animations: 'disabled',

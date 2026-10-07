@@ -32,6 +32,7 @@ import { formatBangkokDateTime } from '@/lib/date-time';
 import { useLanguage } from '@/lib/i18n';
 
 import styles from './tutor-search-page.module.css';
+import paginationStyles from './tutor-search-pagination.module.css';
 
 import type { TutorSearchCopy } from '@/components/tutors/tutor-search-copy';
 import type { TutorSearchErrors, TutorSearchForm } from '@/components/tutors/tutor-search-model';
@@ -347,16 +348,20 @@ export default function TutorSearchPage() {
           </div>
           {status === 'success' && pagination.totalPages > 1 && (
             <nav
-              className={styles.pagination}
+              className={paginationStyles.pagination}
               aria-label={`${text.page} ${pagination.page} ${text.pageOf} ${pagination.totalPages}`}
             >
-              <span className={styles.paginationCount} aria-current="page" aria-live="polite">
+              <span
+                className={paginationStyles.paginationCount}
+                aria-current="page"
+                aria-live="polite"
+              >
                 {text.page} {pagination.page} {text.pageOf} {pagination.totalPages}
               </span>
-              <div className={styles.paginationTickets}>
+              <div className={paginationStyles.paginationTickets}>
                 <button
                   type="button"
-                  className={styles.paginationButton}
+                  className={paginationStyles.paginationButton}
                   disabled={pagination.page <= 1}
                   onClick={() => changePage(pagination.page - 1)}
                 >
@@ -365,7 +370,7 @@ export default function TutorSearchPage() {
                 </button>
                 <button
                   type="button"
-                  className={styles.paginationButton}
+                  className={paginationStyles.paginationButton}
                   disabled={pagination.page >= pagination.totalPages}
                   onClick={() => changePage(pagination.page + 1)}
                 >
