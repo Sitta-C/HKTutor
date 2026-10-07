@@ -214,7 +214,46 @@ for (const language of ['en', 'th'] as const) {
       for (const box of boxes) expect(box.height).toBeGreaterThanOrEqual(44);
       await filters.getByRole('button').first().focus();
       await expect(filters.getByRole('button').first()).toHaveCSS('outline-style', 'solid');
+      const pagination = page.getByRole('navigation', {
+        name: language === 'th' ? 'หน้ารายการจอง' : 'Booking pages',
+      });
+      const pageCount = pagination.getByText(language === 'th' ? 'หน้า 1 จาก 2' : 'Page 1 of 2', {
+        exact: true,
+      });
+      await expect(pageCount).toBeVisible();
+      const previous = pagination.getByRole('button', {
+        name: language === 'th' ? 'ก่อนหน้า' : 'Previous',
+        exact: true,
+      });
+      const next = pagination.getByRole('button', {
+        name: language === 'th' ? 'ถัดไป' : 'Next',
+        exact: true,
+      });
+      await expect(previous).toBeDisabled();
+      await expect(next).toBeEnabled();
+      await expect(next).toHaveCSS('border-left-style', 'dashed');
+      await next.focus();
+      await expect(next).toHaveCSS('outline-style', 'solid');
+      const ticketBoxes = await pagination
+        .getByRole('button')
+        .evaluateAll((elements) => elements.map((el) => el.getBoundingClientRect().toJSON()));
+      expect(ticketBoxes[0]?.right).toBe(ticketBoxes[1]?.left);
+      expect(ticketBoxes[0]?.top).toBe(ticketBoxes[1]?.top);
+      for (const box of ticketBoxes) expect(box.height).toBeGreaterThanOrEqual(48);
+      const countBox = await pageCount.evaluate((el) => el.getBoundingClientRect().toJSON());
+      const paperWidth = await pagination.evaluate(
+        (el) => el.parentElement?.parentElement?.clientWidth ?? 0,
+      );
+      if (paperWidth > 450) {
+        expect(countBox.right).toBeLessThan(ticketBoxes[0]?.left ?? 0);
+        expect(countBox.top).toBeGreaterThan(ticketBoxes[0]?.top ?? 0);
+      } else {
+        expect(countBox.bottom).toBeLessThan(ticketBoxes[0]?.top ?? 0);
+      }
       await noOverflow(page);
+      await pagination.screenshot({
+        path: testInfo.outputPath(`bookings-pagination-${language}-${width}.png`),
+      });
       await page.screenshot({
         path: testInfo.outputPath(`bookings-list-${language}-${width}.png`),
         fullPage: true,
@@ -269,6 +308,11 @@ test('server pagination/status filters preserve page size, order and reset to pa
   await expect(page.locator('[data-booking-row]')).toHaveCount(3);
   await expect(page.locator('[data-booking-row]').first()).toContainText('Teacher Praew 10');
   await expect(pagination.getByRole('button', { name: 'Next', exact: true })).toBeDisabled();
+  await expect(pagination.getByText('Page 2 of 2', { exact: true })).toBeVisible();
+  await pagination.getByRole('button', { name: 'Previous', exact: true }).focus();
+  await page.keyboard.press('Enter');
+  await expect(page.locator('[data-booking-row]')).toHaveCount(10);
+  await expect(pagination.getByText('Page 1 of 2', { exact: true })).toBeVisible();
   const labels = [
     'All',
     'Awaiting tutor confirmation',

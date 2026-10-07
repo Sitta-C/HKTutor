@@ -279,9 +279,12 @@ The user selected **Margin Index** and requested implementation on 2026-10-07 fo
   The booking shell uses an unavailable sidebar badge for list, detail and request because it does
   not own an aggregate booking response. Do not add requests to populate it or use a filtered total
   as an all-status shell count. Loading/error/empty/detail-not-found content retains the shell and paper.
-- Reuse `NotebookPagination` with its opt-in **ticket** buttons, selected on 2026-10-07: pale mint,
-  4px corners, dashed arrow stubs and seam notches, left arrow for Previous and right arrow for Next.
-  Keep the visible page/range labels, gray disabled boundary tickets, 44px targets and focus outline.
+- Reuse `NotebookPagination` with its opt-in **ticket** variant. The user refined booking pagination
+  to the supplied **Ticket Pair** reference on 2026-10-07: connected Previous/Next tickets, inset
+  dashed edges, a perforated center seam, seam notches and one soft paper edge. Previous is warm
+  paper; Next is pale mint, with left/right arrows beside upright labels. Show the page count at
+  left and the pair at right; narrow paper containers put the count above a full-width pair.
+  Keep the record range available to screen readers, muted disabled boundaries, 48px targets and focus outline.
   Standard and paper-turn consumers retain their existing presentation. Keep the original page size 10
   and server page/total; hide pagination when one page suffices. Preserve original API clients/queries, active-response and current-ID guards,
   retry, session expiry, encoded detail links, back-to-bookings and find-tutor destinations.

@@ -241,12 +241,15 @@ existing active-response guard prevent previous counts or late responses from ap
 results. Errors retain the existing retry/sign-in behavior; empty states appear only after success,
 with zero only then. Filtered empty copy suggests another status without implying an empty account.
 The shell's sidebar badge remains unavailable on list, detail and request because the shell does not
-load an aggregate. No extra booking request or count propagation was introduced. Standard
+load an aggregate. No extra booking request or count propagation was introduced. Shared
 `NotebookPagination` uses page/total with page size 10; previous/next remain disabled at boundaries,
-and pagination is omitted for one page. Its opt-in ticket variant, selected on 2026-10-07, uses
-pale-mint buttons with dashed arrow stubs, seam notches, 4px corners and 44px targets. Previous has
-a left arrow, Next a right arrow, and disabled tickets use gray paper. Range and page labels remain
-visible; shared standard/paper-turn consumers keep their existing presentation.
+and pagination is omitted for one page. The user refined its opt-in ticket variant to **Ticket Pair**
+on 2026-10-07: connected warm-paper Previous and pale-mint Next buttons with inset dashed edges,
+a perforated center seam, top/bottom seam notches and a shared 3px paper edge. Both buttons have
+48px targets, decorative left/right arrows and visible keyboard focus; disabled boundaries use muted
+paper. Page count appears left of the pair on wide paper and above the full-width pair in containers
+up to 450px. The record range remains in a polite screen-reader live region. Shared standard/paper-turn
+consumers retain their existing presentation, and the original server paging/filter behavior remains.
 
 Detail keeps `getMyBooking`, its active-response/current-ID guards, existing resource error messages,
 session-expiry behavior and original back/find-tutor links. Loading and errors retain the shared

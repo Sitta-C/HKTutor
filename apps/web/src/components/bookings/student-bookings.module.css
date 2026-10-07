@@ -321,14 +321,6 @@
   .pagination {
     padding: 0 12px 18px;
   }
-  .pagination nav > div {
-    width: 100%;
-    flex-wrap: nowrap;
-    justify-content: space-between;
-  }
-  .pagination nav > div > span {
-    text-align: center;
-  }
 }
 @media (max-width: 639px) {
   .detailLinks {

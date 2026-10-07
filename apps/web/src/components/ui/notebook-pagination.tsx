@@ -28,6 +28,9 @@ export function NotebookPagination({
   }
   const paperTurn = variant === 'paper-turn';
   const ticket = variant === 'ticket';
+  const pageLabel = copy.dashboard.booking.pageOf
+    .replace('{page}', String(page))
+    .replace('{totalPages}', String(pageCount));
   const buttonClass = paperTurn
     ? styles.pageTurnButton
     : ticket
@@ -42,15 +45,22 @@ export function NotebookPagination({
       className={
         paperTurn
           ? styles.paperTurn
-          : 'mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-dashed border-paper-edge pt-4'
+          : ticket
+            ? styles.ticketPagination
+            : 'mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-dashed border-paper-edge pt-4'
       }
     >
       <p
-        className={paperTurn ? 'sr-only' : 'text-xs tabular-nums text-notebook-muted'}
+        className={paperTurn || ticket ? 'sr-only' : 'text-xs tabular-nums text-notebook-muted'}
         aria-live="polite"
       >
         {(page - 1) * pageSize + 1}–{Math.min(page * pageSize, total)} / {total}
       </p>
+      {ticket && (
+        <p className={styles.ticketCount} aria-current="page">
+          {pageLabel}
+        </p>
+      )}
       <div
         className={
           paperTurn
@@ -75,17 +85,17 @@ export function NotebookPagination({
               <span className={styles.ticketStub} aria-hidden="true">
                 <DashboardIcon name="arrow-right" className="h-4 w-4 rotate-180" />
               </span>
-              <span className={styles.ticketLabel}>{copy.dashboard.booking.previousPage}</span>
+              <span>{copy.dashboard.booking.previousPage}</span>
             </>
           ) : (
             copy.dashboard.booking.previousPage
           )}
         </button>
-        <span className={paperTurn ? 'sr-only' : 'text-xs tabular-nums text-notebook-muted'}>
-          {copy.dashboard.booking.pageOf
-            .replace('{page}', String(page))
-            .replace('{totalPages}', String(pageCount))}
-        </span>
+        {!ticket && (
+          <span className={paperTurn ? 'sr-only' : 'text-xs tabular-nums text-notebook-muted'}>
+            {pageLabel}
+          </span>
+        )}
         <button
           type="button"
           disabled={page === pageCount}
@@ -98,7 +108,7 @@ export function NotebookPagination({
             <DashboardIcon name="arrow-right" className="h-4 w-4" />
           ) : ticket ? (
             <>
-              <span className={styles.ticketLabel}>{copy.dashboard.booking.nextPage}</span>
+              <span>{copy.dashboard.booking.nextPage}</span>
               <span className={styles.ticketStub} aria-hidden="true">
                 <DashboardIcon name="arrow-right" className="h-4 w-4" />
               </span>
