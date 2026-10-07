@@ -18,6 +18,8 @@ import {
   DEFAULT_MESSAGES_PAGE_SIZE,
   GetMessagesQueryDto,
   GetMyConversationsQueryDto,
+  MarkMessagesReadDto,
+  MarkMessagesReadResponseDto,
   MessageHistoryResponseDto,
   MessageResponseDto,
   MyConversationsResponseDto,
@@ -31,6 +33,10 @@ export type OpenConversationInput = CreateConversationDto & { role: Role; userId
 export type GetMyConversationsInput = GetMyConversationsQueryDto & { role: Role; userId: string };
 export type SendMessageInput = SendMessageDto & { conversationId: string; senderUserId: string };
 export type GetMessagesInput = GetMessagesQueryDto & { conversationId: string; userId: string };
+export type MarkMessagesReadInput = MarkMessagesReadDto & {
+  conversationId: string;
+  userId: string;
+};
 
 export interface OpenConversationResult {
   conversation: OpenConversationResponseDto;
@@ -74,6 +80,11 @@ interface ConversationPair {
 interface MessageCursor {
   id: string;
   sentAt: Date;
+}
+
+interface ReadReceiptRow {
+  readAt: Date | null;
+  updatedCount: number;
 }
 
 interface ConversationListRow {
@@ -197,7 +208,11 @@ export class ConversationsService {
     const cursor =
       input.afterMessageId === undefined
         ? undefined
-        : await this.findCursorMessage(input.conversationId, input.afterMessageId);
+        : await this.findMessageInConversation(
+            input.conversationId,
+            input.afterMessageId,
+            'afterMessageId',
+          );
     const pageSize = input.pageSize ?? DEFAULT_MESSAGES_PAGE_SIZE;
 
     // One extra row tells whether another page follows, without a second query.
@@ -220,6 +235,42 @@ export class ConversationsService {
     };
   }
 
+  /** Marks the other participant's unread messages read, once; the caller's own are never touched. */
+  async markMessagesRead(input: MarkMessagesReadInput): Promise<MarkMessagesReadResponseDto> {
+    await this.assertParticipant(
+      input.conversationId,
+      input.userId,
+      'Only participants can mark messages read in this conversation.',
+    );
+    const upTo =
+      input.upToMessageId === undefined
+        ? undefined
+        : await this.findMessageInConversation(
+            input.conversationId,
+            input.upToMessageId,
+            'upToMessageId',
+          );
+
+    // The database clock sets readAt. GREATEST keeps Message_read_time_check (readAt >= sentAt)
+    // true even for a message whose sentAt is later than this statement's now().
+    const [result] = await this.prisma.$queryRaw<ReadReceiptRow[]>(Prisma.sql`
+      WITH updated AS (
+        UPDATE "Message"
+        SET "readAt" = GREATEST(now(), "sentAt")
+        WHERE "conversationId" = ${input.conversationId}
+          AND "senderUserId" <> ${input.userId}
+          AND "readAt" IS NULL
+          ${upTo === undefined ? Prisma.empty : Prisma.sql`AND ("sentAt", "id") <= (${upTo.sentAt}::timestamptz, ${upTo.id}::uuid)`}
+        RETURNING "readAt"
+      )
+      SELECT count(*)::int AS "updatedCount", max("readAt") AS "readAt" FROM updated`);
+
+    return {
+      readAt: result?.readAt?.toISOString() ?? null,
+      updatedCount: result?.updatedCount ?? 0,
+    };
+  }
+
   /** Throws 404 for a missing conversation and 403 for anyone outside it. */
   private async assertParticipant(
     conversationId: string,
@@ -238,16 +289,17 @@ export class ConversationsService {
     }
   }
 
-  private async findCursorMessage(
+  private async findMessageInConversation(
     conversationId: string,
     messageId: string,
+    field: 'afterMessageId' | 'upToMessageId',
   ): Promise<MessageCursor> {
     const message = await this.prisma.message.findFirst({
       where: { conversationId, id: messageId },
       select: { id: true, sentAt: true },
     });
     if (!message) {
-      throw new BadRequestException('afterMessageId must be a message in this conversation.');
+      throw new BadRequestException(`${field} must be a message in this conversation.`);
     }
     return message;
   }

@@ -698,4 +698,90 @@ describe('ConversationsService', () => {
       expect(mockPrismaService.message.findMany).not.toHaveBeenCalled();
     });
   });
+
+  describe('markMessagesRead', () => {
+    const participants = { studentUserId: STUDENT_ID, tutorUserId: TUTOR_ID };
+    const READ_AT = new Date('2026-09-30T08:10:00.000Z');
+    const readQuery = (): Prisma.Sql | undefined =>
+      (mockPrismaService.$queryRaw.mock.calls as unknown as Array<[Prisma.Sql]>)[0]?.[0];
+    const markRead = (input: { upToMessageId?: string; userId?: string } = {}) =>
+      service.markMessagesRead({ conversationId: CONVERSATION_ID, userId: TUTOR_ID, ...input });
+
+    beforeEach(() => {
+      mockPrismaService.conversation.findUnique.mockResolvedValue(participants);
+    });
+
+    it("marks only the other participant's unread messages, with the database clock", async () => {
+      mockPrismaService.$queryRaw.mockResolvedValue([{ readAt: READ_AT, updatedCount: 3 }]);
+
+      await expect(markRead()).resolves.toEqual({
+        readAt: READ_AT.toISOString(),
+        updatedCount: 3,
+      });
+      expect(readQuery()?.text).toContain('SET "readAt" = GREATEST(now(), "sentAt")');
+      expect(readQuery()?.text).toContain('"senderUserId" <> $2');
+      expect(readQuery()?.text).toContain('"readAt" IS NULL');
+      expect(readQuery()?.text).not.toContain('("sentAt", "id") <=');
+      expect(readQuery()?.values).toEqual([CONVERSATION_ID, TUTOR_ID]);
+      expect(mockPrismaService.message.findFirst).not.toHaveBeenCalled();
+    });
+
+    it('marks only up to upToMessageId when it is given', async () => {
+      mockPrismaService.message.findFirst.mockResolvedValue({ id: MESSAGE_ID, sentAt: SENT_AT });
+      mockPrismaService.$queryRaw.mockResolvedValue([{ readAt: READ_AT, updatedCount: 1 }]);
+
+      await expect(markRead({ upToMessageId: MESSAGE_ID })).resolves.toEqual({
+        readAt: READ_AT.toISOString(),
+        updatedCount: 1,
+      });
+      expect(mockPrismaService.message.findFirst).toHaveBeenCalledWith({
+        select: { id: true, sentAt: true },
+        where: { conversationId: CONVERSATION_ID, id: MESSAGE_ID },
+      });
+      expect(readQuery()?.text).toContain('("sentAt", "id") <= ($3::timestamptz, $4::uuid)');
+      expect(readQuery()?.values).toEqual([CONVERSATION_ID, TUTOR_ID, SENT_AT, MESSAGE_ID]);
+    });
+
+    it('reports nothing marked when the messages were already read', async () => {
+      mockPrismaService.$queryRaw.mockResolvedValue([{ readAt: null, updatedCount: 0 }]);
+
+      await expect(markRead()).resolves.toEqual({ readAt: null, updatedCount: 0 });
+    });
+
+    it('rejects an upToMessageId outside the conversation with 400 and updates nothing', async () => {
+      mockPrismaService.message.findFirst.mockResolvedValue(null);
+
+      const error = await markRead({ upToMessageId: MESSAGE_ID }).catch(
+        (caught: unknown) => caught,
+      );
+
+      expect(error).toBeInstanceOf(BadRequestException);
+      expect(error).toHaveProperty(
+        'message',
+        'upToMessageId must be a message in this conversation.',
+      );
+      expect(mockPrismaService.$queryRaw).not.toHaveBeenCalled();
+    });
+
+    it('returns 404 for a conversation that does not exist', async () => {
+      mockPrismaService.conversation.findUnique.mockResolvedValue(null);
+
+      await expect(markRead()).rejects.toThrow(NotFoundException);
+      expect(mockPrismaService.$queryRaw).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ['another student', OTHER_STUDENT_ID],
+      ['an admin', ADMIN_ID],
+    ])('returns 403 to %s and updates nothing', async (_label, userId) => {
+      const error = await markRead({ userId }).catch((caught: unknown) => caught);
+
+      expect(error).toBeInstanceOf(ForbiddenException);
+      expect(error).toHaveProperty(
+        'message',
+        'Only participants can mark messages read in this conversation.',
+      );
+      expect(mockPrismaService.$queryRaw).not.toHaveBeenCalled();
+    });
+  });
 });

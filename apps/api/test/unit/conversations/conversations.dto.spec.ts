@@ -5,6 +5,7 @@ import {
   CreateConversationDto,
   GetMessagesQueryDto,
   GetMyConversationsQueryDto,
+  MarkMessagesReadDto,
   MESSAGE_TEXT_MAX_LENGTH,
   SendMessageDto,
 } from '@modules/conversations/conversations.dto';
@@ -157,5 +158,20 @@ describe('GetMessagesQueryDto', () => {
     const errors = await validate(plainToInstance(GetMessagesQueryDto, input));
 
     expect(errors.map((error) => error.property)).toEqual([property]);
+  });
+});
+
+describe('MarkMessagesReadDto', () => {
+  it.each([
+    [{}, 'an empty body'],
+    [{ upToMessageId: MESSAGE_ID }, 'an upToMessageId'],
+  ])('accepts %p (%s)', async (input) => {
+    await expect(validate(plainToInstance(MarkMessagesReadDto, input))).resolves.toHaveLength(0);
+  });
+
+  it('rejects an upToMessageId that is not a UUID', async () => {
+    const errors = await validate(plainToInstance(MarkMessagesReadDto, { upToMessageId: 'm-77' }));
+
+    expect(errors.map((error) => error.property)).toEqual(['upToMessageId']);
   });
 });

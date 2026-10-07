@@ -152,6 +152,33 @@ export class MessageHistoryResponseDto {
   hasMore!: boolean;
 }
 
+export class MarkMessagesReadDto {
+  @ApiPropertyOptional({
+    description:
+      'Mark only the messages up to and including this one. Omit it to mark every received message.',
+    example: 'b7e4c1a2-5f6d-4e8b-9a0c-3d2f1e4b5a69',
+  })
+  @IsOptional()
+  @IsUUID()
+  upToMessageId?: string;
+}
+
+export class MarkMessagesReadResponseDto {
+  @ApiProperty({
+    description: 'Messages this call marked read; 0 when they were already read',
+    example: 3,
+  })
+  updatedCount!: number;
+
+  @ApiProperty({
+    description: 'When this call marked them read, or null when it marked nothing',
+    example: '2026-09-30T08:10:00.000Z',
+    nullable: true,
+    type: String,
+  })
+  readAt!: string | null;
+}
+
 export class ConversationParticipantDto {
   @ApiProperty({ example: '2c9d7e1f-4a3b-4c5d-8e6f-7a8b9c0d1e2f' })
   userId!: string;

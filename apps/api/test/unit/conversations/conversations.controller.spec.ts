@@ -79,6 +79,7 @@ describe('conversation routes', () => {
   let currentUser: AuthenticatedUser;
   const getMessages = jest.fn();
   const getMyConversations = jest.fn();
+  const markMessagesRead = jest.fn();
   const openConversation = jest.fn();
   const sendMessage = jest.fn();
 
@@ -89,7 +90,13 @@ describe('conversation routes', () => {
         RolesGuard,
         {
           provide: ConversationsService,
-          useValue: { getMessages, getMyConversations, openConversation, sendMessage },
+          useValue: {
+            getMessages,
+            getMyConversations,
+            markMessagesRead,
+            openConversation,
+            sendMessage,
+          },
         },
       ],
     })
@@ -259,6 +266,58 @@ describe('conversation routes', () => {
     });
   });
 
+  describe('POST /conversations/:conversationId/read', () => {
+    const readPath = `/api/v1/conversations/${CONVERSATION_ID}/read`;
+    const receipt = { readAt: '2026-09-30T08:10:00.000Z', updatedCount: 2 };
+
+    it('marks messages read for the session user and returns 200', async () => {
+      markMessagesRead.mockResolvedValue(receipt);
+
+      await request(app.getHttpServer())
+        .post(readPath)
+        .send({ upToMessageId: MESSAGE_ID })
+        .expect(200)
+        .expect(receipt);
+
+      expect(markMessagesRead).toHaveBeenCalledWith({
+        conversationId: CONVERSATION_ID,
+        upToMessageId: MESSAGE_ID,
+        userId: STUDENT_ID,
+      });
+    });
+
+    it('accepts a request without a body', async () => {
+      markMessagesRead.mockResolvedValue({ readAt: null, updatedCount: 0 });
+
+      await request(app.getHttpServer())
+        .post(readPath)
+        .expect(200)
+        .expect({ readAt: null, updatedCount: 0 });
+
+      expect(markMessagesRead).toHaveBeenCalledWith({
+        conversationId: CONVERSATION_ID,
+        userId: STUDENT_ID,
+      });
+    });
+
+    it.each([
+      ['an upToMessageId that is not a UUID', { upToMessageId: 'm-77' }],
+      ['an unknown field', { messageIds: [MESSAGE_ID] }],
+    ])('rejects %s with 400 before calling the service', async (_label, payload) => {
+      await request(app.getHttpServer()).post(readPath).send(payload).expect(400);
+
+      expect(markMessagesRead).not.toHaveBeenCalled();
+    });
+
+    it('rejects an admin with 403 before calling the service', async () => {
+      currentUser = signedInAs(Role.ADMIN);
+
+      await request(app.getHttpServer()).post(readPath).send({}).expect(403);
+
+      expect(markMessagesRead).not.toHaveBeenCalled();
+    });
+  });
+
   describe('POST /conversations/:conversationId/messages', () => {
     const messagesPath = `/api/v1/conversations/${CONVERSATION_ID}/messages`;
 
@@ -424,6 +483,24 @@ describe('ConversationsController OpenAPI contract', () => {
     expect(response?.properties?.['items']?.items?.$ref).toBe(
       '#/components/schemas/MessageResponseDto',
     );
+  });
+
+  it('publishes the API-03 read receipt contract', () => {
+    const operation =
+      document.paths[`/${API_GLOBAL_PREFIX}/conversations/{conversationId}/read`]?.post;
+    const body = document.components?.schemas?.['MarkMessagesReadDto'] as
+      { properties?: Record<string, unknown>; required?: string[] } | undefined;
+    const response = document.components?.schemas?.['MarkMessagesReadResponseDto'] as
+      { properties?: Record<string, { nullable?: boolean }>; required?: string[] } | undefined;
+
+    expect(operation?.summary).toBe('Mark received messages read');
+    for (const status of ['200', '400', '401', '403', '404']) {
+      expect(operation?.responses[status]).toBeDefined();
+    }
+    expect(Object.keys(body?.properties ?? {})).toEqual(['upToMessageId']);
+    expect(body?.required ?? []).toEqual([]);
+    expect(Object.keys(response?.properties ?? {})).toEqual(['updatedCount', 'readAt']);
+    expect(response?.properties?.['readAt']).toMatchObject({ nullable: true });
   });
 
   it('publishes the send-message contract', () => {

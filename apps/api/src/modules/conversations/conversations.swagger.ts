@@ -19,6 +19,8 @@ import {
   CreateConversationDto,
   GetMessagesQueryDto,
   GetMyConversationsQueryDto,
+  MarkMessagesReadDto,
+  MarkMessagesReadResponseDto,
   MessageHistoryResponseDto,
   MessageResponseDto,
   MyConversationsResponseDto,
@@ -262,6 +264,55 @@ export function SendMessageDoc(): MethodDecorator {
         code: 'FORBIDDEN',
         error: 'Forbidden',
         message: 'Only participants can send messages in this conversation.',
+        statusCode: 403,
+      }),
+    }),
+    ApiNotFoundResponse({
+      description: 'The conversation does not exist',
+      schema: errorSchema({
+        code: 'NOT_FOUND',
+        error: 'Not Found',
+        message: 'Conversation not found',
+        statusCode: 404,
+      }),
+    }),
+  );
+}
+
+export function MarkMessagesReadDoc(): MethodDecorator {
+  return applyDecorators(
+    ApiExtraModels(MarkMessagesReadDto, MarkMessagesReadResponseDto),
+    ApiOperation({
+      description:
+        "Sets readAt on the other participant's unread messages, up to upToMessageId when it is given. The caller's own messages are never marked, and repeating the call changes nothing.",
+      summary: 'Mark received messages read',
+    }),
+    ApiBearerAuth(JWT_BEARER_AUTH),
+    ApiOkResponse({
+      description: 'How many messages this call marked read, and when',
+      schema: {
+        allOf: [{ $ref: getSchemaPath(MarkMessagesReadResponseDto) }],
+        example: { readAt: '2026-09-30T08:10:00.000Z', updatedCount: 3 },
+        type: 'object',
+      },
+    }),
+    ApiBadRequestResponse({
+      description:
+        'upToMessageId is not a UUID or not a message in this conversation, or the body contained an unknown field',
+      schema: errorSchema({
+        code: 'VALIDATION_FAILED',
+        error: 'Bad Request',
+        message: 'upToMessageId must be a message in this conversation.',
+        statusCode: 400,
+      }),
+    }),
+    apiUnauthorizedResponse(),
+    ApiForbiddenResponse({
+      description: 'The caller is not a participant in the conversation',
+      schema: errorSchema({
+        code: 'FORBIDDEN',
+        error: 'Forbidden',
+        message: 'Only participants can mark messages read in this conversation.',
         statusCode: 403,
       }),
     }),
