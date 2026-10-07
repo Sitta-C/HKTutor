@@ -57,7 +57,7 @@ export function StudentBookingLedgerRow({
         <p className={styles.tutor}>{booking.tutor.displayName}</p>
       </div>
       <div className={styles.rowStub}>
-        <BookingDocketStatus status={booking.status} text={requestText} />
+        <BookingDocketStatus status={booking.status} text={requestText} appearance="tag" />
         <p className={styles.amount}>
           <span className="sr-only">{studentBookingsCopy[language].amount}: </span>
           {formatMoney(booking.netAmount, booking.currency)}

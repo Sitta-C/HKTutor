@@ -268,7 +268,10 @@ The user selected **Margin Index** and requested implementation on 2026-10-07 fo
   24:00 on the last occupied date for exact midnight endings, Thai Buddhist/English Gregorian years
   and the actual complete endpoints in the accessible range. Show time once in the detail summary.
 - PENDING explicitly reads Awaiting tutor confirmation / รอติวเตอร์ยืนยัน; confirmed and other
-  statuses use their own labels and explanations. Keep the shared business-status colors and the
+  statuses use their own labels and explanations. List/detail status tags match the selected preview:
+  a 4px corner, thin border, light paper fill and decorative clock/check/double-check/slash icon.
+  Use warm amber for pending, green for confirmed, stone for completed and muted red for canceled/expired.
+  The opt-in tag appearance leaves the request docket's default badge intact. Keep the
   dashboard's existing `BookingStatusBadge` unchanged. Role selection and business status remain
   distinct; no payment, cancellation, rescheduling, attendance, meeting or chat controls are added.
 - Heading counts describe the selected server status only. Counts remain unavailable during loading,

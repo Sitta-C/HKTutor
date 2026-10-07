@@ -188,6 +188,9 @@ for (const language of ['en', 'th'] as const) {
       const calls = await mockBookings(page, { language, detail });
       await page.goto('/dashboard/bookings');
       await expect(page.locator('[data-booking-row]')).toHaveCount(10);
+      const rowTag = page.locator('[data-booking-row]').first().locator('[data-booking-status]');
+      await expect(rowTag).toHaveCSS('border-radius', '4px');
+      await expect(rowTag.locator('svg')).toHaveAttribute('aria-hidden', 'true');
       await expect(page.locator('main')).toContainText(
         language === 'th' ? 'รอติวเตอร์ยืนยัน' : 'Awaiting tutor confirmation',
       );
@@ -222,6 +225,7 @@ for (const language of ['en', 'th'] as const) {
       await expect(link).toHaveCSS('outline-style', 'solid');
       await page.keyboard.press('Enter');
       await expect(page.locator('[data-booking-summary]')).toBeVisible();
+      await expect(page.locator('main [data-booking-status]')).toHaveCSS('border-radius', '4px');
       await expect(page.locator('main')).toContainText('735.00 THB');
       await expect(page.locator('main')).toContainText('5.00 THB');
       await expect(page.locator('main')).toContainText('730.00');

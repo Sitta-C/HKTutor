@@ -254,6 +254,9 @@ hourly rate is omitted; persisted subtotal/discount/currency and net total appea
 seam through `BookingDocketAmounts`/`BookingDocketTotal`. No money is recomputed. PENDING explicitly
 means awaiting tutor confirmation and uses requested-time copy; other statuses use their real label
 and an appropriate confirmed/neutral explanation. No paid/meeting/cancel/reschedule affordance is added.
+List/detail status tags match the selected preview's 4px corners, thin border, light fill and decorative
+clock/check/double-check/slash icons, with amber/green/stone/muted-red business tones. The optional
+`BookingDocketStatus` tag appearance keeps the request's default badge and dashboard badge unchanged.
 
 List and detail use the docket's Bangkok helper for cross-day Start/End dates, exact-midnight 24:00
 and accessible actual endpoints, with Thai Buddhist and English Gregorian years. Detail has one time

@@ -175,9 +175,11 @@ export function BookingDocketTotal({
 export function BookingDocketStatus({
   status,
   text,
+  appearance = 'badge',
 }: {
   status: BookingStatus;
   text: BookingRequestCopy;
+  appearance?: 'badge' | 'tag';
 }): ReactElement {
   const tones = {
     PENDING: 'warning',
@@ -193,5 +195,37 @@ export function BookingDocketStatus({
     CANCELED: text.canceled,
     EXPIRED: text.expired,
   };
+  if (appearance === 'tag') {
+    return (
+      <span className={styles.statusTag} data-booking-status={status}>
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.8"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden="true"
+        >
+          {status === 'PENDING' ? (
+            <>
+              <circle cx="12" cy="12" r="9" />
+              <path d="M12 7v5l3 2" />
+            </>
+          ) : status === 'CONFIRMED' ? (
+            <path d="m20 6-11 11-5-5" />
+          ) : status === 'COMPLETED' ? (
+            <path d="m18 6-11 11-5-5M22 10l-7 7-4-4" />
+          ) : (
+            <>
+              <circle cx="12" cy="12" r="9" />
+              <path d="m5.6 5.6 12.8 12.8" />
+            </>
+          )}
+        </svg>
+        <span>{labels[status]}</span>
+      </span>
+    );
+  }
   return <StatusBadge tone={tones[status]}>{labels[status]}</StatusBadge>;
 }

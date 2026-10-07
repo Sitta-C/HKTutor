@@ -82,7 +82,7 @@ export default function StudentBookingDetailPage({ bookingId }: { bookingId: str
           <>
             <div className={styles.detailStatus}>
               <span>{text.bookingDetails}</span>
-              <BookingDocketStatus status={booking.status} text={requestText} />
+              <BookingDocketStatus status={booking.status} text={requestText} appearance="tag" />
             </div>
             <BookingDocketSummary
               summary={booking}
