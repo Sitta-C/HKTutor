@@ -3,6 +3,7 @@ import { validate } from 'class-validator';
 
 import {
   CreateConversationDto,
+  GetMessagesQueryDto,
   GetMyConversationsQueryDto,
   MESSAGE_TEXT_MAX_LENGTH,
   SendMessageDto,
@@ -10,6 +11,7 @@ import {
 
 const TUTOR_ID = 'ad08a291-dd8b-40c1-84e5-ddafca54c6fc';
 const STUDENT_ID = '2c9d7e1f-4a3b-4c5d-8e6f-7a8b9c0d1e2f';
+const MESSAGE_ID = 'b7e4c1a2-5f6d-4e8b-9a0c-3d2f1e4b5a69';
 
 // One character stored as two UTF-16 units.
 const GRINNING_FACE = '\u{1F600}';
@@ -126,5 +128,34 @@ describe('GetMyConversationsQueryDto', () => {
     const query = plainToInstance(GetMyConversationsQueryDto, input);
 
     expect(await validate(query)).not.toHaveLength(0);
+  });
+});
+
+describe('GetMessagesQueryDto', () => {
+  it('accepts an empty query', async () => {
+    const query = plainToInstance(GetMessagesQueryDto, {});
+
+    await expect(validate(query)).resolves.toHaveLength(0);
+  });
+
+  it('accepts a message cursor and transforms the page size', async () => {
+    const query = plainToInstance(GetMessagesQueryDto, {
+      afterMessageId: MESSAGE_ID,
+      pageSize: '50',
+    });
+
+    await expect(validate(query)).resolves.toHaveLength(0);
+    expect(query).toMatchObject({ afterMessageId: MESSAGE_ID, pageSize: 50 });
+  });
+
+  it.each([
+    [{ pageSize: '0' }, 'pageSize'],
+    [{ pageSize: '51' }, 'pageSize'],
+    [{ pageSize: '1.5' }, 'pageSize'],
+    [{ afterMessageId: 'm-20' }, 'afterMessageId'],
+  ])('rejects %p', async (input, property) => {
+    const errors = await validate(plainToInstance(GetMessagesQueryDto, input));
+
+    expect(errors.map((error) => error.property)).toEqual([property]);
   });
 });

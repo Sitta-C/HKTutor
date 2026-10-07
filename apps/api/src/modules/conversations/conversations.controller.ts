@@ -19,7 +19,9 @@ import { Roles } from '@modules/auth/roles.decorator';
 import { RolesGuard } from '@modules/auth/roles.guard';
 import {
   CreateConversationDto,
+  GetMessagesQueryDto,
   GetMyConversationsQueryDto,
+  MessageHistoryResponseDto,
   MessageResponseDto,
   MyConversationsResponseDto,
   OpenConversationResponseDto,
@@ -28,6 +30,7 @@ import {
 import { ConversationsService } from '@modules/conversations/conversations.service';
 import {
   ConversationsControllerDoc,
+  GetMessagesDoc,
   GetMyConversationsDoc,
   OpenConversationDoc,
   SendMessageDoc,
@@ -72,6 +75,22 @@ export class ConversationsController {
     return this.conversationsService.getMyConversations({
       ...query,
       role: user.role,
+      userId: user.id,
+    });
+  }
+
+  @Get(':conversationId/messages')
+  @HttpCode(HttpStatus.OK)
+  @GetMessagesDoc()
+  @Roles(Role.STUDENT, Role.TUTOR)
+  async getMessages(
+    @Param('conversationId', UuidParamPipe) conversationId: string,
+    @Query() query: GetMessagesQueryDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<MessageHistoryResponseDto> {
+    return this.conversationsService.getMessages({
+      ...query,
+      conversationId,
       userId: user.id,
     });
   }

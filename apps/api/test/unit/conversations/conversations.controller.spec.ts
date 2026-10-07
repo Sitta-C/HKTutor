@@ -77,6 +77,7 @@ describe('ConversationsController', () => {
 describe('conversation routes', () => {
   let app: INestApplication<App>;
   let currentUser: AuthenticatedUser;
+  const getMessages = jest.fn();
   const getMyConversations = jest.fn();
   const openConversation = jest.fn();
   const sendMessage = jest.fn();
@@ -88,7 +89,7 @@ describe('conversation routes', () => {
         RolesGuard,
         {
           provide: ConversationsService,
-          useValue: { getMyConversations, openConversation, sendMessage },
+          useValue: { getMessages, getMyConversations, openConversation, sendMessage },
         },
       ],
     })
@@ -206,6 +207,55 @@ describe('conversation routes', () => {
       await request(app.getHttpServer()).get('/api/v1/conversations').expect(403);
 
       expect(getMyConversations).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('GET /conversations/:conversationId/messages', () => {
+    const messagesPath = `/api/v1/conversations/${CONVERSATION_ID}/messages`;
+    const page = { hasMore: false, items: [storedMessage], nextAfterMessageId: MESSAGE_ID };
+
+    it('returns the page for the session user with a parsed cursor and page size', async () => {
+      getMessages.mockResolvedValue(page);
+
+      await request(app.getHttpServer())
+        .get(`${messagesPath}?afterMessageId=${MESSAGE_ID}&pageSize=20`)
+        .expect(200)
+        .expect(page);
+
+      expect(getMessages).toHaveBeenCalledWith({
+        afterMessageId: MESSAGE_ID,
+        conversationId: CONVERSATION_ID,
+        pageSize: 20,
+        userId: STUDENT_ID,
+      });
+    });
+
+    it.each([
+      ['a page size of 0', '?pageSize=0'],
+      ['a page size over 50', '?pageSize=51'],
+      ['a cursor that is not a UUID', '?afterMessageId=m-20'],
+      ['an unknown query field', '?limit=20'],
+    ])('rejects %s with 400 before calling the service', async (_label, query) => {
+      await request(app.getHttpServer()).get(`${messagesPath}${query}`).expect(400);
+
+      expect(getMessages).not.toHaveBeenCalled();
+    });
+
+    it('rejects a malformed conversationId with INVALID_UUID', async () => {
+      const response = await request(app.getHttpServer())
+        .get('/api/v1/conversations/not-a-uuid/messages')
+        .expect(400);
+
+      expect(response.body).toMatchObject({ code: 'INVALID_UUID' });
+      expect(getMessages).not.toHaveBeenCalled();
+    });
+
+    it('rejects an admin with 403 before calling the service', async () => {
+      currentUser = signedInAs(Role.ADMIN);
+
+      await request(app.getHttpServer()).get(messagesPath).expect(403);
+
+      expect(getMessages).not.toHaveBeenCalled();
     });
   });
 
@@ -349,6 +399,31 @@ describe('ConversationsController OpenAPI contract', () => {
       expect(operation?.responses[status]).toBeDefined();
     }
     expect(operation?.security).toEqual([{ [JWT_BEARER_AUTH]: [] }]);
+  });
+
+  it('publishes the API-02 message history contract', () => {
+    const operation =
+      document.paths[`/${API_GLOBAL_PREFIX}/conversations/{conversationId}/messages`]?.get;
+    const parameterNames = (operation?.parameters as Array<{ name?: string }> | undefined)?.map(
+      (parameter) => parameter.name,
+    );
+    const response = document.components?.schemas?.['MessageHistoryResponseDto'] as
+      | { properties?: Record<string, { items?: { $ref?: string } }>; required?: string[] }
+      | undefined;
+    const fields = ['items', 'nextAfterMessageId', 'hasMore'];
+
+    expect(operation?.summary).toBe('List the messages in a conversation');
+    expect(parameterNames).toEqual(
+      expect.arrayContaining(['conversationId', 'afterMessageId', 'pageSize']),
+    );
+    for (const status of ['200', '400', '401', '403', '404']) {
+      expect(operation?.responses[status]).toBeDefined();
+    }
+    expect(Object.keys(response?.properties ?? {})).toEqual(fields);
+    expect(response?.required).toEqual(fields);
+    expect(response?.properties?.['items']?.items?.$ref).toBe(
+      '#/components/schemas/MessageResponseDto',
+    );
   });
 
   it('publishes the send-message contract', () => {

@@ -15,7 +15,10 @@ import {
   CreateConversationDto,
   DEFAULT_CONVERSATIONS_PAGE,
   DEFAULT_CONVERSATIONS_PAGE_SIZE,
+  DEFAULT_MESSAGES_PAGE_SIZE,
+  GetMessagesQueryDto,
   GetMyConversationsQueryDto,
+  MessageHistoryResponseDto,
   MessageResponseDto,
   MyConversationsResponseDto,
   OpenConversationResponseDto,
@@ -27,6 +30,7 @@ import { publicTutorWhere } from '@modules/tutors/public-tutor-access';
 export type OpenConversationInput = CreateConversationDto & { role: Role; userId: string };
 export type GetMyConversationsInput = GetMyConversationsQueryDto & { role: Role; userId: string };
 export type SendMessageInput = SendMessageDto & { conversationId: string; senderUserId: string };
+export type GetMessagesInput = GetMessagesQueryDto & { conversationId: string; userId: string };
 
 export interface OpenConversationResult {
   conversation: OpenConversationResponseDto;
@@ -65,6 +69,11 @@ const contactableStudentWhere = {
 interface ConversationPair {
   studentUserId: string;
   tutorUserId: string;
+}
+
+interface MessageCursor {
+  id: string;
+  sentAt: Date;
 }
 
 interface ConversationListRow {
@@ -159,19 +168,11 @@ export class ConversationsService {
   }
 
   async sendMessage(input: SendMessageInput): Promise<MessageResponseDto> {
-    const conversation = await this.prisma.conversation.findUnique({
-      where: { id: input.conversationId },
-      select: { studentUserId: true, tutorUserId: true },
-    });
-    if (!conversation) {
-      throw new NotFoundException('Conversation not found');
-    }
-    if (
-      input.senderUserId !== conversation.studentUserId &&
-      input.senderUserId !== conversation.tutorUserId
-    ) {
-      throw new ForbiddenException('Only participants can send messages in this conversation.');
-    }
+    await this.assertParticipant(
+      input.conversationId,
+      input.senderUserId,
+      'Only participants can send messages in this conversation.',
+    );
 
     const message = await this.prisma.message.create({
       data: {
@@ -184,6 +185,71 @@ export class ConversationsService {
       select: messageSelect,
     });
     return toMessageResponse(message);
+  }
+
+  /** Read-only: a page of messages after the cursor, oldest first. */
+  async getMessages(input: GetMessagesInput): Promise<MessageHistoryResponseDto> {
+    await this.assertParticipant(
+      input.conversationId,
+      input.userId,
+      'Only participants can read this conversation.',
+    );
+    const cursor =
+      input.afterMessageId === undefined
+        ? undefined
+        : await this.findCursorMessage(input.conversationId, input.afterMessageId);
+    const pageSize = input.pageSize ?? DEFAULT_MESSAGES_PAGE_SIZE;
+
+    // One extra row tells whether another page follows, without a second query.
+    const rows = await this.prisma.message.findMany({
+      where:
+        cursor === undefined
+          ? { conversationId: input.conversationId }
+          : { conversationId: input.conversationId, ...sentAfter(cursor) },
+      orderBy: [{ sentAt: 'asc' }, { id: 'asc' }],
+      select: messageSelect,
+      take: pageSize + 1,
+    });
+    const items = rows.slice(0, pageSize).map((message) => toMessageResponse(message));
+
+    return {
+      hasMore: rows.length > pageSize,
+      items,
+      // Polling resends this, so an empty page keeps the request's cursor.
+      nextAfterMessageId: items.at(-1)?.messageId ?? input.afterMessageId ?? null,
+    };
+  }
+
+  /** Throws 404 for a missing conversation and 403 for anyone outside it. */
+  private async assertParticipant(
+    conversationId: string,
+    userId: string,
+    forbiddenMessage: string,
+  ): Promise<void> {
+    const conversation = await this.prisma.conversation.findUnique({
+      where: { id: conversationId },
+      select: { studentUserId: true, tutorUserId: true },
+    });
+    if (!conversation) {
+      throw new NotFoundException('Conversation not found');
+    }
+    if (userId !== conversation.studentUserId && userId !== conversation.tutorUserId) {
+      throw new ForbiddenException(forbiddenMessage);
+    }
+  }
+
+  private async findCursorMessage(
+    conversationId: string,
+    messageId: string,
+  ): Promise<MessageCursor> {
+    const message = await this.prisma.message.findFirst({
+      where: { conversationId, id: messageId },
+      select: { id: true, sentAt: true },
+    });
+    if (!message) {
+      throw new BadRequestException('afterMessageId must be a message in this conversation.');
+    }
+    return message;
   }
 
   /** Checks both sides and returns the pair as student and tutor, whoever opened it. */
@@ -285,6 +351,13 @@ function conversationTarget(input: OpenConversationInput): string {
     throw new BadRequestException('You cannot start a conversation with yourself.');
   }
   return target;
+}
+
+/** Messages after the cursor in (sentAt, id) order, the order the history is returned in. */
+function sentAfter(cursor: MessageCursor): Prisma.MessageWhereInput {
+  return {
+    OR: [{ sentAt: { gt: cursor.sentAt } }, { id: { gt: cursor.id }, sentAt: cursor.sentAt }],
+  };
 }
 
 /** Prisma reports a unique violation from a client query as P2002; a raw SQLSTATE never reaches `code`. */

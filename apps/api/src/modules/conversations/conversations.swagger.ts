@@ -17,7 +17,9 @@ import { Role } from '@generated/prisma/enums';
 import { JWT_BEARER_AUTH } from '@modules/auth/auth.swagger';
 import {
   CreateConversationDto,
+  GetMessagesQueryDto,
   GetMyConversationsQueryDto,
+  MessageHistoryResponseDto,
   MessageResponseDto,
   MyConversationsResponseDto,
   OpenConversationResponseDto,
@@ -34,6 +36,12 @@ const lastMessageExample = {
   senderId: STUDENT_ID_EXAMPLE,
   sentAt: '2026-09-30T08:05:00.000Z',
   text: 'Do you teach quadratic equations?',
+};
+
+const messageExample = {
+  ...lastMessageExample,
+  conversationId: CONVERSATION_ID_EXAMPLE,
+  readAt: null,
 };
 
 const openConversationExample = {
@@ -175,6 +183,55 @@ export function GetMyConversationsDoc(): MethodDecorator {
   );
 }
 
+export function GetMessagesDoc(): MethodDecorator {
+  return applyDecorators(
+    ApiExtraModels(GetMessagesQueryDto, MessageHistoryResponseDto),
+    ApiOperation({
+      description:
+        'Oldest first. Send nextAfterMessageId back as afterMessageId to load the next page or to poll for new messages. Reading does not mark messages read.',
+      summary: 'List the messages in a conversation',
+    }),
+    ApiBearerAuth(JWT_BEARER_AUTH),
+    ApiOkResponse({
+      description: 'The page of messages after the cursor',
+      schema: {
+        allOf: [{ $ref: getSchemaPath(MessageHistoryResponseDto) }],
+        example: { hasMore: true, items: [messageExample], nextAfterMessageId: MESSAGE_ID_EXAMPLE },
+        type: 'object',
+      },
+    }),
+    ApiBadRequestResponse({
+      description:
+        'afterMessageId is not a message in this conversation, pageSize is outside 1-50, an ID is not a UUID, or the query has an unknown field',
+      schema: errorSchema({
+        code: 'VALIDATION_FAILED',
+        error: 'Bad Request',
+        message: 'afterMessageId must be a message in this conversation.',
+        statusCode: 400,
+      }),
+    }),
+    apiUnauthorizedResponse(),
+    ApiForbiddenResponse({
+      description: 'The caller is not a participant in the conversation',
+      schema: errorSchema({
+        code: 'FORBIDDEN',
+        error: 'Forbidden',
+        message: 'Only participants can read this conversation.',
+        statusCode: 403,
+      }),
+    }),
+    ApiNotFoundResponse({
+      description: 'The conversation does not exist',
+      schema: errorSchema({
+        code: 'NOT_FOUND',
+        error: 'Not Found',
+        message: 'Conversation not found',
+        statusCode: 404,
+      }),
+    }),
+  );
+}
+
 export function SendMessageDoc(): MethodDecorator {
   return applyDecorators(
     ApiExtraModels(SendMessageDto, MessageResponseDto),
@@ -184,7 +241,7 @@ export function SendMessageDoc(): MethodDecorator {
       description: 'The message was stored',
       schema: {
         allOf: [{ $ref: getSchemaPath(MessageResponseDto) }],
-        example: { ...lastMessageExample, conversationId: CONVERSATION_ID_EXAMPLE, readAt: null },
+        example: messageExample,
         type: 'object',
       },
     }),

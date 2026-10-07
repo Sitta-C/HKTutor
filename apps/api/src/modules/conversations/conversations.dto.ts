@@ -26,6 +26,9 @@ export const DEFAULT_CONVERSATIONS_PAGE = 1;
 export const DEFAULT_CONVERSATIONS_PAGE_SIZE = 20;
 export const MAX_CONVERSATIONS_PAGE_SIZE = 100;
 
+export const DEFAULT_MESSAGES_PAGE_SIZE = 20;
+export const MAX_MESSAGES_PAGE_SIZE = 50;
+
 // The caller's role decides which key is required, so the service checks that, not this DTO.
 export class CreateConversationDto {
   @ApiPropertyOptional({
@@ -83,6 +86,30 @@ export class GetMyConversationsQueryDto {
   pageSize?: number;
 }
 
+export class GetMessagesQueryDto {
+  @ApiPropertyOptional({
+    description:
+      'Return the messages sent after this one. Omit it to start from the first message.',
+    example: 'b7e4c1a2-5f6d-4e8b-9a0c-3d2f1e4b5a69',
+  })
+  @IsOptional()
+  @IsUUID()
+  afterMessageId?: string;
+
+  @ApiPropertyOptional({
+    default: DEFAULT_MESSAGES_PAGE_SIZE,
+    example: DEFAULT_MESSAGES_PAGE_SIZE,
+    maximum: MAX_MESSAGES_PAGE_SIZE,
+    minimum: 1,
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(MAX_MESSAGES_PAGE_SIZE)
+  pageSize?: number;
+}
+
 export class MessageResponseDto {
   @ApiProperty({ example: 'b7e4c1a2-5f6d-4e8b-9a0c-3d2f1e4b5a69' })
   messageId!: string;
@@ -106,6 +133,23 @@ export class MessageResponseDto {
     type: String,
   })
   readAt!: string | null;
+}
+
+export class MessageHistoryResponseDto {
+  @ApiProperty({ description: 'Oldest first', type: [MessageResponseDto] })
+  items!: MessageResponseDto[];
+
+  @ApiProperty({
+    description:
+      'Send it back as afterMessageId to load the next page or poll for new messages: the last returned message, or the request cursor when nothing was returned',
+    example: 'b7e4c1a2-5f6d-4e8b-9a0c-3d2f1e4b5a69',
+    nullable: true,
+    type: String,
+  })
+  nextAfterMessageId!: string | null;
+
+  @ApiProperty({ description: 'More messages follow nextAfterMessageId', example: false })
+  hasMore!: boolean;
 }
 
 export class ConversationParticipantDto {

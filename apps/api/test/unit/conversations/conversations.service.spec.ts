@@ -84,7 +84,7 @@ describe('ConversationsService', () => {
   const mockPrismaService = {
     $queryRaw: jest.fn(),
     conversation: { count: jest.fn(), create: jest.fn(), findUnique: jest.fn() },
-    message: { create: jest.fn() },
+    message: { create: jest.fn(), findFirst: jest.fn(), findMany: jest.fn() },
     studentProfile: { findFirst: jest.fn() },
     tutorProfile: { findFirst: jest.fn() },
     user: { findUnique: jest.fn() },
@@ -564,6 +564,138 @@ describe('ConversationsService', () => {
         }),
       ).rejects.toBe(error);
       expect(mockPrismaService.message.create).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('getMessages', () => {
+    const participants = { studentUserId: STUDENT_ID, tutorUserId: TUTOR_ID };
+    const range = (from: number, to: number) =>
+      Array.from({ length: to - from + 1 }, (_, index) => from + index);
+    const messageId = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
+    const sentAt = (n: number) => new Date(SENT_AT.getTime() + n * 1000);
+    const historyRows = (from: number, to: number) =>
+      range(from, to).map((n) =>
+        storedMessage({ id: messageId(n), sentAt: sentAt(n), text: `m-${n}` }),
+      );
+    const findManyArgs = (): Prisma.MessageFindManyArgs | undefined =>
+      (
+        mockPrismaService.message.findMany.mock.calls as unknown as Array<
+          [Prisma.MessageFindManyArgs]
+        >
+      )[0]?.[0];
+    const readPage = (
+      query: { afterMessageId?: string; pageSize?: number; userId?: string } = {},
+    ) => service.getMessages({ conversationId: CONVERSATION_ID, userId: STUDENT_ID, ...query });
+
+    beforeEach(() => {
+      mockPrismaService.conversation.findUnique.mockResolvedValue(participants);
+    });
+
+    it('returns the first page oldest first with the API-02 fields and the next cursor', async () => {
+      mockPrismaService.message.findMany.mockResolvedValue(historyRows(1, 21));
+
+      const page = await readPage({ pageSize: 20 });
+
+      expect(page.items).toHaveLength(20);
+      expect(page.items[0]).toEqual({
+        conversationId: CONVERSATION_ID,
+        messageId: messageId(1),
+        readAt: null,
+        senderId: STUDENT_ID,
+        sentAt: sentAt(1).toISOString(),
+        text: 'm-1',
+      });
+      expect(page).toMatchObject({ hasMore: true, nextAfterMessageId: messageId(20) });
+      expect(findManyArgs()).toMatchObject({
+        orderBy: [{ sentAt: 'asc' }, { id: 'asc' }],
+        take: 21,
+        where: { conversationId: CONVERSATION_ID },
+      });
+      expect(mockPrismaService.message.findFirst).not.toHaveBeenCalled();
+    });
+
+    it('continues after the cursor message and reports the last page', async () => {
+      mockPrismaService.message.findFirst.mockResolvedValue({
+        id: messageId(20),
+        sentAt: sentAt(20),
+      });
+      mockPrismaService.message.findMany.mockResolvedValue(historyRows(21, 35));
+
+      const page = await readPage({
+        afterMessageId: messageId(20),
+        pageSize: 20,
+        userId: TUTOR_ID,
+      });
+
+      expect(page.items.map((item) => item.text)).toEqual(range(21, 35).map((n) => `m-${n}`));
+      expect(page).toMatchObject({ hasMore: false, nextAfterMessageId: messageId(35) });
+      expect(mockPrismaService.message.findFirst).toHaveBeenCalledWith({
+        select: { id: true, sentAt: true },
+        where: { conversationId: CONVERSATION_ID, id: messageId(20) },
+      });
+      expect(findManyArgs()?.where).toEqual({
+        OR: [{ sentAt: { gt: sentAt(20) } }, { id: { gt: messageId(20) }, sentAt: sentAt(20) }],
+        conversationId: CONVERSATION_ID,
+      });
+    });
+
+    it('returns an empty page after the last message and keeps the cursor for polling', async () => {
+      mockPrismaService.message.findFirst.mockResolvedValue({
+        id: messageId(35),
+        sentAt: sentAt(35),
+      });
+      mockPrismaService.message.findMany.mockResolvedValue([]);
+
+      await expect(readPage({ afterMessageId: messageId(35) })).resolves.toEqual({
+        hasMore: false,
+        items: [],
+        nextAfterMessageId: messageId(35),
+      });
+    });
+
+    it('returns a null cursor for a conversation without messages and reads 20 by default', async () => {
+      mockPrismaService.message.findMany.mockResolvedValue([]);
+
+      await expect(readPage()).resolves.toEqual({
+        hasMore: false,
+        items: [],
+        nextAfterMessageId: null,
+      });
+      expect(findManyArgs()?.take).toBe(21);
+    });
+
+    it('rejects a cursor that is not a message in this conversation with 400', async () => {
+      mockPrismaService.message.findFirst.mockResolvedValue(null);
+
+      const error = await readPage({ afterMessageId: messageId(99) }).catch(
+        (caught: unknown) => caught,
+      );
+
+      expect(error).toBeInstanceOf(BadRequestException);
+      expect(error).toHaveProperty(
+        'message',
+        'afterMessageId must be a message in this conversation.',
+      );
+      expect(mockPrismaService.message.findMany).not.toHaveBeenCalled();
+    });
+
+    it('returns 404 for a conversation that does not exist', async () => {
+      mockPrismaService.conversation.findUnique.mockResolvedValue(null);
+
+      await expect(readPage()).rejects.toThrow(NotFoundException);
+      expect(mockPrismaService.message.findMany).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ['another student', OTHER_STUDENT_ID],
+      ['an admin', ADMIN_ID],
+    ])('returns 403 to %s and reads no messages', async (_label, userId) => {
+      const error = await readPage({ userId }).catch((caught: unknown) => caught);
+
+      expect(error).toBeInstanceOf(ForbiddenException);
+      expect(error).toHaveProperty('message', 'Only participants can read this conversation.');
+      expect(mockPrismaService.message.findFirst).not.toHaveBeenCalled();
+      expect(mockPrismaService.message.findMany).not.toHaveBeenCalled();
     });
   });
 });
