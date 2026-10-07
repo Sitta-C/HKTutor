@@ -1,10 +1,9 @@
 export const tutorBookingInboxCopy = {
   en: {
-    eyebrow: 'Tutor bookings',
+    eyebrow: 'Incoming bookings',
     title: 'Booking inbox',
     tutorRole: 'Tutor',
-    subtitle:
-      'Review the requests students sent for your listings and reply with a confirmation or a rejection.',
+    subtitle: 'Review requests for your listings, then confirm or reject.',
     bookingCount: 'bookings in this view',
     requestCount: 'requests awaiting your reply',
     filterLabel: 'Filter bookings by status',
@@ -65,10 +64,10 @@ export const tutorBookingInboxCopy = {
     pageOf: 'Page {page} of {totalPages}',
   },
   th: {
-    eyebrow: 'การจองของติวเตอร์',
+    eyebrow: 'การจองที่เข้ามา',
     title: 'กล่องคำขอจอง',
     tutorRole: 'ติวเตอร์',
-    subtitle: 'ตรวจคำขอจองที่นักเรียนส่งมาที่คอร์สของคุณ แล้วตอบกลับด้วยการยืนยันหรือปฏิเสธ',
+    subtitle: 'ตรวจคำขอจองในคอร์สของคุณ แล้วยืนยันหรือปฏิเสธ',
     bookingCount: 'รายการในมุมมองนี้',
     requestCount: 'คำขอที่รอคุณตอบกลับ',
     filterLabel: 'กรองการจองตามสถานะ',

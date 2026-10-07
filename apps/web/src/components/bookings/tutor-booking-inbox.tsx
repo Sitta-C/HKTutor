@@ -187,20 +187,7 @@ export default function TutorBookingInbox() {
       <PaperCard className="relative overflow-hidden p-5 shadow-[0_18px_40px_-12px_rgba(46,39,25,0.14)] sm:p-7">
         <WashiTape tone="blue" className="-right-5 top-3 rotate-12" />
 
-        <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
-          <p className="text-sm font-semibold text-notebook-muted">{summary}</p>
-          <button
-            type="button"
-            onClick={reload}
-            disabled={isLoading}
-            className={notebookButtonClass({
-              tone: 'secondary',
-              className: 'min-h-10 px-3 py-2 text-xs',
-            })}
-          >
-            {copy.refresh}
-          </button>
-        </div>
+        <p className="mb-5 text-sm font-semibold text-notebook-muted">{summary}</p>
 
         <div className="mb-6 flex flex-wrap gap-2" role="group" aria-label={copy.filterLabel}>
           {TUTOR_INBOX_FILTERS.map((value) => (

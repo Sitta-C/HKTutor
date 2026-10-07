@@ -24,16 +24,17 @@ export type TutorBookingDecision = 'CONFIRM' | 'REJECT';
 
 export type TutorInboxFilter = 'ALL' | BookingStatus;
 
-/** Pending first: the inbox exists to clear requests that are still waiting for a reply. */
+/** Same order as the student booking list so one status bar reads the same for both roles. */
 export const TUTOR_INBOX_FILTERS: readonly TutorInboxFilter[] = [
+  'ALL',
   'PENDING',
   'CONFIRMED',
   'COMPLETED',
   'CANCELED',
   'EXPIRED',
-  'ALL',
 ];
 
+/** The inbox opens on the requests still waiting for a reply, whatever the filter order is. */
 export const DEFAULT_TUTOR_INBOX_FILTER: TutorInboxFilter = 'PENDING';
 
 /**
