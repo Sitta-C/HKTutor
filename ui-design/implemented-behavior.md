@@ -127,12 +127,25 @@ tilted yellow paper, and description. Narrow directory columns stack the price b
 Selection has explicit text and a native button's pressed state, with the currently selected
 subject/grade/rate repeated in a polite live region above the appointment rows.
 
+Choice buttons use **Paper Tickets**, selected on 2026-10-07. Course tickets span their directory
+row, with an empty circle or selected check in a perforated stub and one explicit selection label.
+Day tickets connect along dashed seams, with a mint pressed state and underline; their compact
+day/month text retains the complete localized date in its accessible name. Time actions are mint
+tickets with a separate arrow stub, seam notches and soft paper-edge shadows. Labels stay upright;
+native controls retain at least 44px targets, visible keyboard focus and explicit muted disabled
+states. These styles are scoped to detail and preserve the existing selection/navigation behavior.
+
 Loaded slots are grouped by their Bangkok start date, preserving API day/slot order. Each date has
-one shared gutter beside ruled time/action rows. Cross-day slots retain one underlying slot/action
-and show the localized end date and time explicitly, including midnight endings. Thai uses Buddhist
-years and English Gregorian years. Native day-index buttons filter the already loaded dates only;
+one shared gutter beside ruled time/action rows. Ranges occupying multiple dates follow tutor
+availability's Start/End (เริ่ม/จบ) labels, each with a time and full localized date, connected by a
+thin vertical line. Exact midnight ends display as 24:00 on the last occupied Bangkok date, including
+multi-day/year-boundary ranges. A range occupying only one date remains a concise time pair, such as
+23:00–24:00. Semantic time values and accessible ranges retain the actual UTC endpoints and next-day
+00:00. Every range remains one underlying slot/action; no empty midnight day or continuation action
+is added. Thai uses Buddhist years and English Gregorian years. Native day-index buttons filter the
+already loaded dates only;
 All dates restores the full loaded set. Changing course or date does not fetch availability again.
-Narrow pads wrap the action beneath the time, retaining 44px targets, visible focus and reduced motion.
+The ticket action sits beneath the time information, retaining visible focus and reduced motion.
 
 The original public detail and availability requests still load the same 30-day window, with the same
 stale-response guard. Requested listing IDs, effective/fallback selection, encoded listing/slot

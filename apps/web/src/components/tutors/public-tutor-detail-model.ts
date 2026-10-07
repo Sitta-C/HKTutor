@@ -38,7 +38,7 @@ export function groupPublicTutorSlots(
         ...parts,
         weekday: formatBangkokWeekday(slot.startAtUtc, language, 'short'),
         label: formatBangkokDate(slot.startAtUtc, language),
-        indexLabel: formatBangkokShortDate(slot.startAtUtc, language),
+        indexLabel: `${parts.day} ${parts.month}`,
         slots: [slot],
       });
     }
@@ -49,18 +49,28 @@ export function groupPublicTutorSlots(
 export function formatPublicTutorSlot(
   slot: PublicAvailabilitySlot,
   language: DateTimeLanguage,
-): { start: string; end: string; endDate: string | null; label: string } {
+): { start: string; end: string; startDate: string; endDate: string | null; label: string } {
   const start = formatBangkokTime(slot.startAtUtc, language);
-  const end = formatBangkokTime(slot.endAtUtc, language);
+  const endAt = new Date(slot.endAtUtc);
+  const lastOccupiedInstant = new Date(endAt.getTime() - 1);
+  const endsAtMidnight = getBangkokIsoDate(lastOccupiedInstant) !== getBangkokIsoDate(endAt);
+  // Tutor availability labels midnight as 24:00 on the last occupied Bangkok date.
+  const endLabelDate = endsAtMidnight ? lastOccupiedInstant : endAt;
+  const end = endsAtMidnight ? '24:00' : formatBangkokTime(endAt, language);
+  const endDate =
+    getBangkokIsoDate(slot.startAtUtc) !== getBangkokIsoDate(endLabelDate)
+      ? formatBangkokShortDate(endLabelDate, language)
+      : null;
   const crossesDay = getBangkokIsoDate(slot.startAtUtc) !== getBangkokIsoDate(slot.endAtUtc);
-  const endDate = crossesDay ? formatBangkokShortDate(slot.endAtUtc, language) : null;
   const startDate = formatBangkokShortDate(slot.startAtUtc, language);
   return {
     start,
     end,
+    startDate,
     endDate,
+    // The accessible range retains the actual UTC endpoints, including next-day 00:00.
     label: crossesDay
-      ? `${startDate} · ${start} → ${endDate} · ${end}`
+      ? `${startDate} · ${start} → ${formatBangkokShortDate(endAt, language)} · ${formatBangkokTime(endAt, language)}`
       : `${startDate} · ${start}–${end}`,
   };
 }

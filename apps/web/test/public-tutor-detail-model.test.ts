@@ -43,6 +43,7 @@ describe('public tutor appointment days', () => {
     expect(formatPublicTutorSlot(overnight, 'en')).toMatchObject({
       start: '23:00',
       end: '01:00',
+      startDate: '31 Dec 2026',
       endDate: '1 Jan 2027',
     });
     const thai = formatPublicTutorSlot(overnight, 'th');
@@ -50,12 +51,28 @@ describe('public tutor appointment days', () => {
     expect(thai.endDate).toContain('2570');
   });
 
-  it('makes a midnight endpoint explicit without splitting the underlying slot', () => {
+  it('labels midnight as 24:00 on the occupied day while retaining the actual accessible endpoint', () => {
     const slot = { ...overnight, endAtUtc: '2026-12-31T17:00:00Z' };
     expect(formatPublicTutorSlot(slot, 'en')).toMatchObject({
       start: '23:00',
-      end: '00:00',
+      end: '24:00',
+      startDate: '31 Dec 2026',
+      endDate: null,
+      label: '31 Dec 2026 · 23:00 → 1 Jan 2027 · 00:00',
+    });
+    expect(groupPublicTutorSlots([slot], 'en')).toHaveLength(1);
+  });
+
+  it('labels a multi-day midnight end on the previous occupied date across a year boundary', () => {
+    const slot = { ...overnight, endAtUtc: '2027-01-01T17:00:00Z' };
+    expect(formatPublicTutorSlot(slot, 'en')).toMatchObject({
+      end: '24:00',
       endDate: '1 Jan 2027',
+      label: '31 Dec 2026 · 23:00 → 2 Jan 2027 · 00:00',
+    });
+    expect(formatPublicTutorSlot(slot, 'th')).toMatchObject({
+      startDate: '31 ธ.ค. 2569',
+      endDate: '1 ม.ค. 2570',
     });
     expect(groupPublicTutorSlots([slot], 'en')).toHaveLength(1);
   });

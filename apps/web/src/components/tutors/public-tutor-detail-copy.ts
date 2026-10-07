@@ -18,7 +18,6 @@ export const publicTutorDetailCopy = {
     window: 'Times within the next 30 days',
     availabilityNote: 'These tutor times apply to the course selected above.',
     continueHint: 'Choose a time to review your booking request.',
-    until: 'Ends',
     showing: 'Showing {count} available times · {date}',
   },
   th: {
@@ -40,7 +39,6 @@ export const publicTutorDetailCopy = {
     window: 'เวลาว่างภายใน 30 วันข้างหน้า',
     availabilityNote: 'เวลาว่างของติวเตอร์ใช้กับคอร์สที่กำลังเลือกด้านบน',
     continueHint: 'เลือกเวลาเพื่อไปตรวจสอบคำขอเรียน',
-    until: 'สิ้นสุด',
     showing: 'แสดง {count} ช่วงเวลาว่าง · {date}',
   },
 } as const;

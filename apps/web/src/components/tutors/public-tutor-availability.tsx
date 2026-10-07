@@ -12,13 +12,7 @@ import {
   groupPublicTutorSlots,
 } from '@/components/tutors/public-tutor-detail-model';
 import { tutorSearchCopy } from '@/components/tutors/tutor-search-copy';
-import {
-  NotebookHeading,
-  PaperCard,
-  StickyNote,
-  WashiTape,
-  notebookButtonClass,
-} from '@/components/ui/notebook';
+import { NotebookHeading, PaperCard, StickyNote, WashiTape } from '@/components/ui/notebook';
 import { NotebookLoadingRegion } from '@/components/ui/notebook-loading';
 import { ApiError } from '@/lib/api/error';
 import { getPublicTutor, getPublicTutorAvailability } from '@/lib/api/tutors';
@@ -34,6 +28,7 @@ export default function PublicTutorAvailabilityPage({ tutorId }: { tutorId: stri
   const { copy, language } = useLanguage();
   const { user } = useAuth();
   const text = copy.dashboard.tutorAvailability;
+  const availabilityText = copy.dashboard.availability;
   const detailText = publicTutorDetailCopy[language];
   const searchText = tutorSearchCopy[language];
   const router = useRouter();
@@ -203,23 +198,23 @@ export default function PublicTutorAvailabilityPage({ tutorId }: { tutorId: stri
                     </div>
                     <p className={styles.description}>{listing.description}</p>
                     <div className={styles.courseActions}>
-                      {selected && (
-                        <span className={styles.selectedMark}>
-                          <DashboardIcon name="check" className="h-4 w-4" />
-                          {detailText.selected}
-                        </span>
-                      )}
                       <button
                         type="button"
                         aria-pressed={selected}
                         aria-label={`${detailText.select}: ${listing.subject} · ${listing.grade}`}
-                        className={notebookButtonClass({
-                          tone: 'secondary',
-                          className: styles.courseButton,
-                        })}
+                        className={styles.courseButton}
                         onClick={() => setSelectedListingId(listing.listingId)}
                       >
-                        {selected ? detailText.selectedButton : detailText.select}
+                        <span className={styles.courseStub} aria-hidden="true">
+                          {selected ? (
+                            <DashboardIcon name="check" className="h-4 w-4" />
+                          ) : (
+                            <span className={styles.courseDot} />
+                          )}
+                        </span>
+                        <span className={styles.ticketLabel}>
+                          {selected ? detailText.selectedButton : detailText.select}
+                        </span>
                       </button>
                     </div>
                   </li>
@@ -308,29 +303,58 @@ export default function PublicTutorAvailabilityPage({ tutorId }: { tutorId: stri
                         return (
                           <li key={slot.id} className={styles.slot}>
                             <div className={styles.slotTime}>
-                              <p>
-                                {time.endDate ? `${time.start} →` : `${time.start}–${time.end}`}
-                              </p>
-                              {time.endDate && (
-                                <span>
-                                  {detailText.until} {time.endDate} · {time.end}
-                                </span>
+                              {time.endDate ? (
+                                <div
+                                  className={styles.rangeEndpoints}
+                                  role="group"
+                                  aria-label={time.label}
+                                >
+                                  <div className={styles.rangeEndpoint}>
+                                    <span className={styles.endpointLabel}>
+                                      {availabilityText.spanStart}
+                                    </span>
+                                    <strong>
+                                      <time dateTime={slot.startAtUtc}>{time.start}</time>
+                                    </strong>
+                                    <p className={styles.endpointDate}>{time.startDate}</p>
+                                  </div>
+                                  <span className={styles.rangeConnector} aria-hidden="true" />
+                                  <div className={styles.rangeEndpoint}>
+                                    <span className={styles.endpointLabel}>
+                                      {availabilityText.spanEnd}
+                                    </span>
+                                    <strong>
+                                      <time dateTime={slot.endAtUtc}>{time.end}</time>
+                                    </strong>
+                                    <p className={styles.endpointDate}>{time.endDate}</p>
+                                  </div>
+                                </div>
+                              ) : (
+                                <p>
+                                  <time dateTime={slot.startAtUtc}>{time.start}</time>–
+                                  <time dateTime={slot.endAtUtc}>{time.end}</time>
+                                </p>
                               )}
                             </div>
                             <button
                               type="button"
-                              className={notebookButtonClass({ className: styles.slotButton })}
+                              className={styles.slotButton}
                               disabled={
                                 !selectedListing || Boolean(user && user.role !== 'STUDENT')
                               }
                               aria-label={`${actionLabel} · ${time.label}`}
                               onClick={() => {
-                                if (!selectedListing) return;
+                                if (!selectedListing) {
+                                  return;
+                                }
                                 const bookingPath = `/dashboard/bookings/new?listingId=${encodeURIComponent(selectedListing.listingId)}&slotId=${encodeURIComponent(slot.id)}`;
                                 router.push(user ? bookingPath : withReturnTo('/', bookingPath));
                               }}
                             >
-                              {actionLabel}
+                              <span className={styles.ticketLabel}>{actionLabel}</span>
+                              <span className={styles.timeStub} aria-hidden="true">
+                                <DashboardIcon name="arrow-right" className="h-4 w-4" />
+                              </span>
                             </button>
                           </li>
                         );

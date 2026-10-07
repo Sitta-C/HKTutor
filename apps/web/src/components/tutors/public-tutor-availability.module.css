@@ -282,30 +282,57 @@
   overflow-wrap: anywhere;
 }
 .courseActions {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  align-items: center;
-  gap: 8px;
   margin-top: 14px;
 }
-.selectedMark {
+.courseButton {
   display: flex;
-  gap: 4px;
+  width: 100%;
+  min-height: 46px;
   align-items: center;
-  margin-right: auto;
-  color: var(--detail-accent);
-  font-size: 12px;
+  border: 1px solid var(--color-paper-edge);
+  border-radius: 4px;
+  padding: 0;
+  background: var(--color-paper);
+  box-shadow: 0 2px 0 var(--color-paper-edge);
+  color: var(--color-notebook-ink);
+  text-align: left;
+  font-size: 13px;
   font-weight: 600;
+  transition:
+    background-color 0.15s,
+    box-shadow 0.15s;
 }
-.courseButton.courseButton {
-  padding-inline: 10px;
-  font-size: 12px;
+.courseButton:hover {
+  background: color-mix(in srgb, var(--color-sticky-green) 50%, var(--color-paper));
 }
 .courseButton[aria-pressed='true'] {
   border-color: var(--color-student-deep);
   background: var(--color-sticky-green);
   color: var(--detail-accent);
+}
+.courseStub {
+  display: grid;
+  width: 41px;
+  flex: 0 0 41px;
+  align-self: stretch;
+  place-items: center;
+  border-right: 1px dashed var(--color-paper-edge);
+  color: var(--detail-accent);
+}
+.courseButton[aria-pressed='true'] .courseStub {
+  background: color-mix(in srgb, var(--color-sticky-green) 65%, var(--color-student-deep));
+}
+.courseDot {
+  width: 14px;
+  height: 14px;
+  border: 1px solid var(--detail-accent);
+  border-radius: 50%;
+}
+.ticketLabel {
+  flex: 1;
+  min-width: 0;
+  padding: 9px 11px;
+  overflow-wrap: anywhere;
 }
 .pad.pad {
   container-type: inline-size;
@@ -357,19 +384,31 @@
 .dateIndex {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
   padding: 14px 0;
   border-bottom: 1px dashed var(--color-paper-edge);
 }
 .dateIndex button {
+  position: relative;
+  min-width: 44px;
   min-height: 44px;
+  margin-left: -1px;
   border: 1px solid var(--color-paper-edge);
-  border-radius: 4px 4px 0 0;
-  padding: 6px 10px;
+  border-right-style: dashed;
+  border-radius: 0;
+  padding: 8px 10px;
   background: var(--color-paper);
   color: var(--color-notebook-ink);
   font-size: 12px;
+  font-weight: 600;
   transition: background-color 0.15s;
+}
+.dateIndex button:first-child {
+  margin-left: 0;
+  border-radius: 4px 0 0 4px;
+}
+.dateIndex button:last-child {
+  border-right-style: solid;
+  border-radius: 0 4px 4px 0;
 }
 .dateIndex button:hover {
   background: color-mix(in srgb, var(--color-sticky-green) 35%, var(--color-paper));
@@ -378,11 +417,17 @@
   background: var(--color-sticky-green);
   border-color: var(--color-student-deep);
   color: var(--detail-accent);
+  box-shadow: inset 0 -3px var(--color-student-deep);
 }
+.courseButton:focus-visible,
+.slotButton:focus-visible,
 .dateIndex button:focus-visible,
 .back:focus-visible {
   outline: 2px solid var(--color-student-deep);
   outline-offset: 3px;
+}
+.dateIndex button:focus-visible {
+  z-index: 1;
 }
 .day {
   display: grid;
@@ -420,7 +465,7 @@
   border-top: 1px dashed var(--color-paper-edge);
 }
 .slotTime {
-  flex: 1 1 130px;
+  flex: 1 1 100%;
   min-width: 0;
 }
 .slotTime p {
@@ -428,17 +473,106 @@
   font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
-.slotTime span {
-  display: block;
-  margin-top: 5px;
+.rangeEndpoints {
+  display: grid;
+  grid-template-rows: auto 20px auto;
+}
+.rangeEndpoint {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0 8px;
+  align-items: baseline;
+}
+.endpointLabel {
+  color: var(--color-notebook-muted);
+  font-size: 11px;
+}
+.rangeEndpoint strong {
+  font-size: 16px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.slotTime .endpointDate {
+  grid-column: 2;
   color: var(--color-notebook-muted);
   font-size: 12px;
+  font-weight: 400;
   overflow-wrap: anywhere;
 }
-.slotButton.slotButton {
+.rangeConnector {
+  width: 1px;
+  margin: 4px 0 4px 7px;
+  background: var(--color-paper-edge);
+}
+.slotButton {
+  position: relative;
+  display: flex;
+  width: 100%;
   max-width: 100%;
-  padding-inline: 10px;
-  font-size: 12px;
+  min-height: 46px;
+  align-items: center;
+  justify-content: space-between;
+  border: 1px solid var(--detail-accent);
+  border-radius: 4px;
+  padding: 0;
+  background: var(--detail-accent);
+  color: var(--color-paper);
+  box-shadow: 0 2px 0 color-mix(in srgb, var(--detail-accent) 70%, var(--color-notebook-ink));
+  text-align: left;
+  font-size: 13px;
+  font-weight: 600;
+  transition:
+    background-color 0.15s,
+    box-shadow 0.15s;
+}
+.slotButton:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--detail-accent) 86%, var(--color-notebook-ink));
+}
+.timeStub {
+  display: grid;
+  width: 39px;
+  flex: 0 0 39px;
+  align-self: stretch;
+  place-items: center;
+  border-left: 1px dashed currentColor;
+  border-radius: 0 4px 4px 0;
+  background: color-mix(in srgb, var(--detail-accent) 85%, var(--color-paper));
+}
+.slotButton::before,
+.slotButton::after {
+  position: absolute;
+  right: 35px;
+  width: 7px;
+  height: 4px;
+  content: '';
+  border: 1px solid var(--detail-accent);
+  background: var(--color-paper);
+  pointer-events: none;
+}
+.slotButton::before {
+  top: -1px;
+  border-top: 0;
+  border-radius: 0 0 5px 5px;
+}
+.slotButton::after {
+  bottom: -1px;
+  border-bottom: 0;
+  border-radius: 5px 5px 0 0;
+}
+.slotButton:disabled {
+  cursor: not-allowed;
+  border-color: var(--color-paper-edge);
+  background: color-mix(in srgb, var(--color-paper-edge) 25%, var(--color-paper));
+  color: var(--color-notebook-muted);
+  box-shadow: none;
+}
+.slotButton:disabled .timeStub {
+  border-color: var(--color-paper-edge);
+  background: var(--color-paper-edge);
+}
+.slotButton:disabled::before,
+.slotButton:disabled::after {
+  border-color: var(--color-paper-edge);
 }
 .padFooter {
   margin-top: 16px;
@@ -496,12 +630,6 @@
   .slot {
     padding-left: 12px;
     gap: 10px;
-  }
-  .slotTime {
-    flex-basis: 100%;
-  }
-  .slotButton.slotButton {
-    width: 100%;
   }
 }
 

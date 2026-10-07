@@ -200,9 +200,17 @@ for (const language of ['th', 'en'] as const) {
       await page.keyboard.press('Enter');
       await expect(main.getByRole('button', { name: new RegExp(`^${choose} ·`) })).toHaveCount(1);
       await expect(main).toContainText('23:00');
-      await expect(main).toContainText(
-        language === 'th' ? 'สิ้นสุด 10 ต.ค. 2569 · 01:00' : 'Ends 10 Oct 2026 · 01:00',
-      );
+      const range = main.getByRole('group', {
+        name:
+          language === 'th'
+            ? '9 ต.ค. 2569 · 23:00 → 10 ต.ค. 2569 · 01:00'
+            : '9 Oct 2026 · 23:00 → 10 Oct 2026 · 01:00',
+      });
+      await expect(range).toContainText(language === 'th' ? 'เริ่ม' : 'Start');
+      await expect(range).toContainText(language === 'th' ? 'จบ' : 'End');
+      await expect(range).toContainText(language === 'th' ? '9 ต.ค. 2569' : '9 Oct 2026');
+      await expect(range).toContainText(language === 'th' ? '10 ต.ค. 2569' : '10 Oct 2026');
+      await expect(range.locator('time')).toHaveText(['23:00', '01:00']);
       await index.getByRole('button').first().click();
       await expect(main.getByRole('button', { name: new RegExp(`^${choose} ·`) })).toHaveCount(3);
       expect(calls).toHaveLength(initialRequests);
@@ -226,6 +234,58 @@ for (const language of ['th', 'en'] as const) {
         student
           ? new RegExp('/dashboard/bookings/new\\?listingId=course%2Fmath&slotId=slot%2F8a')
           : 'http://localhost:3000/?returnTo=' + encodeURIComponent(bookingPath),
+      );
+    });
+  }
+}
+
+for (const language of ['th', 'en'] as const) {
+  for (const multiDay of [false, true]) {
+    test(`${language} ${multiDay ? 'multi-day' : 'single-day'} midnight uses tutor labels and books one whole slot`, async ({
+      page,
+    }, testInfo) => {
+      await mockDetail(page, {
+        language,
+        role: 'STUDENT',
+        availability: [
+          {
+            id: 'slot/midnight',
+            startAtUtc: '2026-10-09T16:00:00Z',
+            endAtUtc: multiDay ? '2026-10-11T17:00:00Z' : '2026-10-09T17:00:00Z',
+          },
+        ],
+      });
+      await page.goto('/tutors/tutor-anna?listingId=course%2Fphysics');
+      const main = page.locator('main');
+      const choose = language === 'th' ? 'เลือกเวลานี้' : 'Choose this time';
+      const action = main.getByRole('button', { name: new RegExp(`^${choose} ·`) });
+      await expect(action).toHaveCount(1);
+      await expect(action).toHaveAttribute('aria-label', /00:00$/);
+      if (multiDay) {
+        const range = main.getByRole('group', { name: /23:00 → .*00:00$/ });
+        await expect(range.locator('time')).toHaveText(['23:00', '24:00']);
+        await expect(range).toContainText(language === 'th' ? '11 ต.ค. 2569' : '11 Oct 2026');
+        await expect(range).toContainText(language === 'th' ? 'จบ' : 'End');
+      } else {
+        await expect(main).toContainText('23:00–24:00');
+      }
+      await expect(
+        main
+          .getByRole('group', {
+            name: language === 'th' ? 'วันที่มีเวลาว่าง' : 'Dates with available times',
+          })
+          .getByRole('button'),
+      ).toHaveCount(2);
+      await noOverflow(page);
+      await page.screenshot({
+        path: testInfo.outputPath(
+          `detail-${language}-${multiDay ? 'multi-day' : 'single-day'}-midnight.png`,
+        ),
+        fullPage: true,
+      });
+      await action.click();
+      await expect(page).toHaveURL(
+        /\/dashboard\/bookings\/new\?listingId=course%2Fphysics&slotId=slot%2Fmidnight$/,
       );
     });
   }

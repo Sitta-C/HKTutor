@@ -159,11 +159,20 @@ The user selected **Appointment Pad** (option 3) and requested implementation on
   768px, stack profile, courses and times. Use blue grade tabs, subject, a slightly tilted yellow
   price paper with upright text, full descriptions, and explicit selected-course text/button state.
   Narrow directory columns stack price beneath the subject, as in **Note Window**.
+- Choice controls use **Paper Tickets**, selected on 2026-10-07: a full-width course ticket with a
+  selection stub, connected day tickets and a mint time-action ticket with a perforated arrow stub
+  and seam notches. Use 4px corners, soft 2px paper edges and at least 44px targets. Keep upright
+  bilingual labels, explicit pressed/disabled states, visible focus and reduced motion. These
+  styles remain local to public tutor detail, independent of search's **Ticket Pair** pagination.
 - Keep the selected subject/grade/rate at the top of the pad. Group existing slots by their Bangkok
-  start date, with a shared date gutter and ruled time/action rows. Cross-day slots remain one
-  action and show their end date/time explicitly. A local native-button day index filters loaded
-  slots only; All dates restores them without fetching. Dates retain Thai Buddhist/English Gregorian
-  years, keyboard focus and accessible full-date labels.
+  start date, with a shared date gutter and ruled time/action rows. Follow tutor availability's
+  endpoint labels for ranges occupying multiple dates: Start/End (เริ่ม/จบ), time and full localized
+  date joined by a thin vertical connector. Exact midnight displays as 24:00 on the last occupied
+  date; a one-day range ending at midnight stays concise. Each range remains one slot/action.
+  Accessible ranges retain the actual endpoint dates/times, including next-day 00:00. A local
+  native-button day index filters loaded slots only; All dates restores them without fetching.
+  Compact day/month ticket labels retain full dates in accessible names and day gutters, with
+  Thai Buddhist/English Gregorian years.
 - Use 8px paper corners, thin borders, existing paper shadows, subtle stacked pad edges and one
   blue tape accent. Reuse notebook primitives and tokens; feature styles/copy/models stay local.
   The chosen tutor profile/listing editors and shared primitives remain unchanged.
