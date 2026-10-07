@@ -14,6 +14,7 @@ import { formatBangkokDateTime, getBookingErrorMessage } from '@/components/book
 import { DashboardIcon } from '@/components/dashboard/dashboard-icon';
 import { NotebookHeading, PaperCard } from '@/components/ui/notebook';
 import { NotebookLoadingRegion } from '@/components/ui/notebook-loading';
+import { useNotebookToast } from '@/components/ui/notebook-toast';
 import { createBookingOnce, getBookingQuote } from '@/lib/api/bookings';
 import { ApiError } from '@/lib/api/error';
 import { useLanguage } from '@/lib/i18n';
@@ -25,6 +26,7 @@ import type { BookingQuote, BookingResponse } from '@/lib/api/types';
 
 export default function BookingConfirmationPage() {
   const { copy, language } = useLanguage();
+  const toast = useNotebookToast();
   const text = copy.dashboard.booking;
   const requestText = bookingRequestCopy[language];
   const router = useRouter();
@@ -89,12 +91,15 @@ export default function BookingConfirmationPage() {
       const response = await createBookingOnce({ listingId, slotId }, submitInFlight);
       if (response) {
         setCreated(response);
+        toast.success(requestText.sent);
       } else {
         setSubmitError(new Error(text.submissionInProgress));
+        toast.error(text.submissionInProgress);
       }
     } catch (caught: unknown) {
       setCreated(null);
       setSubmitError(caught);
+      toast.error(getBookingErrorMessage(caught, text));
     } finally {
       setIsSubmitting(false);
     }

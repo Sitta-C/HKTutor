@@ -13,6 +13,7 @@ import {
   WashiTape,
   notebookInputClass,
 } from '@/components/ui/notebook';
+import { useNotebookToast } from '@/components/ui/notebook-toast';
 import { resendVerification } from '@/lib/api/auth';
 import { useAuth } from '@/lib/auth-context';
 import { useLanguage } from '@/lib/i18n';
@@ -68,12 +69,14 @@ function notifyOriginalTab(): Promise<boolean> {
 function VerifyForm() {
   const { verify } = useAuth();
   const { copy } = useLanguage();
+  const toast = useNotebookToast();
   const router = useRouter();
   const searchParams = useSearchParams();
   const token = searchParams.get('token');
   const initialEmail = searchParams.get('email') ?? '';
   const deliveryFailed = searchParams.get('delivery') === 'failed';
   const attemptedToken = useRef<string | null>(null);
+  const verificationCopy = useRef(copy.register);
   const handledVerificationEvent = useRef(false);
   const [email, setEmail] = useState(initialEmail);
   const [status, setStatus] = useState<'waiting' | 'verifying' | 'verified' | 'error'>(
@@ -87,6 +90,10 @@ function VerifyForm() {
         : copy.register.otpSubtitle.replace('{email}', initialEmail || copy.register.emailLabel),
   );
   const [isResending, setIsResending] = useState(false);
+
+  useEffect(() => {
+    verificationCopy.current = copy.register;
+  }, [copy.register]);
 
   useEffect(() => {
     if (token || typeof BroadcastChannel === 'undefined') return;
@@ -125,6 +132,8 @@ function VerifyForm() {
     verify(token)
       .then(async () => {
         setStatus('verified');
+        setMessage(verificationCopy.current.verificationSuccess);
+        toast.success(verificationCopy.current.verificationSuccess);
         const originalTabAcknowledged = await notifyOriginalTab();
 
         if (!originalTabAcknowledged) {
@@ -132,27 +141,21 @@ function VerifyForm() {
           return;
         }
 
-        setMessage(copy.register.verificationReturningToOriginalTab);
+        setMessage(verificationCopy.current.verificationReturningToOriginalTab);
         window.close();
 
         // Some browsers refuse programmatic closing. Keep a clear manual fallback
         // instead of opening a second dashboard in that tab.
         window.setTimeout(() => {
-          setMessage(copy.register.verificationCloseTab);
+          setMessage(verificationCopy.current.verificationCloseTab);
         }, 250);
       })
       .catch(() => {
         setStatus('error');
-        setMessage(copy.register.verificationFailed);
+        setMessage(verificationCopy.current.verificationFailed);
+        toast.error(verificationCopy.current.verificationFailed);
       });
-  }, [
-    copy.register.verificationCloseTab,
-    copy.register.verificationFailed,
-    copy.register.verificationReturningToOriginalTab,
-    router,
-    token,
-    verify,
-  ]);
+  }, [router, token, toast, verify]);
 
   const handleResend = async () => {
     if (!email.trim()) return;
@@ -161,9 +164,11 @@ function VerifyForm() {
       await resendVerification(email.trim());
       setStatus('waiting');
       setMessage(copy.register.otpResent);
+      toast.success(copy.register.otpResent);
     } catch {
       setStatus('error');
       setMessage(copy.register.resendFailed);
+      toast.error(copy.register.resendFailed);
     } finally {
       setIsResending(false);
     }

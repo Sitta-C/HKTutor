@@ -215,7 +215,10 @@ export default function TutorListingEditor({
     const nextErrors = validateListingForm(form, copy);
     setErrors(nextErrors);
     setPageError(null);
-    if (Object.keys(nextErrors).length > 0) return;
+    if (Object.keys(nextErrors).length > 0) {
+      toast.error(copy.reviewFields);
+      return;
+    }
 
     const payload: SaveTeachingListingPayload = {
       subjectId: form.subjectId,
@@ -830,6 +833,7 @@ const englishCopy = {
   unsaved: 'Unsaved changes',
   upToDate: 'All changes saved',
   savedSuccess: 'Your listing changes have been saved.',
+  reviewFields: 'Please check the highlighted fields.',
   verificationError: 'Your tutor profile must be verified before publishing.',
   discardConfirm: 'Discard your unsaved changes?',
   qualityTitle: 'A strong listing is easy to scan',
@@ -905,6 +909,7 @@ const thaiCopy: typeof englishCopy = {
   unsaved: 'มีการเปลี่ยนแปลงที่ยังไม่ได้บันทึก',
   upToDate: 'บันทึกข้อมูลล่าสุดแล้ว',
   savedSuccess: 'บันทึกการแก้ไขประกาศแล้ว',
+  reviewFields: 'โปรดตรวจสอบช่องข้อมูลที่ระบุข้อผิดพลาด',
   verificationError: 'โปรไฟล์ติวเตอร์ต้องผ่านการยืนยันก่อนจึงจะเผยแพร่ได้',
   discardConfirm: 'ยกเลิกการเปลี่ยนแปลงที่ยังไม่ได้บันทึกหรือไม่?',
   qualityTitle: 'ประกาศที่ดีควรอ่านเข้าใจได้เร็ว',

@@ -13,6 +13,7 @@ import {
 } from '@/components/listings/listing-ui';
 import { GraphPaper, PaperCard, StickyNote } from '@/components/ui/notebook';
 import { NotebookLoadingRegion } from '@/components/ui/notebook-loading';
+import { useNotebookToast } from '@/components/ui/notebook-toast';
 import {
   archiveTutorListing,
   getTutorListings,
@@ -46,6 +47,7 @@ export default function TutorListingsPage() {
     requiredRole: 'TUTOR',
   });
   const { language } = useLanguage();
+  const toast = useNotebookToast();
   const router = useRouter();
   const copy = language === 'th' ? thaiCopy : englishCopy;
   const [listings, setListings] = useState<TeachingListing[]>([]);
@@ -131,6 +133,7 @@ export default function TutorListingsPage() {
   const handlePublish = async (listingId: string) => {
     if (!isVerified) {
       setError(copy.actionError);
+      toast.error(copy.actionError);
       return;
     }
     setBusyId(listingId);
@@ -139,8 +142,10 @@ export default function TutorListingsPage() {
       const updated = await publishTutorListing(listingId);
       setListings((current) => current.map((item) => (item.id === listingId ? updated : item)));
       setConfirmationCandidate(null);
+      toast.success(copy.publishedSuccess);
     } catch {
       setError(copy.actionError);
+      toast.error(copy.actionError);
     } finally {
       setBusyId(null);
     }
@@ -152,8 +157,10 @@ export default function TutorListingsPage() {
     try {
       const updated = await restoreTutorListing(listingId);
       setListings((current) => current.map((item) => (item.id === listingId ? updated : item)));
+      toast.success(copy.restoredSuccess);
     } catch {
       setError(copy.actionError);
+      toast.error(copy.actionError);
     } finally {
       setBusyId(null);
     }
@@ -166,8 +173,10 @@ export default function TutorListingsPage() {
       const updated = await archiveTutorListing(listingId);
       setListings((current) => current.map((item) => (item.id === listingId ? updated : item)));
       setConfirmationCandidate(null);
+      toast.success(copy.archivedSuccess);
     } catch {
       setError(copy.actionError);
+      toast.error(copy.actionError);
     } finally {
       setBusyId(null);
     }
@@ -624,6 +633,9 @@ const englishCopy = {
   loading: 'Loading your teaching listings…',
   loadError: 'Unable to load your teaching listings.',
   actionError: 'Unable to update this listing. Check your profile status and try again.',
+  publishedSuccess: 'Listing published.',
+  archivedSuccess: 'Listing archived.',
+  restoredSuccess: 'Listing restored to draft.',
 };
 
 const thaiCopy: typeof englishCopy = {
@@ -677,4 +689,7 @@ const thaiCopy: typeof englishCopy = {
   loading: 'กำลังโหลดประกาศสอน…',
   loadError: 'ไม่สามารถโหลดประกาศสอนได้',
   actionError: 'ไม่สามารถอัปเดตประกาศนี้ได้ โปรดตรวจสอบสถานะโปรไฟล์แล้วลองอีกครั้ง',
+  publishedSuccess: 'เผยแพร่ประกาศแล้ว',
+  archivedSuccess: 'เก็บประกาศถาวรแล้ว',
+  restoredSuccess: 'คืนประกาศเป็นฉบับร่างแล้ว',
 };

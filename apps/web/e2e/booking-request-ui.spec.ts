@@ -236,7 +236,10 @@ test('submit gate sends only one mutation and success uses created amounts and p
   expect(calls.writes).toEqual([{ listingId: quote.listing.id, slotId: quote.slot.id }]);
   release();
   await expect(page.getByRole('heading', { name: 'Lesson request sent' })).toBeVisible();
-  await expect(page.getByRole('status')).toContainText('Awaiting tutor confirmation');
+  await expect(page.locator('main').getByRole('status')).toContainText(
+    'Awaiting tutor confirmation',
+  );
+  await expect(page.locator('[data-notebook-toast="success"]')).toHaveText('Lesson request sent');
   await expect(page.locator('main')).toContainText('730.00');
   await expect(page.locator('main')).toContainText('735.00 THB');
   await expect(page.locator('main')).toContainText('5.00 THB');
@@ -350,7 +353,9 @@ for (const status of ['CONFIRMED', 'COMPLETED', 'CANCELED', 'EXPIRED'] as const)
     await mockRequest(page, { status });
     await page.goto(requestPath);
     await page.getByRole('button', { name: 'Send lesson request' }).click();
-    await expect(page.getByRole('status')).toContainText(status[0] + status.slice(1).toLowerCase());
+    await expect(page.locator('main').getByRole('status')).toContainText(
+      status[0] + status.slice(1).toLowerCase(),
+    );
     await expect(page.locator('main')).not.toContainText('awaiting the tutor');
     await expect(page.locator('main')).not.toContainText('paid');
   });
@@ -365,10 +370,12 @@ for (const status of [500, 409, 401]) {
       // Existing authenticatedFetch retries after refresh, then expires the session on another 401.
       await expect(page).toHaveURL('http://localhost:3000/');
       await expect(page.getByRole('button', { name: 'Sign in', exact: true })).toBeVisible();
+      await expect(page.locator('[data-notebook-toast="error"]')).toHaveCount(1);
       expect(calls.writes).toHaveLength(2);
       return;
     }
     await expect(page.locator('main').getByRole('alert')).toBeVisible();
+    await expect(page.locator('[data-notebook-toast="error"]')).toHaveCount(1);
     await expect(page.getByRole('button', { name: 'Send lesson request' })).toBeEnabled();
     await expect(page.getByRole('link', { name: 'Change time' })).toHaveAttribute(
       'href',

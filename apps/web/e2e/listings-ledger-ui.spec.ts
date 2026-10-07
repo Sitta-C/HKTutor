@@ -51,6 +51,7 @@ async function mockListings(
     failArchive?: boolean;
     beforePublish?: () => Promise<void>;
     failPublish?: boolean;
+    failRestore?: boolean;
   } = {},
 ) {
   const writes: Array<{ path: string; body: unknown }> = [];
@@ -121,6 +122,14 @@ async function mockListings(
           return;
         }
       }
+      if (
+        path.endsWith('/status') &&
+        request.postDataJSON().publicationStatus === 'DRAFT' &&
+        options.failRestore
+      ) {
+        await route.fulfill({ status: 500, json: { message: 'Unavailable' } });
+        return;
+      }
       const updated: TeachingListing = {
         ...item,
         publicationStatus: path.endsWith('/publish')
@@ -158,6 +167,7 @@ test('preserves search, filtering, edit links and publication actions in the led
     .getByRole('button', { name: 'Confirm', exact: true })
     .click();
   await expect(physics.getByText('Published', { exact: true })).toBeVisible();
+  await expect(page.locator('[data-notebook-toast="success"]')).toHaveText('Listing published.');
   await search.fill('');
   const math = ledger.getByRole('article', { name: 'Mathematics', exact: true });
   const dialog = page.getByRole('alertdialog', { name: 'Archive this listing?' });
@@ -181,8 +191,16 @@ test('preserves search, filtering, edit links and publication actions in the led
   await math.getByRole('button', { name: 'Archive', exact: true }).click();
   await dialog.getByRole('button', { name: 'Confirm', exact: true }).click();
   await expect(math.getByText('Archived', { exact: true })).toBeVisible();
+  await expect(
+    page.locator('[data-notebook-toast="success"]').filter({ hasText: 'Listing archived.' }),
+  ).toHaveCount(1);
   await math.getByRole('button', { name: 'Restore draft', exact: true }).click();
   await expect(math.getByText('Draft', { exact: true })).toBeVisible();
+  await expect(
+    page
+      .locator('[data-notebook-toast="success"]')
+      .filter({ hasText: 'Listing restored to draft.' }),
+  ).toHaveCount(1);
   const filters = page.getByRole('group', { name: 'Filter teaching listings' });
   if (await filters.isVisible()) {
     await filters.getByRole('button', { name: 'Draft 1', exact: true }).click();
@@ -348,9 +366,21 @@ test('keeps publish failures in the alert with the draft unchanged', async ({ pa
   await physics.getByRole('button', { name: 'Publish', exact: true }).click();
   const dialog = page.getByRole('alertdialog', { name: 'Publish this listing?' });
   await dialog.getByRole('button', { name: 'Confirm', exact: true }).click();
-  await expect(dialog.getByRole('alert')).toHaveText(
+  await expect(dialog.locator('[role="alert"]:not([data-notebook-toast])')).toHaveText(
     'Unable to update this listing. Check your profile status and try again.',
   );
+  const toast = dialog.locator('[data-notebook-toast="error"]');
+  await expect(toast).toHaveText(
+    'Unable to update this listing. Check your profile status and try again.',
+  );
+  expect(
+    await toast.evaluate((element) => {
+      const box = element.getBoundingClientRect();
+      return element.contains(
+        document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2),
+      );
+    }),
+  ).toBe(true);
   await expect(dialog.getByRole('button', { name: 'Confirm', exact: true })).toBeEnabled();
   await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
   await expect(physics.getByText('Draft', { exact: true })).toBeVisible();
@@ -429,9 +459,10 @@ test('keeps an archive failure visible in the alert without changing the course 
   await math.getByRole('button', { name: 'Archive', exact: true }).click();
   const dialog = page.getByRole('alertdialog', { name: 'Archive this listing?' });
   await dialog.getByRole('button', { name: 'Confirm', exact: true }).click();
-  await expect(dialog.getByRole('alert')).toHaveText(
+  await expect(dialog.locator('[role="alert"]:not([data-notebook-toast])')).toHaveText(
     'Unable to update this listing. Check your profile status and try again.',
   );
+  await expect(dialog.locator('[data-notebook-toast="error"]')).toHaveCount(1);
   await expect(dialog.getByRole('button', { name: 'Confirm', exact: true })).toBeEnabled();
   await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
   await expect(math.getByText('Published', { exact: true })).toBeVisible();
@@ -487,6 +518,65 @@ test('keeps the ledger shell visible with unavailable counts while loading', asy
   );
   release();
   await expect(summary.locator('dd')).toHaveText(['3', '1']);
+});
+
+for (const language of ['en', 'th'] as const) {
+  for (const width of [320, 768, 1440]) {
+    test(`${language} error toast stays above native confirmation at ${width}px and survives closing it`, async ({
+      page,
+    }, testInfo) => {
+      await page.setViewportSize({ width, height: 1000 });
+      await page.emulateMedia({ reducedMotion: 'reduce' });
+      const writes = await mockListings(page, { language, failPublish: true });
+      await page.goto('/dashboard/listings');
+      const course = page.getByRole('article', { name: 'Physics', exact: true });
+      await course
+        .getByRole('button', { name: language === 'th' ? 'เผยแพร่' : 'Publish', exact: true })
+        .click();
+      const dialog = page.getByRole('alertdialog');
+      await dialog
+        .getByRole('button', { name: language === 'th' ? 'ยืนยัน' : 'Confirm', exact: true })
+        .click();
+      const toast = page.locator('[data-notebook-toast="error"]');
+      await expect(toast).toHaveCount(1);
+      await expect(dialog.locator('[data-notebook-toast="error"]')).toHaveCount(1);
+      expect(
+        await toast.evaluate((element) => {
+          const box = element.getBoundingClientRect();
+          return (
+            box.left >= 0 &&
+            box.right <= innerWidth &&
+            element.scrollWidth <= element.clientWidth &&
+            element.contains(
+              document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2),
+            )
+          );
+        }),
+      ).toBe(true);
+      await toast.screenshot({ path: testInfo.outputPath(`toast-error-${language}-${width}.png`) });
+      await dialog
+        .getByRole('button', { name: language === 'th' ? 'ยกเลิก' : 'Cancel', exact: true })
+        .click();
+      await expect(
+        page.locator('body > [data-notebook-toast-region] [data-notebook-toast="error"]'),
+      ).toHaveCount(1);
+      await expect(toast).toHaveCount(0, { timeout: 5000 });
+      expect(writes).toHaveLength(1);
+    });
+  }
+}
+
+test('failed restore keeps the course archived and reports one error toast', async ({ page }) => {
+  const writes = await mockListings(page, { language: 'en', failRestore: true });
+  await page.goto('/dashboard/listings');
+  const course = page.getByRole('article', { name: 'English', exact: true });
+  await course.getByRole('button', { name: 'Restore draft', exact: true }).click();
+  await expect(page.locator('[data-notebook-toast="error"]')).toHaveCount(1);
+  await expect(course.getByText('Archived', { exact: true })).toBeVisible();
+  await expect(page.locator('[data-notebook-toast="success"]')).toHaveCount(0);
+  expect(writes).toEqual([
+    { path: '/tutors/me/listings/english/status', body: { publicationStatus: 'DRAFT' } },
+  ]);
 });
 
 test('shows zero counts and the first listing action for a successfully empty account', async ({

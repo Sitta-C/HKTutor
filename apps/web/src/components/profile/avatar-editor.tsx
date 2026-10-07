@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 
 import { ProfileAvatar } from '@/components/profile/profile-avatar';
 import { notebookButtonClass } from '@/components/ui/notebook';
+import { useNotebookToast } from '@/components/ui/notebook-toast';
 import { ApiError } from '@/lib/api/error';
 import { deleteAvatar, uploadAvatar } from '@/lib/api/profiles';
 import { validateAvatarFile } from '@/lib/avatar';
@@ -66,6 +67,7 @@ export function AvatarEditor({
   disabled?: boolean;
 }) {
   const text = copy[language];
+  const toast = useNotebookToast();
   const input = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
@@ -103,14 +105,16 @@ export function AvatarEditor({
       onChanged(result.avatarUpdatedAt);
       reset();
       setNotice(remove ? text.deleted : text.saved);
+      toast.success(remove ? text.deleted : text.saved);
     } catch (caught) {
-      setError(
+      const message =
         caught instanceof ApiError && caught.status === 413
           ? text.sizeError
           : caught instanceof ApiError && caught.status === 400
             ? text.invalidError
-            : text.error,
-      );
+            : text.error;
+      setError(message);
+      toast.error(message);
     } finally {
       setPending(false);
     }
@@ -203,7 +207,9 @@ export function AvatarEditor({
               setNotice(null);
               if (invalid) {
                 reset();
-                setError(invalid === 'size' ? text.sizeError : text.typeError);
+                const message = invalid === 'size' ? text.sizeError : text.typeError;
+                setError(message);
+                toast.error(message);
                 return;
               }
               setError(null);

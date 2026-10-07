@@ -10,6 +10,7 @@ import PrivacyNoticeModal from '@/components/privacy-notice-modal';
 import { OwnProfileAvatar } from '@/components/profile/profile-avatar';
 import { LanguageSwitch } from '@/components/public/public-ui';
 import { NotebookPage, WashiTape } from '@/components/ui/notebook';
+import { useNotebookToast } from '@/components/ui/notebook-toast';
 import {
   getDashboardNavItems,
   getUserDisplayName,
@@ -97,12 +98,22 @@ export function DashboardShell({
   showSignOut = true,
 }: DashboardShellProps) {
   const { language, copy } = useLanguage();
+  const toast = useNotebookToast();
   const pathname = usePathname();
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isMobileSidebar, setIsMobileSidebar] = useState(false);
   const [privacyNoticeOpen, setPrivacyNoticeOpen] = useState(false);
   const mobileSidebarButtonRef = useRef<HTMLButtonElement>(null);
   const sidebarCloseButtonRef = useRef<HTMLButtonElement>(null);
+
+  const handleLogout = async () => {
+    try {
+      await onLogout();
+      toast.success(copy.common.signedOut);
+    } catch {
+      toast.error(copy.common.signOutFailed);
+    }
+  };
 
   const viewType = resolveDashboardView(user.role);
   const theme = roleStyles[viewType];
@@ -408,7 +419,7 @@ export function DashboardShell({
                 {showSignOut && (
                   <button
                     type="button"
-                    onClick={() => void onLogout()}
+                    onClick={() => void handleLogout()}
                     className="inline-flex h-11 w-11 items-center justify-center rounded-xl border border-red-200 bg-red-50 text-red-700 shadow-sm transition hover:-translate-y-0.5 hover:bg-sticky-pink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-300"
                     aria-label={copy.dashboard.nav.signOut}
                     title={copy.dashboard.nav.signOut}
@@ -454,7 +465,7 @@ export function DashboardShell({
                 {showSignOut && (
                   <button
                     type="button"
-                    onClick={() => void onLogout()}
+                    onClick={() => void handleLogout()}
                     className="mt-3 inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-xl border border-red-200 bg-red-50 px-3 text-xs font-extrabold text-red-700 transition hover:-translate-y-0.5 hover:bg-sticky-pink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-300"
                   >
                     <DashboardIcon name="logout" className="h-4 w-4" />

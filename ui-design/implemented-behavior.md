@@ -302,6 +302,18 @@ Past lesson requests are hidden by default. A reusable blue bookmark-note switch
 them in the request list. Pale blue paper and a perforated margin distinguish past lessons
 without reducing the readability of their details.
 
+## Action feedback
+
+Student and Tutor commands use the existing `NotebookToast` success/error paper, as requested on
+2026-10-07. Profile edit/onboarding, consent, photo upload/removal, ledger course publication/archive/
+restore, availability conflicts/validation, booking submission and authentication actions now provide
+the missing feedback. Existing course-editor and availability mutation toasts are retained.
+Results are emitted only after the existing command settles; original guards, API calls, inline
+errors/recovery links, local logout cleanup and redirects remain unchanged. The toast viewport
+portals into the most recently opened native dialog to keep feedback above its top layer, returning
+to the body when the dialog closes. Global timers persist across client navigation and dialog changes.
+See [the action audit](notebook-toast-audit.md) for the full inventory and verification scope.
+
 ## Profile photos
 
 Student and tutor onboarding/edit pages include an optional photo section with local preview,

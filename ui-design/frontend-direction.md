@@ -289,6 +289,17 @@ The user selected **Margin Index** and requested implementation on 2026-10-07 fo
   retain their existing behavior. Browser checks cover TH/EN at 320px, 768px and 1440px, long text,
   all statuses, loading/error/empty/404, session expiry, stale filter responses and persisted amounts.
 
+## Action notifications
+
+The user approved completing **NotebookToast** success/error feedback across Student and Tutor
+on 2026-10-07. Reuse the existing taped paper and check/cross appearance. Mutating commands,
+authentication actions, consent and custom submission/file-validation errors use bilingual toasts;
+success follows the actual response, and booking submission does not imply tutor confirmation or payment.
+Keep persistent inline details, field focus and recovery actions. The shared viewport follows the
+most recently opened native dialog so modal failures are visible above it, and survives client navigation.
+Keep navigation/results/loading feedback in the page and retain the existing toast timing/reduced motion.
+See [NotebookToast action audit](notebook-toast-audit.md) for the completed action inventory and checks.
+
 ## Scope and data
 
 - For UI/UX redesign, keep the existing API, requests, payloads, business rules, authentication,

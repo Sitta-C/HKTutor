@@ -101,7 +101,7 @@ function profileInputClass(tone: ProfileTone, error: boolean, className?: string
 
 export default function ProfileEditor({ mode }: ProfileEditorProps) {
   const { isLoading: authLoading, logout, user } = useAuth();
-  const { language } = useLanguage();
+  const { language, copy: appCopy } = useLanguage();
   const toast = useNotebookToast();
   const router = useRouter();
   const text = copy[language];
@@ -192,6 +192,7 @@ export default function ProfileEditor({ mode }: ProfileEditorProps) {
     if (!consentCurrent) {
       if (!acceptedNotice) {
         setConsentError(text.consentRequired);
+        toast.error(text.consentRequired);
         return;
       }
       setIsSaving(true);
@@ -217,9 +218,11 @@ export default function ProfileEditor({ mode }: ProfileEditorProps) {
         }
 
         const handoff = resolveOnboardingHandoff(result);
+        if (result.consentCurrent) toast.success(text.consentSaved);
         if (mode === 'onboarding' && handoff) router.replace(readOnboardingReturnTo());
       } catch {
         setError(text.saveError);
+        toast.error(text.saveError);
       } finally {
         setIsSaving(false);
       }
@@ -232,6 +235,7 @@ export default function ProfileEditor({ mode }: ProfileEditorProps) {
     if (Object.keys(validationErrors).length) {
       setFieldErrors(validationErrors);
       focusFirstError(validationErrors);
+      toast.error(text.reviewFields);
       return;
     }
 
@@ -255,13 +259,14 @@ export default function ProfileEditor({ mode }: ProfileEditorProps) {
         setTutorMeta(result);
       }
       clearCurrentProfileCache();
+      toast.success(text.saved);
       if (mode === 'onboarding') router.replace(readOnboardingReturnTo());
-      else toast.success(text.saved);
     } catch (caught: unknown) {
       const apiErrors = readProfileFieldErrors(caught);
       setFieldErrors(apiErrors);
       if (Object.keys(apiErrors).length) focusFirstError(apiErrors);
       setError(text.saveError);
+      toast.error(text.saveError);
     } finally {
       setIsSaving(false);
     }
@@ -276,6 +281,14 @@ export default function ProfileEditor({ mode }: ProfileEditorProps) {
   const handleLogout = async () => {
     await logout();
     router.replace('/');
+  };
+  const handleOnboardingLogout = async () => {
+    try {
+      await handleLogout();
+      toast.success(appCopy.common.signedOut);
+    } catch {
+      toast.error(appCopy.common.signOutFailed);
+    }
   };
 
   if (authLoading || isLoading || !user) {
@@ -299,7 +312,7 @@ export default function ProfileEditor({ mode }: ProfileEditorProps) {
       <button
         className={notebookButtonClass({ tone: 'secondary', className: 'px-3.5' })}
         type="button"
-        onClick={() => void handleLogout()}
+        onClick={() => void handleOnboardingLogout()}
       >
         {text.signOut}
       </button>
@@ -1089,6 +1102,8 @@ const copy = {
     save: 'Save profile',
     saveError: 'Unable to save your profile.',
     saved: 'Profile saved successfully',
+    consentSaved: 'Privacy notice accepted.',
+    reviewFields: 'Please check the highlighted fields.',
     saving: 'Saving…',
     school: 'School',
     shownToStudents: 'Shown to students',
@@ -1184,6 +1199,8 @@ const copy = {
     save: 'บันทึกโปรไฟล์',
     saveError: 'ไม่สามารถบันทึกโปรไฟล์ได้',
     saved: 'บันทึกโปรไฟล์สำเร็จ',
+    consentSaved: 'ยอมรับประกาศความเป็นส่วนตัวแล้ว',
+    reviewFields: 'โปรดตรวจสอบช่องข้อมูลที่ระบุข้อผิดพลาด',
     saving: 'กำลังบันทึก…',
     school: 'โรงเรียน',
     shownToStudents: 'แสดงให้นักเรียนเห็น',

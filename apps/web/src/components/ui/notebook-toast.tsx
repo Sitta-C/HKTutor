@@ -9,6 +9,7 @@ import {
   useRef,
   useState,
 } from 'react';
+import { createPortal } from 'react-dom';
 
 import { WashiTape } from '@/components/ui/notebook';
 import { useLanguage } from '@/lib/i18n';
@@ -45,7 +46,43 @@ let toastSequence = 0;
 export function NotebookToastProvider({ children }: { children: ReactNode }) {
   const { copy } = useLanguage();
   const [toasts, setToasts] = useState<NotebookToast[]>([]);
+  const [toastHost, setToastHost] = useState<HTMLElement | null>(null);
   const timers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
+
+  useEffect(() => {
+    let openDialogs: HTMLDialogElement[] = [];
+    const syncHost = (records: MutationRecord[] = []) => {
+      const currentDialogs = Array.from(document.querySelectorAll('dialog[open]'));
+      openDialogs = openDialogs.filter((dialog) => currentDialogs.includes(dialog));
+      // Native modal dialogs occupy the top layer; a body toast's z-index cannot overtake them.
+      // Follow opening order so feedback also appears above the most recently opened dialog.
+      for (const record of records) {
+        if (
+          record.type === 'attributes' &&
+          record.target instanceof HTMLDialogElement &&
+          record.target.open
+        ) {
+          openDialogs = openDialogs.filter((dialog) => dialog !== record.target);
+          openDialogs.push(record.target);
+        }
+      }
+      for (const dialog of currentDialogs) {
+        if (dialog instanceof HTMLDialogElement && !openDialogs.includes(dialog)) {
+          openDialogs.push(dialog);
+        }
+      }
+      setToastHost(openDialogs.at(-1) ?? document.body);
+    };
+    syncHost();
+    const observer = new MutationObserver(syncHost);
+    observer.observe(document.body, {
+      attributes: true,
+      attributeFilter: ['open'],
+      childList: true,
+      subtree: true,
+    });
+    return () => observer.disconnect();
+  }, []);
 
   const dismiss = useCallback((id: string) => {
     const timer = timers.current.get(id);
@@ -100,17 +137,22 @@ export function NotebookToastProvider({ children }: { children: ReactNode }) {
 
   const value = useMemo(() => ({ dismiss, error, show, success }), [dismiss, error, show, success]);
 
+  const viewport = (
+    <div
+      className="pointer-events-none fixed left-1/2 top-3 z-[100] flex w-[calc(100vw-1.5rem)] max-w-sm -translate-x-1/2 flex-col items-center gap-3 sm:top-5"
+      aria-label={copy.common.toastRegion}
+      data-notebook-toast-region
+    >
+      {toasts.map((toast) => (
+        <NotebookToastItem key={toast.id} toast={toast} />
+      ))}
+    </div>
+  );
+
   return (
     <NotebookToastContext.Provider value={value}>
       {children}
-      <div
-        className="pointer-events-none fixed left-1/2 top-3 z-[100] flex w-[calc(100vw-1.5rem)] max-w-sm -translate-x-1/2 flex-col items-center gap-3 sm:top-5"
-        aria-label={copy.common.toastRegion}
-      >
-        {toasts.map((toast) => (
-          <NotebookToastItem key={toast.id} toast={toast} />
-        ))}
-      </div>
+      {toastHost ? createPortal(viewport, toastHost) : viewport}
     </NotebookToastContext.Provider>
   );
 }
@@ -134,6 +176,7 @@ function NotebookToastItem({ toast }: { toast: NotebookToast }) {
       role={success ? 'status' : 'alert'}
       aria-live={success ? 'polite' : 'assertive'}
       aria-atomic="true"
+      data-notebook-toast={toast.tone}
     >
       <WashiTape
         tone={success ? 'yellow' : 'pink'}

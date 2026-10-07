@@ -171,6 +171,9 @@ for (const student of [true, false]) {
     expect(calls.filter((call) => call === 'POST /profiles/me/avatar')).toEqual([]);
     await editor.getByRole('button', { name: 'Upload photo', exact: true }).click();
     await expect(editor.getByRole('status')).toHaveText('Profile photo saved.');
+    await expect(page.locator('[data-notebook-toast="success"]')).toHaveText(
+      'Profile photo saved.',
+    );
     await expect(editor.locator('img')).toHaveAttribute('src', /photo-new/);
     await editor.screenshot({ path: testInfo.outputPath('avatar-editor.png') });
     await expect(field).toHaveValue('Unsaved name');
@@ -181,6 +184,9 @@ for (const student of [true, false]) {
     expect(calls.filter((call) => call.startsWith('PUT'))).toEqual([]);
     await editor.getByRole('button', { name: 'Remove photo', exact: true }).click();
     await expect(editor.getByRole('status')).toHaveText('Profile photo removed.');
+    await expect(
+      page.locator('[data-notebook-toast="success"]').filter({ hasText: 'Profile photo removed.' }),
+    ).toHaveCount(1);
     await expect(editor.locator('img')).toHaveCount(0);
     await expect(page.locator('#dashboard-sidebar [data-profile-avatar] img')).toHaveCount(0);
     await expect(field).toHaveValue('Unsaved name');
@@ -202,6 +208,9 @@ test('rejects unsupported and oversized selections before making upload requests
     buffer: Buffer.from('<svg/>'),
   });
   await expect(editor.getByRole('alert')).toHaveText('Only JPEG, PNG and WebP are supported.');
+  await expect(page.locator('[data-notebook-toast="error"]')).toHaveText(
+    'Only JPEG, PNG and WebP are supported.',
+  );
   await editor
     .getByLabel('Choose photo')
     .setInputFiles({ name: 'large.png', mimeType: 'image/png', buffer: Buffer.alloc(2097153) });
@@ -224,8 +233,33 @@ test('keeps the saved photo after upload failure and allows cancelling the local
   await expect(editor.getByRole('alert')).toHaveText(
     'Invalid photo. Use a static image up to 16 megapixels.',
   );
+  await expect(page.locator('[data-notebook-toast="error"]')).toHaveText(
+    'Invalid photo. Use a static image up to 16 megapixels.',
+  );
   await editor.getByRole('button', { name: 'Cancel photo selection' }).click();
   await expect(editor.locator('img')).toHaveAttribute('src', /photo-old/);
+});
+
+test('photo removal failure reports one error and preserves the saved photo and unsaved fields', async ({
+  page,
+}) => {
+  await mockAvatar(page, { student: true, hasPhoto: true });
+  let deletes = 0;
+  await page.route('**/api/v1/profiles/me/avatar', async (route) => {
+    if (route.request().method() !== 'DELETE') return route.fallback();
+    deletes += 1;
+    return route.fulfill({ status: 500, json: { message: 'Preview failure' } });
+  });
+  await page.goto('/dashboard/profile');
+  const editor = page.getByRole('region', { name: 'Profile photo' });
+  await page.locator('#nickname').fill('Unsaved preview');
+  await editor.getByRole('button', { name: 'Remove photo', exact: true }).click();
+  await expect(page.locator('[data-notebook-toast="error"]')).toHaveText(
+    'Could not save your photo. Please try again.',
+  );
+  await expect(editor.locator('img')).toHaveAttribute('src', /photo-old/);
+  await expect(page.locator('#nickname')).toHaveValue('Unsaved preview');
+  expect(deletes).toBe(1);
 });
 
 test('offers an optional Thai photo upload during onboarding at 320px', async ({ page }) => {
@@ -239,6 +273,7 @@ test('offers an optional Thai photo upload during onboarding at 320px', async ({
     .setInputFiles({ name: 'รูปโปรไฟล์.png', mimeType: 'image/png', buffer: PNG });
   await editor.getByRole('button', { name: 'อัปโหลดรูป', exact: true }).click();
   await expect(editor.getByRole('status')).toHaveText('บันทึกรูปโปรไฟล์แล้ว');
+  await expect(page.locator('[data-notebook-toast="success"]')).toHaveText('บันทึกรูปโปรไฟล์แล้ว');
   await expect(page).toHaveURL(/onboarding\/profile/);
   expect(await editor.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(

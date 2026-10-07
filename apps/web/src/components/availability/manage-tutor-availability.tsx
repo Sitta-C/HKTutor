@@ -188,6 +188,7 @@ export default function ManageTutorAvailability() {
     setFormError(null);
     if (!startDate || !endDate || !startTime || !endTime) {
       setFormError(availabilityCopy.emptyForm);
+      toast.error(availabilityCopy.emptyForm);
       return;
     }
 
@@ -196,10 +197,12 @@ export default function ManageTutorAvailability() {
       const endAt = bangkokDateTimeToUtc(endDate, endTime);
       if (endAt <= startAt) {
         setFormError(availabilityCopy.endAfterStart);
+        toast.error(availabilityCopy.endAfterStart);
         return;
       }
       if (startAt <= new Date()) {
         setFormError(availabilityCopy.futureRequired);
+        toast.error(availabilityCopy.futureRequired);
         return;
       }
 
@@ -215,6 +218,7 @@ export default function ManageTutorAvailability() {
     } catch (caught: unknown) {
       if (caught instanceof ApiError && caught.status === 409) {
         setFormError(availabilityCopy.overlapError);
+        toast.error(availabilityCopy.overlapError);
       } else {
         toast.error(availabilityCopy.createError);
       }

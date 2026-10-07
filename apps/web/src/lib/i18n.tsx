@@ -72,6 +72,8 @@ export const translations = {
       copyright: 'HKTutor',
       privacySupport: 'Privacy & support',
       toastRegion: 'Notifications',
+      signedOut: 'Signed out.',
+      signOutFailed: 'The server could not confirm sign-out.',
     },
     shell: {
       login: {
@@ -101,6 +103,7 @@ export const translations = {
       submit: 'Sign in',
       loading: 'Signing in...',
       failed: 'Unable to sign in. Please check your details and try again.',
+      signedIn: 'Signed in successfully.',
       newTo: 'New to HKTutor?',
       createAccount: 'Create an account',
     },
@@ -135,6 +138,7 @@ export const translations = {
       passwordMismatch: 'Passwords do not match',
       passwordRequirements: 'Use at least 10 characters with a letter and a number.',
       registrationFailed: 'Unable to create your account. Please try again.',
+      accountCreated: 'Account created. Check your email to verify it.',
       otpEyebrow: 'Verify your email',
       otpTitle: 'Check your inbox',
       otpSubtitle: 'We sent a verification link to {email}. Open it to finish signing up.',
@@ -549,6 +553,8 @@ export const translations = {
       copyright: 'HKTutor',
       privacySupport: 'ความเป็นส่วนตัวและการช่วยเหลือ',
       toastRegion: 'การแจ้งเตือน',
+      signedOut: 'ออกจากระบบแล้ว',
+      signOutFailed: 'ไม่สามารถยืนยันการออกจากระบบกับเซิร์ฟเวอร์ได้',
     },
     shell: {
       login: {
@@ -578,6 +584,7 @@ export const translations = {
       submit: 'เข้าสู่ระบบ',
       loading: 'กำลังเข้าสู่ระบบ...',
       failed: 'ไม่สามารถเข้าสู่ระบบได้ กรุณาตรวจสอบข้อมูลแล้วลองอีกครั้ง',
+      signedIn: 'เข้าสู่ระบบสำเร็จ',
       newTo: 'ยังไม่มีบัญชี HKTutor?',
       createAccount: 'สร้างบัญชี',
     },
@@ -611,6 +618,7 @@ export const translations = {
       passwordMismatch: 'รหัสผ่านไม่ตรงกัน',
       passwordRequirements: 'ใช้รหัสผ่านอย่างน้อย 10 ตัวอักษร และมีทั้งตัวอักษรกับตัวเลข',
       registrationFailed: 'ไม่สามารถสร้างบัญชีได้ กรุณาลองอีกครั้ง',
+      accountCreated: 'สร้างบัญชีแล้ว โปรดตรวจสอบอีเมลเพื่อยืนยันบัญชี',
       otpEyebrow: 'ยืนยันอีเมลของคุณ',
       otpTitle: 'ตรวจสอบกล่องจดหมาย',
       otpSubtitle: 'เราได้ส่งลิงก์ยืนยันไปยัง {email} กรุณาเปิดลิงก์เพื่อเสร็จสิ้นการสมัครสมาชิก',
