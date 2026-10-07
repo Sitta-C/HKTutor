@@ -44,7 +44,7 @@ export class ConversationsController {
 
   @Post()
   @OpenConversationDoc()
-  @Roles(Role.STUDENT)
+  @Roles(Role.STUDENT, Role.TUTOR)
   async openConversation(
     @Body() dto: CreateConversationDto,
     @CurrentUser() user: AuthenticatedUser,
@@ -52,7 +52,8 @@ export class ConversationsController {
   ): Promise<OpenConversationResponseDto> {
     const { conversation, created } = await this.conversationsService.openConversation({
       ...dto,
-      studentUserId: user.id,
+      role: user.role,
+      userId: user.id,
     });
 
     // Nest sets the default 201 before the handler runs, so this status is the one sent.

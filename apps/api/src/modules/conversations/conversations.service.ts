@@ -1,6 +1,11 @@
 import { randomUUID } from 'node:crypto';
 
-import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 
 import { Prisma } from '@generated/prisma/client';
 import { AccountStatus, Role } from '@generated/prisma/enums';
@@ -19,7 +24,7 @@ import {
 } from '@modules/conversations/conversations.dto';
 import { publicTutorWhere } from '@modules/tutors/public-tutor-access';
 
-export type OpenConversationInput = CreateConversationDto & { studentUserId: string };
+export type OpenConversationInput = CreateConversationDto & { role: Role; userId: string };
 export type GetMyConversationsInput = GetMyConversationsQueryDto & { role: Role; userId: string };
 export type SendMessageInput = SendMessageDto & { conversationId: string; senderUserId: string };
 
@@ -52,6 +57,11 @@ type SelectedConversation = Prisma.ConversationGetPayload<{ select: typeof conve
 type LastMessage = Prisma.MessageGetPayload<{ select: typeof lastMessageSelect }>;
 type SelectedMessage = Prisma.MessageGetPayload<{ select: typeof messageSelect }>;
 
+// A tutor sees the student's nickname in the conversation list, so the student needs a profile.
+const contactableStudentWhere = {
+  user: { accountStatus: AccountStatus.ACTIVE, deletedAt: null, role: Role.STUDENT },
+} satisfies Prisma.StudentProfileWhereInput;
+
 interface ConversationPair {
   studentUserId: string;
   tutorUserId: string;
@@ -75,17 +85,7 @@ export class ConversationsService {
   constructor(private readonly prisma: PrismaService) {}
 
   async openConversation(input: OpenConversationInput): Promise<OpenConversationResult> {
-    await this.assertActiveStudentWithProfile(input.studentUserId);
-
-    const tutor = await this.prisma.tutorProfile.findFirst({
-      where: { ...publicTutorWhere, userId: input.tutorId },
-      select: { userId: true },
-    });
-    if (!tutor) {
-      throw new NotFoundException('Tutor not found');
-    }
-
-    const pair = { studentUserId: input.studentUserId, tutorUserId: tutor.userId };
+    const pair = await this.resolvePair(input);
 
     const existing = await this.findConversationByPair(pair);
     if (existing) {
@@ -186,6 +186,42 @@ export class ConversationsService {
     return toMessageResponse(message);
   }
 
+  /** Checks both sides and returns the pair as student and tutor, whoever opened it. */
+  private async resolvePair(input: OpenConversationInput): Promise<ConversationPair> {
+    if (input.role !== Role.STUDENT && input.role !== Role.TUTOR) {
+      throw new ForbiddenException('Only students and tutors can start conversations.');
+    }
+    const targetUserId = conversationTarget(input);
+
+    if (input.role === Role.STUDENT) {
+      await this.assertActiveStudentWithProfile(input.userId);
+      if (!(await this.isPublicTutor(targetUserId))) {
+        throw new NotFoundException('Tutor not found');
+      }
+      return { studentUserId: input.userId, tutorUserId: targetUserId };
+    }
+
+    if (!(await this.isPublicTutor(input.userId))) {
+      throw new ForbiddenException('Only verified tutors can start conversations.');
+    }
+    const student = await this.prisma.studentProfile.findFirst({
+      where: { ...contactableStudentWhere, userId: targetUserId },
+      select: { userId: true },
+    });
+    if (!student) {
+      throw new NotFoundException('Student not found');
+    }
+    return { studentUserId: targetUserId, tutorUserId: input.userId };
+  }
+
+  private async isPublicTutor(tutorUserId: string): Promise<boolean> {
+    const tutor = await this.prisma.tutorProfile.findFirst({
+      where: { ...publicTutorWhere, userId: tutorUserId },
+      select: { userId: true },
+    });
+    return tutor !== null;
+  }
+
   private async assertActiveStudentWithProfile(studentUserId: string): Promise<void> {
     const student = await this.prisma.user.findUnique({
       where: { id: studentUserId },
@@ -226,6 +262,29 @@ function conversationPagination(input: { page?: number; pageSize?: number }): {
   const page = input.page ?? DEFAULT_CONVERSATIONS_PAGE;
   const take = input.pageSize ?? DEFAULT_CONVERSATIONS_PAGE_SIZE;
   return { skip: (page - 1) * take, take };
+}
+
+/**
+ * The other participant's user ID. API-01 takes tutorId from a student and participantId from a
+ * tutor, so a missing or extra key fails here, as does the caller's own ID, before any query.
+ */
+function conversationTarget(input: OpenConversationInput): string {
+  const callerIsStudent = input.role === Role.STUDENT;
+  const target = callerIsStudent ? input.tutorId : input.participantId;
+  const otherKey = callerIsStudent ? input.participantId : input.tutorId;
+
+  if (typeof target !== 'string' || otherKey !== undefined) {
+    throw new BadRequestException(
+      callerIsStudent
+        ? 'A student must send tutorId and no participantId.'
+        : 'A tutor must send participantId and no tutorId.',
+    );
+  }
+  // UUIDs are case-insensitive, so an upper-case copy of the caller's ID is still the caller.
+  if (target.toLowerCase() === input.userId.toLowerCase()) {
+    throw new BadRequestException('You cannot start a conversation with yourself.');
+  }
+  return target;
 }
 
 /** Prisma reports a unique violation from a client query as P2002; a raw SQLSTATE never reaches `code`. */

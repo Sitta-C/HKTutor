@@ -1,4 +1,4 @@
-import { ForbiddenException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 
 import { AccountStatus, Role } from '@generated/prisma/enums';
@@ -13,6 +13,7 @@ const STUDENT_ID = '6bb01222-1fce-4bc3-a69d-3d90db2fdf57';
 const OTHER_STUDENT_ID = '9d3c5a1e-2b4f-4e6a-8c7d-0f1e2d3c4b5a';
 const ADMIN_ID = '4a7b2c9d-1e3f-4a5b-8c6d-7e8f9a0b1c2d';
 const TUTOR_ID = '1772b6be-ebb5-40b7-b5bd-1c1fcfe26857';
+const OTHER_TUTOR_ID = '5c8e2f1a-7b3d-4e9f-a0c1-d2e3f4a5b6c7';
 const CONVERSATION_ID = '6f1c2b8e-3d4a-4f5b-9c7d-2e8a1b0c9d3f';
 const OTHER_CONVERSATION_ID = '3e2d1c0b-9a8f-4e7d-b6c5-a4b3c2d1e0f9';
 const MESSAGE_ID = 'b7e4c1a2-5f6d-4e8b-9a0c-3d2f1e4b5a69';
@@ -22,6 +23,11 @@ const SENT_AT = new Date('2026-09-30T08:05:00.000Z');
 const UUID_V4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 
 type DatabaseError = Error & { code: string };
+
+interface OpenBody {
+  participantId?: string;
+  tutorId?: string;
+}
 
 interface CreatedMessageData {
   clientMessageId: string;
@@ -79,6 +85,7 @@ describe('ConversationsService', () => {
     $queryRaw: jest.fn(),
     conversation: { count: jest.fn(), create: jest.fn(), findUnique: jest.fn() },
     message: { create: jest.fn() },
+    studentProfile: { findFirst: jest.fn() },
     tutorProfile: { findFirst: jest.fn() },
     user: { findUnique: jest.fn() },
   };
@@ -100,100 +107,242 @@ describe('ConversationsService', () => {
   });
 
   describe('openConversation', () => {
-    const openAsStudent = () =>
-      service.openConversation({ studentUserId: STUDENT_ID, tutorId: TUTOR_ID });
+    const openAsStudent = (body: OpenBody = { tutorId: TUTOR_ID }) =>
+      service.openConversation({ ...body, role: Role.STUDENT, userId: STUDENT_ID });
+    const openAsTutor = (body: OpenBody = { participantId: STUDENT_ID }) =>
+      service.openConversation({ ...body, role: Role.TUTOR, userId: TUTOR_ID });
+
+    const expectNoQueries = () => {
+      expect(mockPrismaService.user.findUnique).not.toHaveBeenCalled();
+      expect(mockPrismaService.tutorProfile.findFirst).not.toHaveBeenCalled();
+      expect(mockPrismaService.studentProfile.findFirst).not.toHaveBeenCalled();
+      expect(mockPrismaService.conversation.findUnique).not.toHaveBeenCalled();
+      expect(mockPrismaService.conversation.create).not.toHaveBeenCalled();
+    };
 
     beforeEach(() => {
       mockPrismaService.user.findUnique.mockResolvedValue(activeStudent);
       mockPrismaService.tutorProfile.findFirst.mockResolvedValue(publicTutor);
+      mockPrismaService.studentProfile.findFirst.mockResolvedValue({ userId: STUDENT_ID });
     });
 
-    it('creates a conversation between an active student with a profile and a public tutor', async () => {
-      mockPrismaService.conversation.findUnique.mockResolvedValue(null);
-      mockPrismaService.conversation.create.mockResolvedValue(conversationRow);
+    describe('request checks', () => {
+      it.each([
+        ['a student', Role.STUDENT, STUDENT_ID, { tutorId: STUDENT_ID }],
+        [
+          'a student using upper case',
+          Role.STUDENT,
+          STUDENT_ID,
+          { tutorId: STUDENT_ID.toUpperCase() },
+        ],
+        ['a tutor', Role.TUTOR, TUTOR_ID, { participantId: TUTOR_ID }],
+      ])(
+        'rejects %s targeting themselves with 400 before any query',
+        async (_label, role, userId, body) => {
+          const error = await service
+            .openConversation({ ...body, role, userId })
+            .catch((caught: unknown) => caught);
 
-      await expect(openAsStudent()).resolves.toEqual({
-        conversation: openedConversation,
-        created: true,
-      });
-      expect(mockPrismaService.tutorProfile.findFirst).toHaveBeenCalledWith(
-        expect.objectContaining({ where: { ...publicTutorWhere, userId: TUTOR_ID } }),
+          expect(error).toBeInstanceOf(BadRequestException);
+          expect(error).toHaveProperty('message', 'You cannot start a conversation with yourself.');
+          expectNoQueries();
+        },
       );
-      expect(mockPrismaService.conversation.create).toHaveBeenCalledWith(
-        expect.objectContaining({ data: { studentUserId: STUDENT_ID, tutorUserId: TUTOR_ID } }),
-      );
-    });
 
-    it('returns the existing conversation in the same shape instead of creating another', async () => {
-      mockPrismaService.conversation.findUnique.mockResolvedValue(conversationRow);
-
-      await expect(openAsStudent()).resolves.toEqual({
-        conversation: openedConversation,
-        created: false,
-      });
-      expect(mockPrismaService.conversation.findUnique).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: {
-            studentUserId_tutorUserId: { studentUserId: STUDENT_ID, tutorUserId: TUTOR_ID },
-          },
-        }),
-      );
-      expect(mockPrismaService.conversation.create).not.toHaveBeenCalled();
-    });
-
-    it('returns the conversation a concurrent request created first', async () => {
-      mockPrismaService.conversation.findUnique
-        .mockResolvedValueOnce(null)
-        .mockResolvedValueOnce(conversationRow);
-      mockPrismaService.conversation.create.mockRejectedValue(createDatabaseError('P2002'));
-
-      await expect(openAsStudent()).resolves.toEqual({
-        conversation: openedConversation,
-        created: false,
-      });
-    });
-
-    it('rethrows database errors other than a duplicate pair', async () => {
-      const error = createDatabaseError('P1001');
-      mockPrismaService.conversation.findUnique.mockResolvedValue(null);
-      mockPrismaService.conversation.create.mockRejectedValue(error);
-
-      await expect(openAsStudent()).rejects.toBe(error);
-    });
-
-    it.each([
-      ['a missing account', null],
-      ['a tutor account', { ...activeStudent, role: Role.TUTOR }],
-      ['a suspended student', { ...activeStudent, accountStatus: AccountStatus.SUSPENDED }],
-      ['a deleted student', { ...activeStudent, deletedAt: new Date('2026-09-01T00:00:00.000Z') }],
-    ])('rejects %s with 403 and creates nothing', async (_label, user) => {
-      mockPrismaService.user.findUnique.mockResolvedValue(user);
-
-      await expect(openAsStudent()).rejects.toThrow(ForbiddenException);
-      expect(mockPrismaService.conversation.create).not.toHaveBeenCalled();
-    });
-
-    it('rejects a student without a profile with 403 and creates nothing', async () => {
-      mockPrismaService.user.findUnique.mockResolvedValue({
-        ...activeStudent,
-        studentProfile: null,
+      it.each([
+        ['a student sending participantId', Role.STUDENT, STUDENT_ID, { participantId: TUTOR_ID }],
+        [
+          'a student sending both keys',
+          Role.STUDENT,
+          STUDENT_ID,
+          { participantId: TUTOR_ID, tutorId: TUTOR_ID },
+        ],
+        ['a student sending no key', Role.STUDENT, STUDENT_ID, {}],
+        ['a tutor sending tutorId', Role.TUTOR, TUTOR_ID, { tutorId: STUDENT_ID }],
+        [
+          'a tutor sending both keys',
+          Role.TUTOR,
+          TUTOR_ID,
+          { participantId: STUDENT_ID, tutorId: STUDENT_ID },
+        ],
+        ['a tutor sending no key', Role.TUTOR, TUTOR_ID, {}],
+      ])('rejects %s with 400 before any query', async (_label, role, userId, body) => {
+        await expect(service.openConversation({ ...body, role, userId })).rejects.toThrow(
+          BadRequestException,
+        );
+        expectNoQueries();
       });
 
-      const error = await openAsStudent().catch((caught: unknown) => caught);
-
-      expect(error).toBeInstanceOf(ForbiddenException);
-      expect(error).toHaveProperty(
-        'message',
-        'Students must complete their profile before starting a conversation.',
-      );
-      expect(mockPrismaService.conversation.create).not.toHaveBeenCalled();
+      it('rejects an admin with 403 before any query', async () => {
+        await expect(
+          service.openConversation({ role: Role.ADMIN, tutorId: TUTOR_ID, userId: ADMIN_ID }),
+        ).rejects.toThrow(ForbiddenException);
+        expectNoQueries();
+      });
     });
 
-    it('returns 404 for a tutor who is not public and creates nothing', async () => {
-      mockPrismaService.tutorProfile.findFirst.mockResolvedValue(null);
+    describe('opened by a tutor', () => {
+      it('creates the conversation with the student first in the pair', async () => {
+        mockPrismaService.conversation.findUnique.mockResolvedValue(null);
+        mockPrismaService.conversation.create.mockResolvedValue(conversationRow);
 
-      await expect(openAsStudent()).rejects.toThrow(NotFoundException);
-      expect(mockPrismaService.conversation.create).not.toHaveBeenCalled();
+        await expect(openAsTutor()).resolves.toEqual({
+          conversation: openedConversation,
+          created: true,
+        });
+        expect(mockPrismaService.tutorProfile.findFirst).toHaveBeenCalledWith(
+          expect.objectContaining({ where: { ...publicTutorWhere, userId: TUTOR_ID } }),
+        );
+        expect(mockPrismaService.studentProfile.findFirst).toHaveBeenCalledWith(
+          expect.objectContaining({
+            where: {
+              user: { accountStatus: AccountStatus.ACTIVE, deletedAt: null, role: Role.STUDENT },
+              userId: STUDENT_ID,
+            },
+          }),
+        );
+        expect(mockPrismaService.conversation.create).toHaveBeenCalledWith(
+          expect.objectContaining({ data: { studentUserId: STUDENT_ID, tutorUserId: TUTOR_ID } }),
+        );
+      });
+
+      it('returns the existing conversation when the tutor opens it again', async () => {
+        mockPrismaService.conversation.findUnique.mockResolvedValue(conversationRow);
+
+        await expect(openAsTutor()).resolves.toEqual({
+          conversation: openedConversation,
+          created: false,
+        });
+        expect(mockPrismaService.conversation.findUnique).toHaveBeenCalledWith(
+          expect.objectContaining({
+            where: {
+              studentUserId_tutorUserId: { studentUserId: STUDENT_ID, tutorUserId: TUTOR_ID },
+            },
+          }),
+        );
+        expect(mockPrismaService.conversation.create).not.toHaveBeenCalled();
+      });
+
+      it('rejects a tutor who is not verified with 403 and creates nothing', async () => {
+        mockPrismaService.tutorProfile.findFirst.mockResolvedValue(null);
+
+        const error = await openAsTutor().catch((caught: unknown) => caught);
+
+        expect(error).toBeInstanceOf(ForbiddenException);
+        expect(error).toHaveProperty('message', 'Only verified tutors can start conversations.');
+        expect(mockPrismaService.studentProfile.findFirst).not.toHaveBeenCalled();
+        expect(mockPrismaService.conversation.create).not.toHaveBeenCalled();
+      });
+
+      it('returns 404 when participantId is not an active student with a profile, such as another tutor', async () => {
+        mockPrismaService.studentProfile.findFirst.mockResolvedValue(null);
+
+        const error = await openAsTutor({ participantId: OTHER_TUTOR_ID }).catch(
+          (caught: unknown) => caught,
+        );
+
+        expect(error).toBeInstanceOf(NotFoundException);
+        expect(error).toHaveProperty('message', 'Student not found');
+        expect(mockPrismaService.conversation.create).not.toHaveBeenCalled();
+      });
+    });
+
+    describe('opened by a student', () => {
+      it('creates a conversation between an active student with a profile and a public tutor', async () => {
+        mockPrismaService.conversation.findUnique.mockResolvedValue(null);
+        mockPrismaService.conversation.create.mockResolvedValue(conversationRow);
+
+        await expect(openAsStudent()).resolves.toEqual({
+          conversation: openedConversation,
+          created: true,
+        });
+        expect(mockPrismaService.tutorProfile.findFirst).toHaveBeenCalledWith(
+          expect.objectContaining({ where: { ...publicTutorWhere, userId: TUTOR_ID } }),
+        );
+        expect(mockPrismaService.conversation.create).toHaveBeenCalledWith(
+          expect.objectContaining({ data: { studentUserId: STUDENT_ID, tutorUserId: TUTOR_ID } }),
+        );
+      });
+
+      it('returns the existing conversation in the same shape instead of creating another', async () => {
+        mockPrismaService.conversation.findUnique.mockResolvedValue(conversationRow);
+
+        await expect(openAsStudent()).resolves.toEqual({
+          conversation: openedConversation,
+          created: false,
+        });
+        expect(mockPrismaService.conversation.findUnique).toHaveBeenCalledWith(
+          expect.objectContaining({
+            where: {
+              studentUserId_tutorUserId: { studentUserId: STUDENT_ID, tutorUserId: TUTOR_ID },
+            },
+          }),
+        );
+        expect(mockPrismaService.conversation.create).not.toHaveBeenCalled();
+      });
+
+      it('returns the conversation a concurrent request created first', async () => {
+        mockPrismaService.conversation.findUnique
+          .mockResolvedValueOnce(null)
+          .mockResolvedValueOnce(conversationRow);
+        mockPrismaService.conversation.create.mockRejectedValue(createDatabaseError('P2002'));
+
+        await expect(openAsStudent()).resolves.toEqual({
+          conversation: openedConversation,
+          created: false,
+        });
+      });
+
+      it('rethrows database errors other than a duplicate pair', async () => {
+        const error = createDatabaseError('P1001');
+        mockPrismaService.conversation.findUnique.mockResolvedValue(null);
+        mockPrismaService.conversation.create.mockRejectedValue(error);
+
+        await expect(openAsStudent()).rejects.toBe(error);
+      });
+
+      it.each([
+        ['a missing account', null],
+        ['a tutor account', { ...activeStudent, role: Role.TUTOR }],
+        ['a suspended student', { ...activeStudent, accountStatus: AccountStatus.SUSPENDED }],
+        [
+          'a deleted student',
+          { ...activeStudent, deletedAt: new Date('2026-09-01T00:00:00.000Z') },
+        ],
+      ])('rejects %s with 403 and creates nothing', async (_label, user) => {
+        mockPrismaService.user.findUnique.mockResolvedValue(user);
+
+        await expect(openAsStudent()).rejects.toThrow(ForbiddenException);
+        expect(mockPrismaService.conversation.create).not.toHaveBeenCalled();
+      });
+
+      it('rejects a student without a profile with 403 and creates nothing', async () => {
+        mockPrismaService.user.findUnique.mockResolvedValue({
+          ...activeStudent,
+          studentProfile: null,
+        });
+
+        const error = await openAsStudent().catch((caught: unknown) => caught);
+
+        expect(error).toBeInstanceOf(ForbiddenException);
+        expect(error).toHaveProperty(
+          'message',
+          'Students must complete their profile before starting a conversation.',
+        );
+        expect(mockPrismaService.conversation.create).not.toHaveBeenCalled();
+      });
+
+      it('returns 404 when tutorId is not a public tutor, such as another student', async () => {
+        mockPrismaService.tutorProfile.findFirst.mockResolvedValue(null);
+
+        const error = await openAsStudent({ tutorId: OTHER_STUDENT_ID }).catch(
+          (caught: unknown) => caught,
+        );
+
+        expect(error).toBeInstanceOf(NotFoundException);
+        expect(error).toHaveProperty('message', 'Tutor not found');
+        expect(mockPrismaService.conversation.create).not.toHaveBeenCalled();
+      });
     });
   });
 

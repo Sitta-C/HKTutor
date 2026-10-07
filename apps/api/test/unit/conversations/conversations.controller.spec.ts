@@ -127,8 +127,26 @@ describe('conversation routes', () => {
         .expect(openedConversation);
 
       expect(openConversation).toHaveBeenCalledWith({
-        studentUserId: STUDENT_ID,
+        role: Role.STUDENT,
         tutorId: TUTOR_ID,
+        userId: STUDENT_ID,
+      });
+    });
+
+    it('lets a tutor open a conversation with participantId', async () => {
+      currentUser = signedInAs(Role.TUTOR);
+      openConversation.mockResolvedValue({ conversation: openedConversation, created: true });
+
+      await request(app.getHttpServer())
+        .post('/api/v1/conversations')
+        .send({ participantId: STUDENT_ID })
+        .expect(201)
+        .expect(openedConversation);
+
+      expect(openConversation).toHaveBeenCalledWith({
+        participantId: STUDENT_ID,
+        role: Role.TUTOR,
+        userId: TUTOR_ID,
       });
     });
 
@@ -142,22 +160,20 @@ describe('conversation routes', () => {
         .expect(openedConversation);
     });
 
-    it.each([Role.TUTOR, Role.ADMIN])(
-      'rejects a %s with 403 before calling the service',
-      async (role) => {
-        currentUser = signedInAs(role);
+    it('rejects an admin with 403 before calling the service', async () => {
+      currentUser = signedInAs(Role.ADMIN);
 
-        await request(app.getHttpServer())
-          .post('/api/v1/conversations')
-          .send({ tutorId: TUTOR_ID })
-          .expect(403);
+      await request(app.getHttpServer())
+        .post('/api/v1/conversations')
+        .send({ tutorId: TUTOR_ID })
+        .expect(403);
 
-        expect(openConversation).not.toHaveBeenCalled();
-      },
-    );
+      expect(openConversation).not.toHaveBeenCalled();
+    });
 
     it.each([
       ['a malformed tutorId', { tutorId: 'not-a-uuid' }],
+      ['a malformed participantId', { participantId: 'not-a-uuid' }],
       ['a studentUserId in the body', { studentUserId: OTHER_STUDENT_ID, tutorId: TUTOR_ID }],
     ])('rejects %s with 400 before calling the service', async (_label, payload) => {
       await request(app.getHttpServer()).post('/api/v1/conversations').send(payload).expect(400);
@@ -314,7 +330,7 @@ describe('ConversationsController OpenAPI contract', () => {
   it('publishes the open-conversation contract', () => {
     const operation = document.paths[`/${API_GLOBAL_PREFIX}/conversations`]?.post;
 
-    expect(operation?.summary).toBe('Open a conversation with a tutor');
+    expect(operation?.summary).toBe('Open a conversation between a student and a tutor');
     for (const status of ['200', '201', '400', '401', '403', '404']) {
       expect(operation?.responses[status]).toBeDefined();
     }
@@ -394,5 +410,13 @@ describe('ConversationsController OpenAPI contract', () => {
     );
     expect(participant?.required).toEqual(['userId', 'role']);
     expect(participant?.properties?.['role']?.enum).toEqual([Role.STUDENT, Role.TUTOR]);
+  });
+
+  it('documents the API-01 request keys for both roles, neither required on its own', () => {
+    const schema = document.components?.schemas?.['CreateConversationDto'] as
+      { properties?: Record<string, unknown>; required?: string[] } | undefined;
+
+    expect(Object.keys(schema?.properties ?? {})).toEqual(['tutorId', 'participantId']);
+    expect(schema?.required ?? []).toEqual([]);
   });
 });

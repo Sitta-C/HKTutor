@@ -26,11 +26,23 @@ export const DEFAULT_CONVERSATIONS_PAGE = 1;
 export const DEFAULT_CONVERSATIONS_PAGE_SIZE = 20;
 export const MAX_CONVERSATIONS_PAGE_SIZE = 100;
 
+// The caller's role decides which key is required, so the service checks that, not this DTO.
 export class CreateConversationDto {
-  @ApiProperty({ example: 'ad08a291-dd8b-40c1-84e5-ddafca54c6fc' })
+  @ApiPropertyOptional({
+    description: "Sent by a student: the tutor's user ID",
+    example: 'ad08a291-dd8b-40c1-84e5-ddafca54c6fc',
+  })
+  @IsOptional()
   @IsUUID()
-  @IsString()
-  tutorId!: string;
+  tutorId?: string;
+
+  @ApiPropertyOptional({
+    description: "Sent by a tutor: the student's user ID",
+    example: '2c9d7e1f-4a3b-4c5d-8e6f-7a8b9c0d1e2f',
+  })
+  @IsOptional()
+  @IsUUID()
+  participantId?: string;
 }
 
 export class SendMessageDto {

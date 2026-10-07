@@ -83,7 +83,11 @@ export function ConversationsControllerDoc(): ClassDecorator {
 export function OpenConversationDoc(): MethodDecorator {
   return applyDecorators(
     ApiExtraModels(CreateConversationDto, OpenConversationResponseDto),
-    ApiOperation({ summary: 'Open a conversation with a tutor' }),
+    ApiOperation({
+      description:
+        "A student sends tutorId and a tutor sends participantId with the student's user ID. The caller comes from the access token.",
+      summary: 'Open a conversation between a student and a tutor',
+    }),
     ApiBearerAuth(JWT_BEARER_AUTH),
     ApiCreatedResponse({
       description: 'A new conversation was created between the student and the tutor',
@@ -94,8 +98,7 @@ export function OpenConversationDoc(): MethodDecorator {
       },
     }),
     ApiOkResponse({
-      description:
-        'The student already has a conversation with this tutor, so that conversation is returned',
+      description: 'The student and the tutor already have a conversation, so it is returned',
       schema: {
         allOf: [{ $ref: getSchemaPath(OpenConversationResponseDto) }],
         example: openConversationExample,
@@ -103,27 +106,29 @@ export function OpenConversationDoc(): MethodDecorator {
       },
     }),
     ApiBadRequestResponse({
-      description: 'tutorId failed validation or the body contained an unknown field',
+      description:
+        "The body does not have exactly the caller's key (tutorId for a student, participantId for a tutor), an ID is not a UUID, the target is the caller, or the body contained an unknown field",
       schema: errorSchema({
         code: 'VALIDATION_FAILED',
         error: 'Bad Request',
-        message: ['tutorId must be a UUID'],
+        message: 'You cannot start a conversation with yourself.',
         statusCode: 400,
       }),
     }),
     apiUnauthorizedResponse(),
     ApiForbiddenResponse({
       description:
-        'The caller is not an active student, or has not completed their student profile',
+        'The caller is an admin, a student who is not active or has no profile, or a tutor who is not verified',
       schema: errorSchema({
         code: 'FORBIDDEN',
         error: 'Forbidden',
-        message: 'Students must complete their profile before starting a conversation.',
+        message: 'Only verified tutors can start conversations.',
         statusCode: 403,
       }),
     }),
     ApiNotFoundResponse({
-      description: 'The tutor does not exist or is not verified, active, and undeleted',
+      description:
+        'The tutor is not verified, active, and undeleted, or the student is not an active student with a profile',
       schema: errorSchema({
         code: 'NOT_FOUND',
         error: 'Not Found',

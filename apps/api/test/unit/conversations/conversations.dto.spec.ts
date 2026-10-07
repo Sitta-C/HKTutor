@@ -9,6 +9,7 @@ import {
 } from '@modules/conversations/conversations.dto';
 
 const TUTOR_ID = 'ad08a291-dd8b-40c1-84e5-ddafca54c6fc';
+const STUDENT_ID = '2c9d7e1f-4a3b-4c5d-8e6f-7a8b9c0d1e2f';
 
 // One character stored as two UTF-16 units.
 const GRINNING_FACE = '\u{1F600}';
@@ -80,19 +81,25 @@ describe('SendMessageDto', () => {
 });
 
 describe('CreateConversationDto', () => {
-  it('accepts a tutor UUID', async () => {
-    const dto = plainToInstance(CreateConversationDto, { tutorId: TUTOR_ID });
+  it.each([
+    [{ tutorId: TUTOR_ID }, 'a student'],
+    [{ participantId: STUDENT_ID }, 'a tutor'],
+    [{}, 'the service, which knows the role'],
+  ])('accepts %p, leaving the key check to %s', async (input) => {
+    const dto = plainToInstance(CreateConversationDto, input);
 
     await expect(validate(dto)).resolves.toHaveLength(0);
   });
 
   it.each([
-    [{}, 'a missing tutorId'],
-    [{ tutorId: 'not-a-uuid' }, 'a malformed tutorId'],
-  ])('rejects %p (%s)', async (input) => {
+    [{ tutorId: 'not-a-uuid' }, 'tutorId'],
+    [{ participantId: 'not-a-uuid' }, 'participantId'],
+  ])('rejects %p as a malformed %s', async (input, property) => {
     const dto = plainToInstance(CreateConversationDto, input);
 
-    expect(await validate(dto)).not.toHaveLength(0);
+    const errors = await validate(dto);
+
+    expect(errors.map((error) => error.property)).toEqual([property]);
   });
 });
 
