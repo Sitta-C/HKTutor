@@ -6,7 +6,7 @@
     "node": "24.19.0"
   },
   "scripts": {
-    "dev": "pnpm db:generate && pnpm --parallel --filter @hktutor/web --filter @hktutor/api dev",
+    "dev": "pnpm --parallel --filter @hktutor/web --filter @hktutor/api dev",
     "build": "pnpm -r --if-present build",
     "db:generate": "pnpm --filter @hktutor/api db:generate",
     "db:validate": "pnpm --filter @hktutor/api db:validate",

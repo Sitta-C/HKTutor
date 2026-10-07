@@ -24,11 +24,6 @@ The web client calls the API through the same origin at `/api/v1`. During `pnpm 
 rewrites that path to the API on port 3001. The API documentation is available at
 `http://localhost:3000/api/v1/docs` (or directly at `http://localhost:3001/api/v1/docs`).
 
-`pnpm dev` regenerates Prisma Client before starting the web and API watchers, so a client generated
-from an older schema cannot prevent the API from compiling. This does not run migrations or seeds.
-The API still requires the current environment settings from `.env.example`, including both private
-Supabase bucket names. If login cannot connect, check the API startup output as well as the web output.
-
 ### Current product surface
 
 The implemented web flow includes authentication and email verification, profile onboarding/editing,
