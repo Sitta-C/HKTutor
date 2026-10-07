@@ -317,6 +317,30 @@ portals into the most recently opened native dialog to keep feedback above its t
 to the body when the dialog closes. Global timers persist across client navigation and dialog changes.
 See [the action audit](notebook-toast-audit.md) for the full inventory and verification scope.
 
+## Student profile and onboarding
+
+`/dashboard/profile` and `/onboarding/profile` use the selected tutor-aligned **Profile Page**.
+Identity, learning information and emergency contact have separate dashed sections. The readonly
+account email and completion badge share the tutor summary's typography, 48px field rhythm and
+responsive columns; the existing form controls and actions remain shared. The private summary has
+an external heading, one compact paper with nickname and ruled school/class values, a mint lock
+explanation and a separate yellow privacy note. It updates from local form values and resets on
+cancel; no public student profile or additional personal data is introduced. The note explicitly
+limits linked tutors to nickname and keeps legal name, school, class, phone and email hidden.
+
+The form and summary keep their own content height, sitting beside each other above 1060px and
+stacking below that width. Long summary values and readonly email wrap at 320px. Authenticated
+student profile loading retains the dashboard shell and onboarding sign-out; the sidebar booking
+badge remains unavailable because this page does not load a booking aggregate. Consent remains a
+separate required notice/checkbox step and uses the existing modal and request. Validation, trimmed
+six-field student payload (including string gradeLevel), focus, dirty state, cancel, inline/toast
+errors, saving buttons, profile gating and sanitized returnTo retain their existing behavior.
+Tutor fields, public preview, metadata, save contract and optional photo workflow are unchanged.
+
+Browser checks use intercepted preview API fixtures, including TH/EN long text at 320/768/1440px,
+empty/validation/saving/error/dirty states, consent and its notice modal, returnTo, sign-out,
+loading/load failure, student save payload, tutor onboarding and existing tutor/photo regressions.
+
 ## Profile photos
 
 Student and tutor onboarding/edit pages include an optional photo section with local preview,

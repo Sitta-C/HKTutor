@@ -292,6 +292,29 @@ The user selected **Margin Index** and requested implementation on 2026-10-07 fo
   retain their existing behavior. Browser checks cover TH/EN at 320px, 768px and 1440px, long text,
   all statuses, loading/error/empty/404, session expiry, stale filter responses and persisted amounts.
 
+## Student profile and onboarding
+
+The user selected the **tutor-aligned Profile Page** and requested implementation for
+`/dashboard/profile` and `/onboarding/profile` on 2026-10-08.
+
+- Keep the shared tutor form paper, label/input dimensions, black primary/secondary actions and
+  optional existing photo editor. Group the student's six fields into Identity, Learning information
+  and Emergency contact, with dashed section divisions. Grade/class remains free-form text.
+- Match tutor account fields: labels above a 48px plain-paper readonly email and a standalone
+  completion badge, in the same responsive columns. Completion and unsaved changes remain distinct.
+- Place the private account-summary heading/helper outside a compact 10px-corner paper. Use the
+  tutor Profile Page's identity scale, restrained yellow tape and ruled school/class values, with a
+  mint lock line explaining that information stays in the private profile. Stack below the form on
+  narrow layouts; wrap long names, education values and email. Size both papers to their contents.
+- Place the yellow privacy note below the summary paper, like the tutor's writing tip. Explain that
+  only nickname can appear to a tutor linked to a booking; legal name, school, class, telephone and
+  email remain hidden. This is an owner-only account summary, not a public student profile.
+- Preserve consent/notice modal, validation and first-error focus, save/cancel/reset, saving/error/
+  dirty states, profile gating, sanitized returnTo and onboarding sign-out. Keep the authenticated
+  student shell while loading profile data; its unloaded booking count is unavailable. Do not add
+  fields, catalog requests, profile/API contracts or photo behavior. Tutor edit/onboarding, its
+  selected Profile Page preview and rating/verification summary remain unchanged.
+
 ## Action notifications
 
 The user approved completing **NotebookToast** success/error feedback across Student and Tutor
