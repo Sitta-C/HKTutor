@@ -56,11 +56,7 @@ export default function PublicTutorSearchShell({ children }: { children: ReactNo
       navBadges={{ bookings: '—' }}
       headerNavRight={
         isSearchPage ? (
-          user ? (
-            <Link href="/dashboard/bookings" data-dashboard-action>
-              {copy.dashboard.header.myBookingsNav}
-            </Link>
-          ) : (
+          user ? null : (
             <Link href="/" data-dashboard-action>
               {tutorSearchCopy[language].signIn}
             </Link>

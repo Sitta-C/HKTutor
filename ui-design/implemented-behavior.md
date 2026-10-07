@@ -110,8 +110,10 @@ to search in `tutor-search-pagination.module.css`, independent of the result-she
 and do not change shared `NotebookPagination` consumers. Browser checks assert the actual ticket
 layout and borders, alongside the keyboard and pagination flow.
 
-The `/tutors` header shows Sign in for guests and My bookings for authenticated users, with
-no link back to search. Its unloaded sidebar booking count is unavailable. These search styles do not
+The `/tutors` header shows Sign in for guests and no booking action for authenticated users, with
+no link back to search. My bookings is omitted from all student/public headers, including the booking
+list, request and detail pages. The sidebar booking link remains available. Its unloaded search
+booking count is unavailable. These search styles do not
 alter shared primitives or tutor UI.
 
 Public tutor detail at `/tutors/[tutorId]?listingId=...` uses **Appointment Pad**, selected as option 3

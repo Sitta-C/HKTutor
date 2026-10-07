@@ -197,9 +197,12 @@ for (const language of ['en', 'th'] as const) {
         '/tutors/tutor%2Fshared?listingId=course%2F2',
       );
       await expect(page.locator('header a[href="/tutors"]')).toHaveCount(0);
-      await expect(
-        page.locator(`header a[href="${student ? '/dashboard/bookings' : '/'}"]`),
-      ).toBeVisible();
+      await expect(page.locator('header a[href="/dashboard/bookings"]')).toHaveCount(0);
+      if (student) {
+        await expect(page.locator('header a[href="/"]')).toHaveCount(0);
+      } else {
+        await expect(page.locator('header a[href="/"]')).toBeVisible();
+      }
       if ((page.viewportSize()?.width ?? 0) < 768) {
         const toggle = page.locator('button[aria-controls="tutor-search-filter-fields"]');
         await expect(toggle).toHaveAttribute('aria-expanded', 'false');

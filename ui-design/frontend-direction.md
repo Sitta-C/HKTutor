@@ -133,9 +133,10 @@ without a checkmark. This is implemented for guests and signed-in students.
   Styling is scoped to search; shared primitives and the tutor editor's **Note Window** are unchanged.
   Grade/subject/rate/description provide continuity with Note Window and the public tutor detail's
   Appointment Pad. These layouts do not establish a shared global course component.
-- The search header keeps one sign-in action for guests or My bookings for authenticated users;
-  remove its self-link to search. The booking badge is unavailable because this page does not load
-  bookings. The existing public tutor detail header keeps its original actions.
+- The search header keeps one sign-in action for guests and no booking action for authenticated
+  users. Remove its self-link to search. My bookings is omitted from all student/public headers,
+  including the booking list, request and detail pages; the sidebar booking link remains available.
+  The search booking badge is unavailable because this page does not load bookings.
 - The user selected **Ticket Pair** pagination on 2026-10-07: connected paper Previous/Next
   buttons with an inset dashed edge, a perforated center seam and small seam notches. The next
   ticket uses pale student mint. Keep the page count left and the pair right on wider sheets;
