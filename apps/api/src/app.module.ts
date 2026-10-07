@@ -10,6 +10,7 @@ import { StorageModule } from '@infrastructure/storage/storage.module';
 import { AuthModule } from '@modules/auth/auth.module';
 import { AvatarsModule } from '@modules/avatars/avatars.module';
 import { BookingsModule } from '@modules/bookings/bookings.module';
+import { ConversationsModule } from '@modules/conversations/conversations.module';
 import { HealthModule } from '@modules/health/health.module';
 import { ProfilesModule } from '@modules/profiles/profiles.module';
 import { QualificationDocumentsModule } from '@modules/qualification-documents/qualification-documents.module';
@@ -28,6 +29,7 @@ import { TutorsModule } from '@modules/tutors/tutors.module';
     DatabaseModule,
     StorageModule,
     BookingsModule,
+    ConversationsModule,
     HealthModule,
     AuthModule,
     AvatarsModule,
