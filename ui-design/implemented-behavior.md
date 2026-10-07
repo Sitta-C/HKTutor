@@ -110,7 +110,7 @@ to search in `tutor-search-pagination.module.css`, independent of the result-she
 and do not change shared `NotebookPagination` consumers. Browser checks assert the actual ticket
 layout and borders, alongside the keyboard and pagination flow.
 
-Only the `/tutors` header changes: guests see Sign in and authenticated users see My bookings, with
+The `/tutors` header shows Sign in for guests and My bookings for authenticated users, with
 no link back to search. Its unloaded sidebar booking count is unavailable. These search styles do not
 alter shared primitives or tutor UI.
 
@@ -152,9 +152,9 @@ The original public detail and availability requests still load the same 30-day 
 stale-response guard. Requested listing IDs, effective/fallback selection, encoded listing/slot
 booking URLs, guest login/onboarding return paths and disabled non-STUDENT actions are preserved.
 `conflict=1` retains its recovery notice. Loading retains the existing shell and inline skeleton;
-error/404 retains the back link; empty listings and slots are explicit after success. The existing
-detail header actions remain, and the sidebar booking count is unavailable because detail does not
-load bookings. CSS, view models and bilingual copy are local to this feature; tutor editors, shared
+error/404 retains the back link; empty listings and slots are explicit after success. The detail
+header shows Find a tutor without My bookings. The sidebar booking count is unavailable because
+detail does not load bookings. CSS, view models and bilingual copy are local to this feature; tutor editors, shared
 primitives and API contracts are unchanged.
 
 The tutor dashboard follows the Notebook Focus layout: the next confirmed session, today's
