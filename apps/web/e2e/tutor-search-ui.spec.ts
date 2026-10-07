@@ -216,6 +216,17 @@ for (const language of ['en', 'th'] as const) {
       }
       await page.evaluate(() => document.fonts.ready);
       await noOverflow(page);
+      const pagination = main.getByRole('navigation');
+      await expect(pagination.getByRole('button').first()).toBeDisabled();
+      for (const button of await pagination.getByRole('button').all()) {
+        const bounds = await button.boundingBox();
+        expect(bounds?.height).toBeGreaterThanOrEqual(44);
+        expect(bounds?.width).toBeGreaterThanOrEqual(44);
+      }
+      await pagination.screenshot({
+        path: testInfo.outputPath(`pagination-${language}-${student ? 'student' : 'guest'}.png`),
+        animations: 'disabled',
+      });
       await page.screenshot({
         path: testInfo.outputPath(`search-${language}-${student ? 'student' : 'guest'}.png`),
         fullPage: true,
@@ -228,7 +239,7 @@ for (const language of ['en', 'th'] as const) {
 
 test('filters retain drafts, validate, apply explicitly and paginate the applied query', async ({
   page,
-}) => {
+}, testInfo) => {
   const { calls } = await mockSearch(page);
   await page.goto('/tutors');
   await expect(page.getByRole('article')).toHaveCount(10);
@@ -253,7 +264,10 @@ test('filters retain drafts, validate, apply explicitly and paginate the applied
   }
   await openFilters(page);
   await page.locator('#tutor-search-subject').selectOption('');
-  await page.getByRole('button', { name: 'Next', exact: true }).click();
+  const next = page.getByRole('button', { name: 'Next', exact: true });
+  await next.focus();
+  await expect(next).toBeFocused();
+  await page.keyboard.press('Enter');
   await expect(page.getByRole('article')).toHaveCount(2);
   expect(Object.fromEntries(calls.at(-1)?.searchParams ?? new URLSearchParams())).toEqual({
     subject: 'Mathematics',
@@ -268,6 +282,30 @@ test('filters retain drafts, validate, apply explicitly and paginate the applied
     'href',
     '/tutors/tutor-10?listingId=course%2F11',
   );
+  await noOverflow(page);
+  await page
+    .locator('main')
+    .getByRole('navigation')
+    .screenshot({
+      path: testInfo.outputPath('pagination-last-page.png'),
+      animations: 'disabled',
+    });
+  const previous = page.getByRole('button', { name: 'Previous', exact: true });
+  await previous.focus();
+  await expect(previous).toBeFocused();
+  await page
+    .locator('main')
+    .getByRole('navigation')
+    .screenshot({
+      path: testInfo.outputPath('pagination-keyboard-focus.png'),
+      animations: 'disabled',
+    });
+  await page.keyboard.press('Space');
+  await expect(page.getByRole('article')).toHaveCount(10);
+  expect(calls.at(-1)?.searchParams.get('page')).toBe('1');
+  expect(calls.at(-1)?.searchParams.get('subject')).toBe('Mathematics');
+  await expect(previous).toBeDisabled();
+  await expect(next).toBeEnabled();
   await page.locator('#tutor-search-max-price').fill('-1');
   const beforeInvalid = calls.length;
   await page.getByRole('button', { name: 'Apply filters', exact: true }).click();

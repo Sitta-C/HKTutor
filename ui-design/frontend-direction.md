@@ -135,6 +135,12 @@ without a checkmark. This is implemented for guests and signed-in students.
 - The search header keeps one sign-in action for guests or My bookings for authenticated users;
   remove its self-link to search. The booking badge is unavailable because this page does not load
   bookings. The existing public tutor detail header keeps its original actions.
+- The user selected **Ticket Pair** pagination on 2026-10-07: connected paper Previous/Next
+  buttons with an inset dashed edge, a perforated center seam and small seam notches. The next
+  ticket uses pale student mint. Keep the page count left and the pair right on wider sheets;
+  on narrow sheets, center the count above a full-width pair. Text stays upright and bilingual,
+  targets are at least 44px, and native disabled states and visible keyboard focus remain explicit.
+  This presentation is scoped to search; shared `NotebookPagination` consumers are unchanged.
 - Preserve four filters, validation, query parameters, page size 10, server pagination, cancellation
   and stale-response guards. Do not group by tutor, merge pages, add unsupported controls, or change
   availability formatting. Keep explicit null-rating/no-availability states and unavailable result

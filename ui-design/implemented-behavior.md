@@ -100,6 +100,14 @@ protect against cancelled/stale responses; no API client, request contract or au
 were introduced. Loading retains the shell and inline result skeleton; result counts are unavailable
 until success, including validation/search errors, with zero only after successful empty results.
 
+Search pagination uses **Ticket Pair**: Previous/Next are adjacent paper tickets with inset dashed
+edges, a perforated center seam and top/bottom notches. The next ticket is pale mint. Wider result
+sheets show the page count left and tickets right; sheets up to 450px put the count above a full-width
+pair. Both native buttons have 48px minimum height, localized text, decorative arrow icons, visible
+keyboard focus and explicit disabled boundaries. Reduced motion removes transitions. Pagination
+still appears only after successful results with more than one server page. These styles are local
+to search and do not change shared `NotebookPagination` consumers.
+
 Only the `/tutors` header changes: guests see Sign in and authenticated users see My bookings, with
 no link back to search. Its unloaded sidebar booking count is unavailable. Public tutor detail retains
 its existing header actions, selected-listing flow and guest login/onboarding return path. These search

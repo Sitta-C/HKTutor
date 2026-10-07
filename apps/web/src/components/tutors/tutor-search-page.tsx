@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+import { DashboardIcon } from '@/components/dashboard/dashboard-icon';
 import { ProfileAvatar } from '@/components/profile/profile-avatar';
 import { tutorSearchCopy } from '@/components/tutors/tutor-search-copy';
 import {
@@ -349,25 +350,29 @@ export default function TutorSearchPage() {
               className={styles.pagination}
               aria-label={`${text.page} ${pagination.page} ${text.pageOf} ${pagination.totalPages}`}
             >
-              <button
-                type="button"
-                className={notebookButtonClass({ tone: 'secondary' })}
-                disabled={pagination.page <= 1}
-                onClick={() => changePage(pagination.page - 1)}
-              >
-                {text.previousPage}
-              </button>
-              <span aria-current="page">
+              <span className={styles.paginationCount} aria-current="page" aria-live="polite">
                 {text.page} {pagination.page} {text.pageOf} {pagination.totalPages}
               </span>
-              <button
-                type="button"
-                className={notebookButtonClass({ tone: 'secondary' })}
-                disabled={pagination.page >= pagination.totalPages}
-                onClick={() => changePage(pagination.page + 1)}
-              >
-                {text.nextPage}
-              </button>
+              <div className={styles.paginationTickets}>
+                <button
+                  type="button"
+                  className={styles.paginationButton}
+                  disabled={pagination.page <= 1}
+                  onClick={() => changePage(pagination.page - 1)}
+                >
+                  <DashboardIcon name="arrow-right" className="h-4 w-4 rotate-180" />
+                  <span>{text.previousPage}</span>
+                </button>
+                <button
+                  type="button"
+                  className={styles.paginationButton}
+                  disabled={pagination.page >= pagination.totalPages}
+                  onClick={() => changePage(pagination.page + 1)}
+                >
+                  <span>{text.nextPage}</span>
+                  <DashboardIcon name="arrow-right" className="h-4 w-4" />
+                </button>
+              </div>
             </nav>
           )}
           <p className={styles.resultNote}>{text.cardNote}</p>
