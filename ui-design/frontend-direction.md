@@ -184,7 +184,7 @@ The user selected **Appointment Pad** (option 3) and requested implementation on
   The chosen tutor profile/listing editors and shared primitives remain unchanged.
 - Preserve the original detail and 30-day availability requests, requested/fallback listing
   selection, encoded booking link, guest login return path, wrong-role guards, conflict recovery,
-  and loading/error/404/empty states. The detail header has Find a tutor without My bookings;
+  and loading/error/404/empty states. The detail header has no Find a tutor or My bookings action;
   its unloaded sidebar booking count is unavailable. Do not extend the fetched range or add
   reviews/slot actions.
 - Tutor identity, blue grade tab, upright price, selected subject/grade and Bangkok date/time are

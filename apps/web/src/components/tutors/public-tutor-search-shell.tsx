@@ -55,17 +55,11 @@ export default function PublicTutorSearchShell({ children }: { children: ReactNo
       showSignOut={Boolean(user)}
       navBadges={{ bookings: '—' }}
       headerNavRight={
-        isSearchPage ? (
-          user ? null : (
-            <Link href="/" data-dashboard-action>
-              {tutorSearchCopy[language].signIn}
-            </Link>
-          )
-        ) : (
-          <Link href="/tutors" data-dashboard-action>
-            {copy.dashboard.header.findTutorCta}
+        isSearchPage && !user ? (
+          <Link href="/" data-dashboard-action>
+            {tutorSearchCopy[language].signIn}
           </Link>
-        )
+        ) : null
       }
     >
       {children}

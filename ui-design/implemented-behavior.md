@@ -161,7 +161,7 @@ stale-response guard. Requested listing IDs, effective/fallback selection, encod
 booking URLs, guest login/onboarding return paths and disabled non-STUDENT actions are preserved.
 `conflict=1` retains its recovery notice. Loading retains the existing shell and inline skeleton;
 error/404 retains the back link; empty listings and slots are explicit after success. The detail
-header shows Find a tutor without My bookings. The sidebar booking count is unavailable because
+header has no Find a tutor or My bookings action. The sidebar booking count is unavailable because
 detail does not load bookings. CSS, view models and bilingual copy are local to this feature; tutor editors, shared
 primitives and API contracts are unchanged.
 
