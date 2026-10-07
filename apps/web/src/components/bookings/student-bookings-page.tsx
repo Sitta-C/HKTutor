@@ -177,6 +177,7 @@ export default function StudentBookingsPage() {
                     total={total}
                     pageSize={BOOKINGS_PAGE_SIZE}
                     label={text.pagination}
+                    variant="ticket"
                     onPageChange={(nextPage) => {
                       setIsLoading(true);
                       setPage(nextPage);

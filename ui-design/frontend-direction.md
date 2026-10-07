@@ -279,8 +279,11 @@ The user selected **Margin Index** and requested implementation on 2026-10-07 fo
   The booking shell uses an unavailable sidebar badge for list, detail and request because it does
   not own an aggregate booking response. Do not add requests to populate it or use a filtered total
   as an all-status shell count. Loading/error/empty/detail-not-found content retains the shell and paper.
-- Reuse standard `NotebookPagination` with the original page size 10 and server page/total. Hide it
-  when one page suffices. Preserve original API clients/queries, active-response and current-ID guards,
+- Reuse `NotebookPagination` with its opt-in **ticket** buttons, selected on 2026-10-07: pale mint,
+  4px corners, dashed arrow stubs and seam notches, left arrow for Previous and right arrow for Next.
+  Keep the visible page/range labels, gray disabled boundary tickets, 44px targets and focus outline.
+  Standard and paper-turn consumers retain their existing presentation. Keep the original page size 10
+  and server page/total; hide pagination when one page suffices. Preserve original API clients/queries, active-response and current-ID guards,
   retry, session expiry, encoded detail links, back-to-bookings and find-tutor destinations.
   List/detail styles are scoped to `student-bookings.module.css`; shared primitives and tutor UI
   retain their existing behavior. Browser checks cover TH/EN at 320px, 768px and 1440px, long text,

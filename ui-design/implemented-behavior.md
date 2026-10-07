@@ -243,7 +243,10 @@ with zero only then. Filtered empty copy suggests another status without implyin
 The shell's sidebar badge remains unavailable on list, detail and request because the shell does not
 load an aggregate. No extra booking request or count propagation was introduced. Standard
 `NotebookPagination` uses page/total with page size 10; previous/next remain disabled at boundaries,
-and pagination is omitted for one page.
+and pagination is omitted for one page. Its opt-in ticket variant, selected on 2026-10-07, uses
+pale-mint buttons with dashed arrow stubs, seam notches, 4px corners and 44px targets. Previous has
+a left arrow, Next a right arrow, and disabled tickets use gray paper. Range and page labels remain
+visible; shared standard/paper-turn consumers keep their existing presentation.
 
 Detail keeps `getMyBooking`, its active-response/current-ID guards, existing resource error messages,
 session-expiry behavior and original back/find-tutor links. Loading and errors retain the shared

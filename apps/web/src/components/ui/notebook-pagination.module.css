@@ -55,3 +55,99 @@
   opacity: 0.3;
   cursor: not-allowed;
 }
+
+.ticketControls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+}
+.ticketButton {
+  position: relative;
+  display: inline-flex;
+  min-width: 0;
+  min-height: 44px;
+  align-items: stretch;
+  padding: 0;
+  border: 1px solid var(--pagination-ticket-ink, var(--color-student-deep));
+  border-radius: 4px;
+  color: var(--pagination-ticket-ink, var(--color-student-deep));
+  background: color-mix(in srgb, var(--color-student) 10%, var(--color-paper));
+  box-shadow: 0 2px 0 var(--pagination-ticket-ink, var(--color-student-deep));
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.5;
+  cursor: pointer;
+  transition: background-color 0.15s;
+}
+.ticketLabel {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  align-items: center;
+  justify-content: center;
+  padding: 7px 6px;
+  white-space: nowrap;
+}
+.ticketStub {
+  display: flex;
+  width: 24px;
+  flex: 0 0 24px;
+  align-items: center;
+  justify-content: center;
+  border-left: 1px dashed currentColor;
+  background: color-mix(in srgb, var(--color-paper) 10%, transparent);
+}
+.ticketButton[data-direction='previous'] .ticketStub {
+  border-left: 0;
+  border-right: 1px dashed currentColor;
+}
+.ticketButton::before,
+.ticketButton::after {
+  position: absolute;
+  right: 20px;
+  width: 7px;
+  height: 4px;
+  border: 1px solid currentColor;
+  background: var(--color-paper);
+  content: '';
+  pointer-events: none;
+}
+.ticketButton[data-direction='previous']::before,
+.ticketButton[data-direction='previous']::after {
+  right: auto;
+  left: 20px;
+}
+.ticketButton::before {
+  top: -1px;
+  border-top: 0;
+  border-radius: 0 0 5px 5px;
+}
+.ticketButton::after {
+  bottom: -1px;
+  border-bottom: 0;
+  border-radius: 5px 5px 0 0;
+}
+.ticketButton:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--color-student) 17%, var(--color-paper));
+}
+.ticketButton:focus-visible {
+  outline: 2px solid var(--pagination-ticket-ink, var(--color-student-deep));
+  outline-offset: 3px;
+}
+.ticketButton:disabled {
+  border-color: var(--color-paper-edge);
+  background: var(--color-paper-deep);
+  color: var(--color-notebook-muted);
+  box-shadow: 0 2px 0 var(--color-paper-edge);
+  cursor: not-allowed;
+}
+.ticketButton:disabled::before,
+.ticketButton:disabled::after {
+  border-color: var(--color-paper-edge);
+}
+@media (prefers-reduced-motion: reduce) {
+  .ticketButton {
+    transition: none;
+  }
+}

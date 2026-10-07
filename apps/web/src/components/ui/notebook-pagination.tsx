@@ -18,7 +18,7 @@ export function NotebookPagination({
   total: number;
   pageSize: number;
   label: string;
-  variant?: 'standard' | 'paper-turn';
+  variant?: 'standard' | 'paper-turn' | 'ticket';
   onPageChange: (page: number) => void;
 }) {
   const { copy } = useLanguage();
@@ -27,12 +27,15 @@ export function NotebookPagination({
     return null;
   }
   const paperTurn = variant === 'paper-turn';
+  const ticket = variant === 'ticket';
   const buttonClass = paperTurn
     ? styles.pageTurnButton
-    : notebookButtonClass({
-        tone: 'secondary',
-        className: 'px-3 !text-xs !shadow-none',
-      });
+    : ticket
+      ? styles.ticketButton
+      : notebookButtonClass({
+          tone: 'secondary',
+          className: 'px-3 !text-xs !shadow-none',
+        });
   return (
     <nav
       aria-label={label}
@@ -48,16 +51,32 @@ export function NotebookPagination({
       >
         {(page - 1) * pageSize + 1}–{Math.min(page * pageSize, total)} / {total}
       </p>
-      <div className={paperTurn ? styles.pageTurnControls : 'flex flex-wrap items-center gap-2'}>
+      <div
+        className={
+          paperTurn
+            ? styles.pageTurnControls
+            : ticket
+              ? styles.ticketControls
+              : 'flex flex-wrap items-center gap-2'
+        }
+      >
         <button
           type="button"
           disabled={page === 1}
           aria-label={paperTurn ? copy.dashboard.booking.previousPage : undefined}
           className={buttonClass}
+          data-direction={ticket ? 'previous' : undefined}
           onClick={() => onPageChange(page - 1)}
         >
           {paperTurn ? (
             <DashboardIcon name="arrow-right" className="h-4 w-4 rotate-180" />
+          ) : ticket ? (
+            <>
+              <span className={styles.ticketStub} aria-hidden="true">
+                <DashboardIcon name="arrow-right" className="h-4 w-4 rotate-180" />
+              </span>
+              <span className={styles.ticketLabel}>{copy.dashboard.booking.previousPage}</span>
+            </>
           ) : (
             copy.dashboard.booking.previousPage
           )}
@@ -72,10 +91,18 @@ export function NotebookPagination({
           disabled={page === pageCount}
           aria-label={paperTurn ? copy.dashboard.booking.nextPage : undefined}
           className={buttonClass}
+          data-direction={ticket ? 'next' : undefined}
           onClick={() => onPageChange(page + 1)}
         >
           {paperTurn ? (
             <DashboardIcon name="arrow-right" className="h-4 w-4" />
+          ) : ticket ? (
+            <>
+              <span className={styles.ticketLabel}>{copy.dashboard.booking.nextPage}</span>
+              <span className={styles.ticketStub} aria-hidden="true">
+                <DashboardIcon name="arrow-right" className="h-4 w-4" />
+              </span>
+            </>
           ) : (
             copy.dashboard.booking.nextPage
           )}
