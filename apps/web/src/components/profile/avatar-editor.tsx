@@ -171,7 +171,7 @@ export function AvatarEditor({
                 disabled={pending || disabled}
                 onClick={() => input.current?.click()}
               >
-                <span className={styles.penNib} aria-hidden="true" />
+                <span className={styles.brush} aria-hidden="true" />
                 {text.choose}
               </button>
               {file && (

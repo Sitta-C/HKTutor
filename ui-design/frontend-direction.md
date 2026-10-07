@@ -326,8 +326,10 @@ The user selected **Ink Portrait Index**, combining Ink & Sketch and Portrait In
   Finish with a thin ruler edge; student accents are mint and tutor accents blue.
 - Keep the portrait caption **this is me** in English in both interface languages. Show the
   localized separate-saving explanation directly, without a Little note prefix.
-- Choose photo uses a black fountain-pen action with a small gold nib/clip. Keep existing upload,
-  cancel and remove actions, disabled/saving states, validation, previews and success/error toasts.
+- Choose photo uses a pale mint/blue brush stroke with a small painted brush, subtle dry-brush edge
+  and accent-colored text, refined on 2026-10-08. Keep a 46px target and visible keyboard focus.
+  Keep existing upload, cancel and remove actions, disabled/saving states, validation, previews
+  and success/error toasts.
   Stack the portrait above the copy in narrow containers, including desktop form columns.
 - Keep bilingual text and the actual role-specific privacy explanation: student photos are private;
   tutor photos can appear publicly when eligible. Photo saving remains separate from profile fields.

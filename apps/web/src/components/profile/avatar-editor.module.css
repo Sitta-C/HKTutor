@@ -189,36 +189,61 @@
 
 .choose {
   position: relative;
+  isolation: isolate;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 9px;
   min-height: 46px;
-  padding: 10px 29px 10px 14px;
-  border-bottom: 3px solid var(--avatar-accent);
-  border-radius: 4px;
-  background: var(--color-notebook-ink);
-  box-shadow: 0 2px 0 var(--avatar-mid);
-  color: white;
+  padding: 10px 16px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--avatar-accent);
   font-size: 14px;
-  font-weight: 700;
+  font-weight: 600;
   line-height: 1.4;
 }
 
 .choose::before {
   position: absolute;
-  top: 8px;
-  right: 7px;
-  width: 8px;
-  height: 24px;
-  border: 2px solid #c7ad69;
-  border-left: 0;
-  border-radius: 0 3px 3px 0;
+  z-index: -1;
+  inset: 4px 0;
+  background: var(--avatar-soft);
+  clip-path: polygon(
+    2% 14%,
+    16% 5%,
+    59% 8%,
+    89% 0,
+    97% 13%,
+    95% 32%,
+    100% 46%,
+    97% 70%,
+    99% 86%,
+    83% 95%,
+    35% 91%,
+    6% 100%,
+    0 81%,
+    3% 56%,
+    0 37%
+  );
   content: '';
 }
 
-.choose:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--color-notebook-ink) 90%, var(--avatar-accent));
+.choose::after {
+  position: absolute;
+  z-index: -1;
+  right: 8px;
+  bottom: 5px;
+  left: 12px;
+  height: 2px;
+  background: var(--avatar-mid);
+  clip-path: polygon(0 25%, 21% 0, 62% 35%, 100% 0, 93% 85%, 55% 100%, 12% 70%);
+  content: '';
+}
+
+.choose:hover:not(:disabled)::before {
+  background: color-mix(in srgb, var(--avatar-accent) 17%, var(--color-paper));
 }
 
 .choose:focus-visible {
@@ -231,22 +256,33 @@
   cursor: not-allowed;
 }
 
-.penNib {
+.brush {
   position: relative;
-  width: 14px;
-  height: 18px;
+  width: 18px;
+  height: 20px;
   flex: none;
-  background: #e0cd99;
-  clip-path: polygon(50% 0, 100% 65%, 76% 100%, 24% 100%, 0 65%);
+  transform: rotate(25deg);
 }
 
-.penNib::after {
+.brush::before {
   position: absolute;
-  top: 4px;
-  left: 6px;
-  width: 2px;
-  height: 8px;
-  background: var(--color-notebook-ink);
+  top: 0;
+  left: 7px;
+  width: 5px;
+  height: 12px;
+  border-radius: 3px 3px 0 0;
+  background: color-mix(in srgb, var(--color-notebook-ink) 38%, var(--color-paper-edge));
+  content: '';
+}
+
+.brush::after {
+  position: absolute;
+  bottom: 0;
+  left: 3px;
+  width: 13px;
+  height: 11px;
+  background: linear-gradient(var(--color-paper-edge) 0 3px, var(--avatar-accent) 3px);
+  clip-path: polygon(24% 0, 80% 0, 100% 75%, 83% 88%, 70% 82%, 58% 100%, 38% 86%, 0 91%, 0 50%);
   content: '';
 }
 
