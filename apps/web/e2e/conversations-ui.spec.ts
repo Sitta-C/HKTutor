@@ -528,6 +528,25 @@ for (const language of ['th', 'en'] as const) {
     await expect(page.getByRole('button', { name: /Refresh|รีเฟรช/ })).toHaveCount(1);
     await page.evaluate(() => document.fonts.ready.then(() => undefined));
     const form = page.locator('form');
+    const send = form.getByRole('button', {
+      name: language === 'th' ? 'ส่งข้อความ' : 'Send',
+      exact: true,
+    });
+    const inputBounds = await input.boundingBox();
+    const sendBounds = await send.boundingBox();
+    expect(inputBounds).not.toBeNull();
+    expect(sendBounds).not.toBeNull();
+    if (inputBounds && sendBounds) {
+      expect(sendBounds.x).toBeGreaterThan(inputBounds.x + inputBounds.width);
+      expect(Math.abs(sendBounds.y - inputBounds.y)).toBeLessThanOrEqual(2);
+    }
+    const pageHeading = page.getByRole('heading', {
+      name: language === 'th' ? 'ข้อความของคุณ' : 'Your messages',
+      exact: true,
+    });
+    const eyebrow = pageHeading.locator('..').locator('p');
+    const content = await page.locator('main').boundingBox();
+    expect((await eyebrow.boundingBox())?.y).toBeGreaterThanOrEqual((content?.y ?? 0) + 16);
     expect((await form.boundingBox())?.height).toBeLessThanOrEqual(110);
     const bounds = await form.boundingBox();
     expect((bounds?.y ?? 0) + (bounds?.height ?? 0)).toBeLessThanOrEqual(

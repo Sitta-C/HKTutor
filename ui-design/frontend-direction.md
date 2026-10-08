@@ -525,3 +525,9 @@ composer at one line, grow to 112px with native inner scrolling, and place the e
 beside the input. The compact Thai label is **ส่ง**, with the full **ส่งข้อความ** accessible name.
 Show limit/count guidance on focus, a nonempty draft or a send error. Keep latest-message navigation
 floating above the composer, existing drafts/reading offsets and the S2-T17/S2-T20 scope boundary.
+
+The follow-up positioning pass adds 16px clearance beneath the shell header so the Thai eyebrow
+does not touch its dashed edge. Keep Send to the right of the textarea on the same row, including
+320px screens. Refresh uses one continuous clockwise arrow in the shared icon system. Verify this
+layout in Safari as well as Chromium; an already-open development tab may retain outdated CSS after
+hot updates, so compare a fresh load from origin before assessing the layout.

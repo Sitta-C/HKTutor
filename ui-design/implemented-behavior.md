@@ -411,3 +411,7 @@ focused, a draft exists or sending fails; errors and full control names remain a
 height uses the actual header offset and window/visual viewport size, with a 360px minimum for a
 usable transcript and 760px maximum. Very short/landscape viewports retain native page scrolling.
 Bilingual browser geometry checks include a 1920px screen and 320px mobile with a three-message thread.
+The follow-up pass adds 16px above the page heading and a continuous clockwise refresh icon. Browser
+geometry checks explicitly assert that Send is beside the input and the eyebrow clears the shell
+header. The corrected layout was also visually checked in the running Safari session after loading
+fresh CSS from origin; an ordinary reload had retained old development styles.
