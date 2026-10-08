@@ -9,6 +9,7 @@ export const bookingRequestCopy = {
     notice:
       'Wait for the tutor to confirm the lesson time. Check your bookings for the latest status.',
     send: 'Send lesson request',
+    back: 'Back',
     sent: 'Lesson request sent',
     loading: 'Loading the course, time and amount…',
     pending: 'Awaiting tutor confirmation',
@@ -33,6 +34,7 @@ export const bookingRequestCopy = {
     total: 'ยอดคำขอเรียน',
     notice: 'รอให้ติวเตอร์ยืนยันวันและเวลาเรียน ตรวจสอบสถานะได้ในรายการจองของคุณ',
     send: 'ส่งคำขอเรียน',
+    back: 'ย้อนกลับ',
     sent: 'ส่งคำขอเรียนแล้ว',
     loading: 'กำลังโหลดคอร์ส เวลา และยอดเงิน…',
     pending: 'รอติวเตอร์ยืนยัน',

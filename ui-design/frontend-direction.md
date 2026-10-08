@@ -224,12 +224,16 @@ The user selected **Appointment Docket** and requested implementation on 2026-10
   stub, dashed seam, small notches and a 2px paper edge, matching tutor/search actions. Keep 44px
   minimum targets, full-width mobile actions, visible focus and explicit disabled sending styling.
   Secondary recovery actions remain text links; ticket styling is local to the request page.
+- On all `/dashboard/bookings` routes, omit Find a tutor from the top-right header. The former Change time link
+  is a Back / ย้อนกลับ secondary paper-label action with a left arrow and a 46px target, selected
+  on 2026-10-08. Keep its destination at the same tutor and selected course; it does not send a
+  request or depend on browser history. In-content recovery and empty-state links remain available.
 - Continue the public tutor detail's Appointment Pad anatomy. Cross-day times show Start/End and
   both localized dates; exact midnight uses 24:00 on the last occupied date, with actual endpoints
   retained in the accessible range. Keep Thai Buddhist/English Gregorian years and Bangkok time.
 - Quote loading keeps the shell and one inline loading region inside the paper. Missing-selection
   and quote errors retain their existing recovery links; submit errors sit beside the action.
-  Keep sending labels/disabled behavior, change-time, 409 recovery with `conflict=1`, sign-in,
+  Keep sending labels/disabled behavior, back-to-time-selection, 409 recovery with `conflict=1`, sign-in,
   booking-detail/list and find-tutor links. The sidebar uses the global student booking total described below.
 - After submission, keep the same docket with the response status and created-response amounts.
   PENDING explicitly says **Awaiting tutor confirmation / รอติวเตอร์ยืนยัน**, with warm status styling;

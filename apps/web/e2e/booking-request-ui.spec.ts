@@ -137,7 +137,9 @@ async function expectNoOverflow(page: Page) {
   expect(overflow).toEqual([]);
 }
 
-test('quote loading retains the shell and does not show a zero amount', async ({ page }) => {
+test('quote loading retains the shell and does not show a zero amount', async ({
+  page,
+}, testInfo) => {
   let release = () => {};
   const gate = new Promise<void>((resolve) => {
     release = resolve;
@@ -150,6 +152,11 @@ test('quote loading retains the shell and does not show a zero amount', async ({
   await expect(page.getByRole('button', { name: 'Send lesson request' })).toHaveCount(0);
   release();
   await expect(page.getByText('Verified tutor', { exact: true })).toBeVisible();
+  await expect(page.locator('header a[href="/tutors"]')).toHaveCount(0);
+  await page.screenshot({
+    path: testInfo.outputPath('booking-request-actions.png'),
+    fullPage: true,
+  });
   expect(calls.reads).toHaveLength(2); // Existing quote effect runs twice under development StrictMode.
   expect(Array.from(calls.reads[0]?.searchParams.keys() ?? []).sort()).toEqual([
     'listingId',
@@ -195,7 +202,7 @@ for (const language of ['en', 'th'] as const) {
       );
       await expectNoOverflow(page);
       await page
-        .getByRole('link', { name: language === 'th' ? 'เปลี่ยนเวลา' : 'Change time' })
+        .getByRole('link', { name: language === 'th' ? 'ย้อนกลับ' : 'Back', exact: true })
         .focus();
       expect(
         await page.evaluate(() => getComputedStyle(document.activeElement as Element).outlineStyle),
@@ -378,7 +385,7 @@ for (const status of [500, 409, 401]) {
     await expect(page.locator('main').getByRole('alert')).toBeVisible();
     await expect(page.locator('[data-notebook-toast="error"]')).toHaveCount(1);
     await expect(page.getByRole('button', { name: 'Send lesson request' })).toBeEnabled();
-    await expect(page.getByRole('link', { name: 'Change time' })).toHaveAttribute(
+    await expect(page.getByRole('link', { name: 'Back', exact: true })).toHaveAttribute(
       'href',
       '/tutors/tutor%2Fpreview?listingId=course%2Fpreview',
     );

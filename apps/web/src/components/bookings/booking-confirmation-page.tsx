@@ -13,6 +13,7 @@ import { bookingRequestCopy } from '@/components/bookings/booking-request-copy';
 import { formatBangkokDateTime, getBookingErrorMessage } from '@/components/bookings/booking-ui';
 import { DashboardIcon } from '@/components/dashboard/dashboard-icon';
 import { NotebookHeading, PaperCard } from '@/components/ui/notebook';
+import { NotebookActionContent, notebookActionClass } from '@/components/ui/notebook-action';
 import { NotebookLoadingRegion } from '@/components/ui/notebook-loading';
 import { useNotebookToast } from '@/components/ui/notebook-toast';
 import { createBookingOnce, getBookingQuote } from '@/lib/api/bookings';
@@ -175,9 +176,11 @@ export default function BookingConfirmationPage() {
                   </button>
                   <Link
                     href={`/tutors/${encodeURIComponent(activeQuote.tutor.tutorId)}?listingId=${encodeURIComponent(activeQuote.listing.id)}`}
-                    className={styles.link}
+                    className={notebookActionClass({ role: 'student', tone: 'secondary' })}
                   >
-                    {text.changeTime}
+                    <NotebookActionContent icon={<DashboardIcon name="arrow-left" />}>
+                      {requestText.back}
+                    </NotebookActionContent>
                   </Link>
                 </div>
               </div>

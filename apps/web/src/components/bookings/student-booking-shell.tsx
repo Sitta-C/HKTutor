@@ -1,6 +1,5 @@
 'use client';
 
-import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 
 import DashboardShell from '@/components/dashboard/dashboard-shell';
@@ -44,11 +43,6 @@ export default function StudentBookingShell({ children }: { children: ReactNode 
         await logout();
         router.replace('/');
       }}
-      headerNavRight={
-        <Link href="/tutors" data-dashboard-action>
-          {copy.dashboard.header.findTutorCta}
-        </Link>
-      }
     >
       {children}
     </DashboardShell>
