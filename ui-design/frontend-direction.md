@@ -1,6 +1,6 @@
 # HKTutor frontend direction — Notebook Focus
 
-Updated 2026-10-08. This describes the implemented Notebook Focus direction and component
+Updated 2026-10-09. This describes the implemented Notebook Focus direction and component
 patterns in this repository. Maintainers review changes to shared design conventions through the
 normal PR process; this guide does not assert team approval of decisions from an individual chat.
 Read it as implementation context before UI work. The current task's explicit requirements take
@@ -506,3 +506,22 @@ Use the current `conversations` API and canonical tutor User ID. Do not add stud
   reads/memory; a latest-first/backward history contract should be assessed for S2-T20.
 - Current unread counts come directly from the inbox API and are not cleared by reading locally;
   GET history does not mark messages read. Do not add a global unread total from partial inbox pages.
+
+### Margin Inbox refinement (2026-10-09)
+
+The user requested a design-quality pass on the implemented screen. Keep the approved Margin Inbox
+structure and refine it directly: compact functional page title and sans-serif **Conversations**
+heading, aligned 72px pane headers, two-row contacts with time beside the name, preview/unread below,
+and participant-role avatar colors. Keep names accessible in full even when visually ellipsized.
+
+Use one visible refresh action in an open thread, refreshing both its history and the inbox. The
+index refresh remains available when choosing a conversation. Keep the manual-update hint in the
+thread header. The workspace measures the actual shell/header offset and viewport height (including
+visual-viewport resize), within 360–760px, rather than using fixed subtraction for each breakpoint.
+
+Limit the message stream to 52rem and bubbles to 34rem, bottom-align short histories, and tighten the
+gap for consecutive same-sender messages within three minutes on the same Bangkok date. Start the
+composer at one line, grow to 112px with native inner scrolling, and place the existing Send ticket
+beside the input. The compact Thai label is **ส่ง**, with the full **ส่งข้อความ** accessible name.
+Show limit/count guidance on focus, a nonempty draft or a send error. Keep latest-message navigation
+floating above the composer, existing drafts/reading offsets and the S2-T17/S2-T20 scope boundary.

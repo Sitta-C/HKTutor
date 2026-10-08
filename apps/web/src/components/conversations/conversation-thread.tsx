@@ -39,6 +39,7 @@ export function ConversationThread({
   onSending,
   onSent,
   onDraft,
+  onRefreshInbox,
 }: {
   conversation: ConversationSummary;
   user: AuthUser;
@@ -47,6 +48,7 @@ export function ConversationThread({
   onSending: (pending: boolean) => void;
   onSent: (message: ConversationMessage) => void;
   onDraft: (hasDraft: boolean) => void;
+  onRefreshInbox: () => void;
 }) {
   const { language } = useLanguage();
   const text = conversationCopy[language];
@@ -74,6 +76,8 @@ export function ConversationThread({
   const active = useRef(true);
   const transcript = useRef<HTMLDivElement>(null);
   const header = useRef<HTMLHeadingElement>(null);
+  const textarea = useRef<HTMLTextAreaElement>(null);
+  const [composing, setComposing] = useState(false);
   const restore = useRef(true);
   const requestPending = useRef(false);
   const name =
@@ -139,6 +143,32 @@ export function ConversationThread({
     };
   }, [id, memories, reloadKey, user.id]);
 
+  useEffect(() => {
+    const element = transcript.current;
+    if (!element) {
+      return;
+    }
+    const observer = new ResizeObserver(() => {
+      if (memory.current.loaded && memory.current.atLatest) {
+        element.scrollTop = element.scrollHeight;
+      }
+    });
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
+
+  useLayoutEffect(() => {
+    const input = textarea.current;
+    if (!input) {
+      return;
+    }
+    input.style.height = 'auto';
+    input.style.height = `${Math.min(112, Math.max(48, input.scrollHeight))}px`;
+    if (memory.current.atLatest && transcript.current) {
+      transcript.current.scrollTop = transcript.current.scrollHeight;
+    }
+  }, [view.draft]);
+
   useLayoutEffect(() => {
     const element = transcript.current;
     if (!element || !view.loaded) {
@@ -169,6 +199,7 @@ export function ConversationThread({
     }
     setLoading(true);
     setReloadKey((value) => value + 1);
+    onRefreshInbox();
   };
   const inaccessible =
     error !== null && ['expired', 'forbidden', 'missing'].includes(conversationErrorKey(error));
@@ -221,7 +252,15 @@ export function ConversationThread({
             {showDate && (
               <p className={styles.day}>{formatBangkokShortDate(message.sentAt, language)}</p>
             )}
-            <div className={styles.messageRow} data-own={message.senderId === user.id}>
+            <div
+              className={styles.messageRow}
+              data-own={message.senderId === user.id}
+              data-grouped={
+                !showDate &&
+                previous?.senderId === message.senderId &&
+                new Date(message.sentAt).getTime() - new Date(previous.sentAt).getTime() <= 180000
+              }
+            >
               <div className={styles.bubble}>
                 <p>{message.text}</p>
                 <time dateTime={message.sentAt}>{formatBangkokTime(message.sentAt, language)}</time>
@@ -249,18 +288,24 @@ export function ConversationThread({
           {Array.from(name)[0]}
         </span>
         <div className={styles.identity}>
-          <h2 id="conversation-name" ref={header} tabIndex={-1}>
+          <h2 id="conversation-name" ref={header} tabIndex={-1} title={name}>
             {name}
           </h2>
-          <p>{user.role === 'STUDENT' ? text.tutor : text.student}</p>
+          <p>
+            <span>{user.role === 'STUDENT' ? text.tutor : text.student}</span>
+            <span className={styles.manual}>{text.manual}</span>
+          </p>
         </div>
         <button
           type="button"
-          className={styles.quiet}
+          className={`${styles.quiet} ${styles.threadRefresh}`}
+          aria-label={text.refreshThread}
+          title={loading ? text.refreshing : text.refreshThread}
           onClick={refresh}
           disabled={loading || sending}
         >
-          {loading ? text.refreshing : text.refresh}
+          <DashboardIcon name="refresh" />
+          <span>{loading ? text.refreshing : text.refresh}</span>
         </button>
       </header>
       <div
@@ -307,10 +352,13 @@ export function ConversationThread({
         {view.loaded && view.items.length === 0 && (
           <p className={styles.state}>{text.noMessages}</p>
         )}
-        {messageHistory}
+        <div className={styles.messageHistory} data-message-history>
+          {messageHistory}
+        </div>
       </div>
       <form
         className={styles.composer}
+        data-expanded={composing || Boolean(view.draft) || sendError}
         onSubmit={(event) => {
           event.preventDefault();
           void send();
@@ -328,43 +376,46 @@ export function ConversationThread({
           <label htmlFor="chat-message">{text.compose}</label>
           {view.draft && <span>{text.draft}</span>}
         </div>
-        <textarea
-          id="chat-message"
-          rows={2}
-          value={view.draft}
-          placeholder={text.placeholder}
-          aria-describedby="chat-limit chat-counter"
-          aria-invalid={messageLength(view.draft) > 2000}
-          disabled={!view.loaded || sending || inaccessible}
-          onChange={(event) => {
-            commit({ ...memory.current, draft: event.target.value });
-            onDraft(Boolean(event.target.value));
-            setSendError(false);
-          }}
-        />
-        <div className={styles.composerFooter}>
-          <div>
-            <p id="chat-limit">{messageLength(view.draft) > 2000 ? text.tooLong : text.limit}</p>
-            <span id="chat-counter" data-over-limit={messageLength(view.draft) > 2000}>
-              {messageLength(view.draft)} / 2,000
-            </span>
-          </div>
+        <div className={styles.composeRow}>
+          <textarea
+            ref={textarea}
+            onFocus={() => setComposing(true)}
+            onBlur={() => setComposing(false)}
+            id="chat-message"
+            rows={1}
+            value={view.draft}
+            placeholder={text.placeholder}
+            aria-describedby="chat-limit chat-counter"
+            aria-invalid={messageLength(view.draft) > 2000}
+            disabled={!view.loaded || sending || inaccessible}
+            onChange={(event) => {
+              commit({ ...memory.current, draft: event.target.value });
+              onDraft(Boolean(event.target.value));
+              setSendError(false);
+            }}
+          />
           <NotebookAction
             type="submit"
+            aria-label={sending ? text.sending : text.send}
             role={user.role === 'STUDENT' ? 'student' : 'tutor'}
             icon={<DashboardIcon name="arrow-right" />}
             iconPosition="end"
             disabled={!view.loaded || !canSendMessage(view.draft) || sending || inaccessible}
           >
-            {sending ? text.sending : text.send}
+            {sending ? text.sending : text.sendLabel}
           </NotebookAction>
+        </div>
+        <div className={styles.composerFooter}>
+          <p id="chat-limit">{messageLength(view.draft) > 2000 ? text.tooLong : text.limit}</p>
+          <span id="chat-counter" data-over-limit={messageLength(view.draft) > 2000}>
+            {messageLength(view.draft)} / 2,000
+          </span>
         </div>
         {sendError && (
           <p className={styles.sendError} role="alert">
             {text.sendFailed}
           </p>
         )}
-        <p className={styles.manual}>{text.manual}</p>
       </form>
     </section>
   );

@@ -13,6 +13,7 @@ async function mockInbox(
     status?: number;
     language?: 'th' | 'en';
     empty?: boolean;
+    shortHistory?: boolean;
   } = {},
 ) {
   const role = options.role ?? 'STUDENT';
@@ -41,6 +42,34 @@ async function mockInbox(
     sentAt: new Date(Date.UTC(2026, 9, 8, 3, index)).toISOString(),
     readAt: null,
   }));
+  if (options.shortHistory) {
+    messages = [
+      {
+        messageId: 'short-1',
+        conversationId: 'pair-0',
+        senderId: owner,
+        text: 'สวัสดีครับ',
+        sentAt: '2026-10-08T03:00:00.000Z',
+        readAt: null,
+      },
+      {
+        messageId: 'short-2',
+        conversationId: 'pair-0',
+        senderId: owner,
+        text: 'อยากสอบถามเรื่องคอร์ส',
+        sentAt: '2026-10-08T03:01:00.000Z',
+        readAt: null,
+      },
+      {
+        messageId: 'short-3',
+        conversationId: 'pair-0',
+        senderId: 'other',
+        text: 'สอบถามได้เลยค่ะ',
+        sentAt: '2026-10-08T03:02:00.000Z',
+        readAt: null,
+      },
+    ];
+  }
   const calls: { method: string; path: string; body: unknown; after: string | null }[] = [];
   const unexpected: string[] = [];
   let sendGate: Promise<void> | undefined;
@@ -252,11 +281,11 @@ test('keeps drafts, reading position and index position across conversations; wo
   await expect(page.getByRole('button', { name: /Back to latest messages/ })).toBeVisible();
   const composerY = (await composer.boundingBox())?.y;
   await page.getByRole('button', { name: 'Back to conversations' }).click();
-  await page.getByRole('button', { name: /Teacher Praew 1 A question/ }).click();
+  await page.getByRole('button', { name: /Teacher Praew 1\b/ }).click();
   await expect(page.getByRole('textbox', { name: 'Your message' })).toHaveValue('');
   await page.getByRole('textbox', { name: 'Your message' }).fill('Separate draft');
   await page.getByRole('button', { name: 'Back to conversations' }).click();
-  await page.getByRole('button', { name: /Teacher Praew 0 Draft kept/ }).click();
+  await page.getByRole('button', { name: /Teacher Praew 0.*Draft kept/ }).click();
   await expect(composer).toHaveValue('Draft for Praew\n😀');
   await expect.poll(() => transcript.evaluate((element) => element.scrollTop)).toBe(180);
   expect((await composer.boundingBox())?.y).toBe(composerY);
@@ -280,7 +309,7 @@ test('preserves a reader while refreshing, then jumps only on request', async ({
   fixture.incoming();
   await page
     .locator('section[aria-labelledby="conversation-name"]')
-    .getByRole('button', { name: 'Refresh', exact: true })
+    .getByRole('button', { name: 'Refresh messages', exact: true })
     .click();
   await expect(page.getByRole('button', { name: /1 new messages/ })).toBeVisible();
   expect(await transcript.evaluate((element) => element.scrollTop)).toBe(180);
@@ -315,7 +344,7 @@ test('sends once, trims text, keeps the GET cursor and deduplicates the sent res
   ).toHaveCount(1);
   await page
     .locator('section[aria-labelledby="conversation-name"]')
-    .getByRole('button', { name: 'Refresh', exact: true })
+    .getByRole('button', { name: 'Refresh messages', exact: true })
     .click();
   await expect(page.getByText('New incoming while reading')).toBeVisible();
   await expect(
@@ -441,7 +470,7 @@ test('restores index scroll/focus and appends the next inbox page without losing
   expect(await index.evaluate((element) => element.scrollTop)).toBe(position);
   await page.getByRole('button', { name: 'More conversations' }).click();
   await expect(page.getByRole('button', { name: /Teacher Praew 24/ })).toHaveCount(1);
-  await page.getByRole('button', { name: /Teacher Praew 5 Draft kept/ }).click();
+  await page.getByRole('button', { name: /Teacher Praew 5.*Draft kept/ }).click();
   await expect(page.getByRole('textbox', { name: 'Your message' })).toHaveValue('Keep this draft');
   expect(fixture.unexpected).toEqual([]);
 });
@@ -475,3 +504,65 @@ test('lets a tutor reply while preserving the student nickname boundary', async 
   ).toHaveLength(0);
   expect(fixture.unexpected).toEqual([]);
 });
+
+for (const language of ['th', 'en'] as const) {
+  test(`${language} short conversations stay compact and keep composer inside the viewport`, async ({
+    page,
+  }, testInfo) => {
+    if (testInfo.project.name === 'mobile-chromium') {
+      await page.setViewportSize({ width: 320, height: 760 });
+    }
+    if (testInfo.project.name === 'chromium') {
+      await page.setViewportSize({ width: 1920, height: 1080 });
+    }
+    const fixture = await mockInbox(page, { language, shortHistory: true });
+    await page.goto('/dashboard/messages');
+    await page.getByRole('button', { name: /Teacher Praew 0/ }).click();
+    const input = page.getByRole('textbox', {
+      name: language === 'th' ? 'ข้อความของคุณ' : 'Your message',
+    });
+    await expect(input).toBeEnabled();
+    await expect(
+      page.getByRole('button', { name: language === 'th' ? 'รีเฟรชข้อความ' : 'Refresh messages' }),
+    ).toBeVisible();
+    await expect(page.getByRole('button', { name: /Refresh|รีเฟรช/ })).toHaveCount(1);
+    await page.evaluate(() => document.fonts.ready.then(() => undefined));
+    const form = page.locator('form');
+    expect((await form.boundingBox())?.height).toBeLessThanOrEqual(110);
+    const bounds = await form.boundingBox();
+    expect((bounds?.y ?? 0) + (bounds?.height ?? 0)).toBeLessThanOrEqual(
+      (page.viewportSize()?.height ?? 0) - 20,
+    );
+    await expect(page.locator('#chat-limit')).toBeHidden();
+    const history = page.locator('[data-message-history]');
+    expect((await history.boundingBox())?.width).toBeLessThanOrEqual(832);
+    if (testInfo.project.name === 'chromium') {
+      expect(
+        (await page.locator('#conversation-index-heading').boundingBox())?.height,
+      ).toBeLessThan(30);
+    }
+    await page.screenshot({
+      path: testInfo.outputPath(`margin-inbox-${language}.png`),
+      fullPage: true,
+    });
+    await page.locator('main').screenshot({
+      path: testInfo.outputPath(`margin-inbox-main-${language}.png`),
+    });
+    await input.fill('ข้อความหลายบรรทัด\n'.repeat(15));
+    await expect(page.locator('#chat-limit')).toBeVisible();
+    expect((await input.boundingBox())?.height).toBeLessThanOrEqual(112);
+    const viewport = page.viewportSize();
+    if (viewport) {
+      await page.setViewportSize({ ...viewport, height: viewport.height - 120 });
+    }
+    await expect
+      .poll(async () => {
+        const resized = await form.boundingBox();
+        return (resized?.y ?? 0) + (resized?.height ?? 0);
+      })
+      .toBeLessThanOrEqual((page.viewportSize()?.height ?? 0) - 20);
+    await expect(page.getByText('สอบถามได้เลยค่ะ', { exact: true })).toBeInViewport({ ratio: 1 });
+    await noOverflow(page);
+    expect(fixture.unexpected).toEqual([]);
+  });
+}

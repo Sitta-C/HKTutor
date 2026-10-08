@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { conversationCopy } from '@/components/conversations/conversation-copy';
 import { ConversationThread } from '@/components/conversations/conversation-thread';
@@ -12,7 +12,13 @@ import { notebookActionClass, NotebookActionContent } from '@/components/ui/note
 import { NotebookLoadingRegion } from '@/components/ui/notebook-loading';
 import { getConversations, openTutorConversation } from '@/lib/api/conversations';
 import { conversationErrorKey, mergeConversations } from '@/lib/conversation-model';
-import { formatBangkokShortDate } from '@/lib/date-time';
+import {
+  formatBangkokDateTime,
+  formatBangkokShortDate,
+  formatBangkokTime,
+  getBangkokIsoDate,
+  getBangkokToday,
+} from '@/lib/date-time';
 import { useLanguage } from '@/lib/i18n';
 
 import styles from './margin-inbox.module.css';
@@ -38,6 +44,8 @@ export function MarginInbox({ user, tutorId }: { user: AuthUser; tutorId: string
   const [sending, setSending] = useState(false);
   const [drafts, setDrafts] = useState<Record<string, boolean>>({});
   const [memories] = useState(() => new Map<string, ThreadMemory>());
+  const page = useRef<HTMLDivElement>(null);
+  const container = useRef<HTMLDivElement>(null);
   const list = useRef<HTMLDivElement>(null);
   const listPosition = useRef(0);
   const lastContact = useRef<HTMLButtonElement | null>(null);
@@ -48,6 +56,40 @@ export function MarginInbox({ user, tutorId }: { user: AuthUser; tutorId: string
     tutorId: string;
     request: Promise<OpenConversationResponse>;
   } | null>(null);
+
+  useEffect(() => {
+    const root = page.current;
+    const area = container.current;
+    if (!root || !area) {
+      return;
+    }
+    // Account for the actual shell/heading height, including translated text and sidebar resizing.
+    const measure = () => {
+      const top = area.getBoundingClientRect().top + window.scrollY;
+      const viewportHeight = window.visualViewport?.height ?? window.innerHeight;
+      const available = Math.max(360, Math.min(760, viewportHeight - top - 24));
+      area.style.setProperty('--chat-height', `${available}px`);
+    };
+    const observer = new ResizeObserver(measure);
+    observer.observe(root);
+    window.addEventListener('resize', measure);
+    window.visualViewport?.addEventListener('resize', measure);
+    measure();
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('resize', measure);
+      window.visualViewport?.removeEventListener('resize', measure);
+    };
+  }, []);
+
+  const refreshInbox = useCallback(() => {
+    if (listRequest.current || sending) {
+      return;
+    }
+    listRequest.current = true;
+    setLoading(true);
+    setReloadKey((value) => value + 1);
+  }, [sending]);
 
   useEffect(() => {
     mounted.current = true;
@@ -174,26 +216,23 @@ export function MarginInbox({ user, tutorId }: { user: AuthUser; tutorId: string
   };
 
   return (
-    <div className={styles.page} data-role={user.role}>
-      <NotebookHeading eyebrow={text.eyebrow} title={text.title} />
+    <div ref={page} className={styles.page} data-role={user.role}>
+      <NotebookHeading className={styles.heading ?? ''} eyebrow={text.eyebrow} title={text.title} />
       <p className={styles.intro}>{text.hint}</p>
-      <div className={styles.container}>
+      <div ref={container} className={styles.container}>
         <div className={styles.workspace} data-thread-open={Boolean(selected)}>
           <section className={styles.index} aria-labelledby="conversation-index-heading">
             <div className={styles.indexHeading}>
-              <h2 id="conversation-index-heading" className="font-note">
-                {text.inbox}
-              </h2>
+              <h2 id="conversation-index-heading">{text.inbox}</h2>
               <button
                 type="button"
-                className={styles.quiet}
+                className={`${styles.quiet} ${styles.indexRefresh}`}
+                aria-label={text.refreshInbox}
+                title={text.refreshInbox}
                 disabled={loading || sending}
-                onClick={() => {
-                  setLoading(true);
-                  setReloadKey((value) => value + 1);
-                }}
+                onClick={refreshInbox}
               >
-                {text.refresh}
+                <DashboardIcon name="refresh" />
               </button>
             </div>
             <div
@@ -262,26 +301,41 @@ export function MarginInbox({ user, tutorId }: { user: AuthUser; tutorId: string
                           {Array.from(name)[0]}
                         </span>
                         <span className={styles.contactBody}>
-                          <strong>{name}</strong>
-                          <span className={styles.preview}>
-                            {drafts[item.conversationId]
-                              ? text.draft
-                              : (item.lastMessage?.text ?? text.noPreview)}
+                          <span className={styles.contactTop}>
+                            <strong title={name}>{name}</strong>
+                            {item.lastMessage && (
+                              <time
+                                dateTime={item.lastMessage.sentAt}
+                                title={formatBangkokDateTime(item.lastMessage.sentAt, language)}
+                              >
+                                {getBangkokIsoDate(item.lastMessage.sentAt) === getBangkokToday()
+                                  ? formatBangkokTime(item.lastMessage.sentAt, language)
+                                  : formatBangkokShortDate(item.lastMessage.sentAt, language)}
+                              </time>
+                            )}
                           </span>
-                          {item.lastMessage && (
-                            <time dateTime={item.lastMessage.sentAt}>
-                              {formatBangkokShortDate(item.lastMessage.sentAt, language)}
-                            </time>
-                          )}
+                          <span className={styles.contactBottom}>
+                            <span
+                              className={styles.preview}
+                              data-draft={drafts[item.conversationId] || undefined}
+                            >
+                              {drafts[item.conversationId]
+                                ? text.draft
+                                : (item.lastMessage?.text ?? text.noPreview)}
+                            </span>
+                            {item.unreadCount > 0 && (
+                              <span
+                                className={styles.unread}
+                                aria-label={text.unread.replace(
+                                  '{count}',
+                                  String(item.unreadCount),
+                                )}
+                              >
+                                {item.unreadCount}
+                              </span>
+                            )}
+                          </span>
                         </span>
-                        {item.unreadCount > 0 && (
-                          <span
-                            className={styles.unread}
-                            aria-label={text.unread.replace('{count}', String(item.unreadCount))}
-                          >
-                            {item.unreadCount}
-                          </span>
-                        )}
                       </button>
                     </li>
                   );
@@ -310,6 +364,7 @@ export function MarginInbox({ user, tutorId }: { user: AuthUser; tutorId: string
               onBack={showInbox}
               onSending={setSending}
               onSent={sent}
+              onRefreshInbox={refreshInbox}
               onDraft={(hasDraft) =>
                 setDrafts((current) => ({ ...current, [selected.conversationId]: hasDraft }))
               }

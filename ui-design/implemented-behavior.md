@@ -399,3 +399,15 @@ remain S2-T20. Inbox unread counts are server values; opening/GET does not clear
 forward-only contract, initial reads/memory scale with full history length. Browser verification uses
 intercepted APIs (including two-page history, concurrent incoming, permissions and auth/profile gates)
 on desktop, 768px tablet and 320px/mobile. It does not verify a live database or migration rollout.
+
+The 2026-10-09 messaging refinement makes both pane headers 72px, uses compact page/index headings,
+and lays out contacts in two rows with localized last-message time/date and an accessible full date.
+Participant initials use their role color. With a thread open, the index refresh is hidden and the
+thread refresh checks both inbox and message history; closing it exposes index refresh again.
+Short message histories sit above the composer and the stream width is capped at 52rem. Consecutive
+same-sender messages within three minutes and one Bangkok date use a smaller gap. The textarea grows
+from 48px to 112px, then scrolls internally, with Send beside it. Limit/count instructions show when
+focused, a draft exists or sending fails; errors and full control names remain accessible. Workspace
+height uses the actual header offset and window/visual viewport size, with a 360px minimum for a
+usable transcript and 760px maximum. Very short/landscape viewports retain native page scrolling.
+Bilingual browser geometry checks include a 1920px screen and 320px mobile with a three-message thread.
