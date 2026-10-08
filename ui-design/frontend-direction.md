@@ -31,7 +31,8 @@ See [implemented frontend behavior](implemented-behavior.md) for detailed intera
   dashboard session Apricot, tutor dashboard Sky, student dashboard Mint, profile edit Butter,
   onboarding Lavender, availability Aqua, listing list Sand, new listing Rose, edit listing
   Periwinkle, booking list Pistachio, booking detail Dusty rose, booking confirmation Lemon,
-  tutor search Coral, and tutor detail Fog. Do not reuse a loading color for a new loading context.
+  tutor search Coral, tutor detail Fog, and messages Sage. Do not reuse a loading color for a new
+  loading context.
   The colors are scoped to loading notes; other implemented sticky-note components keep their colors.
 
 ## Information and actions
@@ -58,20 +59,21 @@ See [implemented frontend behavior](implemented-behavior.md) for detailed intera
 
 ## Selected patterns
 
-| Area                         | Implemented direction                                                                                                                                                | Implementation reference                                                                |
-| ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
-| Tutor dashboard              | Notebook Focus; teaching overview, pending requests, analytics, and course performance                                                                               | `apps/web/src/components/dashboard/tutor-dashboard.tsx`                                 |
-| Student dashboard            | **Desk Spread**: two notebook sheets joined by closely spaced wire loops; next booking and compact count strip on the left, booking-derived tutor index on the right | `apps/web/src/components/dashboard/student-dashboard.tsx` and its stylesheet            |
-| Student course search        | **Course Index**: left filter memo, continuous ruled course rows, grade tabs, yellow rate notes, and plain verification tags; mobile filters collapse                | `apps/web/src/components/tutors/tutor-search-page.tsx` and its stylesheet               |
-| Public tutor detail          | **Appointment Pad**: Profile Page above a course directory and mint-bound date/time pad; selected course remains visible above the ruled appointment rows            | `apps/web/src/components/tutors/public-tutor-availability.tsx` and its stylesheet       |
-| Course management            | **Course Ledger**: one compact count strip, status tabs/search, and continuous ruled rows with a binding margin; grade above subject, rate/date/actions below        | `apps/web/src/components/listings/tutor-listings-page.tsx` and its stylesheet           |
-| Past requests                | Hidden by default; blue bookmark-note switch shows them; pale paper/perforated styling keeps past rows readable                                                      | `apps/web/src/components/ui/bookmark-note-switch.tsx`, `notebook.module.css`            |
-| Course performance selection | **Subject Index** with a subject directory and stable subcolors; show all courses of the selected subject without pagination                                         | `apps/web/src/components/ui/subject-course-index.tsx` and its stylesheet                |
-| Course details               | One course expanded at a time, directly beneath the clicked row; clicking again collapses it, with a light height transition                                         | `apps/web/src/components/ui/subject-course-index.tsx`                                   |
-| Month selection              | **Ruler Reel**, a compact single horizontal row with native scrolling/snap; preserve its original compact height                                                     | `apps/web/src/components/date-time/month-ruler.tsx` and its stylesheet                  |
-| Availability summary         | **Ledger Strip**: two counts in one ruled-paper surface; blue open-time icon, warm booked-time icon, a small timezone tag in the footer                              | `apps/web/src/components/availability/availability-summary.tsx` and its stylesheet      |
-| Availability header          | No redundant “My courses” header button; course navigation remains in the existing shell                                                                             | `apps/web/src/components/availability/manage-tutor-availability.tsx`                    |
-| Availability ranges          | Continuous notebook rows across dates, binding margin, compact status/delete controls, and explicit ended state                                                      | `apps/web/src/components/availability/manage-tutor-availability.tsx` and its stylesheet |
+| Area                         | Implemented direction                                                                                                                                                  | Implementation reference                                                                |
+| ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| Private messages             | **Margin Inbox**: continuous conversation index and ruled transcript; single pane in narrow content areas, fixed composer and per-conversation drafts/reading position | `apps/web/src/components/conversations/`                                                |
+| Tutor dashboard              | Notebook Focus; teaching overview, pending requests, analytics, and course performance                                                                                 | `apps/web/src/components/dashboard/tutor-dashboard.tsx`                                 |
+| Student dashboard            | **Desk Spread**: two notebook sheets joined by closely spaced wire loops; next booking and compact count strip on the left, booking-derived tutor index on the right   | `apps/web/src/components/dashboard/student-dashboard.tsx` and its stylesheet            |
+| Student course search        | **Course Index**: left filter memo, continuous ruled course rows, grade tabs, yellow rate notes, and plain verification tags; mobile filters collapse                  | `apps/web/src/components/tutors/tutor-search-page.tsx` and its stylesheet               |
+| Public tutor detail          | **Appointment Pad**: Profile Page above a course directory and mint-bound date/time pad; selected course remains visible above the ruled appointment rows              | `apps/web/src/components/tutors/public-tutor-availability.tsx` and its stylesheet       |
+| Course management            | **Course Ledger**: one compact count strip, status tabs/search, and continuous ruled rows with a binding margin; grade above subject, rate/date/actions below          | `apps/web/src/components/listings/tutor-listings-page.tsx` and its stylesheet           |
+| Past requests                | Hidden by default; blue bookmark-note switch shows them; pale paper/perforated styling keeps past rows readable                                                        | `apps/web/src/components/ui/bookmark-note-switch.tsx`, `notebook.module.css`            |
+| Course performance selection | **Subject Index** with a subject directory and stable subcolors; show all courses of the selected subject without pagination                                           | `apps/web/src/components/ui/subject-course-index.tsx` and its stylesheet                |
+| Course details               | One course expanded at a time, directly beneath the clicked row; clicking again collapses it, with a light height transition                                           | `apps/web/src/components/ui/subject-course-index.tsx`                                   |
+| Month selection              | **Ruler Reel**, a compact single horizontal row with native scrolling/snap; preserve its original compact height                                                       | `apps/web/src/components/date-time/month-ruler.tsx` and its stylesheet                  |
+| Availability summary         | **Ledger Strip**: two counts in one ruled-paper surface; blue open-time icon, warm booked-time icon, a small timezone tag in the footer                                | `apps/web/src/components/availability/availability-summary.tsx` and its stylesheet      |
+| Availability header          | No redundant “My courses” header button; course navigation remains in the existing shell                                                                               | `apps/web/src/components/availability/manage-tutor-availability.tsx`                    |
+| Availability ranges          | Continuous notebook rows across dates, binding margin, compact status/delete controls, and explicit ended state                                                        | `apps/web/src/components/availability/manage-tutor-availability.tsx` and its stylesheet |
 
 The course selector evolved from Binder Drawer to Subject Index. Do not revert to the earlier
 paginated drawer or nested-folder proposal just because an older preview shows it. Request-list
@@ -475,3 +477,32 @@ See [NotebookToast action audit](notebook-toast-audit.md) for the completed acti
   description on subtle ruled lines. Stack the price beneath the subject when the preview column
   is narrow, including narrow desktop sidebars. Preserve actual profile data, live form updates,
   empty placeholders, and all publication statuses. Course Slip and Binder Preview remain unselected.
+
+## Private messages — Margin Inbox (S2-T17)
+
+The user selected **Margin Inbox** and approved its tablet/long-history/navigation refinements on
+2026-10-08. Students enter from **Ask the tutor** on a public tutor profile or **Messages** in the
+sidebar; tutors reply from their own inbox. No course, slot or booking is required to start chatting.
+Use the current `conversations` API and canonical tutor User ID. Do not add student discovery.
+
+- Keep one warm paper with a continuous contact index, ruled transcript, restrained role-colored
+  bubbles, Bangkok date separators and the shared Ink Tickets send action. Use mint for students
+  and blue for tutors. Switch to one pane at a content-container width of 760px, including tablets
+  and expanded desktop sidebars. Back restores index scroll and the selected contact's focus.
+- Scroll only the transcript/index inside the workspace. Keep the composer outside the transcript;
+  float the latest-message action above it so the input does not move while reading older messages.
+  Preserve each conversation's draft and reading position in memory while switching conversations.
+  Keep private drafts/history out of browser storage and reset them when the authenticated page
+  unmounts or changes user. The draft is not durable across reloads or navigation away from Messages.
+- Use actual API data, accessible native controls, bilingual copy, real pending/error states and
+  trimmed Unicode code-point limits (1–2,000). Guard duplicate submission while pending. On uncertain
+  send failures retain the draft and ask the user to refresh/check history before sending again;
+  the API has no client-send idempotency key, so never retry a failed send automatically.
+- This is the S2-T17 baseline: **Refresh** checks for new messages explicitly. S2-T20 still owns
+  automatic polling, read acknowledgements/receipts and incremental older-history UX. The current
+  API pages oldest-first, so initial open follows forward cursors to the end before exposing the
+  composer. Reopening/refreshed history uses the cached GET cursor. Keep that cursor separate from
+  send responses to avoid skipping concurrent incoming messages. Long histories take more initial
+  reads/memory; a latest-first/backward history contract should be assessed for S2-T20.
+- Current unread counts come directly from the inbox API and are not cleared by reading locally;
+  GET history does not mark messages read. Do not add a global unread total from partial inbox pages.

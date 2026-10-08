@@ -1,0 +1,477 @@
+import { expect, test } from '@playwright/test';
+
+import type { ConversationMessage, ConversationSummary } from '@/lib/api/types';
+import type { Page } from '@playwright/test';
+
+// Isolated browser fixtures: all API requests are intercepted; no private data or real sends.
+async function mockInbox(
+  page: Page,
+  options: {
+    role?: 'STUDENT' | 'TUTOR' | 'ADMIN';
+    guest?: boolean;
+    complete?: boolean;
+    status?: number;
+    language?: 'th' | 'en';
+    empty?: boolean;
+  } = {},
+) {
+  const role = options.role ?? 'STUDENT';
+  const owner = role === 'TUTOR' ? 'tutor' : 'student';
+  const summary = (index: number): ConversationSummary => ({
+    conversationId: `pair-${index}`,
+    createdAt: '2026-10-08T03:00:00.000Z',
+    otherParticipant: {
+      userId: `other-${index}`,
+      displayName: `${role === 'TUTOR' ? 'Mint' : 'Teacher Praew'} ${index}`,
+    },
+    unreadCount: index === 0 ? 2 : 0,
+    lastMessage: {
+      messageId: 'm-61',
+      senderId: 'other',
+      text: 'A question before booking',
+      sentAt: '2026-10-08T04:01:00.000Z',
+    },
+  });
+  const items = Array.from({ length: 25 }, (_, index) => summary(index));
+  let messages: ConversationMessage[] = Array.from({ length: 62 }, (_, index) => ({
+    messageId: `m-${index}`,
+    conversationId: 'pair-0',
+    senderId: index % 2 ? owner : 'other',
+    text: `History ${index}: review concepts and plan the lesson.`,
+    sentAt: new Date(Date.UTC(2026, 9, 8, 3, index)).toISOString(),
+    readAt: null,
+  }));
+  const calls: { method: string; path: string; body: unknown; after: string | null }[] = [];
+  const unexpected: string[] = [];
+  let sendGate: Promise<void> | undefined;
+  let sendFailure = false;
+  let historyStatus = options.status ?? 200;
+  await page.addInitScript(
+    (language) => localStorage.setItem('hktutor-language', language),
+    options.language ?? 'en',
+  );
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  if (!options.guest) {
+    await page
+      .context()
+      .addCookies([
+        { name: 'hktutor_refresh', value: 'chat-fixture', url: 'http://localhost:3000' },
+      ]);
+  }
+  await page.route('**/api/v1/**', async (route) => {
+    const request = route.request();
+    const url = new URL(request.url());
+    const path = url.pathname.replace('/api/v1', '');
+    const method = request.method();
+    if (path === '/auth/refresh') {
+      return route.fulfill({
+        status: options.guest ? 401 : 200,
+        json: options.guest
+          ? { message: 'No session' }
+          : {
+              accessToken: 'fixture-token',
+              user: { id: owner, role, email: 'chat@example.test', displayName: 'Mint' },
+            },
+      });
+    }
+    if (path === '/profiles/me') {
+      return route.fulfill({
+        json: {
+          role,
+          profileComplete: options.complete ?? true,
+          consentCurrent: true,
+          profile:
+            role === 'STUDENT'
+              ? {
+                  nickname: 'Mint',
+                  firstName: 'Mint',
+                  lastName: 'Fixture',
+                  school: 'School',
+                  gradeLevel: 'Grade 10',
+                  phone: '0812345678',
+                }
+              : {
+                  displayName: 'Teacher',
+                  bio: 'Teaching',
+                  experienceYears: 3,
+                  phone: '0812345678',
+                  verificationStatus: 'VERIFIED',
+                },
+        },
+      });
+    }
+    if (path === '/profiles/me/avatar') {
+      return route.fulfill({ json: { avatar: null } });
+    }
+    if (path === '/bookings/me') {
+      return route.fulfill({ json: { items: [], total: 0 } });
+    }
+    if (path === '/conversations' && method === 'GET') {
+      calls.push({ method, path, body: null, after: null });
+      return route.fulfill({
+        json: {
+          items: options.empty
+            ? []
+            : url.searchParams.has('cursor')
+              ? items.slice(20)
+              : items.slice(0, 20),
+          nextCursor: !options.empty && !url.searchParams.has('cursor') ? 'next' : null,
+        },
+      });
+    }
+    if (path === '/conversations' && method === 'POST') {
+      calls.push({ method, path, body: request.postDataJSON(), after: null });
+      return route.fulfill({
+        status: 200,
+        json: {
+          conversationId: 'pair-0',
+          participants: [
+            { userId: owner, role },
+            { userId: 'other-0', role: 'TUTOR' },
+          ],
+          createdAt: items[0]?.createdAt,
+        },
+      });
+    }
+    if (/^\/conversations\/pair-\d+\/messages$/.test(path)) {
+      const after = url.searchParams.get('afterMessageId');
+      calls.push({ method, path, body: method === 'POST' ? request.postDataJSON() : null, after });
+      if (method === 'POST') {
+        await sendGate;
+        if (sendFailure) {
+          return route.abort('failed');
+        }
+        const payload = request.postDataJSON() as { text: string };
+        const sent: ConversationMessage = {
+          messageId: 'sent',
+          conversationId: 'pair-0',
+          senderId: owner,
+          text: payload.text,
+          sentAt: '2026-10-08T05:00:00.000Z',
+          readAt: null,
+        };
+        messages.push(sent);
+        return route.fulfill({ status: 201, json: sent });
+      }
+      if (historyStatus !== 200) {
+        return route.fulfill({ status: historyStatus, json: { message: 'Private server detail' } });
+      }
+      const history = path.includes('pair-0') ? messages : [];
+      const offset = after ? history.findIndex((item) => item.messageId === after) + 1 : 0;
+      const result = history.slice(offset, offset + 50);
+      return route.fulfill({
+        json: {
+          items: result,
+          nextAfterMessageId: result.at(-1)?.messageId ?? after,
+          hasMore: offset + result.length < history.length,
+        },
+      });
+    }
+    if (path === '/auth/logout') {
+      return route.fulfill({ status: 204 });
+    }
+    if (path === '/tutors/other-0') {
+      return route.fulfill({
+        json: {
+          tutor: {
+            tutorId: 'other-0',
+            displayName: 'Teacher Praew 0',
+            experienceYears: 3,
+            bio: 'Math',
+            ratingAverage: null,
+            reviewCount: 0,
+            verificationStatus: 'VERIFIED',
+          },
+          listings: [],
+        },
+      });
+    }
+    if (path === '/tutors/other-0/availability') {
+      return route.fulfill({ json: [] });
+    }
+    unexpected.push(`${method} ${path}`);
+    return route.fulfill({ status: 404, json: { message: 'Unexpected fixture request' } });
+  });
+  return {
+    calls,
+    unexpected,
+    failSending: () => {
+      sendFailure = true;
+    },
+    gateSend: (gate: Promise<void>) => {
+      sendGate = gate;
+    },
+    historyStatus: (status: number) => {
+      historyStatus = status;
+    },
+    incoming: () => {
+      messages = [
+        ...messages,
+        {
+          messageId: 'incoming',
+          conversationId: 'pair-0',
+          senderId: 'other',
+          text: 'New incoming while reading',
+          sentAt: '2026-10-08T04:30:00.000Z',
+          readAt: null,
+        },
+      ];
+    },
+  };
+}
+
+async function openFirst(page: Page) {
+  await page.goto('/dashboard/messages');
+  await page.getByRole('button', { name: /Teacher Praew 0|Mint 0/ }).click();
+  await expect(page.getByText('History 61:', { exact: false })).toBeVisible();
+}
+
+async function noOverflow(page: Page) {
+  expect(
+    await page.evaluate(() => document.documentElement.scrollWidth - innerWidth),
+  ).toBeLessThanOrEqual(1);
+  expect(
+    await page.locator('main').evaluate((main) => main.scrollWidth - main.clientWidth),
+  ).toBeLessThanOrEqual(1);
+}
+
+test('keeps drafts, reading position and index position across conversations; works at 320px', async ({
+  page,
+}, testInfo) => {
+  if (testInfo.project.name === 'mobile-chromium') {
+    await page.setViewportSize({ width: 320, height: 760 });
+  }
+  const fixture = await mockInbox(page);
+  await openFirst(page);
+  const transcript = page.getByRole('region', { name: 'Conversation history', exact: true });
+  const composer = page.getByRole('textbox', { name: 'Your message' });
+  await composer.fill('Draft for Praew\n😀');
+  await transcript.evaluate((element) => {
+    element.scrollTop = 180;
+  });
+  await expect(page.getByRole('button', { name: /Back to latest messages/ })).toBeVisible();
+  const composerY = (await composer.boundingBox())?.y;
+  await page.getByRole('button', { name: 'Back to conversations' }).click();
+  await page.getByRole('button', { name: /Teacher Praew 1 A question/ }).click();
+  await expect(page.getByRole('textbox', { name: 'Your message' })).toHaveValue('');
+  await page.getByRole('textbox', { name: 'Your message' }).fill('Separate draft');
+  await page.getByRole('button', { name: 'Back to conversations' }).click();
+  await page.getByRole('button', { name: /Teacher Praew 0 Draft kept/ }).click();
+  await expect(composer).toHaveValue('Draft for Praew\n😀');
+  await expect.poll(() => transcript.evaluate((element) => element.scrollTop)).toBe(180);
+  expect((await composer.boundingBox())?.y).toBe(composerY);
+  await noOverflow(page);
+  expect(fixture.calls.filter((call) => call.path.endsWith('/read'))).toHaveLength(0);
+  expect(fixture.unexpected).toEqual([]);
+  await page.screenshot({
+    path: `/private/tmp/hktutor-chat-${testInfo.project.name}.png`,
+    fullPage: true,
+  });
+});
+
+test('preserves a reader while refreshing, then jumps only on request', async ({ page }) => {
+  const fixture = await mockInbox(page);
+  await openFirst(page);
+  const transcript = page.getByRole('region', { name: 'Conversation history', exact: true });
+  await transcript.evaluate((element) => {
+    element.scrollTop = 180;
+  });
+  await expect(page.getByRole('button', { name: /Back to latest messages/ })).toBeVisible();
+  fixture.incoming();
+  await page
+    .locator('section[aria-labelledby="conversation-name"]')
+    .getByRole('button', { name: 'Refresh', exact: true })
+    .click();
+  await expect(page.getByRole('button', { name: /1 new messages/ })).toBeVisible();
+  expect(await transcript.evaluate((element) => element.scrollTop)).toBe(180);
+  await page.getByRole('button', { name: /1 new messages/ }).click();
+  await expect(page.getByText('New incoming while reading')).toBeVisible();
+  await expect(page.getByRole('button', { name: /new messages/ })).toHaveCount(0);
+  expect(fixture.unexpected).toEqual([]);
+});
+
+test('sends once, trims text, keeps the GET cursor and deduplicates the sent response', async ({
+  page,
+}) => {
+  const fixture = await mockInbox(page);
+  await openFirst(page);
+  let release = () => {};
+  fixture.gateSend(
+    new Promise<void>((resolve) => {
+      release = resolve;
+    }),
+  );
+  await page.getByRole('textbox', { name: 'Your message' }).fill('  Question\n😀  ');
+  await page.getByRole('button', { name: 'Send', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Sending…', exact: true })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Back to conversations' })).toBeDisabled();
+  fixture.incoming();
+  release();
+  await expect(page.getByRole('textbox', { name: 'Your message' })).toHaveValue('');
+  await expect(
+    page
+      .getByRole('region', { name: 'Conversation history' })
+      .getByText('Question\n😀', { exact: true }),
+  ).toHaveCount(1);
+  await page
+    .locator('section[aria-labelledby="conversation-name"]')
+    .getByRole('button', { name: 'Refresh', exact: true })
+    .click();
+  await expect(page.getByText('New incoming while reading')).toBeVisible();
+  await expect(
+    page
+      .getByRole('region', { name: 'Conversation history' })
+      .getByText('Question\n😀', { exact: true }),
+  ).toHaveCount(1);
+  const sends = fixture.calls.filter(
+    (call) => call.method === 'POST' && call.path.endsWith('/messages'),
+  );
+  expect(sends).toHaveLength(1);
+  expect(sends[0]?.body).toEqual({ text: 'Question\n😀' });
+  expect(
+    fixture.calls.filter((call) => call.method === 'GET' && call.path.endsWith('/messages')).at(-1)
+      ?.after,
+  ).toBe('m-61');
+});
+
+test('keeps ambiguous-send drafts, rejects blank/over-limit input and treats message text as text', async ({
+  page,
+}) => {
+  const fixture = await mockInbox(page);
+  await openFirst(page);
+  const composer = page.getByRole('textbox', { name: 'Your message' });
+  const send = page.getByRole('button', { name: 'Send', exact: true });
+  await composer.fill('  \n ');
+  await expect(send).toBeDisabled();
+  await composer.fill('😀'.repeat(2001));
+  await expect(send).toBeDisabled();
+  await composer.fill('<img src=x onerror=alert(1)>');
+  fixture.failSending();
+  await send.click();
+  await expect(page.locator('form').getByRole('alert')).toContainText('Could not confirm sending');
+  await expect(composer).toHaveValue('<img src=x onerror=alert(1)>');
+  expect(fixture.calls.filter((call) => call.method === 'POST')).toHaveLength(1);
+  await page.waitForTimeout(250);
+  expect(fixture.calls.filter((call) => call.method === 'POST')).toHaveLength(1);
+});
+
+for (const status of [403, 404]) {
+  test(`handles ${status} without exposing details and can recover`, async ({ page }) => {
+    const fixture = await mockInbox(page, { status });
+    await page.goto('/dashboard/messages');
+    await page.getByRole('button', { name: /Teacher Praew 0/ }).click();
+    await expect(page.locator('main').getByRole('alert')).toContainText(
+      status === 403 ? 'do not have access' : 'no longer available',
+    );
+    await expect(page.getByRole('textbox', { name: 'Your message' })).toBeDisabled();
+    await expect(page.getByText('Private server detail')).toHaveCount(0);
+    await page.locator('form').dispatchEvent('submit');
+    expect(fixture.calls.filter((call) => call.method === 'POST')).toHaveLength(0);
+    fixture.historyStatus(200);
+    await page.getByRole('button', { name: 'Try again' }).click();
+    await expect(page.getByText('History 61:', { exact: false })).toBeVisible();
+  });
+}
+
+test('opens a canonical tutor conversation without a booking and uses Thai copy', async ({
+  page,
+}) => {
+  const fixture = await mockInbox(page, { language: 'th' });
+  await page.goto('/dashboard/messages?tutorId=other-0');
+  await expect(page.getByRole('textbox', { name: 'ข้อความของคุณ' })).toBeVisible();
+  await expect(page).toHaveURL(/\/dashboard\/messages$/);
+  expect(
+    fixture.calls
+      .filter((call) => call.method === 'POST' && call.path === '/conversations')
+      .every((call) => JSON.stringify(call.body) === JSON.stringify({ tutorId: 'other-0' })),
+  ).toBe(true);
+  expect(
+    fixture.calls.filter((call) => call.method === 'POST' && call.path.includes('booking')),
+  ).toHaveLength(0);
+  await noOverflow(page);
+});
+
+test('tutors reply from their own inbox and an empty inbox does not invent students', async ({
+  page,
+}) => {
+  const fixture = await mockInbox(page, { role: 'TUTOR', empty: true });
+  await page.goto('/dashboard/messages');
+  await expect(
+    page.getByText('Conversations appear here when a student contacts you.'),
+  ).toBeVisible();
+  expect(fixture.calls.filter((call) => call.method === 'POST')).toHaveLength(0);
+  await noOverflow(page);
+});
+
+for (const state of ['guest', 'admin', 'incomplete'] as const) {
+  test(`does not request chat data for ${state}`, async ({ page }) => {
+    const fixture = await mockInbox(page, {
+      guest: state === 'guest',
+      role: state === 'admin' ? 'ADMIN' : 'STUDENT',
+      complete: state !== 'incomplete',
+    });
+    await page.goto('/dashboard/messages?tutorId=other-0');
+    await expect(page).toHaveURL(
+      state === 'guest'
+        ? /\/?returnTo=/
+        : state === 'admin'
+          ? /\/dashboard$/
+          : /\/onboarding\/profile\?returnTo=/,
+    );
+    expect(fixture.calls).toEqual([]);
+  });
+}
+
+test('restores index scroll/focus and appends the next inbox page without losing drafts', async ({
+  page,
+}) => {
+  const fixture = await mockInbox(page);
+  await page.goto('/dashboard/messages');
+  const index = page.locator('[data-conversation-index-scroll]');
+  await expect(page.getByRole('button', { name: /Teacher Praew 5/ })).toHaveCount(1);
+  await index.evaluate((element) => {
+    element.scrollTop = 400;
+  });
+  const contact = page.getByRole('button', { name: /Teacher Praew 5/ });
+  const position = await index.evaluate((element) => element.scrollTop);
+  await contact.click();
+  await page.getByRole('textbox', { name: 'Your message' }).fill('Keep this draft');
+  await page.getByRole('button', { name: 'Back to conversations' }).click();
+  await expect(contact).toBeFocused();
+  expect(await index.evaluate((element) => element.scrollTop)).toBe(position);
+  await page.getByRole('button', { name: 'More conversations' }).click();
+  await expect(page.getByRole('button', { name: /Teacher Praew 24/ })).toHaveCount(1);
+  await page.getByRole('button', { name: /Teacher Praew 5 Draft kept/ }).click();
+  await expect(page.getByRole('textbox', { name: 'Your message' })).toHaveValue('Keep this draft');
+  expect(fixture.unexpected).toEqual([]);
+});
+
+test('opens chat through the tutor profile CTA without requiring a course or slot', async ({
+  page,
+}) => {
+  const fixture = await mockInbox(page);
+  await page.goto('/tutors/other-0');
+  await page.getByRole('link', { name: 'Ask the tutor' }).click();
+  await expect(page.getByRole('textbox', { name: 'Your message' })).toBeVisible();
+  expect(
+    fixture.calls.filter((call) => call.method === 'POST' && call.path === '/conversations'),
+  ).toHaveLength(1);
+  expect(fixture.unexpected).toEqual([]);
+});
+
+test('lets a tutor reply while preserving the student nickname boundary', async ({ page }) => {
+  const fixture = await mockInbox(page, { role: 'TUTOR' });
+  await openFirst(page);
+  await expect(page.getByRole('heading', { name: 'Mint 0', exact: true })).toBeVisible();
+  await page.getByRole('textbox', { name: 'Your message' }).fill('We can start with algebra.');
+  await page.getByRole('button', { name: 'Send', exact: true }).click();
+  await expect(
+    page
+      .getByRole('region', { name: 'Conversation history' })
+      .getByText('We can start with algebra.'),
+  ).toBeVisible();
+  expect(
+    fixture.calls.filter((call) => call.method === 'POST' && call.path === '/conversations'),
+  ).toHaveLength(0);
+  expect(fixture.unexpected).toEqual([]);
+});

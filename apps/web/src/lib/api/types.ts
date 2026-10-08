@@ -389,3 +389,37 @@ export interface CreatedAvailabilitySlot {
   startAtUtc: string;
   endAtUtc: string;
 }
+
+export interface ConversationSummary {
+  conversationId: string;
+  createdAt: string;
+  otherParticipant: { userId: string; displayName: string };
+  lastMessage: { messageId: string; senderId: string; text: string; sentAt: string } | null;
+  unreadCount: number;
+}
+
+export interface ConversationListResponse {
+  items: ConversationSummary[];
+  nextCursor: string | null;
+}
+
+export interface OpenConversationResponse {
+  conversationId: string;
+  participants: { userId: string; role: 'STUDENT' | 'TUTOR' }[];
+  createdAt: string;
+}
+
+export interface ConversationMessage {
+  messageId: string;
+  conversationId: string;
+  senderId: string;
+  text: string;
+  sentAt: string;
+  readAt: string | null;
+}
+
+export interface ConversationMessagesResponse {
+  items: ConversationMessage[];
+  nextAfterMessageId: string | null;
+  hasMore: boolean;
+}

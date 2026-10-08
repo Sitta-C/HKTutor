@@ -362,3 +362,40 @@ The controls wrap at 320px and retain labels, visible keyboard focus, pending/er
 live success notice. Saved photos appear in sidebar/account previews and the tutor course preview;
 eligible tutor photos also appear in public search/detail. Private signed URLs renew while pages
 stay open and when returning to a visible tab. Missing/failed images fall back to initials.
+
+## Private messaging (S2-T17)
+
+`/dashboard/messages` uses the shared authenticated Notebook Focus shell and **Margin Inbox**.
+Students can start from a tutor's public profile without a booking; guests retain this destination
+through login, and incomplete profiles/current-consent gates retain it through onboarding. Admins
+are redirected to their dashboard and never request conversation data. A failed profile check
+shows recovery rather than opening private chat. The server remains authoritative for role and
+participant access; 401/403/404 failures never expose raw API details.
+
+The list uses opaque API cursors with a More conversations action and deduplication. Contact names
+are the server's tutor display name or private student nickname; absent names use a localized role
+fallback. The selected thread displays plain text only, Bangkok date/time and role-colored bubbles.
+A content container at or below 760px shows the index or transcript separately. Back restores index
+scroll and contact focus. The transcript scrolls independently of the composer. Drafts, history,
+reading offsets and new-message counts are scoped to the mounted user's page, retained per
+conversation while switching, and never written to local/session storage.
+
+Initial history follows forward API pages of 50 to the end; unavailable history leaves the composer
+disabled and provides retry. Refresh loads after the last GET cursor. New messages append without
+moving a reader browsing older history, with a floating latest-message button; a reader already at
+the bottom follows the new messages. Cached reentry restores the reading position and checks for
+updates. Refresh failures retain fetched history. Switching conversations aborts their reads, and
+late send results are ignored after the authenticated view unmounts.
+
+The composer trims only when sending and validates 1–2,000 Unicode code points. Enter adds a line;
+submission uses the Send button/native form. While sending, disable the input, back and contact
+selection and guard repeated form submissions synchronously. Success clears the draft and displays
+the actual returned message plus NotebookToast. A failed/uncertain send retains the draft, shows
+inline and toast recovery and performs no automatic retry. The outgoing response never advances the
+GET cursor, preserving concurrent incoming messages for a later refresh, with ID deduplication.
+
+Automatic polling, mark-read commands, sent/read receipts and an incremental older-history interface
+remain S2-T20. Inbox unread counts are server values; opening/GET does not clear them. With the current
+forward-only contract, initial reads/memory scale with full history length. Browser verification uses
+intercepted APIs (including two-page history, concurrent incoming, permissions and auth/profile gates)
+on desktop, 768px tablet and 320px/mobile. It does not verify a live database or migration rollout.

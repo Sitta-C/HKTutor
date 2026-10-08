@@ -15,6 +15,7 @@ export type DashboardIconName =
   | 'inbox'
   | 'info'
   | 'listings'
+  | 'messages'
   | 'logout'
   | 'plus'
   | 'profile'
@@ -47,6 +48,7 @@ export function DashboardIcon({
         <path d="M10 21h4" />
       </>
     ),
+    messages: <path d="M20 11.5a8 8 0 0 1-8 8H4l1.8-4A8 8 0 1 1 20 11.5ZM8 10h8M8 14h5" />,
     bookings: (
       <>
         <rect x="5" y="4.5" width="14" height="16" rx="2" />
