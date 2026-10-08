@@ -8,7 +8,9 @@ import {
   IsUUID,
   Matches,
   Max,
+  MaxLength,
   Min,
+  MinLength,
 } from 'class-validator';
 
 import { Role } from '@generated/prisma/enums';
@@ -22,9 +24,12 @@ export const MESSAGE_TEXT_MAX_LENGTH = 2000;
 // @MaxLength counts some emoji differently, so a text could pass here and fail in the database.
 const MESSAGE_TEXT_MAX_LENGTH_PATTERN = new RegExp(`^[\\s\\S]{0,${MESSAGE_TEXT_MAX_LENGTH}}$`, 'u');
 
-export const DEFAULT_CONVERSATIONS_PAGE = 1;
-export const DEFAULT_CONVERSATIONS_PAGE_SIZE = 20;
-export const MAX_CONVERSATIONS_PAGE_SIZE = 100;
+export const DEFAULT_CONVERSATIONS_LIMIT = 20;
+export const MAX_CONVERSATIONS_LIMIT = 50;
+export const MAX_CONVERSATIONS_CURSOR_LENGTH = 512;
+
+export const DEFAULT_MESSAGES_PAGE_SIZE = 20;
+export const MAX_MESSAGES_PAGE_SIZE = 50;
 
 // The caller's role decides which key is required, so the service checks that, not this DTO.
 export class CreateConversationDto {
@@ -62,24 +67,51 @@ export class SendMessageDto {
 }
 
 export class GetMyConversationsQueryDto {
-  @ApiPropertyOptional({ default: DEFAULT_CONVERSATIONS_PAGE, example: 1, minimum: 1 })
+  @ApiPropertyOptional({
+    description: 'Opaque cursor from the previous page',
+    maxLength: MAX_CONVERSATIONS_CURSOR_LENGTH,
+  })
   @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  @Min(1)
-  page?: number;
+  @IsString()
+  @MinLength(1)
+  @MaxLength(MAX_CONVERSATIONS_CURSOR_LENGTH)
+  cursor?: string;
 
   @ApiPropertyOptional({
-    default: DEFAULT_CONVERSATIONS_PAGE_SIZE,
-    example: DEFAULT_CONVERSATIONS_PAGE_SIZE,
-    maximum: MAX_CONVERSATIONS_PAGE_SIZE,
+    default: DEFAULT_CONVERSATIONS_LIMIT,
+    example: DEFAULT_CONVERSATIONS_LIMIT,
+    maximum: MAX_CONVERSATIONS_LIMIT,
     minimum: 1,
   })
   @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(1)
-  @Max(MAX_CONVERSATIONS_PAGE_SIZE)
+  @Max(MAX_CONVERSATIONS_LIMIT)
+  limit?: number;
+}
+
+export class GetMessagesQueryDto {
+  @ApiPropertyOptional({
+    description:
+      'Return the messages sent after this one. Omit it to start from the first message.',
+    example: 'b7e4c1a2-5f6d-4e8b-9a0c-3d2f1e4b5a69',
+  })
+  @IsOptional()
+  @IsUUID()
+  afterMessageId?: string;
+
+  @ApiPropertyOptional({
+    default: DEFAULT_MESSAGES_PAGE_SIZE,
+    example: DEFAULT_MESSAGES_PAGE_SIZE,
+    maximum: MAX_MESSAGES_PAGE_SIZE,
+    minimum: 1,
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(MAX_MESSAGES_PAGE_SIZE)
   pageSize?: number;
 }
 
@@ -102,6 +134,50 @@ export class MessageResponseDto {
   @ApiProperty({
     description: 'Null until the other participant reads the message',
     example: null,
+    nullable: true,
+    type: String,
+  })
+  readAt!: string | null;
+}
+
+export class MessageHistoryResponseDto {
+  @ApiProperty({ description: 'Oldest first', type: [MessageResponseDto] })
+  items!: MessageResponseDto[];
+
+  @ApiProperty({
+    description:
+      'Send it back as afterMessageId to load the next page or poll for new messages: the last returned message, or the request cursor when nothing was returned',
+    example: 'b7e4c1a2-5f6d-4e8b-9a0c-3d2f1e4b5a69',
+    nullable: true,
+    type: String,
+  })
+  nextAfterMessageId!: string | null;
+
+  @ApiProperty({ description: 'More messages follow nextAfterMessageId', example: false })
+  hasMore!: boolean;
+}
+
+export class MarkMessagesReadDto {
+  @ApiPropertyOptional({
+    description:
+      'Mark only the messages up to and including this one. Omit it to mark every received message.',
+    example: 'b7e4c1a2-5f6d-4e8b-9a0c-3d2f1e4b5a69',
+  })
+  @IsOptional()
+  @IsUUID()
+  upToMessageId?: string;
+}
+
+export class MarkMessagesReadResponseDto {
+  @ApiProperty({
+    description: 'Messages this call marked read; 0 when they were already read',
+    example: 3,
+  })
+  updatedCount!: number;
+
+  @ApiProperty({
+    description: 'When this call marked them read, or null when it marked nothing',
+    example: '2026-09-30T08:10:00.000Z',
     nullable: true,
     type: String,
   })
@@ -164,12 +240,23 @@ export class ConversationSummaryDto {
 
   @ApiProperty({ nullable: true, type: ConversationLastMessageDto })
   lastMessage!: ConversationLastMessageDto | null;
+
+  @ApiProperty({
+    description: 'Messages from the other participant that the caller has not read',
+    example: 1,
+  })
+  unreadCount!: number;
 }
 
 export class MyConversationsResponseDto {
-  @ApiProperty({ type: [ConversationSummaryDto] })
+  @ApiProperty({ description: 'Latest activity first', type: [ConversationSummaryDto] })
   items!: ConversationSummaryDto[];
 
-  @ApiProperty({ example: 1 })
-  total!: number;
+  @ApiProperty({
+    description: 'Send it back as cursor to load the next page; null on the last page',
+    example: null,
+    nullable: true,
+    type: String,
+  })
+  nextCursor!: string | null;
 }

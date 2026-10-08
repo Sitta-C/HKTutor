@@ -19,7 +19,11 @@ import { Roles } from '@modules/auth/roles.decorator';
 import { RolesGuard } from '@modules/auth/roles.guard';
 import {
   CreateConversationDto,
+  GetMessagesQueryDto,
   GetMyConversationsQueryDto,
+  MarkMessagesReadDto,
+  MarkMessagesReadResponseDto,
+  MessageHistoryResponseDto,
   MessageResponseDto,
   MyConversationsResponseDto,
   OpenConversationResponseDto,
@@ -28,7 +32,9 @@ import {
 import { ConversationsService } from '@modules/conversations/conversations.service';
 import {
   ConversationsControllerDoc,
+  GetMessagesDoc,
   GetMyConversationsDoc,
+  MarkMessagesReadDoc,
   OpenConversationDoc,
   SendMessageDoc,
 } from '@modules/conversations/conversations.swagger';
@@ -76,6 +82,22 @@ export class ConversationsController {
     });
   }
 
+  @Get(':conversationId/messages')
+  @HttpCode(HttpStatus.OK)
+  @GetMessagesDoc()
+  @Roles(Role.STUDENT, Role.TUTOR)
+  async getMessages(
+    @Param('conversationId', UuidParamPipe) conversationId: string,
+    @Query() query: GetMessagesQueryDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<MessageHistoryResponseDto> {
+    return this.conversationsService.getMessages({
+      ...query,
+      conversationId,
+      userId: user.id,
+    });
+  }
+
   @Post(':conversationId/messages')
   @HttpCode(HttpStatus.CREATED)
   @SendMessageDoc()
@@ -89,6 +111,22 @@ export class ConversationsController {
       ...dto,
       conversationId,
       senderUserId: user.id,
+    });
+  }
+
+  @Post(':conversationId/read')
+  @HttpCode(HttpStatus.OK)
+  @MarkMessagesReadDoc()
+  @Roles(Role.STUDENT, Role.TUTOR)
+  async markMessagesRead(
+    @Param('conversationId', UuidParamPipe) conversationId: string,
+    @Body() dto: MarkMessagesReadDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<MarkMessagesReadResponseDto> {
+    return this.conversationsService.markMessagesRead({
+      ...dto,
+      conversationId,
+      userId: user.id,
     });
   }
 }
