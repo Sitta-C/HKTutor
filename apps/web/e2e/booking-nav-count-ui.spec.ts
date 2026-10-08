@@ -130,6 +130,12 @@ async function mockCount(page: Page, role: 'STUDENT' | 'TUTOR' | 'GUEST' = 'STUD
 
 const badge = (page: Page) => page.locator('[data-booking-nav-count]');
 
+async function openMobileSidebar(page: Page): Promise<void> {
+  if ((page.viewportSize()?.width ?? 1440) < 1024) {
+    await page.getByRole('button', { name: 'Open sidebar', exact: true }).click();
+  }
+}
+
 for (const width of [1440, 320]) {
   test(`one total survives client navigation and status filtering at ${width}px`, async ({
     page,
@@ -137,7 +143,7 @@ for (const width of [1440, 320]) {
     await page.setViewportSize({ width, height: 1000 });
     const state = await mockCount(page);
     await page.goto('/dashboard/profile');
-    if (width === 320) await page.getByRole('button', { name: 'Open sidebar' }).click();
+    await openMobileSidebar(page);
     await expect(badge(page)).toHaveText('137');
     await page.locator('#dashboard-sidebar a[href="/dashboard/bookings"]').click();
     await expect(page).toHaveURL(/\/dashboard\/bookings$/);
@@ -146,11 +152,11 @@ for (const width of [1440, 320]) {
       .getByRole('button', { name: 'Confirmed', exact: true })
       .click();
     await expect(page.locator('[data-booking-count]')).toContainText('2 bookings');
-    if (width === 320) await page.getByRole('button', { name: 'Open sidebar' }).click();
+    await openMobileSidebar(page);
     await expect(badge(page)).toHaveText('137');
     await page.locator('#dashboard-sidebar a[href="/dashboard/profile"]').click();
     await expect(page).toHaveURL(/\/dashboard\/profile$/);
-    if (width === 320) await page.getByRole('button', { name: 'Open sidebar' }).click();
+    await openMobileSidebar(page);
     state.total = 138;
     await page.evaluate(() => window.dispatchEvent(new Event('focus')));
     await expect(badge(page)).toHaveText('138');
@@ -163,10 +169,22 @@ test('reads total beyond the dashboard item limit, and refreshes after successfu
 }) => {
   const state = await mockCount(page);
   await page.goto('/dashboard');
+  await openMobileSidebar(page);
   await expect(badge(page)).toHaveText('137');
   await page.goto('/dashboard/bookings/new?listingId=course&slotId=slot');
+  await openMobileSidebar(page);
   await expect(badge(page)).toHaveText('137');
+  if ((page.viewportSize()?.width ?? 1440) < 1024) {
+    await page
+      .locator('#dashboard-sidebar')
+      .getByRole('button', { name: 'Close sidebar', exact: true })
+      .click();
+  }
   await page.getByRole('button', { name: 'Send lesson request', exact: true }).click();
+  await expect(
+    page.getByRole('heading', { name: 'Lesson request sent', exact: true }),
+  ).toBeVisible();
+  await openMobileSidebar(page);
   await expect(badge(page)).toHaveText('138');
   expect(state.total).toBe(138);
 });
@@ -175,6 +193,7 @@ test('errors stay unavailable; a successful empty refresh displays zero', async 
   const state = await mockCount(page);
   state.failure = true;
   await page.goto('/dashboard/profile');
+  await openMobileSidebar(page);
   await expect(badge(page)).toHaveText('—');
   await expect(badge(page)).toHaveAttribute('aria-busy', 'false');
   state.failure = false;

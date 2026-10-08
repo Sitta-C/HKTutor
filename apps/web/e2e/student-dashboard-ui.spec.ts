@@ -119,6 +119,7 @@ async function expectResponsiveShell(page: Page) {
       .locator('#dashboard-sidebar')
       .getByRole('button', { name: /^(Close sidebar|ปิดแถบข้าง)$/ })
       .click();
+    await expect(page.getByRole('button', { name: /^(Open sidebar|เปิดแถบข้าง)$/ })).toBeFocused();
   } else {
     await expect(page.locator('#dashboard-sidebar')).toBeVisible();
   }
@@ -225,6 +226,7 @@ test('right sheet paginates loaded tutors with keyboard and preserves original b
   await expect(link).toHaveCSS('transition-property', 'none');
   await expectResponsiveShell(page);
   await tutorLinks.nth(1).focus();
+  await expect(tutorLinks.nth(1)).toBeFocused();
   await page.keyboard.press('Enter');
   await expect(page).toHaveURL(/\/dashboard\/bookings\/booking-1$/);
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('Booking details');

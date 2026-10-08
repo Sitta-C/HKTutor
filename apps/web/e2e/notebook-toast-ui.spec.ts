@@ -308,6 +308,11 @@ for (const role of ['STUDENT', 'TUTOR'] as const) {
     }) => {
       const calls = await mockActions(page, { role, logoutFailure: failed });
       await page.goto('/dashboard/profile');
+      if ((page.viewportSize()?.width ?? 0) < 1024) {
+        await page
+          .getByRole('button', { name: translations.en.dashboard.sidebar.openSidebar, exact: true })
+          .click();
+      }
       await page
         .locator('#dashboard-sidebar')
         .getByRole('button', { name: 'Sign out', exact: true })

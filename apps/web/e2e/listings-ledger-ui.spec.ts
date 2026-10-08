@@ -177,7 +177,14 @@ test('preserves search, filtering, edit links and publication actions in the led
   await page.keyboard.press('Tab');
   await expect(dialog.getByRole('button', { name: /^(Publish|Archive)$/ })).toBeFocused();
   await page.keyboard.press('Tab');
-  await page.keyboard.press('Tab');
+  // Native Chromium dialogs can traverse browser chrome and the dialog before the first button.
+  if (await page.evaluate(() => document.activeElement === document.body)) {
+    await page.keyboard.press('Tab');
+  }
+  if (await dialog.evaluate((element) => document.activeElement === element)) {
+    await expect(dialog).toBeFocused();
+    await page.keyboard.press('Tab');
+  }
   await expect(dialog.getByRole('button', { name: 'Cancel', exact: true })).toBeFocused();
   await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
   await expect(math.getByRole('button', { name: 'Archive', exact: true })).toBeFocused();

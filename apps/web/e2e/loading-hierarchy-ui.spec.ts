@@ -79,8 +79,28 @@ async function mockAccount(
       });
     } else {
       await options.dataGate;
+      if (options.failData) {
+        await route.fulfill({ status: 500, json: { message: 'Preview data unavailable' } });
+        return;
+      }
+      if (
+        path === '/tutors/me/availability' ||
+        path === '/tutors/me/listings' ||
+        path === '/tutors/loading-example/availability'
+      ) {
+        await route.fulfill({ json: [] });
+        return;
+      }
+      if (
+        path === '/bookings/me/loading-example' ||
+        path === '/bookings/quote' ||
+        path === '/tutors/me/listings/loading-example' ||
+        path === '/tutors/loading-example'
+      ) {
+        await route.fulfill({ status: 404, json: { message: 'Preview record not found' } });
+        return;
+      }
       await route.fulfill({
-        status: options.failData ? 500 : 200,
         json: {
           items: [],
           total: 0,
@@ -162,7 +182,7 @@ for (const role of ['STUDENT', 'TUTOR'] as const) {
 test('student dashboard errors do not display empty counts', async ({ page }) => {
   await mockAccount(page, { role: 'STUDENT', failData: true });
   await page.goto('/dashboard');
-  await expect(page.getByRole('alert')).toBeVisible();
+  await expect(page.getByRole('main').getByRole('alert')).toBeVisible();
   await expect(page.locator('[data-loading-kind]')).toHaveCount(0);
   await expect(page.getByRole('region', { name: 'Booking overview', exact: true })).toHaveCount(0);
 });
