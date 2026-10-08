@@ -102,7 +102,9 @@ test('adds profile onboarding/edit pages and redirects verified users to onboard
   assert.match(editor, /<Identity/);
   assert.match(editor, /onboardingNoteTitle/);
   assert.match(editor, /secondaryDetail/);
-  assert.match(editor, /statusTone/);
+  assert.match(editor, /<dt[^>]*>{text\.accountEmail}<\/dt>/);
+  assert.match(editor, /<dt[^>]*>{text\.profileStatus}<\/dt>/);
+  assert.match(editor, /<StatusBadge\s+tone={complete \? 'student' : 'warning'}/);
   assert.doesNotMatch(editor, /label={text\.privacyNotice}/);
   assert.match(
     editor,

@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   addIsoDays,
   formatBangkokDate,
+  formatBangkokDateParts,
   formatBangkokDateRange,
   formatBangkokDateTime,
   formatBangkokWeekRange,
@@ -16,6 +17,15 @@ import {
 } from '@/lib/date-time';
 
 describe('localized calendars', () => {
+  it('splits calendar tiles using the Bangkok day and localized calendar year', () => {
+    const instant = '2026-12-31T18:00:00Z';
+    expect(formatBangkokDateParts(instant, 'en')).toEqual({ day: '1', month: 'Jan', year: '2027' });
+    expect(formatBangkokDateParts(instant, 'th')).toEqual({
+      day: '1',
+      month: 'ม.ค.',
+      year: '2570',
+    });
+  });
   it('shows Gregorian years in English and Buddhist years in Thai', () => {
     const instant = new Date('2026-09-12T18:00:00.000Z');
 

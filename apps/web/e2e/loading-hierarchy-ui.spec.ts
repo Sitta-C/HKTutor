@@ -148,10 +148,11 @@ for (const role of ['STUDENT', 'TUTOR'] as const) {
         ),
       ).toBeVisible();
       await expectShellVisible(page);
-      if (role === 'STUDENT') await expect(page.locator('.dash-summary-student')).toHaveCount(0);
+      const studentSummary = page.getByRole('region', { name: 'Booking overview', exact: true });
+      if (role === 'STUDENT') await expect(studentSummary).toHaveCount(0);
       data.release();
       await expect(page.locator('[data-loading-kind]')).toHaveCount(0);
-      if (role === 'STUDENT') await expect(page.locator('.dash-summary-student')).toBeVisible();
+      if (role === 'STUDENT') await expect(studentSummary).toBeVisible();
     } finally {
       data.release();
     }
@@ -163,7 +164,7 @@ test('student dashboard errors do not display empty counts', async ({ page }) =>
   await page.goto('/dashboard');
   await expect(page.getByRole('alert')).toBeVisible();
   await expect(page.locator('[data-loading-kind]')).toHaveCount(0);
-  await expect(page.locator('.dash-summary-student')).toHaveCount(0);
+  await expect(page.getByRole('region', { name: 'Booking overview', exact: true })).toHaveCount(0);
 });
 
 for (const route of [
@@ -183,7 +184,7 @@ for (const route of [
     });
     try {
       await page.goto(route);
-      await expect(page.locator('[data-loading-region]').first()).toBeVisible();
+      await expect(page.locator('[data-loading-region]:visible').first()).toBeVisible();
       await expect(page.locator('[data-loading-kind]')).toHaveCount(0);
       await expectShellVisible(page);
     } finally {

@@ -1,11 +1,14 @@
 export const tutorSearchCopy = {
   en: {
     eyebrow: 'Tutor search',
-    title: 'Find an exact match',
+    title: 'Find the course for you',
     subtitle:
       'Filter published listings from verified tutors by subject, grade, maximum budget and minimum rating.',
     student: 'Student',
     filters: 'Filters',
+    showFilters: 'Show filters',
+    hideFilters: 'Hide filters',
+    signIn: 'Sign in',
     filtersHint: 'All selected filters are combined.',
     subject: 'Subject',
     allSubjects: 'All subjects',
@@ -19,7 +22,7 @@ export const tutorSearchCopy = {
     apply: 'Apply filters',
     clear: 'Clear',
     clearAllFilters: 'Clear all filters',
-    exactMatches: 'exact matches',
+    exactMatches: 'matching courses',
     page: 'Page',
     pageOf: 'of',
     previousPage: 'Previous',
@@ -29,8 +32,8 @@ export const tutorSearchCopy = {
     anyBudget: 'Any budget',
     upTo: 'up to',
     ratingSummary: 'rating',
-    verifiedOnly: 'VERIFIED TUTORS ONLY',
-    verified: 'VERIFIED',
+    verifiedOnly: 'Verified tutors only',
+    verified: 'Verified',
     loading: 'Loading tutors…',
     loadingCatalog: 'Loading subjects and grade levels…',
     catalogError: 'Subject and grade options are temporarily unavailable.',
@@ -46,15 +49,18 @@ export const tutorSearchCopy = {
     hour: 'hour',
     viewTimes: 'View times',
     cardNote:
-      "Each card represents one matching teaching listing. Prices and subjects are never mixed across a tutor's other listings.",
+      "Each row represents one matching course. Prices and subjects are never mixed across a tutor's other listings.",
   },
   th: {
     eyebrow: 'ค้นหาติวเตอร์',
-    title: 'ค้นหาติวเตอร์ที่ตรงกับคุณ',
+    title: 'ค้นหาคอร์สที่ตรงกับคุณ',
     subtitle:
       'กรองคอร์สที่เผยแพร่จากติวเตอร์ที่ผ่านการยืนยันแล้ว ตามวิชา ระดับชั้น งบสูงสุด และคะแนนขั้นต่ำ',
     student: 'นักเรียน',
     filters: 'ตัวกรอง',
+    showFilters: 'เปิดตัวกรอง',
+    hideFilters: 'ย่อตัวกรอง',
+    signIn: 'เข้าสู่ระบบ',
     filtersHint: 'ระบบจะใช้ตัวกรองที่เลือกทั้งหมดร่วมกัน',
     subject: 'วิชา',
     allSubjects: 'ทุกวิชา',
@@ -68,7 +74,7 @@ export const tutorSearchCopy = {
     apply: 'ใช้ตัวกรอง',
     clear: 'ล้าง',
     clearAllFilters: 'ล้างตัวกรองทั้งหมด',
-    exactMatches: 'ผลลัพธ์ที่ตรงกัน',
+    exactMatches: 'คอร์สที่ตรงกัน',
     page: 'หน้า',
     pageOf: 'จาก',
     previousPage: 'ก่อนหน้า',
@@ -95,7 +101,7 @@ export const tutorSearchCopy = {
     hour: 'ชั่วโมง',
     viewTimes: 'ดูเวลาว่าง',
     cardNote:
-      'แต่ละการ์ดแทนหนึ่งคอร์สที่ตรงกับตัวกรอง ราคาและวิชาจะไม่ถูกนำมาปะปนกับคอร์สอื่นของติวเตอร์คนเดียวกัน',
+      'แต่ละรายการแทนหนึ่งคอร์สที่ตรงกับตัวกรอง ราคาและวิชาจะไม่ถูกนำมาปะปนกับคอร์สอื่นของติวเตอร์คนเดียวกัน',
   },
 } as const;
 

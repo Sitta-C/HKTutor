@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+import { DashboardIcon } from '@/components/dashboard/dashboard-icon';
 import { ProfileAvatar } from '@/components/profile/profile-avatar';
 import { tutorSearchCopy } from '@/components/tutors/tutor-search-copy';
 import {
@@ -13,15 +14,18 @@ import {
   validateTutorSearch,
 } from '@/components/tutors/tutor-search-model';
 import {
-  GraphPaper,
   NotebookHeading,
   PaperCard,
   StatusBadge,
-  WashiTape,
-  notebookButtonClass,
   notebookInputClass,
 } from '@/components/ui/notebook';
+import {
+  NotebookAction,
+  NotebookActionContent,
+  notebookActionClass,
+} from '@/components/ui/notebook-action';
 import { NotebookLoadingRegion } from '@/components/ui/notebook-loading';
+import { NotebookSelect } from '@/components/ui/notebook-select';
 import {
   TUTOR_SEARCH_PAGE_SIZE,
   getGradeLevelCatalog,
@@ -30,6 +34,9 @@ import {
 } from '@/lib/api/tutors';
 import { formatBangkokDateTime } from '@/lib/date-time';
 import { useLanguage } from '@/lib/i18n';
+
+import styles from './tutor-search-page.module.css';
+import paginationStyles from './tutor-search-pagination.module.css';
 
 import type { TutorSearchCopy } from '@/components/tutors/tutor-search-copy';
 import type { TutorSearchErrors, TutorSearchForm } from '@/components/tutors/tutor-search-model';
@@ -67,6 +74,8 @@ export default function TutorSearchPage() {
   const [status, setStatus] = useState<SearchStatus>('loading');
   const [hasSearchError, setHasSearchError] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<TutorSearchErrors>({});
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const filterToggle = useRef<HTMLButtonElement>(null);
   const requestId = useRef(0);
   const controller = useRef<AbortController | null>(null);
 
@@ -162,10 +171,19 @@ export default function TutorSearchPage() {
       controller.current?.abort();
       setResults([]);
       setStatus('validation');
+      setFiltersOpen(true);
+      const filterForm = event.currentTarget;
+      requestAnimationFrame(() => {
+        filterForm.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus();
+      });
       return;
     }
 
     setFieldErrors({});
+    setFiltersOpen(false);
+    if (filterToggle.current?.offsetParent !== null) {
+      filterToggle.current?.focus();
+    }
     void executeSearch({
       ...toTutorSearchQuery(form),
       page: 1,
@@ -190,178 +208,189 @@ export default function TutorSearchPage() {
   const resultSummary = formatTutorSearchSummary(form, text);
 
   return (
-    <div className="mx-auto max-w-[1120px] py-8 lg:py-10">
-      <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
-        <NotebookHeading eyebrow={text.eyebrow} title={text.title} description={text.subtitle} />
-        <StatusBadge tone="student" className="mb-1">
-          <span className="mr-1.5 h-1.5 w-1.5 rounded-full bg-student-deep" aria-hidden="true" />
-          {text.student}
-        </StatusBadge>
-      </div>
+    <div className={styles.page}>
+      <NotebookHeading
+        eyebrow={text.eyebrow}
+        title={text.title}
+        description={text.subtitle}
+        className={styles.heading ?? ''}
+      />
 
-      <div className="grid gap-6 lg:grid-cols-[minmax(18rem,22rem)_minmax(0,1fr)]">
-        <PaperCard
-          id="tutor-search-filters"
-          className="relative h-fit overflow-hidden p-5 shadow-[0_8px_20px_-12px_rgba(46,39,25,0.1)] sm:p-6"
-        >
-          <WashiTape tone="yellow" className="-left-5 -top-2 -rotate-12" />
-          <div className="relative z-10 mb-5 flex items-start justify-between gap-3">
-            <div>
-              <h2 className="font-note text-2xl font-bold tracking-[-0.03em]">{text.filters}</h2>
-              <p className="mt-1 text-sm text-notebook-muted">{text.filtersHint}</p>
-            </div>
-            <StatusBadge tone="student">{filterCount}</StatusBadge>
-          </div>
-
-          {catalogLoading && (
-            <NotebookLoadingRegion label={text.loadingCatalog} presentation="text" />
-          )}
-          {catalogError && (
-            <p
-              className="mb-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800"
-              role="alert"
+      <div className={styles.layout}>
+        <PaperCard id="tutor-search-filters" className={styles.filters}>
+          <div className={styles.filterHeading}>
+            <h2>{text.filters}</h2>
+            <StatusBadge tone="student" className={styles.tag ?? ''}>
+              {filterCount}
+            </StatusBadge>
+            <button
+              type="button"
+              className={styles.filterToggle}
+              ref={filterToggle}
+              aria-expanded={filtersOpen}
+              aria-controls="tutor-search-filter-fields"
+              onClick={() => setFiltersOpen((open) => !open)}
             >
-              {text.catalogError}
-            </p>
-          )}
-
-          <form className="space-y-5" onSubmit={handleSubmit} noValidate>
-            <SelectField
-              id="tutor-search-subject"
-              label={text.subject}
-              value={form.subject}
-              onChange={(value) => updateField('subject', value)}
-              options={subjects.map((item) => ({ label: item.name, value: item.name }))}
-              placeholder={text.allSubjects}
-              disabled={catalogLoading || catalogError}
-              error={fieldErrors.subject}
-            />
-            <SelectField
-              id="tutor-search-grade"
-              label={text.grade}
-              value={form.grade}
-              onChange={(value) => updateField('grade', value)}
-              options={gradeLevels.map((item) => ({ label: item.name, value: item.name }))}
-              placeholder={text.allGrades}
-              disabled={catalogLoading || catalogError}
-              error={fieldErrors.grade}
-            />
-            <NumberField
-              id="tutor-search-max-price"
-              label={text.maxPrice}
-              value={form.maxPrice}
-              onChange={(value) => updateField('maxPrice', value)}
-              min="0"
-              step="50"
-              hint={text.maxPriceHint}
-              error={fieldErrors.maxPrice}
-            />
-            <SelectField
-              id="tutor-search-min-rating"
-              label={text.minimumRating}
-              value={form.minimumRating}
-              onChange={(value) => updateField('minimumRating', value)}
-              options={tutorRatingOptions.map((value) => ({
-                label: `${value.toFixed(1)}+`,
-                value: String(value),
-              }))}
-              placeholder={text.anyRating}
-              hint={text.ratingHint}
-              error={fieldErrors.minimumRating}
-            />
-            <div className="flex flex-wrap gap-3 pt-1">
-              <button
-                type="submit"
-                className={notebookButtonClass()}
-                disabled={status === 'loading'}
-              >
-                {text.apply}
-              </button>
-              <button
-                type="button"
-                className={notebookButtonClass({ tone: 'secondary' })}
-                onClick={clearFilters}
-              >
-                {text.clear}
-              </button>
-            </div>
-          </form>
+              {filtersOpen ? text.hideFilters : text.showFilters}
+              <span aria-hidden="true">{filtersOpen ? '−' : '+'}</span>
+            </button>
+          </div>
+          <div
+            id="tutor-search-filter-fields"
+            className={styles.filterBody}
+            data-open={filtersOpen}
+          >
+            <p className={styles.filterHint}>{text.filtersHint}</p>
+            {catalogLoading && (
+              <NotebookLoadingRegion label={text.loadingCatalog} presentation="text" />
+            )}
+            {catalogError && (
+              <p className={styles.catalogError} role="alert">
+                {text.catalogError}
+              </p>
+            )}
+            <form className={styles.form} onSubmit={handleSubmit} noValidate>
+              <SelectField
+                id="tutor-search-subject"
+                label={text.subject}
+                value={form.subject}
+                onChange={(value) => updateField('subject', value)}
+                options={subjects.map((item) => ({ label: item.name, value: item.name }))}
+                placeholder={text.allSubjects}
+                disabled={catalogLoading || catalogError}
+                error={fieldErrors.subject}
+              />
+              <SelectField
+                id="tutor-search-grade"
+                label={text.grade}
+                value={form.grade}
+                onChange={(value) => updateField('grade', value)}
+                options={gradeLevels.map((item) => ({ label: item.name, value: item.name }))}
+                placeholder={text.allGrades}
+                disabled={catalogLoading || catalogError}
+                error={fieldErrors.grade}
+              />
+              <NumberField
+                id="tutor-search-max-price"
+                label={text.maxPrice}
+                value={form.maxPrice}
+                onChange={(value) => updateField('maxPrice', value)}
+                min="0"
+                step="50"
+                hint={text.maxPriceHint}
+                error={fieldErrors.maxPrice}
+              />
+              <SelectField
+                id="tutor-search-min-rating"
+                label={text.minimumRating}
+                value={form.minimumRating}
+                onChange={(value) => updateField('minimumRating', value)}
+                options={tutorRatingOptions.map((value) => ({
+                  label: `${value.toFixed(1)}+`,
+                  value: String(value),
+                }))}
+                placeholder={text.anyRating}
+                hint={text.ratingHint}
+                error={fieldErrors.minimumRating}
+              />
+              <div className={styles.filterActions}>
+                <NotebookAction
+                  type="submit"
+                  role="student"
+                  size="compact"
+                  icon={<DashboardIcon name="search" />}
+                  disabled={status === 'loading'}
+                  aria-busy={status === 'loading'}
+                >
+                  {text.apply}
+                </NotebookAction>
+                <NotebookAction
+                  role="student"
+                  tone="quiet"
+                  size="compact"
+                  icon={<ClearIcon />}
+                  onClick={clearFilters}
+                >
+                  {text.clear}
+                </NotebookAction>
+              </div>
+            </form>
+          </div>
         </PaperCard>
 
-        <section aria-live="polite">
-          <PaperCard className="relative overflow-hidden shadow-[0_8px_20px_-12px_rgba(46,39,25,0.1)]">
-            <WashiTape tone="pink" className="-right-5 top-3 rotate-12" />
-            <div className="flex flex-wrap items-end justify-between gap-3 border-b border-dashed border-paper-edge px-5 py-5 sm:px-6">
-              <div>
-                <h2 className="font-note text-3xl font-bold tracking-[-0.04em]">
-                  {status === 'success' ? pagination.total : '—'} {text.exactMatches}
-                </h2>
-                <p className="mt-1 text-sm text-notebook-muted">{resultSummary}</p>
-                {status === 'loading' && (
-                  <p className="mt-1 text-sm text-notebook-muted">{text.loading}</p>
-                )}
-              </div>
-              <StatusBadge tone="student" className="tracking-[0.08em]">
-                {text.verifiedOnly}
-              </StatusBadge>
+        <PaperCard className={styles.results} aria-live="polite" aria-busy={status === 'loading'}>
+          <div className={styles.resultHeading}>
+            <div>
+              <h2>
+                {status === 'success' ? pagination.total : '—'} {text.exactMatches}
+              </h2>
+              <p>{resultSummary}</p>
             </div>
-
-            <div className="space-y-4 p-5 sm:p-6">
-              {status === 'error' && hasSearchError && (
-                <SearchState tone="error" message={text.searchError} />
-              )}
-              {status === 'validation' && (
-                <SearchState tone="error" message={text.validationError} />
-              )}
-              {status === 'loading' && <SearchState tone="loading" message={text.loading} />}
-              {status === 'success' && results.length === 0 && (
-                <SearchState
-                  tone="empty"
-                  message={text.noMatches}
-                  hint={text.noMatchesHint}
-                  clearLabel={text.clearAllFilters}
-                  onClear={clearFilters}
+            <StatusBadge tone="student" className={styles.tag ?? ''}>
+              {text.verifiedOnly}
+            </StatusBadge>
+          </div>
+          <div className={styles.resultBody}>
+            {status === 'error' && hasSearchError && (
+              <SearchState tone="error" message={text.searchError} />
+            )}
+            {status === 'validation' && <SearchState tone="error" message={text.validationError} />}
+            {status === 'loading' && <SearchState tone="loading" message={text.loading} />}
+            {status === 'success' && results.length === 0 && (
+              <SearchState
+                tone="empty"
+                message={text.noMatches}
+                hint={text.noMatchesHint}
+                clearLabel={text.clearAllFilters}
+                onClear={clearFilters}
+              />
+            )}
+            {status === 'success' &&
+              results.map((result) => (
+                <TutorResultCard
+                  key={result.listingId}
+                  result={result}
+                  text={text}
+                  language={language}
                 />
-              )}
-              {status === 'success' &&
-                results.length > 0 &&
-                results.map((result) => (
-                  <TutorResultCard
-                    key={result.listingId}
-                    result={result}
-                    text={text}
-                    language={language}
-                  />
-                ))}
-              {status === 'success' && pagination.totalPages > 1 && (
-                <nav
-                  className="flex flex-wrap items-center justify-between gap-3 border-t border-dashed border-paper-edge pt-5"
-                  aria-label={`${text.page} ${pagination.page} ${text.pageOf} ${pagination.totalPages}`}
+              ))}
+          </div>
+          {status === 'success' && pagination.totalPages > 1 && (
+            <nav
+              className={paginationStyles.pagination}
+              aria-label={`${text.page} ${pagination.page} ${text.pageOf} ${pagination.totalPages}`}
+            >
+              <span
+                className={paginationStyles.paginationCount}
+                aria-current="page"
+                aria-live="polite"
+              >
+                {text.page} {pagination.page} {text.pageOf} {pagination.totalPages}
+              </span>
+              <div className={paginationStyles.paginationTickets}>
+                <button
+                  type="button"
+                  className={paginationStyles.paginationButton}
+                  disabled={pagination.page <= 1}
+                  onClick={() => changePage(pagination.page - 1)}
                 >
-                  <button
-                    type="button"
-                    className={notebookButtonClass({ tone: 'secondary' })}
-                    disabled={pagination.page <= 1}
-                    onClick={() => changePage(pagination.page - 1)}
-                  >
-                    {text.previousPage}
-                  </button>
-                  <span className="text-sm font-extrabold text-notebook-muted" aria-current="page">
-                    {text.page} {pagination.page} {text.pageOf} {pagination.totalPages}
-                  </span>
-                  <button
-                    type="button"
-                    className={notebookButtonClass({ tone: 'secondary' })}
-                    disabled={pagination.page >= pagination.totalPages}
-                    onClick={() => changePage(pagination.page + 1)}
-                  >
-                    {text.nextPage}
-                  </button>
-                </nav>
-              )}
-            </div>
-          </PaperCard>
-        </section>
+                  <DashboardIcon name="arrow-right" className="h-4 w-4 rotate-180" />
+                  <span>{text.previousPage}</span>
+                </button>
+                <button
+                  type="button"
+                  className={paginationStyles.paginationButton}
+                  disabled={pagination.page >= pagination.totalPages}
+                  onClick={() => changePage(pagination.page + 1)}
+                >
+                  <span>{text.nextPage}</span>
+                  <DashboardIcon name="arrow-right" className="h-4 w-4" />
+                </button>
+              </div>
+            </nav>
+          )}
+          <p className={styles.resultNote}>{text.cardNote}</p>
+        </PaperCard>
       </div>
     </div>
   );
@@ -393,12 +422,11 @@ function SelectField({
       <label htmlFor={id} className="mb-2 block text-sm font-extrabold text-notebook-ink">
         {label}
       </label>
-      <select
+      <NotebookSelect
         id={id}
         value={value}
         onChange={(event) => onChange(event.target.value)}
         disabled={disabled}
-        className={notebookInputClass({ error: Boolean(error), className: 'pr-10' })}
         aria-invalid={Boolean(error)}
         aria-describedby={error ? `${id}-error` : hint ? `${id}-hint` : undefined}
       >
@@ -408,7 +436,7 @@ function SelectField({
             {option.label}
           </option>
         ))}
-      </select>
+      </NotebookSelect>
       {hint && !error && (
         <p id={`${id}-hint`} className="mt-1.5 text-xs leading-5 text-notebook-muted">
           {hint}
@@ -489,56 +517,51 @@ function TutorResultCard({
     : text.noFutureSlots;
 
   return (
-    <article className="relative flex flex-col gap-5 overflow-hidden rounded-[1.35rem] border border-paper-edge bg-paper p-5 shadow-[0_6px_16px_-12px_rgba(46,39,25,0.18)] transition hover:-translate-y-0.5 hover:shadow-[0_10px_22px_-14px_rgba(46,39,25,0.2)] sm:p-6 lg:flex-row lg:items-center">
-      <WashiTape tone="blue" className="-right-7 top-2 rotate-12 opacity-60" />
-      <div className="flex min-w-0 flex-1 gap-4">
-        <ProfileAvatar
-          name={result.displayName}
-          publicTutorId={result.tutorId}
-          avatarUpdatedAt={result.avatarUpdatedAt}
-          fallback={getInitials(result.displayName)}
-          sizes="56px"
-          className="h-14 w-14 bg-student-deep text-lg font-black text-white shadow-sm"
-        />
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
-            <h3 className="truncate text-lg font-extrabold text-notebook-ink">
-              {result.displayName}
-            </h3>
-            <StatusBadge tone="student" className="text-[0.65rem] tracking-[0.08em]">
+    <article className={styles.course}>
+      <div className={styles.tutor}>
+        <div className={styles.identity}>
+          <ProfileAvatar
+            name={result.displayName}
+            publicTutorId={result.tutorId}
+            avatarUpdatedAt={result.avatarUpdatedAt}
+            fallback={getInitials(result.displayName)}
+            sizes="34px"
+            className={styles.avatar ?? ''}
+          />
+          <div className={styles.name}>
+            <h3>{result.displayName}</h3>
+            <StatusBadge tone="student" className={styles.tag ?? ''}>
               {text.verified}
             </StatusBadge>
           </div>
-          <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs font-semibold text-notebook-muted">
-            <span>{rating}</span>
-            <span>
-              {result.reviewCount} {text.reviews}
-            </span>
-            <span>
-              {result.experienceYears} {text.years}
-            </span>
-            <span>{nextAvailable}</span>
-          </div>
-          <p className="mt-3 text-sm font-extrabold text-notebook-ink">
-            {result.subject} · {result.grade}
-          </p>
-          <p className="mt-1.5 line-clamp-2 text-sm leading-6 text-notebook-muted">
-            {result.description}
-          </p>
+        </div>
+        <div className={styles.metadata}>
+          <span>
+            {rating} · {result.reviewCount} {text.reviews}
+          </span>
+          <span>
+            {result.experienceYears} {text.years}
+          </span>
         </div>
       </div>
-      <div className="flex shrink-0 items-center justify-between gap-4 border-t border-dashed border-paper-edge pt-4 lg:flex-col lg:items-end lg:border-t-0 lg:pt-0">
-        <strong className="text-xl font-black text-notebook-ink">
-          {formatPrice(result.pricePerHour, language)} ฿
-          <span className="text-xs font-bold text-notebook-muted">/{text.hour}</span>
-        </strong>
-        <Link
-          href={`/tutors/${encodeURIComponent(result.tutorId)}?listingId=${encodeURIComponent(result.listingId)}`}
-          className={notebookButtonClass()}
-        >
-          {text.viewTimes}
-        </Link>
+      <div className={styles.courseTitle}>
+        <span className={styles.grade}>{result.grade}</span>
+        <h4>{result.subject}</h4>
       </div>
+      <div className={styles.price}>
+        <strong>{formatPrice(result.pricePerHour, language)} ฿</strong>
+        <span>/{text.hour}</span>
+      </div>
+      <p className={styles.description}>{result.description}</p>
+      <p className={styles.availability}>{nextAvailable}</p>
+      <Link
+        href={`/tutors/${encodeURIComponent(result.tutorId)}?listingId=${encodeURIComponent(result.listingId)}`}
+        className={notebookActionClass({ role: 'student', className: styles.courseAction })}
+      >
+        <NotebookActionContent icon={<DashboardIcon name="arrow-right" />} iconPosition="end">
+          <span className={styles.courseActionLabel}>{text.viewTimes}</span>
+        </NotebookActionContent>
+      </Link>
     </article>
   );
 }
@@ -558,28 +581,36 @@ function SearchState({
 }) {
   if (tone === 'loading') return <NotebookLoadingRegion label={message} />;
   return (
-    <GraphPaper
-      className={`p-10 text-center ${
-        tone === 'error'
-          ? 'border-red-200 bg-red-50 text-red-800'
-          : tone === 'empty'
-            ? 'border-dashed text-notebook-ink'
-            : 'text-notebook-muted'
-      }`}
+    <div
+      className={`${styles.state} ${tone === 'error' ? styles.stateError : ''}`}
       role={tone === 'error' ? 'alert' : 'status'}
     >
       <p className="text-base font-extrabold">{message}</p>
       {hint && <p className="mt-2 text-sm text-notebook-muted">{hint}</p>}
       {clearLabel && onClear && (
-        <button
-          type="button"
-          className={notebookButtonClass({ tone: 'secondary', className: 'mt-4' })}
-          onClick={onClear}
-        >
+        <button type="button" className={`${styles.clearAction} mt-4`} onClick={onClear}>
           {clearLabel}
+          <ClearIcon />
         </button>
       )}
-    </GraphPaper>
+    </div>
+  );
+}
+
+function ClearIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className="h-4 w-4 shrink-0"
+      aria-hidden="true"
+    >
+      <path d="m14 4 6 6a2 2 0 0 1 0 3l-7 7H8l-5-5a2 2 0 0 1 0-3l8-8a2 2 0 0 1 3 0ZM7 8l9 9M13 20h8" />
+    </svg>
   );
 }
 

@@ -10,6 +10,8 @@ import PrivacyNoticeModal from '@/components/privacy-notice-modal';
 import { OwnProfileAvatar } from '@/components/profile/profile-avatar';
 import { LanguageSwitch } from '@/components/public/public-ui';
 import { NotebookPage, WashiTape } from '@/components/ui/notebook';
+import { useNotebookToast } from '@/components/ui/notebook-toast';
+import { useAuth } from '@/lib/auth-context';
 import {
   getDashboardNavItems,
   getUserDisplayName,
@@ -19,6 +21,7 @@ import {
 } from '@/lib/dashboard-navigation';
 import { formatBangkokYear } from '@/lib/date-time';
 import { useLanguage } from '@/lib/i18n';
+import { useStudentBookingCount } from '@/lib/student-booking-count';
 
 import type { AuthUser } from '@/lib/api/types';
 import type { DashboardViewType } from '@/lib/dashboard-navigation';
@@ -97,12 +100,31 @@ export function DashboardShell({
   showSignOut = true,
 }: DashboardShellProps) {
   const { language, copy } = useLanguage();
+  const toast = useNotebookToast();
   const pathname = usePathname();
+  const { user: authenticatedUser } = useAuth();
+  const bookingCount = useStudentBookingCount(
+    authenticatedUser?.role === 'STUDENT' &&
+      authenticatedUser.id === user.id &&
+      pathname !== '/onboarding/profile'
+      ? authenticatedUser.id
+      : null,
+    pathname,
+  );
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isMobileSidebar, setIsMobileSidebar] = useState(false);
   const [privacyNoticeOpen, setPrivacyNoticeOpen] = useState(false);
   const mobileSidebarButtonRef = useRef<HTMLButtonElement>(null);
   const sidebarCloseButtonRef = useRef<HTMLButtonElement>(null);
+
+  const handleLogout = async () => {
+    try {
+      await onLogout();
+      toast.success(copy.common.signedOut);
+    } catch {
+      toast.error(copy.common.signOutFailed);
+    }
+  };
 
   const viewType = resolveDashboardView(user.role);
   const theme = roleStyles[viewType];
@@ -314,7 +336,12 @@ export function DashboardShell({
             aria-label={copy.dashboard.common.sidebarNavigationLabel}
           >
             {navItems.map((item) => {
-              const badge = navBadges?.[item.id] ?? item.badge;
+              const badge =
+                user.role === 'STUDENT' && item.id === 'bookings'
+                  ? bookingCount.total === null
+                    ? '—'
+                    : String(bookingCount.total)
+                  : (navBadges?.[item.id] ?? item.badge);
               const icon = (
                 <span
                   className={classes(
@@ -334,6 +361,9 @@ export function DashboardShell({
                   </span>
                   {!isSidebarCollapsed && badge !== undefined && (
                     <span
+                      aria-live={item.id === 'bookings' ? 'polite' : undefined}
+                      aria-busy={item.id === 'bookings' && bookingCount.refreshing}
+                      data-booking-nav-count={item.id === 'bookings' ? '' : undefined}
                       className={classes(
                         'rounded-full px-2 py-0.5 text-xs font-extrabold',
                         theme.badge,
@@ -408,7 +438,7 @@ export function DashboardShell({
                 {showSignOut && (
                   <button
                     type="button"
-                    onClick={() => void onLogout()}
+                    onClick={() => void handleLogout()}
                     className="inline-flex h-11 w-11 items-center justify-center rounded-xl border border-red-200 bg-red-50 text-red-700 shadow-sm transition hover:-translate-y-0.5 hover:bg-sticky-pink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-300"
                     aria-label={copy.dashboard.nav.signOut}
                     title={copy.dashboard.nav.signOut}
@@ -454,7 +484,7 @@ export function DashboardShell({
                 {showSignOut && (
                   <button
                     type="button"
-                    onClick={() => void onLogout()}
+                    onClick={() => void handleLogout()}
                     className="mt-3 inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-xl border border-red-200 bg-red-50 px-3 text-xs font-extrabold text-red-700 transition hover:-translate-y-0.5 hover:bg-sticky-pink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-300"
                   >
                     <DashboardIcon name="logout" className="h-4 w-4" />

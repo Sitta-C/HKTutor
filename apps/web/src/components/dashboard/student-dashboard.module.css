@@ -1,0 +1,490 @@
+.greeting {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 20px 24px;
+  margin: 1.75rem 0 2.75rem;
+}
+
+.greetingCopy {
+  min-width: 0;
+}
+
+.eyebrow {
+  color: var(--color-student-deep);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+}
+
+.greeting h1 {
+  margin-top: 0.5rem;
+  font-size: clamp(1.5rem, 3vw, 1.875rem);
+  font-weight: 700;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.intro {
+  margin-top: 0.75rem;
+  color: var(--color-notebook-muted);
+  font-size: 0.875rem;
+  line-height: 1.75;
+}
+
+.spread {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) 28px minmax(0, 1fr);
+  align-items: stretch;
+  margin-top: 2rem;
+}
+
+.spread .leaf {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  border-radius: 8px;
+  box-shadow: var(--shadow-note);
+}
+
+.leaf::after {
+  border-radius: 8px;
+}
+
+.pageTab,
+.indexTab {
+  position: absolute;
+  top: -31px;
+  left: 16px;
+  max-width: calc(100% - 32px);
+  padding: 5px 16px;
+  border: 1px solid var(--color-paper-edge);
+  border-bottom: 0;
+  border-radius: 8px 8px 0 0;
+  background: color-mix(in srgb, var(--color-student) 12%, var(--color-paper));
+  color: color-mix(in srgb, var(--color-student-deep) 80%, var(--color-notebook-ink));
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 20px;
+}
+
+.appointment,
+.summary,
+.tutorIndex {
+  padding: 22px;
+}
+
+.appointment {
+  position: relative;
+}
+
+.appointment .tape {
+  top: -7px;
+  right: 22px;
+  width: 64px;
+  height: 15px;
+  transform: none;
+  opacity: 0.7;
+}
+
+.caption,
+.indexHeading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.caption h2,
+.summary h2,
+.indexHeading h2 {
+  font-size: 0.9375rem;
+  font-weight: 700;
+  line-height: 1.6;
+}
+
+.appointmentDetails {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr);
+  align-items: start;
+  gap: 18px;
+  margin-top: 22px;
+  padding: 14px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--color-student) 12%, var(--color-paper));
+}
+
+.dateTile {
+  display: flex;
+  align-items: center;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 6px;
+  border: 1px solid color-mix(in srgb, var(--color-student-deep) 15%, var(--color-paper));
+  border-radius: 8px;
+  background: var(--color-paper);
+  color: color-mix(in srgb, var(--color-student-deep) 80%, var(--color-notebook-ink));
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.65;
+}
+
+.dateTile strong {
+  font-size: 2.25rem;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.lessonDetails {
+  min-width: 0;
+}
+
+.lessonTime {
+  font-size: clamp(1.25rem, 2.5vw, 1.75rem);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.4;
+}
+
+.tutorName {
+  margin-top: 8px;
+  font-size: 1.125rem;
+  font-weight: 700;
+  line-height: 1.65;
+  overflow-wrap: anywhere;
+}
+
+.subject {
+  margin-top: 6px;
+  color: var(--color-notebook-muted);
+  font-size: 0.875rem;
+  line-height: 1.75;
+  overflow-wrap: anywhere;
+}
+
+.appointment .memo {
+  margin-top: 22px;
+  padding: 14px;
+  border: 0;
+  border-top: 1px dashed var(--color-amber-300);
+  background: color-mix(in srgb, var(--color-sticky-yellow) 65%, var(--color-paper));
+  color: var(--color-amber-900);
+  font-size: 0.8125rem;
+  line-height: 1.75;
+  box-shadow: none;
+}
+
+.appointment .confirmedMemo {
+  border-color: var(--color-emerald-200);
+  background: color-mix(in srgb, var(--color-sticky-green) 50%, var(--color-paper));
+  color: var(--color-emerald-900);
+}
+
+.memoHeading {
+  margin-bottom: 6px;
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+.summary {
+  margin-top: auto;
+  border-top: 1px solid var(--color-paper-edge);
+}
+
+.scope {
+  margin-top: 8px;
+  color: var(--color-notebook-muted);
+  font-size: 0.75rem;
+  line-height: 1.65;
+}
+
+.metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin: 16px 0 12px;
+}
+
+.metrics > div {
+  padding-right: 8px;
+  border-right: 1px solid var(--color-paper-edge);
+}
+
+.metrics > div:last-child {
+  border: 0;
+}
+
+.metrics dt {
+  color: var(--color-notebook-muted);
+  font-size: 0.75rem;
+  line-height: 1.65;
+  overflow-wrap: anywhere;
+}
+
+.metrics dd {
+  margin-top: 4px;
+  color: var(--color-notebook-ink);
+  font-size: 1.75rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.findTutorAction {
+  display: inline-flex;
+  max-width: 100%;
+  min-height: 48px;
+  align-items: center;
+  justify-self: end;
+  border: 1px solid var(--color-student-deep);
+  border-radius: 4px;
+  background: var(--color-student-deep);
+  color: var(--color-paper);
+  font-size: 0.875rem;
+  font-weight: 600;
+  line-height: 1.65;
+  text-decoration: none;
+  box-shadow: 0 2px 0 var(--color-paper-edge);
+  transition: background-color 150ms;
+}
+
+.findTutorAction > span:first-child {
+  min-width: 0;
+  padding: 8px 14px;
+  overflow-wrap: anywhere;
+}
+
+.actionStub {
+  display: grid;
+  width: 36px;
+  flex: 0 0 36px;
+  align-self: stretch;
+  place-items: center;
+  border-left: 1px dashed color-mix(in srgb, var(--color-paper) 65%, transparent);
+  background: color-mix(in srgb, var(--color-student-deep) 85%, var(--color-paper));
+}
+
+.findTutorAction:hover {
+  background: color-mix(in srgb, var(--color-student-deep) 85%, var(--color-notebook-ink));
+}
+
+.findTutorAction:focus-visible {
+  outline: 2px solid var(--color-student-deep);
+  outline-offset: 3px;
+}
+
+.binding {
+  position: relative;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.binding::before {
+  position: absolute;
+  inset: 20px -8px;
+  background: var(--color-stone-600);
+  mask-image: url('./student-binding-ring.svg');
+  mask-position: center top;
+  mask-repeat: repeat-y;
+  mask-size: 44px 24px;
+  content: '';
+}
+
+.tutorIndex {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+}
+
+.indexHeading {
+  padding-right: 50px;
+}
+
+.count {
+  position: absolute;
+  top: -1px;
+  right: 22px;
+  width: 40px;
+  height: 58px;
+  padding: 20px 4px 12px;
+  background: color-mix(in srgb, var(--color-student) 22%, var(--color-paper));
+  color: color-mix(in srgb, var(--color-student-deep) 80%, var(--color-notebook-ink));
+  font-size: 0.875rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 22px;
+  text-align: center;
+  clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 82%, 0 100%);
+}
+
+.indexHelp {
+  margin: 8px 0 16px;
+  color: var(--color-notebook-muted);
+  font-size: 0.75rem;
+  line-height: 1.75;
+}
+
+.tutorList {
+  min-width: 0;
+  background: repeating-linear-gradient(
+    to bottom,
+    transparent 0,
+    transparent 30px,
+    color-mix(in srgb, var(--color-notebook-line) 65%, transparent) 31px
+  );
+}
+
+.tutorList li {
+  border-top: 1px solid var(--color-paper-edge);
+}
+
+.tutorLink {
+  display: flex;
+  min-height: 44px;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 14px 0;
+  border-radius: 4px;
+  color: var(--color-notebook-ink);
+  text-decoration: none;
+  transition: background-color 150ms;
+}
+
+.tutorLink:hover {
+  background: color-mix(in srgb, var(--color-student) 7%, transparent);
+}
+
+.tutorLink:focus-visible {
+  outline: 2px solid var(--color-student-deep);
+  outline-offset: 2px;
+}
+
+.initial {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  flex-shrink: 0;
+  place-items: center;
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--color-student) 12%, var(--color-paper));
+  color: var(--color-emerald-900);
+  font-size: 0.75rem;
+}
+
+.tutorDetails {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.75rem;
+  line-height: 1.65;
+  overflow-wrap: anywhere;
+}
+
+.tutorDetails strong {
+  font-size: 0.875rem;
+  font-weight: 700;
+}
+
+.tutorDetails > span {
+  color: var(--color-notebook-muted);
+}
+
+.tutorDetails .bookingLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+  color: color-mix(in srgb, var(--color-student-deep) 80%, var(--color-notebook-ink));
+  font-weight: 600;
+}
+
+.pagination {
+  margin-top: auto;
+}
+
+.empty {
+  padding: 24px 0;
+  color: var(--color-notebook-muted);
+  font-size: 0.875rem;
+  line-height: 1.75;
+}
+
+.emptyTitle {
+  margin-bottom: 8px;
+  color: var(--color-notebook-ink);
+  font-weight: 600;
+}
+
+.error {
+  padding: 20px;
+  background: color-mix(in srgb, var(--color-sticky-pink) 50%, var(--color-paper));
+  color: var(--color-red-800);
+  font-size: 0.875rem;
+}
+
+@media (max-width: 1023px) {
+  .spread {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .binding {
+    height: 28px;
+  }
+
+  .binding::before {
+    inset: -8px 16px;
+    mask-image: url('./student-binding-ring-horizontal.svg');
+    mask-position: left center;
+    mask-repeat: repeat-x;
+    mask-size: 24px 44px;
+  }
+
+  .indexTab {
+    display: none;
+  }
+}
+
+@media (max-width: 639px) {
+  .greeting {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .findTutorAction {
+    justify-self: start;
+  }
+
+  .appointment,
+  .summary,
+  .tutorIndex {
+    padding: 16px;
+  }
+
+  .appointmentDetails {
+    grid-template-columns: 58px minmax(0, 1fr);
+    gap: 12px;
+    padding: 10px;
+  }
+
+  .count {
+    right: 16px;
+    height: 52px;
+    padding-top: 14px;
+  }
+
+  .tutorName {
+    font-size: 1rem;
+  }
+
+  .subject {
+    font-size: 0.75rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tutorLink,
+  .findTutorAction {
+    transition: none;
+  }
+}

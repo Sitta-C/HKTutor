@@ -42,6 +42,7 @@ export default function PublicTutorSearchShell({ children }: { children: ReactNo
   }
 
   const shellUser = profileUser ?? publicGuestUser;
+  const isSearchPage = pathname === '/tutors';
 
   return (
     <DashboardShell
@@ -53,12 +54,11 @@ export default function PublicTutorSearchShell({ children }: { children: ReactNo
       }}
       showSignOut={Boolean(user)}
       headerNavRight={
-        <>
-          <Link href="/dashboard/bookings">{copy.dashboard.header.myBookingsNav}</Link>
-          <Link href="/tutors" data-dashboard-action>
-            {copy.dashboard.header.findTutorCta}
+        isSearchPage && !user ? (
+          <Link href="/" data-dashboard-action>
+            {tutorSearchCopy[language].signIn}
           </Link>
-        </>
+        ) : null
       }
     >
       {children}

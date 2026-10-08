@@ -110,7 +110,7 @@ test('uses one fail-closed tutor allowlist across publish, discovery, availabili
   assert.match(bookingService, /findFirst\(\{\s*where: \{ \.\.\.publicTutorWhere, userId:/);
   assert.doesNotMatch(bookingService, /verificationStatus === TutorVerificationStatus\.REJECTED/);
   assert.match(searchPage, /text\.verifiedOnly/);
-  assert.match(searchCopy, /VERIFIED TUTORS ONLY/);
+  assert.match(searchCopy, /verified tutors only/i);
   assert.doesNotMatch(searchCopy, /VERIFICATION PENDING/);
   assert.match(tutorDetail, /\{text\.verified\}/);
   assert.doesNotMatch(tutorDetail, /text\.pendingVerification/);

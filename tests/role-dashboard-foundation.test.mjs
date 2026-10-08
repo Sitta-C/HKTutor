@@ -105,8 +105,8 @@ test('role-specific views render distinct content with honest empty states', asy
   ]);
 
   // Student view features
-  assert.match(studentSource, /dash-role-chip-student/);
-  assert.match(studentSource, /studentCopy\.yourTutors/);
+  assert.match(studentSource, /studentCopy\.plannerEyebrow/);
+  assert.match(studentSource, /studentCopy\.tutorsFromBookings/);
   assert.match(studentSource, /studentCopy\.noUpcomingLessons/);
   assert.match(studentSource, /studentCopy\.noTutorsYetTitle/);
   // Student view must not have tutor listings or availability panels

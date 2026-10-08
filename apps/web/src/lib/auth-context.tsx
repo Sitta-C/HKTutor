@@ -11,6 +11,7 @@ import {
 } from '@/lib/api/auth';
 import { onSessionExpired } from '@/lib/api/client';
 import { clearCurrentProfileCache } from '@/lib/current-profile';
+import { clearStudentBookingCount } from '@/lib/student-booking-count';
 
 import type { AuthUser } from '@/lib/api/types';
 import type { ReactNode } from 'react';
@@ -38,7 +39,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  useEffect(() => onSessionExpired(() => setUser(null)), []);
+  useEffect(
+    () =>
+      onSessionExpired(() => {
+        clearStudentBookingCount();
+        setUser(null);
+      }),
+    [],
+  );
 
   useEffect(() => {
     let active = true;
@@ -63,6 +71,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       user,
       async login(email, password) {
         clearCurrentProfileCache();
+        clearStudentBookingCount();
         setUser(await loginAccount(email, password));
       },
       async logout() {
@@ -70,6 +79,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           await logoutSession();
         } finally {
           clearCurrentProfileCache();
+          clearStudentBookingCount();
           setUser(null);
         }
       },
@@ -78,6 +88,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       },
       async verify(token) {
         clearCurrentProfileCache();
+        clearStudentBookingCount();
         setUser(await verifyEmail(token));
       },
     }),

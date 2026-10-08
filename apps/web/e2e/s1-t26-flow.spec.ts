@@ -198,10 +198,10 @@ test('guest slot selection returns through login and onboarding to booking confi
   });
   await expectAccessiblePageShell(page);
   await expect(page.getByRole('heading', { name: 'Review your lesson request' })).toBeVisible();
-  await expect(page.getByText('TUTOR VERIFICATION PENDING')).toBeVisible();
-  await page.getByRole('button', { name: 'Send booking request' }).click();
-  await expect(page.getByRole('heading', { name: 'Booking request sent' })).toBeVisible();
-  await expect(page.getByText('Your request was created as PENDING.')).toBeVisible();
+  await expect(page.getByText('Verification information unavailable')).toBeVisible();
+  await page.getByRole('button', { name: 'Send lesson request' }).click();
+  await expect(page.getByRole('heading', { name: 'Lesson request sent' })).toBeVisible();
+  await expect(page.getByRole('status')).toContainText('Awaiting tutor confirmation');
   await expectAccessiblePageShell(page);
 });
 

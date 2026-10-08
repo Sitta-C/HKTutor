@@ -1,0 +1,339 @@
+.page {
+  --docket-accent-ink: color-mix(in srgb, var(--color-student-deep) 80%, var(--color-notebook-ink));
+
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 28px 0 40px;
+  color: var(--color-notebook-ink);
+}
+.heading {
+  margin-bottom: 26px;
+}
+.count {
+  margin-top: 10px;
+  font-size: 14px;
+  color: var(--color-notebook-muted);
+}
+.index {
+  display: grid;
+  grid-template-columns: 160px minmax(0, 1fr);
+  gap: 18px;
+  align-items: start;
+}
+.filters {
+  display: grid;
+  gap: 6px;
+}
+.filter {
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid var(--color-paper-edge);
+  border-left: 3px solid transparent;
+  border-radius: 0 8px 8px 0;
+  color: var(--color-notebook-muted);
+  background: var(--color-paper);
+  font-size: 13px;
+  line-height: 1.6;
+  text-align: left;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+  transition: background-color 0.15s;
+}
+.filter[aria-pressed='true'] {
+  border-left-color: var(--color-student-deep);
+  background: color-mix(in srgb, var(--color-student) 10%, var(--color-paper));
+  color: var(--color-student-deep);
+  font-weight: 700;
+}
+.filter:hover {
+  background: color-mix(in srgb, var(--color-student) 6%, var(--color-paper));
+}
+.filter:focus-visible {
+  outline: 2px solid var(--color-student-deep);
+  outline-offset: 3px;
+}
+.paper.paper {
+  min-width: 0;
+  border-radius: 8px;
+  overflow: hidden;
+  container-type: inline-size;
+  box-shadow: var(--shadow-paper);
+}
+.paper::after {
+  display: none;
+}
+.row {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 164px;
+  gap: 12px;
+  margin-left: 26px;
+  padding: 18px 20px;
+  border-left: 1px solid color-mix(in srgb, var(--color-student-deep) 25%, var(--color-paper-edge));
+  border-bottom: 1px solid var(--color-paper-edge);
+  background-image: repeating-linear-gradient(
+    transparent 0 31px,
+    color-mix(in srgb, var(--color-notebook-line) 28%, transparent) 32px
+  );
+}
+.row:last-child {
+  border-bottom: 0;
+}
+.row::before {
+  position: absolute;
+  top: 26px;
+  left: -17px;
+  width: 7px;
+  height: 7px;
+  border: 1px solid var(--color-paper-edge);
+  border-radius: 50%;
+  background: var(--color-paper-deep);
+  content: '';
+  pointer-events: none;
+}
+.dateRow {
+  grid-column: 1 / -1;
+  padding-bottom: 9px;
+  border-bottom: 1px dashed var(--color-paper-edge);
+  overflow-wrap: anywhere;
+}
+.datePair {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px 12px;
+}
+.datePair p,
+.endpoints p {
+  font-size: 14px;
+  color: var(--color-student-deep);
+  font-weight: 600;
+}
+.datePair strong,
+.endpoints time {
+  font-size: 16px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.endpoints {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 26px;
+  padding-left: 10px;
+  border-left: 1px solid var(--color-paper-edge);
+}
+.endpoints > div {
+  display: grid;
+  gap: 3px;
+}
+.endpoints span {
+  color: var(--color-notebook-muted);
+  font-size: 12px;
+}
+.course {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.grade {
+  display: inline-block;
+  max-width: 100%;
+  padding: 2px 7px;
+  border-radius: 3px 3px 0 0;
+  background: var(--color-sticky-blue);
+  color: var(--color-tutor-deep);
+  font-size: 12px;
+}
+.course h2 {
+  margin-top: 4px;
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1.5;
+}
+.tutor {
+  margin-top: 4px;
+  font-size: 14px;
+  line-height: 1.8;
+}
+.rowStub {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 9px;
+  min-width: 0;
+  padding-left: 12px;
+  border-left: 1px dashed var(--color-paper-edge);
+}
+.rowStub > span {
+  max-width: 100%;
+}
+.amount {
+  font-size: 18px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+.rowTicket {
+  composes: ticket from './booking-docket.module.css';
+}
+.rowTicket.rowTicket {
+  background: color-mix(in srgb, var(--color-student) 10%, var(--color-paper));
+  color: var(--docket-accent-ink);
+  font-size: 12px;
+}
+.rowTicket.rowTicket:hover {
+  background: color-mix(in srgb, var(--color-student) 17%, var(--color-paper));
+}
+.ticketLabel {
+  composes: ticketLabel from './booking-docket.module.css';
+}
+.ticketStub {
+  composes: ticketStub from './booking-docket.module.css';
+}
+.ticket {
+  composes: ticket from './booking-docket.module.css';
+}
+.link {
+  composes: link from './booking-docket.module.css';
+}
+.state {
+  padding: 26px;
+  font-size: 14px;
+  line-height: 1.8;
+  overflow-wrap: anywhere;
+}
+.state h2 {
+  margin-bottom: 8px;
+  font-size: 20px;
+  font-weight: 700;
+}
+.state p {
+  margin-bottom: 14px;
+}
+.error {
+  color: var(--color-red-800);
+  background: var(--color-red-50);
+  border-left: 3px solid var(--color-red-700);
+}
+.error .link {
+  color: inherit;
+}
+.pagination {
+  --pagination-ticket-ink: var(--docket-accent-ink);
+
+  padding: 0 20px 18px;
+}
+.detailStatus {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 18px 26px;
+  border-bottom: 1px dashed var(--color-paper-edge);
+  font-size: 13px;
+  color: var(--color-notebook-muted);
+}
+.detailFooter {
+  padding: 22px 26px;
+  border-top: 1px dashed var(--color-paper-edge);
+}
+.notice {
+  margin-bottom: 18px;
+  padding: 10px 13px;
+  border-left: 2px solid var(--color-student-deep);
+  background: color-mix(in srgb, var(--color-student) 10%, var(--color-paper));
+  font-size: 13px;
+  line-height: 1.8;
+}
+.notice[data-status='PENDING'] {
+  background: var(--color-sticky-yellow);
+  color: var(--color-amber-800);
+  border-color: color-mix(in srgb, var(--color-amber-800) 30%, var(--color-sticky-yellow));
+}
+.detailAmounts {
+  margin-bottom: 22px;
+}
+.detailAmounts > dl {
+  margin-top: 0;
+}
+.detailTotal > div {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  margin-bottom: 0;
+}
+.detailLinks {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-top: 16px;
+}
+@media (max-width: 639px) {
+  .index {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 14px;
+  }
+  .filters {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@container (max-width: 460px) {
+  .row {
+    grid-template-columns: minmax(0, 1fr);
+    margin-left: 18px;
+    padding: 16px 12px;
+    gap: 10px;
+  }
+  .row::before {
+    left: -12px;
+    width: 6px;
+    height: 6px;
+  }
+  .rowStub {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    padding-left: 0;
+    border-left: 0;
+  }
+  .rowStub > span {
+    justify-self: start;
+  }
+  .rowTicket.rowTicket {
+    grid-column: 1 / -1;
+    width: 100%;
+  }
+  .course h2 {
+    font-size: 17px;
+  }
+  .amount {
+    font-size: 16px;
+  }
+  .state,
+  .detailStatus,
+  .detailFooter {
+    padding: 18px;
+  }
+  .pagination {
+    padding: 0 12px 18px;
+  }
+}
+@media (max-width: 639px) {
+  .detailLinks {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .detailLinks .ticket {
+    width: 100%;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .page button,
+  .page a {
+    transition: none;
+  }
+}

@@ -14,6 +14,7 @@ import {
   WashiTape,
   notebookInputClass,
 } from '@/components/ui/notebook';
+import { useNotebookToast } from '@/components/ui/notebook-toast';
 import { useAuth } from '@/lib/auth-context';
 import { useLanguage } from '@/lib/i18n';
 import { sanitizeReturnTo } from '@/lib/return-to';
@@ -22,6 +23,7 @@ import type { FormEvent } from 'react';
 
 export default function Login() {
   const { copy } = useLanguage();
+  const toast = useNotebookToast();
   const { isLoading: isAuthLoading, login, user } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -47,9 +49,11 @@ export default function Login() {
 
     try {
       await login(email, password);
+      toast.success(copy.login.signedIn);
       router.replace(returnTo);
     } catch {
       setErrorMessage(copy.login.failed);
+      toast.error(copy.login.failed);
     } finally {
       setIsLoading(false);
     }

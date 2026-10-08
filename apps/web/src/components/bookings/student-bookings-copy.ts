@@ -1,0 +1,26 @@
+export const studentBookingsCopy = {
+  en: {
+    title: 'Your appointment notebook',
+    count: '{count} bookings · {status}',
+    countUnavailable: 'Booking count unavailable',
+    emptyFilteredTitle: 'No bookings in this view',
+    emptyFilteredBody: 'Choose another status or find a course to study.',
+    amount: 'Booking amount',
+    view: 'View details',
+    pendingNotice: 'This time is still a lesson request. Wait for the tutor to confirm.',
+    confirmedNotice: 'The tutor has confirmed this booking.',
+    otherNotice: 'Information and amounts recorded for this booking.',
+  },
+  th: {
+    title: 'สมุดนัดเรียน',
+    count: '{count} รายการ · {status}',
+    countUnavailable: 'ยังไม่ทราบจำนวนรายการจอง',
+    emptyFilteredTitle: 'ไม่มีรายการจองในสถานะนี้',
+    emptyFilteredBody: 'เลือกสถานะอื่น หรือค้นหาคอร์สที่ต้องการเรียน',
+    amount: 'ยอดการจอง',
+    view: 'ดูรายละเอียด',
+    pendingNotice: 'เวลานี้ยังเป็นคำขอเรียน รอให้ติวเตอร์ยืนยันก่อน',
+    confirmedNotice: 'ติวเตอร์ยืนยันการจองนี้แล้ว',
+    otherNotice: 'ข้อมูลและยอดเงินตามรายการจองนี้',
+  },
+} as const;

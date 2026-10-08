@@ -1,0 +1,144 @@
+.ruler {
+  --ruler-width: 112px;
+  --ruler-edge: color-mix(in srgb, var(--color-student-deep) 28%, var(--color-paper));
+
+  position: relative;
+  isolation: isolate;
+  min-width: 0;
+  border: 1px solid var(--color-paper-edge);
+  border-radius: 10px;
+  background: var(--color-paper);
+}
+
+.ruler::before {
+  position: absolute;
+  z-index: 1;
+  top: 10px;
+  bottom: 2px;
+  left: 50%;
+  width: var(--ruler-width);
+  content: '';
+  border: 1px solid var(--ruler-edge);
+  border-radius: 6px;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.ruler::after {
+  position: absolute;
+  z-index: 2;
+  inset: 0;
+  content: '';
+  border-radius: inherit;
+  background: linear-gradient(
+    to right,
+    var(--color-paper),
+    transparent 12%,
+    transparent 88%,
+    var(--color-paper)
+  );
+  pointer-events: none;
+}
+
+.pointer {
+  position: absolute;
+  z-index: 3;
+  top: 1px;
+  left: 50%;
+  width: 10px;
+  height: 7px;
+  background: var(--detail-accent);
+  clip-path: polygon(0 0, 100% 0, 50% 100%);
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.track {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  overflow-x: auto;
+  padding: 10px 0 2px;
+  overscroll-behavior-x: contain;
+  scrollbar-color: var(--ruler-edge) transparent;
+  scrollbar-width: thin;
+  scroll-snap-type: x mandatory;
+  user-select: none;
+}
+
+.track::before,
+.track::after {
+  flex: 0 0 calc((100% - var(--ruler-width)) / 2);
+  content: '';
+}
+
+.item {
+  position: relative;
+  flex: 0 0 var(--ruler-width);
+  min-height: 32px;
+  border-radius: 6px;
+  padding: 3px 8px;
+  color: var(--color-notebook-muted);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  scroll-snap-align: center;
+  transition: background-color 0.15s;
+}
+
+.item::before {
+  position: absolute;
+  top: -7px;
+  right: 0;
+  left: 0;
+  height: 5px;
+  content: '';
+  background: repeating-linear-gradient(
+    to right,
+    var(--ruler-edge) 0 1px,
+    transparent 1px calc(var(--ruler-width) / 4)
+  );
+  pointer-events: none;
+}
+
+.item span {
+  font-size: 11px;
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+}
+
+.item:hover {
+  background: color-mix(in srgb, var(--color-sticky-green) 50%, var(--color-paper));
+}
+
+.item[aria-current='page'] {
+  background: var(--color-sticky-green);
+  color: var(--detail-accent);
+}
+
+.item:focus-visible {
+  outline: 2px solid var(--color-student-deep);
+  outline-offset: -2px;
+}
+
+@media (pointer: fine) {
+  .track {
+    cursor: grab;
+  }
+
+  .track:active {
+    cursor: grabbing;
+  }
+}
+
+@media (pointer: coarse) {
+  .item {
+    min-height: 44px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .item {
+    transition: none;
+  }
+}

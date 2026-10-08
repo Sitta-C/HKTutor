@@ -10,7 +10,6 @@ import {
   ListingIcon,
   ListingPageState,
   ListingStatusBadge,
-  listingButtonClass,
   listingFieldClass,
 } from '@/components/listings/listing-ui';
 import {
@@ -22,6 +21,7 @@ import {
 } from '@/components/listings/tutor-listing-editor-model';
 import { OwnProfileAvatar } from '@/components/profile/profile-avatar';
 import { PaperCard, StickyNote, WashiTape } from '@/components/ui/notebook';
+import { NotebookAction } from '@/components/ui/notebook-action';
 import { NotebookSelect } from '@/components/ui/notebook-select';
 import { useNotebookToast } from '@/components/ui/notebook-toast';
 import {
@@ -215,7 +215,10 @@ export default function TutorListingEditor({
     const nextErrors = validateListingForm(form, copy);
     setErrors(nextErrors);
     setPageError(null);
-    if (Object.keys(nextErrors).length > 0) return;
+    if (Object.keys(nextErrors).length > 0) {
+      toast.error(copy.reviewFields);
+      return;
+    }
 
     const payload: SaveTeachingListingPayload = {
       subjectId: form.subjectId,
@@ -516,7 +519,7 @@ export default function TutorListingEditor({
                 </Field>
               </div>
 
-              <div className="mt-1 flex flex-col-reverse gap-3 border-t border-dashed border-paper-edge bg-paper-deep/55 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
+              <div className="mt-1 flex flex-col-reverse gap-3 border-t border-dashed border-paper-edge bg-paper-deep/55 p-4 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:p-5">
                 <div className="flex items-center gap-2 text-xs font-semibold text-notebook-muted">
                   <span
                     className={`h-2 w-2 rounded-full ${isDirty ? 'bg-amber-500' : 'bg-emerald-500'}`}
@@ -524,44 +527,51 @@ export default function TutorListingEditor({
                   />
                   {isDirty ? copy.unsaved : copy.upToDate}
                 </div>
-                <div className="flex flex-col-reverse gap-2 sm:flex-row">
-                  <button
+                <div className="flex min-w-0 flex-col-reverse gap-2 sm:flex-row sm:flex-wrap">
+                  <NotebookAction
                     type="button"
                     onClick={handleCancel}
-                    className={listingButtonClass('secondary', 'w-full sm:w-auto')}
+                    tone="secondary"
+                    className="w-full sm:w-auto"
                   >
                     {copy.cancel}
-                  </button>
-                  <button
+                  </NotebookAction>
+                  <NotebookAction
                     type="submit"
                     disabled={createBlocked || submitAction !== null}
-                    className={listingButtonClass('secondary', 'w-full sm:w-auto')}
+                    tone="secondary"
+                    icon={<ListingIcon name="edit" />}
+                    aria-busy={submitAction === 'save'}
+                    className="w-full sm:w-auto"
                   >
                     {submitAction === 'save'
                       ? copy.saving
                       : isEditing
                         ? copy.saveChanges
                         : copy.saveDraft}
-                  </button>
+                  </NotebookAction>
                   {isArchived && (
-                    <button
+                    <NotebookAction
                       type="button"
                       disabled={submitAction !== null}
                       onClick={() => void restoreDraft()}
-                      className={listingButtonClass('secondary', 'w-full sm:w-auto')}
+                      tone="secondary"
+                      className="w-full sm:w-auto"
                     >
                       {submitAction === 'restore' ? copy.saving : copy.restoreDraft}
-                    </button>
+                    </NotebookAction>
                   )}
                   {status !== 'PUBLISHED' && (
-                    <button
+                    <NotebookAction
                       type="button"
                       disabled={createBlocked || !isVerified || submitAction !== null}
                       onClick={() => void saveListing('publish')}
-                      className={listingButtonClass('primary', 'w-full sm:w-auto')}
+                      icon={<ListingIcon name="check" />}
+                      aria-busy={submitAction === 'publish'}
+                      className="w-full sm:w-auto"
                     >
                       {submitAction === 'publish' ? copy.publishing : copy.publish}
-                    </button>
+                    </NotebookAction>
                   )}
                 </div>
               </div>
@@ -830,6 +840,7 @@ const englishCopy = {
   unsaved: 'Unsaved changes',
   upToDate: 'All changes saved',
   savedSuccess: 'Your listing changes have been saved.',
+  reviewFields: 'Please check the highlighted fields.',
   verificationError: 'Your tutor profile must be verified before publishing.',
   discardConfirm: 'Discard your unsaved changes?',
   qualityTitle: 'A strong listing is easy to scan',
@@ -905,6 +916,7 @@ const thaiCopy: typeof englishCopy = {
   unsaved: 'มีการเปลี่ยนแปลงที่ยังไม่ได้บันทึก',
   upToDate: 'บันทึกข้อมูลล่าสุดแล้ว',
   savedSuccess: 'บันทึกการแก้ไขประกาศแล้ว',
+  reviewFields: 'โปรดตรวจสอบช่องข้อมูลที่ระบุข้อผิดพลาด',
   verificationError: 'โปรไฟล์ติวเตอร์ต้องผ่านการยืนยันก่อนจึงจะเผยแพร่ได้',
   discardConfirm: 'ยกเลิกการเปลี่ยนแปลงที่ยังไม่ได้บันทึกหรือไม่?',
   qualityTitle: 'ประกาศที่ดีควรอ่านเข้าใจได้เร็ว',

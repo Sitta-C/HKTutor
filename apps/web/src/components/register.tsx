@@ -14,6 +14,7 @@ import {
   WashiTape,
   notebookInputClass,
 } from '@/components/ui/notebook';
+import { useNotebookToast } from '@/components/ui/notebook-toast';
 import { ApiError } from '@/lib/api/error';
 import { useAuth } from '@/lib/auth-context';
 import { useLanguage } from '@/lib/i18n';
@@ -25,6 +26,7 @@ type Role = 'student' | 'tutor';
 
 export default function Register() {
   const { copy } = useLanguage();
+  const toast = useNotebookToast();
   const { register } = useAuth();
   const router = useRouter();
 
@@ -52,17 +54,20 @@ export default function Register() {
 
     if (password !== confirmPassword) {
       setPasswordError(copy.register.passwordMismatch);
+      toast.error(copy.register.passwordMismatch);
       return;
     }
     setPasswordError('');
 
     if (password.length < 10 || !/[A-Za-z]/.test(password) || !/\d/.test(password)) {
       setPasswordError(copy.register.passwordRequirements);
+      toast.error(copy.register.passwordRequirements);
       return;
     }
 
     if (!acceptedPolicy) {
       setConsentError(copy.register.policyRequired);
+      toast.error(copy.register.policyRequired);
       return;
     }
     setConsentError(null);
@@ -76,13 +81,16 @@ export default function Register() {
         role,
         ...buildOnboardingConsent(acceptedPolicy),
       });
+      toast.success(copy.register.accountCreated);
       router.push(`/register/verify?email=${encodeURIComponent(email)}`);
     } catch (err: unknown) {
       if (err instanceof ApiError && err.status === 503) {
+        toast.error(copy.register.verificationDeliveryFailed);
         router.push(`/register/verify?email=${encodeURIComponent(email)}&delivery=failed`);
         return;
       }
       setErrorMessage(copy.register.registrationFailed);
+      toast.error(copy.register.registrationFailed);
     } finally {
       setIsLoading(false);
     }

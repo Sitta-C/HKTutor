@@ -21,6 +21,7 @@ import {
   WashiTape,
   notebookButtonClass,
 } from '@/components/ui/notebook';
+import { NotebookAction } from '@/components/ui/notebook-action';
 import {
   NotebookLoading,
   NotebookLoadingRegion,
@@ -188,6 +189,7 @@ export default function ManageTutorAvailability() {
     setFormError(null);
     if (!startDate || !endDate || !startTime || !endTime) {
       setFormError(availabilityCopy.emptyForm);
+      toast.error(availabilityCopy.emptyForm);
       return;
     }
 
@@ -196,10 +198,12 @@ export default function ManageTutorAvailability() {
       const endAt = bangkokDateTimeToUtc(endDate, endTime);
       if (endAt <= startAt) {
         setFormError(availabilityCopy.endAfterStart);
+        toast.error(availabilityCopy.endAfterStart);
         return;
       }
       if (startAt <= new Date()) {
         setFormError(availabilityCopy.futureRequired);
+        toast.error(availabilityCopy.futureRequired);
         return;
       }
 
@@ -215,6 +219,7 @@ export default function ManageTutorAvailability() {
     } catch (caught: unknown) {
       if (caught instanceof ApiError && caught.status === 409) {
         setFormError(availabilityCopy.overlapError);
+        toast.error(availabilityCopy.overlapError);
       } else {
         toast.error(availabilityCopy.createError);
       }
@@ -617,14 +622,15 @@ export default function ManageTutorAvailability() {
                     </p>
                   )}
                   <div className="flex flex-wrap gap-2">
-                    <button
+                    <NotebookAction
                       type="submit"
-                      className={notebookButtonClass({ className: 'flex-1' })}
+                      icon={<DashboardIcon name="plus" />}
+                      className="flex-1"
                       disabled={isSaving}
+                      aria-busy={isSaving}
                     >
-                      <DashboardIcon name="plus" className="h-4 w-4" />
                       {isSaving ? availabilityCopy.adding : availabilityCopy.add}
-                    </button>
+                    </NotebookAction>
                   </div>
                 </div>
               </form>
@@ -702,29 +708,29 @@ export default function ManageTutorAvailability() {
           )}
         </div>
         <div className={styles.dialogActions}>
-          <button
+          <NotebookAction
             type="button"
             autoFocus
-            className={notebookButtonClass({ tone: 'secondary', className: styles.dialogAction })}
+            tone="secondary"
+            className={styles.dialogAction}
             disabled={busySlotId !== null}
             onClick={() => setSlotToDelete(null)}
           >
             {availabilityCopy.cancelDelete}
-          </button>
-          <button
+          </NotebookAction>
+          <NotebookAction
             type="button"
-            className={notebookButtonClass({
-              tone: 'danger',
-              className: `${styles.dialogAction} ${styles.dialogDelete}`,
-            })}
+            tone="danger"
+            icon={<DashboardIcon name="trash" />}
+            className={`${styles.dialogAction} ${styles.dialogDelete}`}
+            aria-busy={busySlotId !== null}
             disabled={busySlotId !== null}
             onClick={() => {
               if (slotToDelete) void handleDelete(slotToDelete);
             }}
           >
-            <DashboardIcon name="trash" className="h-4 w-4 shrink-0" />
             {busySlotId !== null ? availabilityCopy.deleting : availabilityCopy.confirmDelete}
-          </button>
+          </NotebookAction>
         </div>
       </dialog>
     </DashboardShell>

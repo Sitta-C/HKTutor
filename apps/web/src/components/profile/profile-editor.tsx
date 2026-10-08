@@ -22,7 +22,6 @@ import {
 } from '@/components/profile/profile-editor-model';
 import { TutorProfileSummary } from '@/components/profile/tutor-profile-summary';
 import {
-  GraphPaper,
   PaperCard,
   StatusBadge,
   StickyNote,
@@ -30,6 +29,7 @@ import {
   notebookButtonClass,
   notebookInputClass,
 } from '@/components/ui/notebook';
+import { NotebookAction } from '@/components/ui/notebook-action';
 import { NotebookLoading } from '@/components/ui/notebook-loading';
 import { useNotebookToast } from '@/components/ui/notebook-toast';
 import {
@@ -51,6 +51,8 @@ import {
 import { sanitizeReturnTo } from '@/lib/return-to';
 
 import previewStyles from './profile-page-preview.module.css';
+import studentStyles from './student-profile.module.css';
+import summaryStyles from './tutor-profile-summary.module.css';
 
 import type {
   ProfileFieldErrors,
@@ -101,7 +103,7 @@ function profileInputClass(tone: ProfileTone, error: boolean, className?: string
 
 export default function ProfileEditor({ mode }: ProfileEditorProps) {
   const { isLoading: authLoading, logout, user } = useAuth();
-  const { language } = useLanguage();
+  const { language, copy: appCopy } = useLanguage();
   const toast = useNotebookToast();
   const router = useRouter();
   const text = copy[language];
@@ -192,6 +194,7 @@ export default function ProfileEditor({ mode }: ProfileEditorProps) {
     if (!consentCurrent) {
       if (!acceptedNotice) {
         setConsentError(text.consentRequired);
+        toast.error(text.consentRequired);
         return;
       }
       setIsSaving(true);
@@ -217,9 +220,11 @@ export default function ProfileEditor({ mode }: ProfileEditorProps) {
         }
 
         const handoff = resolveOnboardingHandoff(result);
+        if (result.consentCurrent) toast.success(text.consentSaved);
         if (mode === 'onboarding' && handoff) router.replace(readOnboardingReturnTo());
       } catch {
         setError(text.saveError);
+        toast.error(text.saveError);
       } finally {
         setIsSaving(false);
       }
@@ -232,6 +237,7 @@ export default function ProfileEditor({ mode }: ProfileEditorProps) {
     if (Object.keys(validationErrors).length) {
       setFieldErrors(validationErrors);
       focusFirstError(validationErrors);
+      toast.error(text.reviewFields);
       return;
     }
 
@@ -255,13 +261,14 @@ export default function ProfileEditor({ mode }: ProfileEditorProps) {
         setTutorMeta(result);
       }
       clearCurrentProfileCache();
+      toast.success(text.saved);
       if (mode === 'onboarding') router.replace(readOnboardingReturnTo());
-      else toast.success(text.saved);
     } catch (caught: unknown) {
       const apiErrors = readProfileFieldErrors(caught);
       setFieldErrors(apiErrors);
       if (Object.keys(apiErrors).length) focusFirstError(apiErrors);
       setError(text.saveError);
+      toast.error(text.saveError);
     } finally {
       setIsSaving(false);
     }
@@ -277,14 +284,42 @@ export default function ProfileEditor({ mode }: ProfileEditorProps) {
     await logout();
     router.replace('/');
   };
+  const handleOnboardingLogout = async () => {
+    try {
+      await handleLogout();
+      toast.success(appCopy.common.signedOut);
+    } catch {
+      toast.error(appCopy.common.signOutFailed);
+    }
+  };
+
+  const headerNav =
+    mode === 'edit' ? null : (
+      <button
+        className={notebookButtonClass({ tone: 'secondary', className: 'px-3.5' })}
+        type="button"
+        onClick={() => void handleOnboardingLogout()}
+      >
+        {text.signOut}
+      </button>
+    );
 
   if (authLoading || isLoading || !user) {
-    return (
+    const loading = (
       <NotebookLoading
         kind={mode === 'onboarding' ? 'profileOnboarding' : 'profileEdit'}
         label={text.loading}
+        layout={!authLoading && studentRole && user ? 'content' : 'page'}
       />
     );
+    if (!authLoading && studentRole && user) {
+      return (
+        <DashboardShell user={user} onLogout={handleLogout} headerNavRight={headerNav}>
+          {loading}
+        </DashboardShell>
+      );
+    }
+    return loading;
   }
 
   const savedShellName = studentRole
@@ -294,16 +329,6 @@ export default function ProfileEditor({ mode }: ProfileEditorProps) {
     ? { ...user, displayName: savedShellName }
     : { ...user };
   const tone: ProfileTone = studentRole ? 'student' : 'tutor';
-  const headerNav =
-    mode === 'edit' ? null : (
-      <button
-        className={notebookButtonClass({ tone: 'secondary', className: 'px-3.5' })}
-        type="button"
-        onClick={() => void handleLogout()}
-      >
-        {text.signOut}
-      </button>
-    );
 
   return (
     <DashboardShell user={shellUser} onLogout={handleLogout} headerNavRight={headerNav}>
@@ -341,13 +366,16 @@ export default function ProfileEditor({ mode }: ProfileEditorProps) {
               }}
               error={consentError}
             />
-            <button
-              className={notebookButtonClass({ className: 'mt-5' })}
+            <NotebookAction
+              role={tone}
+              icon={<DashboardIcon name="arrow-right" />}
+              className="mt-5"
               disabled={isSaving}
+              aria-busy={isSaving}
               type="submit"
             >
               {isSaving ? text.saving : text.continue}
-            </button>
+            </NotebookAction>
           </form>
         </PaperCard>
       ) : (
@@ -418,17 +446,24 @@ export default function ProfileEditor({ mode }: ProfileEditorProps) {
                 </p>
               )}
               <div className="mt-6 flex flex-wrap items-center gap-2 border-t border-dashed border-paper-edge pt-5">
-                <button className={notebookButtonClass()} disabled={isSaving} type="submit">
+                <NotebookAction
+                  role={tone}
+                  icon={<DashboardIcon name="check" />}
+                  disabled={isSaving}
+                  aria-busy={isSaving}
+                  type="submit"
+                >
                   {isSaving ? text.saving : mode === 'onboarding' ? text.continue : text.save}
-                </button>
-                <button
-                  className={notebookButtonClass({ tone: 'secondary' })}
+                </NotebookAction>
+                <NotebookAction
+                  role={tone}
+                  tone="secondary"
                   disabled={!dirty || isSaving}
                   onClick={handleCancel}
                   type="button"
                 >
                   {text.cancel}
-                </button>
+                </NotebookAction>
                 {dirty && (
                   <span className="w-full text-xs font-bold text-amber-700 sm:ml-auto sm:w-auto">
                     {text.unsaved}
@@ -524,6 +559,7 @@ function StudentFields({
         tone="student"
         onChange={onChange}
       />
+      <Section title={text.emergencyContact} tone="student" separated />
       <TextField
         id="phone"
         label={text.phone}
@@ -755,17 +791,25 @@ function SystemInfo({
     return <TutorProfileSummary email={email} language={language} tutorMeta={tutorMeta} />;
   }
   return (
-    <div
-      className="mt-5 grid gap-3 border-t border-dashed border-paper-edge pt-5 sm:grid-cols-[minmax(0,2fr)_minmax(180px,1fr)]"
-      aria-label={text.profileStatus}
-    >
-      <ReadOnly label={text.accountEmail} value={email} />
-      <ReadOnly
-        label={text.profileStatus}
-        value={complete ? text.complete : text.incomplete}
-        statusTone={complete ? 'student' : 'pending'}
-      />
-    </div>
+    <section className={summaryStyles.summary} aria-label={text.profileStatus}>
+      <dl className={summaryStyles.fields}>
+        <div className={summaryStyles.field}>
+          <dt className={summaryStyles.caption}>{text.accountEmail}</dt>
+          <dd className={`${summaryStyles.value} ${summaryStyles.email}`}>{email}</dd>
+        </div>
+        <div className={summaryStyles.field}>
+          <dt className={summaryStyles.caption}>{text.profileStatus}</dt>
+          <dd className={summaryStyles.statusValue}>
+            <StatusBadge
+              tone={complete ? 'student' : 'warning'}
+              className={`${summaryStyles.badge}`}
+            >
+              {complete ? text.complete : text.incomplete}
+            </StatusBadge>
+          </dd>
+        </div>
+      </dl>
+    </section>
   );
 }
 
@@ -781,16 +825,20 @@ function StudentSummary({
   const text = copy[language];
   const nickname = data.nickname.trim() || text.nickname;
   return (
-    <aside className="self-start min-[1061px]:sticky min-[1061px]:top-24">
-      <PaperCard className="p-5 sm:p-6">
-        <WashiTape tone="yellow" className="-top-2 right-8 rotate-3" />
-        <PreviewTitle
-          icon="profile"
-          title={text.accountSummary}
-          body={text.accountSummaryBody}
-          tone="student"
-        />
-        <StickyNote tone="green" className="p-4">
+    <aside
+      className={`${previewStyles.preview} min-w-0 self-start min-[1061px]:sticky min-[1061px]:top-24`}
+      aria-labelledby="student-account-summary-title"
+    >
+      <header className={previewStyles.header}>
+        <h2 id="student-account-summary-title" className="font-note">
+          <DashboardIcon name="eye" className="h-[18px] w-[18px] shrink-0 text-student-deep" />
+          {text.accountSummary}
+        </h2>
+        <p>{text.accountSummaryBody}</p>
+      </header>
+      <PaperCard className={previewStyles.paper}>
+        <WashiTape tone="yellow" className={`${previewStyles.tape}`} />
+        <div className={previewStyles.identity}>
           <Identity
             userId={userId}
             name={nickname}
@@ -798,26 +846,39 @@ function StudentSummary({
             initials={initials(nickname, 'S')}
             role="student"
           />
-          <dl className="relative z-10 mt-4 grid gap-2 border-t border-emerald-200/80 pt-4">
-            <div className="flex justify-between gap-4 text-xs">
-              <dt className="text-notebook-muted">{text.school}</dt>
-              <dd className="text-right font-bold text-notebook-ink">
-                {data.school.trim() || '—'}
-              </dd>
-            </div>
-            <div className="flex justify-between gap-4 text-xs">
-              <dt className="text-notebook-muted">{text.classLabel}</dt>
-              <dd className="text-right font-bold text-notebook-ink">
-                {data.gradeLevel.trim() || '—'}
-              </dd>
-            </div>
-          </dl>
-        </StickyNote>
-        <GraphPaper className="mt-4 p-4">
-          <b className="text-sm text-notebook-ink">{text.whatTutorsSee}</b>
-          <p className="mt-1 text-xs leading-5 text-notebook-muted">{text.whatTutorsSeeBody}</p>
-        </GraphPaper>
+        </div>
+        <p className={`${previewStyles.verification} text-student-deep`}>
+          <svg
+            className="h-4 w-4 shrink-0"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.8"
+            aria-hidden="true"
+          >
+            <rect x="5" y="10" width="14" height="11" rx="2" />
+            <path d="M8 10V7a4 4 0 0 1 8 0v3M12 14v3" />
+          </svg>
+          {text.privateProfile}
+        </p>
+        <dl className={`${previewStyles.about} ${studentStyles.learning}`}>
+          <div>
+            <dt>{text.school}</dt>
+            <dd>{data.school.trim() || '—'}</dd>
+          </div>
+          <div>
+            <dt>{text.classLabel}</dt>
+            <dd>{data.gradeLevel.trim() || '—'}</dd>
+          </div>
+        </dl>
       </PaperCard>
+      <StickyNote tone="yellow" className={previewStyles.tip}>
+        <DashboardIcon name="info" className="mt-1 h-[18px] w-[18px] shrink-0 text-amber-700" />
+        <div>
+          <h3 className="font-note">{text.whatTutorsSee}</h3>
+          <p>{text.whatTutorsSeeBody}</p>
+        </div>
+      </StickyNote>
     </aside>
   );
 }
@@ -897,36 +958,6 @@ function TutorPreview({
   );
 }
 
-function PreviewTitle({
-  icon,
-  title,
-  body,
-  tone,
-}: {
-  icon: DashboardIconName;
-  title: string;
-  body: string;
-  tone: ProfileTone;
-}) {
-  return (
-    <div className="mb-4">
-      <div className="flex items-center gap-2.5">
-        <span
-          className={`inline-flex h-8 w-8 items-center justify-center rounded-lg ${
-            tone === 'student'
-              ? 'bg-sticky-green text-student-deep'
-              : 'bg-sticky-blue text-tutor-deep'
-          }`}
-          aria-hidden="true"
-        >
-          <DashboardIcon name={icon} className="h-4 w-4" />
-        </span>
-        <h2 className="text-lg font-extrabold text-notebook-ink">{title}</h2>
-      </div>
-      <p className="mt-1.5 text-xs leading-5 text-notebook-muted">{body}</p>
-    </div>
-  );
-}
 function Identity({
   userId,
   name,
@@ -969,39 +1000,6 @@ function Identity({
           </StatusBadge>
         )}
       </div>
-    </div>
-  );
-}
-function ReadOnly({
-  label,
-  value,
-  statusTone,
-}: {
-  label: string;
-  value: string;
-  statusTone?: 'student' | 'tutor' | 'pending' | 'error';
-}) {
-  const toneClass = {
-    student: 'text-student-deep',
-    tutor: 'text-tutor-deep',
-    pending: 'text-amber-700',
-    error: 'text-red-700',
-  };
-  return (
-    <div className="min-w-0 rounded-lg border border-paper-edge bg-paper-deep/65 px-3 py-2.5">
-      <span className="block text-[0.65rem] font-bold uppercase tracking-[0.08em] text-notebook-muted">
-        {label}
-      </span>
-      <b
-        className={`mt-1 flex items-center gap-1.5 text-xs leading-5 [overflow-wrap:anywhere] ${
-          statusTone ? toneClass[statusTone] : 'text-notebook-ink'
-        }`}
-      >
-        {statusTone && (
-          <i className="h-1.5 w-1.5 shrink-0 rounded-full bg-current" aria-hidden="true" />
-        )}
-        {value}
-      </b>
     </div>
   );
 }
@@ -1063,6 +1061,7 @@ const copy = {
     lastName: 'Last name',
     lastStep: 'One last step',
     learningInformation: 'Learning information',
+    emergencyContact: 'Emergency contact',
     listingNote: 'Subject, grade level, hourly price, and listing description are managed under',
     loadError: 'Unable to load your profile.',
     loading: 'Loading profile…',
@@ -1089,6 +1088,8 @@ const copy = {
     save: 'Save profile',
     saveError: 'Unable to save your profile.',
     saved: 'Profile saved successfully',
+    consentSaved: 'Privacy notice accepted.',
+    reviewFields: 'Please check the highlighted fields.',
     saving: 'Saving…',
     school: 'School',
     shownToStudents: 'Shown to students',
@@ -1158,6 +1159,7 @@ const copy = {
     lastName: 'นามสกุล',
     lastStep: 'ขั้นตอนสุดท้าย',
     learningInformation: 'ข้อมูลการเรียน',
+    emergencyContact: 'ข้อมูลติดต่อฉุกเฉิน',
     listingNote: 'วิชา ระดับชั้น ราคาต่อชั่วโมง และรายละเอียดประกาศ จัดการได้ที่',
     loadError: 'ไม่สามารถโหลดโปรไฟล์ได้',
     loading: 'กำลังโหลดโปรไฟล์…',
@@ -1184,6 +1186,8 @@ const copy = {
     save: 'บันทึกโปรไฟล์',
     saveError: 'ไม่สามารถบันทึกโปรไฟล์ได้',
     saved: 'บันทึกโปรไฟล์สำเร็จ',
+    consentSaved: 'ยอมรับประกาศความเป็นส่วนตัวแล้ว',
+    reviewFields: 'โปรดตรวจสอบช่องข้อมูลที่ระบุข้อผิดพลาด',
     saving: 'กำลังบันทึก…',
     school: 'โรงเรียน',
     shownToStudents: 'แสดงให้นักเรียนเห็น',
@@ -1209,7 +1213,7 @@ const copy = {
     verification: 'การยืนยัน',
     whatTutorsSee: 'ข้อมูลที่ติวเตอร์มองเห็น',
     whatTutorsSeeBody:
-      'เฉพาะชื่อเล่นเท่านั้นที่จะแสดงให้ติวเตอร์ซึ่งเกี่ยวข้องกับการจองเห็น ชื่อจริง โรงเรียน ชั้นเรียน เบอร์โทรศัพท์ และอีเมลจะไม่แสดง',
+      'เฉพาะชื่อเล่นเท่านั้นที่จะแสดงให้ติวเตอร์ซึ่งเกี่ยวข้องกับการจองเห็น ชื่อจริง นามสกุล โรงเรียน ชั้นเรียน เบอร์โทรศัพท์ และอีเมลจะไม่แสดง',
     experienceShort: 'ประสบการณ์',
     years: 'ปี',
     status: {

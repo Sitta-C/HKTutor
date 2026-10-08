@@ -439,11 +439,19 @@ test('rejects reversed same-day times and reports an API overlap without losing 
   await form.getByRole('button', { name: /^เวลาสิ้นสุด / }).click();
   await form.getByRole('button', { name: 'เพิ่มเวลา', exact: true }).click();
   await expect(form.getByRole('alert')).toHaveText('วันเวลาจบต้องอยู่หลังวันเวลาเริ่ม');
+  await expect(page.locator('[data-notebook-toast="error"]')).toHaveText(
+    'วันเวลาจบต้องอยู่หลังวันเวลาเริ่ม',
+  );
   expect(created).toEqual([]);
   await form.getByRole('button', { name: /^วันที่จบ / }).click();
   await form.getByRole('gridcell', { name: 'วันอังคารที่ 6 ตุลาคม 2569', exact: true }).click();
   await form.getByRole('button', { name: 'เพิ่มเวลา', exact: true }).click();
   await expect(form.getByRole('alert')).toHaveText('ช่วงเวลานี้ซ้อนกับช่วงเวลาที่มีอยู่แล้ว');
+  await expect(
+    page
+      .locator('[data-notebook-toast="error"]')
+      .filter({ hasText: 'ช่วงเวลานี้ซ้อนกับช่วงเวลาที่มีอยู่แล้ว' }),
+  ).toHaveCount(1);
   await expect(form.getByRole('button', { name: /^เวลาสิ้นสุด / })).toContainText('16:00');
 });
 

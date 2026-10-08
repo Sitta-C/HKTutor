@@ -1,0 +1,139 @@
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+  padding: 18px 22px;
+  border-bottom: 1px dashed var(--color-paper-edge);
+}
+
+.paginationCount {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--color-notebook-muted);
+}
+
+.paginationTickets {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  border: 1px solid var(--color-paper-edge);
+  border-radius: 5px;
+  box-shadow: 0 3px 0 var(--color-paper-edge);
+}
+
+.paginationTickets::before,
+.paginationTickets::after {
+  position: absolute;
+  left: calc(50% - 6px);
+  z-index: 2;
+  width: 12px;
+  height: 12px;
+  border: 1px solid var(--color-paper-edge);
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--color-paper) 97%, white);
+  pointer-events: none;
+  content: '';
+}
+
+.paginationTickets::before {
+  top: -6px;
+  clip-path: inset(50% 0 0);
+}
+
+.paginationTickets::after {
+  bottom: -6px;
+  clip-path: inset(0 0 50%);
+}
+
+.paginationButton {
+  position: relative;
+  display: flex;
+  min-width: 120px;
+  min-height: 48px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 18px;
+  background: var(--color-paper-deep);
+  color: var(--color-notebook-ink);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.5;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color 150ms ease;
+}
+
+.paginationButton::after {
+  position: absolute;
+  inset: 5px;
+  border: 1px dashed color-mix(in srgb, var(--color-notebook-muted) 35%, transparent);
+  border-radius: 2px;
+  pointer-events: none;
+  content: '';
+}
+
+.paginationButton:first-child {
+  border-radius: 4px 0 0 4px;
+}
+
+.paginationButton:last-child {
+  border-left: 1px dashed var(--color-notebook-muted);
+  border-radius: 0 4px 4px 0;
+  background: color-mix(in srgb, var(--color-student-deep) 12%, var(--color-paper));
+  color: var(--search-accent-ink);
+}
+
+.paginationButton:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--color-student-deep) 18%, var(--color-paper));
+}
+
+.paginationButton:active:not(:disabled) {
+  background: color-mix(in srgb, var(--color-student-deep) 24%, var(--color-paper));
+}
+
+.paginationButton:focus-visible {
+  z-index: 3;
+  outline: 2px solid var(--color-student-deep);
+  outline-offset: 3px;
+}
+
+.paginationButton:disabled {
+  background: var(--color-paper);
+  color: var(--color-notebook-muted);
+  cursor: default;
+}
+
+.paginationButton:disabled::after {
+  border-color: var(--color-paper-edge);
+}
+
+@container (max-width: 450px) {
+  .pagination {
+    flex-direction: column;
+  }
+
+  .paginationTickets {
+    width: 100%;
+  }
+
+  .paginationButton {
+    min-width: 0;
+    gap: 6px;
+    padding-inline: 10px;
+  }
+}
+
+@media (max-width: 767px) {
+  .pagination {
+    padding: 16px 14px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .paginationButton {
+    transition: none;
+  }
+}

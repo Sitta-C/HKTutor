@@ -51,6 +51,7 @@ async function mockListings(
     failArchive?: boolean;
     beforePublish?: () => Promise<void>;
     failPublish?: boolean;
+    failRestore?: boolean;
   } = {},
 ) {
   const writes: Array<{ path: string; body: unknown }> = [];
@@ -121,6 +122,14 @@ async function mockListings(
           return;
         }
       }
+      if (
+        path.endsWith('/status') &&
+        request.postDataJSON().publicationStatus === 'DRAFT' &&
+        options.failRestore
+      ) {
+        await route.fulfill({ status: 500, json: { message: 'Unavailable' } });
+        return;
+      }
       const updated: TeachingListing = {
         ...item,
         publicationStatus: path.endsWith('/publish')
@@ -155,9 +164,10 @@ test('preserves search, filtering, edit links and publication actions in the led
   await physics.getByRole('button', { name: 'Publish', exact: true }).click();
   await page
     .getByRole('alertdialog', { name: 'Publish this listing?' })
-    .getByRole('button', { name: 'Confirm', exact: true })
+    .getByRole('button', { name: /^(Publish|Archive)$/ })
     .click();
   await expect(physics.getByText('Published', { exact: true })).toBeVisible();
+  await expect(page.locator('[data-notebook-toast="success"]')).toHaveText('Listing published.');
   await search.fill('');
   const math = ledger.getByRole('article', { name: 'Mathematics', exact: true });
   const dialog = page.getByRole('alertdialog', { name: 'Archive this listing?' });
@@ -165,7 +175,7 @@ test('preserves search, filtering, edit links and publication actions in the led
   await expect(dialog.getByRole('button', { name: 'Cancel', exact: true })).toBeFocused();
   await expect(dialog.getByRole('heading', { name: 'Mathematics', exact: true })).toBeVisible();
   await page.keyboard.press('Tab');
-  await expect(dialog.getByRole('button', { name: 'Confirm', exact: true })).toBeFocused();
+  await expect(dialog.getByRole('button', { name: /^(Publish|Archive)$/ })).toBeFocused();
   await page.keyboard.press('Tab');
   await page.keyboard.press('Tab');
   await expect(dialog.getByRole('button', { name: 'Cancel', exact: true })).toBeFocused();
@@ -173,16 +183,24 @@ test('preserves search, filtering, edit links and publication actions in the led
   await expect(math.getByRole('button', { name: 'Archive', exact: true })).toBeFocused();
   expect(writes).toHaveLength(1);
   await math.getByRole('button', { name: 'Archive', exact: true }).click();
-  await dialog.getByRole('button', { name: 'Confirm', exact: true }).focus();
+  await dialog.getByRole('button', { name: /^(Publish|Archive)$/ }).focus();
   await page.keyboard.press('Escape');
   await expect(dialog).toHaveCount(0);
   await expect(math.getByRole('button', { name: 'Archive', exact: true })).toBeFocused();
   expect(writes).toHaveLength(1);
   await math.getByRole('button', { name: 'Archive', exact: true }).click();
-  await dialog.getByRole('button', { name: 'Confirm', exact: true }).click();
+  await dialog.getByRole('button', { name: /^(Publish|Archive)$/ }).click();
   await expect(math.getByText('Archived', { exact: true })).toBeVisible();
+  await expect(
+    page.locator('[data-notebook-toast="success"]').filter({ hasText: 'Listing archived.' }),
+  ).toHaveCount(1);
   await math.getByRole('button', { name: 'Restore draft', exact: true }).click();
   await expect(math.getByText('Draft', { exact: true })).toBeVisible();
+  await expect(
+    page
+      .locator('[data-notebook-toast="success"]')
+      .filter({ hasText: 'Listing restored to draft.' }),
+  ).toHaveCount(1);
   const filters = page.getByRole('group', { name: 'Filter teaching listings' });
   if (await filters.isVisible()) {
     await filters.getByRole('button', { name: 'Draft 1', exact: true }).click();
@@ -268,7 +286,7 @@ test('keeps publication blue and archiving warning red when switching alerts', a
       sample.remove();
       return color;
     }, publishing);
-    await expect(dialog.getByRole('button', { name: 'Confirm', exact: true })).toHaveCSS(
+    await expect(dialog.getByRole('button', { name: /^(Publish|Archive)$/ })).toHaveCSS(
       'background-color',
       accent,
     );
@@ -301,7 +319,7 @@ for (const subject of ['Physics', 'English']) {
     await expect(publish).toBeFocused();
     expect(writes).toEqual([]);
     await publish.click();
-    await dialog.getByRole('button', { name: 'Confirm', exact: true }).click();
+    await dialog.getByRole('button', { name: /^(Publish|Archive)$/ }).click();
     await expect(dialog).toHaveCount(0);
     await expect(course.getByText('Published', { exact: true })).toBeVisible();
     expect(writes).toEqual([
@@ -336,7 +354,7 @@ test('fits the Thai publish alert at 320px and publishes only the selected cours
     }),
   ).toBe(true);
   expect(writes).toEqual([]);
-  await dialog.getByRole('button', { name: 'ยืนยัน', exact: true }).click();
+  await dialog.getByRole('button', { name: /^(เผยแพร่|เก็บถาวร)$/ }).click();
   await expect(physics.getByText('เผยแพร่แล้ว', { exact: true })).toBeVisible();
   expect(writes).toEqual([{ path: '/tutors/me/listings/physics/publish', body: null }]);
 });
@@ -347,11 +365,23 @@ test('keeps publish failures in the alert with the draft unchanged', async ({ pa
   const physics = page.getByRole('article', { name: 'Physics', exact: true });
   await physics.getByRole('button', { name: 'Publish', exact: true }).click();
   const dialog = page.getByRole('alertdialog', { name: 'Publish this listing?' });
-  await dialog.getByRole('button', { name: 'Confirm', exact: true }).click();
-  await expect(dialog.getByRole('alert')).toHaveText(
+  await dialog.getByRole('button', { name: /^(Publish|Archive)$/ }).click();
+  await expect(dialog.locator('[role="alert"]:not([data-notebook-toast])')).toHaveText(
     'Unable to update this listing. Check your profile status and try again.',
   );
-  await expect(dialog.getByRole('button', { name: 'Confirm', exact: true })).toBeEnabled();
+  const toast = dialog.locator('[data-notebook-toast="error"]');
+  await expect(toast).toHaveText(
+    'Unable to update this listing. Check your profile status and try again.',
+  );
+  expect(
+    await toast.evaluate((element) => {
+      const box = element.getBoundingClientRect();
+      return element.contains(
+        document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2),
+      );
+    }),
+  ).toBe(true);
+  await expect(dialog.getByRole('button', { name: /^(Publish|Archive)$/ })).toBeEnabled();
   await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
   await expect(physics.getByText('Draft', { exact: true })).toBeVisible();
 });
@@ -366,7 +396,7 @@ test('prevents duplicate publication and dismissal until publishing finishes', a
   const physics = page.getByRole('article', { name: 'Physics', exact: true });
   await physics.getByRole('button', { name: 'Publish', exact: true }).click();
   const dialog = page.getByRole('alertdialog', { name: 'Publish this listing?' });
-  await dialog.getByRole('button', { name: 'Confirm', exact: true }).click();
+  await dialog.getByRole('button', { name: /^(Publish|Archive)$/ }).click();
   await expect(dialog.getByRole('button', { name: 'Working…', exact: true })).toBeDisabled();
   await expect(dialog.getByRole('button', { name: 'Cancel', exact: true })).toBeDisabled();
   await page.keyboard.press('Escape');
@@ -393,7 +423,7 @@ test('fits the Thai ledger and archive alert at 320px and respects verification'
   const math = ledger.getByRole('article', { name: 'Mathematics', exact: true });
   await math.getByRole('button', { name: 'เก็บถาวร', exact: true }).click();
   const dialog = page.getByRole('alertdialog', { name: 'เก็บประกาศนี้ไว้ถาวร?' });
-  await expect(dialog.getByRole('button', { name: 'ยืนยัน', exact: true })).toBeVisible();
+  await expect(dialog.getByRole('button', { name: /^(เผยแพร่|เก็บถาวร)$/ })).toBeVisible();
   const fits = await page.locator('main').evaluate((element) => {
     return [...element.querySelectorAll('article, button, input, select')].every((child) => {
       if (!child.getClientRects().length) return true;
@@ -428,11 +458,12 @@ test('keeps an archive failure visible in the alert without changing the course 
   const math = page.getByRole('article', { name: 'Mathematics', exact: true });
   await math.getByRole('button', { name: 'Archive', exact: true }).click();
   const dialog = page.getByRole('alertdialog', { name: 'Archive this listing?' });
-  await dialog.getByRole('button', { name: 'Confirm', exact: true }).click();
-  await expect(dialog.getByRole('alert')).toHaveText(
+  await dialog.getByRole('button', { name: /^(Publish|Archive)$/ }).click();
+  await expect(dialog.locator('[role="alert"]:not([data-notebook-toast])')).toHaveText(
     'Unable to update this listing. Check your profile status and try again.',
   );
-  await expect(dialog.getByRole('button', { name: 'Confirm', exact: true })).toBeEnabled();
+  await expect(dialog.locator('[data-notebook-toast="error"]')).toHaveCount(1);
+  await expect(dialog.getByRole('button', { name: /^(Publish|Archive)$/ })).toBeEnabled();
   await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
   await expect(math.getByText('Published', { exact: true })).toBeVisible();
 });
@@ -447,7 +478,7 @@ test('keeps the alert open and prevents duplicate requests while archiving', asy
   const math = page.getByRole('article', { name: 'Mathematics', exact: true });
   await math.getByRole('button', { name: 'Archive', exact: true }).click();
   const dialog = page.getByRole('alertdialog', { name: 'Archive this listing?' });
-  await dialog.getByRole('button', { name: 'Confirm', exact: true }).click();
+  await dialog.getByRole('button', { name: /^(Publish|Archive)$/ }).click();
   await expect(dialog.getByRole('button', { name: 'Working…', exact: true })).toBeDisabled();
   await expect(dialog.getByRole('button', { name: 'Cancel', exact: true })).toBeDisabled();
   await page.keyboard.press('Escape');
@@ -487,6 +518,65 @@ test('keeps the ledger shell visible with unavailable counts while loading', asy
   );
   release();
   await expect(summary.locator('dd')).toHaveText(['3', '1']);
+});
+
+for (const language of ['en', 'th'] as const) {
+  for (const width of [320, 768, 1440]) {
+    test(`${language} error toast stays above native confirmation at ${width}px and survives closing it`, async ({
+      page,
+    }, testInfo) => {
+      await page.setViewportSize({ width, height: 1000 });
+      await page.emulateMedia({ reducedMotion: 'reduce' });
+      const writes = await mockListings(page, { language, failPublish: true });
+      await page.goto('/dashboard/listings');
+      const course = page.getByRole('article', { name: 'Physics', exact: true });
+      await course
+        .getByRole('button', { name: language === 'th' ? 'เผยแพร่' : 'Publish', exact: true })
+        .click();
+      const dialog = page.getByRole('alertdialog');
+      await dialog
+        .getByRole('button', { name: language === 'th' ? 'เผยแพร่' : 'Publish', exact: true })
+        .click();
+      const toast = page.locator('[data-notebook-toast="error"]');
+      await expect(toast).toHaveCount(1);
+      await expect(dialog.locator('[data-notebook-toast="error"]')).toHaveCount(1);
+      expect(
+        await toast.evaluate((element) => {
+          const box = element.getBoundingClientRect();
+          return (
+            box.left >= 0 &&
+            box.right <= innerWidth &&
+            element.scrollWidth <= element.clientWidth &&
+            element.contains(
+              document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2),
+            )
+          );
+        }),
+      ).toBe(true);
+      await toast.screenshot({ path: testInfo.outputPath(`toast-error-${language}-${width}.png`) });
+      await dialog
+        .getByRole('button', { name: language === 'th' ? 'ยกเลิก' : 'Cancel', exact: true })
+        .click();
+      await expect(
+        page.locator('body > [data-notebook-toast-region] [data-notebook-toast="error"]'),
+      ).toHaveCount(1);
+      await expect(toast).toHaveCount(0, { timeout: 5000 });
+      expect(writes).toHaveLength(1);
+    });
+  }
+}
+
+test('failed restore keeps the course archived and reports one error toast', async ({ page }) => {
+  const writes = await mockListings(page, { language: 'en', failRestore: true });
+  await page.goto('/dashboard/listings');
+  const course = page.getByRole('article', { name: 'English', exact: true });
+  await course.getByRole('button', { name: 'Restore draft', exact: true }).click();
+  await expect(page.locator('[data-notebook-toast="error"]')).toHaveCount(1);
+  await expect(course.getByText('Archived', { exact: true })).toBeVisible();
+  await expect(page.locator('[data-notebook-toast="success"]')).toHaveCount(0);
+  expect(writes).toEqual([
+    { path: '/tutors/me/listings/english/status', body: { publicationStatus: 'DRAFT' } },
+  ]);
 });
 
 test('shows zero counts and the first listing action for a successfully empty account', async ({

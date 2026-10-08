@@ -61,6 +61,9 @@ test('failed login shows an alert while keeping password help available', async 
   await expect(page.locator('main').getByRole('alert')).toHaveText(
     'Unable to sign in. Please check your details and try again.',
   );
+  await expect(page.locator('[data-notebook-toast="error"]')).toHaveText(
+    'Unable to sign in. Please check your details and try again.',
+  );
   await expect(page.getByRole('button', { name: 'Sign in', exact: true })).toBeEnabled();
   await page.getByRole('button', { name: 'Forgot password?', exact: true }).click();
   await expect(page.getByRole('dialog', { name: 'Forgot password?' })).toBeVisible();
