@@ -75,8 +75,9 @@ test('tutor confirms, rejects and recovers from missing and stale booking reques
 }) => {
   const listRequests: string[] = [];
   const decisionRequests: { path: string; body: unknown }[] = [];
-  // Whatever leaves PENDING on the server drops out of the next inbox reload.
-  const pendingOnServer = new Set(requestedBookings.map((item) => item.id));
+  // The mock keeps each booking's status so a filtered query answers like the API does.
+  const statuses = new Map(requestedBookings.map((item) => [item.id, 'PENDING']));
+  const removed = new Set<string>();
 
   await page.route('**/api/v1/**', async (route) => {
     const request = route.request();
@@ -97,14 +98,16 @@ test('tutor confirms, rejects and recovers from missing and stale booking reques
     }
     if (request.method() === 'GET' && path === '/bookings/tutor') {
       listRequests.push(url.search);
+      const wanted = url.searchParams.get('status');
       const items = requestedBookings
-        .filter((item) => pendingOnServer.has(item.id))
-        .map(pendingBooking);
+        .filter((item) => !removed.has(item.id))
+        .map((item) => ({ ...pendingBooking(item), status: statuses.get(item.id) }))
+        .filter((booking) => !wanted || booking.status === wanted);
       return json(route, { items, total: items.length });
     }
     if (request.method() === 'POST' && path === `/bookings/tutor/${maliBookingId}/confirm`) {
       decisionRequests.push({ path, body: request.postDataJSON() });
-      pendingOnServer.delete(maliBookingId);
+      statuses.set(maliBookingId, 'CONFIRMED');
       return json(route, {
         bookingId: maliBookingId,
         status: 'CONFIRMED',
@@ -114,7 +117,7 @@ test('tutor confirms, rejects and recovers from missing and stale booking reques
     }
     if (request.method() === 'POST' && path === `/bookings/tutor/${nidaBookingId}/reject`) {
       decisionRequests.push({ path, body: request.postDataJSON() });
-      pendingOnServer.delete(nidaBookingId);
+      statuses.set(nidaBookingId, 'CANCELED');
       return json(route, {
         bookingId: nidaBookingId,
         status: 'CANCELED',
@@ -123,7 +126,7 @@ test('tutor confirms, rejects and recovers from missing and stale booking reques
       });
     }
     if (request.method() === 'POST' && path === `/bookings/tutor/${ployBookingId}/confirm`) {
-      pendingOnServer.delete(ployBookingId);
+      removed.add(ployBookingId);
       return json(
         route,
         {
@@ -136,7 +139,7 @@ test('tutor confirms, rejects and recovers from missing and stale booking reques
       );
     }
     if (request.method() === 'POST' && path === `/bookings/tutor/${somchaiBookingId}/confirm`) {
-      pendingOnServer.delete(somchaiBookingId);
+      statuses.set(somchaiBookingId, 'CONFIRMED');
       return json(
         route,
         {
@@ -176,8 +179,9 @@ test('tutor confirms, rejects and recovers from missing and stale booking reques
   await confirmDialog.getByRole('button', { name: 'Yes, confirm booking' }).click();
 
   await expect(page.getByText('Booking confirmed. The lesson time stays reserved.')).toBeVisible();
-  await expect(maliRow.getByText('CONFIRMED', { exact: true })).toBeVisible();
-  await expect(maliRow.getByRole('button', { name: /Confirm the booking/ })).toHaveCount(0);
+  // The confirmed request leaves the pending view, and the refetched count follows it.
+  await expect(page.getByText('3 bookings · PENDING')).toBeVisible();
+  await expect(maliRow).toHaveCount(0);
   await expect(page.getByRole('dialog')).toHaveCount(0);
 
   // Rejecting sends the tutor's reason and releases the time.
@@ -188,7 +192,8 @@ test('tutor confirms, rejects and recovers from missing and stale booking reques
   await rejectDialog.getByRole('button', { name: 'Yes, reject booking' }).click();
 
   await expect(page.getByText('Booking rejected. The lesson time is open again.')).toBeVisible();
-  await expect(nidaRow.getByText('CANCELED', { exact: true })).toBeVisible();
+  await expect(page.getByText('2 bookings · PENDING')).toBeVisible();
+  await expect(nidaRow).toHaveCount(0);
   expect(decisionRequests).toEqual([
     { path: `/bookings/tutor/${maliBookingId}/confirm`, body: {} },
     {
@@ -207,7 +212,8 @@ test('tutor confirms, rejects and recovers from missing and stale booking reques
   ).toBeVisible();
   await expect(ployRow.getByRole('button', { name: /Confirm the booking/ })).toHaveCount(0);
   await expect(ployRow.getByRole('button', { name: 'Refresh' })).toBeVisible();
-  await expect(page.getByRole('article')).toHaveCount(4);
+  // Nothing was persisted, so the locked row and the count both stay where they were.
+  await expect(page.getByRole('article')).toHaveCount(2);
   await expect(page.getByText('2 bookings · PENDING')).toBeVisible();
   await expect(page.getByRole('dialog')).toHaveCount(0);
 
@@ -227,10 +233,89 @@ test('tutor confirms, rejects and recovers from missing and stale booking reques
   await expect(page.getByRole('heading', { name: 'No bookings in this view' })).toBeVisible();
   await expectAccessiblePageShell(page);
 
+  // Every decision is readable in the all-status view with the status the server persisted.
+  await page.getByRole('button', { name: 'All', exact: true }).click();
+  await expect(maliRow.getByText('CONFIRMED', { exact: true })).toBeVisible();
+  await expect(nidaRow.getByText('CANCELED', { exact: true })).toBeVisible();
+  await expect(maliRow.getByRole('button', { name: /Confirm the booking/ })).toHaveCount(0);
+
   // The student-owned booking screens stay closed to a tutor.
   await page.goto(`/dashboard/bookings/new?listingId=${listingId}&slotId=slot-1`);
   await expect(page).toHaveURL((url) => url.pathname === '/dashboard/bookings');
   await expect(page.getByRole('heading', { name: /Booking inbox/ })).toBeVisible();
+});
+
+test('paging after a decision skips no request when the pending set shrinks', async ({ page }) => {
+  // 21 pending requests: deciding one on page 1 moves request 11 up into it.
+  const pending = Array.from({ length: 21 }, (_, index) => ({
+    id: `aaaaaaaa-0000-4000-8000-${String(index + 1).padStart(12, '0')}`,
+    nickname: `Student ${String(index + 1).padStart(2, '0')}`,
+    startHourUtc: 1 + (index % 20),
+  }));
+  const decided = new Set<string>();
+
+  await page.route('**/api/v1/**', async (route) => {
+    const request = route.request();
+    const url = new URL(request.url());
+    const path = url.pathname.replace('/api/v1', '');
+
+    if (request.method() === 'POST' && path === '/auth/refresh') {
+      return json(route, { accessToken: 'e2e-access-token', expiresIn: 900, user: tutorUser });
+    }
+    if (request.method() === 'GET' && path === '/profiles/me') {
+      return json(route, {
+        role: tutorUser.role,
+        consentCurrent: true,
+        policyVersion: '2026-01',
+        profileComplete: true,
+        profile: tutorProfile,
+      });
+    }
+    if (request.method() === 'GET' && path === '/bookings/tutor') {
+      const open = pending.filter((item) => !decided.has(item.id));
+      const page1 = Number(url.searchParams.get('page') ?? '1');
+      const size = Number(url.searchParams.get('pageSize') ?? '10');
+      return json(route, {
+        items: open.slice((page1 - 1) * size, page1 * size).map(pendingBooking),
+        total: open.length,
+      });
+    }
+    const confirmed = pending.find((item) => path === `/bookings/tutor/${item.id}/confirm`);
+    if (request.method() === 'POST' && confirmed) {
+      decided.add(confirmed.id);
+      return json(route, {
+        bookingId: confirmed.id,
+        status: 'CONFIRMED',
+        slotStatus: 'RESERVED',
+        canceledAt: null,
+      });
+    }
+    return unhandled(route, request.method(), path);
+  });
+
+  await page
+    .context()
+    .addCookies([{ name: 'hktutor_refresh', value: 'e2e', domain: 'localhost', path: '/' }]);
+  await page.goto('/dashboard/bookings');
+
+  await expect(page.getByText('21 bookings · PENDING')).toBeVisible();
+  await expect(page.getByRole('article', { name: 'Student 01', exact: true })).toBeVisible();
+  await expect(page.getByRole('article', { name: 'Student 11', exact: true })).toHaveCount(0);
+
+  await page.getByRole('button', { name: 'Confirm the booking from Student 01' }).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Yes, confirm booking' }).click();
+  await expect(page.getByText('20 bookings · PENDING')).toBeVisible();
+
+  // The page refetched, so the request that moved up is on page 1 instead of being paged over.
+  await expect(page.getByRole('article', { name: 'Student 11', exact: true })).toBeVisible();
+  await expect(page.getByRole('article', { name: 'Student 01', exact: true })).toHaveCount(0);
+
+  await page
+    .getByRole('navigation', { name: 'Booking inbox pages' })
+    .getByRole('button', { name: 'Next', exact: true })
+    .click();
+  await expect(page.getByRole('article', { name: 'Student 12', exact: true })).toBeVisible();
+  await expect(page.getByRole('article')).toHaveCount(10);
 });
 
 async function expectAccessiblePageShell(page: Page) {

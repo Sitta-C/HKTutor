@@ -30,7 +30,7 @@ export interface BookingDecisionDialogProps {
 
 /**
  * Asks the tutor to confirm one pending decision before it is sent. The parent mounts one dialog
- * per target so the optional note or reason never carries over to another booking.
+ * per target so a rejection reason never carries over to another booking.
  */
 export function BookingDecisionDialog({
   booking,
@@ -112,37 +112,40 @@ export function BookingDecisionDialog({
           </div>
         </dl>
 
-        <div className="mt-5">
-          <label htmlFor={textId} className="mb-1.5 block text-sm font-bold text-notebook-ink">
-            {isConfirm ? copy.noteLabel : copy.reasonLabel}
-          </label>
-          <textarea
-            id={textId}
-            autoFocus
-            rows={3}
-            value={text}
-            maxLength={MAX_BOOKING_DECISION_TEXT_LENGTH}
-            disabled={isSubmitting}
-            placeholder={isConfirm ? copy.notePlaceholder : copy.reasonPlaceholder}
-            aria-describedby={`${textId}-hint`}
-            aria-invalid={showTextError && textError !== null}
-            onChange={(event) => {
-              setText(event.target.value);
-              setShowTextError(false);
-            }}
-            className="w-full rounded-lg border border-paper-edge bg-paper px-4 py-3 text-[0.98rem] leading-6 text-notebook-ink outline-none transition placeholder:text-stone-400 hover:border-stone-400 focus:border-notebook-ink focus:ring-4 focus:ring-sticky-yellow/60 disabled:opacity-60"
-          />
-          {showTextError && textError ? (
-            <p className="mt-1.5 text-xs font-medium text-red-700" role="alert">
-              {textError}
-            </p>
-          ) : (
-            <p id={`${textId}-hint`} className="mt-1.5 text-xs text-notebook-muted">
-              {copy.textHint.replace('{max}', String(MAX_BOOKING_DECISION_TEXT_LENGTH))} (
-              {text.length}/{MAX_BOOKING_DECISION_TEXT_LENGTH})
-            </p>
-          )}
-        </div>
+        {/* Only a rejection collects text: the API stores the reason but discards a confirm note. */}
+        {!isConfirm && (
+          <div className="mt-5">
+            <label htmlFor={textId} className="mb-1.5 block text-sm font-bold text-notebook-ink">
+              {copy.reasonLabel}
+            </label>
+            <textarea
+              id={textId}
+              autoFocus
+              rows={3}
+              value={text}
+              maxLength={MAX_BOOKING_DECISION_TEXT_LENGTH}
+              disabled={isSubmitting}
+              placeholder={copy.reasonPlaceholder}
+              aria-describedby={`${textId}-hint`}
+              aria-invalid={showTextError && textError !== null}
+              onChange={(event) => {
+                setText(event.target.value);
+                setShowTextError(false);
+              }}
+              className="w-full rounded-lg border border-paper-edge bg-paper px-4 py-3 text-[0.98rem] leading-6 text-notebook-ink outline-none transition placeholder:text-stone-400 hover:border-stone-400 focus:border-notebook-ink focus:ring-4 focus:ring-sticky-yellow/60 disabled:opacity-60"
+            />
+            {showTextError && textError ? (
+              <p className="mt-1.5 text-xs font-medium text-red-700" role="alert">
+                {textError}
+              </p>
+            ) : (
+              <p id={`${textId}-hint`} className="mt-1.5 text-xs text-notebook-muted">
+                {copy.textHint.replace('{max}', String(MAX_BOOKING_DECISION_TEXT_LENGTH))} (
+                {text.length}/{MAX_BOOKING_DECISION_TEXT_LENGTH})
+              </p>
+            )}
+          </div>
+        )}
 
         {errorMessage && (
           <p

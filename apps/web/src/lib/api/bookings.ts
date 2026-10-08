@@ -91,7 +91,8 @@ export function rejectTutorBooking(
 
 /**
  * The tutor is taken from the access token, so the body carries only the optional note or reason.
- * A blank value is dropped because the API rejects an empty string with 400.
+ * A blank value is dropped because the API rejects an empty string with 400. The API accepts a
+ * confirmation note without persisting it, so no screen offers one; only `reason` reaches storage.
  */
 function postTutorBookingAction(
   bookingId: string,

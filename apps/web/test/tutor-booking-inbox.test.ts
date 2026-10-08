@@ -11,6 +11,7 @@ import {
   getApiErrorCode,
   getStudentLabel,
   isDecidableBooking,
+  planInboxSyncAfterDecision,
   resolveTutorBookingDecisionError,
   toTutorBookingsQuery,
   validateDecisionText,
@@ -107,6 +108,39 @@ describe('tutor booking decision rules', () => {
     expect(adjustFilteredTotal(5, 'CONFIRMED', 'CONFIRMED')).toBe(5);
     expect(adjustFilteredTotal(5, 'PENDING', 'CONFIRMED')).toBe(4);
     expect(adjustFilteredTotal(0, 'PENDING', 'CANCELED')).toBe(0);
+  });
+
+  it('refetches the current page when a decision shrinks a single-status view', () => {
+    // 21 pending bookings: confirming on page 1 moves item 11 up, so paging on would skip it.
+    expect(
+      planInboxSyncAfterDecision({ filter: 'PENDING', page: 1, status: 'CONFIRMED', total: 21 }),
+    ).toEqual({ total: 20, page: 1, needsReload: true });
+  });
+
+  it('clamps the page into the smaller page count the decision leaves behind', () => {
+    expect(
+      planInboxSyncAfterDecision({ filter: 'PENDING', page: 3, status: 'CANCELED', total: 21 }),
+    ).toEqual({ total: 20, page: 2, needsReload: true });
+  });
+
+  it('leaves paging alone when the booking stays in the current view', () => {
+    expect(
+      planInboxSyncAfterDecision({ filter: 'ALL', page: 2, status: 'CONFIRMED', total: 21 }),
+    ).toEqual({ total: 21, page: 2, needsReload: false });
+    expect(
+      planInboxSyncAfterDecision({
+        filter: 'CONFIRMED',
+        page: 2,
+        status: 'CONFIRMED',
+        total: 21,
+      }),
+    ).toEqual({ total: 21, page: 2, needsReload: false });
+  });
+
+  it('never reloads on an unknown total, which would claim a page count it cannot know', () => {
+    expect(
+      planInboxSyncAfterDecision({ filter: 'PENDING', page: 2, status: 'CONFIRMED', total: null }),
+    ).toEqual({ total: null, page: 2, needsReload: false });
   });
 
   it('falls back to a neutral student label when the nickname is missing or blank', () => {

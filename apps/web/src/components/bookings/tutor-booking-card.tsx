@@ -96,16 +96,6 @@ export function TutorBookingCard({
         {canDecide ? (
           <div className={styles.actions}>
             <NotebookAction
-              tone="primary"
-              size="compact"
-              className={styles.action}
-              disabled={isSubmitting}
-              aria-label={copy.confirmFor.replace('{student}', studentLabel)}
-              onClick={() => onDecide('CONFIRM')}
-            >
-              {submittingDecision === 'CONFIRM' ? copy.working : copy.confirmAction}
-            </NotebookAction>
-            <NotebookAction
               tone="secondary"
               size="compact"
               className={styles.action}
@@ -114,6 +104,16 @@ export function TutorBookingCard({
               onClick={() => onDecide('REJECT')}
             >
               {submittingDecision === 'REJECT' ? copy.working : copy.rejectAction}
+            </NotebookAction>
+            <NotebookAction
+              tone="primary"
+              size="compact"
+              className={styles.action}
+              disabled={isSubmitting}
+              aria-label={copy.confirmFor.replace('{student}', studentLabel)}
+              onClick={() => onDecide('CONFIRM')}
+            >
+              {submittingDecision === 'CONFIRM' ? copy.working : copy.confirmAction}
             </NotebookAction>
           </div>
         ) : (

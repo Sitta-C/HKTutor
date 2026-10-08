@@ -93,6 +93,34 @@ export function adjustFilteredTotal(
   return Math.max(0, total - 1);
 }
 
+export interface InboxSyncPlan {
+  total: number | null;
+  page: number;
+  needsReload: boolean;
+}
+
+/**
+ * A decision that moves a booking out of a single-status view shrinks the server result set, so
+ * every later page shifts by one and paging on would skip the booking that moved up. The inbox
+ * refetches the current page instead, clamped into the page count the smaller total allows.
+ */
+export function planInboxSyncAfterDecision(input: {
+  filter: TutorInboxFilter;
+  page: number;
+  status: BookingStatus;
+  total: number | null;
+}): InboxSyncPlan {
+  const total =
+    input.total === null ? null : adjustFilteredTotal(input.total, input.filter, input.status);
+  const leavesView = input.filter !== 'ALL' && input.filter !== input.status;
+
+  if (!leavesView || total === null) {
+    return { total, page: input.page, needsReload: false };
+  }
+
+  return { total, page: Math.min(input.page, countInboxPages(total)), needsReload: true };
+}
+
 export function getStudentLabel(
   booking: Pick<TutorBookingView, 'student'>,
   copy: TutorBookingInboxCopy,

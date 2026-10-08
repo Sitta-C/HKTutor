@@ -70,7 +70,7 @@
 .row {
   position: relative;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 184px;
+  grid-template-columns: minmax(0, 1fr) 200px;
   gap: 12px;
   margin-left: 26px;
   padding: 18px 20px;
@@ -177,13 +177,15 @@
   font-variant-numeric: tabular-nums;
   overflow-wrap: anywhere;
 }
+/* Side by side keeps the stub as short as the course column beside it. */
 .actions {
-  display: grid;
+  display: flex;
   gap: 6px;
   width: 100%;
 }
 .action {
-  width: 100%;
+  flex: 1;
+  min-width: 0;
 }
 .decided {
   font-size: 12px;

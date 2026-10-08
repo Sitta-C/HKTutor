@@ -11,9 +11,9 @@ import {
   DEFAULT_TUTOR_INBOX_FILTER,
   TUTOR_INBOX_FILTERS,
   TUTOR_INBOX_PAGE_SIZE,
-  adjustFilteredTotal,
   applyTutorBookingDecision,
   describeDecisionSuccess,
+  planInboxSyncAfterDecision,
   resolveTutorBookingDecisionError,
   toTutorBookingsQuery,
 } from '@/components/bookings/tutor-booking-inbox-model';
@@ -135,17 +135,23 @@ export default function TutorBookingInbox() {
     try {
       const result =
         decision === 'CONFIRM'
-          ? await confirmTutorBooking(booking.id, { note: text })
+          ? await confirmTutorBooking(booking.id)
           : await rejectTutorBooking(booking.id, { reason: text });
 
       // Only the server-reported status is rendered, so a failed call never leaves a stale row.
       setItems((current) => applyTutorBookingDecision(current, result));
-      setTotal((current) =>
-        current === null ? current : adjustFilteredTotal(current, filter, result.status),
-      );
       setCardErrors((current) => clearCardError(current, booking.id));
       setTarget(null);
       toast.success(describeDecisionSuccess(result, copy));
+
+      const sync = planInboxSyncAfterDecision({ filter, page, status: result.status, total });
+      setTotal(sync.total);
+      if (sync.needsReload) {
+        // Realign with the server's offsets before the tutor can page past the shifted set.
+        prepareLoad();
+        setPage(sync.page);
+        setReloadKey((value) => value + 1);
+      }
     } catch (caught: unknown) {
       const failure = resolveTutorBookingDecisionError(caught, copy);
       if (failure.requiresRefresh) {
