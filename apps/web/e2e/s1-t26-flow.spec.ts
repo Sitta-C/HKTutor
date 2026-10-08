@@ -201,7 +201,9 @@ test('guest slot selection returns through login and onboarding to booking confi
   await expect(page.getByText('Verification information unavailable')).toBeVisible();
   await page.getByRole('button', { name: 'Send lesson request' }).click();
   await expect(page.getByRole('heading', { name: 'Lesson request sent' })).toBeVisible();
-  await expect(page.getByRole('status')).toContainText('Awaiting tutor confirmation');
+  await expect(
+    page.getByRole('region', { name: 'Booking summary', exact: true }).getByRole('status'),
+  ).toContainText('Awaiting tutor confirmation');
   await expectAccessiblePageShell(page);
 });
 

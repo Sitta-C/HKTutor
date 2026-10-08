@@ -361,14 +361,14 @@ for (const language of ['th', 'en'] as const) {
         name: language === 'th' ? 'เปิดแถบข้าง' : 'Open sidebar',
         exact: true,
       });
-      const hasMobileSidebar = await mobileSidebar.isVisible();
+      const hasMobileSidebar = (page.viewportSize()?.width ?? 1440) < 1024;
       if (hasMobileSidebar) {
         await mobileSidebar.click();
       }
       await expect(page.locator('aside a[href="/dashboard/bookings"]')).toContainText('—');
       if (hasMobileSidebar) {
         await page.keyboard.press('Escape');
-        await expect(mobileSidebar).toBeVisible();
+        await expect(mobileSidebar).toBeFocused();
       }
       const physics = main.getByRole('button', {
         name: /^(Choose this course|เลือกคอร์สนี้): Physics/,
@@ -381,6 +381,7 @@ for (const language of ['th', 'en'] as const) {
       const initialRequests = calls.length;
       expect(initialRequests).toBeGreaterThanOrEqual(2);
       await math.focus();
+      await expect(math).toBeFocused();
       await page.keyboard.press('Enter');
       await expect(math).toHaveAttribute('aria-pressed', 'true');
       await expect(math).toBeFocused();
