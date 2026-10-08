@@ -559,7 +559,7 @@ function TutorResultCard({
         className={notebookActionClass({ role: 'student', className: styles.courseAction })}
       >
         <NotebookActionContent icon={<DashboardIcon name="arrow-right" />} iconPosition="end">
-          {text.viewTimes}
+          <span className={styles.courseActionLabel}>{text.viewTimes}</span>
         </NotebookActionContent>
       </Link>
     </article>

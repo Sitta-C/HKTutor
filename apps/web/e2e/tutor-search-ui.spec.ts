@@ -138,6 +138,38 @@ async function noOverflow(page: Page) {
 }
 
 for (const language of ['en', 'th'] as const) {
+  test(`${language} View times stays on a single line after a reload at each breakpoint`, async ({
+    page,
+  }) => {
+    await mockSearch(page, { language, student: true });
+    await page.goto('/tutors');
+    for (const width of [320, 768, 1440]) {
+      await page.setViewportSize({ width, height: 900 });
+      await page.reload();
+      const action = page
+        .getByRole('article')
+        .first()
+        .getByRole('link', { name: language === 'th' ? 'ดูเวลาว่าง' : 'View times' });
+      await expect(action).toBeVisible();
+      await page.evaluate(() => document.fonts.ready);
+      const label = action.getByText(language === 'th' ? 'ดูเวลาว่าง' : 'View times', {
+        exact: true,
+      });
+      const lineTops = await label.evaluate((element) => {
+        const range = document.createRange();
+        range.selectNodeContents(element);
+        return Array.from(range.getClientRects(), (rect) => rect.top);
+      });
+      expect(new Set(lineTops).size).toBe(1);
+      expect(await action.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(
+        true,
+      );
+      await noOverflow(page);
+    }
+  });
+}
+
+for (const language of ['en', 'th'] as const) {
   for (const student of [false, true]) {
     test(`${language} ${student ? 'student' : 'guest'} course index preserves listing anatomy and links`, async ({
       page,

@@ -189,7 +189,7 @@
 
 .course {
   display: grid;
-  grid-template-columns: 150px minmax(0, 1fr) 120px;
+  grid-template-columns: 150px minmax(0, 1fr) minmax(120px, max-content);
   grid-template-areas: 'tutor title price' 'tutor description price' 'tutor availability action';
   gap: 8px 20px;
   padding: 22px 22px 22px 14px;
@@ -353,10 +353,19 @@
   overflow-wrap: anywhere;
 }
 
-.courseAction {
+.courseAction.courseAction {
   grid-area: action;
   align-self: end;
   justify-self: end;
+  width: max-content;
+  min-width: max-content;
+  white-space: nowrap;
+}
+
+.courseActionLabel {
+  display: inline-block;
+  white-space: nowrap;
+  overflow-wrap: normal;
 }
 
 .resultNote {
@@ -378,7 +387,7 @@
 
 @container (max-width: 650px) {
   .course {
-    grid-template-columns: minmax(0, 1fr) 120px;
+    grid-template-columns: minmax(0, 1fr) minmax(120px, max-content);
     grid-template-areas: 'tutor tutor' 'title price' 'description description' 'availability action';
     gap: 12px;
   }

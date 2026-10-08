@@ -332,7 +332,8 @@ student/tutor button review and three-direction preview.
   and booking-specific compositions retain their existing shared primitives.
 - Keep native buttons and links, refs, form submission/reset handlers, pending labels, disabled
   states, visible keyboard focus, confirmation focus restoration and reduced motion. Actions have
-  at least 46px targets and wrap labels inside narrow containers. No API, payload, permissions,
+  at least 46px targets. Search View times labels stay on one line with a content-sized action
+  column; other actions wrap labels inside narrow containers. No API, payload, permissions,
   data, pricing, scheduling or publication-rule changes belong to this update.
 
 ## Profile photo editor
