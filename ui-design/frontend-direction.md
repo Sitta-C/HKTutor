@@ -344,6 +344,9 @@ The user selected **Ink Portrait Index**, combining Ink & Sketch and Portrait In
   subtle ruled lines. The circular portrait sits in a small paint wash, with its handwritten caption
   below. The user removed the rectangular dashed photo frame on 2026-10-08; keep this area unframed.
   Finish with a thin ruler edge; student accents are mint and tutor accents blue.
+- The user requested a lower photo section on 2026-10-08 so the profile fields retain emphasis.
+  Keep the editor portrait at 64px inside an 80px paint wash, with compact header/body/footer
+  spacing and a 10px ruler edge. Retain readable copy and the 46px action targets in both roles.
 - Keep the portrait caption **this is me** in English in both interface languages. Show the
   localized separate-saving explanation directly, without a Little note prefix.
 - Choose photo uses a pale mint/blue brush stroke with a small painted brush, subtle dry-brush edge

@@ -149,7 +149,7 @@ export function AvatarEditor({
                 ownerUserId={userId}
                 avatarUpdatedAt={avatarUpdatedAt}
                 imageUrl={file ? preview : null}
-                sizes="80px"
+                sizes="64px"
                 className={styles.avatar ?? ''}
               />
             </div>
