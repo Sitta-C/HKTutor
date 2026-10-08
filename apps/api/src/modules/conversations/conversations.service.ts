@@ -11,11 +11,19 @@ import { Prisma } from '@generated/prisma/client';
 import { AccountStatus, Role } from '@generated/prisma/enums';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import {
+  decodeConversationCursor,
+  encodeConversationCursor,
+} from '@modules/conversations/conversations.cursor';
+import {
   ConversationSummaryDto,
   CreateConversationDto,
-  DEFAULT_CONVERSATIONS_PAGE,
-  DEFAULT_CONVERSATIONS_PAGE_SIZE,
+  DEFAULT_CONVERSATIONS_LIMIT,
+  DEFAULT_MESSAGES_PAGE_SIZE,
+  GetMessagesQueryDto,
   GetMyConversationsQueryDto,
+  MarkMessagesReadDto,
+  MarkMessagesReadResponseDto,
+  MessageHistoryResponseDto,
   MessageResponseDto,
   MyConversationsResponseDto,
   OpenConversationResponseDto,
@@ -27,6 +35,11 @@ import { publicTutorWhere } from '@modules/tutors/public-tutor-access';
 export type OpenConversationInput = CreateConversationDto & { role: Role; userId: string };
 export type GetMyConversationsInput = GetMyConversationsQueryDto & { role: Role; userId: string };
 export type SendMessageInput = SendMessageDto & { conversationId: string; senderUserId: string };
+export type GetMessagesInput = GetMessagesQueryDto & { conversationId: string; userId: string };
+export type MarkMessagesReadInput = MarkMessagesReadDto & {
+  conversationId: string;
+  userId: string;
+};
 
 export interface OpenConversationResult {
   conversation: OpenConversationResponseDto;
@@ -67,6 +80,16 @@ interface ConversationPair {
   tutorUserId: string;
 }
 
+interface MessageCursor {
+  id: string;
+  sentAt: Date;
+}
+
+interface ReadReceiptRow {
+  readAt: Date | null;
+  updatedCount: number;
+}
+
 interface ConversationListRow {
   id: string;
   createdAt: Date;
@@ -78,6 +101,8 @@ interface ConversationListRow {
   lastMessageSenderUserId: string | null;
   lastMessageText: string | null;
   lastMessageSentAt: Date | null;
+  activityAt: Date;
+  unreadCount: number;
 }
 
 @Injectable()
@@ -113,65 +138,71 @@ export class ConversationsService {
       throw new ForbiddenException('Only students and tutors have conversations.');
     }
 
+    const cursor = input.cursor === undefined ? undefined : decodeConversationCursor(input.cursor);
+    const limit = input.limit ?? DEFAULT_CONVERSATIONS_LIMIT;
     const viewerIsStudent = input.role === Role.STUDENT;
-    const { skip, take } = conversationPagination(input);
     const participantFilter = viewerIsStudent
       ? Prisma.sql`c."studentUserId" = ${input.userId}`
       : Prisma.sql`c."tutorUserId" = ${input.userId}`;
+    const afterCursor =
+      cursor === undefined
+        ? Prisma.empty
+        : Prisma.sql`AND (COALESCE(last_message."sentAt", c."createdAt"), c."id") < (${cursor.activityAt}::timestamptz, ${cursor.id}::uuid)`;
 
-    const [rows, total] = await Promise.all([
-      this.prisma.$queryRaw<ConversationListRow[]>(Prisma.sql`
-        SELECT
-          c."id",
-          c."createdAt",
-          c."studentUserId",
-          sp."nickname" AS "studentNickname",
-          c."tutorUserId",
-          tp."displayName" AS "tutorDisplayName",
-          last_message."id" AS "lastMessageId",
-          last_message."senderUserId" AS "lastMessageSenderUserId",
-          last_message."text" AS "lastMessageText",
-          last_message."sentAt" AS "lastMessageSentAt"
-        FROM "Conversation" c
-        JOIN "TutorProfile" tp ON tp."userId" = c."tutorUserId"
-        LEFT JOIN "StudentProfile" sp ON sp."userId" = c."studentUserId"
-        LEFT JOIN LATERAL (
-          SELECT m."id", m."senderUserId", m."text", m."sentAt"
-          FROM "Message" m
-          WHERE m."conversationId" = c."id"
-          ORDER BY m."sentAt" DESC, m."id" DESC
-          LIMIT 1
-        ) last_message ON TRUE
-        WHERE ${participantFilter}
-        ORDER BY COALESCE(last_message."sentAt", c."createdAt") DESC, c."id" DESC
-        LIMIT ${take} OFFSET ${skip}`),
-      this.prisma.conversation.count({
-        where: viewerIsStudent ? { studentUserId: input.userId } : { tutorUserId: input.userId },
-      }),
-    ]);
+    // One extra row tells whether another page follows, without counting every conversation.
+    const rows = await this.prisma.$queryRaw<ConversationListRow[]>(Prisma.sql`
+      SELECT
+        c."id",
+        c."createdAt",
+        c."studentUserId",
+        sp."nickname" AS "studentNickname",
+        c."tutorUserId",
+        tp."displayName" AS "tutorDisplayName",
+        last_message."id" AS "lastMessageId",
+        last_message."senderUserId" AS "lastMessageSenderUserId",
+        last_message."text" AS "lastMessageText",
+        last_message."sentAt" AS "lastMessageSentAt",
+        COALESCE(last_message."sentAt", c."createdAt") AS "activityAt",
+        unread."unreadCount"
+      FROM "Conversation" c
+      JOIN "TutorProfile" tp ON tp."userId" = c."tutorUserId"
+      LEFT JOIN "StudentProfile" sp ON sp."userId" = c."studentUserId"
+      LEFT JOIN LATERAL (
+        SELECT m."id", m."senderUserId", m."text", m."sentAt"
+        FROM "Message" m
+        WHERE m."conversationId" = c."id"
+        ORDER BY m."sentAt" DESC, m."id" DESC
+        LIMIT 1
+      ) last_message ON TRUE
+      CROSS JOIN LATERAL (
+        SELECT count(*)::int AS "unreadCount"
+        FROM "Message" m
+        WHERE m."conversationId" = c."id"
+          AND m."senderUserId" <> ${input.userId}
+          AND m."readAt" IS NULL
+      ) unread
+      WHERE ${participantFilter}
+        ${afterCursor}
+      ORDER BY COALESCE(last_message."sentAt", c."createdAt") DESC, c."id" DESC
+      LIMIT ${limit + 1}`);
+    const page = rows.slice(0, limit);
+    const last = page.at(-1);
 
     return {
-      items: rows.map((row) =>
-        buildSummary(row, listRowParticipant(row, viewerIsStudent), listRowLastMessage(row)),
-      ),
-      total,
+      items: page.map((row) => buildSummary(row, viewerIsStudent)),
+      nextCursor:
+        rows.length > limit && last !== undefined
+          ? encodeConversationCursor({ activityAt: last.activityAt.toISOString(), id: last.id })
+          : null,
     };
   }
 
   async sendMessage(input: SendMessageInput): Promise<MessageResponseDto> {
-    const conversation = await this.prisma.conversation.findUnique({
-      where: { id: input.conversationId },
-      select: { studentUserId: true, tutorUserId: true },
-    });
-    if (!conversation) {
-      throw new NotFoundException('Conversation not found');
-    }
-    if (
-      input.senderUserId !== conversation.studentUserId &&
-      input.senderUserId !== conversation.tutorUserId
-    ) {
-      throw new ForbiddenException('Only participants can send messages in this conversation.');
-    }
+    await this.assertParticipant(
+      input.conversationId,
+      input.senderUserId,
+      'Only participants can send messages in this conversation.',
+    );
 
     const message = await this.prisma.message.create({
       data: {
@@ -184,6 +215,112 @@ export class ConversationsService {
       select: messageSelect,
     });
     return toMessageResponse(message);
+  }
+
+  /** Read-only: a page of messages after the cursor, oldest first. */
+  async getMessages(input: GetMessagesInput): Promise<MessageHistoryResponseDto> {
+    await this.assertParticipant(
+      input.conversationId,
+      input.userId,
+      'Only participants can read this conversation.',
+    );
+    const cursor =
+      input.afterMessageId === undefined
+        ? undefined
+        : await this.findMessageInConversation(
+            input.conversationId,
+            input.afterMessageId,
+            'afterMessageId',
+          );
+    const pageSize = input.pageSize ?? DEFAULT_MESSAGES_PAGE_SIZE;
+
+    // One extra row tells whether another page follows, without a second query.
+    const rows = await this.prisma.message.findMany({
+      where:
+        cursor === undefined
+          ? { conversationId: input.conversationId }
+          : { conversationId: input.conversationId, ...sentAfter(cursor) },
+      orderBy: [{ sentAt: 'asc' }, { id: 'asc' }],
+      select: messageSelect,
+      take: pageSize + 1,
+    });
+    const items = rows.slice(0, pageSize).map((message) => toMessageResponse(message));
+
+    return {
+      hasMore: rows.length > pageSize,
+      items,
+      // Polling resends this, so an empty page keeps the request's cursor.
+      nextAfterMessageId: items.at(-1)?.messageId ?? input.afterMessageId ?? null,
+    };
+  }
+
+  /** Marks the other participant's unread messages read, once; the caller's own are never touched. */
+  async markMessagesRead(input: MarkMessagesReadInput): Promise<MarkMessagesReadResponseDto> {
+    await this.assertParticipant(
+      input.conversationId,
+      input.userId,
+      'Only participants can mark messages read in this conversation.',
+    );
+    const upTo =
+      input.upToMessageId === undefined
+        ? undefined
+        : await this.findMessageInConversation(
+            input.conversationId,
+            input.upToMessageId,
+            'upToMessageId',
+          );
+
+    // The database clock sets readAt. GREATEST keeps Message_read_time_check (readAt >= sentAt)
+    // true even for a message whose sentAt is later than this statement's now().
+    const [result] = await this.prisma.$queryRaw<ReadReceiptRow[]>(Prisma.sql`
+      WITH updated AS (
+        UPDATE "Message"
+        SET "readAt" = GREATEST(now(), "sentAt")
+        WHERE "conversationId" = ${input.conversationId}
+          AND "senderUserId" <> ${input.userId}
+          AND "readAt" IS NULL
+          ${upTo === undefined ? Prisma.empty : Prisma.sql`AND ("sentAt", "id") <= (${upTo.sentAt}::timestamptz, ${upTo.id}::uuid)`}
+        RETURNING "readAt"
+      )
+      SELECT count(*)::int AS "updatedCount", max("readAt") AS "readAt" FROM updated`);
+
+    return {
+      readAt: result?.readAt?.toISOString() ?? null,
+      updatedCount: result?.updatedCount ?? 0,
+    };
+  }
+
+  /** Throws 404 for a missing conversation and 403 for anyone outside it. */
+  private async assertParticipant(
+    conversationId: string,
+    userId: string,
+    forbiddenMessage: string,
+  ): Promise<void> {
+    const conversation = await this.prisma.conversation.findUnique({
+      where: { id: conversationId },
+      select: { studentUserId: true, tutorUserId: true },
+    });
+    if (!conversation) {
+      throw new NotFoundException('Conversation not found');
+    }
+    if (userId !== conversation.studentUserId && userId !== conversation.tutorUserId) {
+      throw new ForbiddenException(forbiddenMessage);
+    }
+  }
+
+  private async findMessageInConversation(
+    conversationId: string,
+    messageId: string,
+    field: 'afterMessageId' | 'upToMessageId',
+  ): Promise<MessageCursor> {
+    const message = await this.prisma.message.findFirst({
+      where: { conversationId, id: messageId },
+      select: { id: true, sentAt: true },
+    });
+    if (!message) {
+      throw new BadRequestException(`${field} must be a message in this conversation.`);
+    }
+    return message;
   }
 
   /** Checks both sides and returns the pair as student and tutor, whoever opened it. */
@@ -255,15 +392,6 @@ export class ConversationsService {
   }
 }
 
-function conversationPagination(input: { page?: number; pageSize?: number }): {
-  skip: number;
-  take: number;
-} {
-  const page = input.page ?? DEFAULT_CONVERSATIONS_PAGE;
-  const take = input.pageSize ?? DEFAULT_CONVERSATIONS_PAGE_SIZE;
-  return { skip: (page - 1) * take, take };
-}
-
 /**
  * The other participant's user ID. API-01 takes tutorId from a student and participantId from a
  * tutor, so a missing or extra key fails here, as does the caller's own ID, before any query.
@@ -287,6 +415,13 @@ function conversationTarget(input: OpenConversationInput): string {
   return target;
 }
 
+/** Messages after the cursor in (sentAt, id) order, the order the history is returned in. */
+function sentAfter(cursor: MessageCursor): Prisma.MessageWhereInput {
+  return {
+    OR: [{ sentAt: { gt: cursor.sentAt } }, { id: { gt: cursor.id }, sentAt: cursor.sentAt }],
+  };
+}
+
 /** Prisma reports a unique violation from a client query as P2002; a raw SQLSTATE never reaches `code`. */
 function isUniqueViolation(error: unknown): boolean {
   return typeof error === 'object' && error !== null && 'code' in error && error.code === 'P2002';
@@ -305,14 +440,11 @@ function toOpenConversationResponse(
   };
 }
 
-function buildSummary(
-  conversation: SelectedConversation,
-  otherParticipant: OtherParticipantDto,
-  lastMessage: LastMessage | null,
-): ConversationSummaryDto {
+function buildSummary(row: ConversationListRow, viewerIsStudent: boolean): ConversationSummaryDto {
+  const lastMessage = listRowLastMessage(row);
   return {
-    conversationId: conversation.id,
-    createdAt: conversation.createdAt.toISOString(),
+    conversationId: row.id,
+    createdAt: row.createdAt.toISOString(),
     lastMessage:
       lastMessage === null
         ? null
@@ -322,7 +454,8 @@ function buildSummary(
             sentAt: lastMessage.sentAt.toISOString(),
             text: lastMessage.text,
           },
-    otherParticipant,
+    otherParticipant: listRowParticipant(row, viewerIsStudent),
+    unreadCount: row.unreadCount,
   };
 }
 

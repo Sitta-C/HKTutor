@@ -17,7 +17,11 @@ import { Role } from '@generated/prisma/enums';
 import { JWT_BEARER_AUTH } from '@modules/auth/auth.swagger';
 import {
   CreateConversationDto,
+  GetMessagesQueryDto,
   GetMyConversationsQueryDto,
+  MarkMessagesReadDto,
+  MarkMessagesReadResponseDto,
+  MessageHistoryResponseDto,
   MessageResponseDto,
   MyConversationsResponseDto,
   OpenConversationResponseDto,
@@ -36,6 +40,12 @@ const lastMessageExample = {
   text: 'Do you teach quadratic equations?',
 };
 
+const messageExample = {
+  ...lastMessageExample,
+  conversationId: CONVERSATION_ID_EXAMPLE,
+  readAt: null,
+};
+
 const openConversationExample = {
   conversationId: CONVERSATION_ID_EXAMPLE,
   createdAt: '2026-09-30T08:00:00.000Z',
@@ -50,6 +60,7 @@ const conversationSummaryExample = {
   createdAt: '2026-09-30T08:00:00.000Z',
   lastMessage: lastMessageExample,
   otherParticipant: { displayName: 'Anan Suksawat', userId: TUTOR_ID_EXAMPLE },
+  unreadCount: 1,
 };
 
 /** The body ApiExceptionFilter sends for an HTTP error. */
@@ -142,23 +153,28 @@ export function OpenConversationDoc(): MethodDecorator {
 export function GetMyConversationsDoc(): MethodDecorator {
   return applyDecorators(
     ApiExtraModels(GetMyConversationsQueryDto, MyConversationsResponseDto),
-    ApiOperation({ summary: 'List my conversations' }),
+    ApiOperation({
+      description:
+        'Latest activity first. Send nextCursor back as cursor to load the next page. A conversation that gets a new message while you page moves to the top, so it shows on the first page again rather than later.',
+      summary: 'List my conversations',
+    }),
     ApiBearerAuth(JWT_BEARER_AUTH),
     ApiOkResponse({
       description:
-        "The caller's conversations, most recent activity first, with the other participant and the latest message",
+        "The caller's conversations with the other participant, the latest message and the unread count",
       schema: {
         allOf: [{ $ref: getSchemaPath(MyConversationsResponseDto) }],
-        example: { items: [conversationSummaryExample], total: 1 },
+        example: { items: [conversationSummaryExample], nextCursor: null },
         type: 'object',
       },
     }),
     ApiBadRequestResponse({
-      description: 'page or pageSize failed validation',
+      description:
+        'cursor is not one this list returned, limit is outside 1-50, or the query has an unknown field',
       schema: errorSchema({
         code: 'VALIDATION_FAILED',
         error: 'Bad Request',
-        message: ['pageSize must not be greater than 100'],
+        message: 'Invalid conversation list cursor',
         statusCode: 400,
       }),
     }),
@@ -175,6 +191,55 @@ export function GetMyConversationsDoc(): MethodDecorator {
   );
 }
 
+export function GetMessagesDoc(): MethodDecorator {
+  return applyDecorators(
+    ApiExtraModels(GetMessagesQueryDto, MessageHistoryResponseDto),
+    ApiOperation({
+      description:
+        'Oldest first. Send nextAfterMessageId back as afterMessageId to load the next page or to poll for new messages. Reading does not mark messages read.',
+      summary: 'List the messages in a conversation',
+    }),
+    ApiBearerAuth(JWT_BEARER_AUTH),
+    ApiOkResponse({
+      description: 'The page of messages after the cursor',
+      schema: {
+        allOf: [{ $ref: getSchemaPath(MessageHistoryResponseDto) }],
+        example: { hasMore: true, items: [messageExample], nextAfterMessageId: MESSAGE_ID_EXAMPLE },
+        type: 'object',
+      },
+    }),
+    ApiBadRequestResponse({
+      description:
+        'afterMessageId is not a message in this conversation, pageSize is outside 1-50, an ID is not a UUID, or the query has an unknown field',
+      schema: errorSchema({
+        code: 'VALIDATION_FAILED',
+        error: 'Bad Request',
+        message: 'afterMessageId must be a message in this conversation.',
+        statusCode: 400,
+      }),
+    }),
+    apiUnauthorizedResponse(),
+    ApiForbiddenResponse({
+      description: 'The caller is not a participant in the conversation',
+      schema: errorSchema({
+        code: 'FORBIDDEN',
+        error: 'Forbidden',
+        message: 'Only participants can read this conversation.',
+        statusCode: 403,
+      }),
+    }),
+    ApiNotFoundResponse({
+      description: 'The conversation does not exist',
+      schema: errorSchema({
+        code: 'NOT_FOUND',
+        error: 'Not Found',
+        message: 'Conversation not found',
+        statusCode: 404,
+      }),
+    }),
+  );
+}
+
 export function SendMessageDoc(): MethodDecorator {
   return applyDecorators(
     ApiExtraModels(SendMessageDto, MessageResponseDto),
@@ -184,7 +249,7 @@ export function SendMessageDoc(): MethodDecorator {
       description: 'The message was stored',
       schema: {
         allOf: [{ $ref: getSchemaPath(MessageResponseDto) }],
-        example: { ...lastMessageExample, conversationId: CONVERSATION_ID_EXAMPLE, readAt: null },
+        example: messageExample,
         type: 'object',
       },
     }),
@@ -205,6 +270,55 @@ export function SendMessageDoc(): MethodDecorator {
         code: 'FORBIDDEN',
         error: 'Forbidden',
         message: 'Only participants can send messages in this conversation.',
+        statusCode: 403,
+      }),
+    }),
+    ApiNotFoundResponse({
+      description: 'The conversation does not exist',
+      schema: errorSchema({
+        code: 'NOT_FOUND',
+        error: 'Not Found',
+        message: 'Conversation not found',
+        statusCode: 404,
+      }),
+    }),
+  );
+}
+
+export function MarkMessagesReadDoc(): MethodDecorator {
+  return applyDecorators(
+    ApiExtraModels(MarkMessagesReadDto, MarkMessagesReadResponseDto),
+    ApiOperation({
+      description:
+        "Sets readAt on the other participant's unread messages, up to upToMessageId when it is given. The caller's own messages are never marked, and repeating the call changes nothing.",
+      summary: 'Mark received messages read',
+    }),
+    ApiBearerAuth(JWT_BEARER_AUTH),
+    ApiOkResponse({
+      description: 'How many messages this call marked read, and when',
+      schema: {
+        allOf: [{ $ref: getSchemaPath(MarkMessagesReadResponseDto) }],
+        example: { readAt: '2026-09-30T08:10:00.000Z', updatedCount: 3 },
+        type: 'object',
+      },
+    }),
+    ApiBadRequestResponse({
+      description:
+        'upToMessageId is not a UUID or not a message in this conversation, or the body contained an unknown field',
+      schema: errorSchema({
+        code: 'VALIDATION_FAILED',
+        error: 'Bad Request',
+        message: 'upToMessageId must be a message in this conversation.',
+        statusCode: 400,
+      }),
+    }),
+    apiUnauthorizedResponse(),
+    ApiForbiddenResponse({
+      description: 'The caller is not a participant in the conversation',
+      schema: errorSchema({
+        code: 'FORBIDDEN',
+        error: 'Forbidden',
+        message: 'Only participants can mark messages read in this conversation.',
         statusCode: 403,
       }),
     }),
