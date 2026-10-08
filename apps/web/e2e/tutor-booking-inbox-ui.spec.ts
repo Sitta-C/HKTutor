@@ -161,13 +161,12 @@ test('tutor confirms, rejects and recovers from missing and stale booking reques
   await expectAccessiblePageShell(page);
   expect(listRequests[0]).toBe('?status=PENDING&page=1&pageSize=10');
 
-  const requests = page.getByRole('list', { name: 'Booking requests' });
-  const maliRow = requests.getByRole('listitem').filter({ hasText: 'Mali' });
-  const nidaRow = requests.getByRole('listitem').filter({ hasText: 'Nida' });
-  const ployRow = requests.getByRole('listitem').filter({ hasText: 'Ploy' });
-  const somchaiRow = requests.getByRole('listitem').filter({ hasText: 'Somchai' });
-  await expect(requests.getByRole('listitem')).toHaveCount(4);
-  await expect(page.getByText('4 requests awaiting your reply')).toBeVisible();
+  const maliRow = page.getByRole('article', { name: 'Mali' });
+  const nidaRow = page.getByRole('article', { name: 'Nida' });
+  const ployRow = page.getByRole('article', { name: 'Ploy' });
+  const somchaiRow = page.getByRole('article', { name: 'Somchai' });
+  await expect(page.getByRole('article')).toHaveCount(4);
+  await expect(page.getByText('4 bookings · PENDING')).toBeVisible();
   await expect(maliRow.getByText('PENDING', { exact: true })).toBeVisible();
 
   // Confirming keeps the slot reserved and shows the status the server returned.
@@ -208,8 +207,8 @@ test('tutor confirms, rejects and recovers from missing and stale booking reques
   ).toBeVisible();
   await expect(ployRow.getByRole('button', { name: /Confirm the booking/ })).toHaveCount(0);
   await expect(ployRow.getByRole('button', { name: 'Refresh' })).toBeVisible();
-  await expect(requests.getByRole('listitem')).toHaveCount(4);
-  await expect(page.getByText('2 requests awaiting your reply')).toBeVisible();
+  await expect(page.getByRole('article')).toHaveCount(4);
+  await expect(page.getByText('2 bookings · PENDING')).toBeVisible();
   await expect(page.getByRole('dialog')).toHaveCount(0);
 
   // A stale row is locked the same way, so no decision is retried against old data.

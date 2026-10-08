@@ -8,7 +8,8 @@ import {
   getStudentLabel,
   validateDecisionText,
 } from '@/components/bookings/tutor-booking-inbox-model';
-import { WashiTape, notebookButtonClass } from '@/components/ui/notebook';
+import { WashiTape } from '@/components/ui/notebook';
+import { NotebookAction } from '@/components/ui/notebook-action';
 
 import type { TutorBookingInboxCopy } from '@/components/bookings/tutor-booking-inbox-copy';
 import type { TutorBookingDecision } from '@/components/bookings/tutor-booking-inbox-model';
@@ -153,21 +154,18 @@ export function BookingDecisionDialog({
         )}
 
         <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-          <button
-            type="button"
-            disabled={isSubmitting}
-            onClick={onCancel}
-            className={notebookButtonClass({ tone: 'secondary' })}
-          >
+          <NotebookAction tone="secondary" disabled={isSubmitting} onClick={onCancel}>
             {copy.cancel}
-          </button>
-          <button
+          </NotebookAction>
+          {/* Red stays for the destructive confirmation; confirming keeps the tutor ink ticket. */}
+          <NotebookAction
             type="submit"
+            tone={isConfirm ? 'primary' : 'danger'}
+            aria-busy={isSubmitting}
             disabled={isSubmitting}
-            className={notebookButtonClass({ tone: isConfirm ? 'primary' : 'danger' })}
           >
             {isSubmitting ? copy.working : isConfirm ? copy.confirmSubmit : copy.rejectSubmit}
-          </button>
+          </NotebookAction>
         </div>
       </form>
     </dialog>

@@ -1,17 +1,15 @@
 'use client';
 
-import {
-  BookingStatusBadge,
-  formatBangkokDateTime,
-  formatBangkokRange,
-  formatDuration,
-  formatMoney,
-} from '@/components/bookings/booking-ui';
+import { formatBookingDocketSlot } from '@/components/bookings/booking-docket-model';
+import { bookingRequestCopy } from '@/components/bookings/booking-request-copy';
+import { BookingStatusBadge, formatMoney } from '@/components/bookings/booking-ui';
 import {
   getStudentLabel,
   isDecidableBooking,
 } from '@/components/bookings/tutor-booking-inbox-model';
-import { PaperCard, WashiTape, notebookButtonClass } from '@/components/ui/notebook';
+import { NotebookAction } from '@/components/ui/notebook-action';
+
+import styles from './tutor-booking-inbox.module.css';
 
 import type { BookingText } from '@/components/bookings/booking-ui';
 import type { TutorBookingInboxCopy } from '@/components/bookings/tutor-booking-inbox-copy';
@@ -25,10 +23,10 @@ import type { Language } from '@/lib/i18n';
 export interface TutorBookingCardProps {
   booking: TutorBookingView;
   copy: TutorBookingInboxCopy;
-  /** Shared app-wide booking status labels, reused so a status reads the same for both roles. */
+  /** Shared app-wide booking status labels, so a status reads the same for both roles. */
   statusText: BookingText;
   decisionError: TutorBookingDecisionError | null;
-  /** The decision currently in flight for this booking, so only that button reports progress. */
+  /** The decision currently in flight for this booking, so only that action reports progress. */
   submittingDecision: TutorBookingDecision | null;
   language: Language;
   onDecide: (decision: TutorBookingDecision) => void;
@@ -46,6 +44,10 @@ export function TutorBookingCard({
   onRefresh,
 }: TutorBookingCardProps) {
   const studentLabel = getStudentLabel(booking, copy);
+  const time = formatBookingDocketSlot(booking.slot, language);
+  // Only the cross-day Start/End wording comes from the shared request copy.
+  const rangeText = bookingRequestCopy[language];
+  const titleId = `tutor-booking-${booking.id}`;
   const isSubmitting = submittingDecision !== null;
   const isPending = isDecidableBooking(booking);
   // A stale row is locked until the inbox reloads, so one failed decision cannot be retried blindly.
@@ -53,93 +55,89 @@ export function TutorBookingCard({
   const canDecide = isPending && !isStale;
 
   return (
-    <PaperCard className="relative overflow-hidden p-4 shadow-sm sm:p-5" aria-busy={isSubmitting}>
-      <WashiTape
-        tone={isPending ? 'blue' : 'yellow'}
-        className="-right-5 -top-1 rotate-12 opacity-65"
-      />
-      <div className="flex flex-wrap items-start gap-4 sm:flex-nowrap">
-        <span
-          className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-tutor-deep font-extrabold text-white shadow-sm"
-          aria-hidden="true"
-        >
-          {getStudentInitial(studentLabel)}
-        </span>
-        <div className="min-w-0 flex-1">
-          <h3 className="truncate text-base font-extrabold text-notebook-ink">{studentLabel}</h3>
-          <p className="mt-1 text-sm font-semibold text-notebook-ink">
-            {booking.listing.subjectName} · {booking.listing.gradeLevelName}
-          </p>
-          <p className="mt-1 text-sm text-notebook-muted">
-            {formatBangkokRange(booking.slot.startAtUtc, booking.slot.endAtUtc, language)} ·{' '}
-            {formatDuration(booking.slot.startAtUtc, booking.slot.endAtUtc, statusText)}
-          </p>
-          <p className="mt-1 text-xs text-notebook-muted">
-            {copy.bangkokTime} · {copy.requested}{' '}
-            {formatBangkokDateTime(booking.createdAt, language)}
-          </p>
-        </div>
-        <div className="flex w-full shrink-0 flex-col items-start gap-1 sm:w-auto sm:items-end">
-          <BookingStatusBadge status={booking.status} text={statusText} />
-          <p className="text-sm font-extrabold text-notebook-ink">
-            {formatMoney(booking.netAmount, booking.currency)}
-          </p>
-          <p className="text-xs text-notebook-muted">{copy.amount}</p>
-        </div>
+    <article className={styles.row} aria-labelledby={titleId} aria-busy={isSubmitting}>
+      <div className={styles.dateRow} role="group" aria-label={time.label}>
+        {time.endDate ? (
+          <div className={styles.endpoints} aria-hidden="true">
+            <div>
+              <span>{rangeText.start}</span>
+              <time dateTime={booking.slot.startAtUtc}>{time.start}</time>
+              <p>{time.startDate}</p>
+            </div>
+            <div>
+              <span>{rangeText.end}</span>
+              <time dateTime={booking.slot.endAtUtc}>{time.end}</time>
+              <p>{time.endDate}</p>
+            </div>
+          </div>
+        ) : (
+          <div className={styles.datePair} aria-hidden="true">
+            <p>{time.startDate}</p>
+            <strong>
+              <time dateTime={booking.slot.startAtUtc}>{time.start}</time>–
+              <time dateTime={booking.slot.endAtUtc}>{time.end}</time>
+            </strong>
+          </div>
+        )}
       </div>
 
-      {canDecide && (
-        <div className="mt-4 flex flex-col gap-2 border-t border-dashed border-paper-edge pt-4 sm:flex-row sm:justify-end">
-          <button
-            type="button"
-            disabled={isSubmitting}
-            aria-label={copy.rejectFor.replace('{student}', studentLabel)}
-            onClick={() => onDecide('REJECT')}
-            className={notebookButtonClass({
-              tone: 'secondary',
-              className: 'border-red-200 text-red-700 hover:bg-red-50 sm:min-w-32',
-            })}
-          >
-            {submittingDecision === 'REJECT' ? copy.working : copy.rejectAction}
-          </button>
-          <button
-            type="button"
-            disabled={isSubmitting}
-            aria-label={copy.confirmFor.replace('{student}', studentLabel)}
-            onClick={() => onDecide('CONFIRM')}
-            className={notebookButtonClass({ className: 'sm:min-w-32' })}
-          >
-            {submittingDecision === 'CONFIRM' ? copy.working : copy.confirmAction}
-          </button>
-        </div>
-      )}
+      <div className={styles.course}>
+        <p className={styles.grade}>{booking.listing.gradeLevelName}</p>
+        <h2 id={titleId}>{studentLabel}</h2>
+        <p className={styles.subject}>{booking.listing.subjectName}</p>
+      </div>
 
-      {!isPending && (
-        <p className="mt-4 border-t border-dashed border-paper-edge pt-4 text-xs text-notebook-muted">
-          <span className="font-bold text-notebook-ink">{copy.decidedLabel}</span> ·{' '}
-          {copy.decidedHint}
+      <div className={styles.rowStub}>
+        <BookingStatusBadge status={booking.status} text={statusText} />
+        <p className={styles.amount}>
+          <span className="sr-only">{copy.amount}: </span>
+          {formatMoney(booking.netAmount, booking.currency)}
+        </p>
+        {canDecide ? (
+          <div className={styles.actions}>
+            <NotebookAction
+              tone="primary"
+              size="compact"
+              className={styles.action}
+              disabled={isSubmitting}
+              aria-label={copy.confirmFor.replace('{student}', studentLabel)}
+              onClick={() => onDecide('CONFIRM')}
+            >
+              {submittingDecision === 'CONFIRM' ? copy.working : copy.confirmAction}
+            </NotebookAction>
+            <NotebookAction
+              tone="secondary"
+              size="compact"
+              className={styles.action}
+              disabled={isSubmitting}
+              aria-label={copy.rejectFor.replace('{student}', studentLabel)}
+              onClick={() => onDecide('REJECT')}
+            >
+              {submittingDecision === 'REJECT' ? copy.working : copy.rejectAction}
+            </NotebookAction>
+          </div>
+        ) : (
+          <p className={styles.decided}>{copy.decidedHint}</p>
+        )}
+      </div>
+
+      {decisionError && (
+        <p className={styles.notice} role="alert">
+          {decisionError.message}
+          {decisionError.requiresRefresh && (
+            <>
+              {' '}
+              <button type="button" className={styles.noticeAction} onClick={onRefresh}>
+                {copy.refresh}
+              </button>
+            </>
+          )}
         </p>
       )}
 
-      {decisionError && (
-        <div
-          className="mt-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800"
-          role="alert"
-        >
-          <p className="font-semibold">{decisionError.message}</p>
-          {decisionError.requiresRefresh && (
-            <button type="button" onClick={onRefresh} className="mt-2 font-bold underline">
-              {copy.refresh}
-            </button>
-          )}
-        </div>
-      )}
-    </PaperCard>
+      <span className="sr-only">{copy.bangkokTime}</span>
+    </article>
   );
-}
-
-function getStudentInitial(studentLabel: string): string {
-  return studentLabel.trim().charAt(0).toUpperCase() || '?';
 }
 
 export default TutorBookingCard;
