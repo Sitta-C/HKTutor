@@ -75,9 +75,8 @@ the existing count or adding an action.
 It is entirely frontend pagination: changing tutor pages does not fetch more records or change the
 left sheet. Pagination is hidden for zero to four tutors and resets to page one after the existing
 booking load succeeds. The dashboard keeps the original `getMyBookings({ pageSize: 100 })` load and
-language-dependent effect, without following server totals or adding requests. Loading retains the
-shared shell and student Mint loading note; loading/errors keep sidebar counts unavailable and hide
-summary counts/empty states. Zero appears only after a successful response. The disabled search,
+language-dependent effect for dashboard content. The sidebar uses the global unfiltered total below.
+Loading retains the shared shell and student Mint loading note, and hides summary counts/empty states. Zero appears only after a successful response. The disabled search,
 quick-action block, repeated pending panel, and duplicate find-tutor CTAs are removed; a single
 find-tutor CTA beside the greeting and existing shell navigation remain. Styles are isolated to Student Dashboard;
 shared shell and tutor layouts remain unchanged, and the pagination's standard text-button mode
@@ -129,8 +128,7 @@ layout and borders, alongside the keyboard and pagination flow.
 
 The `/tutors` header shows Sign in for guests and no booking action for authenticated users, with
 no link back to search. My bookings is omitted from all student/public headers, including the booking
-list, request and detail pages. The sidebar booking link remains available. Its unloaded search
-booking count is unavailable. These search styles do not
+list, request and detail pages. The sidebar booking link remains available. Its booking badge uses the global student total described below. These search styles do not
 alter shared primitives or tutor UI.
 
 Public tutor detail at `/tutors/[tutorId]?listingId=...` uses **Appointment Pad**, selected as option 3
@@ -185,8 +183,7 @@ stale-response guard. Requested listing IDs, effective/fallback selection, encod
 booking URLs, guest login/onboarding return paths and disabled non-STUDENT actions are preserved.
 `conflict=1` retains its recovery notice. Loading retains the existing shell and inline skeleton;
 error/404 retains the back link; empty listings and slots are explicit after success. The detail
-header has no Find a tutor or My bookings action. The sidebar booking count is unavailable because
-detail does not load bookings. CSS, view models and bilingual copy are local to this feature; tutor editors, shared
+header has no Find a tutor or My bookings action. The sidebar uses the global student booking total described below. CSS, view models and bilingual copy are local to this feature; tutor editors, shared
 primitives and API contracts are unchanged.
 
 The student request page at `/dashboard/bookings/new?listingId=...&slotId=...` uses
@@ -221,8 +218,7 @@ booking-list/detail reuse. It accepts existing response data without fetching. A
 verification shows unavailable; no tutor photo, rating or experience request is added. The original
 quote effect, selectionKey guards, createBookingOnce, duplicate-submit gate, API clients and POST
 listingId/slotId payload remain unchanged, including existing authentication retry/session-expiry
-behavior. The request route's sidebar booking count is unavailable because it does not load the
-list; the shell also keeps list/detail counts unavailable without extra reads. Existing shared booking
+behavior. The request and list/detail sidebar badges use the global student booking total described below. Existing shared booking
 helpers and the request's default docket presentation are preserved.
 
 The student booking list and detail use **Margin Index**, selected on 2026-10-07. List filters are
@@ -240,8 +236,7 @@ when returning to a previously loaded filter while another request is pending. T
 existing active-response guard prevent previous counts or late responses from appearing as current
 results. Errors retain the existing retry/sign-in behavior; empty states appear only after success,
 with zero only then. Filtered empty copy suggests another status without implying an empty account.
-The shell's sidebar badge remains unavailable on list, detail and request because the shell does not
-load an aggregate. No extra booking request or count propagation was introduced. Shared
+The shell's sidebar badge uses the global all-status total below, separately from list filter counts. Shared
 `NotebookPagination` uses page/total with page size 10; previous/next remain disabled at boundaries,
 and pagination is omitted for one page. The user refined its opt-in ticket variant to **Ticket Pair**
 on 2026-10-07: connected warm-paper Previous and pale-mint Next buttons with inset dashed edges,
@@ -331,7 +326,7 @@ limits linked tutors to nickname and keeps legal name, school, class, phone and 
 The form and summary keep their own content height, sitting beside each other above 1060px and
 stacking below that width. Long summary values and readonly email wrap at 320px. Authenticated
 student profile loading retains the dashboard shell and onboarding sign-out; the sidebar booking
-badge remains unavailable because this page does not load a booking aggregate. Consent remains a
+badge uses the global student booking total described below. Consent remains a
 separate required notice/checkbox step and uses the existing modal and request. Validation, trimmed
 six-field student payload (including string gradeLevel), focus, dirty state, cancel, inline/toast
 errors, saving buttons, profile gating and sanitized returnTo retain their existing behavior.
@@ -340,6 +335,23 @@ Tutor fields, public preview, metadata, save contract and optional photo workflo
 Browser checks use intercepted preview API fixtures, including TH/EN long text at 320/768/1440px,
 empty/validation/saving/error/dirty states, consent and its notice modal, returnTo, sign-out,
 loading/load failure, student save payload, tutor onboarding and existing tutor/photo regressions.
+
+## Global student booking count
+
+All authenticated student shells subscribe to one in-memory state via `useSyncExternalStore`.
+A small unfiltered read of the existing booking API supplies `response.total`, regardless of the
+Dashboard's 100-item limit or the list's selected status/page. A route change, visible window focus
+or visibility change refreshes the count; concurrent triggers share a request. Booking success
+starts a fresh authoritative read and prevents pre-create responses from overwriting it. The last
+known total stays visible with `aria-busy` during refresh; initial/error results show — and a
+successful empty result shows 0. The live badge stays in the existing sidebar layout.
+
+State is isolated by authenticated student ID and cleared on login, verification, logout and
+session expiry. Late responses cannot repopulate cleared state or overwrite a newer account.
+Guest/tutor shells and onboarding never fetch the student total. No local storage, backend change,
+new API endpoint or booking payload change is introduced. Browser checks cover cross-page totals,
+status-filter independence, counts above 100, focus refresh, booking success, errors/zero and
+mobile sidebar operation; unit checks cover deduplication and account/mutation response races.
 
 ## Profile photos
 

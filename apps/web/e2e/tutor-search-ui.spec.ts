@@ -92,6 +92,7 @@ async function mockSearch(
         },
       });
     }
+    if (path === '/bookings/me') return route.fulfill({ json: { items: [], total: 5 } });
     if (path === '/subjects' || path === '/grade-levels') {
       await options.catalogGate;
       return route.fulfill(

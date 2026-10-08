@@ -313,12 +313,7 @@ export default function ProfileEditor({ mode }: ProfileEditorProps) {
     );
     if (!authLoading && studentRole && user) {
       return (
-        <DashboardShell
-          user={user}
-          onLogout={handleLogout}
-          headerNavRight={headerNav}
-          navBadges={{ bookings: '—' }}
-        >
+        <DashboardShell user={user} onLogout={handleLogout} headerNavRight={headerNav}>
           {loading}
         </DashboardShell>
       );
@@ -335,12 +330,7 @@ export default function ProfileEditor({ mode }: ProfileEditorProps) {
   const tone: ProfileTone = studentRole ? 'student' : 'tutor';
 
   return (
-    <DashboardShell
-      user={shellUser}
-      onLogout={handleLogout}
-      headerNavRight={headerNav}
-      {...(studentRole ? { navBadges: { bookings: '—' } } : {})}
-    >
+    <DashboardShell user={shellUser} onLogout={handleLogout} headerNavRight={headerNav}>
       <header className="mb-6 mt-7">
         <p className="font-note text-xl font-semibold leading-none text-amber-700 sm:text-2xl">
           {mode === 'onboarding' ? text.lastStep : text.account}

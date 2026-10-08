@@ -94,6 +94,15 @@ async function mockBookings(
       });
     }
     if (path === '/profiles/me/avatar') return route.fulfill({ json: { avatar: null } });
+    if (path === '/bookings/me' && url.searchParams.get('pageSize') === '1') {
+      await options.listGate;
+      return route.fulfill({
+        status: options.listStatus ?? 200,
+        json: options.listStatus
+          ? { message: 'Preview count error' }
+          : { items: [], total: options.empty ? 0 : 13 },
+      });
+    }
     if (path === '/bookings/me') {
       reads.push(url);
       await options.listGate;

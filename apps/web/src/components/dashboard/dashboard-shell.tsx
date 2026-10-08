@@ -11,6 +11,7 @@ import { OwnProfileAvatar } from '@/components/profile/profile-avatar';
 import { LanguageSwitch } from '@/components/public/public-ui';
 import { NotebookPage, WashiTape } from '@/components/ui/notebook';
 import { useNotebookToast } from '@/components/ui/notebook-toast';
+import { useAuth } from '@/lib/auth-context';
 import {
   getDashboardNavItems,
   getUserDisplayName,
@@ -20,6 +21,7 @@ import {
 } from '@/lib/dashboard-navigation';
 import { formatBangkokYear } from '@/lib/date-time';
 import { useLanguage } from '@/lib/i18n';
+import { useStudentBookingCount } from '@/lib/student-booking-count';
 
 import type { AuthUser } from '@/lib/api/types';
 import type { DashboardViewType } from '@/lib/dashboard-navigation';
@@ -100,6 +102,15 @@ export function DashboardShell({
   const { language, copy } = useLanguage();
   const toast = useNotebookToast();
   const pathname = usePathname();
+  const { user: authenticatedUser } = useAuth();
+  const bookingCount = useStudentBookingCount(
+    authenticatedUser?.role === 'STUDENT' &&
+      authenticatedUser.id === user.id &&
+      pathname !== '/onboarding/profile'
+      ? authenticatedUser.id
+      : null,
+    pathname,
+  );
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isMobileSidebar, setIsMobileSidebar] = useState(false);
   const [privacyNoticeOpen, setPrivacyNoticeOpen] = useState(false);
@@ -325,7 +336,12 @@ export function DashboardShell({
             aria-label={copy.dashboard.common.sidebarNavigationLabel}
           >
             {navItems.map((item) => {
-              const badge = navBadges?.[item.id] ?? item.badge;
+              const badge =
+                user.role === 'STUDENT' && item.id === 'bookings'
+                  ? bookingCount.total === null
+                    ? '—'
+                    : String(bookingCount.total)
+                  : (navBadges?.[item.id] ?? item.badge);
               const icon = (
                 <span
                   className={classes(
@@ -345,6 +361,9 @@ export function DashboardShell({
                   </span>
                   {!isSidebarCollapsed && badge !== undefined && (
                     <span
+                      aria-live={item.id === 'bookings' ? 'polite' : undefined}
+                      aria-busy={item.id === 'bookings' && bookingCount.refreshing}
+                      data-booking-nav-count={item.id === 'bookings' ? '' : undefined}
                       className={classes(
                         'rounded-full px-2 py-0.5 text-xs font-extrabold',
                         theme.badge,

@@ -18,6 +18,7 @@ import { useNotebookToast } from '@/components/ui/notebook-toast';
 import { createBookingOnce, getBookingQuote } from '@/lib/api/bookings';
 import { ApiError } from '@/lib/api/error';
 import { useLanguage } from '@/lib/i18n';
+import { refreshStudentBookingCountAfterCreate } from '@/lib/student-booking-count';
 
 import styles from './booking-docket.module.css';
 
@@ -91,6 +92,7 @@ export default function BookingConfirmationPage() {
       const response = await createBookingOnce({ listingId, slotId }, submitInFlight);
       if (response) {
         setCreated(response);
+        refreshStudentBookingCountAfterCreate();
         toast.success(requestText.sent);
       } else {
         setSubmitError(new Error(text.submissionInProgress));

@@ -53,7 +53,6 @@ export default function PublicTutorSearchShell({ children }: { children: ReactNo
         router.push('/');
       }}
       showSignOut={Boolean(user)}
-      navBadges={{ bookings: '—' }}
       headerNavRight={
         isSearchPage && !user ? (
           <Link href="/" data-dashboard-action>

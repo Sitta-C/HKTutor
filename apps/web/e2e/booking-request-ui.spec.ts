@@ -98,6 +98,7 @@ async function mockRequest(
         },
       });
     if (path === '/profiles/me/avatar') return route.fulfill({ json: { avatar: null } });
+    if (path === '/bookings/me') return route.fulfill({ json: { items: [], total: 5 } });
     if (path === '/bookings/quote') {
       reads.push(url);
       await options.quoteGate;

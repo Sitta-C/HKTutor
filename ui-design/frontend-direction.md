@@ -149,7 +149,7 @@ without a checkmark. This is implemented for guests and signed-in students.
 - The search header keeps one sign-in action for guests and no booking action for authenticated
   users. Remove its self-link to search. My bookings is omitted from all student/public headers,
   including the booking list, request and detail pages; the sidebar booking link remains available.
-  The search booking badge is unavailable because this page does not load bookings.
+  The search booking badge uses the global student booking total described below.
 - The user selected **Ticket Pair** pagination on 2026-10-07: connected paper Previous/Next
   buttons with an inset dashed edge, a perforated center seam and small seam notches. The next
   ticket uses pale student mint. Keep the page count left and the pair right on wider sheets;
@@ -203,7 +203,7 @@ The user selected **Appointment Pad** (option 3) and requested implementation on
 - Preserve the original detail and 30-day availability requests, requested/fallback listing
   selection, encoded booking link, guest login return path, wrong-role guards, conflict recovery,
   and loading/error/404/empty states. The detail header has no Find a tutor or My bookings action;
-  its unloaded sidebar booking count is unavailable. Do not extend the fetched range or add
+  its sidebar uses the global student booking total. Do not extend the fetched range or add
   reviews/slot actions.
 - Tutor identity, blue grade tab, upright price, selected subject/grade and Bangkok date/time are
   the reference anatomy for booking presentation. The request page uses Appointment Docket below;
@@ -230,9 +230,7 @@ The user selected **Appointment Docket** and requested implementation on 2026-10
 - Quote loading keeps the shell and one inline loading region inside the paper. Missing-selection
   and quote errors retain their existing recovery links; submit errors sit beside the action.
   Keep sending labels/disabled behavior, change-time, 409 recovery with `conflict=1`, sign-in,
-  booking-detail/list and find-tutor links. This page does not load a booking count; its sidebar
-  count stays unavailable rather than displaying zero. The same shell now keeps list/detail counts unavailable
-  without requesting an aggregate.
+  booking-detail/list and find-tutor links. The sidebar uses the global student booking total described below.
 - After submission, keep the same docket with the response status and created-response amounts.
   PENDING explicitly says **Awaiting tutor confirmation / รอติวเตอร์ยืนยัน**, with warm status styling;
   success never implies payment or confirmation. Other returned statuses use their own localized
@@ -276,9 +274,7 @@ The user selected **Margin Index** and requested implementation on 2026-10-07 fo
   distinct; no payment, cancellation, rescheduling, attendance, meeting or chat controls are added.
 - Heading counts describe the selected server status only. Counts remain unavailable during loading,
   retries, filter/page changes and errors; zero appears only after a successful empty response.
-  The booking shell uses an unavailable sidebar badge for list, detail and request because it does
-  not own an aggregate booking response. Do not add requests to populate it or use a filtered total
-  as an all-status shell count. Loading/error/empty/detail-not-found content retains the shell and paper.
+  The sidebar uses the global student booking total, independent of the selected status count. Loading/error/empty/detail-not-found content retains the shell and paper.
 - Reuse `NotebookPagination` with its opt-in **ticket** variant. The user refined booking pagination
   to the supplied **Ticket Pair** reference on 2026-10-07: connected Previous/Next tickets, inset
   dashed edges, a perforated center seam, seam notches and one soft paper edge. Previous is warm
@@ -311,7 +307,7 @@ The user selected the **tutor-aligned Profile Page** and requested implementatio
   email remain hidden. This is an owner-only account summary, not a public student profile.
 - Preserve consent/notice modal, validation and first-error focus, save/cancel/reset, saving/error/
   dirty states, profile gating, sanitized returnTo and onboarding sign-out. Keep the authenticated
-  student shell while loading profile data; its unloaded booking count is unavailable. Do not add
+  student shell while loading profile data; its booking badge uses the global student booking total. Do not add
   fields, catalog requests, profile/API contracts or photo behavior. Tutor edit/onboarding, its
   selected Profile Page preview and rating/verification summary remain unchanged.
 
@@ -334,6 +330,20 @@ The user selected **Ink Portrait Index**, combining Ink & Sketch and Portrait In
 - Keep bilingual text and the actual role-specific privacy explanation: student photos are private;
   tutor photos can appear publicly when eligible. Photo saving remains separate from profile fields.
   Styles stay local to `avatar-editor.module.css`; public avatars and profile previews are unchanged.
+
+## Global student booking count
+
+On 2026-10-08 the user requested one global state for the student sidebar booking count.
+`DashboardShell` reads the authenticated student's unfiltered server `total`, using the existing
+`getMyBookings({ page: 1, pageSize: 1 })` client. Dashboard, profile, booking list/detail/request and
+public search/detail share that state; page components do not supply separate booking badges.
+The count is independent of loaded item limits and status/date filters. Requests are deduplicated;
+refresh occurs on route changes, visible window focus/visibility and successful booking creation.
+A known count stays visible while refreshing with an accessible busy state. Initial unavailable/error
+states show —; zero follows a successful empty response. Clear on login, verification, logout and
+session expiry, isolate by user ID and reject late results from older sessions or pre-create reads.
+Guests, tutors and onboarding do not request a student count. This adds a frontend read through the
+existing API, with no backend/client contract or booking payload changes.
 
 ## Action notifications
 

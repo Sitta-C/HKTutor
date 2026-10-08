@@ -90,7 +90,7 @@ async function mockDashboard(
       });
     }
     if (path === '/bookings/me') {
-      calls.push(url);
+      if (url.searchParams.get('pageSize') !== '1') calls.push(url);
       await options.gate;
       return route.fulfill({
         status: options.fail ? 500 : 200,

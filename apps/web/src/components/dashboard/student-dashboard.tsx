@@ -91,11 +91,7 @@ export function StudentDashboard({ user, onLogout }: StudentDashboardProps) {
   );
 
   return (
-    <DashboardShell
-      user={user}
-      onLogout={onLogout}
-      navBadges={{ bookings: isLoading || loadError ? '—' : String(bookings.length) }}
-    >
+    <DashboardShell user={user} onLogout={onLogout}>
       <div className={styles.greeting}>
         <div className={styles.greetingCopy}>
           <p className={styles.eyebrow}>{studentCopy.plannerEyebrow}</p>
