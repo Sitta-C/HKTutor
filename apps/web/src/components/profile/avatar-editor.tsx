@@ -2,8 +2,9 @@
 
 import { useEffect, useRef, useState } from 'react';
 
+import { DashboardIcon } from '@/components/dashboard/dashboard-icon';
 import { ProfileAvatar } from '@/components/profile/profile-avatar';
-import { notebookButtonClass } from '@/components/ui/notebook';
+import { NotebookAction } from '@/components/ui/notebook-action';
 import { useNotebookToast } from '@/components/ui/notebook-toast';
 import { ApiError } from '@/lib/api/error';
 import { deleteAvatar, uploadAvatar } from '@/lib/api/profiles';
@@ -175,37 +176,39 @@ export function AvatarEditor({
                 {text.choose}
               </button>
               {file && (
-                <button
+                <NotebookAction
                   type="button"
-                  className={notebookButtonClass({
-                    className:
-                      role === 'tutor' ? 'bg-tutor-deep text-white' : 'bg-student-deep text-white',
-                  })}
+                  role={role}
+                  icon={<DashboardIcon name="check" />}
                   disabled={pending || disabled}
+                  aria-busy={pending}
                   onClick={() => void save(false)}
                 >
                   {pending ? text.pending : text.upload}
-                </button>
+                </NotebookAction>
               )}
               {file ? (
-                <button
+                <NotebookAction
                   type="button"
-                  className={notebookButtonClass({ tone: 'secondary' })}
+                  role={role}
+                  tone="secondary"
                   disabled={pending || disabled}
                   onClick={reset}
                 >
                   {text.cancel}
-                </button>
+                </NotebookAction>
               ) : (
                 avatarUpdatedAt && (
-                  <button
+                  <NotebookAction
                     type="button"
-                    className={notebookButtonClass({ tone: 'secondary' })}
+                    role={role}
+                    tone="quiet"
+                    icon={<DashboardIcon name="trash" />}
                     disabled={pending || disabled}
                     onClick={() => void save(true)}
                   >
                     {pending ? text.pending : text.remove}
-                  </button>
+                  </NotebookAction>
                 )
               )}
             </div>

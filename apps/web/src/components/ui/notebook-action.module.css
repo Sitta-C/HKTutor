@@ -1,0 +1,198 @@
+.action {
+  --action-ink: color-mix(in srgb, var(--color-tutor-deep) 86%, var(--color-notebook-ink));
+  --action-wash: color-mix(in srgb, var(--color-tutor-deep) 8%, var(--color-paper));
+  display: inline-flex;
+  position: relative;
+  max-width: 100%;
+  min-height: 46px;
+  align-items: stretch;
+  justify-content: center;
+  padding: 10px 12px;
+  border: 1px solid var(--color-paper-edge);
+  border-radius: 5px;
+  background: var(--color-paper);
+  box-shadow: 0 2px 0 var(--color-paper-edge);
+  color: var(--action-ink);
+  font-size: 0.875rem;
+  font-weight: 600;
+  line-height: 1.5;
+  text-align: center;
+  text-decoration: none;
+  transition:
+    background-color 150ms,
+    box-shadow 150ms;
+}
+
+.student {
+  --action-ink: color-mix(in srgb, var(--color-student-deep) 78%, var(--color-notebook-ink));
+  --action-wash: color-mix(in srgb, var(--color-student-deep) 8%, var(--color-paper));
+}
+
+.danger {
+  --action-ink: color-mix(in srgb, var(--color-red-700) 85%, var(--color-notebook-muted));
+}
+
+.content {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.end {
+  flex-direction: row-reverse;
+}
+
+.icon {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+}
+
+.icon > svg {
+  width: 17px;
+  height: 17px;
+}
+
+.label {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.primary,
+.danger {
+  padding: 0;
+  border-color: var(--action-ink);
+  background: var(--action-ink);
+  color: var(--color-paper);
+}
+
+.primary .content,
+.danger .content {
+  gap: 0;
+  align-items: stretch;
+}
+
+.primary .label,
+.danger .label {
+  flex: 1;
+  align-self: center;
+  padding: 11px 13px;
+}
+
+.primary .icon,
+.danger .icon {
+  position: relative;
+  width: 37px;
+  flex-basis: 37px;
+  border-inline-end: 1px dashed color-mix(in srgb, var(--color-paper) 55%, transparent);
+  background: color-mix(in srgb, var(--color-paper) 8%, transparent);
+  border-radius: 4px 0 0 4px;
+}
+
+.primary .end .icon,
+.danger .end .icon {
+  border-inline-start: 1px dashed color-mix(in srgb, var(--color-paper) 55%, transparent);
+  border-inline-end: 0;
+  border-radius: 0 4px 4px 0;
+}
+
+.primary .icon::before,
+.primary .icon::after,
+.danger .icon::before,
+.danger .icon::after {
+  position: absolute;
+  inset-inline-end: -4px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--action-cutout, var(--color-paper));
+  pointer-events: none;
+  content: '';
+}
+
+.primary .icon::before,
+.danger .icon::before {
+  top: -4px;
+}
+
+.primary .icon::after,
+.danger .icon::after {
+  bottom: -4px;
+}
+
+.primary .end .icon::before,
+.primary .end .icon::after,
+.danger .end .icon::before,
+.danger .end .icon::after {
+  inset-inline-start: -4px;
+  inset-inline-end: auto;
+}
+
+.quiet {
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--action-ink) 35%, transparent);
+  text-underline-offset: 5px;
+}
+
+.compact {
+  padding-inline: 6px;
+  font-size: 0.8125rem;
+}
+
+.compact.primary,
+.compact.danger {
+  padding: 0;
+}
+
+.compact.primary .icon,
+.compact.danger .icon {
+  width: 32px;
+  flex-basis: 32px;
+}
+
+.compact.primary .label,
+.compact.danger .label {
+  padding-inline: 9px;
+}
+
+.action:hover:not(:disabled) {
+  background: var(--action-wash);
+}
+
+.primary:hover:not(:disabled),
+.danger:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--action-ink) 92%, var(--color-notebook-ink));
+}
+
+.action:active:not(:disabled) {
+  box-shadow: none;
+}
+
+.action:focus-visible {
+  outline: 2px solid var(--action-ink);
+  outline-offset: 3px;
+}
+
+.secondary[aria-pressed='true'] {
+  border-color: var(--action-ink);
+  background: var(--action-wash);
+}
+
+.action:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+  box-shadow: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .action {
+    transition: none;
+  }
+}

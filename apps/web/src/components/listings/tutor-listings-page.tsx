@@ -12,6 +12,7 @@ import {
   listingButtonClass,
 } from '@/components/listings/listing-ui';
 import { GraphPaper, PaperCard, StickyNote } from '@/components/ui/notebook';
+import { NotebookActionContent } from '@/components/ui/notebook-action';
 import { NotebookLoadingRegion } from '@/components/ui/notebook-loading';
 import { useNotebookToast } from '@/components/ui/notebook-toast';
 import {
@@ -223,13 +224,11 @@ export default function TutorListingsPage() {
           </div>
           <Link
             href="/dashboard/listings/new"
-            className={listingButtonClass(
-              'primary',
-              `w-full shrink-0 whitespace-normal sm:w-auto sm:whitespace-nowrap ${styles.newListing} ${styles.primary}`,
-            )}
+            className={listingButtonClass('primary', 'w-full shrink-0 sm:w-auto')}
           >
-            <ListingIcon name="add" />
-            {copy.newListing}
+            <NotebookActionContent icon={<ListingIcon name="add" />}>
+              {copy.newListing}
+            </NotebookActionContent>
           </Link>
         </header>
 
@@ -350,8 +349,9 @@ export default function TutorListingsPage() {
                     href="/dashboard/listings/new"
                     className={listingButtonClass('primary', 'mt-5')}
                   >
-                    <ListingIcon name="add" />
-                    {copy.createFirst}
+                    <NotebookActionContent icon={<ListingIcon name="add" />}>
+                      {copy.createFirst}
+                    </NotebookActionContent>
                   </Link>
                 )}
               </GraphPaper>
@@ -420,8 +420,9 @@ export default function TutorListingsPage() {
                           href={`/dashboard/listings/${listing.id}/edit`}
                           className={ledgerButtonClass('secondary')}
                         >
-                          <ListingIcon name="edit" />
-                          {copy.edit}
+                          <NotebookActionContent icon={<ListingIcon name="edit" />}>
+                            {copy.edit}
+                          </NotebookActionContent>
                         </Link>
                         {listing.publicationStatus === 'DRAFT' && (
                           <button
@@ -433,7 +434,9 @@ export default function TutorListingsPage() {
                             onClick={() => requestConfirmation(listing.id, 'publish')}
                             className={ledgerButtonClass('primary')}
                           >
-                            {busyId === listing.id ? copy.working : copy.publish}
+                            <NotebookActionContent icon={<ListingIcon name="check" />}>
+                              {busyId === listing.id ? copy.working : copy.publish}
+                            </NotebookActionContent>
                           </button>
                         )}
                         {listing.publicationStatus === 'PUBLISHED' && (
@@ -445,8 +448,9 @@ export default function TutorListingsPage() {
                             onClick={() => requestConfirmation(listing.id, 'archive')}
                             className={ledgerButtonClass('secondary', styles.archiveAction)}
                           >
-                            <ListingIcon name="archive" />
-                            {copy.archive}
+                            <NotebookActionContent icon={<ListingIcon name="archive" />}>
+                              {copy.archive}
+                            </NotebookActionContent>
                           </button>
                         )}
                         {listing.publicationStatus === 'ARCHIVED' && (
@@ -468,7 +472,9 @@ export default function TutorListingsPage() {
                               onClick={() => requestConfirmation(listing.id, 'publish')}
                               className={ledgerButtonClass('primary')}
                             >
-                              {busyId === listing.id ? copy.working : copy.publish}
+                              <NotebookActionContent icon={<ListingIcon name="check" />}>
+                                {busyId === listing.id ? copy.working : copy.publish}
+                              </NotebookActionContent>
                             </button>
                           </>
                         )}
@@ -557,8 +563,9 @@ export default function TutorListingsPage() {
               `${styles.dialogAction} ${styles.dialogConfirm}`,
             )}
           >
-            <ListingIcon name={confirmationIcon} />
-            {busyId !== null ? copy.working : copy.confirm}
+            <NotebookActionContent icon={<ListingIcon name={confirmationIcon} />}>
+              {busyId !== null ? copy.working : isPublishConfirmation ? copy.publish : copy.archive}
+            </NotebookActionContent>
           </button>
         </div>
       </dialog>
@@ -567,7 +574,7 @@ export default function TutorListingsPage() {
 }
 
 function ledgerButtonClass(tone: 'primary' | 'secondary' | 'danger', className = ''): string {
-  return listingButtonClass(tone, `${styles.action} ${styles[tone]} ${className}`);
+  return listingButtonClass(tone, `${styles.action} ${className}`);
 }
 
 function formatPrice(value: number, language: 'en' | 'th') {
@@ -627,7 +634,6 @@ const englishCopy = {
   archiveConfirm: 'Archive this listing?',
   archiveExplanation:
     'Students will no longer see this offer. You can restore it to a draft later.',
-  confirm: 'Confirm',
   cancel: 'Cancel',
   working: 'Working…',
   loading: 'Loading your teaching listings…',
@@ -683,7 +689,6 @@ const thaiCopy: typeof englishCopy = {
   archive: 'เก็บถาวร',
   archiveConfirm: 'เก็บประกาศนี้ไว้ถาวร?',
   archiveExplanation: 'นักเรียนจะไม่เห็นประกาศนี้ คุณคืนเป็นฉบับร่างได้ภายหลัง',
-  confirm: 'ยืนยัน',
   cancel: 'ยกเลิก',
   working: 'กำลังดำเนินการ…',
   loading: 'กำลังโหลดประกาศสอน…',

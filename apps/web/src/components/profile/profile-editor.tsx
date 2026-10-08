@@ -29,6 +29,7 @@ import {
   notebookButtonClass,
   notebookInputClass,
 } from '@/components/ui/notebook';
+import { NotebookAction } from '@/components/ui/notebook-action';
 import { NotebookLoading } from '@/components/ui/notebook-loading';
 import { useNotebookToast } from '@/components/ui/notebook-toast';
 import {
@@ -365,13 +366,16 @@ export default function ProfileEditor({ mode }: ProfileEditorProps) {
               }}
               error={consentError}
             />
-            <button
-              className={notebookButtonClass({ className: 'mt-5' })}
+            <NotebookAction
+              role={tone}
+              icon={<DashboardIcon name="arrow-right" />}
+              className="mt-5"
               disabled={isSaving}
+              aria-busy={isSaving}
               type="submit"
             >
               {isSaving ? text.saving : text.continue}
-            </button>
+            </NotebookAction>
           </form>
         </PaperCard>
       ) : (
@@ -442,17 +446,24 @@ export default function ProfileEditor({ mode }: ProfileEditorProps) {
                 </p>
               )}
               <div className="mt-6 flex flex-wrap items-center gap-2 border-t border-dashed border-paper-edge pt-5">
-                <button className={notebookButtonClass()} disabled={isSaving} type="submit">
+                <NotebookAction
+                  role={tone}
+                  icon={<DashboardIcon name="check" />}
+                  disabled={isSaving}
+                  aria-busy={isSaving}
+                  type="submit"
+                >
                   {isSaving ? text.saving : mode === 'onboarding' ? text.continue : text.save}
-                </button>
-                <button
-                  className={notebookButtonClass({ tone: 'secondary' })}
+                </NotebookAction>
+                <NotebookAction
+                  role={tone}
+                  tone="secondary"
                   disabled={!dirty || isSaving}
                   onClick={handleCancel}
                   type="button"
                 >
                   {text.cancel}
-                </button>
+                </NotebookAction>
                 {dirty && (
                   <span className="w-full text-xs font-bold text-amber-700 sm:ml-auto sm:w-auto">
                     {text.unsaved}

@@ -19,6 +19,11 @@ import {
   StatusBadge,
   notebookInputClass,
 } from '@/components/ui/notebook';
+import {
+  NotebookAction,
+  NotebookActionContent,
+  notebookActionClass,
+} from '@/components/ui/notebook-action';
 import { NotebookLoadingRegion } from '@/components/ui/notebook-loading';
 import { NotebookSelect } from '@/components/ui/notebook-select';
 import {
@@ -289,16 +294,25 @@ export default function TutorSearchPage() {
                 error={fieldErrors.minimumRating}
               />
               <div className={styles.filterActions}>
-                <button type="submit" className={styles.ticket} disabled={status === 'loading'}>
-                  <span className={styles.ticketLabel}>{text.apply}</span>
-                  <span className={styles.ticketStub} aria-hidden="true">
-                    <DashboardIcon name="search" className="h-4 w-4" />
-                  </span>
-                </button>
-                <button type="button" className={styles.clearAction} onClick={clearFilters}>
+                <NotebookAction
+                  type="submit"
+                  role="student"
+                  size="compact"
+                  icon={<DashboardIcon name="search" />}
+                  disabled={status === 'loading'}
+                  aria-busy={status === 'loading'}
+                >
+                  {text.apply}
+                </NotebookAction>
+                <NotebookAction
+                  role="student"
+                  tone="quiet"
+                  size="compact"
+                  icon={<ClearIcon />}
+                  onClick={clearFilters}
+                >
                   {text.clear}
-                  <ClearIcon />
-                </button>
+                </NotebookAction>
               </div>
             </form>
           </div>
@@ -542,12 +556,11 @@ function TutorResultCard({
       <p className={styles.availability}>{nextAvailable}</p>
       <Link
         href={`/tutors/${encodeURIComponent(result.tutorId)}?listingId=${encodeURIComponent(result.listingId)}`}
-        className={`${styles.ticket} ${styles.courseAction}`}
+        className={notebookActionClass({ role: 'student', className: styles.courseAction })}
       >
-        <span className={styles.ticketLabel}>{text.viewTimes}</span>
-        <span className={styles.ticketStub} aria-hidden="true">
-          <DashboardIcon name="arrow-right" className="h-4 w-4" />
-        </span>
+        <NotebookActionContent icon={<DashboardIcon name="arrow-right" />} iconPosition="end">
+          {text.viewTimes}
+        </NotebookActionContent>
       </Link>
     </article>
   );

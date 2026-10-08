@@ -3,15 +3,6 @@
   padding-bottom: 2rem;
 }
 
-.newListing {
-  box-shadow: none;
-}
-
-.newListing:hover {
-  transform: none;
-  box-shadow: none;
-}
-
 .summary {
   display: flex;
   flex-wrap: wrap;
@@ -242,45 +233,15 @@
 }
 
 .action {
-  min-height: 2.5rem;
-  padding: 0.5rem 0.75rem;
   font-size: 0.75rem;
-  box-shadow: none;
 }
 
-.action:hover {
-  transform: none;
-  box-shadow: none;
-}
-
-.action > svg {
-  width: 1rem;
-  height: 1rem;
-}
-
-.primary {
-  border-color: var(--color-tutor-deep);
-  color: white;
-  background: var(--color-tutor-deep);
-}
-
-.primary:hover:not(:disabled) {
-  border-color: var(--color-tutor);
-  background: var(--color-tutor);
-}
-
-.secondary {
-  background: var(--color-paper);
-}
-
-.danger {
-  border-color: var(--color-red-700);
-}
-
-.archiveAction {
+.archiveAction.archiveAction {
+  --action-ink: color-mix(in srgb, var(--color-notebook-ink) 78%, var(--color-notebook-muted));
   border-color: transparent;
-  color: var(--color-notebook-muted);
+  color: var(--action-ink);
   background: transparent;
+  box-shadow: none;
 }
 
 .archiveAction:hover {
@@ -337,11 +298,11 @@
 }
 
 .dialogAction {
-  composes: dialogAction from '../availability/manage-tutor-availability.module.css';
+  min-width: 0;
 }
 
-.dialogConfirm {
-  composes: dialogDelete from '../availability/manage-tutor-availability.module.css';
+.dialogConfirm.dialogConfirm {
+  --action-ink: var(--dialog-danger);
 }
 
 @media (max-width: 639px) {
@@ -395,10 +356,6 @@
 
   .actions {
     justify-content: flex-start;
-  }
-
-  .action {
-    min-height: 2.75rem;
   }
 }
 

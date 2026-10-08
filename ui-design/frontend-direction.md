@@ -1,6 +1,6 @@
 # HKTutor frontend direction — Notebook Focus
 
-Updated 2026-10-07. This describes the implemented Notebook Focus direction and component
+Updated 2026-10-08. This describes the implemented Notebook Focus direction and component
 patterns in this repository. Maintainers review changes to shared design conventions through the
 normal PR process; this guide does not assert team approval of decisions from an individual chat.
 Read it as implementation context before UI work. The current task's explicit requirements take
@@ -293,7 +293,7 @@ The user selected **Margin Index** and requested implementation on 2026-10-07 fo
 The user selected the **tutor-aligned Profile Page** and requested implementation for
 `/dashboard/profile` and `/onboarding/profile` on 2026-10-08.
 
-- Keep the shared tutor form paper, label/input dimensions, black primary/secondary actions and
+- Keep the shared tutor form paper, label/input dimensions, role-colored Ink Tickets actions and
   optional existing photo editor. Group the student's six fields into Identity, Learning information
   and Emergency contact, with dashed section divisions. Grade/class remains free-form text.
 - Match tutor account fields: labels above a 48px plain-paper readonly email and a standalone
@@ -310,6 +310,30 @@ The user selected the **tutor-aligned Profile Page** and requested implementatio
   student shell while loading profile data; its booking badge uses the global student booking total. Do not add
   fields, catalog requests, profile/API contracts or photo behavior. Tutor edit/onboarding, its
   selected Profile Page preview and rating/verification summary remain unchanged.
+
+## Ink Tickets action family
+
+The user selected **Ink Tickets** and requested implementation on 2026-10-08 after the
+student/tutor button review and three-direction preview.
+
+- Use the shared `NotebookAction`, `NotebookActionContent` and `notebookActionClass` in
+  `apps/web/src/components/ui/notebook-action.tsx` for the reviewed actions. Primary actions are
+  compact ink tickets with a perforated icon stub, seam notches, a 5px corner and a soft 2px paper
+  edge. Tutor ink is blue; student ink is mint. Keep secondary actions as thin paper labels and
+  quiet actions as understated icon/text controls. Keep red for destructive confirmation.
+- Apply the family to student/tutor profile edit and onboarding save/continue/cancel, photo
+  upload/cancel/remove, tutor availability creation and delete confirmation, course creation,
+  editing/draft/publishing/restoration and confirmation, and student course-search/time links.
+  Archive triggers stay quiet but readable; archive/publish confirmation labels name their action
+  in both languages instead of a generic Confirm.
+- Keep the existing photo-selection brush, Ticket Pair pagination, course-selection paper buttons,
+  sidebar labels, language switch and calendar/course rulers. Each retains its selected purpose
+  and interaction rather than acquiring additional ticket decorations. Unreviewed authentication
+  and booking-specific compositions retain their existing shared primitives.
+- Keep native buttons and links, refs, form submission/reset handlers, pending labels, disabled
+  states, visible keyboard focus, confirmation focus restoration and reduced motion. Actions have
+  at least 46px targets and wrap labels inside narrow containers. No API, payload, permissions,
+  data, pricing, scheduling or publication-rule changes belong to this update.
 
 ## Profile photo editor
 

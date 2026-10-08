@@ -1,10 +1,5 @@
-import {
-  PaperCard,
-  StatusBadge,
-  WashiTape,
-  notebookButtonClass,
-  notebookInputClass,
-} from '@/components/ui/notebook';
+import { PaperCard, StatusBadge, WashiTape, notebookInputClass } from '@/components/ui/notebook';
+import { notebookActionClass } from '@/components/ui/notebook-action';
 import { NotebookLoading, NotebookPageError } from '@/components/ui/notebook-loading';
 
 import type { ListingPublicationStatus } from '@/lib/api/types';
@@ -19,7 +14,7 @@ export function listingButtonClass(
   tone: 'primary' | 'secondary' | 'danger' = 'secondary',
   className?: string,
 ) {
-  return notebookButtonClass({ tone, className });
+  return notebookActionClass({ tone, role: 'tutor', className });
 }
 
 export function ListingIcon({

@@ -433,7 +433,6 @@
 }
 .courseButton:focus-visible,
 .returnToCourse:focus-visible,
-.slotButton:focus-visible,
 .dateIndex button:focus-visible,
 .back:focus-visible {
   outline: 2px solid var(--color-student-deep);
@@ -517,76 +516,11 @@
   margin: 4px 0 4px 7px;
   background: var(--color-paper-edge);
 }
-.slotButton {
-  position: relative;
-  display: flex;
+.slotAction {
   width: fit-content;
-  max-width: 100%;
-  min-height: 44px;
-  align-items: center;
-  justify-content: space-between;
-  border: 1px solid var(--detail-accent);
-  border-radius: 4px;
-  padding: 0;
-  background: var(--detail-accent);
-  color: var(--color-paper);
-  box-shadow: 0 2px 0 color-mix(in srgb, var(--detail-accent) 70%, var(--color-notebook-ink));
-  text-align: left;
   font-size: 13px;
-  font-weight: 600;
-  transition:
-    background-color 0.15s,
-    box-shadow 0.15s;
 }
-.slotButton:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--detail-accent) 86%, var(--color-notebook-ink));
-}
-.timeStub {
-  display: grid;
-  width: 30px;
-  flex: 0 0 30px;
-  align-self: stretch;
-  place-items: center;
-  border-left: 1px dashed currentColor;
-  border-radius: 0 4px 4px 0;
-  background: color-mix(in srgb, var(--detail-accent) 85%, var(--color-paper));
-}
-.slotButton::before,
-.slotButton::after {
-  position: absolute;
-  right: 26px;
-  width: 7px;
-  height: 4px;
-  content: '';
-  border: 1px solid var(--detail-accent);
-  background: var(--color-paper);
-  pointer-events: none;
-}
-.slotButton::before {
-  top: -1px;
-  border-top: 0;
-  border-radius: 0 0 5px 5px;
-}
-.slotButton::after {
-  bottom: -1px;
-  border-bottom: 0;
-  border-radius: 5px 5px 0 0;
-}
-.slotButton:disabled {
-  cursor: not-allowed;
-  border-color: var(--color-paper-edge);
-  background: color-mix(in srgb, var(--color-paper-edge) 25%, var(--color-paper));
-  color: var(--color-notebook-muted);
-  box-shadow: none;
-}
-.slotButton:disabled .timeStub {
-  border-color: var(--color-paper-edge);
-  background: var(--color-paper-edge);
-}
-.slotButton:disabled::before,
-.slotButton:disabled::after {
-  border-color: var(--color-paper-edge);
-}
+
 .padFooter {
   margin-top: 16px;
   padding-top: 13px;

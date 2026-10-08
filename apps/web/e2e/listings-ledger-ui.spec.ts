@@ -164,7 +164,7 @@ test('preserves search, filtering, edit links and publication actions in the led
   await physics.getByRole('button', { name: 'Publish', exact: true }).click();
   await page
     .getByRole('alertdialog', { name: 'Publish this listing?' })
-    .getByRole('button', { name: 'Confirm', exact: true })
+    .getByRole('button', { name: /^(Publish|Archive)$/ })
     .click();
   await expect(physics.getByText('Published', { exact: true })).toBeVisible();
   await expect(page.locator('[data-notebook-toast="success"]')).toHaveText('Listing published.');
@@ -175,7 +175,7 @@ test('preserves search, filtering, edit links and publication actions in the led
   await expect(dialog.getByRole('button', { name: 'Cancel', exact: true })).toBeFocused();
   await expect(dialog.getByRole('heading', { name: 'Mathematics', exact: true })).toBeVisible();
   await page.keyboard.press('Tab');
-  await expect(dialog.getByRole('button', { name: 'Confirm', exact: true })).toBeFocused();
+  await expect(dialog.getByRole('button', { name: /^(Publish|Archive)$/ })).toBeFocused();
   await page.keyboard.press('Tab');
   await page.keyboard.press('Tab');
   await expect(dialog.getByRole('button', { name: 'Cancel', exact: true })).toBeFocused();
@@ -183,13 +183,13 @@ test('preserves search, filtering, edit links and publication actions in the led
   await expect(math.getByRole('button', { name: 'Archive', exact: true })).toBeFocused();
   expect(writes).toHaveLength(1);
   await math.getByRole('button', { name: 'Archive', exact: true }).click();
-  await dialog.getByRole('button', { name: 'Confirm', exact: true }).focus();
+  await dialog.getByRole('button', { name: /^(Publish|Archive)$/ }).focus();
   await page.keyboard.press('Escape');
   await expect(dialog).toHaveCount(0);
   await expect(math.getByRole('button', { name: 'Archive', exact: true })).toBeFocused();
   expect(writes).toHaveLength(1);
   await math.getByRole('button', { name: 'Archive', exact: true }).click();
-  await dialog.getByRole('button', { name: 'Confirm', exact: true }).click();
+  await dialog.getByRole('button', { name: /^(Publish|Archive)$/ }).click();
   await expect(math.getByText('Archived', { exact: true })).toBeVisible();
   await expect(
     page.locator('[data-notebook-toast="success"]').filter({ hasText: 'Listing archived.' }),
@@ -286,7 +286,7 @@ test('keeps publication blue and archiving warning red when switching alerts', a
       sample.remove();
       return color;
     }, publishing);
-    await expect(dialog.getByRole('button', { name: 'Confirm', exact: true })).toHaveCSS(
+    await expect(dialog.getByRole('button', { name: /^(Publish|Archive)$/ })).toHaveCSS(
       'background-color',
       accent,
     );
@@ -319,7 +319,7 @@ for (const subject of ['Physics', 'English']) {
     await expect(publish).toBeFocused();
     expect(writes).toEqual([]);
     await publish.click();
-    await dialog.getByRole('button', { name: 'Confirm', exact: true }).click();
+    await dialog.getByRole('button', { name: /^(Publish|Archive)$/ }).click();
     await expect(dialog).toHaveCount(0);
     await expect(course.getByText('Published', { exact: true })).toBeVisible();
     expect(writes).toEqual([
@@ -354,7 +354,7 @@ test('fits the Thai publish alert at 320px and publishes only the selected cours
     }),
   ).toBe(true);
   expect(writes).toEqual([]);
-  await dialog.getByRole('button', { name: 'ยืนยัน', exact: true }).click();
+  await dialog.getByRole('button', { name: /^(เผยแพร่|เก็บถาวร)$/ }).click();
   await expect(physics.getByText('เผยแพร่แล้ว', { exact: true })).toBeVisible();
   expect(writes).toEqual([{ path: '/tutors/me/listings/physics/publish', body: null }]);
 });
@@ -365,7 +365,7 @@ test('keeps publish failures in the alert with the draft unchanged', async ({ pa
   const physics = page.getByRole('article', { name: 'Physics', exact: true });
   await physics.getByRole('button', { name: 'Publish', exact: true }).click();
   const dialog = page.getByRole('alertdialog', { name: 'Publish this listing?' });
-  await dialog.getByRole('button', { name: 'Confirm', exact: true }).click();
+  await dialog.getByRole('button', { name: /^(Publish|Archive)$/ }).click();
   await expect(dialog.locator('[role="alert"]:not([data-notebook-toast])')).toHaveText(
     'Unable to update this listing. Check your profile status and try again.',
   );
@@ -381,7 +381,7 @@ test('keeps publish failures in the alert with the draft unchanged', async ({ pa
       );
     }),
   ).toBe(true);
-  await expect(dialog.getByRole('button', { name: 'Confirm', exact: true })).toBeEnabled();
+  await expect(dialog.getByRole('button', { name: /^(Publish|Archive)$/ })).toBeEnabled();
   await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
   await expect(physics.getByText('Draft', { exact: true })).toBeVisible();
 });
@@ -396,7 +396,7 @@ test('prevents duplicate publication and dismissal until publishing finishes', a
   const physics = page.getByRole('article', { name: 'Physics', exact: true });
   await physics.getByRole('button', { name: 'Publish', exact: true }).click();
   const dialog = page.getByRole('alertdialog', { name: 'Publish this listing?' });
-  await dialog.getByRole('button', { name: 'Confirm', exact: true }).click();
+  await dialog.getByRole('button', { name: /^(Publish|Archive)$/ }).click();
   await expect(dialog.getByRole('button', { name: 'Working…', exact: true })).toBeDisabled();
   await expect(dialog.getByRole('button', { name: 'Cancel', exact: true })).toBeDisabled();
   await page.keyboard.press('Escape');
@@ -423,7 +423,7 @@ test('fits the Thai ledger and archive alert at 320px and respects verification'
   const math = ledger.getByRole('article', { name: 'Mathematics', exact: true });
   await math.getByRole('button', { name: 'เก็บถาวร', exact: true }).click();
   const dialog = page.getByRole('alertdialog', { name: 'เก็บประกาศนี้ไว้ถาวร?' });
-  await expect(dialog.getByRole('button', { name: 'ยืนยัน', exact: true })).toBeVisible();
+  await expect(dialog.getByRole('button', { name: /^(เผยแพร่|เก็บถาวร)$/ })).toBeVisible();
   const fits = await page.locator('main').evaluate((element) => {
     return [...element.querySelectorAll('article, button, input, select')].every((child) => {
       if (!child.getClientRects().length) return true;
@@ -458,12 +458,12 @@ test('keeps an archive failure visible in the alert without changing the course 
   const math = page.getByRole('article', { name: 'Mathematics', exact: true });
   await math.getByRole('button', { name: 'Archive', exact: true }).click();
   const dialog = page.getByRole('alertdialog', { name: 'Archive this listing?' });
-  await dialog.getByRole('button', { name: 'Confirm', exact: true }).click();
+  await dialog.getByRole('button', { name: /^(Publish|Archive)$/ }).click();
   await expect(dialog.locator('[role="alert"]:not([data-notebook-toast])')).toHaveText(
     'Unable to update this listing. Check your profile status and try again.',
   );
   await expect(dialog.locator('[data-notebook-toast="error"]')).toHaveCount(1);
-  await expect(dialog.getByRole('button', { name: 'Confirm', exact: true })).toBeEnabled();
+  await expect(dialog.getByRole('button', { name: /^(Publish|Archive)$/ })).toBeEnabled();
   await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
   await expect(math.getByText('Published', { exact: true })).toBeVisible();
 });
@@ -478,7 +478,7 @@ test('keeps the alert open and prevents duplicate requests while archiving', asy
   const math = page.getByRole('article', { name: 'Mathematics', exact: true });
   await math.getByRole('button', { name: 'Archive', exact: true }).click();
   const dialog = page.getByRole('alertdialog', { name: 'Archive this listing?' });
-  await dialog.getByRole('button', { name: 'Confirm', exact: true }).click();
+  await dialog.getByRole('button', { name: /^(Publish|Archive)$/ }).click();
   await expect(dialog.getByRole('button', { name: 'Working…', exact: true })).toBeDisabled();
   await expect(dialog.getByRole('button', { name: 'Cancel', exact: true })).toBeDisabled();
   await page.keyboard.press('Escape');
@@ -535,7 +535,7 @@ for (const language of ['en', 'th'] as const) {
         .click();
       const dialog = page.getByRole('alertdialog');
       await dialog
-        .getByRole('button', { name: language === 'th' ? 'ยืนยัน' : 'Confirm', exact: true })
+        .getByRole('button', { name: language === 'th' ? 'เผยแพร่' : 'Publish', exact: true })
         .click();
       const toast = page.locator('[data-notebook-toast="error"]');
       await expect(toast).toHaveCount(1);

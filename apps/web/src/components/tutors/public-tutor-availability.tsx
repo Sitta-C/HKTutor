@@ -14,6 +14,7 @@ import {
 } from '@/components/tutors/public-tutor-detail-model';
 import { tutorSearchCopy } from '@/components/tutors/tutor-search-copy';
 import { NotebookHeading, PaperCard, StickyNote, WashiTape } from '@/components/ui/notebook';
+import { NotebookAction } from '@/components/ui/notebook-action';
 import { NotebookLoadingRegion } from '@/components/ui/notebook-loading';
 import { ApiError } from '@/lib/api/error';
 import { getPublicTutor, getPublicTutorAvailability } from '@/lib/api/tutors';
@@ -403,9 +404,12 @@ export default function PublicTutorAvailabilityPage({ tutorId }: { tutorId: stri
                                 </p>
                               )}
                             </div>
-                            <button
+                            <NotebookAction
                               type="button"
-                              className={styles.slotButton}
+                              role="student"
+                              icon={<DashboardIcon name="arrow-right" />}
+                              iconPosition="end"
+                              className={styles.slotAction}
                               disabled={
                                 !selectedListing || Boolean(user && user.role !== 'STUDENT')
                               }
@@ -418,11 +422,8 @@ export default function PublicTutorAvailabilityPage({ tutorId }: { tutorId: stri
                                 router.push(user ? bookingPath : withReturnTo('/', bookingPath));
                               }}
                             >
-                              <span className={styles.ticketLabel}>{actionLabel}</span>
-                              <span className={styles.timeStub} aria-hidden="true">
-                                <DashboardIcon name="arrow-right" className="h-4 w-4" />
-                              </span>
-                            </button>
+                              {actionLabel}
+                            </NotebookAction>
                           </li>
                         );
                       })}
