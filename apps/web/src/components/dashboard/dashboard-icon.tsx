@@ -12,6 +12,7 @@ export type DashboardIconName =
   | 'close'
   | 'dashboard'
   | 'eye'
+  | 'inbox'
   | 'info'
   | 'listings'
   | 'logout'
@@ -83,6 +84,12 @@ export function DashboardIcon({
       <>
         <path d="M3.5 12s3.1-5 8.5-5 8.5 5 8.5 5-3.1 5-8.5 5-8.5-5-8.5-5Z" />
         <circle cx="12" cy="12" r="2.2" />
+      </>
+    ),
+    inbox: (
+      <>
+        <path d="M4 13.5 6.5 5h11L20 13.5v4a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 17.5z" />
+        <path d="M4 13.5h4l1.5 2.5h5L16 13.5h4" />
       </>
     ),
     info: (

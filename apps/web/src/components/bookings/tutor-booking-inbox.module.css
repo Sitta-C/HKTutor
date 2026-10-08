@@ -5,9 +5,10 @@
 .page {
   --inbox-accent-ink: color-mix(in srgb, var(--color-tutor-deep) 80%, var(--color-notebook-ink));
 
-  max-width: 1120px;
-  margin: 0 auto;
-  padding: 28px 0 40px;
+  /* The dashboard shell's main element owns the width and side gutters, as on every other
+     dashboard page, so the ledger starts level with the profile and availability screens. */
+  min-width: 0;
+  padding: 28px 0 0;
   color: var(--color-notebook-ink);
 }
 .heading {
