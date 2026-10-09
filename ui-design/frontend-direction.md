@@ -504,6 +504,9 @@ Use the current `conversations` API and canonical tutor User ID. Do not add stud
   composer. Reopening/refreshed history uses the cached GET cursor. Keep that cursor separate from
   send responses to avoid skipping concurrent incoming messages. Long histories take more initial
   reads/memory; a latest-first/backward history contract should be assessed for S2-T20.
+  Bound each current history load to 200 pages and 60 seconds across the operation. Reject broken
+  cursors/empty continuing pages, and show an explicit error on a bound rather than silently treating
+  partial history as complete. Preserve cached messages, drafts and the GET cursor on refresh failure.
 - Current unread counts come directly from the inbox API and are not cleared by reading locally;
   GET history does not mark messages read. Do not add a global unread total from partial inbox pages.
 

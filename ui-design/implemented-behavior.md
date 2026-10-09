@@ -397,7 +397,14 @@ range and selected contact, retaining drafts and reading state. A list read that
 cannot overwrite that acknowledged message or discard its known contact when its pagination shifts.
 
 Initial history follows forward API pages of 50 to the end; unavailable history leaves the composer
-disabled and provides retry. Refresh loads after the last GET cursor. New messages append without
+disabled and provides retry. A load is bounded to 200 history pages and one 60-second deadline across
+all pages, including stalled requests/authentication awaits. A finite loop rejects cursor cycles,
+missing/inconsistent cursors and empty continuing pages. The deadline aborts the history request and
+settles the load even if an inner await ignores cancellation. Timers/listeners are cleaned on success,
+failure or caller cancellation. Reaching a bound fails with bilingual recovery copy instead of
+returning partial history as complete; cached history, drafts and the GET cursor survive a failed
+refresh. Very long conversations that exceed these bounds cannot finish their initial load in T17;
+incremental history remains a T20 task. Refresh loads after the last GET cursor. New messages append without
 moving a reader browsing older history, with a floating latest-message button; a reader already at
 the bottom follows the new messages. Cached reentry restores the reading position and checks for
 updates. Refresh failures retain fetched history. Switching conversations aborts their reads, and

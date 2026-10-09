@@ -1,4 +1,4 @@
-import { ApiError } from '@/lib/api/error';
+import { ApiError, ConversationHistoryLoadError } from '@/lib/api/error';
 
 import type { ConversationMessage, ConversationSummary } from '@/lib/api/types';
 
@@ -54,7 +54,10 @@ export function recordSentMessage(
 
 export function conversationErrorKey(
   error: unknown,
-): 'expired' | 'forbidden' | 'missing' | 'failed' {
+): 'expired' | 'forbidden' | 'missing' | 'failed' | 'historyTimeout' | 'historyLimit' {
+  if (error instanceof ConversationHistoryLoadError) {
+    return error.reason === 'timeout' ? 'historyTimeout' : 'historyLimit';
+  }
   if (error instanceof ApiError) {
     if (error.status === 401) {
       return 'expired';

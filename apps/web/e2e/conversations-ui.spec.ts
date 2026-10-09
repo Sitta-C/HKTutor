@@ -14,6 +14,7 @@ async function mockInbox(
     language?: 'th' | 'en';
     empty?: boolean;
     shortHistory?: boolean;
+    brokenHistory?: boolean;
   } = {},
 ) {
   const role = options.role ?? 'STUDENT';
@@ -76,6 +77,7 @@ async function mockInbox(
   let listGate: Promise<void> | undefined;
   let sendFailure = false;
   let historyStatus = options.status ?? 200;
+  let brokenHistory = options.brokenHistory ?? false;
   await page.addInitScript(
     (language) => localStorage.setItem('hktutor-language', language),
     options.language ?? 'en',
@@ -194,6 +196,11 @@ async function mockInbox(
       if (historyStatus !== 200) {
         return route.fulfill({ status: historyStatus, json: { message: 'Private server detail' } });
       }
+      if (brokenHistory) {
+        return route.fulfill({
+          json: { items: [], hasMore: true, nextAfterMessageId: 'new-but-empty' },
+        });
+      }
       const history = messages.filter((message) => message.conversationId === path.split('/')[2]);
       const offset = after ? history.findIndex((item) => item.messageId === after) + 1 : 0;
       const result = history.slice(offset, offset + 50);
@@ -244,6 +251,9 @@ async function mockInbox(
     },
     historyStatus: (status: number) => {
       historyStatus = status;
+    },
+    breakHistory: (broken: boolean) => {
+      brokenHistory = broken;
     },
     incoming: (text = 'New incoming while reading') => {
       messages = [
@@ -480,6 +490,68 @@ for (const status of [403, 404]) {
     fixture.historyStatus(200);
     await page.getByRole('button', { name: 'Try again' }).click();
     await expect(page.getByText('History 61:', { exact: false })).toBeVisible();
+  });
+}
+
+for (const language of ['th', 'en'] as const) {
+  test(`${language} stops malformed history, recovers and retains cached messages and drafts`, async ({
+    page,
+  }) => {
+    const fixture = await mockInbox(page, { language, brokenHistory: true });
+    await page.goto('/dashboard/messages');
+    await page.getByRole('button', { name: /Teacher Praew 0/ }).click();
+    const input = page.getByRole('textbox', {
+      name: language === 'th' ? 'ข้อความของคุณ' : 'Your message',
+    });
+    const thread = page.locator('section[aria-labelledby="conversation-name"]');
+    const alert = thread.getByRole('alert');
+    await expect(alert).toContainText(
+      language === 'th' ? 'โหลดข้อความไม่สำเร็จ' : 'Could not load messages',
+    );
+    await expect(input).toBeDisabled();
+    await expect(page.getByText('History 0:', { exact: false })).toHaveCount(0);
+    const initialReads = fixture.calls.filter(
+      (call) => call.method === 'GET' && call.path.endsWith('/messages'),
+    );
+    // Strict Mode may cancel/restart the initial read; neither may follow the invalid cursor.
+    expect(initialReads.length).toBeGreaterThan(0);
+    expect(initialReads.every((call) => call.after === null)).toBe(true);
+    fixture.breakHistory(false);
+    await thread
+      .getByRole('button', { name: language === 'th' ? 'ลองอีกครั้ง' : 'Try again' })
+      .click();
+    await expect(page.getByText('History 61:', { exact: false })).toBeVisible();
+    await input.fill('Retain this draft during failed refresh');
+    const before = fixture.calls.filter(
+      (call) => call.method === 'GET' && call.path.endsWith('/messages'),
+    ).length;
+    fixture.breakHistory(true);
+    await thread
+      .getByRole('button', {
+        name: language === 'th' ? 'รีเฟรชข้อความ' : 'Refresh messages',
+        exact: true,
+      })
+      .click();
+    await expect(alert).toBeVisible();
+    await expect(input).toHaveValue('Retain this draft during failed refresh');
+    await expect(page.getByText('History 61:', { exact: false })).toHaveCount(1);
+    expect(
+      fixture.calls.filter((call) => call.method === 'GET' && call.path.endsWith('/messages')),
+    ).toHaveLength(before + 1);
+    fixture.breakHistory(false);
+    await thread
+      .getByRole('button', { name: language === 'th' ? 'ลองอีกครั้ง' : 'Try again' })
+      .click();
+    await expect(alert).toHaveCount(0);
+    await expect(input).toHaveValue('Retain this draft during failed refresh');
+    expect(
+      fixture.calls
+        .filter((call) => call.method === 'GET' && call.path.endsWith('/messages'))
+        .at(-1)?.after,
+    ).toBe('m-61');
+    expect(fixture.calls.filter((call) => call.method === 'POST')).toHaveLength(0);
+    expect(fixture.unexpected).toEqual([]);
+    await noOverflow(page);
   });
 }
 

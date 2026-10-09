@@ -38,6 +38,9 @@ export const conversationCopy = {
     sendFailed:
       'Could not confirm sending. Refresh messages and check the conversation before sending again. Your draft stays on this page; leaving or reloading clears it.',
     failed: 'Could not load messages. Please try again.',
+    historyTimeout: 'Loading messages took too long. Please try again.',
+    historyLimit:
+      'Stopped loading to avoid too many requests. History is incomplete. Please try again.',
     expired: 'Your session has expired. Please sign in again.',
     forbidden: 'You do not have access to this conversation.',
     missing: 'This conversation or tutor is no longer available.',
@@ -88,6 +91,8 @@ export const conversationCopy = {
     sendFailed:
       'ยังยืนยันการส่งไม่ได้ กรุณารีเฟรชข้อความและตรวจสอบก่อนส่งซ้ำ ร่างยังอยู่ในหน้านี้ แต่จะหายเมื่อออกจากหน้าหรือโหลดใหม่',
     failed: 'โหลดข้อความไม่สำเร็จ กรุณาลองอีกครั้ง',
+    historyTimeout: 'โหลดข้อความนานเกินไป กรุณาลองอีกครั้ง',
+    historyLimit: 'หยุดโหลดเพื่อป้องกันคำขอจำนวนมาก ประวัติยังโหลดไม่ครบ กรุณาลองอีกครั้ง',
     expired: 'เซสชันหมดอายุ กรุณาเข้าสู่ระบบอีกครั้ง',
     forbidden: 'คุณไม่มีสิทธิ์เข้าถึงบทสนทนานี้',
     missing: 'ไม่พบบทสนทนาหรือติวเตอร์นี้แล้ว',

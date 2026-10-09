@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { ApiError } from '@/lib/api/error';
+import { ApiError, ConversationHistoryLoadError } from '@/lib/api/error';
 import {
   canSendMessage,
   conversationErrorKey,
@@ -25,6 +25,12 @@ const message = (
 });
 
 describe('conversation boundaries', () => {
+  it.each([
+    ['timeout', 'historyTimeout'],
+    ['limit', 'historyLimit'],
+  ] as const)('maps history %s to explicit recovery copy', (reason, key) => {
+    expect(conversationErrorKey(new ConversationHistoryLoadError(reason))).toBe(key);
+  });
   it('matches trimmed Unicode code-point length, including emoji and newlines', () => {
     expect(messageLength('  สวัสดี\n😀  ')).toBe(8);
     expect(canSendMessage(' \n\t ')).toBe(false);
