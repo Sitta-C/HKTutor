@@ -16,7 +16,7 @@ import {
   getSchemaPath,
 } from '@nestjs/swagger';
 
-import { BookingStatus } from '@generated/prisma/enums';
+import { BookingStatus, PaymentStatus } from '@generated/prisma/enums';
 import { JWT_BEARER_AUTH } from '@modules/auth/auth.swagger';
 import {
   BookingDetailResponseDto,
@@ -25,6 +25,8 @@ import {
   BookingSlotStatus,
   ConfirmBookingDto,
   CreateBookingDto,
+  CreateMockPaymentDto,
+  MockPaymentResponseDto,
   GetBookingQuoteQueryDto,
   GetMyBookingsQueryDto,
   GetTutorBookingsQueryDto,
@@ -652,5 +654,105 @@ export function RejectTutorBookingDoc(): MethodDecorator {
       },
     }),
     ...tutorBookingActionErrorResponses(),
+  );
+}
+
+function mockPaymentErrorResponses(): MethodDecorator[] {
+  return [
+    ApiBadRequestResponse({
+      description:
+        'bookingId is not a valid UUID, the body failed validation, or the declared amount does ' +
+        "not match the booking's stored amount",
+      schema: {
+        example: {
+          code: 'BOOKING_PAYMENT_AMOUNT_MISMATCH',
+          details: { expectedAmount: '450.00' },
+          error: 'Bad Request',
+          message: 'amount does not match the amount recorded for this booking',
+          statusCode: 400,
+        },
+        type: 'object',
+      },
+    }),
+    ApiUnauthorizedResponse({
+      description:
+        'The access token or its backing session is missing, invalid, expired, or revoked',
+      schema: {
+        example: {
+          code: 'UNAUTHENTICATED',
+          error: 'Unauthorized',
+          message: 'Invalid or expired authentication token',
+          statusCode: 401,
+        },
+        type: 'object',
+      },
+    }),
+    ApiForbiddenResponse({
+      description:
+        'The authenticated user is not a student, or the booking belongs to another student',
+      schema: {
+        example: {
+          code: 'BOOKING_NOT_OWNED',
+          error: 'Forbidden',
+          message: 'This booking belongs to another student',
+          statusCode: 403,
+        },
+        type: 'object',
+      },
+    }),
+    ApiNotFoundResponse({
+      description: 'No booking exists with this ID',
+      schema: {
+        example: {
+          code: 'BOOKING_NOT_FOUND',
+          error: 'Not Found',
+          message: 'Booking not found',
+          statusCode: 404,
+        },
+        type: 'object',
+      },
+    }),
+    ApiConflictResponse({
+      description:
+        'The booking is not confirmed, is already paid, the reference belongs to another ' +
+        'booking, or a concurrent payment won the transition',
+      schema: {
+        example: {
+          code: 'BOOKING_ALREADY_PAID',
+          error: 'Conflict',
+          message: 'This booking is already paid',
+          statusCode: 409,
+        },
+        type: 'object',
+      },
+    }),
+  ];
+}
+
+export function CreateMockPaymentDoc(): MethodDecorator {
+  return applyDecorators(
+    ApiExtraModels(CreateMockPaymentDto, MockPaymentResponseDto),
+    ApiOperation({
+      summary: "Record the demo payment for one of the authenticated student's confirmed bookings",
+    }),
+    ApiBearerAuth(JWT_BEARER_AUTH),
+    ApiBody({ required: true, type: CreateMockPaymentDto }),
+    ApiOkResponse({
+      description:
+        "The confirmed, unpaid booking became paid in one conditional update, storing the server's " +
+        'amount, the paid timestamp and the globally unique demo reference',
+      schema: {
+        example: {
+          amount: '450.00',
+          bookingId: '3c54a0d6-e3f3-4a38-bd55-3b4011ee31ae',
+          paidAt: '2026-10-09T09:04:31.001Z',
+          paymentStatus: PaymentStatus.PAID,
+          reference: 'DEMO-7F3A91',
+        },
+        allOf: [{ $ref: getSchemaPath(MockPaymentResponseDto) }],
+        type: 'object',
+      },
+    }),
+    ...mockPaymentErrorResponses(),
   );
 }

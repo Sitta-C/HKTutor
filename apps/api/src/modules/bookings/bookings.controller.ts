@@ -24,19 +24,26 @@ import {
   BookingResponseDto,
   ConfirmBookingDto,
   CreateBookingDto,
+  CreateMockPaymentDto,
   GetBookingQuoteQueryDto,
   GetMyBookingsQueryDto,
   GetTutorBookingsQueryDto,
+  MockPaymentResponseDto,
   MyBookingsResponseDto,
   RejectBookingDto,
   TutorBookingActionResponseDto,
   TutorBookingsResponseDto,
 } from '@modules/bookings/bookings.dto';
-import { BOOKING_OWNERSHIP_ERRORS, BookingsService } from '@modules/bookings/bookings.service';
+import {
+  BOOKING_OWNERSHIP_ERRORS,
+  STUDENT_BOOKING_OWNERSHIP_ERRORS,
+  BookingsService,
+} from '@modules/bookings/bookings.service';
 import {
   BookingsControllerDoc,
   ConfirmTutorBookingDoc,
   CreateBookingDoc,
+  CreateMockPaymentDoc,
   GetBookingQuoteDoc,
   GetMyBookingDoc,
   GetMyBookingsDoc,
@@ -53,6 +60,13 @@ import type { OwnershipRule } from '@modules/auth/ownership.decorator';
  */
 const TUTOR_BOOKING_ACTION_OWNERSHIP = {
   errors: BOOKING_OWNERSHIP_ERRORS,
+  idParam: 'bookingId',
+  resource: 'booking',
+} as const satisfies OwnershipRule;
+
+/** The S2-T04 card answers a wrong student with 403, so this route declares its own bodies too. */
+const STUDENT_BOOKING_PAYMENT_OWNERSHIP = {
+  errors: STUDENT_BOOKING_OWNERSHIP_ERRORS,
   idParam: 'bookingId',
   resource: 'booking',
 } as const satisfies OwnershipRule;
@@ -115,6 +129,23 @@ export class BookingsController {
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<BookingDetailResponseDto> {
     return this.bookingsService.getMyBookingById({
+      bookingId,
+      studentUserId: user.id,
+    });
+  }
+
+  @Post('me/:bookingId/mock-payment')
+  @HttpCode(HttpStatus.OK)
+  @CreateMockPaymentDoc()
+  @Roles(Role.STUDENT)
+  @RequireOwnership(STUDENT_BOOKING_PAYMENT_OWNERSHIP)
+  async createMockPayment(
+    @Param('bookingId', UuidParamPipe) bookingId: string,
+    @Body() dto: CreateMockPaymentDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<MockPaymentResponseDto> {
+    return this.bookingsService.createMockPayment({
+      ...dto,
       bookingId,
       studentUserId: user.id,
     });

@@ -12,6 +12,7 @@ import {
   AccountStatus,
   BookingStatus,
   ListingPublicationStatus,
+  PaymentStatus,
   Role,
 } from '@generated/prisma/enums';
 import { PrismaService } from '@infrastructure/database/prisma.service';
@@ -22,11 +23,13 @@ import {
   BookingSlotStatus,
   ConfirmBookingDto,
   CreateBookingDto,
+  CreateMockPaymentDto,
   DEFAULT_BOOKINGS_PAGE,
   DEFAULT_BOOKINGS_PAGE_SIZE,
   GetBookingQuoteQueryDto,
   GetMyBookingsQueryDto,
   GetTutorBookingsQueryDto,
+  MockPaymentResponseDto,
   MyBookingsResponseDto,
   RejectBookingDto,
   TutorBookingActionResponseDto,
@@ -51,6 +54,10 @@ export interface TutorBookingActionInput {
 }
 export type ConfirmTutorBookingInput = TutorBookingActionInput & ConfirmBookingDto;
 export type RejectTutorBookingInput = TutorBookingActionInput & RejectBookingDto;
+export type CreateMockPaymentInput = CreateMockPaymentDto & {
+  bookingId: string;
+  studentUserId: string;
+};
 
 const MILLISECONDS_PER_HOUR = 60 * 60 * 1000;
 const BOOKING_CONFLICT_MESSAGE =
@@ -64,6 +71,15 @@ const DEFAULT_REJECTION_REASON = 'Rejected by the tutor';
  */
 export const BOOKING_OWNERSHIP_ERRORS = {
   foreignOwner: { code: 'BOOKING_NOT_OWNED', message: 'This booking belongs to another tutor' },
+  missing: { code: 'BOOKING_NOT_FOUND', message: 'Booking not found' },
+} as const;
+
+/**
+ * The student payment route reports a foreign booking as 403 rather than the ownership-safe 404,
+ * so the guard and this service answer with the same body whichever rejects the request first.
+ */
+export const STUDENT_BOOKING_OWNERSHIP_ERRORS = {
+  foreignOwner: { code: 'BOOKING_NOT_OWNED', message: 'This booking belongs to another student' },
   missing: { code: 'BOOKING_NOT_FOUND', message: 'Booking not found' },
 } as const;
 
@@ -97,6 +113,56 @@ const bookingTransitionConflict = (): ConflictException =>
     error: 'Conflict',
     message: 'The booking was already updated by another request',
     statusCode: 409,
+  });
+
+const studentBookingNotOwned = (): ForbiddenException =>
+  new ForbiddenException({
+    code: STUDENT_BOOKING_OWNERSHIP_ERRORS.foreignOwner.code,
+    error: 'Forbidden',
+    message: STUDENT_BOOKING_OWNERSHIP_ERRORS.foreignOwner.message,
+    statusCode: 403,
+  });
+
+const bookingNotPayable = (status: BookingStatus): ConflictException =>
+  new ConflictException({
+    code: 'BOOKING_NOT_PAYABLE',
+    error: 'Conflict',
+    message: `Only a confirmed booking can be paid; this booking is ${status}`,
+    statusCode: 409,
+  });
+
+const bookingAlreadyPaid = (): ConflictException =>
+  new ConflictException({
+    code: 'BOOKING_ALREADY_PAID',
+    error: 'Conflict',
+    message: 'This booking is already paid',
+    statusCode: 409,
+  });
+
+const mockReferenceTaken = (): ConflictException =>
+  new ConflictException({
+    code: 'MOCK_REFERENCE_TAKEN',
+    error: 'Conflict',
+    message: 'This payment reference is already recorded for another booking',
+    statusCode: 409,
+  });
+
+const bookingPaymentConflict = (): ConflictException =>
+  new ConflictException({
+    code: 'BOOKING_PAYMENT_CONFLICT',
+    error: 'Conflict',
+    message: 'The booking payment was already recorded by another request',
+    statusCode: 409,
+  });
+
+/** The declared amount only detects a stale client, so a mismatch is rejected as invalid input. */
+const paymentAmountMismatch = (expected: Prisma.Decimal): BadRequestException =>
+  new BadRequestException({
+    code: 'BOOKING_PAYMENT_AMOUNT_MISMATCH',
+    details: { expectedAmount: expected.toFixed(2) },
+    error: 'Bad Request',
+    message: 'amount does not match the amount recorded for this booking',
+    statusCode: 400,
   });
 
 const bookingListingSelect = {
@@ -585,6 +651,91 @@ export class BookingsService {
   }
 
   /**
+   * Records the demo payment for one CONFIRMED and UNPAID booking owned by the acting student. The
+   * stored netAmount is authoritative: `amount` only declares what the client believed was due.
+   */
+  async createMockPayment(input: CreateMockPaymentInput): Promise<MockPaymentResponseDto> {
+    const booking = await this.prisma.booking.findUnique({
+      select: { netAmount: true, paymentStatus: true, status: true, studentUserId: true },
+      where: { id: input.bookingId },
+    });
+
+    if (!booking) {
+      throw bookingNotFound();
+    }
+    if (booking.studentUserId !== input.studentUserId) {
+      throw studentBookingNotOwned();
+    }
+    if (booking.status !== BookingStatus.CONFIRMED) {
+      throw bookingNotPayable(booking.status);
+    }
+    if (booking.paymentStatus === PaymentStatus.PAID) {
+      throw bookingAlreadyPaid();
+    }
+    if (!booking.netAmount.equals(new Prisma.Decimal(input.amount))) {
+      throw paymentAmountMismatch(booking.netAmount);
+    }
+
+    const paidAtUtc = new Date();
+
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        // The UNPAID filter decides the winner when two payments race: the loser updates zero rows,
+        // so no request can record a second payment or observe a half-applied one.
+        const payment = await tx.booking.updateMany({
+          data: {
+            mockReference: input.reference,
+            paidAt: paidAtUtc,
+            paymentStatus: PaymentStatus.PAID,
+          },
+          where: {
+            id: input.bookingId,
+            paymentStatus: PaymentStatus.UNPAID,
+            status: BookingStatus.CONFIRMED,
+            studentUserId: input.studentUserId,
+          },
+        });
+
+        if (payment.count !== 1) {
+          throw bookingPaymentConflict();
+        }
+
+        const paid = await tx.booking.findUniqueOrThrow({
+          select: {
+            id: true,
+            mockReference: true,
+            netAmount: true,
+            paidAt: true,
+            paymentStatus: true,
+          },
+          where: { id: input.bookingId },
+        });
+
+        return {
+          amount: paid.netAmount.toFixed(2),
+          bookingId: paid.id,
+          paidAt: (paid.paidAt ?? paidAtUtc).toISOString(),
+          paymentStatus: paid.paymentStatus,
+          reference: paid.mockReference ?? input.reference,
+        };
+      });
+    } catch (error) {
+      if (isDuplicateMockReference(error)) {
+        this.logger.warn(`Rejecting mock payment for ${input.bookingId}: reference already used`);
+        throw mockReferenceTaken();
+      }
+      if (isDatabaseConflict(error)) {
+        this.logger.warn(
+          `Rejecting mock payment for ${input.bookingId}: database reported a conflict`,
+        );
+        throw bookingPaymentConflict();
+      }
+
+      throw error;
+    }
+  }
+
+  /**
    * Moves one PENDING booking owned by the acting tutor to its next status and reports the slot
    * state that results. Canceling releases the slot implicitly: availability is derived from the
    * bookings still holding it, and the partial unique index only counts PENDING/CONFIRMED rows.
@@ -679,6 +830,21 @@ const CONFLICTING_PRISMA_CODES = new Set(['P2002', 'P2003', 'P2004']);
  * conflict, so it is deliberately absent and surfaces as a 500.
  */
 const CONFLICTING_SQL_STATES = new Set(['23503', '23505']);
+
+function isDuplicateMockReference(error: unknown): boolean {
+  if (!error || typeof error !== 'object') {
+    return false;
+  }
+
+  const { code, meta } = error as { code?: unknown; meta?: { target?: unknown } };
+  if (code !== 'P2002') {
+    return false;
+  }
+
+  const target = meta?.target;
+  const fields = Array.isArray(target) ? target : typeof target === 'string' ? [target] : [];
+  return fields.some((field) => typeof field === 'string' && field.includes('mockReference'));
+}
 
 function isDatabaseConflict(error: unknown): boolean {
   if (!error || typeof error !== 'object') {
