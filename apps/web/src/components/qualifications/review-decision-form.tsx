@@ -11,9 +11,10 @@ import type { FormEvent } from 'react';
 interface ReviewDecisionFormProps {
   copy: QualificationCopy;
   onReview: (payload: ReviewQualificationPayload) => Promise<boolean>;
+  disabled?: boolean;
 }
 
-export function ReviewDecisionForm({ copy, onReview }: ReviewDecisionFormProps) {
+export function ReviewDecisionForm({ copy, onReview, disabled = false }: ReviewDecisionFormProps) {
   const [decision, setDecision] = useState<'APPROVED' | 'REJECTED'>('APPROVED');
   const [reason, setReason] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -21,7 +22,7 @@ export function ReviewDecisionForm({ copy, onReview }: ReviewDecisionFormProps) 
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (busy) {
+    if (busy || disabled) {
       return;
     }
     const payload = validateReviewDecision(decision, reason);
@@ -53,7 +54,7 @@ export function ReviewDecisionForm({ copy, onReview }: ReviewDecisionFormProps) 
             name="qualification-decision"
             value="APPROVED"
             checked={decision === 'APPROVED'}
-            disabled={busy}
+            disabled={busy || disabled}
             onChange={() => {
               setDecision('APPROVED');
               setError(null);
@@ -67,7 +68,7 @@ export function ReviewDecisionForm({ copy, onReview }: ReviewDecisionFormProps) 
             name="qualification-decision"
             value="REJECTED"
             checked={decision === 'REJECTED'}
-            disabled={busy}
+            disabled={busy || disabled}
             onChange={() => {
               setDecision('REJECTED');
               setError(null);
@@ -89,7 +90,7 @@ export function ReviewDecisionForm({ copy, onReview }: ReviewDecisionFormProps) 
         id="qualification-review-note"
         className="mt-2 min-h-24 w-full rounded-lg border border-paper-edge bg-paper p-3 text-notebook-ink focus-visible:outline-2 focus-visible:outline-admin-deep"
         value={reason}
-        disabled={busy}
+        disabled={busy || disabled}
         aria-describedby="qualification-review-help"
         aria-invalid={Boolean(error)}
         onChange={(event) => {
@@ -105,7 +106,7 @@ export function ReviewDecisionForm({ copy, onReview }: ReviewDecisionFormProps) 
       <button
         className="mt-3 min-h-11 rounded-lg bg-admin-deep px-4 py-2 font-bold text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-admin-deep disabled:opacity-50"
         type="submit"
-        disabled={busy}
+        disabled={busy || disabled}
       >
         {busy ? copy.saving : decision === 'APPROVED' ? copy.approve : copy.reject}
       </button>

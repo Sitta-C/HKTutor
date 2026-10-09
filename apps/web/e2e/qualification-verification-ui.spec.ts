@@ -417,6 +417,8 @@ test('admin rejects with a required note and approves another document from serv
     'href',
     'https://example.invalid/admin-degree.pdf',
   );
+  await queue.getByRole('button', { name: /Tutor One/ }).click();
+  await expect(queue.getByRole('link', { name: 'Open private document' })).toBeVisible();
   await queue.getByRole('radio', { name: 'Reject' }).check();
   await queue.getByRole('button', { name: 'Reject', exact: true }).click();
   await expect(queue.getByText('Enter a reason before rejecting.')).toBeVisible();
@@ -437,6 +439,122 @@ test('admin rejects with a required note and approves another document from serv
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
     true,
   );
+});
+
+test('switching documents during a review keeps the selected detail in sync', async ({ page }) => {
+  await session(page);
+  let releaseReview: (() => void) | undefined;
+  let markReviewStarted: (() => void) | undefined;
+  const reviewGate = new Promise<void>((resolve) => {
+    releaseReview = resolve;
+  });
+  const reviewStarted = new Promise<void>((resolve) => {
+    markReviewStarted = resolve;
+  });
+  const detailReads: string[] = [];
+  let reviewed = false;
+  let reviewRequests = 0;
+  const records: ReviewRecord[] = [
+    {
+      id: 'doc-1',
+      tutor: { userId: 'tutor-1', displayName: 'Tutor One', verificationStatus: 'PENDING' },
+      type: 'DEGREE',
+      fileName: 'degree.pdf',
+      status: 'PENDING',
+      rejectionReason: null,
+    },
+    {
+      id: 'doc-2',
+      tutor: { userId: 'tutor-2', displayName: 'Tutor Two', verificationStatus: 'PENDING' },
+      type: 'CERTIFICATE',
+      fileName: 'certificate.png',
+      status: 'PENDING',
+      rejectionReason: null,
+    },
+  ];
+  await page.route('**/api/v1/**', async (route) => {
+    const request = route.request();
+    const url = new URL(request.url());
+    if (url.pathname === '/api/v1/auth/refresh') {
+      return json(route, { accessToken: 'ui-test-token', user: admin });
+    }
+    if (url.pathname === '/api/v1/admin/tutor-verifications') {
+      return json(route, {
+        items: records
+          .filter((record) => !reviewed || record.id !== 'doc-1')
+          .map((record) => ({
+            documentId: record.id,
+            type: record.type,
+            status: record.status,
+            fileName: record.fileName,
+            mimeType: 'application/pdf',
+            size: 100,
+            createdAt,
+            reviewedAt: null,
+            rejectionReason: null,
+            tutor: record.tutor,
+          })),
+        nextCursor: null,
+      });
+    }
+    const match = /^\/api\/v1\/admin\/tutor-verifications\/(doc-[12])$/.exec(url.pathname);
+    if (match) {
+      const record = records.find((item) => item.id === match[1]);
+      if (!record) {
+        return json(route, { message: 'Not found' }, 404);
+      }
+      if (request.method() === 'PATCH') {
+        reviewRequests += 1;
+        markReviewStarted?.();
+        await reviewGate;
+        reviewed = true;
+        return json(route, {
+          documentId: record.id,
+          status: 'APPROVED',
+          reviewedAt,
+          reviewedBy: 'admin-ui',
+          tutorVerificationStatus: 'VERIFIED',
+        });
+      }
+      detailReads.push(record.id);
+      return json(route, {
+        document: {
+          documentId: record.id,
+          type: record.type,
+          status: reviewed && record.id === 'doc-1' ? 'APPROVED' : 'PENDING',
+          fileName: record.fileName,
+          mimeType: 'application/pdf',
+          size: 100,
+          createdAt,
+          reviewedAt: reviewed && record.id === 'doc-1' ? reviewedAt : null,
+          rejectionReason: null,
+        },
+        tutor: record.tutor,
+        reviewHistory: [],
+      });
+    }
+    return json(route, { message: `Unexpected request: ${url.pathname}` }, 500);
+  });
+
+  await page.goto('/dashboard');
+  const queue = page.getByRole('region', { name: 'Tutor verification queue' });
+  await queue.getByRole('button', { name: /Tutor One/ }).click();
+  await expect(queue.getByRole('heading', { name: 'Tutor One' })).toBeVisible();
+  await queue.getByRole('button', { name: 'Approve', exact: true }).click();
+  await reviewStarted;
+  await queue.getByRole('button', { name: /Tutor Two/ }).click();
+  await expect(queue.getByRole('heading', { name: 'Tutor Two' })).toBeVisible();
+  await expect(queue.getByRole('button', { name: 'Approve', exact: true })).toBeDisabled();
+  releaseReview?.();
+  await expect(queue.getByText('Review saved.')).toBeVisible();
+  await expect(queue.getByRole('button', { name: /Tutor Two/ })).toHaveAttribute(
+    'aria-current',
+    'true',
+  );
+  await expect(queue.getByRole('heading', { name: 'Tutor Two' })).toBeVisible();
+  await expect(queue.getByRole('button', { name: 'Approve', exact: true })).toBeEnabled();
+  expect(detailReads).toEqual(['doc-1', 'doc-2']);
+  expect(reviewRequests).toBe(1);
 });
 
 test('review failure leaves the pending decision unchanged', async ({ page }) => {

@@ -48,6 +48,7 @@ export function AdminVerificationQueue() {
   const [reviewing, setReviewing] = useState(false);
   const queueRequest = useRef(0);
   const detailRequest = useRef(0);
+  const selectedIdRef = useRef<string | null>(null);
 
   const reloadQueue = useCallback(
     async (filter: QualificationStatus) => {
@@ -79,17 +80,20 @@ export function AdminVerificationQueue() {
 
   const reloadDetail = useCallback(
     async (documentId: string) => {
+      if (documentId !== selectedIdRef.current) {
+        return;
+      }
       const requestId = ++detailRequest.current;
       setDetailLoading(true);
       try {
         const response = await getAdminVerification(documentId);
-        if (requestId !== detailRequest.current) {
+        if (requestId !== detailRequest.current || documentId !== selectedIdRef.current) {
           return;
         }
         setDetail(response);
         setDetailError(null);
       } catch (caught) {
-        if (requestId === detailRequest.current) {
+        if (requestId === detailRequest.current && documentId === selectedIdRef.current) {
           setDetail(null);
           setDetailError(
             qualificationErrorKind(caught) === 'denied' ? copy.denied : copy.detailsError,
@@ -97,7 +101,7 @@ export function AdminVerificationQueue() {
         }
         throw caught;
       } finally {
-        if (requestId === detailRequest.current) {
+        if (requestId === detailRequest.current && documentId === selectedIdRef.current) {
           setDetailLoading(false);
         }
       }
@@ -131,8 +135,11 @@ export function AdminVerificationQueue() {
       return;
     }
     setStatus(next);
+    selectedIdRef.current = null;
+    detailRequest.current += 1;
     setSelectedId(null);
     setDetail(null);
+    setDetailLoading(false);
     setDetailError(null);
     setNotice(null);
     setItems([]);
@@ -168,24 +175,30 @@ export function AdminVerificationQueue() {
     if (!selectedId || detail?.document.status !== 'PENDING' || reviewing) {
       return false;
     }
+    const reviewedDocumentId = selectedId;
     setReviewing(true);
     setNotice(null);
     let saved = false;
     try {
-      await reviewAdminVerification(selectedId, payload);
+      await reviewAdminVerification(reviewedDocumentId, payload);
       saved = true;
     } catch (caught) {
       setNotice(
         qualificationErrorKind(caught) === 'conflict' ? copy.reviewConflict : copy.reviewError,
       );
     }
-    setDetail(null);
+    if (selectedIdRef.current === reviewedDocumentId) {
+      setDetail(null);
+    }
     setItems([]);
     setCursor(null);
     if (saved) {
       setNotice(copy.reviewSuccess);
     }
-    await Promise.allSettled([reloadDetail(selectedId), reloadQueue(status)]);
+    await Promise.allSettled([
+      ...(selectedIdRef.current === reviewedDocumentId ? [reloadDetail(reviewedDocumentId)] : []),
+      reloadQueue(status),
+    ]);
     setReviewing(false);
     return saved;
   };
@@ -250,12 +263,18 @@ export function AdminVerificationQueue() {
                   <li key={item.documentId}>
                     <button
                       type="button"
-                      disabled={reviewing}
                       aria-current={selectedId === item.documentId ? 'true' : undefined}
                       className={`w-full min-w-0 rounded-xl border p-3 text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-admin-deep sm:p-4 ${selectedId === item.documentId ? 'border-amber-700 bg-sticky-yellow/30' : 'border-paper-edge bg-paper hover:border-amber-600'}`}
                       onClick={() => {
+                        if (selectedIdRef.current === item.documentId) {
+                          return;
+                        }
+                        selectedIdRef.current = item.documentId;
+                        detailRequest.current += 1;
                         setSelectedId(item.documentId);
                         setDetail(null);
+                        setDetailError(null);
+                        setDetailLoading(true);
                         setNotice(null);
                       }}
                     >
@@ -359,7 +378,7 @@ export function AdminVerificationQueue() {
                   </div>
                 )}
                 {detail.document.status === 'PENDING' && (
-                  <ReviewDecisionForm copy={copy} onReview={review} />
+                  <ReviewDecisionForm copy={copy} onReview={review} disabled={reviewing} />
                 )}
               </div>
             ) : (

@@ -68,6 +68,9 @@ before a new status is shown. A 409 conflict discards the stale pending form and
 state. Any failed review request also reloads the detail and queue, since the server may have
 saved a decision before the response failed. API role, ownership, consent, and atomic state checks
 remain server-side. Both screens use bilingual labels and display UTC API timestamps in Asia/Bangkok.
+Selecting the current queue row again preserves its detail. An admin can inspect another document
+while a review is saving; its decision form waits until that review finishes, and the earlier
+document's response cannot replace the newly selected detail.
 
 The student dashboard at `/dashboard` uses **Desk Spread**: two warm-paper sheets connected by closely
 spaced flat wire loops on desktop, stacked in reading order with a horizontal wire connector on
