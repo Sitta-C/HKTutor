@@ -56,7 +56,8 @@ public search/detail pages. Avatar files use private Storage with short-lived si
 The API also supports private tutor qualification uploads, owner/admin signed previews, and an
 admin review queue with atomic review and audit records. See the
 [qualification API contract and rollout notes](apps/api/README.md#qualification-document-api-s2-t07).
-The corresponding upload and admin review screens are not implemented yet.
+Tutors submit and track documents under `/dashboard/profile`; administrators review pending and
+completed documents under `/dashboard`. Both screens use the seven existing qualification endpoints.
 
 The accepted student and tutor dashboard concepts, plus the tutor profile/certificate form, live
 in [`ui-design`](ui-design/). Open [`ui-design/index.html`](ui-design/index.html) directly or serve
