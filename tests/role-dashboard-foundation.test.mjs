@@ -31,10 +31,13 @@ test('dashboard navigation returns distinct items per role', async () => {
     navSource.indexOf('// Explicit safe ADMIN navigation', navItemsStart),
   );
   assert.match(studentNav, /href: '\/dashboard\/bookings'/);
+  assert.match(studentNav, /label: navCopy\.myBookings/);
   assert.doesNotMatch(studentNav, /\/dashboard\/listings|\/dashboard\/availability/);
   assert.match(tutorNav, /href: '\/dashboard\/listings'/);
   assert.match(tutorNav, /href: '\/dashboard\/availability'/);
-  assert.doesNotMatch(tutorNav, /\/dashboard\/bookings/);
+  // Both roles share the booking workspace since S2-T02, each under its own label.
+  assert.match(tutorNav, /href: '\/dashboard\/bookings'/);
+  assert.match(tutorNav, /label: navCopy\.bookingRequests/);
   // Admin navigation must only have privacy and sign out
   const adminNav = navSource.slice(
     navSource.lastIndexOf('// Explicit safe ADMIN navigation'),

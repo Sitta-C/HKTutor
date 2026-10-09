@@ -209,6 +209,7 @@ export const translations = {
       nav: {
         myProfile: 'My profile',
         myBookings: 'My bookings',
+        bookingRequests: 'Booking requests',
         myListings: 'My listings',
         availability: 'Availability',
         settings: 'Settings',
@@ -309,6 +310,7 @@ export const translations = {
         openSlotsAction: 'Open slots',
         editProfileAction: 'Edit profile',
         bookingRequests: 'Booking requests',
+        reviewRequests: 'Open booking inbox',
         searchPlaceholder: 'Search student or subject…',
         openCalendar: 'Open calendar',
         noBookingRequestsYet: 'No booking requests awaiting your reply.',
@@ -688,6 +690,7 @@ export const translations = {
       nav: {
         myProfile: 'โปรไฟล์ของฉัน',
         myBookings: 'การจองของฉัน',
+        bookingRequests: 'คำขอจอง',
         myListings: 'คอร์สของฉัน',
         availability: 'ตารางว่าง',
         settings: 'การตั้งค่า',
@@ -786,6 +789,7 @@ export const translations = {
         openSlotsAction: 'เปิดตารางว่าง',
         editProfileAction: 'แก้ไขโปรไฟล์',
         bookingRequests: 'คำขอจองที่รอตอบ',
+        reviewRequests: 'เปิดกล่องคำขอจอง',
         searchPlaceholder: 'ค้นหานักเรียนหรือรายวิชา…',
         openCalendar: 'เปิดปฏิทิน',
         noBookingRequestsYet: 'ไม่มีคำขอจองที่รอการตอบรับ',

@@ -71,6 +71,12 @@ export function getDashboardNavItems(role: UserRole, copy: Translation): Dashboa
         label: navCopy.myProfile,
       },
       {
+        id: 'bookings',
+        href: '/dashboard/bookings',
+        icon: 'inbox',
+        label: navCopy.bookingRequests,
+      },
+      {
         id: 'listings',
         href: '/dashboard/listings',
         icon: 'listings',

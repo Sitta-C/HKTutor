@@ -145,7 +145,7 @@ test('uses the production dashboard shell across product feature surfaces', asyn
   const productionShell = await read('apps/web/src/components/dashboard/dashboard-shell.tsx');
   const featureFiles = [
     'apps/web/src/components/availability/manage-tutor-availability.tsx',
-    'apps/web/src/components/bookings/student-booking-shell.tsx',
+    'apps/web/src/components/bookings/booking-workspace-shell.tsx',
     'apps/web/src/components/listings/tutor-listing-editor.tsx',
     'apps/web/src/components/listings/tutor-listings-page.tsx',
     'apps/web/src/components/tutors/public-tutor-search-shell.tsx',

@@ -1,0 +1,313 @@
+/*
+ * Margin Index for the tutor side of /dashboard/bookings. Mirrors the student booking ledger's
+ * structure so one route reads the same for both roles, in tutor blue instead of student mint.
+ */
+.page {
+  --inbox-accent-ink: color-mix(in srgb, var(--color-tutor-deep) 80%, var(--color-notebook-ink));
+
+  /* The dashboard shell's main element owns the width and side gutters, as on every other
+     dashboard page, so the ledger starts level with the profile and availability screens. */
+  min-width: 0;
+  padding: 28px 0 0;
+  color: var(--color-notebook-ink);
+}
+.heading {
+  margin-bottom: 26px;
+}
+.count {
+  margin-top: 10px;
+  font-size: 14px;
+  color: var(--color-notebook-muted);
+}
+.index {
+  display: grid;
+  grid-template-columns: 160px minmax(0, 1fr);
+  gap: 18px;
+  align-items: start;
+}
+.filters {
+  display: grid;
+  gap: 6px;
+}
+.filter {
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid var(--color-paper-edge);
+  border-left: 3px solid transparent;
+  border-radius: 0 8px 8px 0;
+  color: var(--color-notebook-muted);
+  background: var(--color-paper);
+  font-size: 13px;
+  line-height: 1.6;
+  text-align: left;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+  transition: background-color 0.15s;
+}
+.filter[aria-pressed='true'] {
+  border-left-color: var(--color-tutor-deep);
+  background: color-mix(in srgb, var(--color-tutor) 10%, var(--color-paper));
+  color: var(--color-tutor-deep);
+  font-weight: 700;
+}
+.filter:hover {
+  background: color-mix(in srgb, var(--color-tutor) 6%, var(--color-paper));
+}
+.filter:focus-visible {
+  outline: 2px solid var(--color-tutor-deep);
+  outline-offset: 3px;
+}
+.paper.paper {
+  min-width: 0;
+  border-radius: 8px;
+  overflow: hidden;
+  container-type: inline-size;
+  box-shadow: var(--shadow-paper);
+}
+.paper::after {
+  display: none;
+}
+.row {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 200px;
+  gap: 12px;
+  margin-left: 26px;
+  padding: 18px 20px;
+  border-left: 1px solid color-mix(in srgb, var(--color-tutor-deep) 25%, var(--color-paper-edge));
+  border-bottom: 1px solid var(--color-paper-edge);
+  background-image: repeating-linear-gradient(
+    transparent 0 31px,
+    color-mix(in srgb, var(--color-notebook-line) 28%, transparent) 32px
+  );
+}
+.row:last-child {
+  border-bottom: 0;
+}
+.row::before {
+  position: absolute;
+  top: 26px;
+  left: -17px;
+  width: 7px;
+  height: 7px;
+  border: 1px solid var(--color-paper-edge);
+  border-radius: 50%;
+  background: var(--color-paper-deep);
+  content: '';
+  pointer-events: none;
+}
+.dateRow {
+  grid-column: 1 / -1;
+  padding-bottom: 9px;
+  border-bottom: 1px dashed var(--color-paper-edge);
+  overflow-wrap: anywhere;
+}
+.datePair {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px 12px;
+}
+.datePair p,
+.endpoints p {
+  font-size: 14px;
+  color: var(--color-tutor-deep);
+  font-weight: 600;
+}
+.datePair strong,
+.endpoints time {
+  font-size: 16px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.endpoints {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 26px;
+  padding-left: 10px;
+  border-left: 1px solid var(--color-paper-edge);
+}
+.endpoints > div {
+  display: grid;
+  gap: 3px;
+}
+.endpoints span {
+  color: var(--color-notebook-muted);
+  font-size: 12px;
+}
+.course {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.grade {
+  display: inline-block;
+  max-width: 100%;
+  padding: 2px 7px;
+  border-radius: 3px 3px 0 0;
+  background: var(--color-sticky-blue);
+  color: var(--color-tutor-deep);
+  font-size: 12px;
+}
+.course h2 {
+  margin-top: 4px;
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1.5;
+}
+.subject {
+  margin-top: 4px;
+  font-size: 14px;
+  line-height: 1.8;
+}
+.rowStub {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 9px;
+  min-width: 0;
+  padding-left: 12px;
+  border-left: 1px dashed var(--color-paper-edge);
+}
+.rowStub > span {
+  max-width: 100%;
+}
+.amount {
+  font-size: 18px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+/* Side by side keeps the stub as short as the course column beside it. */
+.actions {
+  display: flex;
+  gap: 6px;
+  width: 100%;
+}
+.action {
+  flex: 1;
+  min-width: 0;
+}
+.decided {
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--color-notebook-muted);
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+/* A stale row keeps its place in the ledger, so the reason sits under the row it belongs to. */
+.notice {
+  grid-column: 1 / -1;
+  padding: 10px 13px;
+  border-left: 3px solid var(--color-red-700);
+  background: var(--color-red-50);
+  color: var(--color-red-800);
+  font-size: 13px;
+  line-height: 1.8;
+  overflow-wrap: anywhere;
+}
+.noticeAction {
+  composes: link from './booking-docket.module.css';
+  color: inherit;
+}
+.ticket {
+  composes: ticket from './booking-docket.module.css';
+}
+.ticket.ticket {
+  background: color-mix(in srgb, var(--color-tutor) 10%, var(--color-paper));
+  color: var(--inbox-accent-ink);
+}
+.ticket.ticket:hover {
+  background: color-mix(in srgb, var(--color-tutor) 17%, var(--color-paper));
+}
+.ticketLabel {
+  composes: ticketLabel from './booking-docket.module.css';
+}
+.ticketStub {
+  composes: ticketStub from './booking-docket.module.css';
+}
+.link {
+  composes: link from './booking-docket.module.css';
+}
+.state {
+  padding: 26px;
+  font-size: 14px;
+  line-height: 1.8;
+  overflow-wrap: anywhere;
+}
+.state h2 {
+  margin-bottom: 8px;
+  font-size: 20px;
+  font-weight: 700;
+}
+.state p {
+  margin-bottom: 14px;
+}
+.stateLinks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.error {
+  color: var(--color-red-800);
+  background: var(--color-red-50);
+  border-left: 3px solid var(--color-red-700);
+}
+.error .link {
+  color: inherit;
+}
+.pagination {
+  --pagination-ticket-ink: var(--inbox-accent-ink);
+
+  padding: 0 20px 18px;
+}
+@media (max-width: 639px) {
+  .index {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 14px;
+  }
+  .filters {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@container (max-width: 460px) {
+  .row {
+    grid-template-columns: minmax(0, 1fr);
+    margin-left: 18px;
+    padding: 16px 12px;
+    gap: 10px;
+  }
+  .row::before {
+    left: -12px;
+    width: 6px;
+    height: 6px;
+  }
+  .rowStub {
+    align-items: stretch;
+    padding-left: 0;
+    border-left: 0;
+  }
+  .rowStub > span {
+    justify-self: start;
+  }
+  .decided {
+    text-align: left;
+  }
+  .course h2 {
+    font-size: 17px;
+  }
+  .amount {
+    font-size: 16px;
+  }
+  .state {
+    padding: 18px;
+  }
+  .pagination {
+    padding: 0 12px 18px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .page button,
+  .page a {
+    transition: none;
+  }
+}

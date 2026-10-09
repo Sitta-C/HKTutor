@@ -343,6 +343,25 @@ export interface TutorBookingsResponse {
 }
 
 export type TutorBookingsQuery = MyBookingsQuery;
+
+/** Whether the acted-on booking still reserves its availability slot. */
+export type BookingSlotStatus = 'AVAILABLE' | 'RESERVED';
+
+export interface ConfirmTutorBookingPayload {
+  note?: string;
+}
+
+export interface RejectTutorBookingPayload {
+  reason?: string;
+}
+
+export interface TutorBookingActionResult {
+  bookingId: string;
+  status: BookingStatus;
+  slotStatus: BookingSlotStatus;
+  canceledAt: string | null;
+}
+
 export type AvailabilityState = 'OPEN' | 'RESERVED';
 
 export interface TutorAvailabilitySlot {
