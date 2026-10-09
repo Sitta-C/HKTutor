@@ -412,7 +412,7 @@ export function ConversationThread({
               setSendError(false);
             }}
             onKeyDown={(event) => {
-              if ( event.key === 'Enter' && !event.shiftKey ) {
+              if (event.key === 'Enter' && !event.shiftKey) {
                 event.preventDefault();
                 send();
               }
