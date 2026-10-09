@@ -831,19 +831,15 @@ const CONFLICTING_PRISMA_CODES = new Set(['P2002', 'P2003', 'P2004']);
  */
 const CONFLICTING_SQL_STATES = new Set(['23503', '23505']);
 
+/**
+ * The payment update writes only mockReference, paidAt and paymentStatus. Booking's other unique
+ * indexes cover the primary key and a partial index on slotId for PENDING/CONFIRMED rows, and this
+ * update changes neither column nor the row's membership of that predicate, so the only unique
+ * index it can violate is Booking_mockReference_key. Deciding it from the P2002 code alone keeps
+ * this independent of how a Prisma release shapes the error metadata.
+ */
 function isDuplicateMockReference(error: unknown): boolean {
-  if (!error || typeof error !== 'object') {
-    return false;
-  }
-
-  const { code, meta } = error as { code?: unknown; meta?: { target?: unknown } };
-  if (code !== 'P2002') {
-    return false;
-  }
-
-  const target = meta?.target;
-  const fields = Array.isArray(target) ? target : typeof target === 'string' ? [target] : [];
-  return fields.some((field) => typeof field === 'string' && field.includes('mockReference'));
+  return !!error && typeof error === 'object' && (error as { code?: unknown }).code === 'P2002';
 }
 
 function isDatabaseConflict(error: unknown): boolean {

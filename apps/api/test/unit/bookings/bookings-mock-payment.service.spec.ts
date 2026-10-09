@@ -8,7 +8,7 @@ import { BookingsService } from '@modules/bookings/bookings.service';
 
 import type { TestingModule } from '@nestjs/testing';
 
-type DatabaseError = Error & { code: string; meta?: { code?: string; target?: string[] } };
+type DatabaseError = Error & { code: string };
 
 type TransactionCallback = (tx: {
   booking: { findUniqueOrThrow: jest.Mock; updateMany: jest.Mock };
@@ -23,10 +23,9 @@ function matchingType(type: typeof Date): unknown {
   return expect.any(type);
 }
 
-const databaseError = (code: string, target?: string[]): DatabaseError => {
+const databaseError = (code: string): DatabaseError => {
   const error = new Error(`database reported ${code}`) as DatabaseError;
   error.code = code;
-  if (target) error.meta = { target };
   return error;
 };
 
@@ -179,9 +178,11 @@ describe('BookingsService mock payment', () => {
     expect(findUniqueOrThrow).not.toHaveBeenCalled();
   });
 
+  // Only Booking_mockReference_key is reachable from this update, so a bare P2002 is enough and
+  // the test no longer fabricates error metadata that the Prisma runtime does not produce.
   it('answers 409 MOCK_REFERENCE_TAKEN when the reference belongs to another booking', async () => {
     prisma.booking.findUnique.mockResolvedValue(payableBooking());
-    prisma.$transaction.mockRejectedValue(databaseError('P2002', ['Booking_mockReference_key']));
+    prisma.$transaction.mockRejectedValue(databaseError('P2002'));
 
     await expect(
       service.createMockPayment(payment({ reference: 'DEMO-TAKEN' })),

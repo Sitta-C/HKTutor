@@ -446,7 +446,22 @@ nothing back. Outcomes:
 | 409    | `BOOKING_PAYMENT_CONFLICT`          | A concurrent payment won the transition                      |
 
 No state-changing error leaves a partial write: every rejection happens before the transaction or
-inside it, where the transaction rolls back.
+inside it, where the transaction rolls back. `db:verify:bookings` proves this against PostgreSQL with
+a temporary `AFTER UPDATE` trigger that fails once the row is already PAID; the booking must come back
+CONFIRMED and UNPAID with a null `paidAt` and `mockReference`. The same check pays the booking once
+and then reuses its reference on a second booking to prove the unique index surfaces as
+`MOCK_REFERENCE_TAKEN`.
+
+Two decisions worth stating, because the cards differ or the order is observable:
+
+- **Amount mismatch answers 400.** The parent S2-T04 card says "Return 400 for amount
+  mismatch/invalid reference" while the endpoint card lists the mismatch under 409. This follows the
+  parent card, matching the paired QA card whose evidence reads "400/403 failures preserve payment
+  state". The body carries `BOOKING_PAYMENT_AMOUNT_MISMATCH` and `details.expectedAmount`, so a
+  client can react to the specific cause regardless of the status.
+- **State is checked before the amount.** Paying a booking that is still PENDING answers 409
+  `BOOKING_NOT_PAYABLE` even when the amount is also wrong, because an unconfirmed booking cannot be
+  paid at any amount.
 
 ## Private availability range queries
 

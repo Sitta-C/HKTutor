@@ -235,11 +235,9 @@ describe('Student mock payment (e2e)', () => {
   it('returns 409 when the reference is already recorded for another booking', async () => {
     authenticateAs(Role.STUDENT);
     bookingFindUnique.mockResolvedValue(payableBooking());
-    const duplicate = Object.assign(new Error('Unique constraint failed'), {
-      code: 'P2002',
-      meta: { target: ['Booking_mockReference_key'] },
-    });
-    transaction.mockRejectedValue(duplicate);
+    transaction.mockRejectedValue(
+      Object.assign(new Error('Unique constraint failed'), { code: 'P2002' }),
+    );
 
     const response = await paymentRequest().send(PAYMENT).expect(409);
 
