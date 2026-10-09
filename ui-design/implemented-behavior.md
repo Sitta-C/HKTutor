@@ -379,6 +379,15 @@ A content container at or below 760px shows the index or transcript separately. 
 scroll and contact focus. The transcript scrolls independently of the composer. Drafts, history,
 reading offsets and new-message counts are scoped to the mounted user's page, retained per
 conversation while switching, and never written to local/session storage.
+The draft badge says **Temporary draft / ร่างชั่วคราว**. While a draft exists, the composer guidance
+explicitly says that leaving or reloading the page clears it, including uncertain-send recovery copy.
+There is no durable-draft promise or new browser persistence.
+
+A successful send immediately moves its conversation to the top of the inbox and updates its preview,
+without altering other contacts' relative order or server unread counts. Back still restores contact
+focus and makes that contact visible if it moved. Manual inbox refresh refetches the previously loaded
+range and selected contact, retaining drafts and reading state. A list read that started before a send
+cannot overwrite that acknowledged message or discard its known contact when its pagination shifts.
 
 Initial history follows forward API pages of 50 to the end; unavailable history leaves the composer
 disabled and provides retry. Refresh loads after the last GET cursor. New messages append without
@@ -399,6 +408,9 @@ remain S2-T20. Inbox unread counts are server values; opening/GET does not clear
 forward-only contract, initial reads/memory scale with full history length. Browser verification uses
 intercepted APIs (including two-page history, concurrent incoming, permissions and auth/profile gates)
 on desktop, 768px tablet and 320px/mobile. It does not verify a live database or migration rollout.
+Regression coverage also checks sending from an older inbox page, refresh of an older selected contact,
+an in-flight stale inbox response, visible restored focus and the bilingual temporary-draft expectation.
+These fixes use the existing HTTP contract and do not add client-send idempotency or server rate limits.
 
 The 2026-10-09 messaging refinement makes both pane headers 72px, uses compact page/index headings,
 and lays out contacts in two rows with localized last-message time/date and an accessible full date.

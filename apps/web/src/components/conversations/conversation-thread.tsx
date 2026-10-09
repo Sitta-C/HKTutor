@@ -406,7 +406,13 @@ export function ConversationThread({
           </NotebookAction>
         </div>
         <div className={styles.composerFooter}>
-          <p id="chat-limit">{messageLength(view.draft) > 2000 ? text.tooLong : text.limit}</p>
+          <p id="chat-limit">
+            {messageLength(view.draft) > 2000
+              ? text.tooLong
+              : view.draft
+                ? text.draftLimit
+                : text.limit}
+          </p>
           <span id="chat-counter" data-over-limit={messageLength(view.draft) > 2000}>
             {messageLength(view.draft)} / 2,000
           </span>

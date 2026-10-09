@@ -73,6 +73,7 @@ async function mockInbox(
   const calls: { method: string; path: string; body: unknown; after: string | null }[] = [];
   const unexpected: string[] = [];
   let sendGate: Promise<void> | undefined;
+  let listGate: Promise<void> | undefined;
   let sendFailure = false;
   let historyStatus = options.status ?? 200;
   await page.addInitScript(
@@ -137,15 +138,17 @@ async function mockInbox(
     }
     if (path === '/conversations' && method === 'GET') {
       calls.push({ method, path, body: null, after: null });
+      const result = {
+        items: options.empty
+          ? []
+          : url.searchParams.has('cursor')
+            ? items.slice(20)
+            : items.slice(0, 20),
+        nextCursor: !options.empty && !url.searchParams.has('cursor') ? 'next' : null,
+      };
+      await listGate;
       return route.fulfill({
-        json: {
-          items: options.empty
-            ? []
-            : url.searchParams.has('cursor')
-              ? items.slice(20)
-              : items.slice(0, 20),
-          nextCursor: !options.empty && !url.searchParams.has('cursor') ? 'next' : null,
-        },
+        json: result,
       });
     }
     if (path === '/conversations' && method === 'POST') {
@@ -173,19 +176,25 @@ async function mockInbox(
         const payload = request.postDataJSON() as { text: string };
         const sent: ConversationMessage = {
           messageId: 'sent',
-          conversationId: 'pair-0',
+          conversationId: path.split('/')[2] ?? '',
           senderId: owner,
           text: payload.text,
           sentAt: '2026-10-08T05:00:00.000Z',
           readAt: null,
         };
         messages.push(sent);
+        const index = items.findIndex((item) => item.conversationId === sent.conversationId);
+        const conversation = items[index];
+        if (conversation) {
+          items.splice(index, 1);
+          items.unshift({ ...conversation, lastMessage: sent });
+        }
         return route.fulfill({ status: 201, json: sent });
       }
       if (historyStatus !== 200) {
         return route.fulfill({ status: historyStatus, json: { message: 'Private server detail' } });
       }
-      const history = path.includes('pair-0') ? messages : [];
+      const history = messages.filter((message) => message.conversationId === path.split('/')[2]);
       const offset = after ? history.findIndex((item) => item.messageId === after) + 1 : 0;
       const result = history.slice(offset, offset + 50);
       return route.fulfill({
@@ -229,6 +238,9 @@ async function mockInbox(
     },
     gateSend: (gate: Promise<void>) => {
       sendGate = gate;
+    },
+    gateList: (gate: Promise<void>) => {
+      listGate = gate;
     },
     historyStatus: (status: number) => {
       historyStatus = status;
@@ -285,7 +297,7 @@ test('keeps drafts, reading position and index position across conversations; wo
   await expect(page.getByRole('textbox', { name: 'Your message' })).toHaveValue('');
   await page.getByRole('textbox', { name: 'Your message' }).fill('Separate draft');
   await page.getByRole('button', { name: 'Back to conversations' }).click();
-  await page.getByRole('button', { name: /Teacher Praew 0.*Draft kept/ }).click();
+  await page.getByRole('button', { name: /Teacher Praew 0.*Temporary draft/ }).click();
   await expect(composer).toHaveValue('Draft for Praew\n😀');
   await expect.poll(() => transcript.evaluate((element) => element.scrollTop)).toBe(180);
   expect((await composer.boundingBox())?.y).toBe(composerY);
@@ -470,7 +482,7 @@ test('restores index scroll/focus and appends the next inbox page without losing
   expect(await index.evaluate((element) => element.scrollTop)).toBe(position);
   await page.getByRole('button', { name: 'More conversations' }).click();
   await expect(page.getByRole('button', { name: /Teacher Praew 24/ })).toHaveCount(1);
-  await page.getByRole('button', { name: /Teacher Praew 5.*Draft kept/ }).click();
+  await page.getByRole('button', { name: /Teacher Praew 5.*Temporary draft/ }).click();
   await expect(page.getByRole('textbox', { name: 'Your message' })).toHaveValue('Keep this draft');
   expect(fixture.unexpected).toEqual([]);
 });
@@ -485,6 +497,102 @@ test('opens chat through the tutor profile CTA without requiring a course or slo
   expect(
     fixture.calls.filter((call) => call.method === 'POST' && call.path === '/conversations'),
   ).toHaveLength(1);
+  expect(fixture.unexpected).toEqual([]);
+});
+
+test('promotes a sent conversation immediately and restores visible contact focus', async ({
+  page,
+}) => {
+  const fixture = await mockInbox(page);
+  await page.goto('/dashboard/messages');
+  await page.getByRole('button', { name: 'More conversations' }).click();
+  const contact = page.getByRole('button', { name: /Teacher Praew 24/ });
+  await contact.click();
+  const composer = page.getByRole('textbox', { name: 'Your message' });
+  await expect(composer).toBeEnabled();
+  const listReads = fixture.calls.filter((call) => call.path === '/conversations').length;
+  await composer.fill('New activity in an older conversation');
+  await page.getByRole('button', { name: 'Send', exact: true }).click();
+  await expect(composer).toHaveValue('');
+  const contacts = page.locator('[data-conversation-index-scroll] li button');
+  await expect(contacts.first()).toContainText('Teacher Praew 24');
+  await expect(contacts.first()).toContainText('New activity in an older conversation');
+  await expect(contacts).toHaveCount(25);
+  await page.getByRole('button', { name: 'Back to conversations' }).click();
+  await expect(contact).toBeFocused();
+  await expect(contact).toBeInViewport({ ratio: 1 });
+  expect(fixture.calls.filter((call) => call.path === '/conversations')).toHaveLength(listReads);
+  expect(fixture.unexpected).toEqual([]);
+});
+
+test('refresh retains loaded inbox pages, an older selected contact and its draft', async ({
+  page,
+}) => {
+  const fixture = await mockInbox(page);
+  await page.goto('/dashboard/messages');
+  await page.getByRole('button', { name: 'More conversations' }).click();
+  const contact = page.getByRole('button', { name: /Teacher Praew 24/ });
+  await contact.click();
+  const composer = page.getByRole('textbox', { name: 'Your message' });
+  await expect(composer).toBeEnabled();
+  const listReads = fixture.calls.filter((call) => call.path === '/conversations').length;
+  await composer.fill('Draft for the older contact');
+  const refresh = page.getByRole('button', { name: 'Refresh messages', exact: true });
+  await refresh.click();
+  await expect
+    .poll(() => fixture.calls.filter((call) => call.path === '/conversations').length)
+    .toBe(listReads + 2);
+  await expect(refresh).toBeEnabled();
+  await expect(composer).toHaveValue('Draft for the older contact');
+  await page.getByRole('button', { name: 'Back to conversations' }).click();
+  await expect(contact).toBeFocused();
+  await expect(page.locator('[data-conversation-index-scroll] li button')).toHaveCount(25);
+  const refreshInbox = page.getByRole('button', { name: 'Refresh conversations', exact: true });
+  await refreshInbox.click();
+  await expect
+    .poll(() => fixture.calls.filter((call) => call.path === '/conversations').length)
+    .toBe(listReads + 4);
+  await expect(refreshInbox).toBeEnabled();
+  await contact.click();
+  await expect(composer).toHaveValue('Draft for the older contact');
+  expect(fixture.unexpected).toEqual([]);
+});
+
+test('a stale inbox refresh cannot discard an acknowledged send or its contact', async ({
+  page,
+}) => {
+  const fixture = await mockInbox(page);
+  await page.goto('/dashboard/messages');
+  await page.getByRole('button', { name: 'More conversations' }).click();
+  await page.getByRole('button', { name: /Teacher Praew 24/ }).click();
+  const composer = page.getByRole('textbox', { name: 'Your message' });
+  await expect(composer).toBeEnabled();
+  const listReads = fixture.calls.filter((call) => call.path === '/conversations').length;
+  let release = () => {};
+  fixture.gateList(
+    new Promise<void>((resolve) => {
+      release = resolve;
+    }),
+  );
+  await page.getByRole('button', { name: 'Refresh messages', exact: true }).click();
+  await expect
+    .poll(() => fixture.calls.filter((call) => call.path === '/conversations').length)
+    .toBe(listReads + 1);
+  await composer.fill('Confirmed while the old list was still loading');
+  await page.getByRole('button', { name: 'Send', exact: true }).click();
+  await expect(composer).toHaveValue('');
+  release();
+  await expect
+    .poll(() => fixture.calls.filter((call) => call.path === '/conversations').length)
+    .toBe(listReads + 2);
+  await page.getByRole('button', { name: 'Back to conversations' }).click();
+  await expect(
+    page.getByRole('button', { name: 'Refresh conversations', exact: true }),
+  ).toBeEnabled();
+  const contacts = page.locator('[data-conversation-index-scroll] li button');
+  await expect(contacts).toHaveCount(25);
+  await expect(contacts.first()).toContainText('Teacher Praew 24');
+  await expect(contacts.first()).toContainText('Confirmed while the old list was still loading');
   expect(fixture.unexpected).toEqual([]);
 });
 
@@ -569,6 +677,11 @@ for (const language of ['th', 'en'] as const) {
     });
     await input.fill('ข้อความหลายบรรทัด\n'.repeat(15));
     await expect(page.locator('#chat-limit')).toBeVisible();
+    await expect(page.locator('#chat-limit')).toContainText(
+      language === 'th'
+        ? 'ร่างหายเมื่อออกจากหน้านี้หรือโหลดใหม่'
+        : 'Draft clears if you leave or reload this page',
+    );
     expect((await input.boundingBox())?.height).toBeLessThanOrEqual(112);
     const viewport = page.viewportSize();
     if (viewport) {
@@ -583,5 +696,8 @@ for (const language of ['th', 'en'] as const) {
     await expect(page.getByText('สอบถามได้เลยค่ะ', { exact: true })).toBeInViewport({ ratio: 1 });
     await noOverflow(page);
     expect(fixture.unexpected).toEqual([]);
+    await page.reload();
+    await page.getByRole('button', { name: /Teacher Praew 0/ }).click();
+    await expect(input).toHaveValue('');
   });
 }

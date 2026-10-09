@@ -35,6 +35,23 @@ export function mergeConversations(
   return [...conversations.values()];
 }
 
+export function recordSentMessage(
+  current: ConversationSummary[],
+  message: ConversationMessage,
+): ConversationSummary[] {
+  const conversation = current.find((item) => item.conversationId === message.conversationId);
+  if (
+    !conversation ||
+    (conversation.lastMessage && conversation.lastMessage.sentAt > message.sentAt)
+  ) {
+    return current;
+  }
+  return [
+    { ...conversation, lastMessage: message },
+    ...current.filter((item) => item.conversationId !== message.conversationId),
+  ];
+}
+
 export function conversationErrorKey(
   error: unknown,
 ): 'expired' | 'forbidden' | 'missing' | 'failed' {

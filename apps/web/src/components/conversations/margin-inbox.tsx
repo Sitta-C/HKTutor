@@ -11,7 +11,11 @@ import { NotebookHeading } from '@/components/ui/notebook';
 import { notebookActionClass, NotebookActionContent } from '@/components/ui/notebook-action';
 import { NotebookLoadingRegion } from '@/components/ui/notebook-loading';
 import { getConversations, openTutorConversation } from '@/lib/api/conversations';
-import { conversationErrorKey, mergeConversations } from '@/lib/conversation-model';
+import {
+  conversationErrorKey,
+  mergeConversations,
+  recordSentMessage,
+} from '@/lib/conversation-model';
 import {
   formatBangkokDateTime,
   formatBangkokShortDate,
@@ -50,6 +54,11 @@ export function MarginInbox({ user, tutorId }: { user: AuthUser; tutorId: string
   const listPosition = useRef(0);
   const lastContact = useRef<HTMLButtonElement | null>(null);
   const listRequest = useRef(false);
+  const refreshTarget = useRef<{ count: number; conversationId: string | null }>({
+    count: 0,
+    conversationId: null,
+  });
+  const sentDuringListRequest = useRef<ConversationMessage[]>([]);
   const mounted = useRef(true);
   const paginationAbort = useRef<AbortController | null>(null);
   const openRequest = useRef<{
@@ -86,10 +95,14 @@ export function MarginInbox({ user, tutorId }: { user: AuthUser; tutorId: string
     if (listRequest.current || sending) {
       return;
     }
+    refreshTarget.current = {
+      count: items.length,
+      conversationId: selected?.conversationId ?? null,
+    };
     listRequest.current = true;
     setLoading(true);
     setReloadKey((value) => value + 1);
-  }, [sending]);
+  }, [items.length, selected?.conversationId, sending]);
 
   useEffect(() => {
     mounted.current = true;
@@ -104,6 +117,8 @@ export function MarginInbox({ user, tutorId }: { user: AuthUser; tutorId: string
     const signal = controller.signal;
     let active = true;
     listRequest.current = true;
+    sentDuringListRequest.current = [];
+    const target = refreshTarget.current;
     const load = async () => {
       let opened: OpenConversationResponse | null = null;
       if (tutorId) {
@@ -123,11 +138,14 @@ export function MarginInbox({ user, tutorId }: { user: AuthUser; tutorId: string
       let page = await getConversations(undefined, signal);
       let all = page.items;
       const visited = new Set<string>();
-      // An existing pair may be beyond the first inbox page. Keep the server's identity/name.
+      // Refetch the loaded range and selected contact, including pairs beyond the first page.
       while (
-        opened &&
-        !all.some((item) => item.conversationId === opened.conversationId) &&
-        page.nextCursor
+        page.nextCursor &&
+        (all.length < target.count ||
+          ((opened?.conversationId ?? target.conversationId) !== null &&
+            !all.some(
+              (item) => item.conversationId === (opened?.conversationId ?? target.conversationId),
+            )))
       ) {
         if (visited.has(page.nextCursor)) {
           throw new Error('Inbox cursor did not advance');
@@ -139,7 +157,16 @@ export function MarginInbox({ user, tutorId }: { user: AuthUser; tutorId: string
       if (!active) {
         return;
       }
-      setItems(all);
+      // A GET begun before sending may return an older preview/order after the send succeeds.
+      const sentMessages = sentDuringListRequest.current;
+      setItems((current) => {
+        const missingSentContacts = current.filter(
+          (item) =>
+            sentMessages.some((message) => message.conversationId === item.conversationId) &&
+            !all.some((incoming) => incoming.conversationId === item.conversationId),
+        );
+        return sentMessages.reduce(recordSentMessage, [...all, ...missingSentContacts]);
+      });
       setCursor(page.nextCursor);
       if (opened) {
         const conversation = all.find((item) => item.conversationId === opened.conversationId);
@@ -174,6 +201,7 @@ export function MarginInbox({ user, tutorId }: { user: AuthUser; tutorId: string
       return;
     }
     listRequest.current = true;
+    sentDuringListRequest.current = [];
     const controller = new AbortController();
     paginationAbort.current = controller;
     setLoading(true);
@@ -182,7 +210,10 @@ export function MarginInbox({ user, tutorId }: { user: AuthUser; tutorId: string
       if (!mounted.current) {
         return;
       }
-      setItems((current) => mergeConversations(current, page.items));
+      const sentMessages = sentDuringListRequest.current;
+      setItems((current) =>
+        sentMessages.reduce(recordSentMessage, mergeConversations(current, page.items)),
+      );
       setCursor(page.nextCursor);
       setError(null);
     } catch (caught) {
@@ -205,14 +236,23 @@ export function MarginInbox({ user, tutorId }: { user: AuthUser; tutorId: string
         list.current.scrollTop = listPosition.current;
       }
       lastContact.current?.focus({ preventScroll: true });
+      if (list.current && lastContact.current?.isConnected) {
+        const bounds = list.current.getBoundingClientRect();
+        const contact = lastContact.current.getBoundingClientRect();
+        // A newly sent conversation moves to the top; keep restored keyboard focus visible.
+        if (contact.top < bounds.top) {
+          list.current.scrollTop += contact.top - bounds.top;
+        } else if (contact.bottom > bounds.bottom) {
+          list.current.scrollTop += contact.bottom - bounds.bottom;
+        }
+      }
     });
   };
   const sent = (message: ConversationMessage) => {
-    setItems((current) =>
-      current.map((item) =>
-        item.conversationId === message.conversationId ? { ...item, lastMessage: message } : item,
-      ),
-    );
+    if (listRequest.current) {
+      sentDuringListRequest.current.push(message);
+    }
+    setItems((current) => recordSentMessage(current, message));
   };
 
   return (
@@ -257,10 +297,7 @@ export function MarginInbox({ user, tutorId }: { user: AuthUser; tutorId: string
                     type="button"
                     disabled={loading}
                     className={styles.quiet}
-                    onClick={() => {
-                      setLoading(true);
-                      setReloadKey((value) => value + 1);
-                    }}
+                    onClick={refreshInbox}
                   >
                     {text.retry}
                   </button>
