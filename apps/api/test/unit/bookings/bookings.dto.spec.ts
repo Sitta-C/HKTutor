@@ -3,8 +3,10 @@ import { validate } from 'class-validator';
 
 import {
   ConfirmBookingDto,
+  CreateMockPaymentDto,
   GetMyBookingsQueryDto,
   GetTutorBookingsQueryDto,
+  MAX_MOCK_PAYMENT_REFERENCE_LENGTH,
   MAX_TUTOR_ACTION_TEXT_LENGTH,
   RejectBookingDto,
 } from '@modules/bookings/bookings.dto';
@@ -66,5 +68,60 @@ describe('tutor booking action DTOs', () => {
     const reject = plainToInstance(RejectBookingDto, { reason: 42 });
 
     expect(await validate(reject)).not.toHaveLength(0);
+  });
+});
+
+describe('mock payment DTO', () => {
+  const valid = { amount: '450.00', reference: 'DEMO-7F3A91' };
+
+  it('accepts a fixed-decimal amount and trims the reference', async () => {
+    const dto = plainToInstance(CreateMockPaymentDto, {
+      amount: '450.00',
+      reference: '  DEMO-7F3A91  ',
+    });
+
+    await expect(validate(dto)).resolves.toHaveLength(0);
+    expect(dto.reference).toBe('DEMO-7F3A91');
+  });
+
+  it.each(['450', '450.0', '450.000', '4.5e2', '-450.00', '', 'free'])(
+    'rejects the amount %j, which is not a fixed two-decimal string',
+    async (amount) => {
+      expect(
+        await validate(plainToInstance(CreateMockPaymentDto, { ...valid, amount })),
+      ).not.toHaveLength(0);
+    },
+  );
+
+  it.each([
+    ['', 'empty'],
+    ['   ', 'whitespace only'],
+    ['\n', 'a newline only'],
+  ])('rejects the reference %j, which is %s', async (reference) => {
+    expect(
+      await validate(plainToInstance(CreateMockPaymentDto, { ...valid, reference })),
+    ).not.toHaveLength(0);
+  });
+
+  it('rejects a reference longer than the documented maximum', async () => {
+    const dto = plainToInstance(CreateMockPaymentDto, {
+      ...valid,
+      reference: 'x'.repeat(MAX_MOCK_PAYMENT_REFERENCE_LENGTH + 1),
+    });
+
+    expect(await validate(dto)).not.toHaveLength(0);
+  });
+
+  it('rejects a multi-line reference, which no demo identifier needs', async () => {
+    const dto = plainToInstance(CreateMockPaymentDto, { ...valid, reference: 'DEMO\n1' });
+
+    expect(await validate(dto)).not.toHaveLength(0);
+  });
+
+  it.each([
+    ['amount', { reference: 'DEMO-1' }],
+    ['reference', { amount: '450.00' }],
+  ])('requires %s', async (_field, body) => {
+    expect(await validate(plainToInstance(CreateMockPaymentDto, body))).not.toHaveLength(0);
   });
 });

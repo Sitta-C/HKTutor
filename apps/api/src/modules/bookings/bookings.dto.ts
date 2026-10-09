@@ -1,9 +1,10 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
   IsEnum,
   IsInt,
   IsISO8601,
+  IsNotEmpty,
   IsOptional,
   IsString,
   IsUUID,
@@ -13,7 +14,10 @@ import {
   Min,
 } from 'class-validator';
 
-import { BookingStatus } from '@generated/prisma/enums';
+import { BookingStatus, PaymentStatus } from '@generated/prisma/enums';
+
+const trimString = ({ value }: { value: unknown }): unknown =>
+  typeof value === 'string' ? value.trim() : value;
 
 export class CreateBookingDto {
   @ApiProperty({ example: '7a0f9ab0-8f25-4d80-bb00-67b3a0c7d3d5' })
@@ -349,4 +353,60 @@ export class TutorBookingActionResponseDto {
     type: String,
   })
   canceledAt!: string | null;
+}
+
+export const MAX_MOCK_PAYMENT_REFERENCE_LENGTH = 64;
+
+/**
+ * Money crosses the wire as the same fixed two-decimal string every booking amount uses, so a
+ * declared amount can be compared with the server's Decimal without binary floating point.
+ */
+const FIXED_DECIMAL_PATTERN = /^\d{1,8}\.\d{2}$/;
+
+/** A demo identifier: printable, single-line and bounded. Never a card or bank value. */
+const MOCK_PAYMENT_REFERENCE_PATTERN = /^[ -~]+$/;
+
+export class CreateMockPaymentDto {
+  @ApiProperty({
+    description:
+      "The amount the student believes is due. Compared with the booking's stored netAmount to " +
+      'detect a stale client; the server amount is the one recorded.',
+    example: '450.00',
+  })
+  @IsString()
+  @Matches(FIXED_DECIMAL_PATTERN, {
+    message: 'amount must be a fixed two-decimal string, for example 450.00',
+  })
+  amount!: string;
+
+  @ApiProperty({
+    description: 'Demo payment identifier, unique across all bookings. No payment instrument data.',
+    example: 'DEMO-7F3A91',
+    maxLength: MAX_MOCK_PAYMENT_REFERENCE_LENGTH,
+  })
+  @IsString()
+  @Transform(trimString)
+  @IsNotEmpty({ message: 'reference must not be blank' })
+  @MaxLength(MAX_MOCK_PAYMENT_REFERENCE_LENGTH)
+  @Matches(MOCK_PAYMENT_REFERENCE_PATTERN, {
+    message: 'reference must be printable single-line text',
+  })
+  reference!: string;
+}
+
+export class MockPaymentResponseDto {
+  @ApiProperty({ example: '3c54a0d6-e3f3-4a38-bd55-3b4011ee31ae' })
+  bookingId!: string;
+
+  @ApiProperty({ enum: PaymentStatus, example: PaymentStatus.PAID })
+  paymentStatus!: PaymentStatus;
+
+  @ApiProperty({ description: "The booking's stored netAmount.", example: '450.00' })
+  amount!: string;
+
+  @ApiProperty({ example: 'DEMO-7F3A91' })
+  reference!: string;
+
+  @ApiProperty({ example: '2026-10-09T09:04:31.001Z' })
+  paidAt!: string;
 }
