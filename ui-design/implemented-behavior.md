@@ -65,8 +65,9 @@ The admin dashboard at `/dashboard` shows status-filtered verification queues, c
 document details and review history. Approval permits an optional note; rejection requires a trimmed
 note of at most 500 characters. After a review response, the queue and detail are fetched again
 before a new status is shown. A 409 conflict discards the stale pending form and reloads server
-state. API role, ownership, consent, and atomic state checks remain server-side. Both screens use
-bilingual labels and display UTC API timestamps in Asia/Bangkok.
+state. Any failed review request also reloads the detail and queue, since the server may have
+saved a decision before the response failed. API role, ownership, consent, and atomic state checks
+remain server-side. Both screens use bilingual labels and display UTC API timestamps in Asia/Bangkok.
 
 The student dashboard at `/dashboard` uses **Desk Spread**: two warm-paper sheets connected by closely
 spaced flat wire loops on desktop, stacked in reading order with a horizontal wire connector on

@@ -45,6 +45,7 @@ export function AdminVerificationQueue() {
   const [error, setError] = useState<string | null>(null);
   const [detailError, setDetailError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [reviewing, setReviewing] = useState(false);
   const queueRequest = useRef(0);
   const detailRequest = useRef(0);
 
@@ -126,7 +127,7 @@ export function AdminVerificationQueue() {
   }, [reloadDetail, selectedId]);
 
   const selectStatus = (next: QualificationStatus) => {
-    if (next === status) {
+    if (next === status || reviewing) {
       return;
     }
     setStatus(next);
@@ -140,7 +141,7 @@ export function AdminVerificationQueue() {
   };
 
   const loadMore = async () => {
-    if (!cursor || moreLoading) {
+    if (!cursor || moreLoading || reviewing) {
       return;
     }
     const requestedCursor = cursor;
@@ -164,30 +165,29 @@ export function AdminVerificationQueue() {
   };
 
   const review = async (payload: ReviewQualificationPayload): Promise<boolean> => {
-    if (!selectedId || detail?.document.status !== 'PENDING') {
+    if (!selectedId || detail?.document.status !== 'PENDING' || reviewing) {
       return false;
     }
+    setReviewing(true);
     setNotice(null);
+    let saved = false;
     try {
       await reviewAdminVerification(selectedId, payload);
+      saved = true;
     } catch (caught) {
-      if (qualificationErrorKind(caught) === 'conflict') {
-        setDetail(null);
-        setItems([]);
-        setCursor(null);
-        setNotice(copy.reviewConflict);
-        await Promise.allSettled([reloadDetail(selectedId), reloadQueue(status)]);
-      } else {
-        setNotice(copy.reviewError);
-      }
-      return false;
+      setNotice(
+        qualificationErrorKind(caught) === 'conflict' ? copy.reviewConflict : copy.reviewError,
+      );
     }
     setDetail(null);
     setItems([]);
     setCursor(null);
-    setNotice(copy.reviewSuccess);
+    if (saved) {
+      setNotice(copy.reviewSuccess);
+    }
     await Promise.allSettled([reloadDetail(selectedId), reloadQueue(status)]);
-    return true;
+    setReviewing(false);
+    return saved;
   };
 
   return (
@@ -206,6 +206,7 @@ export function AdminVerificationQueue() {
             <button
               key={option}
               type="button"
+              disabled={reviewing}
               aria-pressed={status === option}
               className={`min-h-11 rounded-lg border px-3 py-2 text-sm font-bold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-admin-deep ${status === option ? 'border-amber-700 bg-sticky-yellow text-amber-950' : 'border-paper-edge bg-paper text-notebook-ink'}`}
               onClick={() => selectStatus(option)}
@@ -215,6 +216,7 @@ export function AdminVerificationQueue() {
           ))}
           <button
             type="button"
+            disabled={reviewing}
             className="min-h-11 px-2 text-sm font-bold text-admin-deep underline underline-offset-4 focus-visible:outline-2"
             onClick={() => void reloadQueue(status).catch(() => undefined)}
           >
@@ -248,6 +250,7 @@ export function AdminVerificationQueue() {
                   <li key={item.documentId}>
                     <button
                       type="button"
+                      disabled={reviewing}
                       aria-current={selectedId === item.documentId ? 'true' : undefined}
                       className={`w-full min-w-0 rounded-xl border p-3 text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-admin-deep sm:p-4 ${selectedId === item.documentId ? 'border-amber-700 bg-sticky-yellow/30' : 'border-paper-edge bg-paper hover:border-amber-600'}`}
                       onClick={() => {
@@ -295,7 +298,7 @@ export function AdminVerificationQueue() {
             {cursor && (
               <button
                 type="button"
-                disabled={moreLoading}
+                disabled={moreLoading || reviewing}
                 onClick={() => void loadMore()}
                 className="mt-3 min-h-11 rounded-lg border border-paper-edge bg-paper px-4 font-bold text-admin-deep focus-visible:outline-2 disabled:opacity-50"
               >

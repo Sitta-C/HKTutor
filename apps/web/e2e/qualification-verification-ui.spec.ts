@@ -493,12 +493,85 @@ test('review failure leaves the pending decision unchanged', async ({ page }) =>
   await queue.getByRole('button', { name: /Tutor One/ }).click();
   await queue.getByRole('button', { name: 'Approve', exact: true }).click();
   await expect(
-    queue.getByText(
-      'Review could not be saved. No decision is shown until the server confirms it.',
-    ),
+    queue.getByText('Could not confirm the review. Check its current status before trying again.'),
   ).toBeVisible();
   await expect(queue.getByRole('button', { name: 'Approve', exact: true })).toBeVisible();
   await expect(queue.getByText('Pending review', { exact: true }).last()).toBeVisible();
+  await expect(queue.getByText('Review saved.')).toHaveCount(0);
+});
+
+test('ambiguous review failure reloads a decision already saved by the server', async ({
+  page,
+}) => {
+  await session(page);
+  let approved = false;
+  await page.route('**/api/v1/**', (route) => {
+    const request = route.request();
+    const path = new URL(request.url()).pathname;
+    if (path === '/api/v1/auth/refresh') {
+      return json(route, { accessToken: 'ui-test-token', user: admin });
+    }
+    if (path === '/api/v1/admin/tutor-verifications') {
+      return json(route, {
+        items: approved
+          ? []
+          : [
+              {
+                documentId: 'doc-1',
+                type: 'DEGREE',
+                status: 'PENDING',
+                fileName: 'degree.pdf',
+                mimeType: 'application/pdf',
+                size: 100,
+                createdAt,
+                reviewedAt: null,
+                rejectionReason: null,
+                tutor: {
+                  userId: 'tutor-1',
+                  displayName: 'Tutor One',
+                  verificationStatus: 'PENDING',
+                },
+              },
+            ],
+        nextCursor: null,
+      });
+    }
+    if (path === '/api/v1/admin/tutor-verifications/doc-1') {
+      if (request.method() === 'PATCH') {
+        approved = true;
+        return json(route, { message: 'Connection failed after commit' }, 503);
+      }
+      return json(route, {
+        document: {
+          documentId: 'doc-1',
+          type: 'DEGREE',
+          status: approved ? 'APPROVED' : 'PENDING',
+          fileName: 'degree.pdf',
+          mimeType: 'application/pdf',
+          size: 100,
+          createdAt,
+          reviewedAt: approved ? reviewedAt : null,
+          rejectionReason: null,
+        },
+        tutor: {
+          userId: 'tutor-1',
+          displayName: 'Tutor One',
+          verificationStatus: approved ? 'VERIFIED' : 'PENDING',
+        },
+        reviewHistory: [],
+      });
+    }
+    return json(route, { message: `Unexpected request: ${path}` }, 500);
+  });
+  await page.goto('/dashboard');
+  const queue = page.getByRole('region', { name: 'Tutor verification queue' });
+  await queue.getByRole('button', { name: /Tutor One/ }).click();
+  await queue.getByRole('button', { name: 'Approve', exact: true }).click();
+  await expect(queue.getByRole('paragraph').filter({ hasText: /^Approved$/ })).toBeVisible();
+  await expect(queue.getByRole('button', { name: 'Approve', exact: true })).toHaveCount(0);
+  await expect(
+    queue.getByText('Could not confirm the review. Check its current status before trying again.'),
+  ).toBeVisible();
   await expect(queue.getByText('Review saved.')).toHaveCount(0);
 });
 
