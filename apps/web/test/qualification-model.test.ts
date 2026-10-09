@@ -5,6 +5,7 @@ import {
   canUploadType,
   qualificationErrorKind,
   signedUrlIsExpired,
+  uploadOutcomeIsUncertain,
   validateQualificationFile,
   validateReviewDecision,
 } from '@/components/qualifications/qualification-model';
@@ -53,5 +54,13 @@ describe('qualification model', () => {
     expect(qualificationErrorKind(new ApiError('Denied', 403))).toBe('denied');
     expect(qualificationErrorKind(new ApiError('Conflict', 409))).toBe('conflict');
     expect(qualificationErrorKind(new Error('offline'))).toBe('unavailable');
+  });
+
+  it('rechecks server state only when an upload response cannot confirm the outcome', () => {
+    expect(uploadOutcomeIsUncertain(new Error('connection lost'))).toBe(true);
+    expect(uploadOutcomeIsUncertain(new ApiError('Timed out', 408))).toBe(true);
+    expect(uploadOutcomeIsUncertain(new ApiError('Service unavailable', 503))).toBe(true);
+    expect(uploadOutcomeIsUncertain(new ApiError('Invalid file', 400))).toBe(false);
+    expect(uploadOutcomeIsUncertain(new ApiError('Already pending', 409))).toBe(false);
   });
 });

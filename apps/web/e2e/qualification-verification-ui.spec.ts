@@ -116,7 +116,10 @@ test('tutor validates, uploads, sees pending status and retries denied preview',
         return json(route, { message: 'Forbidden' }, 403);
       }
       return json(route, {
-        url: 'https://example.invalid/degree.pdf',
+        url:
+          previews === 4
+            ? 'https://example.invalid/degree-refreshed.pdf'
+            : 'https://example.invalid/degree.pdf',
         expiresAt: previews === 2 ? '2000-01-01T00:00:00.000Z' : '2099-01-01T00:00:00.000Z',
       });
     }
@@ -177,6 +180,11 @@ test('tutor validates, uploads, sees pending status and retries denied preview',
   await expect(section.getByRole('link', { name: 'Open private document' })).toHaveAttribute(
     'href',
     'https://example.invalid/degree.pdf',
+  );
+  await section.getByRole('button', { name: 'Request a new link' }).click();
+  await expect(section.getByRole('link', { name: 'Open private document' })).toHaveAttribute(
+    'href',
+    'https://example.invalid/degree-refreshed.pdf',
   );
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
     true,
@@ -243,6 +251,205 @@ test('refresh documents requests the latest list and shows completion', async ({
   expect(listReads).toBe(initialReads + 2);
 });
 
+test('a late initial list response cannot erase a document shown after upload', async ({
+  page,
+}) => {
+  await session(page);
+  let releaseInitial: (() => void) | undefined;
+  let markInitialStarted: (() => void) | undefined;
+  const initialGate = new Promise<void>((resolve) => {
+    releaseInitial = resolve;
+  });
+  const initialStarted = new Promise<void>((resolve) => {
+    markInitialStarted = resolve;
+  });
+  let uploaded = false;
+  let initialReads = 0;
+  let initialAnswered = 0;
+  await page.route('**/api/v1/**', async (route) => {
+    const request = route.request();
+    const path = new URL(request.url()).pathname;
+    if (path === '/api/v1/auth/refresh') {
+      return json(route, { accessToken: 'ui-test-token', user: tutor });
+    }
+    if (path === '/api/v1/profiles/me') {
+      return json(route, profile);
+    }
+    if (path === '/api/v1/tutors/me/qualification-documents') {
+      if (request.method() === 'POST') {
+        uploaded = true;
+        return json(
+          route,
+          {
+            documentId: 'new-doc',
+            status: 'PENDING',
+            fileName: 'degree.pdf',
+            mimeType: 'application/pdf',
+            size: 12,
+            createdAt,
+          },
+          201,
+        );
+      }
+      if (!uploaded) {
+        initialReads += 1;
+        markInitialStarted?.();
+        await initialGate;
+        await json(route, { items: [] });
+        initialAnswered += 1;
+        return;
+      }
+      return json(route, {
+        items: [
+          {
+            documentId: 'new-doc',
+            type: 'DEGREE',
+            status: 'PENDING',
+            reviewedAt: null,
+            rejectionReason: null,
+          },
+        ],
+      });
+    }
+    return json(route, { message: `Unexpected request: ${path}` }, 500);
+  });
+
+  await page.goto('/dashboard/profile');
+  await initialStarted;
+  const section = page.getByRole('region', { name: 'Tutor certificates' });
+  await section.getByLabel('PDF, JPEG or PNG, up to 5 MB').setInputFiles({
+    name: 'degree.pdf',
+    mimeType: 'application/pdf',
+    buffer: Buffer.from('%PDF-1.4 test'),
+  });
+  await section.getByRole('button', { name: 'Submit document' }).click();
+  await expect(section.getByText('Pending review', { exact: true })).toBeVisible();
+  releaseInitial?.();
+  await expect.poll(() => initialAnswered).toBe(initialReads);
+  await expect(section.getByText('Pending review', { exact: true })).toBeVisible();
+  await expect(section.getByRole('button', { name: 'Submit document' })).toBeDisabled();
+});
+
+test('an ambiguous upload response reloads the committed document before another submission', async ({
+  page,
+}) => {
+  await session(page);
+  let committed = false;
+  let uploads = 0;
+  await page.route('**/api/v1/**', (route) => {
+    const request = route.request();
+    const path = new URL(request.url()).pathname;
+    if (path === '/api/v1/auth/refresh') {
+      return json(route, { accessToken: 'ui-test-token', user: tutor });
+    }
+    if (path === '/api/v1/profiles/me') {
+      return json(route, profile);
+    }
+    if (path === '/api/v1/tutors/me/qualification-documents') {
+      if (request.method() === 'POST') {
+        uploads += 1;
+        committed = true;
+        return route.abort('failed');
+      }
+      return json(route, {
+        items: committed
+          ? [
+              {
+                documentId: 'committed-doc',
+                type: 'DEGREE',
+                status: 'PENDING',
+                reviewedAt: null,
+                rejectionReason: null,
+              },
+            ]
+          : [],
+      });
+    }
+    return json(route, { message: `Unexpected request: ${path}` }, 500);
+  });
+
+  await page.goto('/dashboard/profile');
+  const section = page.getByRole('region', { name: 'Tutor certificates' });
+  await expect(section.getByText('No documents submitted yet.')).toBeVisible();
+  await section.getByLabel('PDF, JPEG or PNG, up to 5 MB').setInputFiles({
+    name: 'degree.pdf',
+    mimeType: 'application/pdf',
+    buffer: Buffer.from('%PDF-1.4 test'),
+  });
+  await section.getByRole('button', { name: 'Submit document' }).click();
+  await expect(
+    section.getByText(
+      'Could not confirm the upload. Check the latest documents before submitting again.',
+    ),
+  ).toBeVisible();
+  await expect(section.getByText('Pending review', { exact: true })).toBeVisible();
+  await expect(section.getByRole('button', { name: 'Submit document' })).toBeDisabled();
+  await expect(section.getByText('Document submitted for review.')).toHaveCount(0);
+  expect(uploads).toBe(1);
+});
+
+test('a failed profile refresh does not hide a confirmed upload', async ({ page }) => {
+  await session(page);
+  let uploaded = false;
+  await page.route('**/api/v1/**', (route) => {
+    const request = route.request();
+    const path = new URL(request.url()).pathname;
+    if (path === '/api/v1/auth/refresh') {
+      return json(route, { accessToken: 'ui-test-token', user: tutor });
+    }
+    if (path === '/api/v1/profiles/me') {
+      return uploaded ? json(route, { message: 'Service unavailable' }, 503) : json(route, profile);
+    }
+    if (path === '/api/v1/tutors/me/qualification-documents') {
+      if (request.method() === 'POST') {
+        uploaded = true;
+        return json(
+          route,
+          {
+            documentId: 'new-doc',
+            status: 'PENDING',
+            fileName: 'degree.pdf',
+            mimeType: 'application/pdf',
+            size: 12,
+            createdAt,
+          },
+          201,
+        );
+      }
+      return json(route, {
+        items: uploaded
+          ? [
+              {
+                documentId: 'new-doc',
+                type: 'DEGREE',
+                status: 'PENDING',
+                reviewedAt: null,
+                rejectionReason: null,
+              },
+            ]
+          : [],
+      });
+    }
+    return json(route, { message: `Unexpected request: ${path}` }, 500);
+  });
+
+  await page.goto('/dashboard/profile');
+  const section = page.getByRole('region', { name: 'Tutor certificates' });
+  await expect(section.getByText('No documents submitted yet.')).toBeVisible();
+  await section.getByLabel('PDF, JPEG or PNG, up to 5 MB').setInputFiles({
+    name: 'degree.pdf',
+    mimeType: 'application/pdf',
+    buffer: Buffer.from('%PDF-1.4 test'),
+  });
+  await section.getByRole('button', { name: 'Submit document' }).click();
+  await expect(section.getByText('Document submitted for review.')).toBeVisible();
+  await expect(section.getByText('Pending review', { exact: true })).toBeVisible();
+  await expect(
+    section.getByText('Documents refreshed, but profile status could not be updated.'),
+  ).toBeVisible();
+  await expect(section.getByText('Could not submit the document.')).toHaveCount(0);
+});
+
 test('upload conflict refreshes the list without showing a new successful submission', async ({
   page,
 }) => {
@@ -295,11 +502,12 @@ test('upload conflict refreshes the list without showing a new successful submis
   await expect(section.getByText('Document submitted for review.')).toHaveCount(0);
 });
 
-test('admin rejects with a required note and approves another document from server responses', async ({
+test('admin retries failed detail, rejects with a note and approves another document', async ({
   page,
 }) => {
   await session(page);
   const decisions: unknown[] = [];
+  let failFirstDetail = true;
   const records: ReviewRecord[] = [
     {
       id: 'doc-1',
@@ -380,6 +588,10 @@ test('admin rejects with a required note and approves another document from serv
           tutorVerificationStatus: decision === 'APPROVED' ? 'VERIFIED' : 'REJECTED',
         });
       }
+      if (record.id === 'doc-1' && failFirstDetail) {
+        failFirstDetail = false;
+        return json(route, { message: 'Service unavailable' }, 503);
+      }
       return json(route, {
         document: {
           documentId: record.id,
@@ -412,6 +624,11 @@ test('admin rejects with a required note and approves another document from serv
   await page.goto('/dashboard');
   const queue = page.getByRole('region', { name: 'Tutor verification queue' });
   await queue.getByRole('button', { name: /Tutor One/ }).click();
+  await expect(
+    queue.getByText('Could not load document details. Select it again or refresh the queue.'),
+  ).toBeVisible();
+  await queue.getByRole('button', { name: /Tutor One/ }).click();
+  await expect(queue.getByRole('heading', { name: 'Tutor One' })).toBeVisible();
   await queue.getByRole('button', { name: 'View document' }).click();
   await expect(queue.getByRole('link', { name: 'Open private document' })).toHaveAttribute(
     'href',
@@ -439,6 +656,70 @@ test('admin rejects with a required note and approves another document from serv
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
     true,
   );
+});
+
+test('admin load more waits for a queue refresh to finish', async ({ page }) => {
+  await session(page);
+  let releaseRefresh: (() => void) | undefined;
+  let markRefreshStarted: (() => void) | undefined;
+  const refreshGate = new Promise<void>((resolve) => {
+    releaseRefresh = resolve;
+  });
+  const refreshStarted = new Promise<void>((resolve) => {
+    markRefreshStarted = resolve;
+  });
+  let refreshing = false;
+  let moreReads = 0;
+  await page.route('**/api/v1/**', async (route) => {
+    const url = new URL(route.request().url());
+    if (url.pathname === '/api/v1/auth/refresh') {
+      return json(route, { accessToken: 'ui-test-token', user: admin });
+    }
+    if (url.pathname === '/api/v1/admin/tutor-verifications') {
+      if (url.searchParams.has('cursor')) {
+        moreReads += 1;
+        return json(route, { items: [], nextCursor: null });
+      }
+      if (refreshing) {
+        markRefreshStarted?.();
+        await refreshGate;
+      }
+      return json(route, {
+        items: [
+          {
+            documentId: refreshing ? 'doc-2' : 'doc-1',
+            type: 'DEGREE',
+            status: 'PENDING',
+            fileName: refreshing ? 'new.pdf' : 'old.pdf',
+            mimeType: 'application/pdf',
+            size: 100,
+            createdAt,
+            reviewedAt: null,
+            rejectionReason: null,
+            tutor: {
+              userId: refreshing ? 'tutor-2' : 'tutor-1',
+              displayName: refreshing ? 'Tutor Two' : 'Tutor One',
+              verificationStatus: 'PENDING',
+            },
+          },
+        ],
+        nextCursor: refreshing ? null : 'next-page',
+      });
+    }
+    return json(route, { message: `Unexpected request: ${url.pathname}` }, 500);
+  });
+
+  await page.goto('/dashboard');
+  const queue = page.getByRole('region', { name: 'Tutor verification queue' });
+  await expect(queue.getByRole('button', { name: /Tutor One/ })).toBeVisible();
+  await expect(queue.getByRole('button', { name: 'Load more' })).toBeEnabled();
+  refreshing = true;
+  await queue.getByRole('button', { name: 'Refresh documents' }).click();
+  await refreshStarted;
+  await expect(queue.getByRole('button', { name: 'Load more' })).toBeDisabled();
+  releaseRefresh?.();
+  await expect(queue.getByRole('button', { name: /Tutor Two/ })).toBeVisible();
+  expect(moreReads).toBe(0);
 });
 
 test('switching documents during a review keeps the selected detail in sync', async ({ page }) => {

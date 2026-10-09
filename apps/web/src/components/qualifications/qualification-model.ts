@@ -56,6 +56,10 @@ export function qualificationErrorKind(
   return 'unavailable';
 }
 
+export function uploadOutcomeIsUncertain(error: unknown): boolean {
+  return !(error instanceof ApiError) || error.status === 408 || error.status >= 500;
+}
+
 export function canUploadType(
   documents: { type: string; status: string }[],
   type: QualificationDocumentType,

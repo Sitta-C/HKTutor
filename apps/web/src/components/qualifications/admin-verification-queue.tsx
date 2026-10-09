@@ -148,7 +148,7 @@ export function AdminVerificationQueue() {
   };
 
   const loadMore = async () => {
-    if (!cursor || moreLoading || reviewing) {
+    if (!cursor || loading || moreLoading || reviewing) {
       return;
     }
     const requestedCursor = cursor;
@@ -267,6 +267,9 @@ export function AdminVerificationQueue() {
                       className={`w-full min-w-0 rounded-xl border p-3 text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-admin-deep sm:p-4 ${selectedId === item.documentId ? 'border-amber-700 bg-sticky-yellow/30' : 'border-paper-edge bg-paper hover:border-amber-600'}`}
                       onClick={() => {
                         if (selectedIdRef.current === item.documentId) {
+                          if (detailError && !detailLoading) {
+                            void reloadDetail(item.documentId).catch(() => undefined);
+                          }
                           return;
                         }
                         selectedIdRef.current = item.documentId;
@@ -317,7 +320,7 @@ export function AdminVerificationQueue() {
             {cursor && (
               <button
                 type="button"
-                disabled={moreLoading || reviewing}
+                disabled={loading || moreLoading || reviewing}
                 onClick={() => void loadMore()}
                 className="mt-3 min-h-11 rounded-lg border border-paper-edge bg-paper px-4 font-bold text-admin-deep focus-visible:outline-2 disabled:opacity-50"
               >

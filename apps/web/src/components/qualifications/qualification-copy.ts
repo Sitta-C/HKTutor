@@ -24,6 +24,8 @@ export const qualificationCopy = {
     loadError: 'Could not load documents. Try again.',
     uploadSuccess: 'Document submitted for review.',
     uploadError: 'Could not submit the document. Check its file type and try again.',
+    uploadUncertain:
+      'Could not confirm the upload. Check the latest documents before submitting again.',
     uploadConflict: 'A document of this type is already pending. The list has been refreshed.',
     pendingType: 'A document of this type is already pending review.',
     fileErrors: {
@@ -51,7 +53,7 @@ export const qualificationCopy = {
     queueError: 'Could not load the queue. Try again.',
     loadMore: 'Load more',
     selectDocument: 'Select a document to review its details.',
-    detailsError: 'Could not load document details. Refresh the queue.',
+    detailsError: 'Could not load document details. Select it again or refresh the queue.',
     reviewHistory: 'Review history',
     reviewTitle: 'Review decision',
     approve: 'Approve',
@@ -92,6 +94,7 @@ export const qualificationCopy = {
     loadError: 'โหลดเอกสารไม่ได้ โปรดลองอีกครั้ง',
     uploadSuccess: 'ส่งเอกสารเพื่อตรวจสอบแล้ว',
     uploadError: 'ส่งเอกสารไม่ได้ ตรวจสอบชนิดไฟล์แล้วลองอีกครั้ง',
+    uploadUncertain: 'ยืนยันผลการส่งเอกสารไม่ได้ โปรดตรวจสอบรายการล่าสุดก่อนส่งอีกครั้ง',
     uploadConflict: 'มีเอกสารประเภทนี้รอตรวจอยู่แล้ว ระบบโหลดรายการใหม่แล้ว',
     pendingType: 'มีเอกสารประเภทนี้รอตรวจอยู่แล้ว',
     fileErrors: {
@@ -119,7 +122,7 @@ export const qualificationCopy = {
     queueError: 'โหลดคิวตรวจไม่ได้ โปรดลองอีกครั้ง',
     loadMore: 'โหลดเพิ่มเติม',
     selectDocument: 'เลือกเอกสารเพื่อดูรายละเอียดและตรวจสอบ',
-    detailsError: 'โหลดรายละเอียดเอกสารไม่ได้ โปรดโหลดคิวใหม่',
+    detailsError: 'โหลดรายละเอียดเอกสารไม่ได้ เลือกเอกสารอีกครั้งหรือโหลดคิวใหม่',
     reviewHistory: 'ประวัติการตรวจ',
     reviewTitle: 'ผลการตรวจ',
     approve: 'อนุมัติ',

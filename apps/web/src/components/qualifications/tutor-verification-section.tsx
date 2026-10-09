@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { DocumentStatusList } from '@/components/qualifications/document-status-list';
 import { qualificationCopy } from '@/components/qualifications/qualification-copy';
@@ -23,39 +23,48 @@ export function TutorVerificationSection({ onDocumentChanged }: TutorVerificatio
   const [refreshing, setRefreshing] = useState(false);
   const [refreshNotice, setRefreshNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [profileError, setProfileError] = useState<string | null>(null);
+  const documentRequest = useRef(0);
 
-  const reload = useCallback(async () => {
-    const response = await listMyQualifications();
-    setDocuments(response.items);
-    setError(null);
-  }, []);
+  const reload = useCallback(async (): Promise<boolean> => {
+    const requestId = ++documentRequest.current;
+    try {
+      const response = await listMyQualifications();
+      if (requestId !== documentRequest.current) {
+        return false;
+      }
+      setDocuments(response.items);
+      setError(null);
+      return true;
+    } catch (caught) {
+      if (requestId !== documentRequest.current) {
+        return false;
+      }
+      setError(copy.loadError);
+      throw caught;
+    } finally {
+      if (requestId === documentRequest.current) {
+        setLoading(false);
+      }
+    }
+  }, [copy.loadError]);
 
   useEffect(() => {
-    let active = true;
-    listMyQualifications()
-      .then((response) => {
-        if (active) {
-          setDocuments(response.items);
-        }
-      })
-      .catch(() => {
-        if (active) {
-          setError(copy.loadError);
-        }
-      })
-      .finally(() => {
-        if (active) {
-          setLoading(false);
-        }
-      });
+    void Promise.resolve()
+      .then(reload)
+      .catch(() => undefined);
     return () => {
-      active = false;
+      documentRequest.current += 1;
     };
-  }, [copy.loadError]);
+  }, [reload]);
 
   const refresh = async () => {
     setRefreshNotice(null);
-    await Promise.all([reload(), onDocumentChanged()]);
+    const [, profileResult] = await Promise.allSettled([
+      reload(),
+      Promise.resolve().then(onDocumentChanged),
+    ]);
+    setProfileError(profileResult.status === 'rejected' ? copy.profileRefreshError : null);
   };
 
   const manualRefresh = async () => {
@@ -65,15 +74,19 @@ export function TutorVerificationSection({ onDocumentChanged }: TutorVerificatio
     setRefreshing(true);
     setRefreshNotice(null);
     setError(null);
+    setProfileError(null);
     const [documentResult, profileResult] = await Promise.allSettled([
       reload(),
-      onDocumentChanged(),
+      Promise.resolve().then(onDocumentChanged),
     ]);
-    if (documentResult.status === 'rejected') {
-      setError(copy.loadError);
-    } else if (profileResult.status === 'rejected') {
-      setError(copy.profileRefreshError);
-    } else {
+    if (profileResult.status === 'rejected') {
+      setProfileError(copy.profileRefreshError);
+    }
+    if (
+      documentResult.status === 'fulfilled' &&
+      documentResult.value &&
+      profileResult.status === 'fulfilled'
+    ) {
       setRefreshNotice(copy.refreshSuccess);
     }
     setRefreshing(false);
@@ -120,6 +133,11 @@ export function TutorVerificationSection({ onDocumentChanged }: TutorVerificatio
             {error && (
               <p className="mt-2 text-sm text-red-800" role="alert">
                 {error}
+              </p>
+            )}
+            {profileError && (
+              <p className="mt-2 text-sm text-red-800" role="alert">
+                {profileError}
               </p>
             )}
             {refreshNotice && (

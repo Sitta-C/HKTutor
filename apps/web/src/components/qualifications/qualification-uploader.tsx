@@ -5,6 +5,7 @@ import { useRef, useState } from 'react';
 import {
   canUploadType,
   qualificationErrorKind,
+  uploadOutcomeIsUncertain,
   validateQualificationFile,
 } from '@/components/qualifications/qualification-model';
 import { NotebookAction } from '@/components/ui/notebook-action';
@@ -35,6 +36,7 @@ export function QualificationUploader({ documents, copy, onUploaded }: Qualifica
   const [progress, setProgress] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [refreshError, setRefreshError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
@@ -43,6 +45,7 @@ export function QualificationUploader({ documents, copy, onUploaded }: Qualifica
       return;
     }
     setError(null);
+    setRefreshError(null);
     setSuccess(false);
     if (!file) {
       setError(copy.selectFile);
@@ -70,7 +73,7 @@ export function QualificationUploader({ documents, copy, onUploaded }: Qualifica
       try {
         await onUploaded();
       } catch {
-        setError(copy.loadError);
+        setRefreshError(copy.loadError);
       }
     } catch (caught) {
       if (qualificationErrorKind(caught) === 'conflict') {
@@ -78,7 +81,14 @@ export function QualificationUploader({ documents, copy, onUploaded }: Qualifica
         try {
           await onUploaded();
         } catch {
-          setError(copy.loadError);
+          setRefreshError(copy.loadError);
+        }
+      } else if (uploadOutcomeIsUncertain(caught)) {
+        setError(copy.uploadUncertain);
+        try {
+          await onUploaded();
+        } catch {
+          setRefreshError(copy.loadError);
         }
       } else {
         setError(copy.uploadError);
@@ -105,6 +115,7 @@ export function QualificationUploader({ documents, copy, onUploaded }: Qualifica
         onChange={(event) => {
           setType(event.target.value === 'CERTIFICATE' ? 'CERTIFICATE' : 'DEGREE');
           setError(null);
+          setRefreshError(null);
         }}
       >
         <option value="DEGREE">{copy.types.DEGREE}</option>
@@ -123,6 +134,7 @@ export function QualificationUploader({ documents, copy, onUploaded }: Qualifica
             setFile(selected);
             const issue = selected ? validateQualificationFile(selected) : null;
             setError(issue ? copy.fileErrors[issue] : null);
+            setRefreshError(null);
             setSuccess(false);
           }}
         />
@@ -169,6 +181,7 @@ export function QualificationUploader({ documents, copy, onUploaded }: Qualifica
             onClick={() => {
               setFile(null);
               setError(null);
+              setRefreshError(null);
               if (fileInput.current) {
                 fileInput.current.value = '';
               }
@@ -191,7 +204,12 @@ export function QualificationUploader({ documents, copy, onUploaded }: Qualifica
           {error}
         </p>
       )}
-      {success && !error && (
+      {refreshError && (
+        <p className="mt-3 text-sm text-red-800" role="alert">
+          {refreshError}
+        </p>
+      )}
+      {success && (
         <p className="mt-3 text-sm text-emerald-900" role="status">
           {copy.uploadSuccess}
         </p>

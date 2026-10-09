@@ -81,6 +81,13 @@ export function DocumentPreview({
           <span className="text-xs text-notebook-muted">
             {copy.previewExpiry}: {formatBangkokDateTime(link.expiresAt, language)}
           </span>
+          <button
+            type="button"
+            className="min-h-11 font-bold text-tutor-deep underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2"
+            onClick={() => void requestLink()}
+          >
+            {copy.previewRetry}
+          </button>
         </div>
       ) : (
         <button
