@@ -8,6 +8,7 @@ import { NotebookAction } from '@/components/ui/notebook-action';
 import { NotebookLoadingRegion } from '@/components/ui/notebook-loading';
 import { useNotebookToast } from '@/components/ui/notebook-toast';
 import { loadConversationMessages, sendConversationMessage } from '@/lib/api/conversations';
+import { splitMessageLinks } from '@/lib/conversation-links';
 import {
   canSendMessage,
   conversationErrorKey,
@@ -262,14 +263,31 @@ export function ConversationThread({
               }
             >
               <div className={styles.bubble}>
-                <p>{message.text}</p>
+                <p>
+                  {splitMessageLinks(message.text).map((part) =>
+                    part.href ? (
+                      <a
+                        key={part.start}
+                        href={part.href}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        aria-label={`${part.text} (${text.openLink})`}
+                        title={text.openLink}
+                      >
+                        {part.text}
+                      </a>
+                    ) : (
+                      part.text
+                    ),
+                  )}
+                </p>
                 <time dateTime={message.sentAt}>{formatBangkokTime(message.sentAt, language)}</time>
               </div>
             </div>
           </div>
         );
       }),
-    [language, user.id, view.items],
+    [language, text.openLink, user.id, view.items],
   );
 
   return (

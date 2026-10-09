@@ -245,14 +245,14 @@ async function mockInbox(
     historyStatus: (status: number) => {
       historyStatus = status;
     },
-    incoming: () => {
+    incoming: (text = 'New incoming while reading') => {
       messages = [
         ...messages,
         {
           messageId: 'incoming',
           conversationId: 'pair-0',
           senderId: 'other',
-          text: 'New incoming while reading',
+          text,
           sentAt: '2026-10-08T04:30:00.000Z',
           readAt: null,
         },
@@ -395,6 +395,75 @@ test('keeps ambiguous-send drafts, rejects blank/over-limit input and treats mes
   await page.waitForTimeout(250);
   expect(fixture.calls.filter((call) => call.method === 'POST')).toHaveLength(1);
 });
+
+for (const role of ['STUDENT', 'TUTOR'] as const) {
+  test(`${role} can open message links while HTML stays text and long links wrap`, async ({
+    page,
+  }) => {
+    const language = role === 'STUDENT' ? 'th' : 'en';
+    const fixture = await mockInbox(page, { role, language });
+    await page.context().route('https://example.test/**', (route) =>
+      route.fulfill({
+        contentType: 'text/html',
+        body: '<title>Lesson link fixture</title><p>Lesson document</p>',
+      }),
+    );
+    await openFirst(page);
+    const incoming =
+      'ดูเอกสาร (https://example.test/lesson_(math)?unit=1&level=2),\nwww.example.test/home. javascript:alert(1) <img src=x onerror=alert(1)>';
+    fixture.incoming(incoming);
+    await page
+      .getByRole('button', {
+        name: language === 'th' ? 'รีเฟรชข้อความ' : 'Refresh messages',
+        exact: true,
+      })
+      .click();
+    const transcript = page.getByRole('region', {
+      name: language === 'th' ? 'ประวัติข้อความ' : 'Conversation history',
+      exact: true,
+    });
+    const received = transcript.locator('[data-message-history] p').filter({ hasText: 'ดูเอกสาร' });
+    await expect(received).toHaveText(incoming);
+    await expect(received.getByRole('link')).toHaveCount(2);
+    const lesson = received.getByRole('link').first();
+    await expect(lesson).toHaveAttribute(
+      'href',
+      'https://example.test/lesson_(math)?unit=1&level=2',
+    );
+    await expect(lesson).toHaveAttribute('target', '_blank');
+    await expect(lesson).toHaveAttribute('rel', 'noopener noreferrer');
+    await expect(lesson).toHaveAccessibleName(
+      language === 'th' ? /เปิดลิงก์ในแท็บใหม่/ : /Open link in a new tab/,
+    );
+    await expect(received.getByRole('link').last()).toHaveAttribute(
+      'href',
+      'https://www.example.test/home',
+    );
+    await expect(received.locator('img, script')).toHaveCount(0);
+    await expect(lesson).toHaveCSS('text-decoration-line', 'underline');
+    await lesson.focus();
+    await expect(lesson).toBeFocused();
+    const [opened] = await Promise.all([page.waitForEvent('popup'), lesson.press('Enter')]);
+    await expect(opened).toHaveTitle('Lesson link fixture');
+    expect(await opened.evaluate(() => window.opener === null)).toBe(true);
+    await opened.close();
+    await expect(page).toHaveURL(/\/dashboard\/messages$/);
+    const longLink = `http://example.test/${'lesson-notes/'.repeat(35)}?lang=th#read`;
+    await page
+      .getByRole('textbox', { name: language === 'th' ? 'ข้อความของคุณ' : 'Your message' })
+      .fill(longLink);
+    await page
+      .getByRole('button', { name: language === 'th' ? 'ส่งข้อความ' : 'Send', exact: true })
+      .click();
+    const sentLink = transcript.getByRole('link', {
+      name: new RegExp('^http://example.test/lesson-notes'),
+    });
+    await expect(sentLink).toHaveAttribute('href', longLink);
+    await expect(sentLink).toBeInViewport({ ratio: 1 });
+    await noOverflow(page);
+    expect(fixture.unexpected).toEqual([]);
+  });
+}
 
 for (const status of [403, 404]) {
   test(`handles ${status} without exposing details and can recover`, async ({ page }) => {

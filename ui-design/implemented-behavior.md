@@ -374,7 +374,14 @@ participant access; 401/403/404 failures never expose raw API details.
 
 The list uses opaque API cursors with a More conversations action and deduplication. Contact names
 are the server's tutor display name or private student nickname; absent names use a localized role
-fallback. The selected thread displays plain text only, Bangkok date/time and role-colored bubbles.
+fallback. The selected thread renders message text without interpreting HTML, with Bangkok date/time
+and role-colored bubbles.
+Web URLs beginning with `http://`, `https://` or `www.` render as underlined native links in sent and
+received message bubbles; `www.` opens with HTTPS. Keep the original visible message, line breaks and
+sentence punctuation, including balanced parentheses within URLs. Links wrap on narrow screens, have
+visible keyboard focus and bilingual new-tab labels, and open with `noopener noreferrer`. Validate
+URLs, exclude credentials and unsupported schemes, and continue treating HTML as text. This is display
+formatting only: there are no link-preview requests, message-payload changes or API changes.
 A content container at or below 760px shows the index or transcript separately. Back restores index
 scroll and contact focus. The transcript scrolls independently of the composer. Drafts, history,
 reading offsets and new-message counts are scoped to the mounted user's page, retained per
