@@ -18,6 +18,7 @@ import {
   registerDecorator,
 } from 'class-validator';
 
+import { SortOrder } from '@app/generated/prisma/internal/prismaNamespace';
 import { ListingPublicationStatus } from '@generated/prisma/client';
 
 import type { TransformFnParams } from 'class-transformer';
@@ -98,6 +99,33 @@ export class TutorSearchQueryDto {
   @Min(1)
   @Max(5)
   minimumRating?: number;
+
+  @IsOptional()
+  @IsNumber({ allowInfinity: false, allowNaN: false })
+  @Min(0)
+  @Max(5)
+  ratingPriority?: number;
+
+  @IsOptional()
+  ratingOrder?: SortOrder;
+
+  @IsOptional()
+  @IsNumber({ allowInfinity: false, allowNaN: false })
+  @Min(0)
+  @Max(5)
+  pricePriority?: number;
+
+  @IsOptional()
+  priceOrder?: SortOrder;
+
+  @IsOptional()
+  @IsNumber({ allowInfinity: false, allowNaN: false })
+  @Min(0)
+  @Max(5)
+  availabilityPriority?: number;
+
+  @IsOptional()
+  availabilityOrder?: SortOrder;
 
   @ApiPropertyOptional({ default: DEFAULT_TUTOR_SEARCH_PAGE, example: 1, minimum: 1 })
   @IsOptional()

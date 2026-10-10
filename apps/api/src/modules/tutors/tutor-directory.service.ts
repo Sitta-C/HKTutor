@@ -157,6 +157,11 @@ export class TutorDirectoryService {
       throw new BadRequestException('grade is not a supported active catalog value');
     }
 
+    const now = new Date();
+    const page = query.page ?? DEFAULT_TUTOR_SEARCH_PAGE;
+    const pageSize = query.pageSize ?? DEFAULT_TUTOR_SEARCH_PAGE_SIZE;
+    const skip = (page - 1) * pageSize;
+
     const where: Prisma.TeachingListingWhereInput = {
       ...publicListingWhere,
       ...(subject === null ? {} : { subjectId: subject.id }),
@@ -169,19 +174,100 @@ export class TutorDirectoryService {
           : { ratingAverage: { gte: query.minimumRating } }),
       },
     };
-    const page = query.page ?? DEFAULT_TUTOR_SEARCH_PAGE;
-    const pageSize = query.pageSize ?? DEFAULT_TUTOR_SEARCH_PAGE_SIZE;
-    const now = new Date();
-    const [listings, total] = await Promise.all([
-      this.prisma.teachingListing.findMany({
-        orderBy: [{ publishedAt: 'desc' }, { id: 'asc' }],
-        select: publicSearchSelect(now),
-        skip: (page - 1) * pageSize,
-        take: pageSize,
-        where,
-      }),
+
+    const sortItems: {
+      priority: number;
+      sqlClause: string;
+      prismaOrder?: Prisma.TeachingListingOrderByWithRelationInput;
+    }[] = [];
+
+    if (query.ratingPriority !== undefined) {
+      const dir = (query.ratingOrder ?? 'desc').toUpperCase();
+      sortItems.push({
+        priority: query.ratingPriority,
+        sqlClause: `tp."ratingAverage" ${dir} NULLS LAST`,
+        prismaOrder: { tutorProfile: { ratingAverage: query.ratingOrder ?? 'desc' } },
+      });
+    }
+
+    if (query.pricePriority !== undefined) {
+      const dir = (query.priceOrder ?? 'asc').toUpperCase();
+      sortItems.push({
+        priority: query.pricePriority,
+        sqlClause: `tl."pricePerHour" ${dir}`,
+        prismaOrder: { pricePerHour: query.priceOrder ?? 'asc' },
+      });
+    }
+
+    if (query.availabilityPriority !== undefined) {
+      const dir = (query.availabilityOrder ?? 'asc').toUpperCase();
+      sortItems.push({
+        priority: query.availabilityPriority,
+        sqlClause: `MIN(slot."startAtUtc") ${dir} NULLS LAST`,
+      });
+    }
+
+    sortItems.sort((a, b) => a.priority - b.priority);
+
+    const hasAvailabilitySort = query.availabilityPriority !== undefined;
+    let listingIds: string[] = [];
+
+    if (hasAvailabilitySort) {
+      const orderClauses = [
+        ...sortItems.map((item) => item.sqlClause),
+        `tl."publishedAt" DESC`,
+        `tl."id" ASC`,
+      ].join(', ');
+
+      const rawResults = await this.prisma.$queryRaw<{ id: string }[]>`
+        SELECT tl.id
+        FROM "TeachingListing" tl
+        JOIN "TutorProfile" tp ON tl."tutorProfileId" = tp."userId"
+        LEFT JOIN "AvailabilitySlot" slot 
+          ON slot."tutorProfileId" = tp."userId" 
+          AND slot."startAtUtc" >= ${now}
+          AND slot."deletedAt" IS NULL
+        WHERE tl."publicationStatus" = 'published'::"ListingPublicationStatus"
+          AND tl."deletedAt" IS NULL
+          ${subject ? Prisma.sql`AND tl."subjectId" = ${subject.id}::uuid` : Prisma.empty}
+          ${gradeLevel ? Prisma.sql`AND tl."gradeLevelId" = ${gradeLevel.id}::uuid` : Prisma.empty}
+          ${query.maxPrice !== undefined ? Prisma.sql`AND tl."pricePerHour" <= ${query.maxPrice}` : Prisma.empty}
+          ${query.minimumRating !== undefined ? Prisma.sql`AND tp."ratingAverage" >= ${query.minimumRating}` : Prisma.empty}
+        GROUP BY tl.id, tp."ratingAverage", tl."pricePerHour", tl."publishedAt"
+        ORDER BY ${Prisma.raw(orderClauses)}
+        OFFSET ${skip} LIMIT ${pageSize}
+      `;
+
+      listingIds = rawResults.map((r) => r.id);
+    }
+
+    const [listingsRaw, total] = await Promise.all([
+      hasAvailabilitySort
+        ? listingIds.length > 0
+          ? this.prisma.teachingListing.findMany({
+              where: { id: { in: listingIds } },
+              select: publicSearchSelect(now),
+            })
+          : Promise.resolve([])
+        : this.prisma.teachingListing.findMany({
+            where,
+            orderBy: [
+              ...sortItems.map((item) => item.prismaOrder!),
+              { publishedAt: 'desc' },
+              { id: 'asc' },
+            ],
+            select: publicSearchSelect(now),
+            skip,
+            take: pageSize,
+          }),
       this.prisma.teachingListing.count({ where }),
     ]);
+
+    let listings = listingsRaw;
+    if (hasAvailabilitySort && listingIds.length > 0) {
+      const idMap = new Map(listingsRaw.map((item) => [item.id, item]));
+      listings = listingIds.map((id) => idMap.get(id)!).filter(Boolean);
+    }
 
     const items = listings.flatMap((listing) => {
       const status = listing.tutorProfile.verificationStatus;
