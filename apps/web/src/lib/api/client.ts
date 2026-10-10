@@ -139,6 +139,71 @@ export function authenticatedFetch<T>(path: string, init: RequestInit = {}): Pro
   return apiFetch<T>(path, init, { authenticated: true });
 }
 
+function sendUpload<T>(
+  path: string,
+  body: FormData,
+  onProgress: (percent: number) => void,
+): Promise<T> {
+  if (!path.startsWith('/') || path.startsWith('//')) {
+    throw new Error('API paths must start with a single slash');
+  }
+
+  return new Promise<T>((resolve, reject) => {
+    const request = new XMLHttpRequest();
+    request.open('POST', `${API_BASE_URL}${path}`);
+    request.withCredentials = true;
+    if (accessToken) {
+      request.setRequestHeader('Authorization', `Bearer ${accessToken}`);
+    }
+    request.upload.onprogress = (event) => {
+      if (event.lengthComputable) {
+        onProgress(Math.min(99, Math.round((event.loaded / event.total) * 100)));
+      }
+    };
+    request.onerror = () => reject(new Error('Upload connection failed'));
+    request.onabort = () => reject(new Error('Upload was cancelled'));
+    request.onload = () => {
+      const response = new Response(request.responseText, {
+        status: request.status,
+        headers: {
+          'Content-Type': request.getResponseHeader('Content-Type') ?? 'application/json',
+        },
+      });
+      void readResponse<T>(response).then(resolve, reject);
+    };
+    onProgress(0);
+    request.send(body);
+  });
+}
+
+export async function authenticatedUpload<T>(
+  path: string,
+  body: FormData,
+  onProgress: (percent: number) => void,
+): Promise<T> {
+  try {
+    const result = await sendUpload<T>(path, body, onProgress);
+    onProgress(100);
+    return result;
+  } catch (error) {
+    if (!(error instanceof ApiError) || error.status !== 401) {
+      throw error;
+    }
+  }
+
+  await refreshAccessToken();
+  try {
+    const result = await sendUpload<T>(path, body, onProgress);
+    onProgress(100);
+    return result;
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 401) {
+      expireSession();
+    }
+    throw error;
+  }
+}
+
 export function setAccessToken(token: string): void {
   accessToken = token;
 }

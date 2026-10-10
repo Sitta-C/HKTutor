@@ -1,6 +1,6 @@
 # Implemented frontend behavior
 
-Updated 2026-10-07. This describes the current implementation, including interaction and layout
+Updated 2026-10-09. This describes the current implementation, including interaction and layout
 details moved from the root README. Follow the source for exact behavior and update this reference
 when behavior changes. See [frontend direction](frontend-direction.md) for design patterns and workflow.
 
@@ -44,6 +44,38 @@ and verification states update from the existing profile API responses. Tutors w
 reviews see an explicit new-tutor state.
 The bilingual “Read all reviews” control currently explains that individual reviews are unavailable;
 it does not submit the profile form or call an unsupported reviews endpoint.
+
+## Tutor qualification review
+
+The tutor edit page at `/dashboard/profile` adds a private document section after the profile form.
+Its dashed file picker, selected-file row, compact document rows, and two-column layout follow the
+certificate section in `pages/tutor-profile.html`. A selected file can be removed before submission;
+persisted documents have no remove action because the API does not provide one. The tutor list API
+does not return filenames, sizes, or upload dates, so persisted rows identify the document by type
+and status instead. It accepts degree or certificate PDF, JPEG, and PNG files up to 5 MiB, rejects empty and unsupported
+files before sending, shows upload progress, and reloads the API list after a successful submission
+or a pending-document conflict. An upload with an uncertain network/server response also reloads
+the list before another submission; a confirmed upload remains successful if the separate profile
+refresh fails. Only the newest list request may update the displayed documents. A pending type
+cannot be submitted again until review finishes.
+The list shows pending, approved, and rejected states with rejection notes. Documents remain private:
+each preview requests a fresh signed URL, shows its Bangkok-time expiry, and offers retry after
+denied, missing, or expired access. A fresh link can also be requested while the old one is still
+visible. The URL is held only in component memory.
+The manual Refresh documents action fetches a new document list and profile status, shows a loading
+label, and reports completion or a specific failure while retaining the last confirmed list.
+
+The admin dashboard at `/dashboard` shows status-filtered verification queues, cursor pagination,
+document details and review history. Approval permits an optional note; rejection requires a trimmed
+note of at most 500 characters. After a review response, the queue and detail are fetched again
+before a new status is shown. A 409 conflict discards the stale pending form and reloads server
+state. Any failed review request also reloads the detail and queue, since the server may have
+saved a decision before the response failed. API role, ownership, consent, and atomic state checks
+remain server-side. Both screens use bilingual labels and display UTC API timestamps in Asia/Bangkok.
+Selecting the current queue row again preserves its detail. An admin can inspect another document
+while a review is saving; its decision form waits until that review finishes, and the earlier
+document's response cannot replace the newly selected detail. Selecting a row again retries a failed
+detail request. Load more waits until a queue refresh finishes.
 
 The student dashboard at `/dashboard` uses **Desk Spread**: two warm-paper sheets connected by closely
 spaced flat wire loops on desktop, stacked in reading order with a horizontal wire connector on

@@ -129,8 +129,7 @@ test('role-specific views render distinct content with honest empty states', asy
 
   // Admin view features
   assert.match(adminSource, /dash-role-chip-admin/);
-  assert.match(adminSource, /adminCopy\.notice/);
-  assert.match(adminSource, /adminCopy\.signOutButton/);
+  assert.match(adminSource, /AdminVerificationQueue/);
   // Admin view must never render student/tutor features
   assert.doesNotMatch(adminSource, /studentCopy|tutorCopy|dash-summary/);
 

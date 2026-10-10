@@ -21,6 +21,7 @@ import {
   validateTutorProfile,
 } from '@/components/profile/profile-editor-model';
 import { TutorProfileSummary } from '@/components/profile/tutor-profile-summary';
+import { TutorVerificationSection } from '@/components/qualifications/tutor-verification-section';
 import {
   PaperCard,
   StatusBadge,
@@ -483,6 +484,17 @@ export default function ProfileEditor({ mode }: ProfileEditorProps) {
             />
           )}
         </div>
+      )}
+      {mode === 'edit' && !studentRole && consentCurrent && (
+        <TutorVerificationSection
+          onDocumentChanged={async () => {
+            const latest = await loadCurrentProfile(user.id, { force: true });
+            const profile = getTutorProfile(latest);
+            if (profile) {
+              setTutorMeta(profile);
+            }
+          }}
+        />
       )}
     </DashboardShell>
   );
