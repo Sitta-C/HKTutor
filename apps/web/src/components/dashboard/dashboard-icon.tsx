@@ -15,8 +15,10 @@ export type DashboardIconName =
   | 'inbox'
   | 'info'
   | 'listings'
+  | 'messages'
   | 'logout'
   | 'plus'
+  | 'refresh'
   | 'profile'
   | 'search'
   | 'settings'
@@ -34,6 +36,7 @@ export function DashboardIcon({
 }) {
   const paths: Record<DashboardIconName, ReactNode> = {
     'arrow-left': <path d="M19 12H5m6-6-6 6 6 6" />,
+    refresh: <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8M21 3v5h-5" />,
     'arrow-right': <path d="M5 12h14m-6-6 6 6-6 6" />,
     availability: (
       <>
@@ -47,6 +50,7 @@ export function DashboardIcon({
         <path d="M10 21h4" />
       </>
     ),
+    messages: <path d="M20 11.5a8 8 0 0 1-8 8H4l1.8-4A8 8 0 1 1 20 11.5ZM8 10h8M8 14h5" />,
     bookings: (
       <>
         <rect x="5" y="4.5" width="14" height="16" rx="2" />

@@ -27,6 +27,8 @@ describe('dashboard role navigation', () => {
     expect(isDashboardNavActive('listings', '/dashboard/listings/new')).toBe(true);
     expect(isDashboardNavActive('availability', '/dashboard/availability')).toBe(true);
     expect(isDashboardNavActive('support', '/dashboard')).toBe(false);
+    expect(isDashboardNavActive('messages', '/dashboard/messages')).toBe(true);
+    expect(isDashboardNavActive('messages', '/dashboard/messages-extra')).toBe(false);
   });
 
   it('only exposes implemented navigation destinations', () => {
@@ -34,6 +36,7 @@ describe('dashboard role navigation', () => {
       'dashboard',
       'profile',
       'bookings',
+      'messages',
       'privacy',
     ]);
     expect(getDashboardNavItems('TUTOR', translations.en).map((item) => item.id)).toEqual([
@@ -42,6 +45,7 @@ describe('dashboard role navigation', () => {
       'bookings',
       'listings',
       'availability',
+      'messages',
       'privacy',
     ]);
     expect(getDashboardNavItems('ADMIN', translations.en).map((item) => item.id)).toEqual([

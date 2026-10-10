@@ -362,3 +362,82 @@ The controls wrap at 320px and retain labels, visible keyboard focus, pending/er
 live success notice. Saved photos appear in sidebar/account previews and the tutor course preview;
 eligible tutor photos also appear in public search/detail. Private signed URLs renew while pages
 stay open and when returning to a visible tab. Missing/failed images fall back to initials.
+
+## Private messaging (S2-T17)
+
+`/dashboard/messages` uses the shared authenticated Notebook Focus shell and **Margin Inbox**.
+Students can start from a tutor's public profile without a booking; guests retain this destination
+through login, and incomplete profiles/current-consent gates retain it through onboarding. Admins
+are redirected to their dashboard and never request conversation data. A failed profile check
+shows recovery rather than opening private chat. The server remains authoritative for role and
+participant access; 401/403/404 failures never expose raw API details.
+
+The list uses opaque API cursors with a More conversations action and deduplication. Contact names
+are the server's tutor display name or private student nickname; absent names use a localized role
+fallback. The selected thread renders message text without interpreting HTML, with Bangkok date/time
+and role-colored bubbles.
+Web URLs beginning with `http://`, `https://` or `www.` render as underlined native links in sent and
+received message bubbles; `www.` opens with HTTPS. Keep the original visible message, line breaks and
+sentence punctuation, including balanced parentheses within URLs. Links wrap on narrow screens, have
+visible keyboard focus and bilingual new-tab labels, and open with `noopener noreferrer`. Validate
+URLs, exclude credentials and unsupported schemes, and continue treating HTML as text. This is display
+formatting only: there are no link-preview requests, message-payload changes or API changes.
+A content container at or below 760px shows the index or transcript separately. Back restores index
+scroll and contact focus. The transcript scrolls independently of the composer. Drafts, history,
+reading offsets and new-message counts are scoped to the mounted user's page, retained per
+conversation while switching, and never written to local/session storage.
+The draft badge says **Temporary draft / ร่างชั่วคราว**. While a draft exists, the composer guidance
+explicitly says that leaving or reloading the page clears it, including uncertain-send recovery copy.
+There is no durable-draft promise or new browser persistence.
+
+A successful send immediately moves its conversation to the top of the inbox and updates its preview,
+without altering other contacts' relative order or server unread counts. Back still restores contact
+focus and makes that contact visible if it moved. Manual inbox refresh refetches the previously loaded
+range and selected contact, retaining drafts and reading state. A list read that started before a send
+cannot overwrite that acknowledged message or discard its known contact when its pagination shifts.
+
+Initial history follows forward API pages of 50 to the end; unavailable history leaves the composer
+disabled and provides retry. A load is bounded to 200 history pages and one 60-second deadline across
+all pages, including stalled requests/authentication awaits. A finite loop rejects cursor cycles,
+missing/inconsistent cursors and empty continuing pages. The deadline aborts the history request and
+settles the load even if an inner await ignores cancellation. Timers/listeners are cleaned on success,
+failure or caller cancellation. Reaching a bound fails with bilingual recovery copy instead of
+returning partial history as complete; cached history, drafts and the GET cursor survive a failed
+refresh. Very long conversations that exceed these bounds cannot finish their initial load in T17;
+incremental history remains a T20 task. Refresh loads after the last GET cursor. New messages append without
+moving a reader browsing older history, with a floating latest-message button; a reader already at
+the bottom follows the new messages. Cached reentry restores the reading position and checks for
+updates. Refresh failures retain fetched history. Switching conversations aborts their reads, and
+late send results are ignored after the authenticated view unmounts.
+
+The composer trims only when sending and validates 1–2,000 Unicode code points. Enter adds a line;
+submission uses the Send button/native form. While sending, disable the input, back and contact
+selection and guard repeated form submissions synchronously. Success clears the draft and displays
+the actual returned message plus NotebookToast. A failed/uncertain send retains the draft, shows
+inline and toast recovery and performs no automatic retry. The outgoing response never advances the
+GET cursor, preserving concurrent incoming messages for a later refresh, with ID deduplication.
+
+Automatic polling, mark-read commands, sent/read receipts and an incremental older-history interface
+remain S2-T20. Inbox unread counts are server values; opening/GET does not clear them. With the current
+forward-only contract, initial reads/memory scale with full history length. Browser verification uses
+intercepted APIs (including two-page history, concurrent incoming, permissions and auth/profile gates)
+on desktop, 768px tablet and 320px/mobile. It does not verify a live database or migration rollout.
+Regression coverage also checks sending from an older inbox page, refresh of an older selected contact,
+an in-flight stale inbox response, visible restored focus and the bilingual temporary-draft expectation.
+These fixes use the existing HTTP contract and do not add client-send idempotency or server rate limits.
+
+The 2026-10-09 messaging refinement makes both pane headers 72px, uses compact page/index headings,
+and lays out contacts in two rows with localized last-message time/date and an accessible full date.
+Participant initials use their role color. With a thread open, the index refresh is hidden and the
+thread refresh checks both inbox and message history; closing it exposes index refresh again.
+Short message histories sit above the composer and the stream width is capped at 52rem. Consecutive
+same-sender messages within three minutes and one Bangkok date use a smaller gap. The textarea grows
+from 48px to 112px, then scrolls internally, with Send beside it. Limit/count instructions show when
+focused, a draft exists or sending fails; errors and full control names remain accessible. Workspace
+height uses the actual header offset and window/visual viewport size, with a 360px minimum for a
+usable transcript and 760px maximum. Very short/landscape viewports retain native page scrolling.
+Bilingual browser geometry checks include a 1920px screen and 320px mobile with a three-message thread.
+The follow-up pass adds 16px above the page heading and a continuous clockwise refresh icon. Browser
+geometry checks explicitly assert that Send is beside the input and the eyebrow clears the shell
+header. The corrected layout was also visually checked in the running Safari session after loading
+fresh CSS from origin; an ordinary reload had retained old development styles.

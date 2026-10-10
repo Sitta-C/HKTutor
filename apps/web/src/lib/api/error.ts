@@ -8,3 +8,10 @@ export class ApiError extends Error {
     this.name = 'ApiError';
   }
 }
+
+export class ConversationHistoryLoadError extends Error {
+  constructor(readonly reason: 'timeout' | 'limit') {
+    super(`Conversation history load stopped: ${reason}`);
+    this.name = 'ConversationHistoryLoadError';
+  }
+}
