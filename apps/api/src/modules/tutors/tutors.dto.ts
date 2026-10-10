@@ -18,8 +18,8 @@ import {
   registerDecorator,
 } from 'class-validator';
 
-import { ListingPublicationStatus } from '@generated/prisma/client';
 import { SortOrder } from '@app/generated/prisma/internal/prismaNamespace';
+import { ListingPublicationStatus } from '@generated/prisma/client';
 
 import type { TransformFnParams } from 'class-transformer';
 import type { ValidationArguments, ValidationOptions } from 'class-validator';
@@ -101,7 +101,7 @@ export class TutorSearchQueryDto {
   minimumRating?: number;
 
   @IsOptional()
-  @IsNumber({ allowInfinity: false, allowNaN: false})
+  @IsNumber({ allowInfinity: false, allowNaN: false })
   @Min(0)
   @Max(5)
   ratingPriority?: number;
@@ -110,7 +110,7 @@ export class TutorSearchQueryDto {
   ratingOrder?: SortOrder;
 
   @IsOptional()
-  @IsNumber({ allowInfinity: false, allowNaN: false})
+  @IsNumber({ allowInfinity: false, allowNaN: false })
   @Min(0)
   @Max(5)
   pricePriority?: number;
@@ -119,7 +119,7 @@ export class TutorSearchQueryDto {
   priceOrder?: SortOrder;
 
   @IsOptional()
-  @IsNumber({ allowInfinity: false, allowNaN: false})
+  @IsNumber({ allowInfinity: false, allowNaN: false })
   @Min(0)
   @Max(5)
   availabilityPriority?: number;

@@ -288,7 +288,7 @@ export class TutorDirectoryService {
       total,
       totalPages: Math.ceil(total / pageSize),
     };
-}
+  }
 
   async getPublicTutor(tutorId: string): Promise<PublicTutorDetailResponseDto> {
     const tutor = await this.prisma.tutorProfile.findFirst({
