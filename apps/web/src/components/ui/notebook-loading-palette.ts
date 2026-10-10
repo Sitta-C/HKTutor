@@ -12,6 +12,7 @@ export const notebookLoadingPalette = {
   bookingDetailSession: { name: 'Dusty rose', background: '#ecd5df' },
   bookingConfirmSession: { name: 'Lemon', background: '#eef4ba' },
   tutorSearchSession: { name: 'Coral', background: '#ffded8' },
+  messagesSession: { name: 'Sage', background: '#e2e9db' },
   tutorDetailSession: { name: 'Fog', background: '#e4e8ed' },
 } as const;
 

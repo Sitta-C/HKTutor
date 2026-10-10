@@ -48,6 +48,12 @@ export function getDashboardNavItems(role: UserRole, copy: Translation): Dashboa
         badge: '0',
       },
       {
+        id: 'messages',
+        href: '/dashboard/messages',
+        icon: 'messages',
+        label: navCopy.messages,
+      },
+      {
         id: 'privacy',
         href: '#privacy',
         icon: 'shield',
@@ -87,6 +93,12 @@ export function getDashboardNavItems(role: UserRole, copy: Translation): Dashboa
         href: '/dashboard/availability',
         icon: 'availability',
         label: navCopy.availability,
+      },
+      {
+        id: 'messages',
+        href: '/dashboard/messages',
+        icon: 'messages',
+        label: navCopy.messages,
       },
       {
         id: 'privacy',
@@ -135,6 +147,7 @@ export function isDashboardNavActive(itemId: string, pathname: string): boolean 
   if (itemId === 'dashboard') return pathname === '/dashboard';
   if (itemId === 'profile') return pathname === '/dashboard/profile';
   if (itemId === 'bookings') return pathname.startsWith('/dashboard/bookings');
+  if (itemId === 'messages') return pathname === '/dashboard/messages';
   if (itemId === 'listings') return pathname.startsWith('/dashboard/listings');
   if (itemId === 'availability') return pathname.startsWith('/dashboard/availability');
   return false;

@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
+import { conversationCopy } from '@/components/conversations/conversation-copy';
 import { DashboardIcon } from '@/components/dashboard/dashboard-icon';
 import { ProfileAvatar } from '@/components/profile/profile-avatar';
 import { PublicTutorCourseRuler } from '@/components/tutors/public-tutor-course-ruler';
@@ -14,7 +15,11 @@ import {
 } from '@/components/tutors/public-tutor-detail-model';
 import { tutorSearchCopy } from '@/components/tutors/tutor-search-copy';
 import { NotebookHeading, PaperCard, StickyNote, WashiTape } from '@/components/ui/notebook';
-import { NotebookAction } from '@/components/ui/notebook-action';
+import {
+  NotebookAction,
+  notebookActionClass,
+  NotebookActionContent,
+} from '@/components/ui/notebook-action';
 import { NotebookLoadingRegion } from '@/components/ui/notebook-loading';
 import { ApiError } from '@/lib/api/error';
 import { getPublicTutor, getPublicTutorAvailability } from '@/lib/api/tutors';
@@ -202,6 +207,18 @@ export default function PublicTutorAvailabilityPage({ tutorId }: { tutorId: stri
             <span>{detailText.experience}</span>
           </StickyNote>
         </div>
+        {(!user || user.role === 'STUDENT') && (
+          <div className="mt-4">
+            <Link
+              href={`/dashboard/messages?${new URLSearchParams({ tutorId })}`}
+              className={notebookActionClass({ role: 'student', tone: 'secondary' })}
+            >
+              <NotebookActionContent icon={<DashboardIcon name="messages" />}>
+                {conversationCopy[language].ask}
+              </NotebookActionContent>
+            </Link>
+          </div>
+        )}
         <div className={styles.about}>
           <h3>{detailText.about}</h3>
           <p className={styles.bio}>{detail.tutor.bio}</p>
