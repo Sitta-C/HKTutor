@@ -245,3 +245,72 @@ describe('tutor booking decision failures', () => {
     });
   });
 });
+
+describe('inbox adjacent boundaries and response identity', () => {
+  it.each([
+    [9, 1],
+    [10, 1],
+    [11, 2],
+  ])('shows %i bookings on %i pages', (total, pages) => {
+    expect(countInboxPages(total)).toBe(pages);
+  });
+
+  it.each([
+    [0, 0],
+    [1, 0],
+    [2, 1],
+  ])('keeps a shrinking total %i at %i', (total, expected) => {
+    expect(adjustFilteredTotal(total, 'PENDING', 'CANCELED')).toBe(expected);
+  });
+
+  it.each([
+    [10, 1, 9, 1],
+    [11, 2, 10, 1],
+    [20, 2, 19, 2],
+    [21, 3, 20, 2],
+  ])('realigns total %i/page %i after a decision', (total, page, nextTotal, nextPage) => {
+    expect(
+      planInboxSyncAfterDecision({ filter: 'PENDING', page, status: 'CANCELED', total }),
+    ).toEqual({
+      total: nextTotal,
+      page: nextPage,
+      needsReload: true,
+    });
+  });
+
+  it.each([
+    [499, null],
+    [500, null],
+    [501, 'Use 500 characters or fewer.'],
+  ])('validates %i trimmed ASCII characters', (length, expected) => {
+    expect(validateDecisionText(`  ${'x'.repeat(length)}  `, copy)).toBe(expected);
+  });
+
+  it.each(['CONFIRMED', 'CANCELED'] as const)(
+    'uses the %s response only for its booking ID',
+    (status) => {
+      const first = booking();
+      const second = booking({ id: 'booking-2' });
+      const updated = applyTutorBookingDecision([first, second], actionResult({ status }));
+      expect(updated[0]?.status).toBe(status);
+      expect(updated[1]).toBe(second);
+      expect(first.status).toBe('PENDING');
+      expect(
+        applyTutorBookingDecision([first], actionResult({ bookingId: 'unknown-booking', status })),
+      ).toEqual([first]);
+    },
+  );
+
+  it.each([undefined, 'UNRECOGNIZED', 42, null])(
+    'uses the stale fallback for 409 code %p',
+    (code) => {
+      const error = new ApiError('conflict', 409, { code });
+      expect(resolveTutorBookingDecisionError(error, copy)).toEqual({
+        kind: 'STALE',
+        message: copy.staleStatusError,
+        requiresRefresh: true,
+      });
+      expect(getApiErrorCode(error)).toBe(typeof code === 'string' ? code : null);
+    },
+  );
+});

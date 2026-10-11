@@ -68,3 +68,70 @@ describe('tutor booking action DTOs', () => {
     expect(await validate(reject)).not.toHaveLength(0);
   });
 });
+
+describe.each(['note', 'reason'] as const)('tutor action %s boundaries', (field) => {
+  const actionDto = (value: unknown) => {
+    const input = { [field]: value };
+    return field === 'note'
+      ? plainToInstance(ConfirmBookingDto, input)
+      : plainToInstance(RejectBookingDto, input);
+  };
+
+  it.each([
+    [499, true],
+    [500, true],
+    [501, false],
+  ])('validates %i ASCII characters (accepted: %s)', async (length, accepted) => {
+    const errors = await validate(actionDto('x'.repeat(length)));
+    expect(errors.length === 0).toBe(accepted);
+  });
+
+  it.each([undefined, null])('accepts the optional value %p', async (value) => {
+    await expect(validate(actionDto(value))).resolves.toHaveLength(0);
+  });
+
+  it.each(['', ' ', '\n', 42, true, [], {}])('rejects explicit invalid text %p', async (value) => {
+    expect(await validate(actionDto(value))).not.toHaveLength(0);
+  });
+
+  it('accepts a single nonblank character surrounded by whitespace', async () => {
+    await expect(validate(actionDto(' x '))).resolves.toHaveLength(0);
+  });
+});
+
+describe('tutor inbox query boundaries', () => {
+  it.each([
+    [{ page: '0' }, false],
+    [{ page: '1' }, true],
+    [{ page: '2' }, true],
+    [{ pageSize: '0' }, false],
+    [{ pageSize: '1' }, true],
+    [{ pageSize: '2' }, true],
+    [{ pageSize: '99' }, true],
+    [{ pageSize: '100' }, true],
+    [{ pageSize: '101' }, false],
+    [{ page: '1.5' }, false],
+    [{ pageSize: 'NaN' }, false],
+  ])('validates page/item limits %j (accepted: %s)', async (input, accepted) => {
+    const errors = await validate(plainToInstance(GetTutorBookingsQueryDto, input));
+    expect(errors.length === 0).toBe(accepted);
+  });
+
+  it.each(['PENDING', 'CONFIRMED', 'COMPLETED', 'CANCELED', 'EXPIRED'])(
+    'accepts the implemented status %s',
+    async (status) => {
+      await expect(
+        validate(plainToInstance(GetTutorBookingsQueryDto, { status })),
+      ).resolves.toHaveLength(0);
+    },
+  );
+
+  it.each(['NOT_A_STATUS', 42, ['PENDING', 'CONFIRMED']])(
+    'rejects unknown or incorrectly typed status %p',
+    async (status) => {
+      expect(
+        await validate(plainToInstance(GetTutorBookingsQueryDto, { status })),
+      ).not.toHaveLength(0);
+    },
+  );
+});
