@@ -9,6 +9,7 @@ import {
   validateQualificationFile,
 } from '@/components/qualifications/qualification-model';
 import { NotebookAction } from '@/components/ui/notebook-action';
+import { useNotebookToast } from '@/components/ui/notebook-toast';
 import { uploadQualification } from '@/lib/api/qualifications';
 
 import type { QualificationCopy } from '@/components/qualifications/qualification-copy';
@@ -30,6 +31,7 @@ function formatSelectedFileSize(bytes: number): string {
 }
 
 export function QualificationUploader({ documents, copy, onUploaded }: QualificationUploaderProps) {
+  const toast = useNotebookToast();
   const fileInput = useRef<HTMLInputElement>(null);
   const [type, setType] = useState<QualificationDocumentType>('DEGREE');
   const [file, setFile] = useState<File | null>(null);
@@ -49,15 +51,18 @@ export function QualificationUploader({ documents, copy, onUploaded }: Qualifica
     setSuccess(false);
     if (!file) {
       setError(copy.selectFile);
+      toast.error(copy.selectFile);
       return;
     }
     const fileError = validateQualificationFile(file);
     if (fileError) {
       setError(copy.fileErrors[fileError]);
+      toast.error(copy.fileErrors[fileError]);
       return;
     }
     if (!canUploadType(documents, type)) {
       setError(copy.pendingType);
+      toast.error(copy.pendingType);
       return;
     }
 
@@ -70,6 +75,7 @@ export function QualificationUploader({ documents, copy, onUploaded }: Qualifica
         fileInput.current.value = '';
       }
       setSuccess(true);
+      toast.success(copy.uploadSuccess);
       try {
         await onUploaded();
       } catch {
@@ -78,6 +84,7 @@ export function QualificationUploader({ documents, copy, onUploaded }: Qualifica
     } catch (caught) {
       if (qualificationErrorKind(caught) === 'conflict') {
         setError(copy.uploadConflict);
+        toast.error(copy.uploadConflict);
         try {
           await onUploaded();
         } catch {
@@ -85,6 +92,7 @@ export function QualificationUploader({ documents, copy, onUploaded }: Qualifica
         }
       } else if (uploadOutcomeIsUncertain(caught)) {
         setError(copy.uploadUncertain);
+        toast.error(copy.uploadUncertain);
         try {
           await onUploaded();
         } catch {
@@ -92,6 +100,7 @@ export function QualificationUploader({ documents, copy, onUploaded }: Qualifica
         }
       } else {
         setError(copy.uploadError);
+        toast.error(copy.uploadError);
       }
     } finally {
       setBusy(false);
@@ -134,6 +143,9 @@ export function QualificationUploader({ documents, copy, onUploaded }: Qualifica
             setFile(selected);
             const issue = selected ? validateQualificationFile(selected) : null;
             setError(issue ? copy.fileErrors[issue] : null);
+            if (issue) {
+              toast.error(copy.fileErrors[issue]);
+            }
             setRefreshError(null);
             setSuccess(false);
           }}
