@@ -413,6 +413,62 @@ status, audit-trigger rollback, cleanup retries, reference protection, worker lo
 simulated Storage transport. It inserts test actors/documents and retains immutable audit evidence;
 discard the test database afterward. It does not test live Supabase URL expiry.
 
+## Mock payment API (S2-T04)
+
+`POST /api/v1/bookings/me/:bookingId/mock-payment` records the demo payment for one booking. It is
+a demonstration flow only: the body carries `amount` and `reference` and nothing else, and the
+global validation pipe rejects any card, bank or other unknown field.
+
+Access is `JwtAuthGuard`, then `RolesGuard(STUDENT)`, then `ResourceOwnershipGuard`. The route
+declares its own ownership bodies so a booking owned by another student answers 403
+`BOOKING_NOT_OWNED` rather than the ownership-safe 404 used elsewhere.
+
+`amount` is a fixed two-decimal string and is compared with the booking's stored `netAmount` only to
+detect a stale client; the server amount is the one recorded, and the comparison is a `Decimal`
+comparison rather than string equality. `reference` is trimmed, single-line, at most 64 characters
+and globally unique across bookings. It accepts text in any language, Thai included; only control
+and format characters are rejected, because no card asks the field to be ASCII and the rest of the
+API keeps user-supplied text Unicode-aware.
+
+Only a `CONFIRMED` and `UNPAID` booking can be paid. One transaction writes `paymentStatus=PAID`,
+`paidAt` and `mockReference` through a conditional update whose `where` still requires
+`paymentStatus=UNPAID`, so two concurrent payments cannot both succeed and a losing request reads
+nothing back. Outcomes:
+
+| Status | Code                                | Cause                                                        |
+| ------ | ----------------------------------- | ------------------------------------------------------------ |
+| 200    | —                                   | Payment recorded; returns the stored amount and UTC `paidAt` |
+| 400    | `BOOKING_PAYMENT_AMOUNT_MISMATCH`   | Declared amount differs from the stored `netAmount`          |
+| 400    | `VALIDATION_FAILED`, `INVALID_UUID` | Blank or oversized reference, loose amount, unknown field    |
+| 403    | `BOOKING_NOT_OWNED`                 | Booking belongs to another student                           |
+| 404    | `BOOKING_NOT_FOUND`                 | No booking with this ID                                      |
+| 409    | `BOOKING_NOT_PAYABLE`               | Booking is not confirmed                                     |
+| 409    | `BOOKING_ALREADY_PAID`              | Booking is already paid                                      |
+| 409    | `MOCK_REFERENCE_TAKEN`              | Reference already recorded for another booking               |
+| 409    | `BOOKING_PAYMENT_CONFLICT`          | A concurrent payment won the transition                      |
+
+No state-changing error leaves a partial write: every rejection happens before the transaction or
+inside it, where the transaction rolls back. `db:verify:bookings` proves this against PostgreSQL with
+a temporary `AFTER UPDATE` trigger that fails once the row is already PAID; the booking must come back
+CONFIRMED and UNPAID with a null `paidAt` and `mockReference`. The same check pays the booking once
+and then reuses its reference on a second booking to prove the unique index surfaces as
+`MOCK_REFERENCE_TAKEN`.
+
+Two decisions worth stating, because the cards differ or the order is observable:
+
+- **Amount mismatch answers 400, and the cards disagree about it.** Product Backlog US12-5 and the
+  parent S2-T04 card say "Return 400 for amount mismatch/invalid reference"; the endpoint contract
+  card lists the mismatch under 409. The acceptance criteria win, so the endpoint answers 400. Note
+  the inconsistency this leaves inside this file: `assertBookableSlot` reports an already-started
+  slot as 409 because a client acting on a stale view is a state conflict, which is the same shape
+  of failure as a stale amount. That is a conflict between the cards rather than a defect in either
+  code path, and moving the mismatch to 409 needs the backlog changed first. The body carries
+  `BOOKING_PAYMENT_AMOUNT_MISMATCH` and `details.expectedAmount`, so a client can react to the
+  specific cause whichever status the backlog settles on.
+- **State is checked before the amount.** Paying a booking that is still PENDING answers 409
+  `BOOKING_NOT_PAYABLE` even when the amount is also wrong, because an unconfirmed booking cannot be
+  paid at any amount.
+
 ## Private availability range queries
 
 `GET /api/v1/tutors/me/availability` accepts optional UTC `from` and `to` bounds. By default it
