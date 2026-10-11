@@ -29,9 +29,10 @@ rewrites that path to the API on port 3001. The API documentation is available a
 The implemented web flow includes authentication and email verification, profile onboarding/editing,
 role-specific dashboards, tutor availability and course management, tutor discovery, student booking,
 private student/tutor messaging, and the informational `/about-me` page. Messaging at
-`/dashboard/messages` supports asking a tutor before booking, inbox pagination, complete forward
-history reads and text sending; updates are currently requested with Refresh. Automatic polling,
-read receipts and incremental older-history UX remain S2-T20. Availability supports overnight and multi-day ranges with
+`/dashboard/messages` supports asking a tutor before booking, inbox pagination, latest-first opening,
+incremental older-history loading, text sending and server-backed sent/read receipts. The open chat
+checks for updates every four seconds, pauses while the tab is hidden and stops when closed;
+manual Refresh remains available. Availability supports overnight and multi-day ranges with
 Bangkok-time presentation and UTC timestamps on the wire. Day and week views use the private
 availability overlap filter to include carry-over slots without loading past history. Reserved slots
 remain protected.

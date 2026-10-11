@@ -8,6 +8,8 @@ export type DashboardIconName =
   | 'bookings'
   | 'calendar'
   | 'check'
+  | 'check-single'
+  | 'check-double'
   | 'clock'
   | 'close'
   | 'dashboard'
@@ -69,6 +71,8 @@ export function DashboardIcon({
         <path d="m8.5 12 2.3 2.3 4.7-4.7" />
       </>
     ),
+    'check-single': <path d="m5 12 4 4L19 6" />,
+    'check-double': <path d="m2 12 5 5L18 6m-11 7 4 4L22 6" />,
     clock: (
       <>
         <circle cx="12" cy="12" r="8.5" />

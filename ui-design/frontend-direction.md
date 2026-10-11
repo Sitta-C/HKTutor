@@ -1,6 +1,6 @@
 # HKTutor frontend direction — Notebook Focus
 
-Updated 2026-10-09. This describes the implemented Notebook Focus direction and component
+Updated 2026-10-11. This describes the implemented Notebook Focus direction and component
 patterns in this repository. Maintainers review changes to shared design conventions through the
 normal PR process; this guide does not assert team approval of decisions from an individual chat.
 Read it as implementation context before UI work. The current task's explicit requirements take
@@ -498,17 +498,25 @@ Use the current `conversations` API and canonical tutor User ID. Do not add stud
   trimmed Unicode code-point limits (1–2,000). Guard duplicate submission while pending. On uncertain
   send failures retain the draft and ask the user to refresh/check history before sending again;
   the API has no client-send idempotency key, so never retry a failed send automatically.
-- This is the S2-T17 baseline: **Refresh** checks for new messages explicitly. S2-T20 still owns
-  automatic polling, read acknowledgements/receipts and incremental older-history UX. The current
-  API pages oldest-first, so initial open follows forward cursors to the end before exposing the
-  composer. Reopening/refreshed history uses the cached GET cursor. Keep that cursor separate from
-  send responses to avoid skipping concurrent incoming messages. Long histories take more initial
-  reads/memory; a latest-first/backward history contract should be assessed for S2-T20.
-  Bound each current history load to 200 pages and 60 seconds across the operation. Reject broken
-  cursors/empty continuing pages, and show an explicit error on a bound rather than silently treating
-  partial history as complete. Preserve cached messages, drafts and the GET cursor on refresh failure.
-- Current unread counts come directly from the inbox API and are not cleared by reading locally;
-  GET history does not mark messages read. Do not add a global unread total from partial inbox pages.
+- S2-T20 adds the user-selected **Quiet Receipts** (2026-10-11): a quiet centered Load earlier
+  messages action above the transcript and Sent/Read text beside each outgoing timestamp, with
+  one/two checks as supplementary cues. Keep the current paper, pane layout and Ink Tickets composer.
+  History Tab remains unselected. Open with the latest 20 messages and prepend one older page per
+  click, preserving the visible reading position and keeping the composer stationary.
+- Check for updates every four seconds while the conversation is open and the document is visible.
+  Prevent overlapping history requests. Pause and abort reads when hidden; resume on visibility,
+  and clean timers/listeners/requests on close, conversation switch and page/user unmount.
+  Keep the explicit Refresh action and cached drafts/history when a read fails. Forward catch-up
+  stays bounded to 200 pages and one 60-second deadline; never silently treat partial updates as complete.
+  Keep the GET cursor separate from send responses to preserve concurrent incoming messages.
+  Refresh from the oldest loaded unread outgoing message (inclusively) when it precedes the GET
+  boundary, so server read receipts can update without advancing past unseen incoming messages.
+- Acknowledge received messages only in a visible open thread at the latest reading position,
+  through the received boundary using the recipient-only idempotent read endpoint. Show Read only
+  from persisted `readAt`, never from a send or local opening alone. Read acknowledgement failures
+  retain history/drafts and retry while open. Refresh inbox values after new arrivals and successful
+  acknowledgements; counts remain server values. GET history itself never marks messages read.
+  Do not add a global unread total from partial inbox pages.
 
 ### Margin Inbox refinement (2026-10-09)
 
@@ -518,7 +526,7 @@ heading, aligned 72px pane headers, two-row contacts with time beside the name, 
 and participant-role avatar colors. Keep names accessible in full even when visually ellipsized.
 
 Use one visible refresh action in an open thread, refreshing both its history and the inbox. The
-index refresh remains available when choosing a conversation. Keep the manual-update hint in the
+index refresh remains available when choosing a conversation. Keep the automatic-update hint in the
 thread header. The workspace measures the actual shell/header offset and viewport height (including
 visual-viewport resize), within 360–760px, rather than using fixed subtraction for each breakpoint.
 
@@ -527,7 +535,7 @@ gap for consecutive same-sender messages within three minutes on the same Bangko
 composer at one line, grow to 112px with native inner scrolling, and place the existing Send ticket
 beside the input. The compact Thai label is **ส่ง**, with the full **ส่งข้อความ** accessible name.
 Show limit/count guidance on focus, a nonempty draft or a send error. Keep latest-message navigation
-floating above the composer, existing drafts/reading offsets and the S2-T17/S2-T20 scope boundary.
+floating above the composer, existing drafts/reading offsets and the Quiet Receipts behavior above.
 
 The follow-up positioning pass adds 16px clearance beneath the shell header so the Thai eyebrow
 does not touch its dashed edge. Keep Send to the right of the textarea on the same row, including

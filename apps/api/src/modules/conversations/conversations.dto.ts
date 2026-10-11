@@ -2,6 +2,7 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
 import {
   IsInt,
+  IsIn,
   IsNotEmpty,
   IsOptional,
   IsString,
@@ -93,6 +94,30 @@ export class GetMyConversationsQueryDto {
 
 export class GetMessagesQueryDto {
   @ApiPropertyOptional({
+    description: 'Start with the latest page. Exclusive with all cursors.',
+    enum: ['true'],
+  })
+  @IsOptional()
+  @IsIn(['true'])
+  latest?: 'true';
+
+  @ApiPropertyOptional({
+    description: 'Load the page immediately before this message.',
+    format: 'uuid',
+  })
+  @IsOptional()
+  @IsUUID()
+  beforeMessageId?: string;
+
+  @ApiPropertyOptional({
+    description: 'Read from this message inclusively to refresh sent/read states.',
+    format: 'uuid',
+  })
+  @IsOptional()
+  @IsUUID()
+  fromMessageId?: string;
+
+  @ApiPropertyOptional({
     description:
       'Return the messages sent after this one. Omit it to start from the first message.',
     example: 'b7e4c1a2-5f6d-4e8b-9a0c-3d2f1e4b5a69',
@@ -153,7 +178,15 @@ export class MessageHistoryResponseDto {
   })
   nextAfterMessageId!: string | null;
 
-  @ApiProperty({ description: 'More messages follow nextAfterMessageId', example: false })
+  @ApiPropertyOptional({
+    description:
+      'Backward pages only: oldest returned message when older history remains, otherwise null.',
+    nullable: true,
+    type: String,
+  })
+  nextBeforeMessageId?: string | null;
+
+  @ApiProperty({ description: 'More messages remain in the requested direction', example: false })
   hasMore!: boolean;
 }
 

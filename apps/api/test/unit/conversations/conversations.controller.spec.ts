@@ -503,7 +503,12 @@ describe('ConversationsController OpenAPI contract', () => {
     for (const status of ['200', '400', '401', '403', '404']) {
       expect(operation?.responses[status]).toBeDefined();
     }
-    expect(Object.keys(response?.properties ?? {})).toEqual(fields);
+    expect(Object.keys(response?.properties ?? {})).toEqual([
+      'items',
+      'nextAfterMessageId',
+      'nextBeforeMessageId',
+      'hasMore',
+    ]);
     expect(response?.required).toEqual(fields);
     expect(response?.properties?.['items']?.items?.$ref).toBe(
       '#/components/schemas/MessageResponseDto',

@@ -12,6 +12,7 @@ import type {
 
 export const CONVERSATION_HISTORY_MAX_PAGES = 200;
 export const CONVERSATION_HISTORY_TIMEOUT_MS = 60_000;
+export const CONVERSATION_POLL_INTERVAL_MS = 4_000;
 
 export function getConversations(
   cursor?: string,
@@ -39,9 +40,12 @@ export function getConversationMessages(
   conversationId: string,
   afterMessageId: string | null = null,
   signal: AbortSignal | null = null,
+  fromMessageId: string | null = null,
 ): Promise<ConversationMessagesResponse> {
   const query = new URLSearchParams({ pageSize: '50' });
-  if (afterMessageId) {
+  if (fromMessageId) {
+    query.set('fromMessageId', fromMessageId);
+  } else if (afterMessageId) {
     query.set('afterMessageId', afterMessageId);
   }
   return authenticatedFetch(
@@ -64,13 +68,19 @@ async function readConversationHistory(
   conversationId: string,
   afterMessageId: string | null,
   signal: AbortSignal,
+  fromMessageId: string | null = null,
 ): Promise<{ items: ConversationMessage[]; cursor: string | null }> {
   let cursor = afterMessageId;
   const items: ConversationMessage[] = [];
   const visited = new Set<string | null>([cursor]);
   for (let pageNumber = 0; pageNumber < CONVERSATION_HISTORY_MAX_PAGES; pageNumber += 1) {
     signal.throwIfAborted();
-    const page = await getConversationMessages(conversationId, cursor, signal);
+    const page = await getConversationMessages(
+      conversationId,
+      cursor,
+      signal,
+      pageNumber === 0 ? fromMessageId : null,
+    );
     signal.throwIfAborted();
     const next = page.nextAfterMessageId;
     if (
@@ -106,7 +116,75 @@ export async function loadConversationMessages(
   conversationId: string,
   afterMessageId: string | null,
   signal: AbortSignal,
+  fromMessageId: string | null = null,
 ): Promise<{ items: ConversationMessage[]; cursor: string | null }> {
+  return withHistoryDeadline(signal, (boundedSignal) =>
+    readConversationHistory(conversationId, afterMessageId, boundedSignal, fromMessageId),
+  );
+}
+
+export interface ConversationHistoryPage {
+  items: ConversationMessage[];
+  cursor: string | null;
+  olderCursor: string | null;
+}
+
+/** Fetch one recent/backward page; opening never downloads the entire conversation. */
+export function loadOlderConversationMessages(
+  conversationId: string,
+  beforeMessageId: string | null,
+  signal: AbortSignal,
+): Promise<ConversationHistoryPage> {
+  return withHistoryDeadline(signal, async (boundedSignal) => {
+    const query = new URLSearchParams({ pageSize: '20' });
+    if (beforeMessageId) {
+      query.set('beforeMessageId', beforeMessageId);
+    } else {
+      query.set('latest', 'true');
+    }
+    const page = await authenticatedFetch<ConversationMessagesResponse>(
+      `/conversations/${encodeURIComponent(conversationId)}/messages?${query}`,
+      { signal: boundedSignal },
+    );
+    boundedSignal.throwIfAborted();
+    if (
+      !Array.isArray(page.items) ||
+      typeof page.hasMore !== 'boolean' ||
+      page.nextAfterMessageId !== (page.items.at(-1)?.messageId ?? null) ||
+      (page.hasMore
+        ? !page.nextBeforeMessageId ||
+          page.nextBeforeMessageId !== page.items[0]?.messageId ||
+          page.nextBeforeMessageId === beforeMessageId
+        : page.nextBeforeMessageId !== null)
+    ) {
+      throw new Error('Invalid backward conversation history page');
+    }
+    return {
+      items: page.items,
+      cursor: page.nextAfterMessageId,
+      olderCursor: page.nextBeforeMessageId ?? null,
+    };
+  });
+}
+
+export function markConversationRead(
+  conversationId: string,
+  upToMessageId: string,
+  signal: AbortSignal,
+): Promise<{ updatedCount: number; readAt: string | null }> {
+  return withHistoryDeadline(signal, (boundedSignal) =>
+    authenticatedFetch(`/conversations/${encodeURIComponent(conversationId)}/read`, {
+      method: 'POST',
+      body: JSON.stringify({ upToMessageId }),
+      signal: boundedSignal,
+    }),
+  );
+}
+
+async function withHistoryDeadline<T>(
+  signal: AbortSignal,
+  read: (signal: AbortSignal) => Promise<T>,
+): Promise<T> {
   signal.throwIfAborted();
   const controller = new AbortController();
   const cancel = () => controller.abort(signal.reason);
@@ -122,10 +200,7 @@ export async function loadConversationMessages(
   });
   try {
     // Also bound awaits inside authentication refresh, which uses a shared request of its own.
-    return await Promise.race([
-      readConversationHistory(conversationId, afterMessageId, controller.signal),
-      aborted,
-    ]);
+    return await Promise.race([read(controller.signal), aborted]);
   } finally {
     clearTimeout(timeout);
     signal.removeEventListener('abort', cancel);

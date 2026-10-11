@@ -196,7 +196,7 @@ export function GetMessagesDoc(): MethodDecorator {
     ApiExtraModels(GetMessagesQueryDto, MessageHistoryResponseDto),
     ApiOperation({
       description:
-        'Oldest first. Send nextAfterMessageId back as afterMessageId to load the next page or to poll for new messages. Reading does not mark messages read.',
+        'Every page is oldest first. Default/afterMessageId reads forward; fromMessageId includes its cursor to refresh read states. latest=true starts at the newest page; beforeMessageId loads older history using nextBeforeMessageId. Specify only one mode. hasMore follows the requested direction. Reading does not mark messages read.',
       summary: 'List the messages in a conversation',
     }),
     ApiBearerAuth(JWT_BEARER_AUTH),
@@ -210,7 +210,7 @@ export function GetMessagesDoc(): MethodDecorator {
     }),
     ApiBadRequestResponse({
       description:
-        'afterMessageId is not a message in this conversation, pageSize is outside 1-50, an ID is not a UUID, or the query has an unknown field',
+        'A cursor is not a message in this conversation, more than one history mode was supplied, latest is not true, pageSize is outside 1-50, an ID is not a UUID, or the query has an unknown field',
       schema: errorSchema({
         code: 'VALIDATION_FAILED',
         error: 'Bad Request',

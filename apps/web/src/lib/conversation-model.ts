@@ -17,11 +17,30 @@ export function mergeMessages(
 ): ConversationMessage[] {
   const messages = new Map(current.map((message) => [message.messageId, message]));
   for (const message of incoming) {
-    messages.set(message.messageId, message);
+    // A read receipt is irreversible; an older overlapping GET must not turn it back into Sent.
+    messages.set(message.messageId, {
+      ...message,
+      readAt: messages.get(message.messageId)?.readAt ?? message.readAt,
+    });
   }
   return [...messages.values()].sort(
     (a, b) => a.sentAt.localeCompare(b.sentAt) || a.messageId.localeCompare(b.messageId),
   );
+}
+
+/** Refresh unread sent receipts without skipping incoming messages before an acknowledged send. */
+export function conversationReceiptCursor(
+  items: ConversationMessage[],
+  getCursor: string | null,
+  userId: string,
+): string | null {
+  const cursorIndex = items.findIndex((message) => message.messageId === getCursor);
+  const unreadIndex = items.findIndex(
+    (message) => message.senderId === userId && message.readAt === null,
+  );
+  return cursorIndex >= 0 && unreadIndex >= 0 && unreadIndex <= cursorIndex
+    ? (items[unreadIndex]?.messageId ?? null)
+    : null;
 }
 
 export function mergeConversations(
