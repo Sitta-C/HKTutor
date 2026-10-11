@@ -225,17 +225,22 @@ describe('tutor booking decision API clients', () => {
     expect(JSON.parse(String((fetchMock.mock.calls[1]?.[1] as RequestInit).body))).toEqual({});
   });
 
-  it.each([
-    [403, 'BOOKING_NOT_OWNED'],
-    [404, 'BOOKING_NOT_FOUND'],
-    [409, 'BOOKING_NOT_PENDING'],
-    [409, 'BOOKING_TRANSITION_CONFLICT'],
-  ])('keeps the %s %s body available for the inbox error states', async (status, code) => {
-    fetchMock.mockResolvedValueOnce(jsonResponse({ code, message: 'rejected' }, status));
+  describe.each([
+    ['confirm', confirmTutorBooking],
+    ['reject', rejectTutorBooking],
+  ] as const)('%s error propagation', (_action, act) => {
+    it.each([
+      [403, 'BOOKING_NOT_OWNED'],
+      [404, 'BOOKING_NOT_FOUND'],
+      [409, 'BOOKING_NOT_PENDING'],
+      [409, 'BOOKING_TRANSITION_CONFLICT'],
+    ])('keeps the %s %s body available for the inbox error states', async (status, code) => {
+      fetchMock.mockResolvedValueOnce(jsonResponse({ code, message: 'rejected' }, status));
 
-    await expect(confirmTutorBooking('booking-1')).rejects.toMatchObject({
-      status,
-      details: { code },
+      await expect(act('booking-1')).rejects.toMatchObject({
+        status,
+        details: { code },
+      });
     });
   });
 });

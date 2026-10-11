@@ -441,6 +441,61 @@ explanation returns `recommendationTags: []`.
 This contract addition delegates ordering and result pagination to the existing sorter. API tests
 for it use mocked persistence and do not certify PostgreSQL ordering or public-query eligibility.
 The ranking selector and translated result-card labels belong to S2-T14.
+## Mock payment API (S2-T04)
+
+`POST /api/v1/bookings/me/:bookingId/mock-payment` records the demo payment for one booking. It is
+a demonstration flow only: the body carries `amount` and `reference` and nothing else, and the
+global validation pipe rejects any card, bank or other unknown field.
+
+Access is `JwtAuthGuard`, then `RolesGuard(STUDENT)`, then `ResourceOwnershipGuard`. The route
+declares its own ownership bodies so a booking owned by another student answers 403
+`BOOKING_NOT_OWNED` rather than the ownership-safe 404 used elsewhere.
+
+`amount` is a fixed two-decimal string and is compared with the booking's stored `netAmount` only to
+detect a stale client; the server amount is the one recorded, and the comparison is a `Decimal`
+comparison rather than string equality. `reference` is trimmed, single-line, at most 64 characters
+and globally unique across bookings. It accepts text in any language, Thai included; only control
+and format characters are rejected, because no card asks the field to be ASCII and the rest of the
+API keeps user-supplied text Unicode-aware.
+
+Only a `CONFIRMED` and `UNPAID` booking can be paid. One transaction writes `paymentStatus=PAID`,
+`paidAt` and `mockReference` through a conditional update whose `where` still requires
+`paymentStatus=UNPAID`, so two concurrent payments cannot both succeed and a losing request reads
+nothing back. Outcomes:
+
+| Status | Code                                | Cause                                                        |
+| ------ | ----------------------------------- | ------------------------------------------------------------ |
+| 200    | —                                   | Payment recorded; returns the stored amount and UTC `paidAt` |
+| 400    | `BOOKING_PAYMENT_AMOUNT_MISMATCH`   | Declared amount differs from the stored `netAmount`          |
+| 400    | `VALIDATION_FAILED`, `INVALID_UUID` | Blank or oversized reference, loose amount, unknown field    |
+| 403    | `BOOKING_NOT_OWNED`                 | Booking belongs to another student                           |
+| 404    | `BOOKING_NOT_FOUND`                 | No booking with this ID                                      |
+| 409    | `BOOKING_NOT_PAYABLE`               | Booking is not confirmed                                     |
+| 409    | `BOOKING_ALREADY_PAID`              | Booking is already paid                                      |
+| 409    | `MOCK_REFERENCE_TAKEN`              | Reference already recorded for another booking               |
+| 409    | `BOOKING_PAYMENT_CONFLICT`          | A concurrent payment won the transition                      |
+
+No state-changing error leaves a partial write: every rejection happens before the transaction or
+inside it, where the transaction rolls back. `db:verify:bookings` proves this against PostgreSQL with
+a temporary `AFTER UPDATE` trigger that fails once the row is already PAID; the booking must come back
+CONFIRMED and UNPAID with a null `paidAt` and `mockReference`. The same check pays the booking once
+and then reuses its reference on a second booking to prove the unique index surfaces as
+`MOCK_REFERENCE_TAKEN`.
+
+Two decisions worth stating, because the cards differ or the order is observable:
+
+- **Amount mismatch answers 400, and the cards disagree about it.** Product Backlog US12-5 and the
+  parent S2-T04 card say "Return 400 for amount mismatch/invalid reference"; the endpoint contract
+  card lists the mismatch under 409. The acceptance criteria win, so the endpoint answers 400. Note
+  the inconsistency this leaves inside this file: `assertBookableSlot` reports an already-started
+  slot as 409 because a client acting on a stale view is a state conflict, which is the same shape
+  of failure as a stale amount. That is a conflict between the cards rather than a defect in either
+  code path, and moving the mismatch to 409 needs the backlog changed first. The body carries
+  `BOOKING_PAYMENT_AMOUNT_MISMATCH` and `details.expectedAmount`, so a client can react to the
+  specific cause whichever status the backlog settles on.
+- **State is checked before the amount.** Paying a booking that is still PENDING answers 409
+  `BOOKING_NOT_PAYABLE` even when the amount is also wrong, because an unconfirmed booking cannot be
+  paid at any amount.
 
 ## Private availability range queries
 
@@ -450,3 +505,59 @@ slots spanning the range (`endAtUtc > from` and `startAtUtc < to`); omitted boun
 This mode excludes slots ending exactly at `from` or starting exactly at `to`. It retains tutor
 ownership, soft-delete filtering, and derived reservation states. The public availability endpoint
 keeps its existing future-start behavior and does not accept `rangeMode`.
+
+## Tutor booking transition verification (S2-T03)
+
+`pnpm --filter @hktutor/api db:verify:tutor-transitions` exercises the real Nest HTTP pipeline and
+Prisma transactions against PostgreSQL. Neither root `pnpm check` nor `pnpm test` runs this command.
+The HTTP Jest suite uses persistence doubles; it checks routing, validation and failure propagation,
+but cannot establish database atomicity.
+
+Use Node.js 24.19.0, the repository pnpm version, installed dependencies, and Docker (or an empty
+disposable PostgreSQL database). From the repository root, this example creates a new local target,
+applies committed migrations without seeding, and runs the verifier:
+
+```bash
+nvm use 24.19.0
+pnpm install --frozen-lockfile
+docker run --detach --name hktutor-tutor-transitions-test \
+  --publish 127.0.0.1:55434:5432 \
+  --env POSTGRES_USER=postgres --env POSTGRES_PASSWORD=disposable-local-only \
+  --env POSTGRES_DB=hktutor_transitions_test postgres:17
+# Wait until this reports that PostgreSQL is accepting connections.
+docker exec hktutor-tutor-transitions-test pg_isready -U postgres -d hktutor_transitions_test
+export DATABASE_URL='postgresql://postgres:disposable-local-only@127.0.0.1:55434/hktutor_transitions_test'
+pnpm db:generate
+pnpm --filter @hktutor/api db:migrate:deploy
+HKTUTOR_ALLOW_DISPOSABLE_DB_VERIFY=1 pnpm --filter @hktutor/api db:verify:tutor-transitions
+# Discard this example's container and its anonymous data volume, including after a failed run.
+docker rm --force --volumes hktutor-tutor-transitions-test
+unset DATABASE_URL
+```
+
+The approval flag and explicit `DATABASE_URL` are both required. The runner never loads `.env` or
+uses `AppModule` to select a fallback database. It accepts loopback hosts (`localhost`, `127.0.0.1`,
+IPv6 loopback) and database names starting with `hktutor_` or `hktutor-`; ports and users are configurable.
+URL options, schema overrides, fragments, remote hosts, and omitted targets are refused. These gates
+do not establish that a local database is disposable: choose an empty target that you own before
+applying migrations or running either verifier. Preflight checks applied `_prisma_migrations`,
+the active-slot partial unique index, and the cancellation constraint before creating fixtures.
+
+The runner creates random actors, catalog entries, a DRAFT listing, slots and bookings itself; it
+has no seed dependency. It verifies role/ownership errors and terminal states with persisted
+booking/slot snapshots, successful reservation/release through the real private availability
+projection, all four repeat/switch transitions, and all four concurrent action pairs. A read gate
+holds both real service SELECTs after they observe PENDING, then releases them to contend through
+the real database transaction. Text boundaries are 499/500/501 ASCII characters; inbox bounds use
+one-millisecond neighbors of persisted timestamps and the DTO pagination limits. Timeout handling
+and URL safety have separate unit tests (`tutor-transition-verifier.spec.ts`); these are test-runner
+checks, not database atomicity evidence.
+
+Compared with `db:verify:bookings` (`verify-booking-endpoint-concurrency.ts`), this runner adds the
+synchronized four-pair decision matrix, full persisted snapshots, terminal/authorization decision
+tables, and tutor inbox boundaries without requiring a seeded published listing. Keep the older
+runner for booking creation/payment contention and its `probe_reject_rollback` trigger: it supplies
+the separate real mid-transaction reject rollback evidence. The new runner does not replace that
+trigger test. It removes only its invocation's random fixture IDs in `finally`; retain failures and
+discard the disposable database afterward. Browser inbox tests intercept API responses and establish
+UI behavior, rather than live browser-to-database integration.
