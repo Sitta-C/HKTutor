@@ -464,7 +464,10 @@ export function ConversationThread({
                   </time>
                   {message.senderId === user.id && (
                     <span className={styles.receipt} data-read={Boolean(message.readAt)}>
-                      <span aria-hidden="true">{message.readAt ? '✓✓' : '✓'}</span>
+                      <DashboardIcon
+                        name={message.readAt ? 'check-double' : 'check-single'}
+                        className={styles.receiptIcon ?? ''}
+                      />
                       {message.readAt ? text.readState : text.sentState}
                     </span>
                   )}

@@ -331,6 +331,11 @@
   align-items: center;
   gap: 4px;
 }
+.receiptIcon {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
 .receipt[data-read='true'] {
   color: var(--chat-accent);
 }
