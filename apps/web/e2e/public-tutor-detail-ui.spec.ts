@@ -632,3 +632,18 @@ test('long public text and many loaded days fit without trimming content', async
   await noOverflow(page);
   await page.screenshot({ path: testInfo.outputPath('detail-long-text.png'), fullPage: true });
 });
+
+for (const verificationStatus of ['PENDING', 'REJECTED', 'APPROVED']) {
+  test(`does not show a verified badge for unexpected public ${verificationStatus} metadata`, async ({
+    page,
+  }) => {
+    await mockDetail(page);
+    await page.route('**/api/v1/tutors/tutor-anna', async (route) => {
+      await route.fulfill({ json: { ...detail, tutor: { ...detail.tutor, verificationStatus } } });
+    });
+    await page.goto('/tutors/tutor-anna');
+    await expect(page.getByRole('heading', { name: 'Teacher Anna', exact: true })).toBeVisible();
+    await expect(page.locator('[data-tutor-verification]')).toHaveCount(0);
+    await expect(page.getByRole('link', { name: 'Review qualification documents' })).toHaveCount(0);
+  });
+}

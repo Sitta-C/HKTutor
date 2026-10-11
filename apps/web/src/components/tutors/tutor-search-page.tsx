@@ -13,6 +13,7 @@ import {
   tutorRatingOptions,
   validateTutorSearch,
 } from '@/components/tutors/tutor-search-model';
+import { TutorVerificationBadge } from '@/components/tutors/tutor-verification-badge';
 import {
   NotebookHeading,
   PaperCard,
@@ -530,10 +531,15 @@ function TutorResultCard({
           />
           <div className={styles.name}>
             <h3>{result.displayName}</h3>
-            <StatusBadge tone="student" className={styles.tag ?? ''}>
-              {text.verified}
-            </StatusBadge>
           </div>
+        </div>
+        <div className={styles.verification}>
+          <TutorVerificationBadge
+            status={result.verificationStatus}
+            language={language}
+            audience="public"
+            compact
+          />
         </div>
         <div className={styles.metadata}>
           <span>

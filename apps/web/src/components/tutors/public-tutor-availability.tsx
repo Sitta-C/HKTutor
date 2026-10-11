@@ -14,6 +14,7 @@ import {
   groupPublicTutorSlots,
 } from '@/components/tutors/public-tutor-detail-model';
 import { tutorSearchCopy } from '@/components/tutors/tutor-search-copy';
+import { TutorVerificationBadge } from '@/components/tutors/tutor-verification-badge';
 import { NotebookHeading, PaperCard, StickyNote, WashiTape } from '@/components/ui/notebook';
 import {
   NotebookAction,
@@ -183,7 +184,13 @@ export default function PublicTutorAvailabilityPage({ tutorId }: { tutorId: stri
               />
               <div className="min-w-0">
                 <h2 id="public-tutor-name">{detail.tutor.displayName}</h2>
-                <p className={styles.verification}>{searchText.verified}</p>
+                <div className={styles.verification}>
+                  <TutorVerificationBadge
+                    status={detail.tutor.verificationStatus}
+                    language={language}
+                    audience="public"
+                  />
+                </div>
               </div>
             </div>
             <p className={styles.rating}>

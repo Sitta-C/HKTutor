@@ -22,6 +22,7 @@ import {
 } from '@/components/profile/profile-editor-model';
 import { TutorProfileSummary } from '@/components/profile/tutor-profile-summary';
 import { TutorVerificationSection } from '@/components/qualifications/tutor-verification-section';
+import { TutorVerificationBadge } from '@/components/tutors/tutor-verification-badge';
 import {
   PaperCard,
   StatusBadge,
@@ -175,6 +176,7 @@ export default function ProfileEditor({ mode }: ProfileEditorProps) {
   }, [authLoading, mode, router, text.loadError, user]);
 
   const studentRole = user?.role === 'STUDENT';
+  const showQualificationDocuments = mode === 'edit' && !studentRole && consentCurrent;
   const dirty = studentRole
     ? JSON.stringify(student) !== JSON.stringify(initialStudent)
     : JSON.stringify(tutor) !== JSON.stringify(initialTutor);
@@ -433,6 +435,7 @@ export default function ProfileEditor({ mode }: ProfileEditorProps) {
                   studentRole ? isStudentProfileComplete(student) : isTutorProfileComplete(tutor)
                 }
                 tutorMeta={tutorMeta}
+                documentsHref={showQualificationDocuments ? '#qualification-documents' : undefined}
               />
               {!studentRole && (
                 <p className="mt-3 text-xs leading-5 text-notebook-muted">
@@ -485,7 +488,7 @@ export default function ProfileEditor({ mode }: ProfileEditorProps) {
           )}
         </div>
       )}
-      {mode === 'edit' && !studentRole && consentCurrent && (
+      {showQualificationDocuments && (
         <TutorVerificationSection
           onDocumentChanged={async () => {
             const latest = await loadCurrentProfile(user.id, { force: true });
@@ -791,16 +794,25 @@ function SystemInfo({
   student,
   complete,
   tutorMeta,
+  documentsHref,
 }: {
   email: string;
   language: 'en' | 'th';
   student: boolean;
   complete: boolean;
   tutorMeta: Pick<TutorProfile, 'ratingAverage' | 'reviewCount' | 'verificationStatus'>;
+  documentsHref?: string | undefined;
 }) {
   const text = copy[language];
   if (!student) {
-    return <TutorProfileSummary email={email} language={language} tutorMeta={tutorMeta} />;
+    return (
+      <TutorProfileSummary
+        email={email}
+        language={language}
+        tutorMeta={tutorMeta}
+        documentsHref={documentsHref}
+      />
+    );
   }
   return (
     <section className={summaryStyles.summary} aria-label={text.profileStatus}>
@@ -931,21 +943,9 @@ function TutorPreview({
               initials={initials(name, 'T')}
               role="tutor"
             />
-            <p
-              className={`${previewStyles.verification} ${
-                status === 'VERIFIED'
-                  ? 'text-emerald-800'
-                  : status === 'REJECTED'
-                    ? 'text-red-700'
-                    : 'text-amber-700'
-              }`}
-            >
-              <DashboardIcon
-                name={status === 'VERIFIED' ? 'shield' : 'info'}
-                className="h-4 w-4 shrink-0"
-              />
-              {text.status[status]}
-            </p>
+            <div className={previewStyles.verification}>
+              <TutorVerificationBadge status={status} language={language} audience="owner" />
+            </div>
           </div>
           <StickyNote tone="yellow" className={previewStyles.experience}>
             <strong className="font-note">
@@ -1115,7 +1115,8 @@ const copy = {
     studentSubtitle: 'Keep your learning and contact information accurate.',
     studentTitle: 'Your student profile',
     studentView: 'Student view',
-    studentViewBody: 'This is how your profile appears to students.',
+    studentViewBody:
+      'Profile preview. Students can find you after verification and course publication.',
     tutor: 'Tutor',
     teachingExperience: 'Teaching experience',
     tutorSubtitle: 'Tell students about your teaching experience.',
@@ -1130,7 +1131,6 @@ const copy = {
       'Only your nickname may appear to a tutor linked to your booking. Your legal name, school, class, telephone, and email stay hidden.',
     experienceShort: 'Experience',
     years: 'years',
-    status: { PENDING: 'Pending review', REJECTED: 'Not verified', VERIFIED: 'Verified' },
     fieldLabels: {
       bio: 'Tutor biography',
       displayName: 'Public tutor name',
@@ -1213,7 +1213,7 @@ const copy = {
     studentSubtitle: 'กรอกข้อมูลการเรียนและข้อมูลติดต่อของคุณให้ถูกต้อง',
     studentTitle: 'โปรไฟล์นักเรียนของคุณ',
     studentView: 'มุมมองนักเรียน',
-    studentViewBody: 'โปรไฟล์ของคุณจะแสดงต่อนักเรียนแบบนี้',
+    studentViewBody: 'ตัวอย่างโปรไฟล์ นักเรียนจะพบคุณเมื่อผ่านการตรวจสอบและเผยแพร่คอร์สแล้ว',
     tutor: 'ติวเตอร์',
     teachingExperience: 'ประสบการณ์สอน',
     tutorSubtitle: 'บอกนักเรียนเกี่ยวกับประสบการณ์การสอนของคุณ',
@@ -1228,11 +1228,6 @@ const copy = {
       'เฉพาะชื่อเล่นเท่านั้นที่จะแสดงให้ติวเตอร์ซึ่งเกี่ยวข้องกับการจองเห็น ชื่อจริง นามสกุล โรงเรียน ชั้นเรียน เบอร์โทรศัพท์ และอีเมลจะไม่แสดง',
     experienceShort: 'ประสบการณ์',
     years: 'ปี',
-    status: {
-      PENDING: 'รอตรวจสอบ',
-      REJECTED: 'ยังไม่ผ่านการยืนยัน',
-      VERIFIED: 'ยืนยันแล้ว',
-    },
     fieldLabels: {
       bio: 'ประวัติแนะนำตัว',
       displayName: 'ชื่อสาธารณะของติวเตอร์',
