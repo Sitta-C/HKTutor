@@ -1,0 +1,69 @@
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  padding: 5px 10px;
+  border: 1px solid;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.badge[data-tutor-verification='VERIFIED'] {
+  border-color: var(--color-emerald-200);
+  background: var(--color-emerald-50);
+  color: var(--color-emerald-900);
+}
+
+.badge[data-tutor-verification='PENDING'] {
+  border-color: var(--color-amber-200);
+  background: var(--color-amber-50);
+  color: var(--color-amber-900);
+}
+
+.badge[data-tutor-verification='REJECTED'] {
+  border-color: var(--color-red-200);
+  background: var(--color-red-50);
+  color: var(--color-red-800);
+}
+
+.compact {
+  padding: 3px 6px;
+  font-size: 12px;
+}
+
+.icon {
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+}
+
+.guidance {
+  margin-top: 8px;
+  color: var(--color-notebook-ink);
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.documents {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  border-radius: 4px;
+  color: var(--color-tutor-deep);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
+.documents:hover {
+  text-decoration-thickness: 2px;
+}
+
+.documents:focus-visible {
+  outline: 2px solid var(--color-tutor-deep);
+  outline-offset: 3px;
+}

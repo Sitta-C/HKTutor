@@ -201,3 +201,27 @@ test('preserves the student account fields and completion summary', async ({ pag
   await expect(page.locator('form').getByText('ข้อมูลครบ', { exact: true })).toBeVisible();
   await expect(page.locator('#school')).toHaveValue('Example School');
 });
+
+for (const verificationStatus of ['PENDING', 'REJECTED'] as const) {
+  test(`${verificationStatus} guidance opens and focuses qualification documents after profile loading`, async ({
+    page,
+  }) => {
+    await mockProfile(page, { meta: { verificationStatus }, language: 'en' });
+    await page.goto('/dashboard/profile#qualification-documents');
+    const documents = page.locator('#qualification-documents');
+    await expect(documents).toBeFocused();
+    await expect(
+      documents.getByRole('heading', { name: 'Tutor certificates', exact: true }),
+    ).toBeInViewport();
+    const summary = page.getByRole('region', { name: 'Tutor account summary', exact: true });
+    await expect(summary.locator('[data-tutor-verification]')).toHaveAttribute(
+      'data-tutor-verification',
+      verificationStatus,
+    );
+    await summary
+      .getByRole('link', { name: 'Review qualification documents', exact: true })
+      .click();
+    await expect(documents).toBeFocused();
+    await expect(page).toHaveURL(/#qualification-documents$/);
+  });
+}

@@ -4,7 +4,10 @@ import { useId, useState } from 'react';
 
 import { DashboardIcon } from '@/components/dashboard/dashboard-icon';
 import { buildProfileRatingSummary } from '@/components/profile/profile-rating-model';
-import { StatusBadge } from '@/components/ui/notebook';
+import {
+  TutorVerificationBadge,
+  TutorVerificationGuidance,
+} from '@/components/tutors/tutor-verification-badge';
 
 import styles from './tutor-profile-summary.module.css';
 
@@ -24,8 +27,6 @@ export function TutorProfileSummary({ email, language, tutorMeta }: TutorProfile
     tutorMeta.ratingAverage,
     tutorMeta.reviewCount,
   );
-  const verified = tutorMeta.verificationStatus === 'VERIFIED';
-  const rejected = tutorMeta.verificationStatus === 'REJECTED';
   const scoreLabel =
     score === null ? text.noRating : text.ratingLabel.replace('{score}', score.toFixed(1));
 
@@ -39,16 +40,16 @@ export function TutorProfileSummary({ email, language, tutorMeta }: TutorProfile
         <dl className={styles.field}>
           <dt className={styles.caption}>{text.verification}</dt>
           <dd className={styles.statusValue}>
-            <StatusBadge
-              tone={verified ? 'tutor' : rejected ? 'danger' : 'warning'}
-              className={styles.badge ?? ''}
-            >
-              <DashboardIcon
-                name={verified ? 'shield' : rejected ? 'info' : 'clock'}
-                className="h-3.5 w-3.5 shrink-0"
-              />
-              {text.status[tutorMeta.verificationStatus]}
-            </StatusBadge>
+            <TutorVerificationBadge
+              status={tutorMeta.verificationStatus}
+              language={language}
+              audience="owner"
+            />
+            <TutorVerificationGuidance
+              status={tutorMeta.verificationStatus}
+              language={language}
+              documentsHref="#qualification-documents"
+            />
           </dd>
         </dl>
         <div className={`${styles.field} ${styles.feedback}`}>
@@ -124,11 +125,6 @@ const copy = {
     reviewCount: 'From {count} reviews',
     readReviews: 'Read all reviews',
     reviewsUnavailable: 'Individual reviews are not available to read yet.',
-    status: {
-      VERIFIED: 'Verified',
-      PENDING: 'Pending review',
-      REJECTED: 'Not verified',
-    },
   },
   th: {
     title: 'สรุปบัญชีติวเตอร์',
@@ -141,10 +137,5 @@ const copy = {
     reviewCount: 'จาก {count} รีวิว',
     readReviews: 'อ่านรีวิวทั้งหมด',
     reviewsUnavailable: 'ยังไม่เปิดให้อ่านรีวิวรายรายการในขณะนี้',
-    status: {
-      VERIFIED: 'ผ่านการตรวจสอบแล้ว',
-      PENDING: 'รอการตรวจสอบ',
-      REJECTED: 'ไม่ผ่านการตรวจสอบ',
-    },
   },
 } as const;
