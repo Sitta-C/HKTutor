@@ -18,6 +18,14 @@ interface TutorVerificationSectionProps {
 export function TutorVerificationSection({ onDocumentChanged }: TutorVerificationSectionProps) {
   const { language } = useLanguage();
   const copy = qualificationCopy[language];
+  const sectionRef = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    if (window.location.hash === '#qualification-documents') {
+      sectionRef.current?.focus();
+      sectionRef.current?.scrollIntoView({ block: 'start' });
+    }
+  }, []);
   const [documents, setDocuments] = useState<QualificationListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -93,7 +101,13 @@ export function TutorVerificationSection({ onDocumentChanged }: TutorVerificatio
   };
 
   return (
-    <section className="mt-6" aria-labelledby="tutor-qualification-title">
+    <section
+      ref={sectionRef}
+      id="qualification-documents"
+      tabIndex={-1}
+      className="mt-6 scroll-mt-28 focus:outline-none"
+      aria-labelledby="tutor-qualification-title"
+    >
       <PaperCard className="relative p-5 sm:p-7">
         <WashiTape tone="blue" className="-top-2 left-9 rotate-2" />
         <div className="flex flex-col gap-2 border-b border-dashed border-paper-edge pb-5 sm:flex-row sm:items-start sm:justify-between sm:gap-4">

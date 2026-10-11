@@ -211,7 +211,9 @@ for (const language of ['en', 'th'] as const) {
         main.getByRole('heading', { level: 3, name: 'Teacher Anan', exact: true }),
       ).toHaveCount(2);
       const first = main.getByRole('article').first();
-      await expect(first).toContainText(language === 'th' ? 'ยืนยันแล้ว' : 'Verified');
+      await expect(first).toContainText(
+        language === 'th' ? 'ผ่านการตรวจสอบแล้ว' : 'Verified tutor',
+      );
       await expect(first).toContainText('Grade 10');
       await expect(first).toContainText('450.5 ฿');
       await expect(first).toContainText('4.8');
