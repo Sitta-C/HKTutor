@@ -145,14 +145,14 @@ describe('BookingsService mock payment', () => {
     expect(prisma.$transaction).not.toHaveBeenCalled();
   });
 
-  it('answers 409 when the declared amount differs from the stored amount', async () => {
+  it('answers 400 when the declared amount differs from the stored amount', async () => {
     prisma.booking.findUnique.mockResolvedValue(payableBooking(STUDENT_ID, '450.00'));
 
     await expect(service.createMockPayment(payment({ amount: '400.00' }))).rejects.toMatchObject({
       response: {
         code: 'BOOKING_PAYMENT_AMOUNT_MISMATCH',
         details: { expectedAmount: '450.00' },
-        statusCode: 409,
+        statusCode: 400,
       },
     });
     expect(prisma.$transaction).not.toHaveBeenCalled();

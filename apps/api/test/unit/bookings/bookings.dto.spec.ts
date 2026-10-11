@@ -118,6 +118,27 @@ describe('mock payment DTO', () => {
     expect(await validate(dto)).not.toHaveLength(0);
   });
 
+  // No card restricts the reference to ASCII, and the product is bilingual, so a Thai reference has
+  // to pass. Only control and format characters stay rejected.
+  it.each(['เดโม-001', 'ดีโม 001', 'DEMO-7F3A91'])(
+    'accepts the reference %j whatever script it is written in',
+    async (reference) => {
+      await expect(
+        validate(plainToInstance(CreateMockPaymentDto, { ...valid, reference })),
+      ).resolves.toHaveLength(0);
+    },
+  );
+
+  it.each([
+    ['DEMO\t1', 'a tab'],
+    ['DEMO\u00001', 'a NUL'],
+    ['DEMO​1', 'a zero-width space'],
+  ])('rejects the reference %j, which hides %s', async (reference) => {
+    expect(
+      await validate(plainToInstance(CreateMockPaymentDto, { ...valid, reference })),
+    ).not.toHaveLength(0);
+  });
+
   it.each([
     ['amount', { reference: 'DEMO-1' }],
     ['reference', { amount: '450.00' }],

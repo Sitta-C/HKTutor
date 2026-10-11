@@ -164,18 +164,18 @@ describe('Student mock payment (e2e)', () => {
     expect(transaction).not.toHaveBeenCalled();
   });
 
-  it('returns 409 and keeps the payment state when the amount does not match', async () => {
+  it('returns 400 and keeps the payment state when the amount does not match', async () => {
     authenticateAs(Role.STUDENT);
     bookingFindUnique.mockResolvedValue(payableBooking());
 
     const response = await paymentRequest()
       .send({ amount: '400.00', reference: 'DEMO-1' })
-      .expect(409);
+      .expect(400);
 
     expect(response.body).toMatchObject({
       code: 'BOOKING_PAYMENT_AMOUNT_MISMATCH',
       details: { expectedAmount: '450.00' },
-      statusCode: 409,
+      statusCode: 400,
     });
     expect(transaction).not.toHaveBeenCalled();
   });
@@ -218,6 +218,20 @@ describe('Student mock payment (e2e)', () => {
 
     expect(bookingUpdateMany).toHaveBeenCalledWith(
       matchingObject({ data: matchingObject({ mockReference: 'DEMO-7F3A91' }) }),
+    );
+  });
+
+  // The reviewer's probe went through this same stack, so the acceptance is proven where it is
+  // decided: the global validation pipe, not the DTO unit test alone.
+  it('accepts a Thai reference through the real validation pipe', async () => {
+    authenticateAs(Role.STUDENT);
+    bookingFindUnique.mockResolvedValue(payableBooking());
+    stubPayment({});
+
+    await paymentRequest().send({ amount: '450.00', reference: 'เดโม-001' }).expect(200);
+
+    expect(bookingUpdateMany).toHaveBeenCalledWith(
+      matchingObject({ data: matchingObject({ mockReference: 'เดโม-001' }) }),
     );
   });
 

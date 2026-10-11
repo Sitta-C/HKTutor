@@ -576,29 +576,29 @@ describe('BookingsController OpenAPI contract', () => {
   });
 
   // Both 400 and 409 always exist on this operation, so the loop above cannot notice the amount
-  // mismatch drifting between them. A mismatch is a state conflict, and it is the only conflict
-  // here that carries `details`, so the published example has to stay on 409.
-  it('publishes the amount mismatch as a conflict rather than a bad request', () => {
+  // mismatch drifting between them. Product Backlog US12-5 puts it on 400, and it is the only 400
+  // here that carries `details`, so pin both examples until the backlog says otherwise.
+  it('publishes the amount mismatch as a bad request, as the backlog requires', () => {
     const operation =
       document.paths[`/${API_GLOBAL_PREFIX}/bookings/me/{bookingId}/mock-payment`]?.post;
 
-    expect(operation?.responses['409']).toMatchObject({
+    expect(operation?.responses['400']).toMatchObject({
       content: {
         'application/json': {
           schema: {
             example: {
               code: 'BOOKING_PAYMENT_AMOUNT_MISMATCH',
               details: { expectedAmount: '450.00' },
-              statusCode: 409,
+              statusCode: 400,
             },
           },
         },
       },
     });
-    expect(operation?.responses['400']).toMatchObject({
+    expect(operation?.responses['409']).toMatchObject({
       content: {
         'application/json': {
-          schema: { example: { code: 'VALIDATION_FAILED', statusCode: 400 } },
+          schema: { example: { code: 'BOOKING_ALREADY_PAID', statusCode: 409 } },
         },
       },
     });

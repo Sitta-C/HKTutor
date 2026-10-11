@@ -363,8 +363,12 @@ export const MAX_MOCK_PAYMENT_REFERENCE_LENGTH = 64;
  */
 const FIXED_DECIMAL_PATTERN = /^\d{1,8}\.\d{2}$/;
 
-/** A demo identifier: printable, single-line and bounded. Never a card or bank value. */
-const MOCK_PAYMENT_REFERENCE_PATTERN = /^[ -~]+$/;
+/**
+ * A demo identifier: printable, single-line and bounded. Never a card or bank value. Only control
+ * and format characters are excluded, so a Thai reference is as valid as an ASCII one; no card
+ * requires the field to be ASCII, and the rest of the API keeps user text Unicode-aware.
+ */
+const MOCK_PAYMENT_REFERENCE_PATTERN = /^\P{C}+$/u;
 
 export class CreateMockPaymentDto {
   @ApiProperty({
@@ -380,7 +384,9 @@ export class CreateMockPaymentDto {
   amount!: string;
 
   @ApiProperty({
-    description: 'Demo payment identifier, unique across all bookings. No payment instrument data.',
+    description:
+      'Demo payment identifier, unique across all bookings. No payment instrument data. Single-' +
+      'line text in any language is accepted; control characters are rejected.',
     example: 'DEMO-7F3A91',
     maxLength: MAX_MOCK_PAYMENT_REFERENCE_LENGTH,
   })

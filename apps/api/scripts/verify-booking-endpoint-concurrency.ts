@@ -563,7 +563,7 @@ async function runMockPaymentChecks(
     .post(`/${API_GLOBAL_PREFIX}/bookings/me/${bookingId}/mock-payment`)
     .set('Authorization', `Bearer ${studentToken}`)
     .send({ amount: '0.01', reference: 'DEMO-MISMATCH' });
-  assert.equal(mismatched.status, 409, 'a stale amount must be rejected before any write');
+  assert.equal(mismatched.status, 400, 'a stale amount must be rejected before any write');
   assert.equal(
     (mismatched.body as { code?: string }).code,
     'BOOKING_PAYMENT_AMOUNT_MISMATCH',
