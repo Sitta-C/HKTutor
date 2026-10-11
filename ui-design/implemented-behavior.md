@@ -489,6 +489,9 @@ for REJECTED. A rejected listing preview is not labelled pending. Guidance on pr
 listing editors links pending/rejected tutors to `/dashboard/profile#qualification-documents`.
 Search badges have clearance below the avatar/name row; narrow layouts retain the existing wrapped
 spacing. The profile preview explains that discovery requires verification and a published course.
-The listing editor also explains below its student preview heading that PENDING/REJECTED tutors
-do not appear in search, and courses appear only after verification and publication. Existing
+For PENDING/REJECTED tutors, the listing editor explains below its student preview heading that
+they do not appear in search, and courses appear only after verification and publication. This
+guidance spans the preview column with a bold hidden-course heading and an amber or red tinted
+notice, matching the status badge. It does not use a “Note:” prefix. VERIFIED tutors do not see
+this visibility notice. Existing
 publication checks and API requests remain authoritative; no per-card status request is added.
