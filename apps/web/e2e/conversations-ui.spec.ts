@@ -15,6 +15,7 @@ async function mockInbox(
     empty?: boolean;
     shortHistory?: boolean;
     brokenHistory?: boolean;
+    messageCount?: number;
   } = {},
 ) {
   const role = options.role ?? 'STUDENT';
@@ -35,14 +36,17 @@ async function mockInbox(
     },
   });
   const items = Array.from({ length: 25 }, (_, index) => summary(index));
-  let messages: ConversationMessage[] = Array.from({ length: 62 }, (_, index) => ({
-    messageId: `m-${index}`,
-    conversationId: 'pair-0',
-    senderId: index % 2 ? owner : 'other',
-    text: `History ${index}: review concepts and plan the lesson.`,
-    sentAt: new Date(Date.UTC(2026, 9, 8, 3, index)).toISOString(),
-    readAt: null,
-  }));
+  let messages: ConversationMessage[] = Array.from(
+    { length: options.messageCount ?? 62 },
+    (_, index) => ({
+      messageId: `m-${index}`,
+      conversationId: 'pair-0',
+      senderId: index % 2 ? owner : 'other',
+      text: `History ${index}: review concepts and plan the lesson.`,
+      sentAt: new Date(Date.UTC(2026, 9, 8, 3, index)).toISOString(),
+      readAt: null,
+    }),
+  );
   if (options.shortHistory) {
     messages = [
       {
@@ -71,13 +75,24 @@ async function mockInbox(
       },
     ];
   }
-  const calls: { method: string; path: string; body: unknown; after: string | null }[] = [];
+  const calls: {
+    method: string;
+    path: string;
+    body: unknown;
+    after: string | null;
+    before?: string | null;
+    from?: string | null;
+    latest?: boolean;
+    at?: number;
+  }[] = [];
   const unexpected: string[] = [];
   let sendGate: Promise<void> | undefined;
   let listGate: Promise<void> | undefined;
   let sendFailure = false;
   let historyStatus = options.status ?? 200;
   let brokenHistory = options.brokenHistory ?? false;
+  let readStatus = 200;
+  let historyGate: Promise<void> | undefined;
   await page.addInitScript(
     (language) => localStorage.setItem('hktutor-language', language),
     options.language ?? 'en',
@@ -148,6 +163,7 @@ async function mockInbox(
             : items.slice(0, 20),
         nextCursor: !options.empty && !url.searchParams.has('cursor') ? 'next' : null,
       };
+      result.items = result.items.map((item) => structuredClone(item));
       await listGate;
       return route.fulfill({
         json: result,
@@ -167,9 +183,54 @@ async function mockInbox(
         },
       });
     }
+    if (/^\/conversations\/pair-\d+\/read$/.test(path)) {
+      const payload = request.postDataJSON() as { upToMessageId: string };
+      calls.push({ method, path, body: payload, after: null, at: Date.now() });
+      if (readStatus !== 200) {
+        return route.fulfill({ status: readStatus, json: { message: 'Private read detail' } });
+      }
+      const boundary = messages.find((message) => message.messageId === payload.upToMessageId);
+      let updatedCount = 0;
+      const readAt = '2026-10-11T05:00:00.000Z';
+      messages = messages.map((message) => {
+        if (
+          boundary &&
+          message.conversationId === boundary.conversationId &&
+          message.senderId !== owner &&
+          !message.readAt &&
+          message.sentAt <= boundary.sentAt
+        ) {
+          updatedCount++;
+          return { ...message, readAt };
+        }
+        return message;
+      });
+      const conversation = items.find((item) => item.conversationId === boundary?.conversationId);
+      if (conversation && boundary) {
+        conversation.unreadCount = messages.filter(
+          (message) =>
+            message.conversationId === boundary.conversationId &&
+            message.senderId !== owner &&
+            !message.readAt,
+        ).length;
+      }
+      return route.fulfill({ json: { updatedCount, readAt: updatedCount ? readAt : null } });
+    }
     if (/^\/conversations\/pair-\d+\/messages$/.test(path)) {
       const after = url.searchParams.get('afterMessageId');
-      calls.push({ method, path, body: method === 'POST' ? request.postDataJSON() : null, after });
+      const before = url.searchParams.get('beforeMessageId');
+      const from = url.searchParams.get('fromMessageId');
+      const latest = url.searchParams.get('latest') === 'true';
+      calls.push({
+        method,
+        path,
+        body: method === 'POST' ? request.postDataJSON() : null,
+        after,
+        before,
+        from,
+        latest,
+        at: Date.now(),
+      });
       if (method === 'POST') {
         await sendGate;
         if (sendFailure) {
@@ -196,19 +257,33 @@ async function mockInbox(
       if (historyStatus !== 200) {
         return route.fulfill({ status: historyStatus, json: { message: 'Private server detail' } });
       }
+      await historyGate;
       if (brokenHistory) {
         return route.fulfill({
           json: { items: [], hasMore: true, nextAfterMessageId: 'new-but-empty' },
         });
       }
-      const history = messages.filter((message) => message.conversationId === path.split('/')[2]);
-      const offset = after ? history.findIndex((item) => item.messageId === after) + 1 : 0;
-      const result = history.slice(offset, offset + 50);
+      const history = messages
+        .filter((message) => message.conversationId === path.split('/')[2])
+        .sort((a, b) => a.sentAt.localeCompare(b.sentAt) || a.messageId.localeCompare(b.messageId));
+      const pageSize = Number(url.searchParams.get('pageSize') ?? 20);
+      const backward = latest || before !== null;
+      const end = before ? history.findIndex((item) => item.messageId === before) : history.length;
+      const offset = backward
+        ? Math.max(0, end - pageSize)
+        : from
+          ? history.findIndex((item) => item.messageId === from)
+          : after
+            ? history.findIndex((item) => item.messageId === after) + 1
+            : 0;
+      const result = history.slice(offset, backward ? end : offset + pageSize);
+      const hasMore = backward ? offset > 0 : offset + result.length < history.length;
       return route.fulfill({
         json: {
           items: result,
           nextAfterMessageId: result.at(-1)?.messageId ?? after,
-          hasMore: offset + result.length < history.length,
+          hasMore,
+          ...(backward ? { nextBeforeMessageId: hasMore ? result[0]?.messageId : null } : {}),
         },
       });
     }
@@ -240,6 +315,17 @@ async function mockInbox(
   return {
     calls,
     unexpected,
+    gateHistory: (gate: Promise<void> | undefined) => {
+      historyGate = gate;
+    },
+    readStatus: (status: number) => {
+      readStatus = status;
+    },
+    readOwn: () => {
+      messages = messages.map((message) =>
+        message.senderId === owner ? { ...message, readAt: '2026-10-11T05:00:00.000Z' } : message,
+      );
+    },
     failSending: () => {
       sendFailure = true;
     },
@@ -267,6 +353,10 @@ async function mockInbox(
           readAt: null,
         },
       ];
+      const conversation = items.find((item) => item.conversationId === 'pair-0');
+      if (conversation) {
+        conversation.unreadCount += 1;
+      }
     },
   };
 }
@@ -285,6 +375,202 @@ async function noOverflow(page: Page) {
     await page.locator('main').evaluate((main) => main.scrollWidth - main.clientWidth),
   ).toBeLessThanOrEqual(1);
 }
+
+async function pauseChatClock(page: Page) {
+  await page.clock.install({ time: new Date('2026-10-11T08:00:00.000Z') });
+  await page.clock.pauseAt(new Date('2026-10-11T08:00:01.000Z'));
+}
+
+test('loads a 35-message history in two pages and preserves the visible reading anchor', async ({
+  page,
+}) => {
+  const fixture = await mockInbox(page, { messageCount: 35 });
+  await page.goto('/dashboard/messages');
+  await page.getByRole('button', { name: /Teacher Praew 0/ }).click();
+  await expect(page.getByRole('textbox', { name: 'Your message' })).toBeEnabled();
+  const transcript = page.getByRole('region', { name: 'Conversation history', exact: true });
+  await expect(transcript.locator('[data-message-id]')).toHaveCount(20);
+  await expect(transcript.getByText('History 0:', { exact: false })).toHaveCount(0);
+  expect(
+    fixture.calls.filter((call) => call.path.endsWith('/messages')).every((call) => call.latest),
+  ).toBe(true);
+  await transcript.evaluate((element) => {
+    element.scrollTop = 0;
+  });
+  const anchor = transcript.locator('[data-message-id="m-15"]');
+  const before = (await anchor.boundingBox())?.y ?? 0;
+  await page.getByRole('button', { name: 'Load earlier messages' }).click();
+  await expect(transcript.locator('[data-message-id]')).toHaveCount(35);
+  await expect(page.getByRole('button', { name: 'Load earlier messages' })).toHaveCount(0);
+  await expect
+    .poll(async () => Math.abs(((await anchor.boundingBox())?.y ?? 0) - before))
+    .toBeLessThanOrEqual(2);
+  const ids = await transcript
+    .locator('[data-message-id]')
+    .evaluateAll((elements) => elements.map((element) => element.getAttribute('data-message-id')));
+  expect(ids).toEqual(Array.from({ length: 35 }, (_, index) => `m-${index}`));
+  expect(fixture.calls.filter((call) => call.before).map((call) => call.before)).toEqual(['m-15']);
+  await transcript.evaluate((element) => {
+    element.scrollTop = 0;
+  });
+  await expect(transcript.getByText('Beginning of conversation', { exact: true })).toBeVisible();
+  await noOverflow(page);
+  expect(fixture.unexpected).toEqual([]);
+});
+
+test('polls every four seconds, updates sent/read from the server and stops when closed', async ({
+  page,
+}) => {
+  await pauseChatClock(page);
+  const fixture = await mockInbox(page, { shortHistory: true });
+  await page.goto('/dashboard/messages');
+  await page.getByRole('button', { name: /Teacher Praew 0/ }).click();
+  const input = page.getByRole('textbox', { name: 'Your message' });
+  await expect(input).toBeEnabled();
+  await expect
+    .poll(() => fixture.calls.filter((call) => call.path.endsWith('/read')).length)
+    .toBe(1);
+  const historyReads = () =>
+    fixture.calls.filter((call) => call.method === 'GET' && call.path.endsWith('/messages'));
+  const initial = historyReads().length;
+  fixture.incoming();
+  await page.clock.runFor(3999);
+  expect(historyReads()).toHaveLength(initial);
+  await page.clock.runFor(1);
+  await expect.poll(() => historyReads().length).toBe(initial + 1);
+  const transcript = page.getByRole('region', { name: 'Conversation history', exact: true });
+  await expect(transcript.getByText('New incoming while reading', { exact: true })).toHaveCount(1);
+  await input.fill('Question for a tutor');
+  await page.getByRole('button', { name: 'Send', exact: true }).click();
+  const sent = transcript.locator('[data-message-id="sent"]');
+  await expect(sent).toContainText('Sent');
+  fixture.readOwn();
+  await page.clock.runFor(4000);
+  await expect(sent).toContainText('Read');
+  await expect(transcript.getByText('Question for a tutor', { exact: true })).toHaveCount(1);
+  expect(
+    fixture.calls
+      .filter((call) => call.path.endsWith('/read'))
+      .every((call) => (call.body as { upToMessageId: string }).upToMessageId !== 'sent'),
+  ).toBe(true);
+  await page.getByRole('button', { name: 'Back to conversations' }).click();
+  const closed = historyReads().length;
+  const readCommands = fixture.calls.filter((call) => call.path.endsWith('/read')).length;
+  await page.clock.runFor(12000);
+  expect(historyReads()).toHaveLength(closed);
+  expect(fixture.calls.filter((call) => call.path.endsWith('/read'))).toHaveLength(readCommands);
+  expect(fixture.unexpected).toEqual([]);
+});
+
+test('pauses in a hidden tab and never overlaps a stalled polling request', async ({ page }) => {
+  await pauseChatClock(page);
+  const fixture = await mockInbox(page, { shortHistory: true });
+  await page.goto('/dashboard/messages');
+  await page.getByRole('button', { name: /Teacher Praew 0/ }).click();
+  await expect(page.getByRole('textbox', { name: 'Your message' })).toBeEnabled();
+  await expect
+    .poll(() => fixture.calls.filter((call) => call.path.endsWith('/read')).length)
+    .toBe(1);
+  const reads = () =>
+    fixture.calls.filter((call) => call.method === 'GET' && call.path.endsWith('/messages')).length;
+  const initial = reads();
+  let release = () => {};
+  fixture.gateHistory(
+    new Promise<void>((resolve) => {
+      release = resolve;
+    }),
+  );
+  await page.clock.runFor(4000);
+  await expect.poll(reads).toBe(initial + 1);
+  await page.clock.runFor(12000);
+  expect(reads()).toBe(initial + 1);
+  await page.evaluate(() => {
+    Object.defineProperty(document, 'hidden', { configurable: true, value: true });
+    document.dispatchEvent(new Event('visibilitychange'));
+  });
+  await page.clock.runFor(12000);
+  expect(reads()).toBe(initial + 1);
+  release();
+  fixture.gateHistory(undefined);
+  await page.evaluate(() => {
+    Reflect.deleteProperty(document, 'hidden');
+    document.dispatchEvent(new Event('visibilitychange'));
+  });
+  await expect.poll(reads).toBe(initial + 2);
+  expect(fixture.unexpected).toEqual([]);
+});
+
+test('refetches server unread counts when a stale inbox request overlaps a read acknowledgement', async ({
+  page,
+}) => {
+  await pauseChatClock(page);
+  const fixture = await mockInbox(page, { shortHistory: true });
+  await page.goto('/dashboard/messages');
+  await page.getByRole('button', { name: /Teacher Praew 0/ }).click();
+  await expect(page.getByRole('textbox', { name: 'Your message' })).toBeEnabled();
+  await expect
+    .poll(() => fixture.calls.filter((call) => call.path.endsWith('/read')).length)
+    .toBe(1);
+  const refresh = page.getByRole('button', { name: 'Refresh messages', exact: true });
+  await expect(refresh).toBeEnabled();
+  const listReads = () =>
+    fixture.calls.filter((call) => call.path === '/conversations' && call.method === 'GET').length;
+  const before = listReads();
+  let release = () => {};
+  fixture.gateList(
+    new Promise<void>((resolve) => {
+      release = resolve;
+    }),
+  );
+  fixture.incoming();
+  await refresh.click();
+  await expect.poll(listReads).toBe(before + 1);
+  await expect
+    .poll(() => fixture.calls.filter((call) => call.path.endsWith('/read')).length)
+    .toBe(2);
+  release();
+  await expect.poll(listReads).toBe(before + 2);
+  await page.getByRole('button', { name: 'Back to conversations' }).click();
+  await expect(
+    page.getByRole('button', { name: /Teacher Praew 0/ }).getByLabel(/unread messages/),
+  ).toHaveCount(0);
+  expect(fixture.unexpected).toEqual([]);
+});
+
+test('retains drafts/history on load-more and read-receipt failures and retries safely', async ({
+  page,
+}) => {
+  await pauseChatClock(page);
+  const fixture = await mockInbox(page);
+  fixture.readStatus(503);
+  await openFirst(page);
+  const input = page.getByRole('textbox', { name: 'Your message' });
+  await input.fill('Preserve this draft');
+  await expect(page.locator('form').getByRole('alert')).toContainText(
+    'Could not update read status',
+  );
+  fixture.historyStatus(503);
+  const transcript = page.getByRole('region', { name: 'Conversation history', exact: true });
+  await transcript.evaluate((element) => {
+    element.scrollTop = 0;
+  });
+  await page.getByRole('button', { name: 'Load earlier messages' }).click();
+  await expect(transcript.getByRole('alert')).toContainText('Could not load messages');
+  await expect(input).toHaveValue('Preserve this draft');
+  await expect(transcript.locator('[data-message-id]')).toHaveCount(20);
+  fixture.historyStatus(200);
+  await page.getByRole('button', { name: 'Load earlier messages' }).click();
+  await expect(transcript.locator('[data-message-id]')).toHaveCount(40);
+  fixture.readStatus(200);
+  await page.getByRole('button', { name: /Back to latest messages/ }).click();
+  await page.clock.runFor(4000);
+  await expect(page.locator('form').getByRole('alert')).toHaveCount(0);
+  await expect(input).toHaveValue('Preserve this draft');
+  expect(
+    fixture.calls.filter((call) => call.method === 'POST' && call.path.endsWith('/messages')),
+  ).toHaveLength(0);
+  expect(fixture.unexpected).toEqual([]);
+});
 
 test('keeps drafts, reading position and index position across conversations; works at 320px', async ({
   page,
@@ -312,7 +598,7 @@ test('keeps drafts, reading position and index position across conversations; wo
   await expect.poll(() => transcript.evaluate((element) => element.scrollTop)).toBe(180);
   expect((await composer.boundingBox())?.y).toBe(composerY);
   await noOverflow(page);
-  expect(fixture.calls.filter((call) => call.path.endsWith('/read'))).toHaveLength(0);
+  expect(fixture.calls.some((call) => call.path.endsWith('/read'))).toBe(true);
   expect(fixture.unexpected).toEqual([]);
   await page.screenshot({
     path: `/private/tmp/hktutor-chat-${testInfo.project.name}.png`,
@@ -381,8 +667,8 @@ test('sends once, trims text, keeps the GET cursor and deduplicates the sent res
   expect(sends[0]?.body).toEqual({ text: 'Question\n😀' });
   expect(
     fixture.calls.filter((call) => call.method === 'GET' && call.path.endsWith('/messages')).at(-1)
-      ?.after,
-  ).toBe('m-61');
+      ?.from,
+  ).toBe('m-43');
 });
 
 test('keeps ambiguous-send drafts, rejects blank/over-limit input and treats message text as text', async ({
@@ -401,9 +687,13 @@ test('keeps ambiguous-send drafts, rejects blank/over-limit input and treats mes
   await send.click();
   await expect(page.locator('form').getByRole('alert')).toContainText('Could not confirm sending');
   await expect(composer).toHaveValue('<img src=x onerror=alert(1)>');
-  expect(fixture.calls.filter((call) => call.method === 'POST')).toHaveLength(1);
+  expect(
+    fixture.calls.filter((call) => call.method === 'POST' && call.path.endsWith('/messages')),
+  ).toHaveLength(1);
   await page.waitForTimeout(250);
-  expect(fixture.calls.filter((call) => call.method === 'POST')).toHaveLength(1);
+  expect(
+    fixture.calls.filter((call) => call.method === 'POST' && call.path.endsWith('/messages')),
+  ).toHaveLength(1);
 });
 
 for (const role of ['STUDENT', 'TUTOR'] as const) {
@@ -547,9 +837,11 @@ for (const language of ['th', 'en'] as const) {
     expect(
       fixture.calls
         .filter((call) => call.method === 'GET' && call.path.endsWith('/messages'))
-        .at(-1)?.after,
-    ).toBe('m-61');
-    expect(fixture.calls.filter((call) => call.method === 'POST')).toHaveLength(0);
+        .at(-1)?.from,
+    ).toBe('m-43');
+    expect(
+      fixture.calls.filter((call) => call.method === 'POST' && call.path.endsWith('/messages')),
+    ).toHaveLength(0);
     expect(fixture.unexpected).toEqual([]);
     await noOverflow(page);
   });

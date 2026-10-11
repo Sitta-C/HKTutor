@@ -624,7 +624,14 @@ describe('ConversationsService', () => {
         >
       )[0]?.[0];
     const readPage = (
-      query: { afterMessageId?: string; pageSize?: number; userId?: string } = {},
+      query: {
+        afterMessageId?: string;
+        beforeMessageId?: string;
+        fromMessageId?: string;
+        latest?: 'true';
+        pageSize?: number;
+        userId?: string;
+      } = {},
     ) => service.getMessages({ conversationId: CONVERSATION_ID, userId: STUDENT_ID, ...query });
 
     beforeEach(() => {
@@ -653,6 +660,73 @@ describe('ConversationsService', () => {
       });
       expect(mockPrismaService.message.findFirst).not.toHaveBeenCalled();
     });
+
+    it('opens the latest 20 messages, then loads the remaining 15 without gaps or duplicates', async () => {
+      mockPrismaService.message.findMany.mockResolvedValueOnce(historyRows(15, 35).reverse());
+      const recent = await readPage({ latest: 'true' });
+      expect(recent.items.map((item) => item.text)).toEqual(range(16, 35).map((n) => `m-${n}`));
+      expect(recent).toMatchObject({
+        hasMore: true,
+        nextBeforeMessageId: messageId(16),
+        nextAfterMessageId: messageId(35),
+      });
+      expect(findManyArgs()).toMatchObject({
+        orderBy: [{ sentAt: 'desc' }, { id: 'desc' }],
+        take: 21,
+      });
+      mockPrismaService.message.findFirst.mockResolvedValue({
+        id: messageId(16),
+        sentAt: sentAt(16),
+      });
+      mockPrismaService.message.findMany.mockResolvedValueOnce(historyRows(1, 15).reverse());
+      const older = await readPage({ beforeMessageId: messageId(16) });
+      expect(older).toMatchObject({ hasMore: false, nextBeforeMessageId: null });
+      expect([...older.items, ...recent.items].map((item) => item.text)).toEqual(
+        range(1, 35).map((n) => `m-${n}`),
+      );
+      expect(mockPrismaService.message.findMany).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          where: {
+            conversationId: CONVERSATION_ID,
+            OR: [{ sentAt: { lt: sentAt(16) } }, { id: { lt: messageId(16) }, sentAt: sentAt(16) }],
+          },
+        }),
+      );
+    });
+
+    it('refreshes from an unread sent message inclusively with the stable timestamp/ID tie break', async () => {
+      mockPrismaService.message.findFirst.mockResolvedValue({
+        id: messageId(20),
+        sentAt: sentAt(20),
+      });
+      mockPrismaService.message.findMany.mockResolvedValue(historyRows(20, 35));
+      const page = await readPage({ fromMessageId: messageId(20) });
+      expect(page.items[0]?.messageId).toBe(messageId(20));
+      expect(findManyArgs()?.where).toEqual({
+        conversationId: CONVERSATION_ID,
+        OR: [{ sentAt: { gt: sentAt(20) } }, { id: { gte: messageId(20) }, sentAt: sentAt(20) }],
+      });
+    });
+
+    it.each([
+      { latest: 'true' as const, afterMessageId: MESSAGE_ID },
+      { beforeMessageId: MESSAGE_ID, fromMessageId: MESSAGE_ID },
+      { afterMessageId: MESSAGE_ID, fromMessageId: MESSAGE_ID },
+    ])('rejects mixed history modes without reading messages: %j', async (query) => {
+      await expect(readPage(query)).rejects.toThrow(BadRequestException);
+      expect(mockPrismaService.message.findMany).not.toHaveBeenCalled();
+    });
+
+    it.each(['beforeMessageId', 'fromMessageId'] as const)(
+      'rejects a cross-conversation %s',
+      async (field) => {
+        mockPrismaService.message.findFirst.mockResolvedValue(null);
+        await expect(readPage({ [field]: MESSAGE_ID })).rejects.toThrow(
+          `${field} must be a message in this conversation.`,
+        );
+        expect(mockPrismaService.message.findMany).not.toHaveBeenCalled();
+      },
+    );
 
     it('continues after the cursor message and reports the last page', async () => {
       mockPrismaService.message.findFirst.mockResolvedValue({

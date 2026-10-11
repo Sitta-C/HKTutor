@@ -421,5 +421,6 @@ export interface ConversationMessage {
 export interface ConversationMessagesResponse {
   items: ConversationMessage[];
   nextAfterMessageId: string | null;
+  nextBeforeMessageId?: string | null;
   hasMore: boolean;
 }
