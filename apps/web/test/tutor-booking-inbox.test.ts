@@ -248,9 +248,9 @@ describe('tutor booking decision failures', () => {
 
 describe('inbox adjacent boundaries and response identity', () => {
   it.each([
-    [9, 1],
-    [10, 1],
-    [11, 2],
+    [TUTOR_INBOX_PAGE_SIZE - 1, 1],
+    [TUTOR_INBOX_PAGE_SIZE, 1],
+    [TUTOR_INBOX_PAGE_SIZE + 1, 2],
   ])('shows %i bookings on %i pages', (total, pages) => {
     expect(countInboxPages(total)).toBe(pages);
   });
@@ -264,10 +264,10 @@ describe('inbox adjacent boundaries and response identity', () => {
   });
 
   it.each([
-    [10, 1, 9, 1],
-    [11, 2, 10, 1],
-    [20, 2, 19, 2],
-    [21, 3, 20, 2],
+    [TUTOR_INBOX_PAGE_SIZE, 1, TUTOR_INBOX_PAGE_SIZE - 1, 1],
+    [TUTOR_INBOX_PAGE_SIZE + 1, 2, TUTOR_INBOX_PAGE_SIZE, 1],
+    [TUTOR_INBOX_PAGE_SIZE * 2, 2, TUTOR_INBOX_PAGE_SIZE * 2 - 1, 2],
+    [TUTOR_INBOX_PAGE_SIZE * 2 + 1, 3, TUTOR_INBOX_PAGE_SIZE * 2, 2],
   ])('realigns total %i/page %i after a decision', (total, page, nextTotal, nextPage) => {
     expect(
       planInboxSyncAfterDecision({ filter: 'PENDING', page, status: 'CANCELED', total }),
@@ -279,9 +279,12 @@ describe('inbox adjacent boundaries and response identity', () => {
   });
 
   it.each([
-    [499, null],
-    [500, null],
-    [501, 'Use 500 characters or fewer.'],
+    [MAX_BOOKING_DECISION_TEXT_LENGTH - 1, null],
+    [MAX_BOOKING_DECISION_TEXT_LENGTH, null],
+    [
+      MAX_BOOKING_DECISION_TEXT_LENGTH + 1,
+      copy.textTooLong.replace('{max}', String(MAX_BOOKING_DECISION_TEXT_LENGTH)),
+    ],
   ])('validates %i trimmed ASCII characters', (length, expected) => {
     expect(validateDecisionText(`  ${'x'.repeat(length)}  `, copy)).toBe(expected);
   });

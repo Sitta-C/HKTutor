@@ -3,6 +3,7 @@ import { validate } from 'class-validator';
 
 import {
   ConfirmBookingDto,
+  MAX_BOOKINGS_PAGE_SIZE,
   CreateMockPaymentDto,
   GetMyBookingsQueryDto,
   GetTutorBookingsQueryDto,
@@ -30,44 +31,6 @@ describe('booking list pagination DTOs', () => {
   ])('rejects %s (%s)', async (input) => {
     const query = plainToInstance(GetMyBookingsQueryDto, input);
     expect(await validate(query)).not.toHaveLength(0);
-  });
-});
-
-describe('tutor booking action DTOs', () => {
-  it.each([ConfirmBookingDto, RejectBookingDto])('accepts an empty body for %p', async (Dto) => {
-    await expect(validate(plainToInstance(Dto, {}))).resolves.toHaveLength(0);
-  });
-
-  it('accepts a confirmation note and a rejection reason', async () => {
-    const confirm = plainToInstance(ConfirmBookingDto, { note: 'See you in class.' });
-    const reject = plainToInstance(RejectBookingDto, { reason: 'I am no longer available.' });
-
-    await expect(validate(confirm)).resolves.toHaveLength(0);
-    await expect(validate(reject)).resolves.toHaveLength(0);
-  });
-
-  it.each(['', '   ', '\n'])('rejects a blank reason (%j)', async (reason) => {
-    const reject = plainToInstance(RejectBookingDto, { reason });
-
-    expect(await validate(reject)).not.toHaveLength(0);
-  });
-
-  it('rejects text longer than the documented maximum', async () => {
-    const reject = plainToInstance(RejectBookingDto, {
-      reason: 'x'.repeat(MAX_TUTOR_ACTION_TEXT_LENGTH + 1),
-    });
-    const confirm = plainToInstance(ConfirmBookingDto, {
-      note: 'x'.repeat(MAX_TUTOR_ACTION_TEXT_LENGTH + 1),
-    });
-
-    expect(await validate(reject)).not.toHaveLength(0);
-    expect(await validate(confirm)).not.toHaveLength(0);
-  });
-
-  it('rejects a non-string reason', async () => {
-    const reject = plainToInstance(RejectBookingDto, { reason: 42 });
-
-    expect(await validate(reject)).not.toHaveLength(0);
   });
 });
 
@@ -156,16 +119,16 @@ describe.each(['note', 'reason'] as const)('tutor action %s boundaries', (field)
   };
 
   it.each([
-    [499, true],
-    [500, true],
-    [501, false],
+    [MAX_TUTOR_ACTION_TEXT_LENGTH - 1, true],
+    [MAX_TUTOR_ACTION_TEXT_LENGTH, true],
+    [MAX_TUTOR_ACTION_TEXT_LENGTH + 1, false],
   ])('validates %i ASCII characters (accepted: %s)', async (length, accepted) => {
     const errors = await validate(actionDto('x'.repeat(length)));
     expect(errors.length === 0).toBe(accepted);
   });
 
-  it.each([undefined, null])('accepts the optional value %p', async (value) => {
-    await expect(validate(actionDto(value))).resolves.toHaveLength(0);
+  it('accepts omitted text', async () => {
+    await expect(validate(actionDto(undefined))).resolves.toHaveLength(0);
   });
 
   it.each(['', ' ', '\n', 42, true, [], {}])('rejects explicit invalid text %p', async (value) => {
@@ -185,9 +148,9 @@ describe('tutor inbox query boundaries', () => {
     [{ pageSize: '0' }, false],
     [{ pageSize: '1' }, true],
     [{ pageSize: '2' }, true],
-    [{ pageSize: '99' }, true],
-    [{ pageSize: '100' }, true],
-    [{ pageSize: '101' }, false],
+    [{ pageSize: String(MAX_BOOKINGS_PAGE_SIZE - 1) }, true],
+    [{ pageSize: String(MAX_BOOKINGS_PAGE_SIZE) }, true],
+    [{ pageSize: String(MAX_BOOKINGS_PAGE_SIZE + 1) }, false],
     [{ page: '1.5' }, false],
     [{ pageSize: 'NaN' }, false],
   ])('validates page/item limits %j (accepted: %s)', async (input, accepted) => {

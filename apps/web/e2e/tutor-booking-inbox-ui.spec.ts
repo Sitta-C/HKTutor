@@ -1,25 +1,10 @@
 import { expect, test } from '@playwright/test';
 
+import { MAX_BOOKING_DECISION_TEXT_LENGTH } from '@/components/bookings/tutor-booking-inbox-model';
+
 import type { Page, Route } from '@playwright/test';
 
-const runtimeErrors = new WeakMap<Page, string[]>();
-
-test.beforeEach(async ({ page }) => {
-  await page.addInitScript(() => localStorage.setItem('hktutor-language', 'en'));
-  const errors: string[] = [];
-  runtimeErrors.set(page, errors);
-  page.on('pageerror', (error) => errors.push(error.message));
-  page.on('console', (message) => {
-    // HTTP failures and the offline fixture deliberately produce browser resource errors.
-    if (message.type() === 'error' && !message.text().startsWith('Failed to load resource:')) {
-      errors.push(message.text());
-    }
-  });
-});
-
-test.afterEach(async ({ page }) => {
-  expect(runtimeErrors.get(page)).toEqual([]);
-});
+const expectedResourceFailures = new WeakMap<Page, Set<string>>();
 
 const listingId = '22222222-2222-4222-8222-222222222222';
 const maliBookingId = '44444444-4444-4444-8444-444444444444';
@@ -340,158 +325,225 @@ test('paging after a decision skips no request when the pending set shrinks', as
 type InboxBooking = ReturnType<typeof pendingBooking>;
 type DecisionAction = 'confirm' | 'reject';
 
-for (const action of ['confirm', 'reject'] as const) {
-  test(`${action} waits for the API and submits only once while in flight`, async ({ page }) => {
-    const bookings = requestedBookings.slice(0, 2).map(pendingBooking);
-    let requests = 0;
-    let releaseResponse: (() => void) | undefined;
-    const heldResponse = new Promise<void>((resolve) => {
-      releaseResponse = resolve;
-    });
-    await openMockInbox(page, bookings, async (route, item) => {
-      requests += 1;
-      await heldResponse;
-      await successfulDecision(route, item, action);
-    });
-    await page.getByRole('button', { name: 'All', exact: true }).click();
-    const mali = page.getByRole('article', { name: 'Mali' });
-    const nida = page.getByRole('article', { name: 'Nida' });
-    await mali.getByRole('button', { name: `${capitalize(action)} the booking from Mali` }).click();
-    const dialog = page.getByRole('dialog');
+test.describe('decision API response edges', () => {
+  const runtimeErrors = new WeakMap<Page, string[]>();
 
-    try {
-      // Two native form submissions in one event turn also exercise the same-tick submit guard.
-      await dialog.locator('form').evaluate((form: HTMLFormElement) => {
-        form.requestSubmit();
-        form.requestSubmit();
-      });
-      await expect.poll(() => requests).toBe(1);
-      await expect(mali.getByText('PENDING', { exact: true })).toBeVisible();
-      await expect(nida.getByText('PENDING', { exact: true })).toBeVisible();
-      await expect(page.getByText('2 bookings · All')).toBeVisible();
-      await expect(dialog.getByRole('button', { name: 'Working…' })).toBeDisabled();
-      await expect(dialog.getByRole('button', { name: 'Keep as pending' })).toBeDisabled();
-      await page.keyboard.press('Escape');
-      await expect(dialog).toBeVisible();
-    } finally {
-      releaseResponse?.();
-    }
-
-    await expect(dialog).toHaveCount(0);
-    await expect(
-      mali.getByText(action === 'confirm' ? 'CONFIRMED' : 'CANCELED', { exact: true }),
-    ).toBeVisible();
-    await expect(nida.getByText('PENDING', { exact: true })).toBeVisible();
-    expect(requests).toBe(1);
-    await expect(mali.getByRole('button', { name: /the booking from Mali/ })).toHaveCount(0);
+  test.beforeEach(async ({ page }) => {
+    await page.addInitScript(() => localStorage.setItem('hktutor-language', 'en'));
+    const errors: string[] = [];
+    runtimeErrors.set(page, errors);
+    expectedResourceFailures.set(page, new Set());
+    page.on('pageerror', (error) => errors.push(error.message));
+    page.on('console', (message) => {
+      if (message.type() !== 'error') return;
+      // Only the deliberately failed decision URL is exempt; unexpected resource failures fail QA.
+      const expectedFailure =
+        message.text().startsWith('Failed to load resource:') &&
+        expectedResourceFailures.get(page)?.has(message.location().url);
+      if (!expectedFailure) errors.push(message.text());
+    });
   });
 
-  for (const failure of [
-    {
-      status: 403,
-      code: 'BOOKING_NOT_OWNED',
-      message: 'This booking belongs to another tutor. Nothing was changed.',
-    },
-    {
-      status: 409,
-      code: 'BOOKING_NOT_PENDING',
-      message: 'This request is no longer pending. Refresh the inbox to see its current status.',
-    },
-    {
-      status: 409,
-      code: 'BOOKING_TRANSITION_CONFLICT',
-      message: 'Another update changed this booking first. Refresh the inbox and try again.',
-    },
-  ]) {
-    test(`${action} locks a failed row for ${failure.code} until refresh`, async ({
-      page,
-    }, testInfo) => {
+  test.afterEach(async ({ page }) => {
+    // Drain route handlers and keep listeners active through page shutdown, including late errors.
+    await page.unrouteAll({ behavior: 'wait' });
+    await page.close();
+    expect(runtimeErrors.get(page)).toEqual([]);
+  });
+
+  for (const action of ['confirm', 'reject'] as const) {
+    test(`${action} waits for the API and submits only once while in flight`, async ({ page }) => {
       const bookings = requestedBookings.slice(0, 2).map(pendingBooking);
       let requests = 0;
-      await openMockInbox(page, bookings, async (route) => {
-        requests += 1;
-        await json(route, { code: failure.code, statusCode: failure.status }, failure.status);
+      let releaseResponse: (() => void) | undefined;
+      const heldResponse = new Promise<void>((resolve) => {
+        releaseResponse = resolve;
       });
+      await openMockInbox(page, bookings, async (route, item) => {
+        requests += 1;
+        await heldResponse;
+        await successfulDecision(route, item, action);
+      });
+      await page.getByRole('button', { name: 'All', exact: true }).click();
       const mali = page.getByRole('article', { name: 'Mali' });
       const nida = page.getByRole('article', { name: 'Nida' });
       await mali
         .getByRole('button', { name: `${capitalize(action)} the booking from Mali` })
         .click();
-      await page
-        .getByRole('dialog')
-        .getByRole('button', { name: `Yes, ${action} booking` })
-        .click();
-
-      await expect(mali.getByRole('alert')).toContainText(failure.message);
-      await expect(mali.getByText('PENDING', { exact: true })).toBeVisible();
-      await expect(page.getByText('2 bookings · PENDING')).toBeVisible();
-      await expect(mali.getByRole('button', { name: /the booking from Mali/ })).toHaveCount(0);
-      await expect(
-        nida.getByRole('button', { name: 'Confirm the booking from Nida' }),
-      ).toBeEnabled();
-      await expect(page.getByRole('dialog')).toHaveCount(0);
-      await expect(page.getByText(/Booking confirmed\.|Booking rejected\./)).toHaveCount(0);
-      expect(requests).toBe(1);
-
-      if (failure.status === 403 && action === 'confirm') {
-        await page.screenshot({ path: testInfo.outputPath('inbox-403.png'), fullPage: true });
-      }
-      // The refreshed API snapshot wins; this fixture represents another request confirming Mali.
-      const first = bookings[0];
-      if (!first) throw new Error('Mali fixture is missing');
-      first.status = 'CONFIRMED';
-      await mali.getByRole('button', { name: 'Refresh', exact: true }).click();
-      await expect(mali).toHaveCount(0);
-      await expect(page.getByText('1 bookings · PENDING')).toBeVisible();
-      await page.getByRole('button', { name: 'All', exact: true }).click();
-      await expect(mali.getByText('CONFIRMED', { exact: true })).toBeVisible();
-      await expect(mali.getByRole('button', { name: /the booking from Mali/ })).toHaveCount(0);
-      expect(requests).toBe(1);
-    });
-  }
-
-  for (const failure of ['validation', 'server', 'offline'] as const) {
-    test(`${action} keeps its dialog and can retry after ${failure}`, async ({ page }) => {
-      const bookings = requestedBookings.slice(0, 2).map(pendingBooking);
-      let requests = 0;
-      await openMockInbox(page, bookings, async (route, item) => {
-        requests += 1;
-        if (requests === 1) {
-          if (failure === 'offline') return route.abort('failed');
-          return json(route, { message: 'fixture failure' }, failure === 'validation' ? 400 : 500);
-        }
-        return successfulDecision(route, item, action);
-      });
-      const mali = page.getByRole('article', { name: 'Mali' });
-      await mali
-        .getByRole('button', { name: `${capitalize(action)} the booking from Mali` })
-        .click();
       const dialog = page.getByRole('dialog');
-      await dialog.getByRole('button', { name: `Yes, ${action} booking` }).click();
-      await expect(dialog.getByRole('alert')).toContainText(
-        failure === 'validation'
-          ? 'Please check the reason and try again.'
-          : 'Something went wrong and nothing was changed. Please try again.',
-      );
-      await expect(mali.getByText('PENDING', { exact: true })).toBeVisible();
-      await expect(page.getByText('2 bookings · PENDING')).toBeVisible();
-      await expect(page.getByText(/Booking confirmed\.|Booking rejected\./)).toHaveCount(0);
-      await expect(dialog.getByRole('button', { name: `Yes, ${action} booking` })).toBeEnabled();
-      await dialog.getByRole('button', { name: `Yes, ${action} booking` }).click();
+
+      try {
+        // Two native submissions verify one visible dialog produces only one API request.
+        await dialog.locator('form').evaluate((form: HTMLFormElement) => {
+          form.requestSubmit();
+          form.requestSubmit();
+        });
+        await expect.poll(() => requests).toBe(1);
+        await expect(mali.getByText('PENDING', { exact: true })).toBeVisible();
+        await expect(nida.getByText('PENDING', { exact: true })).toBeVisible();
+        await expect(page.getByText('2 bookings · All')).toBeVisible();
+        await expect(dialog.getByRole('button', { name: 'Working…' })).toBeDisabled();
+        await expect(dialog.getByRole('button', { name: 'Keep as pending' })).toBeDisabled();
+        await page.keyboard.press('Escape');
+        await expect(dialog).toBeVisible();
+      } finally {
+        releaseResponse?.();
+      }
+
       await expect(dialog).toHaveCount(0);
-      await expect(mali).toHaveCount(0);
-      await expect(page.getByText('1 bookings · PENDING')).toBeVisible();
-      expect(requests).toBe(2);
-      await page.getByRole('button', { name: 'All', exact: true }).click();
       await expect(
         mali.getByText(action === 'confirm' ? 'CONFIRMED' : 'CANCELED', { exact: true }),
       ).toBeVisible();
+      await expect(nida.getByText('PENDING', { exact: true })).toBeVisible();
+      expect(requests).toBe(1);
+      await expect(mali.getByRole('button', { name: /the booking from Mali/ })).toHaveCount(0);
+    });
+
+    for (const failure of [
+      {
+        status: 403,
+        code: 'BOOKING_NOT_OWNED',
+        message: 'This booking belongs to another tutor. Nothing was changed.',
+      },
+      {
+        status: 409,
+        code: 'BOOKING_NOT_PENDING',
+        message: 'This request is no longer pending. Refresh the inbox to see its current status.',
+      },
+      {
+        status: 409,
+        code: 'BOOKING_TRANSITION_CONFLICT',
+        message: 'Another update changed this booking first. Refresh the inbox and try again.',
+      },
+    ]) {
+      test(`${action} locks a failed row for ${failure.code} until refresh`, async ({
+        page,
+      }, testInfo) => {
+        const bookings = requestedBookings.slice(0, 2).map(pendingBooking);
+        let requests = 0;
+        await openMockInbox(page, bookings, async (route) => {
+          requests += 1;
+          expectedResourceFailures.get(page)?.add(route.request().url());
+          await json(route, { code: failure.code, statusCode: failure.status }, failure.status);
+        });
+        const mali = page.getByRole('article', { name: 'Mali' });
+        const nida = page.getByRole('article', { name: 'Nida' });
+        await mali
+          .getByRole('button', { name: `${capitalize(action)} the booking from Mali` })
+          .click();
+        await page
+          .getByRole('dialog')
+          .getByRole('button', { name: `Yes, ${action} booking` })
+          .click();
+
+        await expect(mali.getByRole('alert')).toContainText(failure.message);
+        await expect(mali.getByText('PENDING', { exact: true })).toBeVisible();
+        await expect(page.getByText('2 bookings · PENDING')).toBeVisible();
+        await expect(mali.getByRole('button', { name: /the booking from Mali/ })).toHaveCount(0);
+        await expect(
+          nida.getByRole('button', { name: 'Confirm the booking from Nida' }),
+        ).toBeEnabled();
+        await expect(page.getByRole('dialog')).toHaveCount(0);
+        await expect(page.getByText(/Booking confirmed\.|Booking rejected\./)).toHaveCount(0);
+        expect(requests).toBe(1);
+
+        if (failure.status === 403 && action === 'confirm') {
+          await page.screenshot({ path: testInfo.outputPath('inbox-403.png'), fullPage: true });
+        }
+        // The refreshed API snapshot wins; this fixture represents another request confirming Mali.
+        const first = bookings[0];
+        if (!first) throw new Error('Mali fixture is missing');
+        first.status = 'CONFIRMED';
+        await mali.getByRole('button', { name: 'Refresh', exact: true }).click();
+        await expect(mali).toHaveCount(0);
+        await expect(page.getByText('1 bookings · PENDING')).toBeVisible();
+        await page.getByRole('button', { name: 'All', exact: true }).click();
+        await expect(mali.getByText('CONFIRMED', { exact: true })).toBeVisible();
+        await expect(mali.getByRole('button', { name: /the booking from Mali/ })).toHaveCount(0);
+        expect(requests).toBe(1);
+      });
+    }
+
+    for (const failure of ['validation', 'server', 'offline'] as const) {
+      test(`${action} keeps its dialog and can retry after ${failure}`, async ({ page }) => {
+        const bookings = requestedBookings.slice(0, 2).map(pendingBooking);
+        let requests = 0;
+        await openMockInbox(page, bookings, async (route, item) => {
+          requests += 1;
+          if (requests === 1) {
+            expectedResourceFailures.get(page)?.add(route.request().url());
+            if (failure === 'offline') return route.abort('failed');
+            return json(
+              route,
+              { message: 'fixture failure' },
+              failure === 'validation' ? 400 : 500,
+            );
+          }
+          return successfulDecision(route, item, action);
+        });
+        const mali = page.getByRole('article', { name: 'Mali' });
+        await mali
+          .getByRole('button', { name: `${capitalize(action)} the booking from Mali` })
+          .click();
+        const dialog = page.getByRole('dialog');
+        await dialog.getByRole('button', { name: `Yes, ${action} booking` }).click();
+        await expect(dialog.getByRole('alert')).toContainText(
+          failure === 'validation'
+            ? 'Please check the reason and try again.'
+            : 'Something went wrong and nothing was changed. Please try again.',
+        );
+        await expect(mali.getByText('PENDING', { exact: true })).toBeVisible();
+        await expect(page.getByText('2 bookings · PENDING')).toBeVisible();
+        await expect(page.getByText(/Booking confirmed\.|Booking rejected\./)).toHaveCount(0);
+        await expect(dialog.getByRole('button', { name: `Yes, ${action} booking` })).toBeEnabled();
+        await dialog.getByRole('button', { name: `Yes, ${action} booking` }).click();
+        await expect(dialog).toHaveCount(0);
+        await expect(mali).toHaveCount(0);
+        await expect(page.getByText('1 bookings · PENDING')).toBeVisible();
+        expect(requests).toBe(2);
+        await page.getByRole('button', { name: 'All', exact: true }).click();
+        await expect(
+          mali.getByText(action === 'confirm' ? 'CONFIRMED' : 'CANCELED', { exact: true }),
+        ).toBeVisible();
+      });
+    }
+  }
+
+  for (const length of [
+    MAX_BOOKING_DECISION_TEXT_LENGTH - 1,
+    MAX_BOOKING_DECISION_TEXT_LENGTH,
+    MAX_BOOKING_DECISION_TEXT_LENGTH + 1,
+  ]) {
+    test(`rejection input respects the 500-character native limit for ${length} characters`, async ({
+      page,
+    }) => {
+      const bookings = requestedBookings.slice(0, 1).map(pendingBooking);
+      const bodies: unknown[] = [];
+      await openMockInbox(page, bookings, async (route, item) => {
+        bodies.push(route.request().postDataJSON());
+        await successfulDecision(route, item, 'reject');
+      });
+      await page.getByRole('button', { name: 'Reject the booking from Mali' }).click();
+      const dialog = page.getByRole('dialog');
+      const reason = dialog.getByLabel('Reason (optional)');
+      await reason.fill('x'.repeat(length));
+      const acceptedLength = Math.min(length, MAX_BOOKING_DECISION_TEXT_LENGTH);
+      await expect(reason).toHaveValue('x'.repeat(acceptedLength));
+      await expect(
+        dialog.getByText(
+          `Up to ${MAX_BOOKING_DECISION_TEXT_LENGTH} characters. (${acceptedLength}/${MAX_BOOKING_DECISION_TEXT_LENGTH})`,
+        ),
+      ).toBeVisible();
+      await dialog.getByRole('button', { name: 'Yes, reject booking' }).click();
+      await expect(page.getByRole('dialog')).toHaveCount(0);
+      expect(bodies).toEqual([{ reason: 'x'.repeat(acceptedLength) }]);
+      await expect(
+        page.getByText('Booking rejected. The lesson time is open again.'),
+      ).toBeVisible();
     });
   }
-}
 
-for (const length of [499, 500, 501]) {
-  test(`rejection input respects the 500-character native limit for ${length} characters`, async ({
+  test('blank rejection text is omitted and the API result decides the status', async ({
     page,
   }) => {
     const bookings = requestedBookings.slice(0, 1).map(pendingBooking);
@@ -502,57 +554,37 @@ for (const length of [499, 500, 501]) {
     });
     await page.getByRole('button', { name: 'Reject the booking from Mali' }).click();
     const dialog = page.getByRole('dialog');
-    const reason = dialog.getByLabel('Reason (optional)');
-    await reason.fill('x'.repeat(length));
-    const acceptedLength = Math.min(length, 500);
-    await expect(reason).toHaveValue('x'.repeat(acceptedLength));
-    await expect(dialog.getByText(`Up to 500 characters. (${acceptedLength}/500)`)).toBeVisible();
+    await dialog.getByLabel('Reason (optional)').fill('   ');
     await dialog.getByRole('button', { name: 'Yes, reject booking' }).click();
-    await expect(page.getByRole('dialog')).toHaveCount(0);
-    expect(bodies).toEqual([{ reason: 'x'.repeat(acceptedLength) }]);
+    await expect(dialog).toHaveCount(0);
+    expect(bodies).toEqual([{}]);
     await expect(page.getByText('Booking rejected. The lesson time is open again.')).toBeVisible();
   });
-}
 
-test('blank rejection text is omitted and the API result decides the status', async ({ page }) => {
-  const bookings = requestedBookings.slice(0, 1).map(pendingBooking);
-  const bodies: unknown[] = [];
-  await openMockInbox(page, bookings, async (route, item) => {
-    bodies.push(route.request().postDataJSON());
-    await successfulDecision(route, item, 'reject');
-  });
-  await page.getByRole('button', { name: 'Reject the booking from Mali' }).click();
-  const dialog = page.getByRole('dialog');
-  await dialog.getByLabel('Reason (optional)').fill('   ');
-  await dialog.getByRole('button', { name: 'Yes, reject booking' }).click();
-  await expect(dialog).toHaveCount(0);
-  expect(bodies).toEqual([{}]);
-  await expect(page.getByText('Booking rejected. The lesson time is open again.')).toBeVisible();
-});
-
-test('the all-status inbox offers decisions only for PENDING', async ({ page }, testInfo) => {
-  const bookings = ['PENDING', 'CONFIRMED', 'COMPLETED', 'CANCELED', 'EXPIRED'].map(
-    (status, index) => ({
-      ...pendingBooking({
-        id: `status-${status}`,
-        nickname: `Student ${status}`,
-        startHourUtc: index + 3,
+  test('the all-status inbox offers decisions only for PENDING', async ({ page }, testInfo) => {
+    const bookings = ['PENDING', 'CONFIRMED', 'COMPLETED', 'CANCELED', 'EXPIRED'].map(
+      (status, index) => ({
+        ...pendingBooking({
+          id: `status-${status}`,
+          nickname: `Student ${status}`,
+          startHourUtc: index + 3,
+        }),
+        status,
       }),
-      status,
-    }),
-  );
-  await openMockInbox(page, bookings);
-  await page.getByRole('button', { name: 'All', exact: true }).click();
-  await expect(page.getByRole('article')).toHaveCount(5);
-  for (const status of ['PENDING', 'CONFIRMED', 'COMPLETED', 'CANCELED', 'EXPIRED']) {
-    const row = page.getByRole('article', { name: `Student ${status}` });
-    await expect(row.getByText(status, { exact: true })).toBeVisible();
-    await expect(row.getByRole('button', { name: /the booking from/ })).toHaveCount(
-      status === 'PENDING' ? 2 : 0,
     );
-  }
-  await expectAccessiblePageShell(page);
-  await page.screenshot({ path: testInfo.outputPath('inbox-states.png'), fullPage: true });
+    await openMockInbox(page, bookings);
+    await page.getByRole('button', { name: 'All', exact: true }).click();
+    await expect(page.getByRole('article')).toHaveCount(5);
+    for (const status of ['PENDING', 'CONFIRMED', 'COMPLETED', 'CANCELED', 'EXPIRED']) {
+      const row = page.getByRole('article', { name: `Student ${status}` });
+      await expect(row.getByText(status, { exact: true })).toBeVisible();
+      await expect(row.getByRole('button', { name: /the booking from/ })).toHaveCount(
+        status === 'PENDING' ? 2 : 0,
+      );
+    }
+    await expectAccessiblePageShell(page);
+    await page.screenshot({ path: testInfo.outputPath('inbox-states.png'), fullPage: true });
+  });
 });
 
 async function openMockInbox(
