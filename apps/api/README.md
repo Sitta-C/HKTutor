@@ -477,3 +477,59 @@ slots spanning the range (`endAtUtc > from` and `startAtUtc < to`); omitted boun
 This mode excludes slots ending exactly at `from` or starting exactly at `to`. It retains tutor
 ownership, soft-delete filtering, and derived reservation states. The public availability endpoint
 keeps its existing future-start behavior and does not accept `rangeMode`.
+
+## Tutor booking transition verification (S2-T03)
+
+`pnpm --filter @hktutor/api db:verify:tutor-transitions` exercises the real Nest HTTP pipeline and
+Prisma transactions against PostgreSQL. Neither root `pnpm check` nor `pnpm test` runs this command.
+The HTTP Jest suite uses persistence doubles; it checks routing, validation and failure propagation,
+but cannot establish database atomicity.
+
+Use Node.js 24.19.0, the repository pnpm version, installed dependencies, and Docker (or an empty
+disposable PostgreSQL database). From the repository root, this example creates a new local target,
+applies committed migrations without seeding, and runs the verifier:
+
+```bash
+nvm use 24.19.0
+pnpm install --frozen-lockfile
+docker run --detach --name hktutor-tutor-transitions-test \
+  --publish 127.0.0.1:55434:5432 \
+  --env POSTGRES_USER=postgres --env POSTGRES_PASSWORD=disposable-local-only \
+  --env POSTGRES_DB=hktutor_transitions_test postgres:17
+# Wait until this reports that PostgreSQL is accepting connections.
+docker exec hktutor-tutor-transitions-test pg_isready -U postgres -d hktutor_transitions_test
+export DATABASE_URL='postgresql://postgres:disposable-local-only@127.0.0.1:55434/hktutor_transitions_test'
+pnpm db:generate
+pnpm --filter @hktutor/api db:migrate:deploy
+HKTUTOR_ALLOW_DISPOSABLE_DB_VERIFY=1 pnpm --filter @hktutor/api db:verify:tutor-transitions
+# Discard this example's container and its anonymous data volume, including after a failed run.
+docker rm --force --volumes hktutor-tutor-transitions-test
+unset DATABASE_URL
+```
+
+The approval flag and explicit `DATABASE_URL` are both required. The runner never loads `.env` or
+uses `AppModule` to select a fallback database. It accepts loopback hosts (`localhost`, `127.0.0.1`,
+IPv6 loopback) and database names starting with `hktutor_` or `hktutor-`; ports and users are configurable.
+URL options, schema overrides, fragments, remote hosts, and omitted targets are refused. These gates
+do not establish that a local database is disposable: choose an empty target that you own before
+applying migrations or running either verifier. Preflight checks applied `_prisma_migrations`,
+the active-slot partial unique index, and the cancellation constraint before creating fixtures.
+
+The runner creates random actors, catalog entries, a DRAFT listing, slots and bookings itself; it
+has no seed dependency. It verifies role/ownership errors and terminal states with persisted
+booking/slot snapshots, successful reservation/release through the real private availability
+projection, all four repeat/switch transitions, and all four concurrent action pairs. A read gate
+holds both real service SELECTs after they observe PENDING, then releases them to contend through
+the real database transaction. Text boundaries are 499/500/501 ASCII characters; inbox bounds use
+one-millisecond neighbors of persisted timestamps and the DTO pagination limits. Timeout handling
+and URL safety have separate unit tests (`tutor-transition-verifier.spec.ts`); these are test-runner
+checks, not database atomicity evidence.
+
+Compared with `db:verify:bookings` (`verify-booking-endpoint-concurrency.ts`), this runner adds the
+synchronized four-pair decision matrix, full persisted snapshots, terminal/authorization decision
+tables, and tutor inbox boundaries without requiring a seeded published listing. Keep the older
+runner for booking creation/payment contention and its `probe_reject_rollback` trigger: it supplies
+the separate real mid-transaction reject rollback evidence. The new runner does not replace that
+trigger test. It removes only its invocation's random fixture IDs in `finally`; retain failures and
+discard the disposable database afterward. Browser inbox tests intercept API responses and establish
+UI behavior, rather than live browser-to-database integration.
