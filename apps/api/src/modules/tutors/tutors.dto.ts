@@ -100,31 +100,79 @@ export class TutorSearchQueryDto {
   @Max(5)
   minimumRating?: number;
 
+  @ApiPropertyOptional({
+    description: 'Sort priority for tutor rating (lower number = higher precedence)',
+    example: 1,
+    maximum: 5,
+    minimum: 0,
+    type: Number,
+  })
   @IsOptional()
+  @Transform(transformOptionalNumber)
   @IsNumber({ allowInfinity: false, allowNaN: false })
   @Min(0)
   @Max(5)
   ratingPriority?: number;
 
+  @ApiPropertyOptional({
+    default: 'desc',
+    description: 'Sort direction for tutor rating (defaults to desc)',
+    enum: SortOrder,
+    enumName: 'SortOrder',
+    example: 'desc',
+  })
   @IsOptional()
+  @IsEnum(SortOrder)
   ratingOrder?: SortOrder;
 
+  @ApiPropertyOptional({
+    description: 'Sort priority for hourly price (lower number = higher precedence)',
+    example: 2,
+    maximum: 5,
+    minimum: 0,
+    type: Number,
+  })
   @IsOptional()
+  @Transform(transformOptionalNumber)
   @IsNumber({ allowInfinity: false, allowNaN: false })
   @Min(0)
   @Max(5)
   pricePriority?: number;
 
+  @ApiPropertyOptional({
+    default: 'asc',
+    description: 'Sort direction for hourly price (defaults to asc)',
+    enum: SortOrder,
+    enumName: 'SortOrder',
+    example: 'asc',
+  })
   @IsOptional()
+  @IsEnum(SortOrder)
   priceOrder?: SortOrder;
 
+  @ApiPropertyOptional({
+    description: 'Sort priority for tutor availability (lower number = higher precedence)',
+    example: 3,
+    maximum: 5,
+    minimum: 0,
+    type: Number,
+  })
   @IsOptional()
+  @Transform(transformOptionalNumber)
   @IsNumber({ allowInfinity: false, allowNaN: false })
   @Min(0)
   @Max(5)
   availabilityPriority?: number;
 
+  @ApiPropertyOptional({
+    default: 'asc',
+    description: 'Sort direction for tutor availability (defaults to asc)',
+    enum: SortOrder,
+    enumName: 'SortOrder',
+    example: 'asc',
+  })
   @IsOptional()
+  @IsEnum(SortOrder)
   availabilityOrder?: SortOrder;
 
   @ApiPropertyOptional({ default: DEFAULT_TUTOR_SEARCH_PAGE, example: 1, minimum: 1 })

@@ -10,7 +10,9 @@ import { TutorDirectoryService as TutorsService } from '@modules/tutors/tutor-di
 import type { PrismaService } from '@infrastructure/database/prisma.service';
 
 const TUTOR_ID = '20000000-0000-4000-8000-000000000001';
+const TUTOR_ID_2 = '20000000-0000-4000-8000-000000000002';
 const LISTING_ID = '10000000-0000-4000-8000-000000000001';
+const LISTING_ID_2 = '10000000-0000-4000-8000-000000000002';
 const SUBJECT_ID = '30000000-0000-4000-8000-000000000001';
 const GRADE_ID = '40000000-0000-4000-8000-000000000001';
 
@@ -27,6 +29,7 @@ const decimal = (value: number) => ({ toNumber: () => value });
 
 function createPrisma() {
   return {
+    $queryRaw: jest.fn().mockResolvedValue([]),
     gradeLevel: { findFirst: jest.fn(), findMany: jest.fn() },
     subject: { findFirst: jest.fn(), findMany: jest.fn() },
     teachingListing: { count: jest.fn().mockResolvedValue(0), findMany: jest.fn() },
@@ -61,6 +64,22 @@ function getSearchCall(prisma: ReturnType<typeof createPrisma>, index = 0): Sear
   const args = calls[index]?.[0];
   if (args === undefined) throw new Error(`Missing findMany call at index ${index}`);
   return args as SearchCall;
+}
+
+function getQueryRawCall(prisma: ReturnType<typeof createPrisma>, index = 0): unknown[] {
+  const calls = prisma.$queryRaw.mock.calls as unknown as Array<unknown[]>;
+  return calls[index] ?? [];
+}
+
+function getRawOrderArg(queryCall: unknown[]): { text: string } | undefined {
+  return queryCall.find(
+    (arg) =>
+      typeof arg === 'object' &&
+      arg !== null &&
+      'text' in arg &&
+      typeof (arg as { text: string }).text === 'string' &&
+      (arg as { text: string }).text.length > 0,
+  ) as { text: string } | undefined;
 }
 
 function publicSearchListing(overrides: Record<string, unknown> = {}) {
@@ -320,6 +339,242 @@ describe('TutorDirectoryService', () => {
     expect(prisma.teachingListing.count).toHaveBeenCalledWith({
       where: getSearchCall(prisma).where,
     });
+  });
+
+  it('applies default sorting (publishedAt desc, id asc) when no sort priority is specified', async () => {
+    const prisma = createPrisma();
+    prisma.teachingListing.findMany.mockResolvedValue([]);
+    const service = new TutorsService(prisma as unknown as PrismaService);
+
+    await service.searchPublicTutors({});
+
+    expect(prisma.$queryRaw).not.toHaveBeenCalled();
+    expect(prisma.teachingListing.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        orderBy: [{ publishedAt: 'desc' }, { id: 'asc' }],
+      }),
+    );
+  });
+
+  it('sorts by rating with default direction (desc) or explicit direction (asc)', async () => {
+    const prisma = createPrisma();
+    prisma.teachingListing.findMany.mockResolvedValue([]);
+    const service = new TutorsService(prisma as unknown as PrismaService);
+
+    await service.searchPublicTutors({ ratingPriority: 1 });
+    expect(prisma.teachingListing.findMany).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        orderBy: [
+          { tutorProfile: { ratingAverage: 'desc' } },
+          { publishedAt: 'desc' },
+          { id: 'asc' },
+        ],
+      }),
+    );
+
+    await service.searchPublicTutors({ ratingOrder: 'asc', ratingPriority: 1 });
+    expect(prisma.teachingListing.findMany).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        orderBy: [
+          { tutorProfile: { ratingAverage: 'asc' } },
+          { publishedAt: 'desc' },
+          { id: 'asc' },
+        ],
+      }),
+    );
+  });
+
+  it('sorts by price with default direction (asc) or explicit direction (desc)', async () => {
+    const prisma = createPrisma();
+    prisma.teachingListing.findMany.mockResolvedValue([]);
+    const service = new TutorsService(prisma as unknown as PrismaService);
+
+    await service.searchPublicTutors({ pricePriority: 1 });
+    expect(prisma.teachingListing.findMany).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        orderBy: [{ pricePerHour: 'asc' }, { publishedAt: 'desc' }, { id: 'asc' }],
+      }),
+    );
+
+    await service.searchPublicTutors({ priceOrder: 'desc', pricePriority: 1 });
+    expect(prisma.teachingListing.findMany).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        orderBy: [{ pricePerHour: 'desc' }, { publishedAt: 'desc' }, { id: 'asc' }],
+      }),
+    );
+  });
+
+  it('orders multiple criteria according to priority precedence', async () => {
+    const prisma = createPrisma();
+    prisma.teachingListing.findMany.mockResolvedValue([]);
+    const service = new TutorsService(prisma as unknown as PrismaService);
+
+    await service.searchPublicTutors({
+      priceOrder: 'desc',
+      pricePriority: 2,
+      ratingOrder: 'asc',
+      ratingPriority: 1,
+    });
+    expect(prisma.teachingListing.findMany).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        orderBy: [
+          { tutorProfile: { ratingAverage: 'asc' } },
+          { pricePerHour: 'desc' },
+          { publishedAt: 'desc' },
+          { id: 'asc' },
+        ],
+      }),
+    );
+
+    await service.searchPublicTutors({
+      priceOrder: 'asc',
+      pricePriority: 1,
+      ratingOrder: 'desc',
+      ratingPriority: 2,
+    });
+    expect(prisma.teachingListing.findMany).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        orderBy: [
+          { pricePerHour: 'asc' },
+          { tutorProfile: { ratingAverage: 'desc' } },
+          { publishedAt: 'desc' },
+          { id: 'asc' },
+        ],
+      }),
+    );
+  });
+
+  it('executes $queryRaw with joins, filters, and ordering when availabilityPriority is specified', async () => {
+    const prisma = createPrisma();
+    prisma.$queryRaw.mockResolvedValue([{ id: LISTING_ID }]);
+    prisma.teachingListing.count.mockResolvedValue(1);
+    prisma.teachingListing.findMany.mockResolvedValue([publicSearchListing()]);
+    const service = new TutorsService(prisma as unknown as PrismaService);
+
+    const result = await service.searchPublicTutors({ availabilityPriority: 1 });
+
+    expect(prisma.$queryRaw).toHaveBeenCalledTimes(1);
+    const queryCall = getQueryRawCall(prisma, 0);
+    const sqlStrings = ((queryCall[0] ?? []) as TemplateStringsArray).join(' ');
+    expect(sqlStrings).toContain('FROM "TeachingListing" tl');
+    expect(sqlStrings).toContain('JOIN "TutorProfile" tp ON tl."tutorProfileId" = tp."userId"');
+    expect(sqlStrings).toContain('LEFT JOIN "AvailabilitySlot" slot');
+    expect(sqlStrings).toContain('slot."startAtUtc" >=');
+    expect(sqlStrings).toContain('slot."deletedAt" IS NULL');
+    expect(sqlStrings).toContain(
+      `tl."publicationStatus" = 'published'::"ListingPublicationStatus"`,
+    );
+
+    const rawOrderArg = getRawOrderArg(queryCall);
+    expect(rawOrderArg?.text).toContain('MIN(slot."startAtUtc") ASC NULLS LAST');
+    expect(rawOrderArg?.text).toContain('tl."publishedAt" DESC, tl."id" ASC');
+    expect(result.items).toHaveLength(1);
+    expect(result.items[0]?.listingId).toBe(LISTING_ID);
+  });
+
+  it('executes $queryRaw with availabilityOrder: desc and combines with other priorities', async () => {
+    const prisma = createPrisma();
+    prisma.$queryRaw.mockResolvedValue([]);
+    const service = new TutorsService(prisma as unknown as PrismaService);
+
+    await service.searchPublicTutors({
+      availabilityOrder: 'desc',
+      availabilityPriority: 1,
+    });
+    const firstCall = getQueryRawCall(prisma, 0);
+    const firstOrderArg = getRawOrderArg(firstCall);
+    expect(firstOrderArg?.text).toContain('MIN(slot."startAtUtc") DESC NULLS LAST');
+
+    await service.searchPublicTutors({
+      availabilityOrder: 'asc',
+      availabilityPriority: 3,
+      priceOrder: 'asc',
+      pricePriority: 1,
+      ratingOrder: 'desc',
+      ratingPriority: 2,
+    });
+    const secondCall = getQueryRawCall(prisma, 1);
+    const secondOrderArg = getRawOrderArg(secondCall);
+    expect(secondOrderArg?.text).toBe(
+      'tl."pricePerHour" ASC, tp."ratingAverage" DESC NULLS LAST, MIN(slot."startAtUtc") ASC NULLS LAST, tl."publishedAt" DESC, tl."id" ASC',
+    );
+  });
+
+  it('interpolates catalog filters and pagination into $queryRaw', async () => {
+    const prisma = createPrisma();
+    prisma.subject.findFirst.mockResolvedValue({ id: SUBJECT_ID });
+    prisma.gradeLevel.findFirst.mockResolvedValue({ id: GRADE_ID });
+    prisma.$queryRaw.mockResolvedValue([]);
+    const service = new TutorsService(prisma as unknown as PrismaService);
+
+    await service.searchPublicTutors({
+      availabilityPriority: 1,
+      grade: 'Grade 10',
+      maxPrice: 400,
+      minimumRating: 4.5,
+      page: 4,
+      pageSize: 5,
+      subject: 'Mathematics',
+    });
+
+    expect(prisma.subject.findFirst).toHaveBeenCalledWith({
+      select: { id: true },
+      where: { active: true, name: { equals: 'Mathematics', mode: 'insensitive' } },
+    });
+    expect(prisma.gradeLevel.findFirst).toHaveBeenCalledWith({
+      select: { id: true },
+      where: { active: true, name: { equals: 'Grade 10', mode: 'insensitive' } },
+    });
+    const queryCall = getQueryRawCall(prisma, 0);
+    const sqlStrings = ((queryCall[0] ?? []) as TemplateStringsArray).join(' ');
+    expect(sqlStrings).toContain('OFFSET');
+    expect(sqlStrings).toContain('LIMIT');
+  });
+
+  it('does not invoke teachingListing.findMany when $queryRaw returns zero results', async () => {
+    const prisma = createPrisma();
+    prisma.$queryRaw.mockResolvedValue([]);
+    prisma.teachingListing.count.mockResolvedValue(5);
+    const service = new TutorsService(prisma as unknown as PrismaService);
+
+    const result = await service.searchPublicTutors({ availabilityPriority: 1 });
+
+    expect(prisma.$queryRaw).toHaveBeenCalledTimes(1);
+    expect(prisma.teachingListing.findMany).not.toHaveBeenCalled();
+    expect(result).toEqual({
+      items: [],
+      page: 1,
+      pageSize: 10,
+      total: 5,
+      totalPages: 1,
+    });
+  });
+
+  it('preserves the exact ordering of listing IDs returned by $queryRaw', async () => {
+    const prisma = createPrisma();
+    prisma.$queryRaw.mockResolvedValue([{ id: LISTING_ID_2 }, { id: LISTING_ID }]);
+    prisma.teachingListing.count.mockResolvedValue(2);
+
+    const listing1 = publicSearchListing();
+    const listing2 = publicSearchListing({
+      id: LISTING_ID_2,
+      pricePerHour: decimal(300),
+      tutorProfile: { ...publicSearchListing().tutorProfile, userId: TUTOR_ID_2 },
+    });
+
+    prisma.teachingListing.findMany.mockResolvedValue([listing1, listing2]);
+    const service = new TutorsService(prisma as unknown as PrismaService);
+
+    const result = await service.searchPublicTutors({ availabilityPriority: 1 });
+
+    expect(prisma.teachingListing.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: { in: [LISTING_ID_2, LISTING_ID] } },
+      }),
+    );
+    expect(result.items).toHaveLength(2);
+    expect(result.items[0]?.listingId).toBe(LISTING_ID_2);
+    expect(result.items[1]?.listingId).toBe(LISTING_ID);
   });
 
   it('returns a public Tutor detail with zero or more published listings only', async () => {

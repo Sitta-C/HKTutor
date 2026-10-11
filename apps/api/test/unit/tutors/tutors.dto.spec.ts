@@ -97,11 +97,17 @@ describe('tutor listing DTOs', () => {
 
   it('accepts optional search filters and transforms numeric query strings', async () => {
     const dto = plainToInstance(TutorSearchQueryDto, {
+      availabilityOrder: 'desc',
+      availabilityPriority: '3',
       grade: 'Grade 10',
       maxPrice: '500',
       minimumRating: '4.00',
       page: '2',
       pageSize: '20',
+      priceOrder: 'asc',
+      pricePriority: '2',
+      ratingOrder: 'desc',
+      ratingPriority: '1',
       subject: 'mathematics',
     });
 
@@ -110,6 +116,12 @@ describe('tutor listing DTOs', () => {
     expect(dto.minimumRating).toBe(4);
     expect(dto.page).toBe(2);
     expect(dto.pageSize).toBe(20);
+    expect(dto.ratingPriority).toBe(1);
+    expect(dto.ratingOrder).toBe('desc');
+    expect(dto.pricePriority).toBe(2);
+    expect(dto.priceOrder).toBe('asc');
+    expect(dto.availabilityPriority).toBe(3);
+    expect(dto.availabilityOrder).toBe('desc');
   });
 
   it.each([
@@ -123,6 +135,14 @@ describe('tutor listing DTOs', () => {
     ['non-integer page', { page: 1.5 }],
     ['page size above maximum', { pageSize: 51 }],
     ['blank page size', { pageSize: ' ' }],
+    ['negative rating priority', { ratingPriority: -1 }],
+    ['rating priority above maximum', { ratingPriority: 6 }],
+    ['non-numeric price priority', { pricePriority: 'not-a-number' }],
+    ['negative availability priority', { availabilityPriority: -1 }],
+    ['availability priority above maximum', { availabilityPriority: 6 }],
+    ['invalid rating order', { ratingOrder: 'descending' }],
+    ['invalid price order', { priceOrder: 'lowest' }],
+    ['invalid availability order', { availabilityOrder: 'first' }],
   ])('rejects invalid public search filter: %s', async (_label, override) => {
     const dto = plainToInstance(TutorSearchQueryDto, override);
 
