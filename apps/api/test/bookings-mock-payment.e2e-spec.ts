@@ -164,18 +164,18 @@ describe('Student mock payment (e2e)', () => {
     expect(transaction).not.toHaveBeenCalled();
   });
 
-  it('returns 400 and keeps the payment state when the amount does not match', async () => {
+  it('returns 409 and keeps the payment state when the amount does not match', async () => {
     authenticateAs(Role.STUDENT);
     bookingFindUnique.mockResolvedValue(payableBooking());
 
     const response = await paymentRequest()
       .send({ amount: '400.00', reference: 'DEMO-1' })
-      .expect(400);
+      .expect(409);
 
     expect(response.body).toMatchObject({
       code: 'BOOKING_PAYMENT_AMOUNT_MISMATCH',
       details: { expectedAmount: '450.00' },
-      statusCode: 400,
+      statusCode: 409,
     });
     expect(transaction).not.toHaveBeenCalled();
   });

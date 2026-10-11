@@ -155,14 +155,18 @@ const bookingPaymentConflict = (): ConflictException =>
     statusCode: 409,
   });
 
-/** The declared amount only detects a stale client, so a mismatch is rejected as invalid input. */
-const paymentAmountMismatch = (expected: Prisma.Decimal): BadRequestException =>
-  new BadRequestException({
+/**
+ * The DTO already rejects a malformed amount, so a well-formed amount that differs from the stored
+ * netAmount means the client is acting on a stale view of the booking. That is a state conflict,
+ * reported the same way `assertBookableSlot` reports an already-started slot.
+ */
+const paymentAmountMismatch = (expected: Prisma.Decimal): ConflictException =>
+  new ConflictException({
     code: 'BOOKING_PAYMENT_AMOUNT_MISMATCH',
     details: { expectedAmount: expected.toFixed(2) },
-    error: 'Bad Request',
+    error: 'Conflict',
     message: 'amount does not match the amount recorded for this booking',
-    statusCode: 400,
+    statusCode: 409,
   });
 
 const bookingListingSelect = {

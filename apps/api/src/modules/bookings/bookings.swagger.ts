@@ -660,15 +660,12 @@ export function RejectTutorBookingDoc(): MethodDecorator {
 function mockPaymentErrorResponses(): MethodDecorator[] {
   return [
     ApiBadRequestResponse({
-      description:
-        'bookingId is not a valid UUID, the body failed validation, or the declared amount does ' +
-        "not match the booking's stored amount",
+      description: 'bookingId is not a valid UUID, or the request body failed validation',
       schema: {
         example: {
-          code: 'BOOKING_PAYMENT_AMOUNT_MISMATCH',
-          details: { expectedAmount: '450.00' },
+          code: 'VALIDATION_FAILED',
           error: 'Bad Request',
-          message: 'amount does not match the amount recorded for this booking',
+          message: ['reference must not be blank'],
           statusCode: 400,
         },
         type: 'object',
@@ -714,13 +711,15 @@ function mockPaymentErrorResponses(): MethodDecorator[] {
     }),
     ApiConflictResponse({
       description:
-        'The booking is not confirmed, is already paid, the reference belongs to another ' +
-        'booking, or a concurrent payment won the transition',
+        'The booking is not confirmed, is already paid, the declared amount no longer matches the ' +
+        "booking's stored amount, the reference belongs to another booking, or a concurrent " +
+        'payment won the transition',
       schema: {
         example: {
-          code: 'BOOKING_ALREADY_PAID',
+          code: 'BOOKING_PAYMENT_AMOUNT_MISMATCH',
+          details: { expectedAmount: '450.00' },
           error: 'Conflict',
-          message: 'This booking is already paid',
+          message: 'amount does not match the amount recorded for this booking',
           statusCode: 409,
         },
         type: 'object',
