@@ -441,6 +441,7 @@ explanation returns `recommendationTags: []`.
 This contract addition delegates ordering and result pagination to the existing sorter. API tests
 for it use mocked persistence and do not certify PostgreSQL ordering or public-query eligibility.
 The ranking selector and translated result-card labels belong to S2-T14.
+
 ## Mock payment API (S2-T04)
 
 `POST /api/v1/bookings/me/:bookingId/mock-payment` records the demo payment for one booking. It is
