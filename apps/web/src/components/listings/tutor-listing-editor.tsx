@@ -589,6 +589,9 @@ export default function TutorListingEditor({
                     {copy.previewTitle}
                   </h2>
                   <p className="mt-1 text-xs leading-5 text-notebook-muted">{copy.previewBody}</p>
+                  <p className="mt-2 text-xs leading-5 text-notebook-ink">
+                    {copy.previewVisibility}
+                  </p>
                 </div>
                 <ListingStatusBadge status={status} labels={statusLabels} variant="ledger" />
               </header>
@@ -813,6 +816,8 @@ const englishCopy = {
   descriptionGood: 'Clear enough to publish.',
   previewTitle: 'Student preview',
   previewBody: 'This preview updates while you edit.',
+  previewVisibility:
+    'Tutors awaiting qualification review or rejected from verification do not appear in search. Courses appear only after the tutor is verified and the course is published.',
   subjectFallback: 'Subject',
   gradeFallback: 'Grade level',
   descriptionFallback: 'Your course description will appear here.',
@@ -885,6 +890,8 @@ const thaiCopy: typeof englishCopy = {
   descriptionGood: 'คำอธิบายพร้อมเผยแพร่แล้ว',
   previewTitle: 'ตัวอย่างสำหรับนักเรียน',
   previewBody: 'ตัวอย่างจะเปลี่ยนตามข้อมูลที่คุณกรอก',
+  previewVisibility:
+    'หมายเหตุ: ติวเตอร์ที่รอตรวจสอบหรือไม่ผ่านการตรวจสอบคุณวุฒิจะไม่แสดงในหน้าค้นหา คอร์สจะแสดงเมื่อติวเตอร์ผ่านการตรวจสอบและเผยแพร่คอร์สแล้ว',
   subjectFallback: 'รายวิชา',
   gradeFallback: 'ระดับชั้น',
   descriptionFallback: 'คำอธิบายคอร์สของคุณจะแสดงที่นี่',

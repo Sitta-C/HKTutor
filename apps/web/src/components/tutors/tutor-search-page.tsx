@@ -533,12 +533,14 @@ function TutorResultCard({
             <h3>{result.displayName}</h3>
           </div>
         </div>
-        <TutorVerificationBadge
-          status={result.verificationStatus}
-          language={language}
-          audience="public"
-          compact
-        />
+        <div className={styles.verification}>
+          <TutorVerificationBadge
+            status={result.verificationStatus}
+            language={language}
+            audience="public"
+            compact
+          />
+        </div>
         <div className={styles.metadata}>
           <span>
             {rating} · {result.reviewCount} {text.reviews}

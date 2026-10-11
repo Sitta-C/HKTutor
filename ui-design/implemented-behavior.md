@@ -487,5 +487,8 @@ Private tutor profile summaries, profile previews and listing previews use the s
 status labels and semantic colors: green shield for VERIFIED, amber clock for PENDING, red info
 for REJECTED. A rejected listing preview is not labelled pending. Guidance on private profiles and
 listing editors links pending/rejected tutors to `/dashboard/profile#qualification-documents`.
-The profile preview explains that discovery requires verification and a published course. Existing
+Search badges have clearance below the avatar/name row; narrow layouts retain the existing wrapped
+spacing. The profile preview explains that discovery requires verification and a published course.
+The listing editor also explains below its student preview heading that PENDING/REJECTED tutors
+do not appear in search, and courses appear only after verification and publication. Existing
 publication checks and API requests remain authoritative; no per-card status request is added.
