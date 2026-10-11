@@ -112,7 +112,10 @@ test('uses one fail-closed tutor allowlist across publish, discovery, availabili
   assert.match(searchPage, /text\.verifiedOnly/);
   assert.match(searchCopy, /verified tutors only/i);
   assert.doesNotMatch(searchCopy, /VERIFICATION PENDING/);
-  assert.match(tutorDetail, /\{text\.verified\}/);
+  assert.match(
+    tutorDetail,
+    /<TutorVerificationBadge[\s\S]*?status=\{detail\.tutor\.verificationStatus\}[\s\S]*?audience="public"/,
+  );
   assert.doesNotMatch(tutorDetail, /text\.pendingVerification/);
   assert.match(listingEditor, /must be verified before publishing/);
 });

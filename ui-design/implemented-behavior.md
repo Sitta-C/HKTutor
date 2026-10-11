@@ -38,7 +38,12 @@ as a closable modal from registration and the dashboard instead of using a separ
 
 The tutor profile's read-only account summary places labels above plain paper fields, matching
 the profile form's typography, spacing, field height, and responsive columns. Tutor verification
-uses a standalone status badge; the score, five stars, review count, and review action share one
+uses the shared tutor verification badge, with distinct VERIFIED/PENDING/REJECTED text and icons.
+Owner-only guidance explains publication eligibility and links unverified tutors to qualification
+documents only when the document section is rendered in the profile editor. Onboarding keeps the
+status and guidance but omits the document link until the tutor reaches `/dashboard/profile`.
+Document anchors focus and scroll into view after the profile loads. The score, five
+stars, review count, and review action share one
 compact row. Stars fill proportionally from the existing profile rating, and ratings, review counts,
 and verification states update from the existing profile API responses. Tutors without
 reviews see an explicit new-tutor state.
@@ -126,7 +131,7 @@ its existing number input, step, hint and validation. Catalog loading/errors kee
 selects disabled, independently of result loading/errors.
 
 Each search row is keyed by listing ID: the same tutor can have multiple separate courses, including
-across pages. Tutor identity, a plain mint verification tag without a checkmark, rating/reviews and
+across pages. Tutor identity, a compact shared VERIFIED badge with a shield icon, rating/reviews and
 experience accompany a blue grade tab, subject, upright hourly price on slightly tilted yellow paper,
 two-line description, Bangkok next availability and the view-times action. Null ratings show New tutor;
 missing future availability remains explicit. Narrow result sheets stack the same anatomy through a
@@ -164,7 +169,7 @@ list, request and detail pages. The sidebar booking link remains available. Its 
 alter shared primitives or tutor UI.
 
 Public tutor detail at `/tutors/[tutorId]?listingId=...` uses **Appointment Pad**, selected as option 3
-on 2026-10-07. One profile paper leads with tutor name, initial avatar and plain verification, actual
+on 2026-10-07. One profile paper leads with tutor name, initial avatar and the shared VERIFIED badge, actual
 rating/review aggregate, a yellow experience note and ruled biography. Null rating shows New tutor
 alongside the actual review count. Individual reviews remain unavailable; no endpoint or action is
 added. The profile composition follows the tutor's selected **Profile Page** preview.
@@ -473,3 +478,24 @@ The follow-up pass adds 16px above the page heading and a continuous clockwise r
 geometry checks explicitly assert that Send is beside the input and the eyebrow clears the shell
 header. The corrected layout was also visually checked in the running Safari session after loading
 fresh CSS from origin; an ordinary reload had retained old development styles.
+
+## Tutor verification presentation (S2-T11)
+
+Search rows and public tutor profiles show the verification badge only when the returned tutor
+status is VERIFIED. Unexpected, missing, PENDING, REJECTED or document-level APPROVED metadata
+never produces a public success badge. Loading and error/404 branches do not render it.
+
+Private tutor profile summaries, profile previews and listing previews use the same bilingual
+status labels and semantic colors: green shield for VERIFIED, amber clock for PENDING, red info
+for REJECTED. A rejected listing preview is not labelled pending. Guidance on private profiles and
+listing editors links pending/rejected tutors to `/dashboard/profile#qualification-documents`.
+The onboarding profile summary omits its document link because that route has no document section;
+it retains status guidance and does not navigate away from unsaved profile fields.
+Search badges have clearance below the avatar/name row; narrow layouts retain the existing wrapped
+spacing. The profile preview explains that discovery requires verification and a published course.
+For PENDING/REJECTED tutors, the listing editor explains below its student preview heading that
+they do not appear in search, and courses appear only after verification and publication. This
+guidance spans the preview column with a bold hidden-course heading and an amber or red tinted
+notice, matching the status badge. It does not use a “Note:” prefix. VERIFIED tutors do not see
+this visibility notice. Existing
+publication checks and API requests remain authoritative; no per-card status request is added.
