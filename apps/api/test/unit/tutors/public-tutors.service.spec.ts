@@ -174,6 +174,7 @@ describe('TutorDirectoryService', () => {
           nextAvailableAt: new Date('2026-09-12T02:00:00.000Z'),
           pricePerHour: 500,
           ratingAverage: 4,
+          recommendationTags: [],
           reviewCount: 24,
           subject: 'Mathematics',
           tutorId: TUTOR_ID,

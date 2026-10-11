@@ -20,6 +20,7 @@ import {
 
 import { SortOrder } from '@app/generated/prisma/internal/prismaNamespace';
 import { ListingPublicationStatus } from '@generated/prisma/client';
+import { TutorRankingPriority, TutorRecommendationTag } from '@modules/tutors/tutor-ranking';
 
 import type { TransformFnParams } from 'class-transformer';
 import type { ValidationArguments, ValidationOptions } from 'class-validator';
@@ -52,6 +53,18 @@ export class ListingStatusRequestDto {
 }
 
 export class TutorSearchQueryDto {
+  @ApiPropertyOptional({
+    description:
+      'Named ranking priority. Cannot be combined with individual sort priorities or directions; ' +
+      'omitting all sort settings preserves the published-date ordering.',
+    enum: TutorRankingPriority,
+    enumName: 'TutorRankingPriority',
+    example: TutorRankingPriority.LOWEST_PRICE,
+  })
+  @IsOptional()
+  @IsEnum(TutorRankingPriority)
+  priority?: TutorRankingPriority;
+
   @ApiPropertyOptional({
     description: 'Case-insensitive exact Subject name from the active catalog',
     example: 'Mathematics',
@@ -245,6 +258,18 @@ export class ListingResponseDto {
 }
 
 export class TutorSearchResultDto {
+  @ApiProperty({
+    description:
+      'Language-neutral explanation codes. FITS_BUDGET needs an explicit matching maxPrice. ' +
+      'Priority-specific tags identify every tie for the best value across all filtered public ' +
+      'results, not just this page. Null ratings and missing future slots receive no best-value tag.',
+    enum: TutorRecommendationTag,
+    enumName: 'TutorRecommendationTag',
+    isArray: true,
+    example: [TutorRecommendationTag.FITS_BUDGET, TutorRecommendationTag.LOWEST_PRICE],
+  })
+  recommendationTags!: TutorRecommendationTag[];
+
   @ApiProperty({ type: String, format: 'date-time', nullable: true })
   avatarUpdatedAt!: Date | null;
 

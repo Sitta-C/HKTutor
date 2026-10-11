@@ -13,11 +13,17 @@ import {
   publicTutorWhere,
 } from '@modules/tutors/public-tutor-access';
 import {
+  buildTutorRecommendationTags,
+  resolveTutorRankingQuery,
+  TutorRankingPriority,
+} from '@modules/tutors/tutor-ranking';
+import {
   DEFAULT_TUTOR_SEARCH_PAGE,
   DEFAULT_TUTOR_SEARCH_PAGE_SIZE,
 } from '@modules/tutors/tutors.dto';
 
 import type { PublicTutorVerificationStatus } from '@modules/tutors/public-tutor-access';
+import type { TutorRecommendationContext } from '@modules/tutors/tutor-ranking';
 import type {
   GradeLevelCatalogResponseDto,
   PublicTeachingListingDto,
@@ -134,7 +140,8 @@ export class TutorDirectoryService {
 
   constructor(private readonly prisma: PrismaService) {}
 
-  async searchPublicTutors(query: TutorSearchQueryDto): Promise<TutorSearchResponseDto> {
+  async searchPublicTutors(input: TutorSearchQueryDto): Promise<TutorSearchResponseDto> {
+    const query = resolveTutorRankingQuery(input);
     const [subject, gradeLevel] = await Promise.all([
       query.subject === undefined
         ? Promise.resolve(null)
@@ -241,7 +248,7 @@ export class TutorDirectoryService {
       listingIds = rawResults.map((r) => r.id);
     }
 
-    const [listingsRaw, total] = await Promise.all([
+    const [listingsRaw, total, recommendationContext] = await Promise.all([
       hasAvailabilitySort
         ? listingIds.length > 0
           ? this.prisma.teachingListing.findMany({
@@ -261,6 +268,7 @@ export class TutorDirectoryService {
             take: pageSize,
           }),
       this.prisma.teachingListing.count({ where }),
+      this.getRecommendationContext(query, where, now),
     ]);
 
     let listings = listingsRaw;
@@ -278,7 +286,7 @@ export class TutorDirectoryService {
         return [];
       }
 
-      return [mapPublicSearchListing(listing, status)];
+      return [mapPublicSearchListing(listing, status, recommendationContext)];
     });
 
     return {
@@ -288,6 +296,59 @@ export class TutorDirectoryService {
       total,
       totalPages: Math.ceil(total / pageSize),
     };
+  }
+
+  private async getRecommendationContext(
+    query: TutorSearchQueryDto,
+    where: Prisma.TeachingListingWhereInput,
+    now: Date,
+  ): Promise<TutorRecommendationContext> {
+    const context: TutorRecommendationContext = {
+      earliestAvailableAt: null,
+      highestRating: null,
+      lowestPrice: null,
+      ...(query.maxPrice === undefined ? {} : { maxPrice: query.maxPrice }),
+    };
+
+    // Evaluate explanations over the complete eligible result set, before pagination.
+    switch (query.priority) {
+      case TutorRankingPriority.LOWEST_PRICE: {
+        const prices = await this.prisma.teachingListing.aggregate({
+          _min: { pricePerHour: true },
+          where,
+        });
+        context.lowestPrice = prices._min.pricePerHour;
+        break;
+      }
+      case TutorRankingPriority.HIGHEST_RATING: {
+        const ratings = await this.prisma.tutorProfile.aggregate({
+          _max: { ratingAverage: true },
+          where: { ...publicTutorWhere, listings: { some: where } },
+        });
+        context.highestRating = ratings._max.ratingAverage;
+        break;
+      }
+      case TutorRankingPriority.EARLIEST_AVAILABILITY: {
+        const slot = await this.prisma.availabilitySlot.findFirst({
+          orderBy: [{ startAtUtc: 'asc' }, { id: 'asc' }],
+          select: { startAtUtc: true },
+          where: {
+            bookings: {
+              none: { status: { in: [BookingStatus.PENDING, BookingStatus.CONFIRMED] } },
+            },
+            deletedAt: null,
+            startAtUtc: { gt: now },
+            tutorProfile: { ...publicTutorWhere, listings: { some: where } },
+          },
+        });
+        context.earliestAvailableAt = slot?.startAtUtc ?? null;
+        break;
+      }
+      case undefined:
+        break;
+    }
+
+    return context;
   }
 
   async getPublicTutor(tutorId: string): Promise<PublicTutorDetailResponseDto> {
@@ -343,10 +404,19 @@ export class TutorDirectoryService {
 function mapPublicSearchListing(
   listing: SelectedPublicSearchListing,
   verificationStatus: PublicTutorVerificationStatus,
+  recommendationContext: TutorRecommendationContext,
 ): TutorSearchResultDto {
   const tutor = listing.tutorProfile;
 
   return {
+    recommendationTags: buildTutorRecommendationTags(
+      {
+        nextAvailableAt: tutor.availabilitySlots[0]?.startAtUtc ?? null,
+        pricePerHour: listing.pricePerHour,
+        ratingAverage: tutor.ratingAverage,
+      },
+      recommendationContext,
+    ),
     avatarUpdatedAt: tutor.user.avatarUpdatedAt,
     description: listing.description,
     displayName: tutor.displayName,

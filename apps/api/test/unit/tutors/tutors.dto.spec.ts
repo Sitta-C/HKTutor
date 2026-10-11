@@ -155,6 +155,21 @@ describe('tutor listing DTOs', () => {
     const errors = await validate(dto, { forbidNonWhitelisted: true, whitelist: true });
     expect(errors.some((error) => error.property === 'unexpected')).toBe(true);
   });
+
+  it.each(['lowest_price', 'highest_rating', 'earliest_availability'])(
+    'accepts named priority %s through the whitelist',
+    async (priority) => {
+      const dto = plainToInstance(TutorSearchQueryDto, { priority });
+      await expect(
+        validate(dto, { forbidNonWhitelisted: true, whitelist: true }),
+      ).resolves.toHaveLength(0);
+    },
+  );
+
+  it.each(['unknown', '', 'HIGHEST_RATING', 1])('rejects invalid priority %p', async (priority) => {
+    const dto = plainToInstance(TutorSearchQueryDto, { priority });
+    expect(await validate(dto)).not.toHaveLength(0);
+  });
 });
 
 describe('availability DTOs', () => {

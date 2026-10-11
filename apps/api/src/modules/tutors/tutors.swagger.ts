@@ -24,6 +24,7 @@ import {
 import { SortOrder } from '@app/generated/prisma/internal/prismaNamespace';
 import { ListingPublicationStatus } from '@generated/prisma/client';
 import { JWT_BEARER_AUTH } from '@modules/auth/auth.swagger';
+import { TutorRankingPriority } from '@modules/tutors/tutor-ranking';
 import {
   AvailabilityPostRequestDto,
   AvailabilityPostResponseDto,
@@ -121,6 +122,16 @@ export function SearchPublicTutorsDoc(): MethodDecorator {
       summary: 'Search published tutors with verification status and multi-criteria sorting',
     }),
     ApiQuery({
+      description:
+        'Named ranking mode. Cannot be combined with individual sort priorities or directions. ' +
+        'Filters and pagination keep their existing meanings.',
+      enum: TutorRankingPriority,
+      enumName: 'TutorRankingPriority',
+      example: TutorRankingPriority.LOWEST_PRICE,
+      name: 'priority',
+      required: false,
+    }),
+    ApiQuery({
       description: 'Case-insensitive exact active Subject name',
       example: 'Mathematics',
       name: 'subject',
@@ -208,12 +219,15 @@ export function SearchPublicTutorsDoc(): MethodDecorator {
       type: Number,
     }),
     ApiOkResponse({
-      description: 'Paginated public listings, with empty items when there are no matches',
+      description:
+        'Paginated public listings with recommendationTags explanation codes; empty items when ' +
+        'there are no matches. Best-value tags use all matching public results, not only this page.',
       type: TutorSearchResponseDto,
     }),
     ApiBadRequestResponse({
       description:
-        'A filter or sort parameter is invalid, or subject/grade is not an active catalog value',
+        'A filter or sort parameter is invalid, priority is combined with individual sort settings, ' +
+        'or subject/grade is not an active catalog value',
       type: ApiErrorResponseDto,
     }),
   );

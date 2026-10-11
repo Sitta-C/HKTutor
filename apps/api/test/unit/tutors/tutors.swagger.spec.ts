@@ -201,6 +201,12 @@ describe('tutor Swagger contract', () => {
         expect.objectContaining({ in: 'query', name: 'grade', required: false }),
         expect.objectContaining({ in: 'query', name: 'maxPrice', required: false }),
         expect.objectContaining({ in: 'query', name: 'minimumRating', required: false }),
+        expect.objectContaining({
+          in: 'query',
+          name: 'priority',
+          required: false,
+          schema: { $ref: '#/components/schemas/TutorRankingPriority' },
+        }),
         expect.objectContaining({ in: 'query', name: 'ratingPriority', required: false }),
         expect.objectContaining({ in: 'query', name: 'ratingOrder', required: false }),
         expect.objectContaining({ in: 'query', name: 'pricePriority', required: false }),
@@ -240,6 +246,7 @@ describe('tutor Swagger contract', () => {
         'ratingAverage',
         'reviewCount',
         'nextAvailableAt',
+        'recommendationTags',
       ]),
     );
     expect(resultSchema.properties).not.toHaveProperty('id');
@@ -247,6 +254,16 @@ describe('tutor Swagger contract', () => {
       format: 'date-time',
       nullable: true,
       type: 'string',
+    });
+    expect(resultSchema.properties?.['recommendationTags']).toMatchObject({
+      items: { $ref: '#/components/schemas/TutorRecommendationTag' },
+      type: 'array',
+    });
+    expect(document.components?.schemas?.['TutorRankingPriority']).toMatchObject({
+      enum: ['lowest_price', 'highest_rating', 'earliest_availability'],
+    });
+    expect(document.components?.schemas?.['TutorRecommendationTag']).toMatchObject({
+      enum: ['FITS_BUDGET', 'LOWEST_PRICE', 'HIGHEST_RATED', 'EARLIEST_AVAILABILITY'],
     });
   });
 

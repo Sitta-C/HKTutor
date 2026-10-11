@@ -413,6 +413,35 @@ status, audit-trigger rollback, cleanup retries, reference protection, worker lo
 simulated Storage transport. It inserts test actors/documents and retains immutable audit evidence;
 discard the test database afterward. It does not test live Supabase URL expiry.
 
+## Tutor ranking request and explanation contract (S2-T13)
+
+`GET /api/v1/tutors` accepts optional `priority=lowest_price`, `highest_rating`, or
+`earliest_availability`. These select ascending hourly price, descending rating, or ascending next
+availability in the existing sorter. Existing subject, grade, `maxPrice`, `minimumRating`, page and
+page-size filters keep their meanings. Unknown priorities return 400. Omitting all sort parameters
+preserves the published-date ordering. Individual sort priorities/directions remain supported, but
+combining any of them with `priority` returns 400 rather than silently overriding the chosen mode.
+
+Each result adds `recommendationTags`, an array of language-neutral codes for the UI to translate:
+
+| Code                    | Rule                                                                   |
+| ----------------------- | ---------------------------------------------------------------------- |
+| `FITS_BUDGET`           | An explicit `maxPrice` is supplied and the actual hourly price fits.   |
+| `LOWEST_PRICE`          | Under `lowest_price`, this is a minimum-price matching public listing. |
+| `HIGHEST_RATED`         | Under `highest_rating`, this is a maximum known matching tutor rating. |
+| `EARLIEST_AVAILABILITY` | Under `earliest_availability`, this is the earliest bookable slot.     |
+
+Best-value tags use all matching published listings owned by verified, active, non-deleted tutor
+accounts, before pagination. Every tie receives its applicable tag. Null ratings and no-slot tutors
+never receive their respective best-value tag. Earliest-slot explanations exclude deleted, started,
+and PENDING/CONFIRMED-reserved slots. No supplied budget means no `FITS_BUDGET` tag; missing data is
+not treated as zero. Comparisons use the stored Decimal prices and ratings. An item with no applicable
+explanation returns `recommendationTags: []`.
+
+This contract addition delegates ordering and result pagination to the existing sorter. API tests
+for it use mocked persistence and do not certify PostgreSQL ordering or public-query eligibility.
+The ranking selector and translated result-card labels belong to S2-T14.
+
 ## Private availability range queries
 
 `GET /api/v1/tutors/me/availability` accepts optional UTC `from` and `to` bounds. By default it
