@@ -22,6 +22,7 @@ async function mockProfile(
     language?: 'en' | 'th';
     email?: string;
     student?: boolean;
+    profileComplete?: boolean;
   } = {},
 ) {
   const calls: string[] = [];
@@ -62,7 +63,7 @@ async function mockProfile(
       body = {
         role: options.student ? 'STUDENT' : 'TUTOR',
         consentCurrent: true,
-        profileComplete: true,
+        profileComplete: options.profileComplete ?? true,
         policyVersion: '2026-01',
         profile: options.student ? studentProfile : profile,
       };
@@ -111,6 +112,7 @@ test('shows the new tutor state without invented ratings or review actions', asy
   await expect(summary.getByText('ติวเตอร์ใหม่ · ยังไม่มีรีวิว')).toBeVisible();
   await expect(summary.locator('[data-rating-fill="0"]')).toHaveCount(5);
   await expect(summary.getByRole('button', { name: 'อ่านรีวิวทั้งหมด' })).toHaveCount(0);
+  await expect(summary.getByRole('link', { name: 'ดูเอกสารและผลการตรวจสอบ' })).toHaveCount(0);
 });
 
 test('keeps English copy and refreshes the rating from the existing save response', async ({
@@ -203,6 +205,38 @@ test('preserves the student account fields and completion summary', async ({ pag
 });
 
 for (const verificationStatus of ['PENDING', 'REJECTED'] as const) {
+  for (const language of ['en', 'th'] as const) {
+    test(`${verificationStatus} onboarding keeps status guidance without a document link (${language})`, async ({
+      page,
+    }) => {
+      const calls = await mockProfile(page, {
+        meta: { verificationStatus, displayName: '' },
+        language,
+        profileComplete: false,
+      });
+      await page.goto('/onboarding/profile');
+      const summary = page.locator('[data-profile-summary]');
+      await expect(summary.locator('[data-tutor-verification]')).toHaveAttribute(
+        'data-tutor-verification',
+        verificationStatus,
+      );
+      await expect(summary.locator('[data-verification-guidance] p')).toBeVisible();
+      await page.locator('#displayName').fill('Unsaved tutor name');
+      await expect(
+        summary.getByRole('link', {
+          name: language === 'en' ? 'Review qualification documents' : 'ดูเอกสารและผลการตรวจสอบ',
+          exact: true,
+        }),
+      ).toHaveCount(0);
+      await expect(page.locator('#qualification-documents')).toHaveCount(0);
+      await expect(page.locator('#displayName')).toHaveValue('Unsaved tutor name');
+      await expect(page).toHaveURL(/\/onboarding\/profile$/);
+      expect(
+        calls.filter((call) => !call.startsWith('GET') && call !== 'POST /auth/refresh'),
+      ).toEqual([]);
+    });
+  }
+
   test(`${verificationStatus} guidance opens and focuses qualification documents after profile loading`, async ({
     page,
   }) => {

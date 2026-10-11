@@ -16,10 +16,16 @@ import type { TutorProfile } from '@/lib/api/types';
 interface TutorProfileSummaryProps {
   email: string;
   language: 'en' | 'th';
+  documentsHref?: string | undefined;
   tutorMeta: Pick<TutorProfile, 'ratingAverage' | 'reviewCount' | 'verificationStatus'>;
 }
 
-export function TutorProfileSummary({ email, language, tutorMeta }: TutorProfileSummaryProps) {
+export function TutorProfileSummary({
+  email,
+  language,
+  documentsHref,
+  tutorMeta,
+}: TutorProfileSummaryProps) {
   const text = copy[language];
   const noticeId = useId();
   const [showReviewsNotice, setShowReviewsNotice] = useState(false);
@@ -48,7 +54,7 @@ export function TutorProfileSummary({ email, language, tutorMeta }: TutorProfile
             <TutorVerificationGuidance
               status={tutorMeta.verificationStatus}
               language={language}
-              documentsHref="#qualification-documents"
+              documentsHref={documentsHref}
             />
           </dd>
         </dl>

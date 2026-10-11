@@ -40,7 +40,7 @@ export function TutorVerificationGuidance({
   status,
   language,
   documentsHref,
-}: VerificationProps & { documentsHref: string }) {
+}: VerificationProps & { documentsHref?: string | undefined }) {
   const visibleStatus = visibleTutorVerificationStatus(status, 'owner');
   if (!visibleStatus) {
     return null;
@@ -49,7 +49,7 @@ export function TutorVerificationGuidance({
   return (
     <div className={styles.guidance} data-verification-guidance={visibleStatus}>
       <p>{text[visibleStatus].description}</p>
-      {visibleStatus !== 'VERIFIED' && (
+      {visibleStatus !== 'VERIFIED' && documentsHref && (
         <a className={styles.documents} href={documentsHref}>
           {text.documents}
           <DashboardIcon name="arrow-right" className={styles.icon ?? ''} />

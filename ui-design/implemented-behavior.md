@@ -40,7 +40,9 @@ The tutor profile's read-only account summary places labels above plain paper fi
 the profile form's typography, spacing, field height, and responsive columns. Tutor verification
 uses the shared tutor verification badge, with distinct VERIFIED/PENDING/REJECTED text and icons.
 Owner-only guidance explains publication eligibility and links unverified tutors to qualification
-documents. Document anchors focus and scroll into view after the profile loads. The score, five
+documents only when the document section is rendered in the profile editor. Onboarding keeps the
+status and guidance but omits the document link until the tutor reaches `/dashboard/profile`.
+Document anchors focus and scroll into view after the profile loads. The score, five
 stars, review count, and review action share one
 compact row. Stars fill proportionally from the existing profile rating, and ratings, review counts,
 and verification states update from the existing profile API responses. Tutors without
@@ -487,6 +489,8 @@ Private tutor profile summaries, profile previews and listing previews use the s
 status labels and semantic colors: green shield for VERIFIED, amber clock for PENDING, red info
 for REJECTED. A rejected listing preview is not labelled pending. Guidance on private profiles and
 listing editors links pending/rejected tutors to `/dashboard/profile#qualification-documents`.
+The onboarding profile summary omits its document link because that route has no document section;
+it retains status guidance and does not navigate away from unsaved profile fields.
 Search badges have clearance below the avatar/name row; narrow layouts retain the existing wrapped
 spacing. The profile preview explains that discovery requires verification and a published course.
 For PENDING/REJECTED tutors, the listing editor explains below its student preview heading that

@@ -176,6 +176,7 @@ export default function ProfileEditor({ mode }: ProfileEditorProps) {
   }, [authLoading, mode, router, text.loadError, user]);
 
   const studentRole = user?.role === 'STUDENT';
+  const showQualificationDocuments = mode === 'edit' && !studentRole && consentCurrent;
   const dirty = studentRole
     ? JSON.stringify(student) !== JSON.stringify(initialStudent)
     : JSON.stringify(tutor) !== JSON.stringify(initialTutor);
@@ -434,6 +435,7 @@ export default function ProfileEditor({ mode }: ProfileEditorProps) {
                   studentRole ? isStudentProfileComplete(student) : isTutorProfileComplete(tutor)
                 }
                 tutorMeta={tutorMeta}
+                documentsHref={showQualificationDocuments ? '#qualification-documents' : undefined}
               />
               {!studentRole && (
                 <p className="mt-3 text-xs leading-5 text-notebook-muted">
@@ -486,7 +488,7 @@ export default function ProfileEditor({ mode }: ProfileEditorProps) {
           )}
         </div>
       )}
-      {mode === 'edit' && !studentRole && consentCurrent && (
+      {showQualificationDocuments && (
         <TutorVerificationSection
           onDocumentChanged={async () => {
             const latest = await loadCurrentProfile(user.id, { force: true });
@@ -792,16 +794,25 @@ function SystemInfo({
   student,
   complete,
   tutorMeta,
+  documentsHref,
 }: {
   email: string;
   language: 'en' | 'th';
   student: boolean;
   complete: boolean;
   tutorMeta: Pick<TutorProfile, 'ratingAverage' | 'reviewCount' | 'verificationStatus'>;
+  documentsHref?: string | undefined;
 }) {
   const text = copy[language];
   if (!student) {
-    return <TutorProfileSummary email={email} language={language} tutorMeta={tutorMeta} />;
+    return (
+      <TutorProfileSummary
+        email={email}
+        language={language}
+        tutorMeta={tutorMeta}
+        documentsHref={documentsHref}
+      />
+    );
   }
   return (
     <section className={summaryStyles.summary} aria-label={text.profileStatus}>
