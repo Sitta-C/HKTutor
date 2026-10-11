@@ -24,6 +24,12 @@ generic API interceptor. Navigation, selection, filtering, pagination, search re
 background refreshes and photo-URL renewal keep their existing local feedback. Native required-field
 validation retains the browser's field feedback. No read is added to populate a toast, and no request,
 payload, authentication decision, price calculation or business action changes.
+
+Qualification uploads also use the shared bilingual toast for a confirmed submission, file-selection
+or submission validation errors, pending-document conflicts, and uncertain or rejected uploads.
+Persistent inline notices and reconciliation remain available after the toast expires; list/profile
+refresh feedback stays inline.
+
 Verification responses read the current translation through a ref, so initial English hydration
 cannot leave Thai users with English outcome messages. The original one-attempt token guard remains.
 

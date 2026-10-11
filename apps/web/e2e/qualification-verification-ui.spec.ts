@@ -136,6 +136,9 @@ test('tutor validates, uploads, sees pending status and retries denied preview',
     buffer: Buffer.alloc(0),
   });
   await expect(section.getByRole('alert')).toHaveText('Choose a file that is not empty.');
+  await expect(page.locator('[data-notebook-toast="error"]')).toHaveText(
+    'Choose a file that is not empty.',
+  );
   await file.setInputFiles({
     name: 'image.webp',
     mimeType: 'image/webp',
@@ -166,6 +169,9 @@ test('tutor validates, uploads, sees pending status and retries denied preview',
   await section.getByRole('button', { name: 'Submit document' }).click();
   await expect(section.getByRole('progressbar')).toBeVisible();
   releaseUpload?.();
+  await expect(page.locator('[data-notebook-toast="success"]')).toHaveText(
+    'Document submitted for review.',
+  );
   await expect(section.getByText('Document submitted for review.')).toBeVisible();
   await expect(section.getByText('Pending review', { exact: true })).toBeVisible();
   await section.getByRole('button', { name: 'View document' }).click();
@@ -377,6 +383,9 @@ test('an ambiguous upload response reloads the committed document before another
     buffer: Buffer.from('%PDF-1.4 test'),
   });
   await section.getByRole('button', { name: 'Submit document' }).click();
+  await expect(page.locator('[data-notebook-toast="error"]')).toHaveText(
+    'Could not confirm the upload. Check the latest documents before submitting again.',
+  );
   await expect(
     section.getByText(
       'Could not confirm the upload. Check the latest documents before submitting again.',
@@ -494,6 +503,9 @@ test('upload conflict refreshes the list without showing a new successful submis
     buffer: Buffer.from('%PDF-1.4 test'),
   });
   await section.getByRole('button', { name: 'Submit document' }).click();
+  await expect(page.locator('[data-notebook-toast="error"]')).toHaveText(
+    'A document of this type is already pending. The list has been refreshed.',
+  );
   await expect(
     section.getByText('A document of this type is already pending. The list has been refreshed.'),
   ).toBeVisible();
