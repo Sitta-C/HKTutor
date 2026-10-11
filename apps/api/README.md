@@ -83,6 +83,37 @@ non-participant senders, and de-duplicates retries by sender and `clientMessageI
 indexes support both ID and UTC `sentAt` ordering; API handlers must still perform participant
 authorization and map expected uniqueness conflicts to the appropriate HTTP response.
 
+### Conversation history and read receipts (S2-T20)
+
+`GET /api/v1/conversations/:conversationId/messages` keeps its original oldest-first forward
+contract: no cursor starts at the beginning; `afterMessageId` is exclusive, and an empty forward
+page keeps that cursor. `pageSize` remains 1–50, default 20. Participant authentication/authorization
+and cross-conversation cursor validation apply to every mode. GET never marks messages read.
+
+S2-T20 adds three mutually exclusive optional modes alongside `afterMessageId`:
+
+- `latest=true` returns the newest page, ordered oldest first for display.
+- `beforeMessageId` returns the immediately preceding page, also oldest first.
+- `fromMessageId` reads inclusively from an existing message to refresh persisted read states,
+  then the caller can follow `nextAfterMessageId` as usual for forward catch-up.
+
+Backward pages add `nextBeforeMessageId`: the first returned message if older history remains,
+otherwise null. Their `hasMore` describes older history; forward `hasMore` describes newer history.
+Ordering uses `(sentAt, id)` for all comparisons, including equal timestamps. Mixed modes and
+invalid cursor IDs/flags return 400. Existing forward response fields and semantics remain unchanged.
+
+The web opens the latest 20 messages, loads one earlier page per click and polls every four seconds
+while the thread/document is visible. Receipt refresh begins at the earliest loaded unread sent
+message when it is at/before the cached GET boundary, so an acknowledged send cannot skip a
+concurrent incoming message. Polling is serialized and catch-up is bounded to 200 pages/60 seconds;
+older pages never replace the latest GET cursor.
+
+`POST /api/v1/conversations/:conversationId/read` retains the S2-T19 recipient-only idempotent
+contract. The web sends `upToMessageId` for the received boundary only at the latest reading
+position in a visible open thread. Sent/Read display comes from persisted `readAt`. No schema or
+migration changes are required. API HTTP tests use mocked persistence; browser tests intercept APIs,
+so these checks do not certify a live database deployment.
+
 After confirming the target is disposable and filling the seed email/password values:
 
 ```bash

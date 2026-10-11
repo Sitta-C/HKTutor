@@ -158,11 +158,21 @@ describe('GetMessagesQueryDto', () => {
     [{ pageSize: '51' }, 'pageSize'],
     [{ pageSize: '1.5' }, 'pageSize'],
     [{ afterMessageId: 'm-20' }, 'afterMessageId'],
+    [{ beforeMessageId: 'm-20' }, 'beforeMessageId'],
+    [{ fromMessageId: 'm-20' }, 'fromMessageId'],
+    [{ latest: 'false' }, 'latest'],
   ])('rejects %p', async (input, property) => {
     const errors = await validate(plainToInstance(GetMessagesQueryDto, input));
 
     expect(errors.map((error) => error.property)).toEqual([property]);
   });
+
+  it.each([{ latest: 'true' }, { beforeMessageId: MESSAGE_ID }, { fromMessageId: MESSAGE_ID }])(
+    'accepts a backward or inclusive query: %j',
+    async (input) => {
+      await expect(validate(plainToInstance(GetMessagesQueryDto, input))).resolves.toHaveLength(0);
+    },
+  );
 });
 
 describe('MarkMessagesReadDto', () => {

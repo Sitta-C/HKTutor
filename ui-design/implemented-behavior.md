@@ -428,15 +428,22 @@ focus and makes that contact visible if it moved. Manual inbox refresh refetches
 range and selected contact, retaining drafts and reading state. A list read that started before a send
 cannot overwrite that acknowledged message or discard its known contact when its pagination shifts.
 
-Initial history follows forward API pages of 50 to the end; unavailable history leaves the composer
-disabled and provides retry. A load is bounded to 200 history pages and one 60-second deadline across
-all pages, including stalled requests/authentication awaits. A finite loop rejects cursor cycles,
-missing/inconsistent cursors and empty continuing pages. The deadline aborts the history request and
-settles the load even if an inner await ignores cancellation. Timers/listeners are cleaned on success,
-failure or caller cancellation. Reaching a bound fails with bilingual recovery copy instead of
-returning partial history as complete; cached history, drafts and the GET cursor survive a failed
-refresh. Very long conversations that exceed these bounds cannot finish their initial load in T17;
-incremental history remains a T20 task. Refresh loads after the last GET cursor. New messages append without
+Initial history opens with the latest 20 messages. Quiet Receipts (selected 2026-10-11, S2-T20)
+adds a centered Load earlier messages action which prepends one backward page and preserves the
+visible reading anchor. At the end of history the action becomes Beginning of conversation.
+Failed older loads preserve fetched messages, drafts and both independent cursors, with inline
+recovery; initial failures leave the composer disabled with retry.
+
+The visible open thread checks every four seconds, without overlapping reads. Hidden documents
+abort current reads and pause the timer; visibility resumes updates. Closing/switching the thread
+or unmounting the authenticated page cleans timers, listeners and requests. Manual Refresh remains.
+Catch-up follows forward pages of 50, bounded to 200 pages and one 60-second deadline including
+authentication awaits. Broken/cycling cursors and empty continuing pages fail explicitly. Deadlines
+settle stalled inner awaits, and failed refreshes preserve drafts/history and the last GET cursor.
+Read-state refresh starts inclusively from the oldest loaded unread outgoing message when that
+boundary is at/before the last GET, otherwise after the GET cursor. Send responses never replace
+that cursor, so concurrent incoming messages remain discoverable. Receipt merges never regress an
+acknowledged read timestamp because a stale request returns null. New messages append without
 moving a reader browsing older history, with a floating latest-message button; a reader already at
 the bottom follows the new messages. Cached reentry restores the reading position and checks for
 updates. Refresh failures retain fetched history. Switching conversations aborts their reads, and
@@ -449,11 +456,18 @@ the actual returned message plus NotebookToast. A failed/uncertain send retains 
 inline and toast recovery and performs no automatic retry. The outgoing response never advances the
 GET cursor, preserving concurrent incoming messages for a later refresh, with ID deduplication.
 
-Automatic polling, mark-read commands, sent/read receipts and an incremental older-history interface
-remain S2-T20. Inbox unread counts are server values; opening/GET does not clear them. With the current
-forward-only contract, initial reads/memory scale with full history length. Browser verification uses
-intercepted APIs (including two-page history, concurrent incoming, permissions and auth/profile gates)
-on desktop, 768px tablet and 320px/mobile. It does not verify a live database or migration rollout.
+Outgoing timestamps show quiet single/double checks and explicit Sent/Read labels. Read requires
+server `readAt`; a successful send initially remains Sent. Only a visible open thread at the latest
+reading position acknowledges received messages through the latest received boundary. The
+recipient-only idempotent API never marks the caller's own messages. Failures keep drafts/history
+and show retry feedback without inventing a read receipt. Inbox refreshes after received activity
+and successful acknowledgements; unread counts remain server values and GET itself never marks read.
+No global unread total is derived from partially loaded inbox pages.
+
+Browser verification uses intercepted APIs (including 35-message backward pagination, four-second
+updates, sent/read states, deduplication, close/hidden-tab cleanup, stalled requests, draft retention,
+concurrent incoming, permissions and auth/profile gates) on desktop, 768px tablet and 320px/mobile.
+It does not verify a live database or migration rollout.
 Regression coverage also checks sending from an older inbox page, refresh of an older selected contact,
 an in-flight stale inbox response, visible restored focus and the bilingual temporary-draft expectation.
 These fixes use the existing HTTP contract and do not add client-send idempotency or server rate limits.

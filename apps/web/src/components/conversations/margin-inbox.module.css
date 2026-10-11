@@ -199,7 +199,7 @@
 .identity p > span:first-child {
   flex-shrink: 0;
 }
-.manual {
+.updateHint {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -315,13 +315,31 @@
   outline-offset: 2px;
   border-radius: 2px;
 }
-.bubble time {
-  display: block;
-  text-align: right;
+.messageMeta {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
   color: #68615b;
-  font-size: 0.625rem;
+  font-size: 0.6875rem;
   line-height: 1.4;
   margin-top: 3px;
+}
+.receipt {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.receipt[data-read='true'] {
+  color: var(--chat-accent);
+}
+.olderHistory {
+  flex: 0 0 auto;
+  text-align: center;
+  color: #68615b;
+  font-size: 0.6875rem;
+  margin-bottom: 8px;
 }
 .messageRow[data-own='true'] .bubble {
   background: var(--chat-wash);
@@ -483,8 +501,12 @@
     gap: 6px;
   }
   .threadHeader .initial,
-  .manual {
+  .identity p > span:first-child {
     display: none;
+  }
+  .updateHint {
+    padding-left: 0;
+    border-left: none;
   }
   .threadRefresh {
     width: 46px;

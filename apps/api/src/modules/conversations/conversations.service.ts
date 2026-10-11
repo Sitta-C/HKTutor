@@ -217,20 +217,30 @@ export class ConversationsService {
     return toMessageResponse(message);
   }
 
-  /** Read-only: a page of messages after the cursor, oldest first. */
+  /** Read-only: every page is oldest first, with directional cursor traversal. */
   async getMessages(input: GetMessagesInput): Promise<MessageHistoryResponseDto> {
     await this.assertParticipant(
       input.conversationId,
       input.userId,
       'Only participants can read this conversation.',
     );
+    const modes = [input.latest, input.beforeMessageId, input.fromMessageId, input.afterMessageId];
+    if (modes.filter((mode) => mode !== undefined).length > 1) {
+      throw new BadRequestException('Specify only one message history mode.');
+    }
+    const backward = input.latest === 'true' || input.beforeMessageId !== undefined;
+    const cursorId = input.beforeMessageId ?? input.fromMessageId ?? input.afterMessageId;
     const cursor =
-      input.afterMessageId === undefined
+      cursorId === undefined
         ? undefined
         : await this.findMessageInConversation(
             input.conversationId,
-            input.afterMessageId,
-            'afterMessageId',
+            cursorId,
+            input.beforeMessageId !== undefined
+              ? 'beforeMessageId'
+              : input.fromMessageId !== undefined
+                ? 'fromMessageId'
+                : 'afterMessageId',
           );
     const pageSize = input.pageSize ?? DEFAULT_MESSAGES_PAGE_SIZE;
 
@@ -239,18 +249,26 @@ export class ConversationsService {
       where:
         cursor === undefined
           ? { conversationId: input.conversationId }
-          : { conversationId: input.conversationId, ...sentAfter(cursor) },
-      orderBy: [{ sentAt: 'asc' }, { id: 'asc' }],
+          : {
+              conversationId: input.conversationId,
+              ...(backward
+                ? sentBefore(cursor)
+                : sentAfter(cursor, input.fromMessageId !== undefined)),
+            },
+      orderBy: [{ sentAt: backward ? 'desc' : 'asc' }, { id: backward ? 'desc' : 'asc' }],
       select: messageSelect,
       take: pageSize + 1,
     });
-    const items = rows.slice(0, pageSize).map((message) => toMessageResponse(message));
+    const page = rows.slice(0, pageSize);
+    const items = (backward ? page.reverse() : page).map((message) => toMessageResponse(message));
+    const hasMore = rows.length > pageSize;
 
     return {
-      hasMore: rows.length > pageSize,
+      hasMore,
       items,
       // Polling resends this, so an empty page keeps the request's cursor.
       nextAfterMessageId: items.at(-1)?.messageId ?? input.afterMessageId ?? null,
+      ...(backward ? { nextBeforeMessageId: hasMore ? (items[0]?.messageId ?? null) : null } : {}),
     };
   }
 
@@ -311,7 +329,7 @@ export class ConversationsService {
   private async findMessageInConversation(
     conversationId: string,
     messageId: string,
-    field: 'afterMessageId' | 'upToMessageId',
+    field: 'afterMessageId' | 'beforeMessageId' | 'fromMessageId' | 'upToMessageId',
   ): Promise<MessageCursor> {
     const message = await this.prisma.message.findFirst({
       where: { conversationId, id: messageId },
@@ -415,10 +433,19 @@ function conversationTarget(input: OpenConversationInput): string {
   return target;
 }
 
-/** Messages after the cursor in (sentAt, id) order, the order the history is returned in. */
-function sentAfter(cursor: MessageCursor): Prisma.MessageWhereInput {
+/** Compare both cursor fields so equal timestamps retain stable, gap-free page boundaries. */
+function sentBefore(cursor: MessageCursor): Prisma.MessageWhereInput {
   return {
-    OR: [{ sentAt: { gt: cursor.sentAt } }, { id: { gt: cursor.id }, sentAt: cursor.sentAt }],
+    OR: [{ sentAt: { lt: cursor.sentAt } }, { id: { lt: cursor.id }, sentAt: cursor.sentAt }],
+  };
+}
+
+function sentAfter(cursor: MessageCursor, inclusive = false): Prisma.MessageWhereInput {
+  return {
+    OR: [
+      { sentAt: { gt: cursor.sentAt } },
+      { id: inclusive ? { gte: cursor.id } : { gt: cursor.id }, sentAt: cursor.sentAt },
+    ],
   };
 }
 

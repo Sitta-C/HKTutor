@@ -7,11 +7,18 @@ import { DashboardIcon } from '@/components/dashboard/dashboard-icon';
 import { NotebookAction } from '@/components/ui/notebook-action';
 import { NotebookLoadingRegion } from '@/components/ui/notebook-loading';
 import { useNotebookToast } from '@/components/ui/notebook-toast';
-import { loadConversationMessages, sendConversationMessage } from '@/lib/api/conversations';
+import {
+  CONVERSATION_POLL_INTERVAL_MS,
+  loadConversationMessages,
+  loadOlderConversationMessages,
+  markConversationRead,
+  sendConversationMessage,
+} from '@/lib/api/conversations';
 import { splitMessageLinks } from '@/lib/conversation-links';
 import {
   canSendMessage,
   conversationErrorKey,
+  conversationReceiptCursor,
   mergeMessages,
   messageLength,
 } from '@/lib/conversation-model';
@@ -25,6 +32,8 @@ import type { AuthUser, ConversationMessage, ConversationSummary } from '@/lib/a
 export interface ThreadMemory {
   items: ConversationMessage[];
   cursor: string | null;
+  olderCursor: string | null;
+  readCursor: string | null;
   loaded: boolean;
   draft: string;
   scrollTop: number;
@@ -60,6 +69,8 @@ export function ConversationThread({
       memories.get(id) ?? {
         items: [],
         cursor: null,
+        olderCursor: null,
+        readCursor: null,
         loaded: false,
         draft: '',
         scrollTop: 0,
@@ -72,7 +83,9 @@ export function ConversationThread({
   const [error, setError] = useState<unknown>(null);
   const [sendError, setSendError] = useState(false);
   const [sending, setSending] = useState(false);
-  const [reloadKey, setReloadKey] = useState(0);
+  const [loadingOlder, setLoadingOlder] = useState(false);
+  const [olderError, setOlderError] = useState<unknown>(null);
+  const [readError, setReadError] = useState<unknown>(null);
   const sendingRef = useRef(false);
   const active = useRef(true);
   const transcript = useRef<HTMLDivElement>(null);
@@ -81,6 +94,10 @@ export function ConversationThread({
   const [composing, setComposing] = useState(false);
   const restore = useRef(true);
   const requestPending = useRef(false);
+  const requestAbort = useRef<AbortController | null>(null);
+  const requestRefresh = useRef<(() => void) | null>(null);
+  const refreshInbox = useRef(onRefreshInbox);
+  const prependPosition = useRef<{ height: number; top: number } | null>(null);
   const name =
     conversation.otherParticipant.displayName ||
     (user.role === 'STUDENT' ? text.tutor : text.student);
@@ -92,6 +109,10 @@ export function ConversationThread({
   };
 
   useEffect(() => {
+    refreshInbox.current = onRefreshInbox;
+  }, [onRefreshInbox]);
+
+  useEffect(() => {
     active.current = true;
     header.current?.focus({ preventScroll: true });
     return () => {
@@ -100,13 +121,42 @@ export function ConversationThread({
   }, []);
 
   useEffect(() => {
-    const controller = new AbortController();
     let current = true;
-    requestPending.current = true;
-    const cached = memory.current;
-    void loadConversationMessages(id, cached.cursor, controller.signal)
-      .then((response) => {
-        if (!current) {
+    let terminal = false;
+    let timer: ReturnType<typeof setInterval> | null = null;
+    const synchronize = async (manual = false) => {
+      if (
+        !current ||
+        requestPending.current ||
+        sendingRef.current ||
+        (!manual && (terminal || document.hidden))
+      ) {
+        return;
+      }
+      const controller = new AbortController();
+      requestAbort.current = controller;
+      requestPending.current = true;
+      if (manual || !memory.current.loaded) {
+        setLoading(true);
+      }
+      try {
+        const cached = memory.current;
+        const receiptCursor = conversationReceiptCursor(cached.items, cached.cursor, user.id);
+        let olderCursor = cached.olderCursor;
+        let response: { items: ConversationMessage[]; cursor: string | null };
+        if (cached.loaded) {
+          response = await loadConversationMessages(
+            id,
+            cached.cursor,
+            controller.signal,
+            receiptCursor,
+          );
+        } else {
+          const page = await loadOlderConversationMessages(id, null, controller.signal);
+          response = page;
+          olderCursor = page.olderCursor;
+        }
+        if (!current || controller.signal.aborted) {
           return;
         }
         const existing = memory.current;
@@ -119,6 +169,7 @@ export function ConversationThread({
           ...existing,
           items,
           cursor: response.cursor,
+          olderCursor,
           loaded: true,
           newCount: existing.atLatest ? 0 : existing.newCount + added,
         };
@@ -126,23 +177,103 @@ export function ConversationThread({
         memories.set(id, next);
         setView(next);
         setError(null);
-      })
-      .catch((caught: unknown) => {
-        if (current) {
-          setError(caught);
+        terminal = false;
+        let inboxChanged = added > 0;
+        const latestReceived = items.findLast((message) => message.senderId !== user.id);
+        if (
+          !document.hidden &&
+          memory.current.atLatest &&
+          latestReceived &&
+          latestReceived.messageId !== memory.current.readCursor
+        ) {
+          try {
+            const receipt = await markConversationRead(
+              id,
+              latestReceived.messageId,
+              controller.signal,
+            );
+            if (!current || controller.signal.aborted) {
+              return;
+            }
+            const acknowledged = memory.current;
+            const receivedIndex = acknowledged.items.findIndex(
+              (message) => message.messageId === latestReceived.messageId,
+            );
+            const readItems = acknowledged.items.map((message, index) =>
+              index <= receivedIndex &&
+              message.senderId !== user.id &&
+              !message.readAt &&
+              receipt.readAt
+                ? { ...message, readAt: receipt.readAt }
+                : message,
+            );
+            const nextRead = {
+              ...acknowledged,
+              items: readItems,
+              readCursor: latestReceived.messageId,
+            };
+            memory.current = nextRead;
+            memories.set(id, nextRead);
+            setView(nextRead);
+            setReadError(null);
+            inboxChanged = true;
+          } catch (caught: unknown) {
+            if (current && !controller.signal.aborted) {
+              setReadError(caught);
+              if (['expired', 'forbidden', 'missing'].includes(conversationErrorKey(caught))) {
+                terminal = true;
+                setError(caught);
+              }
+            }
+          }
         }
-      })
-      .finally(() => {
+        if (inboxChanged && current && !controller.signal.aborted && !terminal) {
+          refreshInbox.current();
+        }
+      } catch (caught: unknown) {
+        if (current && !controller.signal.aborted) {
+          setError(caught);
+          terminal = ['expired', 'forbidden', 'missing', 'historyLimit'].includes(
+            conversationErrorKey(caught),
+          );
+        }
+      } finally {
         if (current) {
           setLoading(false);
           requestPending.current = false;
         }
-      });
+      }
+    };
+    requestRefresh.current = () => {
+      void synchronize(true);
+    };
+    const visibilityChanged = () => {
+      if (timer !== null) {
+        clearInterval(timer);
+        timer = null;
+      }
+      if (document.hidden) {
+        requestAbort.current?.abort();
+      } else {
+        void synchronize();
+        timer = setInterval(() => {
+          void synchronize();
+        }, CONVERSATION_POLL_INTERVAL_MS);
+      }
+    };
+    visibilityChanged();
+    document.addEventListener('visibilitychange', visibilityChanged);
     return () => {
       current = false;
-      controller.abort();
+      requestRefresh.current = null;
+      requestAbort.current?.abort();
+      requestPending.current = false;
+      if (timer !== null) {
+        clearInterval(timer);
+      }
+      document.removeEventListener('visibilitychange', visibilityChanged);
     };
-  }, [id, memories, reloadKey, user.id]);
+  }, [id, memories, user.id]);
 
   useEffect(() => {
     const element = transcript.current;
@@ -175,13 +306,20 @@ export function ConversationThread({
     if (!element || !view.loaded) {
       return;
     }
-    if (restore.current) {
+    if (prependPosition.current) {
+      const position = prependPosition.current;
+      element.scrollTop = position.top + element.scrollHeight - position.height;
+      prependPosition.current = null;
+      const next = { ...memory.current, scrollTop: element.scrollTop };
+      memory.current = next;
+      memories.set(id, next);
+    } else if (restore.current) {
       element.scrollTop = memory.current.atLatest ? element.scrollHeight : memory.current.scrollTop;
       restore.current = false;
     } else if (memory.current.atLatest) {
       element.scrollTop = element.scrollHeight;
     }
-  }, [view.items, view.loaded]);
+  }, [id, memories, view.items, view.loaded]);
 
   const jumpLatest = () => {
     if (transcript.current) {
@@ -198,9 +336,47 @@ export function ConversationThread({
     if (requestPending.current || sendingRef.current) {
       return;
     }
-    setLoading(true);
-    setReloadKey((value) => value + 1);
+    requestRefresh.current?.();
     onRefreshInbox();
+  };
+  const loadOlder = async () => {
+    const cursor = memory.current.olderCursor;
+    if (!cursor || requestPending.current || sendingRef.current) {
+      return;
+    }
+    const controller = new AbortController();
+    requestAbort.current = controller;
+    requestPending.current = true;
+    setLoadingOlder(true);
+    setOlderError(null);
+    try {
+      const response = await loadOlderConversationMessages(id, cursor, controller.signal);
+      if (!active.current || controller.signal.aborted) {
+        return;
+      }
+      const element = transcript.current;
+      if (element) {
+        prependPosition.current = { height: element.scrollHeight, top: element.scrollTop };
+      }
+      commit({
+        ...memory.current,
+        items: mergeMessages(memory.current.items, response.items),
+        olderCursor: response.olderCursor,
+        atLatest: false,
+      });
+    } catch (caught: unknown) {
+      if (active.current && !controller.signal.aborted) {
+        setOlderError(caught);
+        if (['expired', 'forbidden', 'missing'].includes(conversationErrorKey(caught))) {
+          setError(caught);
+        }
+      }
+    } finally {
+      if (active.current) {
+        requestPending.current = false;
+        setLoadingOlder(false);
+      }
+    }
   };
   const inaccessible =
     error !== null && ['expired', 'forbidden', 'missing'].includes(conversationErrorKey(error));
@@ -255,6 +431,7 @@ export function ConversationThread({
             )}
             <div
               className={styles.messageRow}
+              data-message-id={message.messageId}
               data-own={message.senderId === user.id}
               data-grouped={
                 !showDate &&
@@ -281,13 +458,23 @@ export function ConversationThread({
                     ),
                   )}
                 </p>
-                <time dateTime={message.sentAt}>{formatBangkokTime(message.sentAt, language)}</time>
+                <div className={styles.messageMeta}>
+                  <time dateTime={message.sentAt}>
+                    {formatBangkokTime(message.sentAt, language)}
+                  </time>
+                  {message.senderId === user.id && (
+                    <span className={styles.receipt} data-read={Boolean(message.readAt)}>
+                      <span aria-hidden="true">{message.readAt ? '✓✓' : '✓'}</span>
+                      {message.readAt ? text.readState : text.sentState}
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
           </div>
         );
       }),
-    [language, text.openLink, user.id, view.items],
+    [language, text.openLink, text.readState, text.sentState, user.id, view.items],
   );
 
   return (
@@ -311,7 +498,9 @@ export function ConversationThread({
           </h2>
           <p>
             <span>{user.role === 'STUDENT' ? text.tutor : text.student}</span>
-            <span className={styles.manual}>{text.manual}</span>
+            <span className={styles.updateHint} title={text.automatic}>
+              {text.automatic}
+            </span>
           </p>
         </div>
         <button
@@ -332,7 +521,7 @@ export function ConversationThread({
         tabIndex={0}
         role="region"
         aria-label={text.history}
-        aria-busy={loading}
+        aria-busy={loading || loadingOlder}
         onScroll={() => {
           const element = transcript.current;
           if (!element) {
@@ -369,6 +558,29 @@ export function ConversationThread({
         )}
         {view.loaded && view.items.length === 0 && (
           <p className={styles.state}>{text.noMessages}</p>
+        )}
+        {view.loaded && view.items.length > 0 && (
+          <div className={styles.olderHistory}>
+            {view.olderCursor ? (
+              <button
+                type="button"
+                className={styles.quiet}
+                onClick={() => {
+                  void loadOlder();
+                }}
+                disabled={loadingOlder || loading || sending || inaccessible}
+              >
+                {loadingOlder ? text.loadingOlder : text.loadOlder}
+              </button>
+            ) : (
+              <p>{text.historyStart}</p>
+            )}
+            {olderError !== null && (
+              <p className={styles.error} role="alert">
+                {text[conversationErrorKey(olderError)]}
+              </p>
+            )}
+          </div>
         )}
         <div className={styles.messageHistory} data-message-history>
           {messageHistory}
@@ -444,6 +656,11 @@ export function ConversationThread({
         {sendError && (
           <p className={styles.sendError} role="alert">
             {text.sendFailed}
+          </p>
+        )}
+        {readError !== null && !inaccessible && (
+          <p className={styles.sendError} role="alert">
+            {text.readFailed}
           </p>
         )}
       </form>
