@@ -366,7 +366,7 @@ describe('TutorDirectoryService', () => {
     expect(prisma.teachingListing.findMany).toHaveBeenLastCalledWith(
       expect.objectContaining({
         orderBy: [
-          { tutorProfile: { ratingAverage: 'desc' } },
+          { tutorProfile: { ratingAverage: { sort: 'desc', nulls: 'last' } } },
           { publishedAt: 'desc' },
           { id: 'asc' },
         ],
@@ -377,7 +377,7 @@ describe('TutorDirectoryService', () => {
     expect(prisma.teachingListing.findMany).toHaveBeenLastCalledWith(
       expect.objectContaining({
         orderBy: [
-          { tutorProfile: { ratingAverage: 'asc' } },
+          { tutorProfile: { ratingAverage: { sort: 'asc', nulls: 'last' } } },
           { publishedAt: 'desc' },
           { id: 'asc' },
         ],
@@ -385,7 +385,7 @@ describe('TutorDirectoryService', () => {
     );
   });
 
-  it('sorts by price with default direction (asc) or explicit direction (desc)', async () => {
+  it('sorts by price with default direction (asc) or explicit direction (desc) and breaks ties with rating', async () => {
     const prisma = createPrisma();
     prisma.teachingListing.findMany.mockResolvedValue([]);
     const service = new TutorsService(prisma as unknown as PrismaService);
@@ -393,14 +393,24 @@ describe('TutorDirectoryService', () => {
     await service.searchPublicTutors({ pricePriority: 1 });
     expect(prisma.teachingListing.findMany).toHaveBeenLastCalledWith(
       expect.objectContaining({
-        orderBy: [{ pricePerHour: 'asc' }, { publishedAt: 'desc' }, { id: 'asc' }],
+        orderBy: [
+          { pricePerHour: 'asc' },
+          { tutorProfile: { ratingAverage: { sort: 'desc', nulls: 'last' } } },
+          { publishedAt: 'desc' },
+          { id: 'asc' },
+        ],
       }),
     );
 
     await service.searchPublicTutors({ priceOrder: 'desc', pricePriority: 1 });
     expect(prisma.teachingListing.findMany).toHaveBeenLastCalledWith(
       expect.objectContaining({
-        orderBy: [{ pricePerHour: 'desc' }, { publishedAt: 'desc' }, { id: 'asc' }],
+        orderBy: [
+          { pricePerHour: 'desc' },
+          { tutorProfile: { ratingAverage: { sort: 'desc', nulls: 'last' } } },
+          { publishedAt: 'desc' },
+          { id: 'asc' },
+        ],
       }),
     );
   });
@@ -419,7 +429,7 @@ describe('TutorDirectoryService', () => {
     expect(prisma.teachingListing.findMany).toHaveBeenLastCalledWith(
       expect.objectContaining({
         orderBy: [
-          { tutorProfile: { ratingAverage: 'asc' } },
+          { tutorProfile: { ratingAverage: { sort: 'asc', nulls: 'last' } } },
           { pricePerHour: 'desc' },
           { publishedAt: 'desc' },
           { id: 'asc' },
@@ -437,7 +447,7 @@ describe('TutorDirectoryService', () => {
       expect.objectContaining({
         orderBy: [
           { pricePerHour: 'asc' },
-          { tutorProfile: { ratingAverage: 'desc' } },
+          { tutorProfile: { ratingAverage: { sort: 'desc', nulls: 'last' } } },
           { publishedAt: 'desc' },
           { id: 'asc' },
         ],
@@ -459,9 +469,17 @@ describe('TutorDirectoryService', () => {
     const sqlStrings = ((queryCall[0] ?? []) as TemplateStringsArray).join(' ');
     expect(sqlStrings).toContain('FROM "TeachingListing" tl');
     expect(sqlStrings).toContain('JOIN "TutorProfile" tp ON tl."tutorProfileId" = tp."userId"');
+    expect(sqlStrings).toContain('JOIN "User" u ON tp."userId" = u."id"');
     expect(sqlStrings).toContain('LEFT JOIN "AvailabilitySlot" slot');
-    expect(sqlStrings).toContain('slot."startAtUtc" >=');
+    expect(sqlStrings).toContain('slot."startAtUtc" >');
     expect(sqlStrings).toContain('slot."deletedAt" IS NULL');
+    expect(sqlStrings).toContain('NOT EXISTS');
+    expect(sqlStrings).toContain('b."slotId" = slot."id"');
+    expect(sqlStrings).toContain('tl."publishedAt" IS NOT NULL');
+    expect(sqlStrings).toContain(`tp."verificationStatus" = 'verified'::"TutorVerificationStatus"`);
+    expect(sqlStrings).toContain(`u."accountStatus" = 'active'::"AccountStatus"`);
+    expect(sqlStrings).toContain('u."deletedAt" IS NULL');
+    expect(sqlStrings).toContain(`u."role" = 'tutor'::"Role"`);
     expect(sqlStrings).toContain(
       `tl."publicationStatus" = 'published'::"ListingPublicationStatus"`,
     );
@@ -570,12 +588,37 @@ describe('TutorDirectoryService', () => {
 
     expect(prisma.teachingListing.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { id: { in: [LISTING_ID_2, LISTING_ID] } },
+        where: expect.objectContaining({
+          deletedAt: null,
+          id: { in: [LISTING_ID_2, LISTING_ID] },
+          publicationStatus: 'PUBLISHED',
+          publishedAt: { not: null },
+          tutorProfile: expect.objectContaining({
+            verificationStatus: 'VERIFIED',
+          }) as object,
+        }) as object,
       }),
     );
     expect(result.items).toHaveLength(2);
     expect(result.items[0]?.listingId).toBe(LISTING_ID_2);
     expect(result.items[1]?.listingId).toBe(LISTING_ID);
+  });
+
+  it('automatically adds rating descending as a tie-break when pricePriority is used with availabilityPriority', async () => {
+    const prisma = createPrisma();
+    prisma.$queryRaw.mockResolvedValue([]);
+    const service = new TutorsService(prisma as unknown as PrismaService);
+
+    await service.searchPublicTutors({
+      availabilityPriority: 1,
+      pricePriority: 2,
+    });
+
+    const queryCall = getQueryRawCall(prisma, 0);
+    const orderArg = getRawOrderArg(queryCall);
+    expect(orderArg?.text).toBe(
+      'MIN(slot."startAtUtc") ASC NULLS LAST, tl."pricePerHour" ASC, tp."ratingAverage" DESC NULLS LAST, tl."publishedAt" DESC, tl."id" ASC',
+    );
   });
 
   it('returns a public Tutor detail with zero or more published listings only', async () => {

@@ -189,11 +189,19 @@ export class TutorDirectoryService {
     }[] = [];
 
     if (query.ratingPriority !== undefined) {
-      const dir = (query.ratingOrder ?? 'desc').toUpperCase();
+      const dir = (query.ratingOrder ?? 'desc').toLowerCase() as 'asc' | 'desc';
+      const sqlDir = dir.toUpperCase();
       sortItems.push({
         priority: query.ratingPriority,
-        sqlClause: `tp."ratingAverage" ${dir} NULLS LAST`,
-        prismaOrder: { tutorProfile: { ratingAverage: query.ratingOrder ?? 'desc' } },
+        sqlClause: `tp."ratingAverage" ${sqlDir} NULLS LAST`,
+        prismaOrder: {
+          tutorProfile: {
+            ratingAverage: {
+              sort: dir,
+              nulls: 'last',
+            },
+          },
+        },
       });
     }
 
@@ -216,12 +224,23 @@ export class TutorDirectoryService {
 
     sortItems.sort((a, b) => a.priority - b.priority);
 
+    const ratingTieBreakPrisma: Prisma.TeachingListingOrderByWithRelationInput[] =
+      query.pricePriority !== undefined && query.ratingPriority === undefined
+        ? [{ tutorProfile: { ratingAverage: { sort: 'desc', nulls: 'last' } } }]
+        : [];
+
+    const ratingTieBreakSql: string[] =
+      query.pricePriority !== undefined && query.ratingPriority === undefined
+        ? [`tp."ratingAverage" DESC NULLS LAST`]
+        : [];
+
     const hasAvailabilitySort = query.availabilityPriority !== undefined;
     let listingIds: string[] = [];
 
     if (hasAvailabilitySort) {
       const orderClauses = [
         ...sortItems.map((item) => item.sqlClause),
+        ...ratingTieBreakSql,
         `tl."publishedAt" DESC`,
         `tl."id" ASC`,
       ].join(', ');
@@ -230,12 +249,23 @@ export class TutorDirectoryService {
         SELECT tl.id
         FROM "TeachingListing" tl
         JOIN "TutorProfile" tp ON tl."tutorProfileId" = tp."userId"
+        JOIN "User" u ON tp."userId" = u."id"
         LEFT JOIN "AvailabilitySlot" slot 
           ON slot."tutorProfileId" = tp."userId" 
-          AND slot."startAtUtc" >= ${now}
+          AND slot."startAtUtc" > ${now}
           AND slot."deletedAt" IS NULL
+          AND NOT EXISTS (
+            SELECT 1 FROM "Booking" b
+            WHERE b."slotId" = slot."id"
+              AND b.status IN ('pending'::"BookingStatus", 'confirmed'::"BookingStatus")
+          )
         WHERE tl."publicationStatus" = 'published'::"ListingPublicationStatus"
+          AND tl."publishedAt" IS NOT NULL
           AND tl."deletedAt" IS NULL
+          AND tp."verificationStatus" = 'verified'::"TutorVerificationStatus"
+          AND u."accountStatus" = 'active'::"AccountStatus"
+          AND u."deletedAt" IS NULL
+          AND u."role" = 'tutor'::"Role"
           ${subject ? Prisma.sql`AND tl."subjectId" = ${subject.id}::uuid` : Prisma.empty}
           ${gradeLevel ? Prisma.sql`AND tl."gradeLevelId" = ${gradeLevel.id}::uuid` : Prisma.empty}
           ${query.maxPrice !== undefined ? Prisma.sql`AND tl."pricePerHour" <= ${query.maxPrice}` : Prisma.empty}
@@ -252,7 +282,7 @@ export class TutorDirectoryService {
       hasAvailabilitySort
         ? listingIds.length > 0
           ? this.prisma.teachingListing.findMany({
-              where: { id: { in: listingIds } },
+              where: { id: { in: listingIds }, ...where },
               select: publicSearchSelect(now),
             })
           : Promise.resolve([])
@@ -260,6 +290,7 @@ export class TutorDirectoryService {
             where,
             orderBy: [
               ...sortItems.map((item) => item.prismaOrder!),
+              ...ratingTieBreakPrisma,
               { publishedAt: 'desc' },
               { id: 'asc' },
             ],
