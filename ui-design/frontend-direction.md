@@ -108,7 +108,9 @@ remaining student redesign work; their individual layouts still require selectio
   during loading/errors/empty results, independent of the tutor index.
   The dashboard header has no find-tutor action; the overview has no My bookings action, and existing
   shell navigation remains. The disabled tutor search and duplicate quick actions are
-  removed. The right sheet is a tutor index from bookings, with four tutors per page using the
+  removed. The right sheet is a tutor index from bookings. Each row opens the tutor's public profile
+  at `/tutors/{tutorId}` using the canonical tutor User ID, with the action label “View tutor profile” /
+  “ดูโปรไฟล์ติวเตอร์” and helper text explaining the profile destination. Show four tutors per page using the
   shared `NotebookPagination`'s opt-in **paper-turn** variant. Previous/next are small icon-only
   circles with 44px touch targets, localized accessible names, keyboard focus, and disabled boundary
   states. The tab reads “Your tutors” / “ติวเตอร์ของคุณ”. A passive mint bookmark ribbon hangs
