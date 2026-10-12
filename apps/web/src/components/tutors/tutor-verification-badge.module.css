@@ -17,6 +17,12 @@
   color: var(--color-emerald-900);
 }
 
+.badge[data-tutor-verification='UNVERIFIED'] {
+  border-color: var(--color-paper-edge);
+  background: var(--color-paper-deep);
+  color: var(--color-notebook-ink);
+}
+
 .badge[data-tutor-verification='PENDING'] {
   border-color: var(--color-amber-200);
   background: var(--color-amber-50);

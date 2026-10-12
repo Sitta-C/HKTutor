@@ -10,7 +10,10 @@ export function visibleTutorVerificationStatus(
   if (status === 'VERIFIED') {
     return status;
   }
-  if (audience === 'owner' && (status === 'PENDING' || status === 'REJECTED')) {
+  if (
+    audience === 'owner' &&
+    (status === 'UNVERIFIED' || status === 'PENDING' || status === 'REJECTED')
+  ) {
     return status;
   }
   return null;
@@ -18,6 +21,11 @@ export function visibleTutorVerificationStatus(
 
 export const tutorVerificationCopy = {
   en: {
+    UNVERIFIED: {
+      label: 'No verification documents submitted',
+      description:
+        'Upload a qualification document to request verification before publishing. You can save courses as drafts.',
+    },
     VERIFIED: {
       label: 'Verified tutor',
       description: 'An approved qualification is on file. You can publish your courses.',
@@ -25,7 +33,7 @@ export const tutorVerificationCopy = {
     PENDING: {
       label: 'Pending review',
       description:
-        'Upload qualifications or check their review status. You can save courses as drafts while your profile is awaiting verification.',
+        'Your qualification documents are awaiting review. You can check their status and save courses as drafts while you wait.',
     },
     REJECTED: {
       label: 'Not verified',
@@ -35,6 +43,11 @@ export const tutorVerificationCopy = {
     documents: 'Review qualification documents',
   },
   th: {
+    UNVERIFIED: {
+      label: 'ยังไม่ได้ส่งเอกสารยืนยัน',
+      description:
+        'อัปโหลดเอกสารคุณวุฒิเพื่อขอรับการตรวจสอบก่อนเผยแพร่คอร์ส คุณสามารถบันทึกคอร์สเป็นฉบับร่างได้',
+    },
     VERIFIED: {
       label: 'ผ่านการตรวจสอบแล้ว',
       description: 'มีเอกสารคุณวุฒิที่ผ่านการตรวจสอบแล้ว คุณสามารถเผยแพร่คอร์สได้',
@@ -42,7 +55,7 @@ export const tutorVerificationCopy = {
     PENDING: {
       label: 'รอการตรวจสอบ',
       description:
-        'อัปโหลดเอกสารคุณวุฒิหรือตรวจดูผลการตรวจสอบ ระหว่างรอสามารถบันทึกคอร์สเป็นฉบับร่างได้',
+        'เอกสารคุณวุฒิของคุณอยู่ระหว่างรอการตรวจสอบ คุณสามารถตรวจดูสถานะและบันทึกคอร์สเป็นฉบับร่างระหว่างรอได้',
     },
     REJECTED: {
       label: 'ไม่ผ่านการตรวจสอบ',

@@ -52,6 +52,13 @@ it does not submit the profile form or call an unsupported reviews endpoint.
 
 ## Tutor qualification review
 
+Tutor verification distinguishes `UNVERIFIED` (no documents submitted) from `PENDING` (documents
+submitted and awaiting review), `VERIFIED`, and `REJECTED`. New tutor onboarding uses `UNVERIFIED`
+even before the profile exists. Owner badges, profile summaries and course previews show bilingual
+guidance for each state; a successful upload refreshes the profile to its server-reported state.
+Only `VERIFIED` tutors can publish courses and appear publicly. Document review statuses remain
+pending, approved and rejected.
+
 The tutor edit page at `/dashboard/profile` adds a private document section after the profile form.
 Its dashed file picker, selected-file row, compact document rows, and two-column layout follow the
 certificate section in `pages/tutor-profile.html`. A selected file can be removed before submission;

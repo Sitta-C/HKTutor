@@ -221,7 +221,7 @@ export function ReviewQualificationDoc(): MethodDecorator {
     ApiOperation({
       summary: 'Review a pending qualification document once',
       description:
-        'ADMIN only. Document, tutor status and audit update atomically. Tutor is VERIFIED if any document is approved, otherwise PENDING if any is pending, otherwise REJECTED.',
+        'ADMIN only. Document, tutor status and audit update atomically. Tutor is VERIFIED if any document is approved, otherwise PENDING if any is pending, otherwise REJECTED if documents exist, or UNVERIFIED without documents.',
     }),
     ApiOkResponse({ type: QualificationReviewResponseDto }),
     ...errors(true, true),

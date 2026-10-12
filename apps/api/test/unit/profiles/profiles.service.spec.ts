@@ -7,6 +7,41 @@ import { ProfilesService } from '@modules/profiles/profiles.service';
 import type { PrismaService } from '@infrastructure/database/prisma.service';
 
 describe('ProfilesService', () => {
+  it.each([
+    { profile: null, profileComplete: false },
+    {
+      profile: {
+        firstName: 'Anan',
+        lastName: 'Dee',
+        nickname: 'Anan',
+        verificationStatus: 'UNVERIFIED',
+      },
+      profileComplete: true,
+    },
+  ])('returns the new tutor profile state without implying pending review', async (account) => {
+    const service = new ProfilesService({
+      user: {
+        findUnique: jest.fn().mockResolvedValue({
+          policyVersion: CURRENT_PRIVACY_POLICY_VERSION,
+          tutorProfile: account.profile,
+        }),
+      },
+    } as unknown as PrismaService);
+
+    await expect(
+      service.getMine({
+        id: 'tutor-id',
+        email: 'tutor@example.com',
+        role: Role.TUTOR,
+        sessionId: 'session-id',
+      }),
+    ).resolves.toMatchObject({
+      profile: account.profile,
+      profileComplete: account.profileComplete,
+      role: Role.TUTOR,
+    });
+  });
+
   it('rejects an admin before querying private profile data', async () => {
     const findUnique = jest.fn();
     const service = new ProfilesService({
@@ -183,7 +218,7 @@ describe('ProfilesService', () => {
       expect.objectContaining({
         where: { userId: 'tutor-id' },
         update: input,
-        create: { userId: 'tutor-id', ...input },
+        create: { userId: 'tutor-id', ...input, verificationStatus: 'UNVERIFIED' },
       }),
     );
     const calls = tutorUpsert.mock.calls as unknown as Array<[{ update: Record<string, unknown> }]>;

@@ -317,16 +317,24 @@ describe('Tutor listing and availability services', () => {
       );
     });
 
-    it('returns 403 when a pending or rejected tutor tries to publish', async () => {
-      const prisma = createPrisma();
-      prisma.tutorProfile.findFirst.mockResolvedValue(null);
-      const service = new TutorsService(prisma as unknown as PrismaService);
+    it.each(['UNVERIFIED', 'PENDING', 'REJECTED'])(
+      'returns 403 when a %s tutor tries to publish',
+      async (verificationStatus) => {
+        const prisma = createPrisma();
+        prisma.tutorProfile.findFirst.mockImplementation(
+          ({ where }: { where: { verificationStatus: string } }) =>
+            Promise.resolve(
+              where.verificationStatus === verificationStatus ? { userId: USER_ID } : null,
+            ),
+        );
+        const service = new TutorsService(prisma as unknown as PrismaService);
 
-      await expect(service.postPublishListing(USER_ID, LISTING_ID)).rejects.toThrow(
-        new ForbiddenException('Tutor is not eligible to publish listings'),
-      );
-      expect(prisma.teachingListing.update).not.toHaveBeenCalled();
-    });
+        await expect(service.postPublishListing(USER_ID, LISTING_ID)).rejects.toThrow(
+          new ForbiddenException('Tutor is not eligible to publish listings'),
+        );
+        expect(prisma.teachingListing.update).not.toHaveBeenCalled();
+      },
+    );
   });
 
   describe('updateListingStatus', () => {

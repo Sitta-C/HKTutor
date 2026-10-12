@@ -114,7 +114,7 @@ export interface TutorProfile {
   displayName: string;
   bio: string;
   experienceYears: number;
-  verificationStatus: 'PENDING' | 'VERIFIED' | 'REJECTED';
+  verificationStatus: 'UNVERIFIED' | 'PENDING' | 'VERIFIED' | 'REJECTED';
   ratingAverage: string | null;
   reviewCount: number;
 }

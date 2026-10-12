@@ -77,7 +77,10 @@ test('tutor validates, uploads, sees pending status and retries denied preview',
       return json(route, { accessToken: 'ui-test-token', user: tutor });
     }
     if (path === '/api/v1/profiles/me') {
-      return json(route, profile);
+      return json(route, {
+        ...profile,
+        profile: { ...profile.profile, verificationStatus: uploaded ? 'PENDING' : 'UNVERIFIED' },
+      });
     }
     if (path === '/api/v1/tutors/me/qualification-documents') {
       if (request.method() === 'POST') {
@@ -151,6 +154,11 @@ test('tutor validates, uploads, sees pending status and retries denied preview',
   await thaiSection.screenshot({ path: testInfo.outputPath('qualification-controls-th.png') });
   await page.getByRole('button', { name: 'เปลี่ยนภาษาเป็นภาษาอังกฤษ' }).click();
   await expect(section.getByText('No documents submitted yet.')).toBeVisible();
+  const summary = page.locator('[data-profile-summary]');
+  await expect(
+    summary.getByText('No verification documents submitted', { exact: true }),
+  ).toBeVisible();
+  await expect(summary.locator('[data-tutor-verification="PENDING"]')).toHaveCount(0);
   const file = section.getByLabel('PDF, JPEG or PNG, up to 5 MB');
   await file.setInputFiles({
     name: 'empty.pdf',
@@ -194,6 +202,10 @@ test('tutor validates, uploads, sees pending status and retries denied preview',
   await expect(
     section.getByRole('button', { name: 'Uploading document', exact: true }),
   ).toBeDisabled();
+  await expect(summary.locator('[data-tutor-verification]')).toHaveAttribute(
+    'data-tutor-verification',
+    'UNVERIFIED',
+  );
   releaseUpload?.();
   await expect(page.locator('[data-notebook-toast="success"]')).toHaveText(
     'Document submitted for review.',
@@ -205,6 +217,8 @@ test('tutor validates, uploads, sees pending status and retries denied preview',
   await documentType.selectOption('CERTIFICATE');
   await expect(submit).toBeEnabled();
   await documentType.selectOption('DEGREE');
+  await expect(summary.getByText('Pending review', { exact: true })).toBeVisible();
+  await expect(summary.locator('[data-tutor-verification="UNVERIFIED"]')).toHaveCount(0);
   await section.getByRole('button', { name: 'View document' }).click();
   await expect(
     section.getByText('Preview access was denied. Refresh the list and try again.'),
