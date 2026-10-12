@@ -344,6 +344,9 @@ student/tutor button review and three-direction preview.
   by side. The decision dialog's submit action also has a check/close ticket stub, with red only
   for the final rejection confirmation. Preserve accessible student-specific names, pending/stale
   guards, native dialog behavior, rejection reasons and the existing API requests.
+- The tutor profile's Submit document action also uses `NotebookAction` with a check-icon ticket
+  stub (2026-10-12). Document type uses the shared regular 48px `NotebookSelect`, preserving the
+  Degree/Certificate values, associated label, disabled upload state and pending-type guard.
 - Keep the existing photo-selection brush, plain rounded pagination, course-selection paper buttons,
   sidebar labels, language switch and calendar/course rulers. Each retains its selected purpose
   and interaction rather than acquiring additional ticket decorations. Unreviewed authentication
