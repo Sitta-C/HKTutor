@@ -23,6 +23,7 @@ async function mockProfile(
     email?: string;
     student?: boolean;
     profileComplete?: boolean;
+    noProfile?: boolean;
   } = {},
 ) {
   const calls: string[] = [];
@@ -65,7 +66,7 @@ async function mockProfile(
         consentCurrent: true,
         profileComplete: options.profileComplete ?? true,
         policyVersion: '2026-01',
-        profile: options.student ? studentProfile : profile,
+        profile: options.noProfile ? null : options.student ? studentProfile : profile,
       };
     } else if (path === '/profiles/me/tutor' && request.method() === 'PUT') {
       const payload: SaveTutorProfilePayload = request.postDataJSON();
@@ -133,26 +134,35 @@ test('keeps English copy and refreshes the rating from the existing save respons
   expect(calls.filter((call) => call.startsWith('PUT'))).toEqual(['PUT /profiles/me/tutor']);
 });
 
-test('fits long emails, status, stars and the notice at 320px', async ({ page }) => {
-  await page.setViewportSize({ width: 320, height: 900 });
-  const email = 'tutor.mathematics.long-address@example.test';
-  await mockProfile(page, { email, meta: { verificationStatus: 'PENDING' } });
-  await page.goto('/dashboard/profile');
-  const summary = page.getByRole('region', { name: 'สรุปบัญชีติวเตอร์' });
-  await expect(summary.getByText(email, { exact: true })).toBeVisible();
-  await expect(summary.getByText('รอการตรวจสอบ', { exact: true })).toBeVisible();
-  await summary.getByRole('button', { name: 'อ่านรีวิวทั้งหมด' }).click();
-  await expect(summary.getByRole('status')).toBeVisible();
-  const fits = await summary.evaluate((element) => {
-    const rect = element.getBoundingClientRect();
-    return (
-      rect.left >= 0 &&
-      rect.right <= window.innerWidth &&
-      element.scrollWidth <= element.clientWidth
-    );
+for (const verificationStatus of ['UNVERIFIED', 'PENDING'] as const) {
+  test(`${verificationStatus} fits long emails, status, stars and the notice at 320px`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 320, height: 900 });
+    const email = 'tutor.mathematics.long-address@example.test';
+    await mockProfile(page, { email, meta: { verificationStatus } });
+    await page.goto('/dashboard/profile');
+    const summary = page.getByRole('region', { name: 'สรุปบัญชีติวเตอร์' });
+    await expect(summary.getByText(email, { exact: true })).toBeVisible();
+    await expect(
+      summary.getByText(
+        verificationStatus === 'UNVERIFIED' ? 'ยังไม่ได้ส่งเอกสารยืนยัน' : 'รอการตรวจสอบ',
+        { exact: true },
+      ),
+    ).toBeVisible();
+    await summary.getByRole('button', { name: 'อ่านรีวิวทั้งหมด' }).click();
+    await expect(summary.getByRole('status')).toBeVisible();
+    const fits = await summary.evaluate((element) => {
+      const rect = element.getBoundingClientRect();
+      return (
+        rect.left >= 0 &&
+        rect.right <= window.innerWidth &&
+        element.scrollWidth <= element.clientWidth
+      );
+    });
+    expect(fits).toBe(true);
   });
-  expect(fits).toBe(true);
-});
+}
 
 test('matches the surrounding profile field typography, surfaces and column alignment', async ({
   page,
@@ -204,7 +214,7 @@ test('preserves the student account fields and completion summary', async ({ pag
   await expect(page.locator('#school')).toHaveValue('Example School');
 });
 
-for (const verificationStatus of ['PENDING', 'REJECTED'] as const) {
+for (const verificationStatus of ['UNVERIFIED', 'PENDING', 'REJECTED'] as const) {
   for (const language of ['en', 'th'] as const) {
     test(`${verificationStatus} onboarding keeps status guidance without a document link (${language})`, async ({
       page,
@@ -221,6 +231,21 @@ for (const verificationStatus of ['PENDING', 'REJECTED'] as const) {
         verificationStatus,
       );
       await expect(summary.locator('[data-verification-guidance] p')).toBeVisible();
+      const labels = {
+        en: {
+          UNVERIFIED: 'No verification documents submitted',
+          PENDING: 'Pending review',
+          REJECTED: 'Not verified',
+        },
+        th: {
+          UNVERIFIED: 'ยังไม่ได้ส่งเอกสารยืนยัน',
+          PENDING: 'รอการตรวจสอบ',
+          REJECTED: 'ไม่ผ่านการตรวจสอบ',
+        },
+      };
+      await expect(
+        summary.getByText(labels[language][verificationStatus], { exact: true }),
+      ).toBeVisible();
       await page.locator('#displayName').fill('Unsaved tutor name');
       await expect(
         summary.getByRole('link', {
@@ -257,5 +282,29 @@ for (const verificationStatus of ['PENDING', 'REJECTED'] as const) {
       .click();
     await expect(documents).toBeFocused();
     await expect(page).toHaveURL(/#qualification-documents$/);
+  });
+}
+
+for (const language of ['en', 'th'] as const) {
+  test(`a newly registered tutor without a profile is unverified (${language})`, async ({
+    page,
+  }) => {
+    await mockProfile(page, { language, noProfile: true, profileComplete: false });
+    await page.goto('/onboarding/profile');
+    const summary = page.locator('[data-profile-summary]');
+    await expect(summary.locator('[data-tutor-verification]')).toHaveText(
+      language === 'en' ? 'No verification documents submitted' : 'ยังไม่ได้ส่งเอกสารยืนยัน',
+    );
+    await expect(summary.locator('[data-tutor-verification]')).toHaveAttribute(
+      'data-tutor-verification',
+      'UNVERIFIED',
+    );
+    await expect(summary.getByRole('link')).toHaveCount(0);
+    await expect(page.locator('[data-tutor-verification="PENDING"]')).toHaveCount(0);
+    await expect(summary.locator('[data-verification-guidance="UNVERIFIED"]')).toBeVisible();
+    await expect(summary).toBeVisible();
+    expect(await summary.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(
+      true,
+    );
   });
 }
