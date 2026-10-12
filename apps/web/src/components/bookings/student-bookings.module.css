@@ -218,8 +218,6 @@
   color: inherit;
 }
 .pagination {
-  --pagination-ticket-ink: var(--docket-accent-ink);
-
   padding: 0 20px 18px;
 }
 .detailStatus {

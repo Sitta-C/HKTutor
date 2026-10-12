@@ -240,25 +240,22 @@ for (const language of ['en', 'th'] as const) {
       });
       await expect(previous).toBeDisabled();
       await expect(next).toBeEnabled();
-      await expect(next).toHaveCSS('border-left-style', 'dashed');
+      await expect(next).toHaveCSS('border-left-style', 'solid');
+      await expect(next).toHaveCSS('border-radius', '8px');
+      await expect(pagination.getByText('1–10 / 13', { exact: true })).toBeVisible();
+      await expect(pagination.locator('svg')).toHaveCount(0);
       await next.focus();
       await expect(next).toHaveCSS('outline-style', 'solid');
-      const ticketBoxes = await pagination
+      const buttonBoxes = await pagination
         .getByRole('button')
         .evaluateAll((elements) => elements.map((el) => el.getBoundingClientRect().toJSON()));
-      expect(ticketBoxes[0]?.right).toBe(ticketBoxes[1]?.left);
-      expect(ticketBoxes[0]?.top).toBe(ticketBoxes[1]?.top);
-      for (const box of ticketBoxes) expect(box.height).toBeGreaterThanOrEqual(48);
+      expect(buttonBoxes[0]?.right).toBeLessThan(buttonBoxes[1]?.left ?? 0);
+      expect(buttonBoxes[0]?.top).toBe(buttonBoxes[1]?.top);
+      for (const box of buttonBoxes) expect(box.height).toBeGreaterThanOrEqual(48);
       const countBox = await pageCount.evaluate((el) => el.getBoundingClientRect().toJSON());
-      const paperWidth = await pagination.evaluate(
-        (el) => el.parentElement?.parentElement?.clientWidth ?? 0,
-      );
-      if (paperWidth > 450) {
-        expect(countBox.right).toBeLessThan(ticketBoxes[0]?.left ?? 0);
-        expect(countBox.top).toBeGreaterThan(ticketBoxes[0]?.top ?? 0);
-      } else {
-        expect(countBox.bottom).toBeLessThan(ticketBoxes[0]?.top ?? 0);
-      }
+      expect(countBox.left).toBeGreaterThan(buttonBoxes[0]?.right ?? 0);
+      expect(countBox.right).toBeLessThan(buttonBoxes[1]?.left ?? 0);
+      expect(countBox.top).toBeGreaterThan(buttonBoxes[0]?.top ?? 0);
       await noOverflow(page);
       await pagination.screenshot({
         path: testInfo.outputPath(`bookings-pagination-${language}-${width}.png`),

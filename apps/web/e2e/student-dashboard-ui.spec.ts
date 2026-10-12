@@ -222,7 +222,10 @@ test('right sheet paginates loaded tutors with keyboard and opens tutor profiles
   const initialCallCount = calls.length;
   const leftBefore = await nextBooking.innerText();
   const next = pages.getByRole('button', { name: 'Next', exact: true });
-  await expect(next).toHaveText('');
+  await expect(next).toHaveText('Next');
+  await expect(next).toHaveCSS('border-radius', '8px');
+  await expect(pages.getByText('1–4 / 11', { exact: true })).toBeVisible();
+  await expect(pages.getByText('Page 1 of 3', { exact: true })).toBeVisible();
   const touchTarget = await next.boundingBox();
   expect(touchTarget?.width).toBeGreaterThanOrEqual(44);
   expect(touchTarget?.height).toBeGreaterThanOrEqual(44);

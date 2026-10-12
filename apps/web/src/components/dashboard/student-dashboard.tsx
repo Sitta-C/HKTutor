@@ -252,7 +252,6 @@ export function StudentDashboard({ user, onLogout }: StudentDashboardProps) {
                   total={tutorBookings.length}
                   pageSize={TUTORS_PER_PAGE}
                   label={studentCopy.tutorsPagination}
-                  variant="paper-turn"
                   onPageChange={setTutorPage}
                 />
                 {tutorPageCount > 1 && <p className={styles.scope}>{studentCopy.tutorsScope}</p>}

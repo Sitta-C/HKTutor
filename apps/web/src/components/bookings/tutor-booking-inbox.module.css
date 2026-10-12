@@ -256,8 +256,6 @@
   color: inherit;
 }
 .pagination {
-  --pagination-ticket-ink: var(--inbox-accent-ink);
-
   padding: 0 20px 18px;
 }
 @media (max-width: 639px) {

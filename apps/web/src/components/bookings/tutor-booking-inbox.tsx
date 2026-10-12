@@ -266,7 +266,6 @@ export default function TutorBookingInbox() {
                     total={total}
                     pageSize={TUTOR_INBOX_PAGE_SIZE}
                     label={copy.pagination}
-                    variant="ticket"
                     onPageChange={changePage}
                   />
                 </div>
