@@ -11,7 +11,14 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
     const connectionString = normalizeDatabaseUrlForPg(
       configService.getOrThrow<string>('DATABASE_URL'),
     );
-    super({ adapter: new PrismaPg({ connectionString }) });
+    super({
+      adapter: new PrismaPg({
+        connectionString,
+        max: 3,
+        connectionTimeoutMillis: 10_000,
+        idleTimeoutMillis: 10_000,
+      }),
+    });
   }
 
   async onModuleInit(): Promise<void> {

@@ -60,6 +60,14 @@ different and at least 32 characters.
 
 ## Database
 
+The API's PostgreSQL driver pool allows at most three connections per process, waits up to
+10 seconds for a connection, and releases idle connections after 10 seconds. This limits pressure
+on the shared Supabase session pool when dashboard requests run concurrently. Budget connections
+across all API processes and database tools; a per-process limit cannot prevent other clients from
+exhausting the shared pool. Restart the API after changing these settings. Disconnect unused database
+tool sessions and stop duplicate development API processes when troubleshooting connection limits.
+This pool configuration does not require a schema migration.
+
 Generate and validate the Prisma schema without changing a database:
 
 ```bash
