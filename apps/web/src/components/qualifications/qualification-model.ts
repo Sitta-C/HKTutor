@@ -37,7 +37,8 @@ export function validateReviewDecision(
   reason: string,
 ): ReviewQualificationPayload | null {
   const trimmed = reason.trim();
-  if (trimmed.length > 500 || (decision === 'REJECTED' && trimmed.length === 0)) {
+  const characterCount = Array.from(trimmed).length;
+  if (characterCount > 500 || (decision === 'REJECTED' && characterCount === 0)) {
     return null;
   }
   return decision === 'REJECTED'

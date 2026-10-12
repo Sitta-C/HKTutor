@@ -68,9 +68,24 @@ describe('qualification model', () => {
     expect(validateReviewDecision('REJECTED', 'x'.repeat(501))).toBeNull();
   });
 
+  it.each(['APPROVED', 'REJECTED'] as const)(
+    'counts Unicode code points in %s review notes like the API',
+    (decision) => {
+      const accepted = '😀'.repeat(500);
+      expect(validateReviewDecision(decision, `  ${accepted}  `)).toEqual({
+        decision,
+        reason: accepted,
+      });
+      expect(validateReviewDecision(decision, '😀'.repeat(501))).toBeNull();
+    },
+  );
+
   it('expires signed links before the storage deadline and maps denied/conflict failures', () => {
     const now = Date.parse('2026-10-09T00:00:00Z');
+    expect(signedUrlIsExpired('2026-10-08T23:59:59Z', now)).toBe(true);
     expect(signedUrlIsExpired('2026-10-09T00:00:04Z', now)).toBe(true);
+    expect(signedUrlIsExpired('2026-10-09T00:00:05Z', now)).toBe(true);
+    expect(signedUrlIsExpired('2026-10-09T00:00:06Z', now)).toBe(false);
     expect(signedUrlIsExpired('2026-10-09T00:00:30Z', now)).toBe(false);
     expect(signedUrlIsExpired('invalid', now)).toBe(true);
     expect(qualificationErrorKind(new ApiError('Denied', 403))).toBe('denied');

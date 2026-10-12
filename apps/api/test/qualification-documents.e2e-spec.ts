@@ -454,6 +454,24 @@ describe('S2-T07 qualification documents (HTTP contracts with isolated persisten
     expect(intents.size).toBe(0);
   });
 
+  it('rejects an upload above the Multer hard limit before persistence', async () => {
+    const buffer = Buffer.alloc(DOCUMENT_MAX_SIZE_BYTES + 2);
+    PDF.copy(buffer);
+    await request(app.getHttpServer())
+      .post(TUTOR_BASE)
+      .auth('tutor', { type: 'bearer' })
+      .field('documentType', 'DEGREE')
+      .attach('file', buffer, { filename: 'oversized.pdf', contentType: 'application/pdf' })
+      .expect(400);
+    expect(findTutorAccount).not.toHaveBeenCalled();
+    expect(createIntent).not.toHaveBeenCalled();
+    expect(createDocument).not.toHaveBeenCalled();
+    expect(createAudit).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(document).toEqual(fixture());
+    expect(verificationStatus).toBe('PENDING');
+  });
+
   it.each([
     { caseName: '0-byte PDF', buffer: Buffer.alloc(0), mime: 'application/pdf', name: 'empty.pdf' },
     {
@@ -957,12 +975,21 @@ describe('S2-T07 qualification documents (HTTP contracts with isolated persisten
       });
       expect(JSON.stringify(detail.body)).not.toContain(document.objectPath);
       expect(JSON.stringify(detail.body)).not.toContain(ENVIRONMENT.SUPABASE_SECRET_KEY);
-      await request(app.getHttpServer())
-        .patch(`${ADMIN_BASE}/${DOCUMENT_ID}`)
-        .auth('admin', { type: 'bearer' })
-        .send({ decision })
-        .expect(decision === 'REJECTED' ? 400 : 409);
-      expect(auditRecords).toHaveLength(1);
+      const savedDocument = structuredClone(document);
+      const savedAudits = structuredClone(auditRecords);
+      for (const nextDecision of ['APPROVED', 'REJECTED']) {
+        const conflict = await request(app.getHttpServer())
+          .patch(`${ADMIN_BASE}/${DOCUMENT_ID}`)
+          .auth('admin', { type: 'bearer' })
+          .send({ decision: nextDecision, reason: 'Second review attempt' })
+          .expect(409);
+        expect(conflict.body).toMatchObject({ code: 'DOCUMENT_ALREADY_REVIEWED' });
+        expect(document).toEqual(savedDocument);
+        expect(verificationStatus).toBe(status);
+        expect(auditRecords).toEqual(savedAudits);
+      }
+      expect(updateTutor).toHaveBeenCalledTimes(1);
+      expect(createAudit).toHaveBeenCalledTimes(1);
     },
   );
 
@@ -1057,6 +1084,7 @@ describe('S2-T07 qualification documents (HTTP contracts with isolated persisten
     { decision: 'REJECTED' },
     { decision: 'REJECTED', reason: '   ' },
     { decision: 'REJECTED', reason: 'x'.repeat(501) },
+    { decision: 'REJECTED', reason: '😀'.repeat(501) },
     { decision: 'APPROVED', reason: null },
     { decision: 'APPROVED', reviewerUserId: TUTOR_ID },
   ])('rejects invalid review input %j', async (body) => {

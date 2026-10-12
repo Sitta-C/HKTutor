@@ -1,46 +1,86 @@
-# S2-T09 qualification verification QA
+# S2-T09 tutor verification QA
 
-Checked on 2026-10-12. The HTTP suite exercises Nest validation, JWT/session/role/ownership
-guards, the qualification service, and the Supabase Storage SDK with isolated database and HTTP
-transports. Browser tests intercept API responses. They do not verify a live private bucket or real
-PostgreSQL transaction locks.
+These checks cover tutor document uploads, access control, signed previews, and admin review.
+The API HTTP tests use synthetic files, isolated persistence, and a mocked Supabase transport.
+Browser tests intercept API responses. No production data or credentials were used.
 
 ## Coverage
 
-| Requirement                                              | Evidence                                                                                                                                                                                                                                    |
-| -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 0 bytes; exactly 5 MiB; one byte over; PDF/JPEG/PNG      | HTTP upload tests assert status, persisted size, upload audit, and no persistence on rejection.                                                                                                                                             |
-| Unsupported MIME, byte signature, and filename extension | HTTP tests reject WebP/SVG, spoofed content, and mismatched or unsupported extensions; web unit/browser tests reject mismatched extensions before POST.                                                                                     |
-| Tutor ownership and admin-only review                    | HTTP route matrix checks missing/invalid sessions and wrong roles before database or Storage work; foreign tutor preview returns 403 before signing.                                                                                        |
-| Expired signed URL                                       | HTTP test checks UTC `expiresAt`, 300-second signing request, and expiry audit without URL/token persistence. Web unit/browser tests reject expired links and request a fresh URL. Actual Supabase expiry remains a live-environment check. |
-| Private metadata and service key                         | Upload, list, queue, detail, and signing responses are checked for object paths/service keys; signed URLs are returned only to authorized callers and are not written to audit records.                                                     |
-| Approve/reject and conflicts                             | HTTP tests check document/profile/audit fields and later detail for both decisions, 409 on second review, and rollback on persistence failure. Browser tests check both decision flows and stale-state reconciliation.                      |
-| UTC/Bangkok                                              | HTTP assertions require UTC ISO timestamps. Existing web component test checks Bangkok display of review time.                                                                                                                              |
+- **Uploads:** `apps/api/test/qualification-documents.e2e-spec.ts` rejects 0-byte files,
+  files above 5 MiB, and requests above the Multer hard limit without creating document,
+  audit, or Storage work. Exactly 5 MiB and valid PDF, JPEG, and PNG files are accepted.
+  Unsupported MIME types, invalid signatures, and filename-extension mismatches are rejected.
+- **Access and privacy:** The HTTP suite checks missing or invalid sessions, wrong roles,
+  tutor ownership, and admin-only review. Upload, list, detail, signing, and error responses
+  are checked for private object paths and service keys. Unauthorized preview requests do
+  not reach Storage signing.
+- **Signed previews:** API tests assert a 300-second signed URL request and audit records
+  without URL tokens. Web unit tests use fixed UTC times for expired, invalid, and
+  near-expiry links; browser tests cover denied previews and requesting a fresh link.
+- **Review:** Both APPROVED and REJECTED decisions are checked for reviewer ID, UTC review
+  time, reason, document and tutor status, and audit history. All same-decision and
+  cross-decision retries return 409 `DOCUMENT_ALREADY_REVIEWED` without changing those
+  records. Isolated persistence tests check rollback on failure.
+- **UI and contracts:** Browser tests cover upload and review conflicts, ambiguous responses,
+  and selection changes during review without stale optimistic state. Repository tests
+  cover database schema and status values; Swagger and API wire contracts are unchanged.
+  Web unit and browser tests cover Thai/English copy, and a component test covers
+  Asia/Bangkok display. API timestamps remain UTC ISO strings.
 
-## Commands and results
+The follow-up fixed an invalid REJECTED duplicate-review test that previously returned 400
+before reaching the conflict check. It also aligned the web's 500-character review-note
+limit with the API's Unicode code-point count: 500 emoji are accepted and 501 are rejected.
 
-Run from the repository root on Windows. `pnpm.cmd` is used because PowerShell script execution
-blocks `pnpm.ps1` on this machine.
+## Verification
 
-| Command                                                                                                                                                | Result                                                                                                                                                |
-| ------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `pnpm.cmd --filter @hktutor/api test:e2e --runInBand qualification-documents`                                                                          | Passed: 81/81 tests.                                                                                                                                  |
-| `pnpm.cmd --filter @hktutor/web exec vitest run test/qualification-model.test.ts test/qualification-components.test.ts test/qualification-api.test.ts` | Passed: 9/9 tests.                                                                                                                                    |
-| `node --test tests/qualification-document-api-schema.test.mjs tests/tutor-document-schema.test.mjs tests/tutor-verification-status.test.mjs`           | Passed: 12/12 tests.                                                                                                                                  |
-| `pnpm.cmd --filter @hktutor/web start` followed by `pnpm.cmd --filter @hktutor/web exec playwright test e2e/qualification-verification-ui.spec.ts`     | Passed: 36/36 across desktop, tablet, and mobile Chromium; server stopped afterward.                                                                  |
-| `pnpm.cmd --filter @hktutor/api lint` and `pnpm.cmd --filter @hktutor/web lint`                                                                        | Both passed.                                                                                                                                          |
-| `pnpm.cmd --filter @hktutor/api build` and `pnpm.cmd --filter @hktutor/web build`                                                                      | Both passed; web build needed network access for Google Fonts.                                                                                        |
-| `pnpm.cmd exec prettier --check` on the nine changed code/documentation files                                                                          | Passed.                                                                                                                                               |
-| `pnpm.cmd format:check`                                                                                                                                | Failed on 421 files in this Windows checkout; the nine changed files pass a targeted check.                                                           |
-| `pnpm.cmd verify:workspace`                                                                                                                            | 111 passed, 7 failed in unrelated booking, registration, dashboard, search, and CI contract tests. The three qualification contract files above pass. |
-
-The exact targeted formatting command was:
+Run from the repository root. These results were recorded on 2026-10-12 with Node.js
+24.19.0 and pnpm 11.19.0. On Windows, `pnpm.cmd` avoids the blocked PowerShell shim.
 
 ```powershell
-pnpm.cmd exec prettier --check apps/api/README.md apps/api/src/modules/qualification-documents/qualification-documents.service.ts apps/api/src/modules/qualification-documents/qualification-documents.swagger.ts apps/api/test/qualification-documents.e2e-spec.ts apps/web/src/components/qualifications/qualification-copy.ts apps/web/src/components/qualifications/qualification-model.ts apps/web/test/qualification-model.test.ts apps/web/e2e/qualification-verification-ui.spec.ts tests/s2-t09-qa.md
+pnpm.cmd install --frozen-lockfile
+pnpm.cmd db:generate
+pnpm.cmd --filter @hktutor/api test:e2e --runInBand qualification-documents
+pnpm.cmd --filter @hktutor/web exec vitest run test/qualification-model.test.ts test/qualification-components.test.ts test/qualification-api.test.ts
+node --test tests/qualification-document-api-schema.test.mjs tests/tutor-document-schema.test.mjs tests/tutor-verification-status.test.mjs
+pnpm.cmd --filter @hktutor/api lint
+pnpm.cmd --filter @hktutor/web lint
+pnpm.cmd --filter @hktutor/api build
+pnpm.cmd --filter @hktutor/web build
+pnpm.cmd lint:root
 ```
 
-It passed. The local runtime is Node.js 22.18.0; the repository specifies Node.js 24.19.0. No real Supabase
-bucket or disposable PostgreSQL target was configured after the fresh checkout, so live Storage
-expiry and database-backed concurrency checks were not run. Use synthetic files and a confirmed
-safe target for those checks; do not run seed against retained data.
+Install, Prisma generation, lint, and builds passed. The API HTTP suite passed 83/83,
+web unit tests 11/11, and qualification contract tests 12/12. The web build required
+network access for Google Fonts.
+
+Playwright passed 36/36 on desktop, tablet, and mobile Chromium using the existing
+Playwright configuration against a production web build. The server was started in a
+separate terminal and stopped afterward:
+
+```powershell
+pnpm.cmd --filter @hktutor/web start
+pnpm.cmd --filter @hktutor/web exec playwright test e2e/qualification-verification-ui.spec.ts
+```
+
+The configured `pnpm dev` server was tried first but repeatedly failed to fetch Google
+Fonts in this restricted network environment. The browser tests use mocked API responses.
+
+The four changed files passed the targeted formatting check and `git diff --check`:
+
+```powershell
+pnpm.cmd exec prettier --check apps/api/test/qualification-documents.e2e-spec.ts apps/web/src/components/qualifications/qualification-model.ts apps/web/test/qualification-model.test.ts tests/s2-t09-qa.md
+git diff --check
+```
+
+The broader `pnpm.cmd format:check` run failed on 418 files in this Windows checkout.
+An earlier `pnpm.cmd verify:workspace` run failed in unrelated booking, registration,
+dashboard, and search contracts; it was not rerun after this documentation edit.
+The qualification contract tests passed separately.
+
+## Limits
+
+The isolated suites do not prove private-bucket upload or signed URL expiry against
+Supabase, or transaction locking under concurrent PostgreSQL requests. Those checks
+require a confirmed safe test environment. No migration, seed, or data reset was run.
+The change stays within S2-T09 QA and the review-note validation fix. No Trello Status,
+Owner, or member assignment was changed.
