@@ -128,6 +128,17 @@ export function getStudentLabel(
   return booking.student.nickname?.trim() || copy.unknownStudent;
 }
 
+/** Picks the singular template for a single booking so the count never reads "1 bookings". */
+export function formatInboxCount(
+  total: number,
+  statusLabel: string,
+  copy: TutorBookingInboxCopy,
+): string {
+  return (total === 1 ? copy.countOne : copy.count)
+    .replace('{count}', String(total))
+    .replace('{status}', statusLabel);
+}
+
 export function describeDecisionSuccess(
   result: TutorBookingActionResult,
   copy: TutorBookingInboxCopy,

@@ -456,7 +456,7 @@ test.describe('decision API response edges', () => {
         first.status = 'CONFIRMED';
         await mali.getByRole('button', { name: 'Refresh', exact: true }).click();
         await expect(mali).toHaveCount(0);
-        await expect(page.getByText('1 bookings PENDING')).toBeVisible();
+        await expect(page.getByText('1 booking PENDING')).toBeVisible();
         await page.getByRole('button', { name: 'All', exact: true }).click();
         await expect(mali.getByText('CONFIRMED', { exact: true })).toBeVisible();
         await expect(mali.getByRole('button', { name: /the booking from Mali/ })).toHaveCount(0);
@@ -499,7 +499,7 @@ test.describe('decision API response edges', () => {
         await dialog.getByRole('button', { name: `Yes, ${action} booking` }).click();
         await expect(dialog).toHaveCount(0);
         await expect(mali).toHaveCount(0);
-        await expect(page.getByText('1 bookings PENDING')).toBeVisible();
+        await expect(page.getByText('1 booking PENDING')).toBeVisible();
         expect(requests).toBe(2);
         await page.getByRole('button', { name: 'All', exact: true }).click();
         await expect(
