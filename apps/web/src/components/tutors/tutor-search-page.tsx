@@ -26,6 +26,7 @@ import {
   notebookActionClass,
 } from '@/components/ui/notebook-action';
 import { NotebookLoadingRegion } from '@/components/ui/notebook-loading';
+import { NotebookMetadata } from '@/components/ui/notebook-metadata';
 import { NotebookPagination } from '@/components/ui/notebook-pagination';
 import { NotebookSelect } from '@/components/ui/notebook-select';
 import {
@@ -326,7 +327,9 @@ export default function TutorSearchPage() {
               <h2>
                 {status === 'success' ? pagination.total : '—'} {text.exactMatches}
               </h2>
-              <p>{resultSummary}</p>
+              <p>
+                <NotebookMetadata items={resultSummary} />
+              </p>
             </div>
             <StatusBadge tone="student" className={styles.tag ?? ''}>
               {text.verifiedOnly}
@@ -520,7 +523,7 @@ function TutorResultCard({
         </div>
         <div className={styles.metadata}>
           <span>
-            {rating} · {result.reviewCount} {text.reviews}
+            <NotebookMetadata items={[rating, `${result.reviewCount} ${text.reviews}`]} />
           </span>
           <span>
             {result.experienceYears} {text.years}

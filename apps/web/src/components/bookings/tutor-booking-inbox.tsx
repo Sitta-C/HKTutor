@@ -20,6 +20,7 @@ import {
 import { DashboardIcon } from '@/components/dashboard/dashboard-icon';
 import { NotebookHeading, PaperCard } from '@/components/ui/notebook';
 import { NotebookLoadingRegion } from '@/components/ui/notebook-loading';
+import { NotebookMetadata } from '@/components/ui/notebook-metadata';
 import { NotebookPagination } from '@/components/ui/notebook-pagination';
 import { useNotebookToast } from '@/components/ui/notebook-toast';
 import { confirmTutorBooking, getTutorBookings, rejectTutorBooking } from '@/lib/api/bookings';
@@ -177,9 +178,15 @@ export default function TutorBookingInbox() {
       <div className={styles.heading}>
         <NotebookHeading eyebrow={copy.eyebrow} title={copy.title} description={copy.subtitle} />
         <p className={styles.count} aria-live="polite">
-          {countsAvailable
-            ? copy.count.replace('{count}', String(total)).replace('{status}', filterLabel(filter))
-            : copy.countUnavailable}
+          <NotebookMetadata
+            items={
+              countsAvailable
+                ? copy.count
+                    .replace('{count}', String(total))
+                    .replace('{status}', filterLabel(filter))
+                : copy.countUnavailable
+            }
+          />
         </p>
       </div>
 

@@ -503,7 +503,7 @@ test('switching filters back during a load keeps counts unavailable and ignores 
   await expect(page.locator('[data-booking-count]')).toHaveText('Booking count unavailable');
   releaseAll();
   await expect(page.locator('[data-booking-row]')).toHaveCount(10);
-  await expect(page.locator('[data-booking-count]')).toHaveText('13 bookings · All');
+  await expect(page.locator('[data-booking-count]')).toHaveText('13 bookings All');
 });
 
 for (const language of ['en', 'th'] as const) {

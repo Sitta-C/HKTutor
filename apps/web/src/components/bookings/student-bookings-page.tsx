@@ -10,6 +10,7 @@ import { studentBookingsCopy } from '@/components/bookings/student-bookings-copy
 import { DashboardIcon } from '@/components/dashboard/dashboard-icon';
 import { NotebookHeading, PaperCard } from '@/components/ui/notebook';
 import { NotebookLoadingRegion } from '@/components/ui/notebook-loading';
+import { NotebookMetadata } from '@/components/ui/notebook-metadata';
 import { NotebookPagination } from '@/components/ui/notebook-pagination';
 import { getMyBookings } from '@/lib/api/bookings';
 import { ApiError } from '@/lib/api/error';
@@ -91,11 +92,15 @@ export default function StudentBookingsPage() {
       <div className={styles.heading}>
         <NotebookHeading eyebrow={text.bookingsEyebrow} title={pageText.title} />
         <p className={styles.count} aria-live="polite" data-booking-count>
-          {countsAvailable
-            ? pageText.count
-                .replace('{count}', String(total))
-                .replace('{status}', filterLabel(filter))
-            : pageText.countUnavailable}
+          <NotebookMetadata
+            items={
+              countsAvailable
+                ? pageText.count
+                    .replace('{count}', String(total))
+                    .replace('{status}', filterLabel(filter))
+                : pageText.countUnavailable
+            }
+          />
         </p>
       </div>
       <div className={styles.index}>

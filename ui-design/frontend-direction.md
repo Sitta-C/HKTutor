@@ -306,6 +306,21 @@ The user selected the **tutor-aligned Profile Page** and requested implementatio
   fields, catalog requests, profile/API contracts or photo behavior. Tutor edit/onboarding, its
   selected Profile Page preview and rating/verification summary remain unchanged.
 
+## Metadata labels without dot separators
+
+On 2026-10-12 the user selected spacing and responsive wrapping in place of visible middle-dot
+separators across labels. Use `NotebookMetadata` for duration/price, subject/grade, date/time,
+status/count, ratings, timezone and related helper copy in dashboards, bookings, tutor search/detail,
+profiles, qualification review and the privacy notice. Keep the existing typography and colors.
+
+- Separate related values with a 12px horizontal gap and a 4px gap when they wrap. Preserve each
+  value and its order; narrow layouts can move a group to the next line without clipping text.
+- Pass structured values as an array so punctuation in actual names/data stays intact. The shared
+  component can also separate existing translated compound metadata copy for presentation.
+- Keep meaningful list bullets, actual decimal points, dates, money, native controls, accessible
+  descriptions and business/API behavior. Course-ruler page/range labels use spacing within their
+  existing compact layout.
+
 ## Plain rounded pagination
 
 On 2026-10-12 the user requested the supplied plain rounded reference for all Previous/Next
