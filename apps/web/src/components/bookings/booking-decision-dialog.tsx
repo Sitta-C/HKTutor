@@ -8,6 +8,7 @@ import {
   getStudentLabel,
   validateDecisionText,
 } from '@/components/bookings/tutor-booking-inbox-model';
+import { DashboardIcon } from '@/components/dashboard/dashboard-icon';
 import { WashiTape } from '@/components/ui/notebook';
 import { NotebookAction } from '@/components/ui/notebook-action';
 
@@ -164,6 +165,7 @@ export function BookingDecisionDialog({
           <NotebookAction
             type="submit"
             tone={isConfirm ? 'primary' : 'danger'}
+            icon={<DashboardIcon name={isConfirm ? 'check' : 'close'} />}
             aria-busy={isSubmitting}
             disabled={isSubmitting}
           >

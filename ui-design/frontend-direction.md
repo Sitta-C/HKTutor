@@ -338,6 +338,12 @@ student/tutor button review and three-direction preview.
   editing/draft/publishing/restoration and confirmation, and student course-search/time links.
   Archive triggers stay quiet but readable; archive/publish confirmation labels name their action
   in both languages instead of a generic Confirm.
+- On 2026-10-12 the user requested the same shared action family for tutor booking decisions at
+  `/dashboard/bookings`. Confirm uses a compact blue ticket with a check icon in its perforated
+  stub; Reject uses the secondary paper label with a close icon. Keep both labels legible side
+  by side. The decision dialog's submit action also has a check/close ticket stub, with red only
+  for the final rejection confirmation. Preserve accessible student-specific names, pending/stale
+  guards, native dialog behavior, rejection reasons and the existing API requests.
 - Keep the existing photo-selection brush, plain rounded pagination, course-selection paper buttons,
   sidebar labels, language switch and calendar/course rulers. Each retains its selected purpose
   and interaction rather than acquiring additional ticket decorations. Unreviewed authentication

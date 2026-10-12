@@ -7,6 +7,7 @@ import {
   getStudentLabel,
   isDecidableBooking,
 } from '@/components/bookings/tutor-booking-inbox-model';
+import { DashboardIcon } from '@/components/dashboard/dashboard-icon';
 import { NotebookAction } from '@/components/ui/notebook-action';
 
 import styles from './tutor-booking-inbox.module.css';
@@ -98,6 +99,7 @@ export function TutorBookingCard({
             <NotebookAction
               tone="secondary"
               size="compact"
+              icon={<DashboardIcon name="close" />}
               className={styles.action}
               disabled={isSubmitting}
               aria-label={copy.rejectFor.replace('{student}', studentLabel)}
@@ -108,6 +110,7 @@ export function TutorBookingCard({
             <NotebookAction
               tone="primary"
               size="compact"
+              icon={<DashboardIcon name="check" />}
               className={styles.action}
               disabled={isSubmitting}
               aria-label={copy.confirmFor.replace('{student}', studentLabel)}

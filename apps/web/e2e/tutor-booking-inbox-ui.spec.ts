@@ -583,6 +583,34 @@ test.describe('decision API response edges', () => {
       );
     }
     await expectAccessiblePageShell(page);
+    if ((page.viewportSize()?.width ?? 0) < 640) {
+      await page.setViewportSize({ width: 320, height: 800 });
+    }
+    const pending = page.getByRole('article', { name: 'Student PENDING' });
+    for (const language of ['en', 'th'] as const) {
+      if (language === 'th') {
+        await page.getByRole('button', { name: 'Switch language to Thai' }).click();
+      }
+      await page.keyboard.press('Tab');
+      const actions = pending.getByRole('button');
+      for (const action of await actions.all()) {
+        await expect(action.locator('svg')).toHaveCount(1);
+        await expect(action.locator('svg')).toHaveAttribute('aria-hidden', 'true');
+        const bounds = await action.boundingBox();
+        expect(bounds?.height).toBeGreaterThanOrEqual(46);
+        expect(await action.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(
+          true,
+        );
+        await action.focus();
+        await expect(action).toHaveCSS('outline-style', 'solid');
+      }
+      const confirm = actions.last();
+      const stub = confirm.locator('svg').locator('..');
+      await expect(stub).toHaveCSS('border-right-style', 'dashed');
+      await expect(confirm).toHaveText(language === 'th' ? 'ยืนยัน' : 'Confirm');
+      await expectAccessiblePageShell(page);
+      await pending.screenshot({ path: testInfo.outputPath(`inbox-actions-${language}.png`) });
+    }
     await page.screenshot({ path: testInfo.outputPath('inbox-states.png'), fullPage: true });
   });
 });
