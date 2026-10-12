@@ -20,9 +20,10 @@ enum AccountStatus {
 }
 
 enum TutorVerificationStatus {
-  PENDING  @map("pending")
-  VERIFIED @map("verified")
-  REJECTED @map("rejected")
+  UNVERIFIED @map("unverified")
+  PENDING    @map("pending")
+  VERIFIED   @map("verified")
+  REJECTED   @map("rejected")
 }
 
 enum ListingPublicationStatus {
@@ -148,7 +149,7 @@ model TutorProfile {
   displayName        String
   bio                String
   experienceYears    Int
-  verificationStatus TutorVerificationStatus @default(PENDING)
+  verificationStatus TutorVerificationStatus @default(UNVERIFIED)
   ratingAverage      Decimal?                @db.Decimal(3, 2)
   reviewCount        Int                     @default(0)
   ratingUpdatedAt    DateTime?               @db.Timestamptz(3)

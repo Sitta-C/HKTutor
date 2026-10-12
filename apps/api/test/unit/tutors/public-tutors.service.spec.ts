@@ -661,7 +661,7 @@ describe('TutorDirectoryService', () => {
     );
   });
 
-  it.each(['PENDING', 'REJECTED'])(
+  it.each(['UNVERIFIED', 'PENDING', 'REJECTED'])(
     'hides an unexpected %s tutor instead of exposing it publicly',
     async (verificationStatus) => {
       const prisma = createPrisma();
@@ -676,7 +676,7 @@ describe('TutorDirectoryService', () => {
     },
   );
 
-  it.each(['PENDING', 'REJECTED'])(
+  it.each(['UNVERIFIED', 'PENDING', 'REJECTED'])(
     'skips an unexpected %s tutor without failing the complete search',
     async (verificationStatus) => {
       const prisma = createPrisma();

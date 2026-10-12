@@ -900,16 +900,19 @@ describe('S2-T07 qualification documents (HTTP contracts with isolated persisten
     expect(verificationStatus).toBe(expected);
   });
 
-  it('resets a rejected tutor to pending when new evidence is uploaded', async () => {
-    verificationStatus = 'REJECTED';
-    await request(app.getHttpServer())
-      .post(TUTOR_BASE)
-      .auth('tutor', { type: 'bearer' })
-      .field('documentType', 'CERTIFICATE')
-      .attach('file', PDF, 'certificate.pdf')
-      .expect(201);
-    expect(verificationStatus).toBe('PENDING');
-  });
+  it.each(['UNVERIFIED', 'REJECTED'])(
+    'moves a %s tutor to pending when new evidence is uploaded',
+    async (status) => {
+      verificationStatus = status;
+      await request(app.getHttpServer())
+        .post(TUTOR_BASE)
+        .auth('tutor', { type: 'bearer' })
+        .field('documentType', 'CERTIFICATE')
+        .attach('file', PDF, 'certificate.pdf')
+        .expect(201);
+      expect(verificationStatus).toBe('PENDING');
+    },
+  );
 
   it('retains an upload intent after ambiguous Storage failure for later recovery', async () => {
     fetchMock
