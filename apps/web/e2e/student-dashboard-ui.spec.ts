@@ -101,6 +101,27 @@ async function mockDashboard(
     if (detail) {
       return route.fulfill({ json: { ...detail, updatedAt: detail.createdAt } });
     }
+    const tutorBooking = items.find(
+      (item) =>
+        path === `/tutors/${encodeURIComponent(item.tutor.tutorId)}` ||
+        path === `/tutors/${encodeURIComponent(item.tutor.tutorId)}/availability`,
+    );
+    if (tutorBooking) {
+      return route.fulfill({
+        json: path.endsWith('/availability')
+          ? []
+          : {
+              tutor: {
+                ...tutorBooking.tutor,
+                bio: 'Preview tutor profile',
+                experienceYears: 3,
+                ratingAverage: null,
+                reviewCount: 0,
+              },
+              listings: [],
+            },
+      });
+    }
     return route.fulfill({ status: 500, json: { message: `Unexpected UI request: ${path}` } });
   });
   return calls;
@@ -173,7 +194,7 @@ test('confirmed cross-midnight booking shows Bangkok date range and confirmation
   await expect(page.getByRole('navigation', { name: 'Tutor pages' })).toHaveCount(0);
 });
 
-test('right sheet paginates loaded tutors with keyboard and preserves original booking links', async ({
+test('right sheet paginates loaded tutors with keyboard and opens tutor profiles', async ({
   page,
 }) => {
   const items = Array.from({ length: 11 }, (_, index) =>
@@ -195,13 +216,16 @@ test('right sheet paginates loaded tutors with keyboard and preserves original b
   const pages = index.getByRole('navigation', { name: 'Tutor pages' });
   const nextBooking = page.getByRole('region', { name: 'Next booking', exact: true });
   await expect(index.getByRole('listitem')).toHaveCount(4);
-  await expect(tutorLinks.first()).toHaveAttribute('href', '/dashboard/bookings/latest%2Fbooking');
+  await expect(tutorLinks.first()).toHaveAttribute('href', '/tutors/tutor-0');
   await expect(pages).toContainText('1–4 / 11');
   await expect(pages.getByRole('button', { name: 'Previous', exact: true })).toBeDisabled();
   const initialCallCount = calls.length;
   const leftBefore = await nextBooking.innerText();
   const next = pages.getByRole('button', { name: 'Next', exact: true });
-  await expect(next).toHaveText('');
+  await expect(next).toHaveText('Next');
+  await expect(next).toHaveCSS('border-radius', '8px');
+  await expect(pages.getByText('1–4 / 11', { exact: true })).toBeVisible();
+  await expect(pages.getByText('Page 1 of 3', { exact: true })).toBeVisible();
   const touchTarget = await next.boundingBox();
   expect(touchTarget?.width).toBeGreaterThanOrEqual(44);
   expect(touchTarget?.height).toBeGreaterThanOrEqual(44);
@@ -228,10 +252,44 @@ test('right sheet paginates loaded tutors with keyboard and preserves original b
   await tutorLinks.nth(1).focus();
   await expect(tutorLinks.nth(1)).toBeFocused();
   await page.keyboard.press('Enter');
-  await expect(page).toHaveURL(/\/dashboard\/bookings\/booking-1$/);
-  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Booking details');
-  await expect(page.locator('[data-booking-summary]')).toContainText('Tutor 02');
+  await expect(page).toHaveURL(/\/tutors\/tutor-1$/);
+  await expect(
+    page.getByRole('heading', { level: 2, name: 'Tutor 02', exact: true }),
+  ).toBeVisible();
 });
+
+for (const language of ['en', 'th'] as const) {
+  test(`${language} tutor profile action uses the tutor ID and clear copy`, async ({ page }) => {
+    const tutorId = '11111111-1111-4111-8111-111111111111';
+    await mockDashboard(
+      page,
+      [booking('unrelated-booking', tutorId, 'Teacher Anna', 'CONFIRMED')],
+      { language },
+    );
+    await page.goto('/dashboard');
+    const index = page.getByRole('region', {
+      name: language === 'th' ? 'ติวเตอร์จากการจอง' : 'Tutors from your bookings',
+      exact: true,
+    });
+    await expect(
+      index.getByText(
+        language === 'th'
+          ? 'ดูโปรไฟล์ของติวเตอร์ที่คุณเคยจองเรียน'
+          : 'View profiles of tutors from your bookings.',
+        { exact: true },
+      ),
+    ).toBeVisible();
+    const profileLink = index.getByRole('link', {
+      name: language === 'th' ? /ดูโปรไฟล์ติวเตอร์/ : /View tutor profile/,
+    });
+    await expect(profileLink).toHaveAttribute('href', `/tutors/${tutorId}`);
+    await profileLink.click();
+    await expect(page).toHaveURL(`http://localhost:3000/tutors/${tutorId}`);
+    await expect(
+      page.getByRole('heading', { level: 2, name: 'Teacher Anna', exact: true }),
+    ).toBeVisible();
+  });
+}
 
 for (const fail of [false, true]) {
   test(`loading keeps shell and counts unavailable before ${fail ? 'error' : 'successful empty response'}`, async ({

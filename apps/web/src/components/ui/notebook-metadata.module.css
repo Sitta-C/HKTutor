@@ -1,0 +1,15 @@
+.group {
+  display: inline-flex;
+  max-width: 100%;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+  vertical-align: baseline;
+}
+
+.group > .item {
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}

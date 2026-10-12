@@ -8,8 +8,10 @@ import {
   getStudentLabel,
   validateDecisionText,
 } from '@/components/bookings/tutor-booking-inbox-model';
+import { DashboardIcon } from '@/components/dashboard/dashboard-icon';
 import { WashiTape } from '@/components/ui/notebook';
 import { NotebookAction } from '@/components/ui/notebook-action';
+import { NotebookMetadata } from '@/components/ui/notebook-metadata';
 
 import type { TutorBookingInboxCopy } from '@/components/bookings/tutor-booking-inbox-copy';
 import type { TutorBookingDecision } from '@/components/bookings/tutor-booking-inbox-model';
@@ -95,13 +97,17 @@ export function BookingDecisionDialog({
           <div className="flex flex-wrap justify-between gap-2">
             <dt className="font-bold text-notebook-ink">{studentLabel}</dt>
             <dd className="font-semibold text-notebook-muted">
-              {booking.listing.subjectName} · {booking.listing.gradeLevelName}
+              <NotebookMetadata
+                items={[booking.listing.subjectName, booking.listing.gradeLevelName]}
+              />
             </dd>
           </div>
           <div className="flex flex-wrap justify-between gap-2">
             <dt className="text-notebook-muted">{copy.lessonTime}</dt>
             <dd className="font-semibold text-notebook-ink">
-              {formatBangkokRange(booking.slot.startAtUtc, booking.slot.endAtUtc, language)}
+              <NotebookMetadata
+                items={formatBangkokRange(booking.slot.startAtUtc, booking.slot.endAtUtc, language)}
+              />
             </dd>
           </div>
           <div className="flex flex-wrap justify-between gap-2">
@@ -164,6 +170,7 @@ export function BookingDecisionDialog({
           <NotebookAction
             type="submit"
             tone={isConfirm ? 'primary' : 'danger'}
+            icon={<DashboardIcon name={isConfirm ? 'check' : 'close'} />}
             aria-busy={isSubmitting}
             disabled={isSubmitting}
           >

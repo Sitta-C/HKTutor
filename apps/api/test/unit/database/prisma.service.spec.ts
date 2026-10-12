@@ -1,6 +1,20 @@
 import { ConfigService } from '@nestjs/config';
+import { PrismaPg } from '@prisma/adapter-pg';
 
 import { PrismaService } from '@infrastructure/database/prisma.service';
+
+import type * as PrismaPgModule from '@prisma/adapter-pg';
+
+jest.mock('@prisma/adapter-pg', () => {
+  const original = jest.requireActual<typeof PrismaPgModule>('@prisma/adapter-pg');
+
+  return {
+    ...original,
+    PrismaPg: jest.fn(
+      (...args: ConstructorParameters<typeof original.PrismaPg>) => new original.PrismaPg(...args),
+    ),
+  };
+});
 
 const createService = () =>
   new PrismaService(
@@ -10,8 +24,24 @@ const createService = () =>
   );
 
 describe('PrismaService', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
   afterEach(() => {
     jest.restoreAllMocks();
+  });
+
+  it('bounds shared-session connections and wait times while preserving TLS URL normalization', () => {
+    createService();
+
+    expect(PrismaPg).toHaveBeenCalledWith({
+      connectionString:
+        'postgresql://user:password@example.test:5432/postgres?sslmode=require&uselibpqcompat=true',
+      max: 3,
+      connectionTimeoutMillis: 10_000,
+      idleTimeoutMillis: 10_000,
+    });
   });
 
   it('connects when the Nest module initializes', async () => {

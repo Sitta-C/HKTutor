@@ -60,6 +60,14 @@ different and at least 32 characters.
 
 ## Database
 
+The API's PostgreSQL driver pool allows at most three connections per process, waits up to
+10 seconds for a connection, and releases idle connections after 10 seconds. This limits pressure
+on the shared Supabase session pool when dashboard requests run concurrently. Budget connections
+across all API processes and database tools; a per-process limit cannot prevent other clients from
+exhausting the shared pool. Restart the API after changing these settings. Disconnect unused database
+tool sessions and stop duplicate development API processes when troubleshooting connection limits.
+This pool configuration does not require a schema migration.
+
 Generate and validate the Prisma schema without changing a database:
 
 ```bash
@@ -312,7 +320,10 @@ The 201 upload response is `{documentId,status,fileName,mimeType,size,createdAt}
 and detail additionally include safe file metadata.
 The tutor list supports optional `status`. All qualification status filters and responses use
 `PENDING | APPROVED | REJECTED`; `APPROVED` maps to the existing database `VERIFIED` enum. Tutor
-profile `verificationStatus` retains its existing `PENDING | VERIFIED | REJECTED` contract.
+profile `verificationStatus` uses `UNVERIFIED | PENDING | VERIFIED | REJECTED`.
+Registration and email verification do not create a tutor profile. Its first save creates an
+`UNVERIFIED` profile, meaning no qualification document has been submitted. The first successful
+upload moves it to `PENDING`; selecting a file or a failed upload does not change verification.
 Legacy document category strings remain readable; new uploads accept only the two types above.
 Metadata responses never contain `objectPath`, public download URLs, or service credentials.
 
@@ -338,11 +349,20 @@ trimmed reason of 1–500 characters; an approval may include a note of the same
 document cannot be reviewed again (409). A transaction locks the tutor profile row, conditionally
 updates the pending document, updates tutor verification, and inserts one immutable `REVIEWED`
 audit event. The profile is `VERIFIED` when any document is approved; otherwise `PENDING` when any
-document is pending; otherwise `REJECTED`. Rejecting another document cannot revoke existing
+document is pending; otherwise `REJECTED` if documents exist, or `UNVERIFIED` without documents.
+Rejecting another document cannot revoke existing
 approved evidence. Uploads and reviews for the same tutor serialize on the profile lock. The response is
 `{documentId,status,reviewedAt,reviewedBy,tutorVerificationStatus}`. Approval notes live in the
 audit history; `rejectionReason` remains null on approved documents. Persistence failures roll
 back the entire review and return a sanitized 503.
+
+The two forward migrations `20261012100000_add_unverified_tutor_status` and
+`20261012100100_default_tutor_status_unverified` add the enum value before using it, change the
+profile default, and backfill only `PENDING` profiles with no `TutorDocument` rows. Completed
+`VERIFIED`/`REJECTED` decisions are preserved, including provisioned demo tutors. Apply both
+migrations before running the updated API against a database; `pnpm db:generate` only regenerates
+the client and does not apply them. Document review statuses and admin queue filters retain their
+existing contract. Only `VERIFIED` tutors can publish courses or appear in public discovery.
 
 Uploads persist a qualification-document row in the shared `StorageCleanupIntent` queue before
 Storage I/O. Metadata, the `UPLOADED` audit, aggregate profile state, and intent consumption share

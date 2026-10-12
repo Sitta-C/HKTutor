@@ -14,7 +14,6 @@ import {
   StorageObjectPurpose,
   TutorDocumentAuditAction,
   TutorDocumentReviewStatus,
-  TutorVerificationStatus,
 } from '@generated/prisma/enums';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import {
@@ -35,6 +34,7 @@ import {
 import {
   ACTIVE_TUTOR_WHERE,
   decodeQualificationCursor,
+  deriveTutorVerificationStatus,
   DOCUMENT_OWNERSHIP_ERRORS,
   DOCUMENT_SELECT,
   encodeQualificationCursor,
@@ -44,6 +44,7 @@ import {
   toReviewStatus,
 } from '@modules/qualification-documents/qualification-documents.model';
 
+import type { TutorVerificationStatus } from '@generated/prisma/enums';
 import type { AuthenticatedUser } from '@modules/auth/auth.guard';
 import type {
   QualificationListQueryDto,
@@ -440,13 +441,9 @@ export class QualificationDocumentsService {
       where: { tutorUserId },
       select: { reviewStatus: true },
     });
-    const verificationStatus = documents.some(
-      (doc) => doc.reviewStatus === TutorDocumentReviewStatus.VERIFIED,
-    )
-      ? TutorVerificationStatus.VERIFIED
-      : documents.some((doc) => doc.reviewStatus === TutorDocumentReviewStatus.PENDING)
-        ? TutorVerificationStatus.PENDING
-        : TutorVerificationStatus.REJECTED;
+    const verificationStatus = deriveTutorVerificationStatus(
+      documents.map((doc) => doc.reviewStatus),
+    );
     await tx.tutorProfile.update({
       where: { userId: tutorUserId },
       data: { verificationStatus },

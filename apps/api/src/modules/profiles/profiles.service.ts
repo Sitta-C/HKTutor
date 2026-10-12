@@ -5,7 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 
-import { Role } from '@generated/prisma/client';
+import { Role, TutorVerificationStatus } from '@generated/prisma/client';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import { CURRENT_PRIVACY_POLICY_VERSION } from '@modules/auth/auth.constants';
 
@@ -109,6 +109,7 @@ export class ProfilesService {
       create: {
         userId,
         ...dto,
+        verificationStatus: TutorVerificationStatus.UNVERIFIED,
       },
       select: tutorProfileSelect,
     });

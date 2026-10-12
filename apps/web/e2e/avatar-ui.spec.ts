@@ -267,7 +267,7 @@ test('offers an optional Thai photo upload during onboarding at 320px', async ({
   await mockAvatar(page, { onboarding: true, student: true, language: 'th' });
   await page.goto('/onboarding/profile');
   const editor = page.getByRole('region', { name: 'รูปโปรไฟล์' });
-  await expect(editor.getByText('JPEG, PNG หรือ WebP ไม่เกิน 2 MiB · ไม่บังคับ')).toBeVisible();
+  await expect(editor.getByText('JPEG, PNG หรือ WebP ไม่เกิน 2 MiB ไม่บังคับ')).toBeVisible();
   await editor
     .getByLabel('เลือกรูป')
     .setInputFiles({ name: 'รูปโปรไฟล์.png', mimeType: 'image/png', buffer: PNG });

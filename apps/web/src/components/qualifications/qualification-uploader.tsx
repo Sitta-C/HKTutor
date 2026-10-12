@@ -2,6 +2,7 @@
 
 import { useRef, useState } from 'react';
 
+import { DashboardIcon } from '@/components/dashboard/dashboard-icon';
 import {
   canUploadType,
   qualificationErrorKind,
@@ -9,6 +10,7 @@ import {
   validateQualificationFile,
 } from '@/components/qualifications/qualification-model';
 import { NotebookAction } from '@/components/ui/notebook-action';
+import { NotebookSelect } from '@/components/ui/notebook-select';
 import { useNotebookToast } from '@/components/ui/notebook-toast';
 import { uploadQualification } from '@/lib/api/qualifications';
 
@@ -116,20 +118,21 @@ export function QualificationUploader({ documents, copy, onUploaded }: Qualifica
       >
         {copy.typeLabel}
       </label>
-      <select
-        id="qualification-type"
-        className="mb-3 min-h-11 w-full rounded-lg border border-paper-edge bg-paper px-3 text-notebook-ink focus-visible:outline-2 focus-visible:outline-tutor-deep"
-        value={type}
-        disabled={busy}
-        onChange={(event) => {
-          setType(event.target.value === 'CERTIFICATE' ? 'CERTIFICATE' : 'DEGREE');
-          setError(null);
-          setRefreshError(null);
-        }}
-      >
-        <option value="DEGREE">{copy.types.DEGREE}</option>
-        <option value="CERTIFICATE">{copy.types.CERTIFICATE}</option>
-      </select>
+      <div className="mb-3">
+        <NotebookSelect
+          id="qualification-type"
+          value={type}
+          disabled={busy}
+          onChange={(event) => {
+            setType(event.target.value === 'CERTIFICATE' ? 'CERTIFICATE' : 'DEGREE');
+            setError(null);
+            setRefreshError(null);
+          }}
+        >
+          <option value="DEGREE">{copy.types.DEGREE}</option>
+          <option value="CERTIFICATE">{copy.types.CERTIFICATE}</option>
+        </NotebookSelect>
+      </div>
       <div className="group relative">
         <input
           ref={fileInput}
@@ -229,6 +232,8 @@ export function QualificationUploader({ documents, copy, onUploaded }: Qualifica
       <NotebookAction
         className="mt-4"
         type="submit"
+        icon={<DashboardIcon name="check" />}
+        aria-busy={busy}
         disabled={busy || !canUploadType(documents, type)}
       >
         {busy ? copy.uploading : copy.upload}

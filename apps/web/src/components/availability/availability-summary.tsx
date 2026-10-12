@@ -1,4 +1,5 @@
 import { DashboardIcon } from '@/components/dashboard/dashboard-icon';
+import { NotebookMetadata } from '@/components/ui/notebook-metadata';
 import { useLanguage } from '@/lib/i18n';
 
 import styles from './availability-summary.module.css';
@@ -54,9 +55,11 @@ export function AvailabilitySummary({
       <div className={styles.footer}>
         <span className={styles.zoneLabel}>
           <DashboardIcon name="clock" className={styles.zoneIcon ?? ''} />
-          <span>{availabilityCopy.timezoneLabel} · Asia/Bangkok</span>
+          <NotebookMetadata items={[availabilityCopy.timezoneLabel, 'Asia/Bangkok']} />
         </span>
-        <span className={styles.zoneTag}>{availabilityCopy.timezone}</span>
+        <span className={styles.zoneTag}>
+          <NotebookMetadata items={availabilityCopy.timezone} />
+        </span>
       </div>
     </section>
   );
