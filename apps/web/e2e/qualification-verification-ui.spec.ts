@@ -65,6 +65,7 @@ test('tutor validates, uploads, sees pending status and retries denied preview',
   }
   await session(page);
   let uploaded = false;
+  let uploadRequests = 0;
   let previews = 0;
   let releaseUpload: (() => void) | undefined;
   const uploadGate = new Promise<void>((resolve) => {
@@ -84,6 +85,7 @@ test('tutor validates, uploads, sees pending status and retries denied preview',
     }
     if (path === '/api/v1/tutors/me/qualification-documents') {
       if (request.method() === 'POST') {
+        uploadRequests += 1;
         await uploadGate;
         uploaded = true;
         expect(request.headers()['authorization']).toBe('Bearer ui-test-token');
@@ -181,7 +183,16 @@ test('tutor validates, uploads, sees pending status and retries denied preview',
     buffer: Buffer.alloc(5 * 1024 * 1024 + 1),
   });
   await expect(section.getByRole('alert')).toHaveText('The file must be 5 MB or smaller.');
+  await file.setInputFiles({
+    name: 'wrong.png',
+    mimeType: 'application/pdf',
+    buffer: Buffer.from('%PDF-1.4 test'),
+  });
+  await expect(section.getByRole('alert')).toHaveText(
+    'The filename extension must match the PDF, JPEG or PNG file type.',
+  );
   expect(uploaded).toBe(false);
+  expect(uploadRequests).toBe(0);
 
   await file.setInputFiles({
     name: 'degree.pdf',
@@ -211,6 +222,7 @@ test('tutor validates, uploads, sees pending status and retries denied preview',
     'Document submitted for review.',
   );
   await expect(section.getByText('Document submitted for review.')).toBeVisible();
+  expect(uploadRequests).toBe(1);
   await expect(section.getByText('Pending review', { exact: true })).toBeVisible();
   await expect(documentType).toBeEnabled();
   await expect(submit).toBeDisabled();
