@@ -956,16 +956,19 @@ function bookingPagination(input: { page?: number; pageSize?: number }): {
 /** Prisma's own codes for the constraint violations a booking race can produce. */
 const CONFLICTING_PRISMA_CODES = new Set(['P2002', 'P2003', 'P2004']);
 /**
- * A raw SQLSTATE never reaches `error.code` — `PrismaClientKnownRequestError.code` is always a
- * `P####` value and an unrecognised database fault arrives as `PrismaClientUnknownRequestError`
- * with no code at all. The only place a SQLSTATE surfaces is `meta.code`, for example on the `P2010`
- * raised by a failing raw query such as the `SELECT ... FOR UPDATE` in `create()`.
+ * A SQLSTATE never reaches `error.code` — `PrismaClientKnownRequestError.code` is always a `P####`
+ * value and an unrecognised database fault arrives as `PrismaClientUnknownRequestError` with no
+ * code at all. When a raw query fails, such as the `SELECT ... FOR UPDATE` in `create()`, Prisma 7
+ * raises `P2010` and keeps the driver fault under `meta.driverAdapterError`, so the SQLSTATE is only
+ * readable from that fault's own cause. `meta.code` is never populated.
  *
- * Only violations that mean "someone else changed the data first" belong here. A check-constraint
- * violation (`23514`) means this service wrote an invalid row, which is a defect rather than a
- * conflict, so it is deliberately absent and surfaces as a 500.
+ * Only faults that mean "someone else changed the data first" belong here. A serialization failure
+ * or a deadlock is what a row lock contended by concurrent bookings loses to, and the two constraint
+ * states cover a raw statement that writes; an ORM write surfaces those as `P2002`/`P2003` instead.
+ * A check-constraint violation (`23514`) means this service wrote an invalid row, which is a defect
+ * rather than a conflict, so it is deliberately absent and surfaces as a 500.
  */
-const CONFLICTING_SQL_STATES = new Set(['23503', '23505']);
+const CONFLICTING_SQL_STATES = new Set(['23503', '23505', '40001', '40P01']);
 
 /**
  * The payment update writes only mockReference, paidAt and paymentStatus. Booking's other unique
@@ -978,17 +981,31 @@ function isDuplicateMockReference(error: unknown): boolean {
   return !!error && typeof error === 'object' && (error as { code?: unknown }).code === 'P2002';
 }
 
+function readProperty(value: unknown, key: string): unknown {
+  return value !== null && typeof value === 'object'
+    ? (value as Record<string, unknown>)[key]
+    : undefined;
+}
+
+/** Reads the SQLSTATE Prisma nests under `meta.driverAdapterError.cause.originalCode`. */
+function readDriverSqlState(error: object): string | undefined {
+  const driverError = readProperty(readProperty(error, 'meta'), 'driverAdapterError');
+  const sqlState = readProperty(readProperty(driverError, 'cause'), 'originalCode');
+  return typeof sqlState === 'string' ? sqlState : undefined;
+}
+
 function isDatabaseConflict(error: unknown): boolean {
   if (!error || typeof error !== 'object') {
     return false;
   }
 
-  const { code, meta } = error as { code?: unknown; meta?: { code?: unknown } };
+  const { code } = error as { code?: unknown };
   if (typeof code === 'string' && CONFLICTING_PRISMA_CODES.has(code)) {
     return true;
   }
 
-  return typeof meta?.code === 'string' && CONFLICTING_SQL_STATES.has(meta.code);
+  const sqlState = readDriverSqlState(error);
+  return sqlState !== undefined && CONFLICTING_SQL_STATES.has(sqlState);
 }
 
 function deriveBookingAmounts(
