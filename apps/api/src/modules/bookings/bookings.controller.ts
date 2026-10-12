@@ -6,6 +6,7 @@ import {
   HttpStatus,
   Param,
   Post,
+  Put,
   Query,
   UseGuards,
 } from '@nestjs/common';
@@ -19,7 +20,9 @@ import { ResourceOwnershipGuard } from '@modules/auth/ownership.guard';
 import { Roles } from '@modules/auth/roles.decorator';
 import { RolesGuard } from '@modules/auth/roles.guard';
 import {
+  BookingClassDetailDto,
   BookingDetailResponseDto,
+  BookingMeetingLinkDto,
   BookingQuoteResponseDto,
   BookingResponseDto,
   ConfirmBookingDto,
@@ -197,5 +200,28 @@ export class BookingsController {
       bookingId,
       tutorUserId: user.id,
     });
+  }
+
+  @Put('tutor/:bookingId/meeting-link')
+  @HttpCode(HttpStatus.OK)
+  @Roles(Role.TUTOR)
+  @RequireOwnership(TUTOR_BOOKING_ACTION_OWNERSHIP)
+  async updateMeetingLink(
+    @Param('bookingId', UuidParamPipe) bookingId: string,
+    @Body() meetingUrl: {meetingUrl: string},
+  ): Promise<BookingMeetingLinkDto> {
+    return this.bookingsService.updateMeetingLink({bookingId: bookingId, meetingUrl: meetingUrl.meetingUrl});
+  }
+
+  @Get(':bookingId/class-details')
+  @HttpCode(HttpStatus.OK)
+  @RequireOwnership({
+    resource: 'booking',
+    idParam: 'bookingId',
+  })
+  async getBookingClassDetail(
+    @Param('bookingId', UuidParamPipe) bookingId: string
+  ): Promise<BookingClassDetailDto> {
+    return this.bookingsService.getBookingClassDetail(bookingId);
   }
 }

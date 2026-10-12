@@ -14,7 +14,8 @@ import {
   Min,
 } from 'class-validator';
 
-import { BookingStatus, PaymentStatus } from '@generated/prisma/enums';
+import { AttendanceStatus, BookingStatus, PaymentStatus } from '@generated/prisma/enums';
+import { SaveStudentProfileDto, SaveTutorProfileDto } from '../profiles/profiles.dto';
 
 const trimString = ({ value }: { value: unknown }): unknown =>
   typeof value === 'string' ? value.trim() : value;
@@ -415,4 +416,40 @@ export class MockPaymentResponseDto {
 
   @ApiProperty({ example: '2026-10-09T09:04:31.001Z' })
   paidAt!: string;
+}
+
+export class BookingMeetingLinkDto {
+  @ApiProperty({ example: '3c54a0d6-e3f3-4a38-bd55-3b4011ee31ae' })
+  bookingId!: string;
+
+  @ApiProperty({ example: 'https://foo.com/abc1234' })
+  meetingUrl!: string | null;
+
+  @ApiProperty({ example: '2026-10-09T09:04:31.001Z' })
+  updateAt!: string;
+}
+
+export class BookingClassDetailDto {
+  @ApiProperty({ example: '3c54a0d6-e3f3-4a38-bd55-3b4011ee31ae' })
+  bookingId!: string;
+
+  @ApiProperty({ example: 'PENDING' })
+  status!: string;
+
+  @ApiProperty({ example: '2026-10-09T09:00:00.000Z' })
+  startAt?: string;
+
+  @ApiProperty({ example: '2026-10-09T10:00:00.000Z' })
+  endAt?: string;
+
+  @ApiProperty({ example: 'https://foo.com/abc1234' })
+  meetingUrl!: string | null;
+
+  @ApiProperty({ example: 'attended'})
+  attendance!: AttendanceStatus | null;
+
+  participants!: {
+    tutor: {id: string, detail: SaveTutorProfileDto},
+    student: {id: string, detail: SaveStudentProfileDto},
+  };
 }
