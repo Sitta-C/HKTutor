@@ -15,7 +15,7 @@ import {
 } from 'class-validator';
 
 import { AttendanceStatus, BookingStatus, PaymentStatus } from '@generated/prisma/enums';
-import { SaveStudentProfileDto, SaveTutorProfileDto } from '../profiles/profiles.dto';
+import { SaveStudentProfileDto } from '@modules/profiles/profiles.dto';
 
 const trimString = ({ value }: { value: unknown }): unknown =>
   typeof value === 'string' ? value.trim() : value;
@@ -418,6 +418,16 @@ export class MockPaymentResponseDto {
   paidAt!: string;
 }
 
+export class UpdateMeetingLinkDto {
+  @ApiProperty({
+    description: 'The online meeting URL for the class (must be an https URL).',
+    example: 'https://meet.google.com/abc-defg-hij',
+  })
+  @IsString()
+  @IsNotEmpty()
+  meetingUrl!: string;
+}
+
 export class BookingMeetingLinkDto {
   @ApiProperty({ example: '3c54a0d6-e3f3-4a38-bd55-3b4011ee31ae' })
   bookingId!: string;
@@ -429,11 +439,55 @@ export class BookingMeetingLinkDto {
   updateAt!: string;
 }
 
+export class BookingClassParticipantTutorDetailDto {
+  @ApiProperty({ example: 'Anan' })
+  firstName!: string;
+
+  @ApiProperty({ example: 'Suksawat' })
+  lastName!: string;
+
+  @ApiProperty({ example: 'Nan' })
+  nickname!: string;
+
+  @ApiProperty({ example: 'Anan Suksawat' })
+  displayName!: string;
+
+  @ApiProperty({ example: 'Mathematics tutor' })
+  bio!: string;
+
+  @ApiProperty({ example: 5 })
+  experienceYears!: number;
+}
+
+export class BookingClassParticipantTutorDto {
+  @ApiProperty({ example: 'ad08a291-dd8b-40c1-84e5-ddafca54c6fc' })
+  id!: string;
+
+  @ApiProperty({ type: BookingClassParticipantTutorDetailDto })
+  detail!: BookingClassParticipantTutorDetailDto;
+}
+
+export class BookingClassParticipantStudentDto {
+  @ApiProperty({ example: '70e1232d-3c06-4d5d-b3d2-6026df5ff315' })
+  id!: string;
+
+  @ApiProperty({ type: SaveStudentProfileDto })
+  detail!: SaveStudentProfileDto;
+}
+
+export class BookingClassParticipantsDto {
+  @ApiProperty({ type: BookingClassParticipantTutorDto })
+  tutor!: BookingClassParticipantTutorDto;
+
+  @ApiProperty({ type: BookingClassParticipantStudentDto })
+  student!: BookingClassParticipantStudentDto;
+}
+
 export class BookingClassDetailDto {
   @ApiProperty({ example: '3c54a0d6-e3f3-4a38-bd55-3b4011ee31ae' })
   bookingId!: string;
 
-  @ApiProperty({ example: 'PENDING' })
+  @ApiProperty({ example: 'CONFIRMED' })
   status!: string;
 
   @ApiProperty({ example: '2026-10-09T09:00:00.000Z' })
@@ -445,11 +499,9 @@ export class BookingClassDetailDto {
   @ApiProperty({ example: 'https://foo.com/abc1234' })
   meetingUrl!: string | null;
 
-  @ApiProperty({ example: 'attended'})
+  @ApiProperty({ enum: AttendanceStatus, example: AttendanceStatus.ATTENDED, nullable: true })
   attendance!: AttendanceStatus | null;
 
-  participants!: {
-    tutor: {id: string, detail: SaveTutorProfileDto},
-    student: {id: string, detail: SaveStudentProfileDto},
-  };
+  @ApiProperty({ type: BookingClassParticipantsDto })
+  participants!: BookingClassParticipantsDto;
 }

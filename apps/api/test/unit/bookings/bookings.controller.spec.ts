@@ -13,7 +13,9 @@ import { BookingsController } from '@modules/bookings/bookings.controller';
 import type { AuthenticatedUser } from '@modules/auth/auth.guard';
 import type { OwnershipRule } from '@modules/auth/ownership.decorator';
 import type {
+  BookingClassDetailDto,
   BookingDetailResponseDto,
+  BookingMeetingLinkDto,
   BookingQuoteResponseDto,
   BookingResponseDto,
   MockPaymentResponseDto,
@@ -308,6 +310,76 @@ describe('BookingsController', () => {
       : undefined;
 
     expect(roles).toEqual([Role.TUTOR]);
+  });
+
+  it('delegates updateMeetingLink to the bookings service', async () => {
+    const updateMeetingLink = jest.fn();
+    const bookingsService = { updateMeetingLink } as unknown as BookingsService;
+    const controller = new BookingsController(bookingsService);
+    const bookingId = '3c54a0d6-e3f3-4a38-bd55-3b4011ee31ae';
+    const dto = { meetingUrl: 'https://meet.google.com/abc-defg-hij' };
+    const expected = {} as BookingMeetingLinkDto;
+    updateMeetingLink.mockResolvedValue(expected);
+
+    const result = await controller.updateMeetingLink(bookingId, dto);
+
+    expect(updateMeetingLink).toHaveBeenCalledWith({
+      bookingId,
+      meetingUrl: dto.meetingUrl,
+    });
+    expect(result).toBe(expected);
+  });
+
+  it('restricts updateMeetingLink to tutors and enforces tutor booking action ownership', () => {
+    const handler = Object.getOwnPropertyDescriptor(
+      BookingsController.prototype,
+      'updateMeetingLink',
+    )?.value as object | undefined;
+    const roles = handler
+      ? (Reflect.getMetadata(ROLES_KEY, handler) as Role[] | undefined)
+      : undefined;
+    const ownership = handler
+      ? (Reflect.getMetadata(OWNERSHIP_KEY, handler) as OwnershipRule | undefined)
+      : undefined;
+
+    expect(roles).toEqual([Role.TUTOR]);
+    expect(ownership).toEqual({
+      errors: {
+        foreignOwner: {
+          code: 'BOOKING_NOT_OWNED',
+          message: 'This booking belongs to another tutor',
+        },
+        missing: { code: 'BOOKING_NOT_FOUND', message: 'Booking not found' },
+      },
+      idParam: 'bookingId',
+      resource: 'booking',
+    });
+  });
+
+  it('delegates getBookingClassDetail to the bookings service', async () => {
+    const getBookingClassDetail = jest.fn();
+    const bookingsService = { getBookingClassDetail } as unknown as BookingsService;
+    const controller = new BookingsController(bookingsService);
+    const bookingId = '3c54a0d6-e3f3-4a38-bd55-3b4011ee31ae';
+    const expected = {} as BookingClassDetailDto;
+    getBookingClassDetail.mockResolvedValue(expected);
+
+    const result = await controller.getBookingClassDetail(bookingId);
+
+    expect(getBookingClassDetail).toHaveBeenCalledWith(bookingId);
+    expect(result).toBe(expected);
+  });
+
+  it('enforces booking ownership for getBookingClassDetail', () => {
+    const handler = Object.getOwnPropertyDescriptor(
+      BookingsController.prototype,
+      'getBookingClassDetail',
+    )?.value as object | undefined;
+    const ownership = handler
+      ? (Reflect.getMetadata(OWNERSHIP_KEY, handler) as OwnershipRule | undefined)
+      : undefined;
+
+    expect(ownership).toEqual({ resource: 'booking', idParam: 'bookingId' });
   });
 });
 
@@ -610,5 +682,52 @@ describe('BookingsController OpenAPI contract', () => {
 
     expect(Object.keys(schema?.properties ?? {}).sort()).toEqual(['amount', 'reference']);
     expect(schema?.required?.sort()).toEqual(['amount', 'reference']);
+  });
+
+  it('publishes the update-meeting-link contract', () => {
+    const operation =
+      document.paths[`/${API_GLOBAL_PREFIX}/bookings/tutor/{bookingId}/meeting-link`]?.put;
+
+    expect(operation?.summary).toBe(
+      "Update the meeting link for one of the authenticated tutor's confirmed bookings",
+    );
+    expect(operation?.responses['200']).toMatchObject({
+      content: {
+        'application/json': {
+          schema: {
+            allOf: [{ $ref: '#/components/schemas/BookingMeetingLinkDto' }],
+            example: {
+              bookingId: '3c54a0d6-e3f3-4a38-bd55-3b4011ee31ae',
+              meetingUrl: 'https://meet.google.com/abc-defg-hij',
+              updateAt: '2026-10-09T09:04:31.001Z',
+            },
+          },
+        },
+      },
+    });
+    for (const status of ['400', '401', '403', '404', '409']) {
+      expect(operation?.responses[status]).toBeDefined();
+    }
+    expect(operation?.security).toEqual([{ [JWT_BEARER_AUTH]: [] }]);
+  });
+
+  it('publishes the class-details contract', () => {
+    const operation =
+      document.paths[`/${API_GLOBAL_PREFIX}/bookings/{bookingId}/class-details`]?.get;
+
+    expect(operation?.summary).toBe('Get class details for a confirmed booking');
+    expect(operation?.responses['200']).toMatchObject({
+      content: {
+        'application/json': {
+          schema: {
+            allOf: [{ $ref: '#/components/schemas/BookingClassDetailDto' }],
+          },
+        },
+      },
+    });
+    for (const status of ['400', '401', '404', '409']) {
+      expect(operation?.responses[status]).toBeDefined();
+    }
+    expect(operation?.security).toEqual([{ [JWT_BEARER_AUTH]: [] }]);
   });
 });

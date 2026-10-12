@@ -831,15 +831,18 @@ export class BookingsService {
 
   //Meeting
   async updateMeetingLink(input: BookingMeetingLinkInput): Promise<BookingMeetingLinkDto> {
-    if(!isValidHttpUrl(input.meetingUrl)) throw invalidURLException();
-    const booking = await this.prisma.booking.findFirst({where: {id: input.bookingId}});
-    if(!booking) throw bookingNotFound();
-    if(booking.status !== BookingStatus.CONFIRMED) throw bookingNotConfirmed(booking.status);
+    if (!isValidHttpUrl(input.meetingUrl)) throw invalidURLException();
+    const booking = await this.prisma.booking.findFirst({ where: { id: input.bookingId } });
+    if (!booking) throw bookingNotFound();
+    if (booking.status !== BookingStatus.CONFIRMED) throw bookingNotConfirmed(booking.status);
     const bookingSelector: Prisma.BookingWhereUniqueInput = {
       id: input.bookingId,
     };
-    const responseBooking = await this.prisma.booking.update({where: bookingSelector, data: {meetingUrl: input.meetingUrl}});
-    const response = new BookingMeetingLinkDto;
+    const responseBooking = await this.prisma.booking.update({
+      where: bookingSelector,
+      data: { meetingUrl: input.meetingUrl },
+    });
+    const response = new BookingMeetingLinkDto();
     response.bookingId = responseBooking.id;
     response.meetingUrl = responseBooking.meetingUrl;
     response.updateAt = responseBooking.updatedAt.toISOString();
@@ -847,16 +850,21 @@ export class BookingsService {
   }
 
   async getBookingClassDetail(bookingId: string): Promise<BookingClassDetailDto> {
-    const booking = await this.prisma.booking.findFirst({where: {id: bookingId}, include: {slot: true, tutorProfile: true}});
-    if(!booking) throw bookingNotFound();
-    if(booking.status !== BookingStatus.CONFIRMED) throw bookingNotConfirmed(booking.status);
-    if(!booking.meetingUrl) throw invalidURLException();
+    const booking = await this.prisma.booking.findFirst({
+      where: { id: bookingId },
+      include: { slot: true, tutorProfile: true },
+    });
+    if (!booking) throw bookingNotFound();
+    if (booking.status !== BookingStatus.CONFIRMED) throw bookingNotConfirmed(booking.status);
+    if (!booking.meetingUrl) throw invalidURLException();
     let studentProfile;
-    if(booking?.studentUserId) {
-      studentProfile = await this.prisma.studentProfile.findFirst({where: {userId: booking.studentUserId}});
+    if (booking?.studentUserId) {
+      studentProfile = await this.prisma.studentProfile.findFirst({
+        where: { userId: booking.studentUserId },
+      });
     }
-    if(!studentProfile) throw new BadRequestException();
-    const response = new BookingClassDetailDto;
+    if (!studentProfile) throw new BadRequestException();
+    const response = new BookingClassDetailDto();
     response.bookingId = booking.id;
     response.status = booking.status;
     response.startAt = booking.slot.startAtUtc.toISOString();
@@ -873,13 +881,13 @@ export class BookingsService {
           displayName: booking.tutorProfile.displayName,
           bio: booking.tutorProfile.bio,
           experienceYears: booking.tutorProfile.experienceYears,
-        }
+        },
       },
       student: {
         id: booking.studentUserId,
-        detail: studentProfile
-      }
-    }
+        detail: studentProfile,
+      },
+    };
     return response;
   }
 }
@@ -964,8 +972,8 @@ function isValidHttpUrl(urlString: string) {
   let url;
   try {
     url = new URL(urlString);
-  } catch (_) {
-    return false;  
+  } catch {
+    return false;
   }
-  return url.protocol === "https:";
+  return url.protocol === 'https:';
 }

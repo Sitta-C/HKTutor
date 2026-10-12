@@ -36,6 +36,7 @@ import {
   RejectBookingDto,
   TutorBookingActionResponseDto,
   TutorBookingsResponseDto,
+  UpdateMeetingLinkDto,
 } from '@modules/bookings/bookings.dto';
 import {
   BOOKING_OWNERSHIP_ERRORS,
@@ -47,11 +48,13 @@ import {
   ConfirmTutorBookingDoc,
   CreateBookingDoc,
   CreateMockPaymentDoc,
+  GetBookingClassDetailDoc,
   GetBookingQuoteDoc,
   GetMyBookingDoc,
   GetMyBookingsDoc,
   GetTutorBookingsDoc,
   RejectTutorBookingDoc,
+  UpdateMeetingLinkDoc,
 } from '@modules/bookings/bookings.swagger';
 
 import type { AuthenticatedUser } from '@modules/auth/auth.guard';
@@ -204,23 +207,28 @@ export class BookingsController {
 
   @Put('tutor/:bookingId/meeting-link')
   @HttpCode(HttpStatus.OK)
+  @UpdateMeetingLinkDoc()
   @Roles(Role.TUTOR)
   @RequireOwnership(TUTOR_BOOKING_ACTION_OWNERSHIP)
   async updateMeetingLink(
     @Param('bookingId', UuidParamPipe) bookingId: string,
-    @Body() meetingUrl: {meetingUrl: string},
+    @Body() dto: UpdateMeetingLinkDto,
   ): Promise<BookingMeetingLinkDto> {
-    return this.bookingsService.updateMeetingLink({bookingId: bookingId, meetingUrl: meetingUrl.meetingUrl});
+    return this.bookingsService.updateMeetingLink({
+      bookingId,
+      meetingUrl: dto.meetingUrl,
+    });
   }
 
   @Get(':bookingId/class-details')
   @HttpCode(HttpStatus.OK)
+  @GetBookingClassDetailDoc()
   @RequireOwnership({
     resource: 'booking',
     idParam: 'bookingId',
   })
   async getBookingClassDetail(
-    @Param('bookingId', UuidParamPipe) bookingId: string
+    @Param('bookingId', UuidParamPipe) bookingId: string,
   ): Promise<BookingClassDetailDto> {
     return this.bookingsService.getBookingClassDetail(bookingId);
   }
