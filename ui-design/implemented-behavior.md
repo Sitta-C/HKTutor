@@ -101,8 +101,9 @@ location during loading/errors/empty results, independent of the tutor index. Th
 global header has no find-tutor action; header booking actions remain removed.
 
 The right sheet lists tutors derived from that same booking response. The existing Map preserves
-first tutor insertion order and retains the last encountered booking for each tutor; each row still
-opens that booking's encoded detail URL. Four tutors appear per page through the shared
+first tutor insertion order and retains the last encountered booking for each tutor's subject/grade.
+Each row opens `/tutors/{tutorId}` using the encoded canonical tutor User ID, with the bilingual
+“View tutor profile” / “ดูโปรไฟล์ติวเตอร์” label and matching helper text. Four tutors appear per page through the shared
 `NotebookPagination`'s student-only opt-in paper-turn presentation, with a live range, icon-only
 previous/next buttons, localized accessible names, keyboard focus, and disabled boundaries. The small
 visible controls retain 44px touch targets; record-range and page-count numbers are visually hidden

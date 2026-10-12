@@ -225,7 +225,7 @@ export function StudentDashboard({ user, onLogout }: StudentDashboardProps) {
                   {visibleTutors.map((booking) => (
                     <li key={booking.tutor.tutorId}>
                       <Link
-                        href={`/dashboard/bookings/${encodeURIComponent(booking.id)}`}
+                        href={`/tutors/${encodeURIComponent(booking.tutor.tutorId)}`}
                         className={styles.tutorLink}
                       >
                         <span className={styles.initial} aria-hidden="true">
@@ -237,7 +237,7 @@ export function StudentDashboard({ user, onLogout }: StudentDashboardProps) {
                             {booking.listing.subjectName} · {booking.listing.gradeLevelName}
                           </span>
                           <span className={styles.bookingLink}>
-                            {copy.dashboard.booking.view}
+                            {studentCopy.viewTutorProfile}
                             <DashboardIcon name="arrow-right" className="h-3.5 w-3.5" />
                           </span>
                         </span>
