@@ -21,8 +21,10 @@ import {
   getSchemaPath,
 } from '@nestjs/swagger';
 
+import { SortOrder } from '@app/generated/prisma/internal/prismaNamespace';
 import { ListingPublicationStatus } from '@generated/prisma/client';
 import { JWT_BEARER_AUTH } from '@modules/auth/auth.swagger';
+import { TutorRankingPriority } from '@modules/tutors/tutor-ranking';
 import {
   AvailabilityPostRequestDto,
   AvailabilityPostResponseDto,
@@ -116,8 +118,18 @@ export function SearchPublicTutorsDoc(): MethodDecorator {
   return applyDecorators(
     ApiOperation({
       description:
-        'Returns one item per published listing owned by a verified active Tutor. All supplied filters are ANDed.',
-      summary: 'Search published tutors with verification status',
+        'Returns one item per published listing owned by a verified active Tutor. All supplied filters are ANDed. Supports multi-criteria sorting by rating, price, and availability.',
+      summary: 'Search published tutors with verification status and multi-criteria sorting',
+    }),
+    ApiQuery({
+      description:
+        'Named ranking mode. Cannot be combined with individual sort priorities or directions. ' +
+        'Filters and pagination keep their existing meanings.',
+      enum: TutorRankingPriority,
+      enumName: 'TutorRankingPriority',
+      example: TutorRankingPriority.LOWEST_PRICE,
+      name: 'priority',
+      required: false,
     }),
     ApiQuery({
       description: 'Case-insensitive exact active Subject name',
@@ -148,6 +160,51 @@ export function SearchPublicTutorsDoc(): MethodDecorator {
       type: Number,
     }),
     ApiQuery({
+      description: 'Sort priority for tutor rating (lower number = higher precedence)',
+      example: 1,
+      name: 'ratingPriority',
+      required: false,
+      type: Number,
+    }),
+    ApiQuery({
+      description: 'Sort direction for tutor rating (asc or desc; defaults to desc)',
+      enum: SortOrder,
+      enumName: 'SortOrder',
+      example: 'desc',
+      name: 'ratingOrder',
+      required: false,
+    }),
+    ApiQuery({
+      description: 'Sort priority for hourly price (lower number = higher precedence)',
+      example: 2,
+      name: 'pricePriority',
+      required: false,
+      type: Number,
+    }),
+    ApiQuery({
+      description: 'Sort direction for hourly price (asc or desc; defaults to asc)',
+      enum: SortOrder,
+      enumName: 'SortOrder',
+      example: 'asc',
+      name: 'priceOrder',
+      required: false,
+    }),
+    ApiQuery({
+      description: 'Sort priority for tutor availability (lower number = higher precedence)',
+      example: 3,
+      name: 'availabilityPriority',
+      required: false,
+      type: Number,
+    }),
+    ApiQuery({
+      description: 'Sort direction for tutor availability (asc or desc; defaults to asc)',
+      enum: SortOrder,
+      enumName: 'SortOrder',
+      example: 'asc',
+      name: 'availabilityOrder',
+      required: false,
+    }),
+    ApiQuery({
       description: 'One-based result page',
       example: 1,
       name: 'page',
@@ -162,11 +219,15 @@ export function SearchPublicTutorsDoc(): MethodDecorator {
       type: Number,
     }),
     ApiOkResponse({
-      description: 'Paginated public listings, with empty items when there are no matches',
+      description:
+        'Paginated public listings with recommendationTags explanation codes; empty items when ' +
+        'there are no matches. Best-value tags use all matching public results, not only this page.',
       type: TutorSearchResponseDto,
     }),
     ApiBadRequestResponse({
-      description: 'A numeric filter is invalid or subject/grade is not an active catalog value',
+      description:
+        'A filter or sort parameter is invalid, priority is combined with individual sort settings, ' +
+        'or subject/grade is not an active catalog value',
       type: ApiErrorResponseDto,
     }),
   );

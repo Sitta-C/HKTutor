@@ -18,7 +18,9 @@ import {
   registerDecorator,
 } from 'class-validator';
 
+import { SortOrder } from '@app/generated/prisma/internal/prismaNamespace';
 import { ListingPublicationStatus } from '@generated/prisma/client';
+import { TutorRankingPriority, TutorRecommendationTag } from '@modules/tutors/tutor-ranking';
 
 import type { TransformFnParams } from 'class-transformer';
 import type { ValidationArguments, ValidationOptions } from 'class-validator';
@@ -51,6 +53,18 @@ export class ListingStatusRequestDto {
 }
 
 export class TutorSearchQueryDto {
+  @ApiPropertyOptional({
+    description:
+      'Named ranking priority. Cannot be combined with individual sort priorities or directions; ' +
+      'omitting all sort settings preserves the published-date ordering.',
+    enum: TutorRankingPriority,
+    enumName: 'TutorRankingPriority',
+    example: TutorRankingPriority.LOWEST_PRICE,
+  })
+  @IsOptional()
+  @IsEnum(TutorRankingPriority)
+  priority?: TutorRankingPriority;
+
   @ApiPropertyOptional({
     description: 'Case-insensitive exact Subject name from the active catalog',
     example: 'Mathematics',
@@ -98,6 +112,81 @@ export class TutorSearchQueryDto {
   @Min(1)
   @Max(5)
   minimumRating?: number;
+
+  @ApiPropertyOptional({
+    description: 'Sort priority for tutor rating (lower number = higher precedence)',
+    example: 1,
+    maximum: 5,
+    minimum: 0,
+    type: Number,
+  })
+  @IsOptional()
+  @Transform(transformOptionalNumber)
+  @IsNumber({ allowInfinity: false, allowNaN: false })
+  @Min(0)
+  @Max(5)
+  ratingPriority?: number;
+
+  @ApiPropertyOptional({
+    default: 'desc',
+    description: 'Sort direction for tutor rating (defaults to desc)',
+    enum: SortOrder,
+    enumName: 'SortOrder',
+    example: 'desc',
+  })
+  @IsOptional()
+  @IsEnum(SortOrder)
+  ratingOrder?: SortOrder;
+
+  @ApiPropertyOptional({
+    description: 'Sort priority for hourly price (lower number = higher precedence)',
+    example: 2,
+    maximum: 5,
+    minimum: 0,
+    type: Number,
+  })
+  @IsOptional()
+  @Transform(transformOptionalNumber)
+  @IsNumber({ allowInfinity: false, allowNaN: false })
+  @Min(0)
+  @Max(5)
+  pricePriority?: number;
+
+  @ApiPropertyOptional({
+    default: 'asc',
+    description: 'Sort direction for hourly price (defaults to asc)',
+    enum: SortOrder,
+    enumName: 'SortOrder',
+    example: 'asc',
+  })
+  @IsOptional()
+  @IsEnum(SortOrder)
+  priceOrder?: SortOrder;
+
+  @ApiPropertyOptional({
+    description: 'Sort priority for tutor availability (lower number = higher precedence)',
+    example: 3,
+    maximum: 5,
+    minimum: 0,
+    type: Number,
+  })
+  @IsOptional()
+  @Transform(transformOptionalNumber)
+  @IsNumber({ allowInfinity: false, allowNaN: false })
+  @Min(0)
+  @Max(5)
+  availabilityPriority?: number;
+
+  @ApiPropertyOptional({
+    default: 'asc',
+    description: 'Sort direction for tutor availability (defaults to asc)',
+    enum: SortOrder,
+    enumName: 'SortOrder',
+    example: 'asc',
+  })
+  @IsOptional()
+  @IsEnum(SortOrder)
+  availabilityOrder?: SortOrder;
 
   @ApiPropertyOptional({ default: DEFAULT_TUTOR_SEARCH_PAGE, example: 1, minimum: 1 })
   @IsOptional()
@@ -169,6 +258,18 @@ export class ListingResponseDto {
 }
 
 export class TutorSearchResultDto {
+  @ApiProperty({
+    description:
+      'Language-neutral explanation codes. FITS_BUDGET needs an explicit matching maxPrice. ' +
+      'Priority-specific tags identify every tie for the best value across all filtered public ' +
+      'results, not just this page. Null ratings and missing future slots receive no best-value tag.',
+    enum: TutorRecommendationTag,
+    enumName: 'TutorRecommendationTag',
+    isArray: true,
+    example: [TutorRecommendationTag.FITS_BUDGET, TutorRecommendationTag.LOWEST_PRICE],
+  })
+  recommendationTags!: TutorRecommendationTag[];
+
   @ApiProperty({ type: String, format: 'date-time', nullable: true })
   avatarUpdatedAt!: Date | null;
 
