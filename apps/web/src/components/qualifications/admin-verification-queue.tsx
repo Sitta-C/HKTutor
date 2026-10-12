@@ -7,6 +7,7 @@ import { qualificationCopy } from '@/components/qualifications/qualification-cop
 import { qualificationErrorKind } from '@/components/qualifications/qualification-model';
 import { ReviewDecisionForm } from '@/components/qualifications/review-decision-form';
 import { PaperCard, WashiTape } from '@/components/ui/notebook';
+import { NotebookMetadata } from '@/components/ui/notebook-metadata';
 import {
   getAdminVerification,
   getAdminVerificationSignedUrl,
@@ -300,10 +301,14 @@ export function AdminVerificationQueue() {
                             {item.fileName}
                           </span>
                           <span className="mt-1 block text-xs text-notebook-muted">
-                            {item.type === 'DEGREE' || item.type === 'CERTIFICATE'
-                              ? copy.types[item.type]
-                              : copy.unknownType}{' '}
-                            · {formatBangkokDateTime(item.createdAt, language)}
+                            <NotebookMetadata
+                              items={[
+                                item.type === 'DEGREE' || item.type === 'CERTIFICATE'
+                                  ? copy.types[item.type]
+                                  : copy.unknownType,
+                                formatBangkokDateTime(item.createdAt, language),
+                              ]}
+                            />
                           </span>
                         </span>
                         <span
@@ -372,8 +377,12 @@ export function AdminVerificationQueue() {
                           key={`${entry.reviewedAt}-${index}`}
                           className="rounded-md border border-paper-edge p-2"
                         >
-                          {copy.status[entry.status]} ·{' '}
-                          {formatBangkokDateTime(entry.reviewedAt, language)}
+                          <NotebookMetadata
+                            items={[
+                              copy.status[entry.status],
+                              formatBangkokDateTime(entry.reviewedAt, language),
+                            ]}
+                          />
                           {entry.reason && <p className="mt-1 break-words">{entry.reason}</p>}
                         </li>
                       ))}

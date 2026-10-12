@@ -25,6 +25,7 @@ import {
 } from '@/components/tutors/tutor-verification-badge';
 import { PaperCard, StickyNote, WashiTape } from '@/components/ui/notebook';
 import { NotebookAction } from '@/components/ui/notebook-action';
+import { NotebookMetadata } from '@/components/ui/notebook-metadata';
 import { NotebookSelect } from '@/components/ui/notebook-select';
 import { useNotebookToast } from '@/components/ui/notebook-toast';
 import {
@@ -630,9 +631,16 @@ export default function TutorListingEditor({
                   />
                   <span className={styles.previewRating}>
                     <ListingIcon name="star" />
-                    {profile?.ratingAverage
-                      ? `${profile.ratingAverage} · ${profile.reviewCount} ${copy.reviews}`
-                      : copy.noReviews}
+                    <NotebookMetadata
+                      items={
+                        profile?.ratingAverage
+                          ? [
+                              String(profile.ratingAverage),
+                              `${profile.reviewCount} ${copy.reviews}`,
+                            ]
+                          : copy.noReviews
+                      }
+                    />
                   </span>
                 </div>
 

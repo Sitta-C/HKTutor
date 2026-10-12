@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from 'react';
 import { DashboardIcon } from '@/components/dashboard/dashboard-icon';
 import { ProfileAvatar } from '@/components/profile/profile-avatar';
 import { NotebookAction } from '@/components/ui/notebook-action';
+import { NotebookMetadata } from '@/components/ui/notebook-metadata';
 import { useNotebookToast } from '@/components/ui/notebook-toast';
 import { ApiError } from '@/lib/api/error';
 import { deleteAvatar, uploadAvatar } from '@/lib/api/profiles';
@@ -163,7 +164,7 @@ export function AvatarEditor({
               {role === 'student' ? text.studentPrivacy : text.tutorPrivacy}
             </p>
             <p id="avatar-hint" className={styles.hint}>
-              {text.hint}
+              <NotebookMetadata items={text.hint} />
             </p>
             <div className={styles.actions}>
               <button

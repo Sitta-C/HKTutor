@@ -307,9 +307,7 @@ test('choosing a course on another page updates the pad and booking without extr
     .getByRole('button', { name: 'Choose this course: Course 2 · Grade 11', exact: true })
     .click();
   await expect(ruler.locator('[aria-current="page"]')).toHaveAttribute('data-course-page', '1');
-  await expect(
-    page.getByRole('heading', { name: 'Course 2 · Grade 11', exact: true }),
-  ).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Course 2 Grade 11', exact: true })).toBeVisible();
   expect(calls).toHaveLength(initialRequests);
   await page
     .getByRole('button', { name: /^Choose this time ·/ })

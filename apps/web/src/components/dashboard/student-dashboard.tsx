@@ -8,6 +8,7 @@ import { DashboardIcon } from '@/components/dashboard/dashboard-icon';
 import DashboardShell from '@/components/dashboard/dashboard-shell';
 import { PaperCard, StickyNote, WashiTape } from '@/components/ui/notebook';
 import { NotebookLoading } from '@/components/ui/notebook-loading';
+import { NotebookMetadata } from '@/components/ui/notebook-metadata';
 import { NotebookPagination } from '@/components/ui/notebook-pagination';
 import { getMyBookings } from '@/lib/api/bookings';
 import { getUserDisplayName } from '@/lib/dashboard-navigation';
@@ -97,7 +98,9 @@ export function StudentDashboard({ user, onLogout }: StudentDashboardProps) {
           <p className={styles.eyebrow}>{studentCopy.plannerEyebrow}</p>
           <h1>{copy.dashboard.common.welcomeBack.replace('{name}', displayName)}</h1>
           <p className={styles.intro}>
-            {studentCopy.plannerSubtitle} · {copy.dashboard.common.bangkokTimeWithZone}
+            <NotebookMetadata
+              items={[studentCopy.plannerSubtitle, copy.dashboard.common.bangkokTimeWithZone]}
+            />
           </p>
         </div>
         <Link href="/tutors" className={styles.findTutorAction}>
@@ -146,7 +149,12 @@ export function StudentDashboard({ user, onLogout }: StudentDashboardProps) {
                       </p>
                       <h3 className={styles.tutorName}>{nextBooking.tutor.displayName}</h3>
                       <p className={styles.subject}>
-                        {nextBooking.listing.subjectName} · {nextBooking.listing.gradeLevelName}
+                        <NotebookMetadata
+                          items={[
+                            nextBooking.listing.subjectName,
+                            nextBooking.listing.gradeLevelName,
+                          ]}
+                        />
                       </p>
                     </div>
                   </div>
@@ -234,7 +242,9 @@ export function StudentDashboard({ user, onLogout }: StudentDashboardProps) {
                         <span className={styles.tutorDetails}>
                           <strong>{booking.tutor.displayName}</strong>
                           <span>
-                            {booking.listing.subjectName} · {booking.listing.gradeLevelName}
+                            <NotebookMetadata
+                              items={[booking.listing.subjectName, booking.listing.gradeLevelName]}
+                            />
                           </span>
                           <span className={styles.bookingLink}>
                             {studentCopy.viewTutorProfile}
@@ -252,7 +262,6 @@ export function StudentDashboard({ user, onLogout }: StudentDashboardProps) {
                   total={tutorBookings.length}
                   pageSize={TUTORS_PER_PAGE}
                   label={studentCopy.tutorsPagination}
-                  variant="paper-turn"
                   onPageChange={setTutorPage}
                 />
                 {tutorPageCount > 1 && <p className={styles.scope}>{studentCopy.tutorsScope}</p>}

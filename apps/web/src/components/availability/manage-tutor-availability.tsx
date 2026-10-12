@@ -27,6 +27,7 @@ import {
   NotebookLoadingRegion,
   NotebookPageError,
 } from '@/components/ui/notebook-loading';
+import { NotebookMetadata } from '@/components/ui/notebook-metadata';
 import { useNotebookToast } from '@/components/ui/notebook-toast';
 import {
   bangkokDateTimeToUtc,
@@ -459,20 +460,24 @@ export default function ManageTutorAvailability() {
                               </strong>
                               {crossesDay ? (
                                 <p className={styles.dateRange}>
-                                  {firstSegment.isContinuation
-                                    ? availabilityCopy.continuation.replace(
-                                        '{dates}',
-                                        formatBangkokDateRange(
-                                          slot.startAtUtc,
-                                          slot.endAtUtc,
-                                          language,
-                                        ),
-                                      )
-                                    : formatBangkokDateRange(
-                                        slot.startAtUtc,
-                                        slot.endAtUtc,
-                                        language,
-                                      )}
+                                  <NotebookMetadata
+                                    items={
+                                      firstSegment.isContinuation
+                                        ? availabilityCopy.continuation.replace(
+                                            '{dates}',
+                                            formatBangkokDateRange(
+                                              slot.startAtUtc,
+                                              slot.endAtUtc,
+                                              language,
+                                            ),
+                                          )
+                                        : formatBangkokDateRange(
+                                            slot.startAtUtc,
+                                            slot.endAtUtc,
+                                            language,
+                                          )
+                                    }
+                                  />
                                 </p>
                               ) : (
                                 <p className={styles.detail}>

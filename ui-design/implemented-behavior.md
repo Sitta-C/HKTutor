@@ -111,12 +111,10 @@ The right sheet lists tutors derived from that same booking response. The existi
 first tutor insertion order and retains the last encountered booking for each tutor's subject/grade.
 Each row opens `/tutors/{tutorId}` using the encoded canonical tutor User ID, with the bilingual
 “View tutor profile” / “ดูโปรไฟล์ติวเตอร์” label and matching helper text. Four tutors appear per page through the shared
-`NotebookPagination`'s student-only opt-in paper-turn presentation, with a live range, icon-only
-previous/next buttons, localized accessible names, keyboard focus, and disabled boundaries. The small
-visible controls retain 44px touch targets; record-range and page-count numbers are visually hidden
-and remain accessible. The sheet tab reads “Your tutors” / “ติวเตอร์ของคุณ”. The unique tutor
-count appears on a passive mint bookmark ribbon at the sheet's top-right edge, without changing
-the existing count or adding an action.
+`NotebookPagination` with visible range, rounded text buttons, a localized page count between
+previous/next, keyboard focus and disabled boundaries. The controls retain 48px touch targets.
+The sheet tab reads “Your tutors” / “ติวเตอร์ของคุณ”. The unique tutor count appears on a passive
+mint bookmark ribbon at the sheet's top-right edge, without changing the count or adding an action.
 It is entirely frontend pagination: changing tutor pages does not fetch more records or change the
 left sheet. Pagination is hidden for zero to four tutors and resets to page one after the existing
 booking load succeeds. The dashboard keeps the original `getMyBookings({ pageSize: 100 })` load and
@@ -124,8 +122,8 @@ language-dependent effect for dashboard content. The sidebar uses the global unf
 Loading retains the shared shell and student Mint loading note, and hides summary counts/empty states. Zero appears only after a successful response. The disabled search,
 quick-action block, repeated pending panel, and duplicate find-tutor CTAs are removed; a single
 find-tutor CTA beside the greeting and existing shell navigation remain. Styles are isolated to Student Dashboard;
-shared shell and tutor layouts remain unchanged, and the pagination's standard text-button mode
-remains the default for other consumers. Thai/English copy and reduced-motion
+shared shell and tutor layouts remain unchanged. All Previous/Next pagination uses the same
+plain rounded controls. Thai/English copy and reduced-motion
 preferences are preserved.
 
 The public/student search page at `/tutors` uses **Course Index**. A filter memo sits left of one
@@ -161,15 +159,16 @@ unchanged. Styling is local to `tutor-search-page.module.css`; guest sign-in rem
 header position. Browser checks cover action alignment, target sizes, unclipped labels and focus
 alongside the existing request, validation, pagination and loading/error/empty flows.
 
-Search pagination uses **Ticket Pair**: Previous/Next are adjacent paper tickets with inset dashed
-edges, a perforated center seam and top/bottom notches. The next ticket is pale mint. Wider result
-sheets show the page count left and tickets right; sheets up to 450px put the count above a full-width
-pair. Both native buttons have 48px minimum height, localized text, decorative arrow icons, visible
-keyboard focus and explicit disabled boundaries. Reduced motion removes transitions. Pagination
-still appears only after successful results with more than one server page. These styles are local
-to search in `tutor-search-pagination.module.css`, independent of the result-sheet stylesheet,
-and do not change shared `NotebookPagination` consumers. Browser checks assert the actual ticket
-layout and borders, alongside the keyboard and pagination flow.
+Search pagination uses the shared `NotebookPagination`, updated to the user's plain rounded
+reference on 2026-10-12 across search, booking lists, dashboard lists and Binder Dropdown. The visible
+record range sits left; separate Previous / localized page count / Next controls sit right. Buttons
+use warm-white fill, thin solid paper-colored borders, 8px corners, regular text and 48px targets,
+without arrows, ticket decorations or shadows. Compact containers wrap below the range and keep
+all three controls on one row. Native disabled boundaries, keyboard focus, polite range/page
+announcements and reduced motion remain intact. Search's stylesheet only supplies paper spacing.
+Pagination still appears only after successful results with more than one server page. Browser
+checks cover TH/EN layout, visible ranges, separated buttons and the page count between them,
+alongside existing keyboard, filters and pagination flows.
 
 The `/tutors` header shows Sign in for guests and no booking action for authenticated users, with
 no link back to search. My bookings is omitted from all student/public headers, including the booking
@@ -283,13 +282,9 @@ results. Errors retain the existing retry/sign-in behavior; empty states appear 
 with zero only then. Filtered empty copy suggests another status without implying an empty account.
 The shell's sidebar badge uses the global all-status total below, separately from list filter counts. Shared
 `NotebookPagination` uses page/total with page size 10; previous/next remain disabled at boundaries,
-and pagination is omitted for one page. The user refined its opt-in ticket variant to **Ticket Pair**
-on 2026-10-07: connected warm-paper Previous and pale-mint Next buttons with inset dashed edges,
-a perforated center seam, top/bottom seam notches and a shared 3px paper edge. Both buttons have
-48px targets, decorative left/right arrows and visible keyboard focus; disabled boundaries use muted
-paper. Page count appears left of the pair on wide paper and above the full-width pair in containers
-up to 450px. The record range remains in a polite screen-reader live region. Shared standard/paper-turn
-consumers retain their existing presentation, and the original server paging/filter behavior remains.
+and pagination is omitted for one page. It uses the shared plain rounded controls described above,
+with the visible record range and page count, 48px targets and visible keyboard focus. The original
+server paging/filter behavior remains.
 
 Detail keeps `getMyBooking`, its active-response/current-ID guards, existing resource error messages,
 session-expiry behavior and original back/find-tutor links. Loading and errors retain the shared

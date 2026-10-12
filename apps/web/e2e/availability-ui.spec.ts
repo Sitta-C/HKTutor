@@ -164,8 +164,8 @@ test('ledger summary keeps weekly counts, one timezone label, and bilingual resp
   await expect(metrics.nth(1).getByRole('term')).toHaveText('ช่วงเวลาที่ถูกจอง');
   await expect(metrics.nth(0).getByRole('definition').first()).toHaveText('4ช่วง');
   await expect(metrics.nth(1).getByRole('definition').first()).toHaveText('1ช่วง');
-  await expect(page.getByText('เวลาไทย · UTC+7', { exact: true })).toHaveCount(1);
-  await expect(summary.getByText('เขตเวลา · Asia/Bangkok', { exact: true })).toBeVisible();
+  await expect(page.getByText('เวลาไทย UTC+7', { exact: true })).toHaveCount(1);
+  await expect(summary.getByText('เขตเวลา Asia/Bangkok', { exact: true })).toBeVisible();
   expect(
     await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth),
   ).toBeLessThanOrEqual(1);
@@ -177,7 +177,7 @@ test('ledger summary keeps weekly counts, one timezone label, and bilingual resp
   await expect(metrics.nth(0).getByRole('term')).toHaveText('Open slots');
   await expect(metrics.nth(1).getByRole('term')).toHaveText('Reserved slots');
   await expect(metrics.nth(0).getByRole('definition').first()).toHaveText('0slots');
-  await expect(summary.getByText('Asia/Bangkok · UTC+7', { exact: true })).toBeVisible();
+  await expect(summary.getByText('Asia/Bangkok UTC+7', { exact: true })).toBeVisible();
 });
 
 test('ledger waits for real counts while availability loads', async ({ page }) => {
@@ -803,7 +803,7 @@ test('weekly views carry earlier slots and deleting a spanning bar removes the w
   ).toBe(true);
   expect(queries[0]?.get('from')).toBe('2026-10-04T17:00:00.000Z');
   expect(queries[0]?.get('to')).toBe('2026-10-11T17:00:00.000Z');
-  await expect(incoming.locator('p')).toHaveText('ต่อเนื่อง · 4–5 ต.ค. 2569');
+  await expect(incoming.locator('p')).toHaveText('ต่อเนื่อง 4–5 ต.ค. 2569');
   await page.locator('[data-week="2026-09-28"]').click();
   await expect(incoming).toHaveAttribute('data-availability-day', '2026-10-04');
   await expect(incoming.locator('strong')).toHaveText('23:00–24:00');

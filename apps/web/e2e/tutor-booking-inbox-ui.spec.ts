@@ -173,7 +173,7 @@ test('tutor confirms, rejects and recovers from missing and stale booking reques
   const ployRow = page.getByRole('article', { name: 'Ploy' });
   const somchaiRow = page.getByRole('article', { name: 'Somchai' });
   await expect(page.getByRole('article')).toHaveCount(4);
-  await expect(page.getByText('4 bookings · PENDING')).toBeVisible();
+  await expect(page.getByText('4 bookings PENDING')).toBeVisible();
   await expect(maliRow.getByText('PENDING', { exact: true })).toBeVisible();
 
   // Confirming keeps the slot reserved and shows the status the server returned.
@@ -184,7 +184,7 @@ test('tutor confirms, rejects and recovers from missing and stale booking reques
 
   await expect(page.getByText('Booking confirmed. The lesson time stays reserved.')).toBeVisible();
   // The confirmed request leaves the pending view, and the refetched count follows it.
-  await expect(page.getByText('3 bookings · PENDING')).toBeVisible();
+  await expect(page.getByText('3 bookings PENDING')).toBeVisible();
   await expect(maliRow).toHaveCount(0);
   await expect(page.getByRole('dialog')).toHaveCount(0);
 
@@ -196,7 +196,7 @@ test('tutor confirms, rejects and recovers from missing and stale booking reques
   await rejectDialog.getByRole('button', { name: 'Yes, reject booking' }).click();
 
   await expect(page.getByText('Booking rejected. The lesson time is open again.')).toBeVisible();
-  await expect(page.getByText('2 bookings · PENDING')).toBeVisible();
+  await expect(page.getByText('2 bookings PENDING')).toBeVisible();
   await expect(nidaRow).toHaveCount(0);
   expect(decisionRequests).toEqual([
     { path: `/bookings/tutor/${maliBookingId}/confirm`, body: {} },
@@ -218,7 +218,7 @@ test('tutor confirms, rejects and recovers from missing and stale booking reques
   await expect(ployRow.getByRole('button', { name: 'Refresh' })).toBeVisible();
   // Nothing was persisted, so the locked row and the count both stay where they were.
   await expect(page.getByRole('article')).toHaveCount(2);
-  await expect(page.getByText('2 bookings · PENDING')).toBeVisible();
+  await expect(page.getByText('2 bookings PENDING')).toBeVisible();
   await expect(page.getByRole('dialog')).toHaveCount(0);
 
   // A stale row is locked the same way, so no decision is retried against old data.
@@ -302,13 +302,13 @@ test('paging after a decision skips no request when the pending set shrinks', as
     .addCookies([{ name: 'hktutor_refresh', value: 'e2e', domain: 'localhost', path: '/' }]);
   await page.goto('/dashboard/bookings');
 
-  await expect(page.getByText('21 bookings · PENDING')).toBeVisible();
+  await expect(page.getByText('21 bookings PENDING')).toBeVisible();
   await expect(page.getByRole('article', { name: 'Student 01', exact: true })).toBeVisible();
   await expect(page.getByRole('article', { name: 'Student 11', exact: true })).toHaveCount(0);
 
   await page.getByRole('button', { name: 'Confirm the booking from Student 01' }).click();
   await page.getByRole('dialog').getByRole('button', { name: 'Yes, confirm booking' }).click();
-  await expect(page.getByText('20 bookings · PENDING')).toBeVisible();
+  await expect(page.getByText('20 bookings PENDING')).toBeVisible();
 
   // The page refetched, so the request that moved up is on page 1 instead of being paged over.
   await expect(page.getByRole('article', { name: 'Student 11', exact: true })).toBeVisible();
@@ -381,7 +381,7 @@ test.describe('decision API response edges', () => {
         await expect.poll(() => requests).toBe(1);
         await expect(mali.getByText('PENDING', { exact: true })).toBeVisible();
         await expect(nida.getByText('PENDING', { exact: true })).toBeVisible();
-        await expect(page.getByText('2 bookings · All')).toBeVisible();
+        await expect(page.getByText('2 bookings All')).toBeVisible();
         await expect(dialog.getByRole('button', { name: 'Working…' })).toBeDisabled();
         await expect(dialog.getByRole('button', { name: 'Keep as pending' })).toBeDisabled();
         await page.keyboard.press('Escape');
@@ -438,7 +438,7 @@ test.describe('decision API response edges', () => {
 
         await expect(mali.getByRole('alert')).toContainText(failure.message);
         await expect(mali.getByText('PENDING', { exact: true })).toBeVisible();
-        await expect(page.getByText('2 bookings · PENDING')).toBeVisible();
+        await expect(page.getByText('2 bookings PENDING')).toBeVisible();
         await expect(mali.getByRole('button', { name: /the booking from Mali/ })).toHaveCount(0);
         await expect(
           nida.getByRole('button', { name: 'Confirm the booking from Nida' }),
@@ -456,7 +456,7 @@ test.describe('decision API response edges', () => {
         first.status = 'CONFIRMED';
         await mali.getByRole('button', { name: 'Refresh', exact: true }).click();
         await expect(mali).toHaveCount(0);
-        await expect(page.getByText('1 bookings · PENDING')).toBeVisible();
+        await expect(page.getByText('1 bookings PENDING')).toBeVisible();
         await page.getByRole('button', { name: 'All', exact: true }).click();
         await expect(mali.getByText('CONFIRMED', { exact: true })).toBeVisible();
         await expect(mali.getByRole('button', { name: /the booking from Mali/ })).toHaveCount(0);
@@ -493,13 +493,13 @@ test.describe('decision API response edges', () => {
             : 'Something went wrong and nothing was changed. Please try again.',
         );
         await expect(mali.getByText('PENDING', { exact: true })).toBeVisible();
-        await expect(page.getByText('2 bookings · PENDING')).toBeVisible();
+        await expect(page.getByText('2 bookings PENDING')).toBeVisible();
         await expect(page.getByText(/Booking confirmed\.|Booking rejected\./)).toHaveCount(0);
         await expect(dialog.getByRole('button', { name: `Yes, ${action} booking` })).toBeEnabled();
         await dialog.getByRole('button', { name: `Yes, ${action} booking` }).click();
         await expect(dialog).toHaveCount(0);
         await expect(mali).toHaveCount(0);
-        await expect(page.getByText('1 bookings · PENDING')).toBeVisible();
+        await expect(page.getByText('1 bookings PENDING')).toBeVisible();
         expect(requests).toBe(2);
         await page.getByRole('button', { name: 'All', exact: true }).click();
         await expect(
@@ -583,6 +583,34 @@ test.describe('decision API response edges', () => {
       );
     }
     await expectAccessiblePageShell(page);
+    if ((page.viewportSize()?.width ?? 0) < 640) {
+      await page.setViewportSize({ width: 320, height: 800 });
+    }
+    const pending = page.getByRole('article', { name: 'Student PENDING' });
+    for (const language of ['en', 'th'] as const) {
+      if (language === 'th') {
+        await page.getByRole('button', { name: 'Switch language to Thai' }).click();
+      }
+      await page.keyboard.press('Tab');
+      const actions = pending.getByRole('button');
+      for (const action of await actions.all()) {
+        await expect(action.locator('svg')).toHaveCount(1);
+        await expect(action.locator('svg')).toHaveAttribute('aria-hidden', 'true');
+        const bounds = await action.boundingBox();
+        expect(bounds?.height).toBeGreaterThanOrEqual(46);
+        expect(await action.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(
+          true,
+        );
+        await action.focus();
+        await expect(action).toHaveCSS('outline-style', 'solid');
+      }
+      const confirm = actions.last();
+      const stub = confirm.locator('svg').locator('..');
+      await expect(stub).toHaveCSS('border-right-style', 'dashed');
+      await expect(confirm).toHaveText(language === 'th' ? 'ยืนยัน' : 'Confirm');
+      await expectAccessiblePageShell(page);
+      await pending.screenshot({ path: testInfo.outputPath(`inbox-actions-${language}.png`) });
+    }
     await page.screenshot({ path: testInfo.outputPath('inbox-states.png'), fullPage: true });
   });
 });

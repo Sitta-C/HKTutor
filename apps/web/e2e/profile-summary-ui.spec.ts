@@ -110,7 +110,7 @@ test('shows the new tutor state without invented ratings or review actions', asy
   await page.goto('/dashboard/profile');
   const summary = page.getByRole('region', { name: 'สรุปบัญชีติวเตอร์' });
   await expect(summary.getByRole('img', { name: 'ยังไม่มีคะแนนรีวิว' })).toBeVisible();
-  await expect(summary.getByText('ติวเตอร์ใหม่ · ยังไม่มีรีวิว')).toBeVisible();
+  await expect(summary.getByText('ติวเตอร์ใหม่ ยังไม่มีรีวิว')).toBeVisible();
   await expect(summary.locator('[data-rating-fill="0"]')).toHaveCount(5);
   await expect(summary.getByRole('button', { name: 'อ่านรีวิวทั้งหมด' })).toHaveCount(0);
   await expect(summary.getByRole('link', { name: 'ดูเอกสารและผลการตรวจสอบ' })).toHaveCount(0);

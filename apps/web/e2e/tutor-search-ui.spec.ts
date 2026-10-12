@@ -294,12 +294,19 @@ for (const language of ['en', 'th'] as const) {
       await noOverflow(page);
       const pagination = main.getByRole('navigation');
       await expect(pagination.getByRole('button').first()).toBeDisabled();
-      const tickets = pagination.locator('div').filter({ has: page.getByRole('button') });
-      await expect(tickets).toHaveCSS('display', 'grid');
-      await expect(tickets).toHaveCSS('border-top-width', '1px');
-      await expect(pagination.getByRole('button').last()).toHaveCSS('border-left-style', 'dashed');
+      const controls = pagination.locator('div').filter({ has: page.getByRole('button') });
+      await expect(controls).toHaveCSS('display', 'grid');
+      await expect(controls).toHaveCSS('border-top-width', '0px');
+      await expect(pagination.getByText('1–10 / 12', { exact: true })).toBeVisible();
+      const pageCount = pagination.getByText(language === 'th' ? 'หน้า 1 จาก 2' : 'Page 1 of 2', {
+        exact: true,
+      });
+      await expect(pageCount).toBeVisible();
       for (const button of await pagination.getByRole('button').all()) {
         await expect(button).toHaveCSS('display', 'flex');
+        await expect(button).toHaveCSS('border-radius', '8px');
+        await expect(button).toHaveCSS('border-left-style', 'solid');
+        await expect(button.locator('svg')).toHaveCount(0);
         const bounds = await button.boundingBox();
         expect(bounds?.height).toBeGreaterThanOrEqual(44);
         expect(bounds?.width).toBeGreaterThanOrEqual(44);
@@ -308,6 +315,11 @@ for (const language of ['en', 'th'] as const) {
       const nextBounds = await pagination.getByRole('button').last().boundingBox();
       expect(previousBounds?.y).toBe(nextBounds?.y);
       expect(previousBounds?.x).toBeLessThan(nextBounds?.x ?? 0);
+      const countBounds = await pageCount.boundingBox();
+      expect(countBounds?.x).toBeGreaterThan(
+        (previousBounds?.x ?? 0) + (previousBounds?.width ?? 0),
+      );
+      expect((countBounds?.x ?? 0) + (countBounds?.width ?? 0)).toBeLessThan(nextBounds?.x ?? 0);
       await pagination.screenshot({
         path: testInfo.outputPath(`pagination-${language}-${student ? 'student' : 'guest'}.png`),
         animations: 'disabled',
