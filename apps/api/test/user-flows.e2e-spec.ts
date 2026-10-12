@@ -663,8 +663,10 @@ describe('End-to-End User Flow Verification (Student & Tutor)', () => {
     const gradeLevelId = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
     const listingId = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
     const slotId = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee';
-    const startAt = new Date('2026-10-01T10:00:00.000Z');
-    const endAt = new Date('2026-10-01T12:00:00.000Z');
+    // Availability rejects a slot that starts in the past, so the window is anchored to a fixed
+    // offset from the run. A calendar literal here quietly expired and turned the 201 into a 400.
+    const startAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+    const endAt = new Date(startAt.getTime() + 2 * 60 * 60 * 1000);
 
     beforeEach(() => {
       currentUser = {
