@@ -1802,6 +1802,28 @@ describe('BookingsService', () => {
   });
 
   describe('updateMeetingLink', () => {
+    const stubMeetingLinkTransaction = (options: {
+      bookingId: string;
+      meetingUrl?: string | null;
+      transitionCount?: number;
+      updatedAt?: Date;
+    }) => {
+      const updateMany = jest.fn().mockResolvedValue({
+        count: options.transitionCount ?? 1,
+      });
+      const findUniqueOrThrow = jest.fn().mockResolvedValue({
+        id: options.bookingId,
+        meetingUrl: options.meetingUrl ?? null,
+        updatedAt: options.updatedAt ?? new Date('2026-10-09T09:04:31.001Z'),
+      });
+
+      mockPrismaService.$transaction.mockImplementation(async (callback: TransactionCallback) =>
+        callback({ booking: { findUniqueOrThrow, updateMany } }),
+      );
+
+      return { findUniqueOrThrow, updateMany };
+    };
+
     it.each([
       ['not-a-url'],
       ['http://example.com/meet'],
@@ -1846,7 +1868,7 @@ describe('BookingsService', () => {
       },
     );
 
-    it('updates meeting link and returns response DTO for a confirmed booking', async () => {
+    it('updates meeting link atomically and returns response DTO for a confirmed booking', async () => {
       const { bookingId } = createTestData();
       const meetingUrl = 'https://meet.google.com/abc-defg-hij';
       const updatedAt = new Date('2026-10-09T09:04:31.001Z');
@@ -1855,23 +1877,169 @@ describe('BookingsService', () => {
         id: bookingId,
         status: BookingStatus.CONFIRMED,
       });
-      mockPrismaService.booking.update.mockResolvedValue({
-        id: bookingId,
+      const { updateMany } = stubMeetingLinkTransaction({
+        bookingId,
         meetingUrl,
         updatedAt,
       });
 
       const result = await service.updateMeetingLink({ bookingId, meetingUrl });
 
-      expect(mockPrismaService.booking.update).toHaveBeenCalledWith({
+      expect(updateMany).toHaveBeenCalledWith({
         data: { meetingUrl },
-        where: { id: bookingId },
+        where: { id: bookingId, status: BookingStatus.CONFIRMED },
       });
       expect(result).toEqual({
         bookingId,
         meetingUrl,
         updatedAt: updatedAt.toISOString(),
       });
+    });
+
+    it('throws ConflictException when a concurrent transition modifies status before update', async () => {
+      const { bookingId } = createTestData();
+      const meetingUrl = 'https://meet.google.com/abc-defg-hij';
+
+      mockPrismaService.booking.findFirst.mockResolvedValue({
+        id: bookingId,
+        status: BookingStatus.CONFIRMED,
+      });
+      stubMeetingLinkTransaction({
+        bookingId,
+        transitionCount: 0,
+      });
+
+      await expect(service.updateMeetingLink({ bookingId, meetingUrl })).rejects.toMatchObject({
+        response: {
+          code: 'BOOKING_TRANSITION_CONFLICT',
+          error: 'Conflict',
+          message: 'The booking was already updated by another request',
+          statusCode: 409,
+        },
+      });
+    });
+
+    it.each(['P2002', 'P2003', 'P2004'])(
+      'throws ConflictException when database conflict %s occurs',
+      async (code) => {
+        const { bookingId } = createTestData();
+        const meetingUrl = 'https://meet.google.com/abc-defg-hij';
+
+        mockPrismaService.booking.findFirst.mockResolvedValue({
+          id: bookingId,
+          status: BookingStatus.CONFIRMED,
+        });
+        mockPrismaService.$transaction.mockRejectedValue(
+          createDatabaseError('Constraint violation', code),
+        );
+
+        await expect(service.updateMeetingLink({ bookingId, meetingUrl })).rejects.toMatchObject({
+          response: {
+            code: 'BOOKING_TRANSITION_CONFLICT',
+            error: 'Conflict',
+            message: 'The booking was already updated by another request',
+            statusCode: 409,
+          },
+        });
+      },
+    );
+
+    it('rejects with 409 and leaves the canceled booking link unchanged when cancellation intervenes', async () => {
+      const { bookingId, studentUserId, tutorUserId } = createTestData();
+      const originalMeetingUrl = 'https://meet.google.com/initial-link';
+      const newMeetingUrl = 'https://meet.google.com/new-link';
+      const startAtUtc = new Date(Date.now() + 48 * 60 * 60 * 1000);
+
+      const bookingState = {
+        canceledAt: null as Date | null,
+        id: bookingId,
+        meetingUrl: originalMeetingUrl as string | null,
+        paymentStatus: PaymentStatus.UNPAID,
+        slot: { startAtUtc },
+        status: BookingStatus.CONFIRMED,
+        studentUserId,
+        tutorProfileId: tutorUserId,
+        updatedAt: new Date('2026-10-09T09:00:00.000Z'),
+      };
+
+      mockPrismaService.$transaction.mockImplementation(async (callback: TransactionCallback) => {
+        const txBooking = {
+          findUnique: jest.fn().mockImplementation(() => Promise.resolve({ ...bookingState })),
+          findUniqueOrThrow: jest
+            .fn()
+            .mockImplementation(() => Promise.resolve({ ...bookingState })),
+          updateMany: jest.fn().mockImplementation(
+            (args: {
+              data: {
+                canceledAt?: Date;
+                canceledById?: string;
+                cancellationReason?: string;
+                meetingUrl?: string;
+                status?: BookingStatus;
+              };
+              where: {
+                id: string;
+                paymentStatus?: PaymentStatus;
+                status?: BookingStatus | { in: BookingStatus[] };
+              };
+            }) => {
+              let matches = args.where.id === bookingState.id;
+              if (matches && args.where.status) {
+                if (typeof args.where.status === 'string') {
+                  matches = bookingState.status === args.where.status;
+                } else if (Array.isArray(args.where.status.in)) {
+                  matches = args.where.status.in.includes(bookingState.status);
+                }
+              }
+              if (matches && args.where.paymentStatus) {
+                matches = bookingState.paymentStatus === args.where.paymentStatus;
+              }
+              if (!matches) {
+                return Promise.resolve({ count: 0 });
+              }
+              if (args.data.meetingUrl !== undefined) {
+                bookingState.meetingUrl = args.data.meetingUrl;
+              }
+              if (args.data.status !== undefined) {
+                bookingState.status = args.data.status;
+              }
+              if (args.data.canceledAt !== undefined) {
+                bookingState.canceledAt = args.data.canceledAt;
+              }
+              return Promise.resolve({ count: 1 });
+            },
+          ),
+        };
+        return await callback({ booking: txBooking });
+      });
+
+      mockPrismaService.booking.findFirst.mockImplementationOnce(async () => {
+        await service.cancelBooking({
+          bookingId,
+          reason: 'Emergency cancellation',
+          userId: studentUserId,
+        });
+        return { id: bookingState.id, status: BookingStatus.CONFIRMED };
+      });
+
+      expect(bookingState.status).toBe(BookingStatus.CONFIRMED);
+
+      await expect(
+        service.updateMeetingLink({
+          bookingId,
+          meetingUrl: newMeetingUrl,
+        }),
+      ).rejects.toMatchObject({
+        response: {
+          code: 'BOOKING_TRANSITION_CONFLICT',
+          error: 'Conflict',
+          message: 'The booking was already updated by another request',
+          statusCode: 409,
+        },
+      });
+
+      expect(bookingState.status).toBe(BookingStatus.CANCELED);
+      expect(bookingState.meetingUrl).toBe(originalMeetingUrl);
     });
   });
 

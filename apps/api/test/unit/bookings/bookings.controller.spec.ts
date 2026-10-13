@@ -392,7 +392,7 @@ describe('BookingsController', () => {
       resource: 'booking',
     });
   });
-  
+
   it('derives the canceling user from the authenticated user and delegates to the service', async () => {
     const cancelBooking = jest.fn();
     const bookingsService = { cancelBooking } as unknown as BookingsService;

@@ -901,21 +901,48 @@ export class BookingsService {
   //Meeting
   async updateMeetingLink(input: BookingMeetingLinkInput): Promise<BookingMeetingLinkDto> {
     if (!isValidMeetingUrl(input.meetingUrl)) throw invalidURLException();
-    const booking = await this.prisma.booking.findFirst({ where: { id: input.bookingId } });
+    const booking = await this.prisma.booking.findFirst({
+      select: { id: true, status: true },
+      where: { id: input.bookingId },
+    });
     if (!booking) throw bookingNotFound();
     if (booking.status !== BookingStatus.CONFIRMED) throw bookingNotConfirmed(booking.status);
-    const bookingSelector: Prisma.BookingWhereUniqueInput = {
-      id: input.bookingId,
-    };
-    const responseBooking = await this.prisma.booking.update({
-      where: bookingSelector,
-      data: { meetingUrl: input.meetingUrl },
-    });
-    const response = new BookingMeetingLinkDto();
-    response.bookingId = responseBooking.id;
-    response.meetingUrl = responseBooking.meetingUrl;
-    response.updatedAt = responseBooking.updatedAt.toISOString();
-    return response;
+
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        const transition = await tx.booking.updateMany({
+          data: { meetingUrl: input.meetingUrl },
+          where: {
+            id: input.bookingId,
+            status: BookingStatus.CONFIRMED,
+          },
+        });
+
+        if (transition.count !== 1) {
+          throw bookingTransitionConflict();
+        }
+
+        const responseBooking = await tx.booking.findUniqueOrThrow({
+          select: { id: true, meetingUrl: true, updatedAt: true },
+          where: { id: input.bookingId },
+        });
+
+        const response = new BookingMeetingLinkDto();
+        response.bookingId = responseBooking.id;
+        response.meetingUrl = responseBooking.meetingUrl;
+        response.updatedAt = responseBooking.updatedAt.toISOString();
+        return response;
+      });
+    } catch (error) {
+      if (isDatabaseConflict(error)) {
+        this.logger.warn(
+          `Rejecting meeting link update for ${input.bookingId}: database reported a conflict`,
+        );
+        throw bookingTransitionConflict();
+      }
+
+      throw error;
+    }
   }
 
   async getBookingClassDetail(bookingId: string): Promise<BookingClassDetailDto> {

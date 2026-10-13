@@ -833,7 +833,8 @@ export function UpdateMeetingLinkDoc(): MethodDecorator {
       },
     }),
     ApiConflictResponse({
-      description: 'Only a confirmed booking can have its meeting link updated',
+      description:
+        'The booking is not confirmed (pending, canceled, completed or expired), or a concurrent transition modified the booking status',
       schema: {
         example: {
           code: 'BOOKING_NOT_CONFIRMED',
