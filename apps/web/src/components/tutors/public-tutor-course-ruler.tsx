@@ -236,7 +236,7 @@ export function PublicTutorCourseRuler({
             onKeyDown={(event) => handleKeyDown(event, item.page)}
             className={styles.item}
           >
-            {text.page} {item.page} <span>· {item.range}</span>
+            {text.page} {item.page} <span>{item.range}</span>
           </button>
         ))}
       </div>

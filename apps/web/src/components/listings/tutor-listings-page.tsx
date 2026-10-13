@@ -24,6 +24,7 @@ import {
 import { formatBangkokShortDate } from '@/lib/date-time';
 import { useLanguage } from '@/lib/i18n';
 import { getTutorProfile } from '@/lib/profile-navigation';
+import { tutorVerificationCopy } from '@/lib/tutor-verification';
 import { useProfileSession } from '@/lib/use-profile-session';
 
 import styles from './tutor-listings-page.module.css';
@@ -64,6 +65,8 @@ export default function TutorListingsPage() {
   const [error, setError] = useState<string | null>(null);
   const tutorProfile = profile ? getTutorProfile(profile) : null;
   const isVerified = tutorProfile?.verificationStatus === 'VERIFIED';
+  const verificationCopy =
+    tutorVerificationCopy[language][tutorProfile?.verificationStatus ?? 'UNVERIFIED'];
   const listingToConfirm = listings.find(
     (listing) => listing.id === confirmationCandidate?.listingId,
   );
@@ -258,8 +261,8 @@ export default function TutorListingsPage() {
               <ListingIcon name="info" />
             </span>
             <div>
-              <strong className="block text-notebook-ink">{copy.verificationTitle}</strong>
-              <span className="text-notebook-muted">{copy.verificationBody}</span>{' '}
+              <strong className="block text-notebook-ink">{verificationCopy.label}</strong>
+              <span className="text-notebook-muted">{verificationCopy.description}</span>{' '}
               <Link
                 href="/dashboard/profile"
                 className="font-extrabold text-notebook-ink underline decoration-margin-guide decoration-2 underline-offset-4"
@@ -602,9 +605,6 @@ const englishCopy = {
   keepTeaching: 'Keep teaching',
   verifiedDetail: 'Your profile is ready to publish',
   unverifiedDetail: 'Complete verification to go live',
-  verificationTitle: 'Verification is pending',
-  verificationBody:
-    'You can create and edit drafts now. Publishing becomes available after verification.',
   openProfile: 'Open profile',
   all: 'All',
   published: 'Published',
@@ -661,8 +661,6 @@ const thaiCopy: typeof englishCopy = {
   keepTeaching: 'สร้างต่อได้เลย',
   verifiedDetail: 'โปรไฟล์พร้อมเผยแพร่แล้ว',
   unverifiedDetail: 'ยืนยันโปรไฟล์เพื่อเผยแพร่',
-  verificationTitle: 'กำลังรอตรวจสอบโปรไฟล์',
-  verificationBody: 'คุณสร้างและแก้ไขฉบับร่างได้ และจะเผยแพร่ได้หลังจากโปรไฟล์ผ่านการยืนยัน',
   openProfile: 'เปิดโปรไฟล์',
   all: 'ทั้งหมด',
   published: 'เผยแพร่แล้ว',

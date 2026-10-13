@@ -307,9 +307,7 @@ test('choosing a course on another page updates the pad and booking without extr
     .getByRole('button', { name: 'Choose this course: Course 2 · Grade 11', exact: true })
     .click();
   await expect(ruler.locator('[aria-current="page"]')).toHaveAttribute('data-course-page', '1');
-  await expect(
-    page.getByRole('heading', { name: 'Course 2 · Grade 11', exact: true }),
-  ).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Course 2 Grade 11', exact: true })).toBeVisible();
   expect(calls).toHaveLength(initialRequests);
   await page
     .getByRole('button', { name: /^Choose this time ·/ })
@@ -633,7 +631,7 @@ test('long public text and many loaded days fit without trimming content', async
   await page.screenshot({ path: testInfo.outputPath('detail-long-text.png'), fullPage: true });
 });
 
-for (const verificationStatus of ['PENDING', 'REJECTED', 'APPROVED']) {
+for (const verificationStatus of ['UNVERIFIED', 'PENDING', 'REJECTED', 'APPROVED']) {
   test(`does not show a verified badge for unexpected public ${verificationStatus} metadata`, async ({
     page,
   }) => {

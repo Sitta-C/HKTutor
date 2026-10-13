@@ -108,14 +108,12 @@ remaining student redesign work; their individual layouts still require selectio
   during loading/errors/empty results, independent of the tutor index.
   The dashboard header has no find-tutor action; the overview has no My bookings action, and existing
   shell navigation remains. The disabled tutor search and duplicate quick actions are
-  removed. The right sheet is a tutor index from bookings, with four tutors per page using the
-  shared `NotebookPagination`'s opt-in **paper-turn** variant. Previous/next are small icon-only
-  circles with 44px touch targets, localized accessible names, keyboard focus, and disabled boundary
-  states. The tab reads “Your tutors” / “ติวเตอร์ของคุณ”. A passive mint bookmark ribbon hangs
-  from the right sheet's top edge and shows the unique tutor count. Record-range and page-count numbers are
-  visually hidden and remain available to assistive technology. The
-  standard text-button pagination remains the default for other consumers. Hide pagination when
-  one page suffices.
+  removed. The right sheet is a tutor index from bookings. Each row opens the tutor's public profile
+  at `/tutors/{tutorId}` using the canonical tutor User ID, with the action label “View tutor profile” /
+  “ดูโปรไฟล์ติวเตอร์” and helper text explaining the profile destination. Show four tutors per page using the
+  shared `NotebookPagination` with the plain rounded controls described below. The tab reads
+  “Your tutors” / “ติวเตอร์ของคุณ”. A passive mint bookmark ribbon hangs from the right sheet's
+  top edge and shows the unique tutor count. Hide pagination when one page suffices.
 - Counts and tutors describe only loaded booking records (up to 100), never lifetime activity or
   favorites. Preserve the existing pending/confirmed next-booking selection and booking-detail links.
 
@@ -152,12 +150,8 @@ without a checkmark. This is implemented for guests and signed-in students.
   users. Remove its self-link to search. My bookings is omitted from all student/public headers,
   including the booking list, request and detail pages; the sidebar booking link remains available.
   The search booking badge uses the global student booking total described below.
-- The user selected **Ticket Pair** pagination on 2026-10-07: connected paper Previous/Next
-  buttons with an inset dashed edge, a perforated center seam and small seam notches. The next
-  ticket uses pale student mint. Keep the page count left and the pair right on wider sheets;
-  on narrow sheets, center the count above a full-width pair. Text stays upright and bilingual,
-  targets are at least 44px, and native disabled states and visible keyboard focus remain explicit.
-  This presentation is scoped to search; shared `NotebookPagination` consumers are unchanged.
+- Search uses the shared plain rounded `NotebookPagination` described below. Keep the record
+  range at left and Previous / page count / Next at right, with the existing result-paper spacing.
 - Preserve four filters, validation, query parameters, page size 10, server pagination, cancellation
   and stale-response guards. Do not group by tutor, merge pages, add unsupported controls, or change
   availability formatting. Keep explicit null-rating/no-availability states and unavailable result
@@ -281,14 +275,9 @@ The user selected **Margin Index** and requested implementation on 2026-10-07 fo
 - Heading counts describe the selected server status only. Counts remain unavailable during loading,
   retries, filter/page changes and errors; zero appears only after a successful empty response.
   The sidebar uses the global student booking total, independent of the selected status count. Loading/error/empty/detail-not-found content retains the shell and paper.
-- Reuse `NotebookPagination` with its opt-in **ticket** variant. The user refined booking pagination
-  to the supplied **Ticket Pair** reference on 2026-10-07: connected Previous/Next tickets, inset
-  dashed edges, a perforated center seam, seam notches and one soft paper edge. Previous is warm
-  paper; Next is pale mint, with left/right arrows beside upright labels. Show the page count at
-  left and the pair at right; narrow paper containers put the count above a full-width pair.
-  Keep the record range available to screen readers, muted disabled boundaries, 48px targets and focus outline.
-  Standard and paper-turn consumers retain their existing presentation. Keep the original page size 10
-  and server page/total; hide pagination when one page suffices. Preserve original API clients/queries, active-response and current-ID guards,
+- Reuse the shared plain rounded `NotebookPagination` described below. Keep the original page size 10
+  and server page/total; hide pagination when one page suffices. Preserve original API clients/queries,
+  active-response and current-ID guards,
   retry, session expiry, encoded detail links, back-to-bookings and find-tutor destinations.
   List/detail styles are scoped to `student-bookings.module.css`; shared primitives and tutor UI
   retain their existing behavior. Browser checks cover TH/EN at 320px, 768px and 1440px, long text,
@@ -317,6 +306,38 @@ The user selected the **tutor-aligned Profile Page** and requested implementatio
   fields, catalog requests, profile/API contracts or photo behavior. Tutor edit/onboarding, its
   selected Profile Page preview and rating/verification summary remain unchanged.
 
+## Metadata labels without dot separators
+
+On 2026-10-12 the user selected spacing and responsive wrapping in place of visible middle-dot
+separators across labels. Use `NotebookMetadata` for duration/price, subject/grade, date/time,
+status/count, ratings, timezone and related helper copy in dashboards, bookings, tutor search/detail,
+profiles, qualification review and the privacy notice. Keep the existing typography and colors.
+
+- Separate related values with a 12px horizontal gap and a 4px gap when they wrap. Preserve each
+  value and its order; narrow layouts can move a group to the next line without clipping text.
+- Pass structured values as an array so punctuation in actual names/data stays intact. The shared
+  component can also separate existing translated compound metadata copy for presentation.
+- Keep meaningful list bullets, actual decimal points, dates, money, native controls, accessible
+  descriptions and business/API behavior. Course-ruler page/range labels use spacing within their
+  existing compact layout.
+
+## Plain rounded pagination
+
+On 2026-10-12 the user requested the supplied plain rounded reference for all Previous/Next
+pagination, replacing Ticket Pair, paper-turn and standard buttons. Use one shared
+`NotebookPagination` for search, student/tutor bookings, dashboard lists and Binder Dropdown.
+
+- Show the visible record range at left and Previous / localized page count / Next at right.
+  Use separate warm-white buttons with a thin paper-colored solid border, 8px corners, regular
+  text and 48px minimum height. Keep page count muted between the buttons. Omit arrows, ticket
+  stubs, dashed insets, seams, notches and shadows.
+- Wrap the controls below the range when needed; compact containers keep the three controls
+  together across the available width, including 320px screens. Keep TH/EN labels, native
+  disabled boundaries, visible keyboard focus, polite range/page announcements and reduced motion.
+- Preserve page sizes, data scope, API queries, filters and page-change behavior. Hide controls
+  when one page suffices. Calendar rulers, course selectors and message-history actions retain
+  their existing behavior.
+
 ## Ink Tickets action family
 
 The user selected **Ink Tickets** and requested implementation on 2026-10-08 after the
@@ -332,7 +353,16 @@ student/tutor button review and three-direction preview.
   editing/draft/publishing/restoration and confirmation, and student course-search/time links.
   Archive triggers stay quiet but readable; archive/publish confirmation labels name their action
   in both languages instead of a generic Confirm.
-- Keep the existing photo-selection brush, Ticket Pair pagination, course-selection paper buttons,
+- On 2026-10-12 the user requested the same shared action family for tutor booking decisions at
+  `/dashboard/bookings`. Confirm uses a compact blue ticket with a check icon in its perforated
+  stub; Reject uses the secondary paper label with a close icon. Keep both labels legible side
+  by side. The decision dialog's submit action also has a check/close ticket stub, with red only
+  for the final rejection confirmation. Preserve accessible student-specific names, pending/stale
+  guards, native dialog behavior, rejection reasons and the existing API requests.
+- The tutor profile's Submit document action also uses `NotebookAction` with a check-icon ticket
+  stub (2026-10-12). Document type uses the shared regular 48px `NotebookSelect`, preserving the
+  Degree/Certificate values, associated label, disabled upload state and pending-type guard.
+- Keep the existing photo-selection brush, plain rounded pagination, course-selection paper buttons,
   sidebar labels, language switch and calendar/course rulers. Each retains its selected purpose
   and interaction rather than acquiring additional ticket decorations. Unreviewed authentication
   and booking-specific compositions retain their existing shared primitives.

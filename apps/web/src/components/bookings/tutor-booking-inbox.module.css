@@ -70,7 +70,7 @@
 .row {
   position: relative;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 200px;
+  grid-template-columns: minmax(0, 1fr) 232px;
   gap: 12px;
   margin-left: 26px;
   padding: 18px 20px;
@@ -256,8 +256,6 @@
   color: inherit;
 }
 .pagination {
-  --pagination-ticket-ink: var(--inbox-accent-ink);
-
   padding: 0 20px 18px;
 }
 @media (max-width: 639px) {

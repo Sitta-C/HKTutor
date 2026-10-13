@@ -22,6 +22,7 @@ import {
   NotebookActionContent,
 } from '@/components/ui/notebook-action';
 import { NotebookLoadingRegion } from '@/components/ui/notebook-loading';
+import { NotebookMetadata } from '@/components/ui/notebook-metadata';
 import { ApiError } from '@/lib/api/error';
 import { getPublicTutor, getPublicTutorAvailability } from '@/lib/api/tutors';
 import { useAuth } from '@/lib/auth-context';
@@ -203,7 +204,7 @@ export default function PublicTutorAvailabilityPage({ tutorId }: { tutorId: stri
                 </span>
               )}
               <span>
-                · {detail.tutor.reviewCount} {searchText.reviews}
+                {detail.tutor.reviewCount} {searchText.reviews}
               </span>
             </p>
           </div>
@@ -322,7 +323,7 @@ export default function PublicTutorAvailabilityPage({ tutorId }: { tutorId: stri
             {text.availability}
           </h2>
           <p className={styles.padHint}>
-            {text.availabilityHint} · {detailText.window}
+            <NotebookMetadata items={[text.availabilityHint, detailText.window]} />
           </p>
           <div className={styles.selectedCourse} aria-live="polite" aria-atomic="true">
             {selectedListing ? (
@@ -330,7 +331,7 @@ export default function PublicTutorAvailabilityPage({ tutorId }: { tutorId: stri
                 <div className="min-w-0">
                   <p className={styles.selectedLabel}>{detailText.selected}</p>
                   <h3>
-                    {selectedListing.subject} · {selectedListing.grade}
+                    <NotebookMetadata items={[selectedListing.subject, selectedListing.grade]} />
                   </h3>
                 </div>
                 <span className={styles.selectedRate}>

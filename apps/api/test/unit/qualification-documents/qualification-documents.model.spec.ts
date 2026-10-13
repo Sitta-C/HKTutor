@@ -14,6 +14,7 @@ import {
 } from '@modules/qualification-documents/qualification-documents.dto';
 import {
   decodeQualificationCursor,
+  deriveTutorVerificationStatus,
   encodeQualificationCursor,
   toDocumentResponse,
   toQualificationStatus,
@@ -185,5 +186,32 @@ describe('Qualification DTOs', () => {
     expect(await validate(dto, { whitelist: true, forbidNonWhitelisted: true })).not.toHaveLength(
       0,
     );
+  });
+});
+
+describe('aggregate tutor verification', () => {
+  it.each([
+    { statuses: [], expected: 'UNVERIFIED' },
+    { statuses: [TutorDocumentReviewStatus.PENDING], expected: 'PENDING' },
+    { statuses: [TutorDocumentReviewStatus.REJECTED], expected: 'REJECTED' },
+    {
+      statuses: [TutorDocumentReviewStatus.REJECTED, TutorDocumentReviewStatus.REJECTED],
+      expected: 'REJECTED',
+    },
+    {
+      statuses: [TutorDocumentReviewStatus.REJECTED, TutorDocumentReviewStatus.PENDING],
+      expected: 'PENDING',
+    },
+    { statuses: [TutorDocumentReviewStatus.VERIFIED], expected: 'VERIFIED' },
+    {
+      statuses: [
+        TutorDocumentReviewStatus.REJECTED,
+        TutorDocumentReviewStatus.PENDING,
+        TutorDocumentReviewStatus.VERIFIED,
+      ],
+      expected: 'VERIFIED',
+    },
+  ])('derives $expected from $statuses', ({ statuses, expected }) => {
+    expect(deriveTutorVerificationStatus(statuses)).toBe(expected);
   });
 });

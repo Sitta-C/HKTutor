@@ -25,6 +25,7 @@ import {
 } from '@/components/tutors/tutor-verification-badge';
 import { PaperCard, StickyNote, WashiTape } from '@/components/ui/notebook';
 import { NotebookAction } from '@/components/ui/notebook-action';
+import { NotebookMetadata } from '@/components/ui/notebook-metadata';
 import { NotebookSelect } from '@/components/ui/notebook-select';
 import { useNotebookToast } from '@/components/ui/notebook-toast';
 import {
@@ -591,7 +592,8 @@ export default function TutorListingEditor({
                   <p className="mt-1 text-xs leading-5 text-notebook-muted">{copy.previewBody}</p>
                 </div>
                 <ListingStatusBadge status={status} labels={statusLabels} variant="ledger" />
-                {(profile?.verificationStatus === 'PENDING' ||
+                {(profile?.verificationStatus === 'UNVERIFIED' ||
+                  profile?.verificationStatus === 'PENDING' ||
                   profile?.verificationStatus === 'REJECTED') && (
                   <p
                     className={styles.previewVisibility}
@@ -629,9 +631,16 @@ export default function TutorListingEditor({
                   />
                   <span className={styles.previewRating}>
                     <ListingIcon name="star" />
-                    {profile?.ratingAverage
-                      ? `${profile.ratingAverage} · ${profile.reviewCount} ${copy.reviews}`
-                      : copy.noReviews}
+                    <NotebookMetadata
+                      items={
+                        profile?.ratingAverage
+                          ? [
+                              String(profile.ratingAverage),
+                              `${profile.reviewCount} ${copy.reviews}`,
+                            ]
+                          : copy.noReviews
+                      }
+                    />
                   </span>
                 </div>
 
@@ -825,7 +834,7 @@ const englishCopy = {
   previewBody: 'This preview updates while you edit.',
   previewHiddenTitle: 'Your course is hidden from search',
   previewVisibility:
-    'Tutors awaiting qualification review or rejected from verification do not appear in search. Courses appear only after the tutor is verified and the course is published.',
+    'Tutors without approved qualifications do not appear in search. Courses appear only after the tutor is verified and the course is published.',
   subjectFallback: 'Subject',
   gradeFallback: 'Grade level',
   descriptionFallback: 'Your course description will appear here.',
@@ -900,7 +909,7 @@ const thaiCopy: typeof englishCopy = {
   previewBody: 'ตัวอย่างจะเปลี่ยนตามข้อมูลที่คุณกรอก',
   previewHiddenTitle: 'คอร์สของคุณยังไม่แสดงในหน้าค้นหา',
   previewVisibility:
-    'ติวเตอร์ที่รอตรวจสอบหรือไม่ผ่านการตรวจสอบคุณวุฒิจะไม่แสดงในหน้าค้นหา คอร์สจะแสดงเมื่อติวเตอร์ผ่านการตรวจสอบและเผยแพร่คอร์สแล้ว',
+    'ติวเตอร์ที่ยังไม่มีเอกสารคุณวุฒิที่ผ่านการตรวจสอบจะไม่แสดงในหน้าค้นหา คอร์สจะแสดงเมื่อติวเตอร์ผ่านการตรวจสอบและเผยแพร่คอร์สแล้ว',
   subjectFallback: 'รายวิชา',
   gradeFallback: 'ระดับชั้น',
   descriptionFallback: 'คำอธิบายคอร์สของคุณจะแสดงที่นี่',

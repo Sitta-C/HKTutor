@@ -76,7 +76,7 @@ type ProfileTone = 'student' | 'tutor';
 const emptyTutorMeta = {
   ratingAverage: null,
   reviewCount: 0,
-  verificationStatus: 'PENDING',
+  verificationStatus: 'UNVERIFIED',
 } satisfies Pick<TutorProfile, 'ratingAverage' | 'reviewCount' | 'verificationStatus'>;
 
 const profileTone = {

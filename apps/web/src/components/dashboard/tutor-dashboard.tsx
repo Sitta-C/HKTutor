@@ -24,6 +24,7 @@ import {
   notebookArchiveClass,
   notebookButtonClass,
 } from '@/components/ui/notebook';
+import { NotebookMetadata } from '@/components/ui/notebook-metadata';
 import { NotebookPagination } from '@/components/ui/notebook-pagination';
 import { getTutorAvailability } from '@/lib/api/availability';
 import { getTutorListings } from '@/lib/api/listings';
@@ -123,8 +124,13 @@ export function TutorDashboard({ user, onLogout }: TutorDashboardProps) {
           {copy.dashboard.common.welcomeBack.replace('{name}', displayName)}
         </h1>
         <p className="mt-3 text-sm leading-6 text-notebook-muted">
-          {tutorCopy.subtitle} · {formatBangkokShortDate(new Date(mountedAt), language)} ·{' '}
-          {copy.dashboard.common.bangkokTimeWithZone}
+          <NotebookMetadata
+            items={[
+              tutorCopy.subtitle,
+              formatBangkokShortDate(new Date(mountedAt), language),
+              copy.dashboard.common.bangkokTimeWithZone,
+            ]}
+          />
         </p>
       </div>
 
@@ -174,7 +180,12 @@ export function TutorDashboard({ user, onLogout }: TutorDashboardProps) {
                         {nextBooking.student.nickname ?? tutorCopy.unavailableStudent}
                       </h3>
                       <p className="mt-1.5 text-sm leading-6 text-notebook-muted">
-                        {nextBooking.listing.subjectName} · {nextBooking.listing.gradeLevelName}
+                        <NotebookMetadata
+                          items={[
+                            nextBooking.listing.subjectName,
+                            nextBooking.listing.gradeLevelName,
+                          ]}
+                        />
                       </p>
                       <p className="mt-3 text-lg font-semibold tabular-nums text-notebook-ink">
                         {formatBangkokTime(nextBooking.slot.startAtUtc, language)}–
@@ -183,13 +194,16 @@ export function TutorDashboard({ user, onLogout }: TutorDashboardProps) {
                     </div>
                   </div>
                   <p className="mt-6 border-t border-tutor-deep/15 pt-4 text-sm text-notebook-muted">
-                    {formatDuration(
-                      nextBooking.slot.startAtUtc,
-                      nextBooking.slot.endAtUtc,
-                      copy.dashboard.booking,
-                    )}
-                    {' · '}
-                    {formatBookingAmount(nextBooking, language)}
+                    <NotebookMetadata
+                      items={[
+                        formatDuration(
+                          nextBooking.slot.startAtUtc,
+                          nextBooking.slot.endAtUtc,
+                          copy.dashboard.booking,
+                        ),
+                        formatBookingAmount(nextBooking, language),
+                      ]}
+                    />
                   </p>
                 </>
               ) : (
@@ -205,7 +219,7 @@ export function TutorDashboard({ user, onLogout }: TutorDashboardProps) {
             >
               <div className="flex items-center justify-between gap-3 border-b border-dashed border-paper-edge pb-4">
                 <h2 id="tutor-today-availability" className="text-base font-bold text-notebook-ink">
-                  {tutorCopy.todayBangkokTime}
+                  <NotebookMetadata items={tutorCopy.todayBangkokTime} />
                 </h2>
                 <DashboardIcon
                   name="availability"
@@ -306,15 +320,22 @@ export function TutorDashboard({ user, onLogout }: TutorDashboardProps) {
                               {studentName}
                             </h3>
                             <p className="mt-1 text-sm leading-6 text-notebook-muted">
-                              {booking.listing.subjectName} · {booking.listing.gradeLevelName}
+                              <NotebookMetadata
+                                items={[
+                                  booking.listing.subjectName,
+                                  booking.listing.gradeLevelName,
+                                ]}
+                              />
                             </p>
                             <p className="mt-1 text-sm font-medium leading-6 tabular-nums text-notebook-ink">
-                              <time dateTime={booking.slot.startAtUtc}>
-                                {formatBangkokShortDate(booking.slot.startAtUtc, language)}
-                              </time>
-                              {' · '}
-                              {formatBangkokTime(booking.slot.startAtUtc, language)}–
-                              {formatBangkokTime(booking.slot.endAtUtc, language)}
+                              <NotebookMetadata
+                                items={[
+                                  <time key="date" dateTime={booking.slot.startAtUtc}>
+                                    {formatBangkokShortDate(booking.slot.startAtUtc, language)}
+                                  </time>,
+                                  `${formatBangkokTime(booking.slot.startAtUtc, language)}–${formatBangkokTime(booking.slot.endAtUtc, language)}`,
+                                ]}
+                              />
                             </p>
                             <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-notebook-muted">
                               <StatusBadge tone={isPast ? 'neutral' : 'warning'}>

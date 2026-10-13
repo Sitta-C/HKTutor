@@ -26,6 +26,8 @@ import {
   notebookActionClass,
 } from '@/components/ui/notebook-action';
 import { NotebookLoadingRegion } from '@/components/ui/notebook-loading';
+import { NotebookMetadata } from '@/components/ui/notebook-metadata';
+import { NotebookPagination } from '@/components/ui/notebook-pagination';
 import { NotebookSelect } from '@/components/ui/notebook-select';
 import {
   TUTOR_SEARCH_PAGE_SIZE,
@@ -325,7 +327,9 @@ export default function TutorSearchPage() {
               <h2>
                 {status === 'success' ? pagination.total : '—'} {text.exactMatches}
               </h2>
-              <p>{resultSummary}</p>
+              <p>
+                <NotebookMetadata items={resultSummary} />
+              </p>
             </div>
             <StatusBadge tone="student" className={styles.tag ?? ''}>
               {text.verifiedOnly}
@@ -357,38 +361,14 @@ export default function TutorSearchPage() {
               ))}
           </div>
           {status === 'success' && pagination.totalPages > 1 && (
-            <nav
+            <NotebookPagination
               className={paginationStyles.pagination}
-              aria-label={`${text.page} ${pagination.page} ${text.pageOf} ${pagination.totalPages}`}
-            >
-              <span
-                className={paginationStyles.paginationCount}
-                aria-current="page"
-                aria-live="polite"
-              >
-                {text.page} {pagination.page} {text.pageOf} {pagination.totalPages}
-              </span>
-              <div className={paginationStyles.paginationTickets}>
-                <button
-                  type="button"
-                  className={paginationStyles.paginationButton}
-                  disabled={pagination.page <= 1}
-                  onClick={() => changePage(pagination.page - 1)}
-                >
-                  <DashboardIcon name="arrow-right" className="h-4 w-4 rotate-180" />
-                  <span>{text.previousPage}</span>
-                </button>
-                <button
-                  type="button"
-                  className={paginationStyles.paginationButton}
-                  disabled={pagination.page >= pagination.totalPages}
-                  onClick={() => changePage(pagination.page + 1)}
-                >
-                  <span>{text.nextPage}</span>
-                  <DashboardIcon name="arrow-right" className="h-4 w-4" />
-                </button>
-              </div>
-            </nav>
+              page={pagination.page}
+              total={pagination.total}
+              pageSize={pagination.pageSize}
+              label={`${text.page} ${pagination.page} ${text.pageOf} ${pagination.totalPages}`}
+              onPageChange={changePage}
+            />
           )}
           <p className={styles.resultNote}>{text.cardNote}</p>
         </PaperCard>
@@ -543,7 +523,7 @@ function TutorResultCard({
         </div>
         <div className={styles.metadata}>
           <span>
-            {rating} · {result.reviewCount} {text.reviews}
+            <NotebookMetadata items={[rating, `${result.reviewCount} ${text.reviews}`]} />
           </span>
           <span>
             {result.experienceYears} {text.years}

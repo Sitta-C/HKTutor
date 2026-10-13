@@ -94,6 +94,11 @@ describe('student profile Swagger contract', () => {
     expect(document.components?.schemas).toHaveProperty('MyProfileResponseDto');
     expect(document.components?.schemas).toHaveProperty('ApiNotFoundErrorResponseDto');
     expect(document.components?.schemas).toHaveProperty('TutorProfileResponseDto');
+    const tutorSchema = document.components?.schemas?.['TutorProfileResponseDto'] as SchemaObject;
+    expect(tutorSchema.properties?.['verificationStatus']).toMatchObject({
+      enum: ['UNVERIFIED', 'PENDING', 'VERIFIED', 'REJECTED'],
+      example: 'UNVERIFIED',
+    });
   });
 
   function operation(method: string, path: string): OperationObject {
