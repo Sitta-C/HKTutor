@@ -25,6 +25,8 @@ import {
   BookingQuoteResponseDto,
   BookingResponseDto,
   BookingSlotStatus,
+  CancelBookingDto,
+  CanceledBookingDto,
   ConfirmBookingDto,
   CreateBookingDto,
   CreateMockPaymentDto,
@@ -946,6 +948,90 @@ export function GetBookingClassDetailDoc(): MethodDecorator {
           code: 'BOOKING_NOT_CONFIRMED',
           error: 'Conflict',
           message: 'Only a confirmed booking can be updated meeting link; this booking is PENDING',
+          statusCode: 409,
+        },
+        type: 'object',
+      },
+    }),
+  );
+}
+
+export function CancelBookingDoc(): MethodDecorator {
+  return applyDecorators(
+    ApiExtraModels(CancelBookingDto, CanceledBookingDto),
+    ApiOperation({ summary: 'Cancel a booking' }),
+    ApiBearerAuth(JWT_BEARER_AUTH),
+    ApiBody({ required: true, type: CancelBookingDto }),
+    ApiOkResponse({
+      description: 'The booking was canceled successfully',
+      schema: {
+        example: {
+          bookingId: '3c54a0d6-e3f3-4a38-bd55-3b4011ee31ae',
+          canceledAt: '2026-10-09T09:04:31.001Z',
+          status: BookingStatus.CANCELED,
+        },
+        allOf: [{ $ref: getSchemaPath(CanceledBookingDto) }],
+        type: 'object',
+      },
+    }),
+    ApiBadRequestResponse({
+      description: 'The booking ID is not a valid UUID or the cancellation reason is empty/missing',
+      schema: {
+        example: {
+          code: 'REASON_MISSING',
+          error: 'Bad Request',
+          message: 'Reason cannot be empty!',
+          statusCode: 400,
+        },
+        type: 'object',
+      },
+    }),
+    ApiUnauthorizedResponse({
+      description:
+        'The access token or its backing session is missing, invalid, expired, or revoked',
+      schema: {
+        example: {
+          code: 'UNAUTHENTICATED',
+          error: 'Unauthorized',
+          message: 'Invalid or expired authentication token',
+          statusCode: 401,
+        },
+        type: 'object',
+      },
+    }),
+    ApiForbiddenResponse({
+      description: 'The authenticated user is not a participant in this booking',
+      schema: {
+        example: {
+          code: 'BOOKING_NOT_OWNED',
+          error: 'Forbidden',
+          message: 'This booking belongs to another user',
+          statusCode: 403,
+        },
+        type: 'object',
+      },
+    }),
+    ApiNotFoundResponse({
+      description: 'No booking exists with this ID',
+      schema: {
+        example: {
+          code: 'BOOKING_NOT_FOUND',
+          error: 'Not Found',
+          message: 'Booking not found',
+          statusCode: 404,
+        },
+        type: 'object',
+      },
+    }),
+    ApiConflictResponse({
+      description:
+        'The booking is already paid, already in a final state (completed, canceled, or expired), ' +
+        'is inside the 24-hour cutoff before class start, or a concurrent update won the transition',
+      schema: {
+        example: {
+          code: 'BOOKING_ALREADY_PAID',
+          error: 'Conflict',
+          message: 'This booking is already paid',
           statusCode: 409,
         },
         type: 'object',

@@ -23,6 +23,7 @@ import {
   BookingQuoteResponseDto,
   BookingResponseDto,
   BookingSlotStatus,
+  CanceledBookingDto,
   ConfirmBookingDto,
   CreateBookingDto,
   CreateMockPaymentDto,
@@ -100,6 +101,15 @@ export const CLASS_DETAIL_BOOKING_OWNERSHIP_ERRORS = {
   missing: { code: 'BOOKING_NOT_FOUND', message: 'Booking not found' },
 } as const;
 
+/**
+ * The cancellation route reports a foreign non-participant booking as 403 rather than 404,
+ * so the guard and this service answer with the same body whichever rejects the request first.
+ */
+export const CANCEL_BOOKING_OWNERSHIP_ERRORS = {
+  foreignOwner: { code: 'BOOKING_NOT_OWNED', message: 'This booking belongs to another user' },
+  missing: { code: 'BOOKING_NOT_FOUND', message: 'Booking not found' },
+} as const;
+
 const bookingNotFound = (): NotFoundException =>
   new NotFoundException({
     code: BOOKING_OWNERSHIP_ERRORS.missing.code,
@@ -145,6 +155,14 @@ const studentBookingNotOwned = (): ForbiddenException =>
     code: STUDENT_BOOKING_OWNERSHIP_ERRORS.foreignOwner.code,
     error: 'Forbidden',
     message: STUDENT_BOOKING_OWNERSHIP_ERRORS.foreignOwner.message,
+    statusCode: 403,
+  });
+
+const bookingNotParticipant = (): ForbiddenException =>
+  new ForbiddenException({
+    code: CANCEL_BOOKING_OWNERSHIP_ERRORS.foreignOwner.code,
+    error: 'Forbidden',
+    message: CANCEL_BOOKING_OWNERSHIP_ERRORS.foreignOwner.message,
     statusCode: 403,
   });
 
@@ -196,6 +214,46 @@ const invalidURLException = (): BadRequestException =>
     error: 'Bad Request',
     message: 'The given URL is invalid',
     statusCode: 400,
+  });
+
+const missingReason = (): BadRequestException =>
+  new BadRequestException({
+    code: 'REASON_MISSING',
+    error: 'Bad Request',
+    message: 'Reason cannot be empty!',
+    statusCode: 400,
+  });
+
+const bookingAlreadyCompleted = (): ConflictException =>
+  new ConflictException({
+    code: 'BOOKING_ALREADY_COMPLETED',
+    error: 'Conflict',
+    message: 'This booking is already completed',
+    statusCode: 409,
+  });
+
+const bookingAlreadyCanceled = (): ConflictException =>
+  new ConflictException({
+    code: 'BOOKING_ALREADY_CANCELED',
+    error: 'Conflict',
+    message: 'This booking is already canceled',
+    statusCode: 409,
+  });
+
+const bookingAlreadyExpired = (): ConflictException =>
+  new ConflictException({
+    code: 'BOOKING_ALREADY_EXPIRED',
+    error: 'Conflict',
+    message: 'This booking is already expired',
+    statusCode: 409,
+  });
+
+const bookingExceedCancelRange = (): ConflictException =>
+  new ConflictException({
+    code: 'BOOKING_EXCEED_CANCEL_RANGE',
+    error: 'Conflict',
+    message: 'This booking is exceeding cancel range',
+    statusCode: 409,
   });
 
 const bookingListingSelect = {
@@ -899,6 +957,83 @@ export class BookingsService {
       },
     };
     return response;
+  }
+  async cancelBooking(input: {
+    bookingId: string;
+    reason: string;
+    userId: string;
+  }): Promise<CanceledBookingDto> {
+    const reason = input.reason?.trim();
+    if (!reason) throw missingReason();
+
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        const booking = await tx.booking.findUnique({
+          select: {
+            id: true,
+            paymentStatus: true,
+            slot: { select: { startAtUtc: true } },
+            status: true,
+            studentUserId: true,
+            tutorProfileId: true,
+          },
+          where: { id: input.bookingId },
+        });
+
+        if (!booking) throw bookingNotFound();
+        if (booking.studentUserId !== input.userId && booking.tutorProfileId !== input.userId) {
+          throw bookingNotParticipant();
+        }
+        if (booking.paymentStatus === PaymentStatus.PAID) throw bookingAlreadyPaid();
+        if (booking.status === BookingStatus.COMPLETED) throw bookingAlreadyCompleted();
+        if (booking.status === BookingStatus.CANCELED) throw bookingAlreadyCanceled();
+        if (booking.status === BookingStatus.EXPIRED) throw bookingAlreadyExpired();
+
+        const now = new Date();
+        if (booking.slot.startAtUtc.getTime() - now.getTime() < 24 * MILLISECONDS_PER_HOUR) {
+          throw bookingExceedCancelRange();
+        }
+
+        const canceledAtUtc = new Date();
+        const transition = await tx.booking.updateMany({
+          data: {
+            canceledAt: canceledAtUtc,
+            canceledById: input.userId,
+            cancellationReason: reason,
+            status: BookingStatus.CANCELED,
+          },
+          where: {
+            id: input.bookingId,
+            paymentStatus: PaymentStatus.UNPAID,
+            status: { in: [BookingStatus.PENDING, BookingStatus.CONFIRMED] },
+          },
+        });
+
+        if (transition.count !== 1) {
+          throw bookingTransitionConflict();
+        }
+
+        const updated = await tx.booking.findUniqueOrThrow({
+          select: { canceledAt: true, id: true, status: true },
+          where: { id: input.bookingId },
+        });
+
+        return {
+          bookingId: updated.id,
+          canceledAt: (updated.canceledAt ?? canceledAtUtc).toISOString(),
+          status: updated.status,
+        };
+      });
+    } catch (error) {
+      if (isDatabaseConflict(error)) {
+        this.logger.warn(
+          `Rejecting booking cancellation for ${input.bookingId}: database reported a conflict`,
+        );
+        throw bookingTransitionConflict();
+      }
+
+      throw error;
+    }
   }
 }
 

@@ -18,6 +18,7 @@ import type {
   BookingMeetingLinkDto,
   BookingQuoteResponseDto,
   BookingResponseDto,
+  CanceledBookingDto,
   MockPaymentResponseDto,
   MyBookingsResponseDto,
   TutorBookingActionResponseDto,
@@ -384,6 +385,55 @@ describe('BookingsController', () => {
         foreignOwner: {
           code: 'BOOKING_NOT_OWNED',
           message: 'You are not a participant in this booking',
+        },
+        missing: { code: 'BOOKING_NOT_FOUND', message: 'Booking not found' },
+      },
+      idParam: 'bookingId',
+      resource: 'booking',
+    });
+  });
+  
+  it('derives the canceling user from the authenticated user and delegates to the service', async () => {
+    const cancelBooking = jest.fn();
+    const bookingsService = { cancelBooking } as unknown as BookingsService;
+    const controller = new BookingsController(bookingsService);
+    const user: AuthenticatedUser = {
+      email: 'student@example.com',
+      id: '70e1232d-3c06-4d5d-b3d2-6026df5ff315',
+      role: Role.STUDENT,
+      sessionId: 'session-1',
+    };
+    const bookingId = '3c54a0d6-e3f3-4a38-bd55-3b4011ee31ae';
+    const dto = { reason: 'Unable to attend' };
+    const expected = {
+      bookingId,
+      canceledAt: '2026-10-09T09:04:31.001Z',
+      status: BookingStatus.CANCELED,
+    } as CanceledBookingDto;
+    cancelBooking.mockResolvedValue(expected);
+
+    const result = await controller.cancelBooking(bookingId, dto, user);
+
+    expect(cancelBooking).toHaveBeenCalledWith({
+      bookingId,
+      reason: dto.reason,
+      userId: user.id,
+    });
+    expect(result).toBe(expected);
+  });
+
+  it('enforces booking ownership on booking cancellation and separates 403 from 404', () => {
+    const handler = Object.getOwnPropertyDescriptor(BookingsController.prototype, 'cancelBooking')
+      ?.value as object | undefined;
+    const ownership = handler
+      ? (Reflect.getMetadata(OWNERSHIP_KEY, handler) as OwnershipRule | undefined)
+      : undefined;
+
+    expect(ownership).toEqual({
+      errors: {
+        foreignOwner: {
+          code: 'BOOKING_NOT_OWNED',
+          message: 'This booking belongs to another user',
         },
         missing: { code: 'BOOKING_NOT_FOUND', message: 'Booking not found' },
       },
