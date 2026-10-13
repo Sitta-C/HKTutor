@@ -22,6 +22,7 @@ import {
   BookingDetailResponseDto,
   BookingQuoteResponseDto,
   BookingResponseDto,
+  CancelBookingDto,
   CanceledBookingDto,
   ConfirmBookingDto,
   CreateBookingDto,
@@ -42,6 +43,7 @@ import {
 } from '@modules/bookings/bookings.service';
 import {
   BookingsControllerDoc,
+  CancelBookingDoc,
   ConfirmTutorBookingDoc,
   CreateBookingDoc,
   CreateMockPaymentDoc,
@@ -202,15 +204,20 @@ export class BookingsController {
 
   @Post(':bookingId/cancel')
   @HttpCode(HttpStatus.OK)
+  @CancelBookingDoc()
   @RequireOwnership({
     resource: 'booking',
     idParam: 'bookingId',
   })
   async cancelBooking(
     @Param('bookingId', UuidParamPipe) bookingId: string,
-    @Body() dto: {reason: string},
+    @Body() dto: CancelBookingDto,
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<CanceledBookingDto> {
-    return this.bookingsService.cancelBooking({userId: user.id, bookingId: bookingId, reason: dto.reason});
+    return this.bookingsService.cancelBooking({
+      bookingId,
+      reason: dto.reason,
+      userId: user.id,
+    });
   }
 }

@@ -182,6 +182,14 @@ const bookingAlreadyCompleted = (): ConflictException =>
     statusCode: 409,
   });
 
+const bookingAlreadyCanceled = (): ConflictException =>
+  new ConflictException({
+    code: 'BOOKING_ALREADY_CANCELED',
+    error: 'Conflict',
+    message: 'This booking is already canceled',
+    statusCode: 409,
+  });
+
 const bookingExceedCancelRange = (): ConflictException =>
   new ConflictException({
     code: 'BOOKING_EXCEED_CANCEL_RANGE',
@@ -832,30 +840,40 @@ export class BookingsService {
     }
   }
 
-  async cancelBooking(input: {userId: string, bookingId: string, reason: string}): Promise<CanceledBookingDto> {
-    if(!input.reason) throw missingReason();
+  async cancelBooking(input: {
+    bookingId: string;
+    reason: string;
+    userId: string;
+  }): Promise<CanceledBookingDto> {
+    if (!input.reason) throw missingReason();
 
     const result = await this.prisma.$transaction(async (tx) => {
-      const booking = await tx.booking.findUnique({ where: {id: input.bookingId}});
-      if(!booking) throw bookingNotFound();
-      if(booking.paymentStatus === PaymentStatus.PAID) throw bookingAlreadyPaid();
-      if(booking.status === BookingStatus.COMPLETED) throw bookingAlreadyCompleted();
-      if(booking.createdAt.getTime() - (new Date()).getTime() > 24*MILLISECONDS_PER_HOUR) throw bookingExceedCancelRange();
+      const booking = await tx.booking.findUnique({ where: { id: input.bookingId } });
+      if (!booking) throw bookingNotFound();
+      if (booking.paymentStatus === PaymentStatus.PAID) throw bookingAlreadyPaid();
+      if (booking.status === BookingStatus.COMPLETED) throw bookingAlreadyCompleted();
+      if (booking.status === BookingStatus.CANCELED) throw bookingAlreadyCanceled();
+      if (new Date().getTime() - booking.createdAt.getTime() > 24 * MILLISECONDS_PER_HOUR) {
+        throw bookingExceedCancelRange();
+      }
 
       const canceledBooking = await tx.booking.update({
-        where: {
-          id: input.bookingId,
-        },
         data: {
-          status: BookingStatus.CANCELED,
           canceledAt: new Date(),
           canceledById: input.userId,
           cancellationReason: input.reason,
-          // slotId: '',
-        }
-      })
+          status: BookingStatus.CANCELED,
+        },
+        where: {
+          id: input.bookingId,
+        },
+      });
 
-      return {bookingId: canceledBooking.id, status: canceledBooking.status, cancelAt: canceledBooking.canceledAt?.toISOString() || (new Date()).toISOString()}
+      return {
+        bookingId: canceledBooking.id,
+        cancelAt: canceledBooking.canceledAt?.toISOString() || new Date().toISOString(),
+        status: canceledBooking.status,
+      };
     });
 
     return result;

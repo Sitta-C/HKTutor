@@ -417,11 +417,22 @@ export class MockPaymentResponseDto {
   paidAt!: string;
 }
 
+export class CancelBookingDto {
+  @ApiProperty({
+    description: 'Why the booking was canceled.',
+    example: 'Unable to attend due to a schedule conflict.',
+  })
+  @IsString()
+  @Transform(trimString)
+  @IsNotEmpty({ message: 'Reason cannot be empty!' })
+  reason!: string;
+}
+
 export class CanceledBookingDto {
   @ApiProperty({ example: '3c54a0d6-e3f3-4a38-bd55-3b4011ee31ae' })
   bookingId!: string;
 
-  @ApiProperty({ enum: BookingStatus, example: BookingStatus.CONFIRMED })
+  @ApiProperty({ enum: BookingStatus, example: BookingStatus.CANCELED })
   status!: BookingStatus;
 
   @ApiProperty({ example: '2026-10-09T09:04:31.001Z' })

@@ -11,6 +11,7 @@ import {
   AccountStatus,
   BookingStatus,
   ListingPublicationStatus,
+  PaymentStatus,
   Role,
   TutorVerificationStatus,
 } from '@generated/prisma/enums';
@@ -30,7 +31,9 @@ type TransactionCallback = (tx: {
     count?: jest.Mock;
     create?: jest.Mock;
     findFirst?: jest.Mock;
+    findUnique?: jest.Mock;
     findUniqueOrThrow?: jest.Mock;
+    update?: jest.Mock;
     updateMany?: jest.Mock;
   };
   teachingListing?: { findUnique?: jest.Mock };
@@ -1792,6 +1795,225 @@ describe('BookingsService', () => {
       >;
       // The database check constraint refuses a canceled booking without a non-empty reason.
       expect(updateManyCalls[0]?.[0].data.cancellationReason).toBe('Rejected by the tutor');
+    });
+  });
+
+  describe('cancelBooking', () => {
+    const stubCancelTransaction = (options: { booking: unknown; canceledBooking?: unknown }) => {
+      const findUnique = jest.fn().mockResolvedValue(options.booking);
+      const update = jest.fn().mockResolvedValue(options.canceledBooking);
+
+      mockPrismaService.$transaction.mockImplementation(async (callback: TransactionCallback) =>
+        callback({ booking: { findUnique, update } }),
+      );
+
+      return { findUnique, update };
+    };
+
+    it('cancels an unpaid, incomplete, active booking created within 24 hours', async () => {
+      const { bookingId, studentUserId } = createTestData();
+      const createdAt = new Date(Date.now() - 2 * 60 * 60 * 1000);
+      const canceledAt = new Date('2026-10-13T10:00:00.000Z');
+      const activeBooking = {
+        createdAt,
+        id: bookingId,
+        paymentStatus: PaymentStatus.UNPAID,
+        status: BookingStatus.CONFIRMED,
+        studentUserId,
+      };
+      const updatedBooking = {
+        canceledAt,
+        canceledById: studentUserId,
+        cancellationReason: 'Emergency schedule conflict',
+        id: bookingId,
+        status: BookingStatus.CANCELED,
+      };
+
+      const { findUnique, update } = stubCancelTransaction({
+        booking: activeBooking,
+        canceledBooking: updatedBooking,
+      });
+
+      const result = await service.cancelBooking({
+        bookingId,
+        reason: 'Emergency schedule conflict',
+        userId: studentUserId,
+      });
+
+      expect(result).toEqual({
+        bookingId,
+        cancelAt: canceledAt.toISOString(),
+        status: BookingStatus.CANCELED,
+      });
+      expect(findUnique).toHaveBeenCalledWith({ where: { id: bookingId } });
+
+      const updateCalls = update.mock.calls as unknown as Array<
+        [
+          {
+            data: {
+              canceledAt: unknown;
+              canceledById: string;
+              cancellationReason: string;
+              status: BookingStatus;
+            };
+            where: { id: string };
+          },
+        ]
+      >;
+      const updatePayload = updateCalls[0]?.[0];
+      expect(updatePayload?.where).toEqual({ id: bookingId });
+      expect(updatePayload?.data.status).toBe(BookingStatus.CANCELED);
+      expect(updatePayload?.data.canceledById).toBe(studentUserId);
+      expect(updatePayload?.data.cancellationReason).toBe('Emergency schedule conflict');
+      expect(updatePayload?.data.canceledAt).toBeInstanceOf(Date);
+    });
+
+    it.each(['', undefined as unknown as string, null as unknown as string])(
+      'throws BadRequestException when reason is empty (%p)',
+      async (reason) => {
+        const { bookingId, studentUserId } = createTestData();
+
+        await expect(
+          service.cancelBooking({ bookingId, reason, userId: studentUserId }),
+        ).rejects.toMatchObject({
+          response: {
+            code: 'REASON_MISSING',
+            error: 'Bad Request',
+            message: 'Reason cannot be empty!',
+            statusCode: 400,
+          },
+        });
+        expect(mockPrismaService.$transaction).not.toHaveBeenCalled();
+      },
+    );
+
+    it('throws NotFoundException when booking does not exist', async () => {
+      const { bookingId, studentUserId } = createTestData();
+      stubCancelTransaction({ booking: null });
+
+      await expect(
+        service.cancelBooking({
+          bookingId,
+          reason: 'Valid reason',
+          userId: studentUserId,
+        }),
+      ).rejects.toMatchObject({
+        response: {
+          code: 'BOOKING_NOT_FOUND',
+          error: 'Not Found',
+          message: 'Booking not found',
+          statusCode: 404,
+        },
+      });
+    });
+
+    it('throws ConflictException when booking is already paid', async () => {
+      const { bookingId, studentUserId } = createTestData();
+      stubCancelTransaction({
+        booking: {
+          createdAt: new Date(),
+          id: bookingId,
+          paymentStatus: PaymentStatus.PAID,
+          status: BookingStatus.CONFIRMED,
+        },
+      });
+
+      await expect(
+        service.cancelBooking({
+          bookingId,
+          reason: 'Valid reason',
+          userId: studentUserId,
+        }),
+      ).rejects.toMatchObject({
+        response: {
+          code: 'BOOKING_ALREADY_PAID',
+          error: 'Conflict',
+          message: 'This booking is already paid',
+          statusCode: 409,
+        },
+      });
+    });
+
+    it('throws ConflictException when booking is already completed', async () => {
+      const { bookingId, studentUserId } = createTestData();
+      stubCancelTransaction({
+        booking: {
+          createdAt: new Date(),
+          id: bookingId,
+          paymentStatus: PaymentStatus.UNPAID,
+          status: BookingStatus.COMPLETED,
+        },
+      });
+
+      await expect(
+        service.cancelBooking({
+          bookingId,
+          reason: 'Valid reason',
+          userId: studentUserId,
+        }),
+      ).rejects.toMatchObject({
+        response: {
+          code: 'BOOKING_ALREADY_COMPLETED',
+          error: 'Conflict',
+          message: 'This booking is already completed',
+          statusCode: 409,
+        },
+      });
+    });
+
+    it('throws ConflictException when booking is already canceled', async () => {
+      const { bookingId, studentUserId } = createTestData();
+      stubCancelTransaction({
+        booking: {
+          createdAt: new Date(),
+          id: bookingId,
+          paymentStatus: PaymentStatus.UNPAID,
+          status: BookingStatus.CANCELED,
+        },
+      });
+
+      await expect(
+        service.cancelBooking({
+          bookingId,
+          reason: 'Valid reason',
+          userId: studentUserId,
+        }),
+      ).rejects.toMatchObject({
+        response: {
+          code: 'BOOKING_ALREADY_CANCELED',
+          error: 'Conflict',
+          message: 'This booking is already canceled',
+          statusCode: 409,
+        },
+      });
+    });
+
+    it('throws ConflictException when booking creation time exceeds 24 hours', async () => {
+      const { bookingId, studentUserId } = createTestData();
+      const createdAt = new Date(Date.now() - 25 * 60 * 60 * 1000);
+      stubCancelTransaction({
+        booking: {
+          createdAt,
+          id: bookingId,
+          paymentStatus: PaymentStatus.UNPAID,
+          status: BookingStatus.CONFIRMED,
+        },
+      });
+
+      await expect(
+        service.cancelBooking({
+          bookingId,
+          reason: 'Valid reason',
+          userId: studentUserId,
+        }),
+      ).rejects.toMatchObject({
+        response: {
+          code: 'BOOKING_EXCEED_CANCEL_RANGE',
+          error: 'Conflict',
+          message: 'This booking is exceeding cancel range',
+          statusCode: 409,
+        },
+      });
     });
   });
 });
