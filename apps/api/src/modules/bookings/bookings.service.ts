@@ -89,6 +89,17 @@ export const STUDENT_BOOKING_OWNERSHIP_ERRORS = {
   missing: { code: 'BOOKING_NOT_FOUND', message: 'Booking not found' },
 } as const;
 
+/**
+ * The class details route reports a foreign non-participant as 403 rather than the ownership-safe 404.
+ */
+export const CLASS_DETAIL_BOOKING_OWNERSHIP_ERRORS = {
+  foreignOwner: {
+    code: 'BOOKING_NOT_OWNED',
+    message: 'You are not a participant in this booking',
+  },
+  missing: { code: 'BOOKING_NOT_FOUND', message: 'Booking not found' },
+} as const;
+
 const bookingNotFound = (): NotFoundException =>
   new NotFoundException({
     code: BOOKING_OWNERSHIP_ERRORS.missing.code,
@@ -831,7 +842,7 @@ export class BookingsService {
 
   //Meeting
   async updateMeetingLink(input: BookingMeetingLinkInput): Promise<BookingMeetingLinkDto> {
-    if (!isValidHttpUrl(input.meetingUrl)) throw invalidURLException();
+    if (!isValidMeetingUrl(input.meetingUrl)) throw invalidURLException();
     const booking = await this.prisma.booking.findFirst({ where: { id: input.bookingId } });
     if (!booking) throw bookingNotFound();
     if (booking.status !== BookingStatus.CONFIRMED) throw bookingNotConfirmed(booking.status);
@@ -845,7 +856,7 @@ export class BookingsService {
     const response = new BookingMeetingLinkDto();
     response.bookingId = responseBooking.id;
     response.meetingUrl = responseBooking.meetingUrl;
-    response.updateAt = responseBooking.updatedAt.toISOString();
+    response.updatedAt = responseBooking.updatedAt.toISOString();
     return response;
   }
 
@@ -856,7 +867,6 @@ export class BookingsService {
     });
     if (!booking) throw bookingNotFound();
     if (booking.status !== BookingStatus.CONFIRMED) throw bookingNotConfirmed(booking.status);
-    if (!booking.meetingUrl) throw invalidURLException();
     let studentProfile;
     if (booking?.studentUserId) {
       studentProfile = await this.prisma.studentProfile.findFirst({
@@ -968,12 +978,19 @@ function deriveBookingAmounts(
   };
 }
 
-function isValidHttpUrl(urlString: string) {
-  let url;
+const HTTPS_MEETING_URL_PATTERN = /^https:\/\/[^\s/?#]+([/?#].*)?$/i;
+
+function isValidMeetingUrl(urlString: string): boolean {
+  if (typeof urlString !== 'string' || urlString !== urlString.trim()) {
+    return false;
+  }
+  if (!HTTPS_MEETING_URL_PATTERN.test(urlString)) {
+    return false;
+  }
   try {
-    url = new URL(urlString);
+    const url = new URL(urlString);
+    return url.protocol === 'https:' && url.hostname.length > 0;
   } catch {
     return false;
   }
-  return url.protocol === 'https:';
 }

@@ -1799,16 +1799,22 @@ describe('BookingsService', () => {
   });
 
   describe('updateMeetingLink', () => {
-    it.each([['not-a-url'], ['http://example.com/meet'], ['ftp://example.com'], ['']])(
-      'rejects invalid or non-https URL %j with 400',
-      async (meetingUrl) => {
-        const { bookingId } = createTestData();
+    it.each([
+      ['not-a-url'],
+      ['http://example.com/meet'],
+      ['ftp://example.com'],
+      [''],
+      ['https:meet.google.com/abc'],
+      ['https:/meet.google.com/abc'],
+      [' https://meet.google.com/abc '],
+      ['https://'],
+    ])('rejects invalid or non-https URL %j with 400', async (meetingUrl) => {
+      const { bookingId } = createTestData();
 
-        await expect(service.updateMeetingLink({ bookingId, meetingUrl })).rejects.toThrow(
-          BadRequestException,
-        );
-      },
-    );
+      await expect(service.updateMeetingLink({ bookingId, meetingUrl })).rejects.toThrow(
+        BadRequestException,
+      );
+    });
 
     it('rejects with 404 when booking does not exist', async () => {
       const { bookingId } = createTestData();
@@ -1861,7 +1867,7 @@ describe('BookingsService', () => {
       expect(result).toEqual({
         bookingId,
         meetingUrl,
-        updateAt: updatedAt.toISOString(),
+        updatedAt: updatedAt.toISOString(),
       });
     });
   });
@@ -1884,15 +1890,66 @@ describe('BookingsService', () => {
       },
     );
 
-    it('rejects with 400 when meetingUrl is not set on the booking', async () => {
-      const { bookingId } = createTestData();
+    it('returns class details with meetingUrl null when a confirmed booking has no meeting link', async () => {
+      const { bookingId, studentUserId, tutorUserId } = createTestData();
+      const startAtUtc = new Date('2026-10-09T09:00:00.000Z');
+      const endAtUtc = new Date('2026-10-09T10:00:00.000Z');
+
       mockPrismaService.booking.findFirst.mockResolvedValue({
+        attendance: null,
         id: bookingId,
         meetingUrl: null,
+        slot: { endAtUtc, startAtUtc },
         status: BookingStatus.CONFIRMED,
+        studentUserId,
+        tutorProfile: {
+          bio: 'Mathematics tutor',
+          displayName: 'Kru Anan',
+          experienceYears: 5,
+          firstName: 'Anan',
+          lastName: 'Suksawat',
+          nickname: 'Nan',
+        },
+        tutorProfileId: tutorUserId,
       });
 
-      await expect(service.getBookingClassDetail(bookingId)).rejects.toThrow(BadRequestException);
+      const studentProfile = {
+        firstName: 'Suda',
+        gradeLevel: 'Grade 10',
+        lastName: 'Dee',
+        nickname: 'Da',
+        phone: '0812345678',
+        school: 'Demo School',
+      };
+      mockPrismaService.studentProfile.findFirst.mockResolvedValue(studentProfile);
+
+      const result = await service.getBookingClassDetail(bookingId);
+
+      expect(result).toEqual({
+        attendance: null,
+        bookingId,
+        endAt: endAtUtc.toISOString(),
+        meetingUrl: null,
+        participants: {
+          student: {
+            detail: studentProfile,
+            id: studentUserId,
+          },
+          tutor: {
+            detail: {
+              bio: 'Mathematics tutor',
+              displayName: 'Kru Anan',
+              experienceYears: 5,
+              firstName: 'Anan',
+              lastName: 'Suksawat',
+              nickname: 'Nan',
+            },
+            id: tutorUserId,
+          },
+        },
+        startAt: startAtUtc.toISOString(),
+        status: BookingStatus.CONFIRMED,
+      });
     });
 
     it('rejects with 400 when student profile is not found', async () => {

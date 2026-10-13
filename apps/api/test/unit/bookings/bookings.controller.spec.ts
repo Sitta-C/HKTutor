@@ -370,7 +370,7 @@ describe('BookingsController', () => {
     expect(result).toBe(expected);
   });
 
-  it('enforces booking ownership for getBookingClassDetail', () => {
+  it('enforces booking ownership and distinguishes 403 non-participant from 404 missing for getBookingClassDetail', () => {
     const handler = Object.getOwnPropertyDescriptor(
       BookingsController.prototype,
       'getBookingClassDetail',
@@ -379,7 +379,17 @@ describe('BookingsController', () => {
       ? (Reflect.getMetadata(OWNERSHIP_KEY, handler) as OwnershipRule | undefined)
       : undefined;
 
-    expect(ownership).toEqual({ resource: 'booking', idParam: 'bookingId' });
+    expect(ownership).toEqual({
+      errors: {
+        foreignOwner: {
+          code: 'BOOKING_NOT_OWNED',
+          message: 'You are not a participant in this booking',
+        },
+        missing: { code: 'BOOKING_NOT_FOUND', message: 'Booking not found' },
+      },
+      idParam: 'bookingId',
+      resource: 'booking',
+    });
   });
 });
 
@@ -699,7 +709,7 @@ describe('BookingsController OpenAPI contract', () => {
             example: {
               bookingId: '3c54a0d6-e3f3-4a38-bd55-3b4011ee31ae',
               meetingUrl: 'https://meet.google.com/abc-defg-hij',
-              updateAt: '2026-10-09T09:04:31.001Z',
+              updatedAt: '2026-10-09T09:04:31.001Z',
             },
           },
         },
@@ -725,7 +735,7 @@ describe('BookingsController OpenAPI contract', () => {
         },
       },
     });
-    for (const status of ['400', '401', '404', '409']) {
+    for (const status of ['400', '401', '403', '404', '409']) {
       expect(operation?.responses[status]).toBeDefined();
     }
     expect(operation?.security).toEqual([{ [JWT_BEARER_AUTH]: [] }]);

@@ -436,7 +436,7 @@ export class BookingMeetingLinkDto {
   meetingUrl!: string | null;
 
   @ApiProperty({ example: '2026-10-09T09:04:31.001Z' })
-  updateAt!: string;
+  updatedAt!: string;
 }
 
 export class BookingClassParticipantTutorDetailDto {

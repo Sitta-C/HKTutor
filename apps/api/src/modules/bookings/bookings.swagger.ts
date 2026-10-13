@@ -774,7 +774,7 @@ export function UpdateMeetingLinkDoc(): MethodDecorator {
         example: {
           bookingId: '3c54a0d6-e3f3-4a38-bd55-3b4011ee31ae',
           meetingUrl: 'https://meet.google.com/abc-defg-hij',
-          updateAt: '2026-10-09T09:04:31.001Z',
+          updatedAt: '2026-10-09T09:04:31.001Z',
         },
         allOf: [{ $ref: getSchemaPath(BookingMeetingLinkDto) }],
         type: 'object',
@@ -891,13 +891,12 @@ export function GetBookingClassDetailDoc(): MethodDecorator {
       },
     }),
     ApiBadRequestResponse({
-      description:
-        'bookingId is not a valid UUID, the booking lacks a meeting link, or the student profile is missing',
+      description: 'bookingId is not a valid UUID, or the student profile is missing',
       schema: {
         example: {
-          code: 'INVALID_URL',
+          code: 'INVALID_UUID',
           error: 'Bad Request',
-          message: 'The given URL is invalid',
+          message: 'bookingId must be a valid UUID',
           statusCode: 400,
         },
         type: 'object',
@@ -917,20 +916,19 @@ export function GetBookingClassDetailDoc(): MethodDecorator {
       },
     }),
     ApiForbiddenResponse({
-      description: 'The authenticated user does not have permission to access this resource',
+      description: 'The authenticated user is not a participant in this booking',
       schema: {
         example: {
-          code: 'FORBIDDEN',
+          code: 'BOOKING_NOT_OWNED',
           error: 'Forbidden',
-          message: 'You do not have permission to access this resource',
+          message: 'You are not a participant in this booking',
           statusCode: 403,
         },
         type: 'object',
       },
     }),
     ApiNotFoundResponse({
-      description:
-        'The booking does not exist, or exists but does not belong to the authenticated user (ownership-safe: identical response either way)',
+      description: 'No booking exists with this ID',
       schema: {
         example: {
           code: 'BOOKING_NOT_FOUND',

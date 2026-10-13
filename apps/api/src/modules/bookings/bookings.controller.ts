@@ -40,6 +40,7 @@ import {
 } from '@modules/bookings/bookings.dto';
 import {
   BOOKING_OWNERSHIP_ERRORS,
+  CLASS_DETAIL_BOOKING_OWNERSHIP_ERRORS,
   STUDENT_BOOKING_OWNERSHIP_ERRORS,
   BookingsService,
 } from '@modules/bookings/bookings.service';
@@ -73,6 +74,13 @@ const TUTOR_BOOKING_ACTION_OWNERSHIP = {
 /** The S2-T04 card answers a wrong student with 403, so this route declares its own bodies too. */
 const STUDENT_BOOKING_PAYMENT_OWNERSHIP = {
   errors: STUDENT_BOOKING_OWNERSHIP_ERRORS,
+  idParam: 'bookingId',
+  resource: 'booking',
+} as const satisfies OwnershipRule;
+
+/** The class-details endpoint answers authenticated non-participants with 403 rather than 404. */
+const CLASS_DETAIL_BOOKING_OWNERSHIP = {
+  errors: CLASS_DETAIL_BOOKING_OWNERSHIP_ERRORS,
   idParam: 'bookingId',
   resource: 'booking',
 } as const satisfies OwnershipRule;
@@ -223,10 +231,7 @@ export class BookingsController {
   @Get(':bookingId/class-details')
   @HttpCode(HttpStatus.OK)
   @GetBookingClassDetailDoc()
-  @RequireOwnership({
-    resource: 'booking',
-    idParam: 'bookingId',
-  })
+  @RequireOwnership(CLASS_DETAIL_BOOKING_OWNERSHIP)
   async getBookingClassDetail(
     @Param('bookingId', UuidParamPipe) bookingId: string,
   ): Promise<BookingClassDetailDto> {
