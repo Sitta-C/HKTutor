@@ -4,10 +4,16 @@ import type { QualificationDocumentType, ReviewQualificationPayload } from '@/li
 
 export const QUALIFICATION_MAX_BYTES = 5 * 1024 * 1024;
 
-export type QualificationFileError = 'empty' | 'type' | 'size' | null;
+const QUALIFICATION_EXTENSIONS: Readonly<Record<string, readonly string[]>> = {
+  'application/pdf': ['pdf'],
+  'image/jpeg': ['jpg', 'jpeg'],
+  'image/png': ['png'],
+};
+
+export type QualificationFileError = 'empty' | 'type' | 'extension' | 'size' | null;
 
 export function validateQualificationFile(
-  file: Pick<File, 'size' | 'type'>,
+  file: Pick<File, 'name' | 'size' | 'type'>,
 ): QualificationFileError {
   if (file.size === 0) {
     return 'empty';
@@ -15,8 +21,13 @@ export function validateQualificationFile(
   if (file.size > QUALIFICATION_MAX_BYTES) {
     return 'size';
   }
-  if (!['application/pdf', 'image/jpeg', 'image/png'].includes(file.type)) {
+  const allowedExtensions = QUALIFICATION_EXTENSIONS[file.type];
+  if (!allowedExtensions) {
     return 'type';
+  }
+  const extension = file.name.split('.').at(-1)?.toLowerCase();
+  if (!extension || !allowedExtensions.includes(extension)) {
+    return 'extension';
   }
   return null;
 }
@@ -26,7 +37,8 @@ export function validateReviewDecision(
   reason: string,
 ): ReviewQualificationPayload | null {
   const trimmed = reason.trim();
-  if (trimmed.length > 500 || (decision === 'REJECTED' && trimmed.length === 0)) {
+  const characterCount = Array.from(trimmed).length;
+  if (characterCount > 500 || (decision === 'REJECTED' && characterCount === 0)) {
     return null;
   }
   return decision === 'REJECTED'
