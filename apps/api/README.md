@@ -307,7 +307,8 @@ longer tutor accounts are excluded. Tutor IDs and reviewer IDs come from the aut
 
 Upload uses multipart fields `file` and `documentType`. The initial allowed types are `DEGREE` and
 `CERTIFICATE`, matching the qualification form's degree/certificate categories. Only PDF, JPEG,
-and PNG with matching byte signatures are accepted, with an inclusive maximum of 5 MiB
+and PNG with matching byte signatures and filename extensions (`.pdf`, `.jpg`/`.jpeg`, `.png`)
+are accepted, with an inclusive maximum of 5 MiB
 (5242880 bytes). Empty files, unsupported types, excess bytes, unknown fields, multiple files,
 and invalid document types return 400. The API maps the infrastructure's oversize 413 to this
 card's 400 contract. Stored paths contain generated UUIDs, never original filenames. One pending
@@ -445,11 +446,14 @@ pnpm check
 
 The HTTP suite runs real validation, JWT/session/role/ownership guards, feature services, and the
 Storage SDK with isolated database and HTTP transports. It covers the seven contracts, byte-size
-boundaries, spoofed MIME signatures, authorization, pagination, audit failures, conditional review
-contention, and transactional failure propagation. Its persistence double models rollback; it does
-not prove PostgreSQL locks or Supabase expiry against live services. The SQL contract tests protect
-the migration invariants. Swagger and shared web wire types describe the API; frontend upload and
-admin review screens remain the separate S2-T08 task.
+boundaries, spoofed MIME signatures, filename extension mismatches, authorization, pagination,
+audit failures, conditional review contention, and transactional failure propagation. Its
+persistence double models rollback; it does not prove PostgreSQL locks or Supabase expiry against
+live services. The SQL contract tests protect the migration invariants. Swagger and shared web wire
+types describe the API; frontend upload and admin review screens remain the separate S2-T08 task.
+
+The [S2-T09 QA record](../../tests/s2-t09-qa.md) lists the upload, authorization, expiry, privacy,
+and review checks with exact commands, results, and live-environment limits.
 
 For PostgreSQL concurrency and rollback verification, create an empty disposable loopback database
 whose name matches `hktutor_*_test`, apply migrations, then run:
