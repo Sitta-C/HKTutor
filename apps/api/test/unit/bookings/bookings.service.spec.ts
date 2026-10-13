@@ -52,6 +52,12 @@ const createDatabaseError = (
   return error;
 };
 
+// Nesting expect.objectContaining inside an object literal assigns an `any`, which the shared lint
+// config rejects; the other suites wrap it the same way.
+function matchingObject(value: Record<string, unknown>): unknown {
+  return expect.objectContaining(value);
+}
+
 describe('BookingsService', () => {
   let service: BookingsService;
 
@@ -1089,7 +1095,10 @@ describe('BookingsService', () => {
         pricePerHour: new Prisma.Decimal(450),
         subject: { id: 'subject-id', name: 'Mathematics' },
       },
+      mockReference: null,
       netAmount: new Prisma.Decimal(450),
+      paidAt: null,
+      paymentStatus: PaymentStatus.UNPAID,
       slot: {
         endAtUtc: new Date('2026-09-15T11:04:06.784Z'),
         id: '7a0f9ab0-8f25-4d80-bb00-67b3a0c7d3d5',
@@ -1151,7 +1160,10 @@ describe('BookingsService', () => {
             subjectId: 'subject-id',
             subjectName: 'Mathematics',
           },
+          mockReference: null,
           netAmount: '450.00',
+          paidAt: null,
+          paymentStatus: PaymentStatus.UNPAID,
           slot: {
             endAtUtc: row.slot.endAtUtc.toISOString(),
             id: row.slot.id,
@@ -1162,6 +1174,40 @@ describe('BookingsService', () => {
           tutor: { displayName: 'Anan Suksawat', tutorId: row.tutorProfile.userId },
         },
       ]);
+    });
+
+    // S2-T05 renders the paid/unpaid state from this list, so the payment columns have to be both
+    // selected and mapped. Reading them from the row alone would pass even if the select dropped
+    // them, which is how they went missing in the first place.
+    it('selects and reports the payment fields of a paid booking', async () => {
+      const { studentUserId } = createTestData();
+      const paidAt = new Date('2026-10-09T09:04:31.001Z');
+      const row = mockBookingRow({
+        mockReference: 'DEMO-7F3A91',
+        paidAt,
+        paymentStatus: PaymentStatus.PAID,
+        status: BookingStatus.CONFIRMED,
+      });
+
+      mockPrismaService.booking.findMany.mockResolvedValue([row]);
+      mockPrismaService.booking.count.mockResolvedValue(1);
+
+      const result = await service.getMyBookings({ studentUserId });
+
+      expect(mockPrismaService.booking.findMany).toHaveBeenCalledWith(
+        matchingObject({
+          select: matchingObject({
+            mockReference: true,
+            paidAt: true,
+            paymentStatus: true,
+          }),
+        }),
+      );
+      expect(result.items[0]).toMatchObject({
+        mockReference: 'DEMO-7F3A91',
+        paidAt: paidAt.toISOString(),
+        paymentStatus: PaymentStatus.PAID,
+      });
     });
 
     it('combines the status filter with the where clause', async () => {
@@ -1273,7 +1319,10 @@ describe('BookingsService', () => {
         pricePerHour: new Prisma.Decimal(600),
         subject: { id: 'subject-id', name: 'Mathematics' },
       },
+      mockReference: null,
       netAmount: new Prisma.Decimal(450),
+      paidAt: null,
+      paymentStatus: PaymentStatus.UNPAID,
       slot: {
         endAtUtc: new Date('2026-09-15T11:04:06.784Z'),
         id: '7a0f9ab0-8f25-4d80-bb00-67b3a0c7d3d5',
@@ -1314,7 +1363,10 @@ describe('BookingsService', () => {
           subjectId: 'subject-id',
           subjectName: 'Mathematics',
         },
+        mockReference: null,
         netAmount: '450.00',
+        paidAt: null,
+        paymentStatus: PaymentStatus.UNPAID,
         slot: {
           endAtUtc: row.slot.endAtUtc.toISOString(),
           id: row.slot.id,
@@ -1324,6 +1376,37 @@ describe('BookingsService', () => {
         subtotalAmount: '450.00',
         tutor: { displayName: 'Anan Suksawat', tutorId: row.tutorProfile.userId },
         updatedAt: row.updatedAt.toISOString(),
+      });
+    });
+
+    it('selects and reports the payment fields of a paid booking', async () => {
+      const { studentUserId, bookingId } = createTestData();
+      const paidAt = new Date('2026-10-09T09:04:31.001Z');
+      const row = mockBookingRow({
+        id: bookingId,
+        mockReference: 'DEMO-7F3A91',
+        paidAt,
+        paymentStatus: PaymentStatus.PAID,
+        status: BookingStatus.CONFIRMED,
+      });
+
+      mockPrismaService.booking.findFirst.mockResolvedValue(row);
+
+      const result = await service.getMyBookingById({ bookingId, studentUserId });
+
+      expect(mockPrismaService.booking.findFirst).toHaveBeenCalledWith(
+        matchingObject({
+          select: matchingObject({
+            mockReference: true,
+            paidAt: true,
+            paymentStatus: true,
+          }),
+        }),
+      );
+      expect(result).toMatchObject({
+        mockReference: 'DEMO-7F3A91',
+        paidAt: paidAt.toISOString(),
+        paymentStatus: PaymentStatus.PAID,
       });
     });
 
