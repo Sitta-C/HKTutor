@@ -16,6 +16,7 @@ import type {
   BookingDetailResponseDto,
   BookingQuoteResponseDto,
   BookingResponseDto,
+  CanceledBookingDto,
   MockPaymentResponseDto,
   MyBookingsResponseDto,
   TutorBookingActionResponseDto,
@@ -308,6 +309,55 @@ describe('BookingsController', () => {
       : undefined;
 
     expect(roles).toEqual([Role.TUTOR]);
+  });
+
+  it('derives the canceling user from the authenticated user and delegates to the service', async () => {
+    const cancelBooking = jest.fn();
+    const bookingsService = { cancelBooking } as unknown as BookingsService;
+    const controller = new BookingsController(bookingsService);
+    const user: AuthenticatedUser = {
+      email: 'student@example.com',
+      id: '70e1232d-3c06-4d5d-b3d2-6026df5ff315',
+      role: Role.STUDENT,
+      sessionId: 'session-1',
+    };
+    const bookingId = '3c54a0d6-e3f3-4a38-bd55-3b4011ee31ae';
+    const dto = { reason: 'Unable to attend' };
+    const expected = {
+      bookingId,
+      canceledAt: '2026-10-09T09:04:31.001Z',
+      status: BookingStatus.CANCELED,
+    } as CanceledBookingDto;
+    cancelBooking.mockResolvedValue(expected);
+
+    const result = await controller.cancelBooking(bookingId, dto, user);
+
+    expect(cancelBooking).toHaveBeenCalledWith({
+      bookingId,
+      reason: dto.reason,
+      userId: user.id,
+    });
+    expect(result).toBe(expected);
+  });
+
+  it('enforces booking ownership on booking cancellation and separates 403 from 404', () => {
+    const handler = Object.getOwnPropertyDescriptor(BookingsController.prototype, 'cancelBooking')
+      ?.value as object | undefined;
+    const ownership = handler
+      ? (Reflect.getMetadata(OWNERSHIP_KEY, handler) as OwnershipRule | undefined)
+      : undefined;
+
+    expect(ownership).toEqual({
+      errors: {
+        foreignOwner: {
+          code: 'BOOKING_NOT_OWNED',
+          message: 'This booking belongs to another user',
+        },
+        missing: { code: 'BOOKING_NOT_FOUND', message: 'Booking not found' },
+      },
+      idParam: 'bookingId',
+      resource: 'booking',
+    });
   });
 });
 
@@ -610,5 +660,41 @@ describe('BookingsController OpenAPI contract', () => {
 
     expect(Object.keys(schema?.properties ?? {}).sort()).toEqual(['amount', 'reference']);
     expect(schema?.required?.sort()).toEqual(['amount', 'reference']);
+  });
+
+  it('publishes the cancel-booking contract', () => {
+    const operation = document.paths[`/${API_GLOBAL_PREFIX}/bookings/{bookingId}/cancel`]?.post;
+
+    expect(operation?.summary).toBe('Cancel a booking');
+    expect(operation?.responses['200']).toMatchObject({
+      content: {
+        'application/json': {
+          schema: {
+            allOf: [{ $ref: '#/components/schemas/CanceledBookingDto' }],
+            example: {
+              bookingId: '3c54a0d6-e3f3-4a38-bd55-3b4011ee31ae',
+              canceledAt: '2026-10-09T09:04:31.001Z',
+              status: 'CANCELED',
+            },
+          },
+        },
+      },
+    });
+    for (const status of ['400', '401', '403', '404', '409']) {
+      expect(operation?.responses[status]).toBeDefined();
+    }
+    expect(operation?.security).toEqual([{ [JWT_BEARER_AUTH]: [] }]);
+    expect(operation?.parameters).toEqual(
+      expect.arrayContaining([expect.objectContaining({ name: 'bookingId', required: true })]),
+    );
+    expect(operation?.requestBody).toMatchObject({ required: true });
+  });
+
+  it('requires reason in the cancel booking request body schema', () => {
+    const schema = document.components?.schemas?.['CancelBookingDto'] as
+      { properties?: Record<string, unknown>; required?: string[] } | undefined;
+
+    expect(schema?.properties?.['reason']).toBeDefined();
+    expect(schema?.required).toContain('reason');
   });
 });

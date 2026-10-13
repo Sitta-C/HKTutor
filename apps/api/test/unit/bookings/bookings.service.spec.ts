@@ -11,6 +11,7 @@ import {
   AccountStatus,
   BookingStatus,
   ListingPublicationStatus,
+  PaymentStatus,
   Role,
   TutorVerificationStatus,
 } from '@generated/prisma/enums';
@@ -30,7 +31,9 @@ type TransactionCallback = (tx: {
     count?: jest.Mock;
     create?: jest.Mock;
     findFirst?: jest.Mock;
+    findUnique?: jest.Mock;
     findUniqueOrThrow?: jest.Mock;
+    update?: jest.Mock;
     updateMany?: jest.Mock;
   };
   teachingListing?: { findUnique?: jest.Mock };
@@ -1793,5 +1796,519 @@ describe('BookingsService', () => {
       // The database check constraint refuses a canceled booking without a non-empty reason.
       expect(updateManyCalls[0]?.[0].data.cancellationReason).toBe('Rejected by the tutor');
     });
+  });
+
+  describe('cancelBooking', () => {
+    const stubCancelTransaction = (options: {
+      booking: unknown;
+      canceledBooking?: unknown;
+      transitionCount?: number;
+    }) => {
+      const findUnique = jest.fn().mockResolvedValue(options.booking);
+      const updateMany = jest.fn().mockResolvedValue({
+        count:
+          options.transitionCount !== undefined
+            ? options.transitionCount
+            : options.canceledBooking !== undefined
+              ? 1
+              : 0,
+      });
+      const findUniqueOrThrow = jest.fn().mockResolvedValue(options.canceledBooking);
+
+      mockPrismaService.$transaction.mockImplementation(async (callback: TransactionCallback) =>
+        callback({ booking: { findUnique, findUniqueOrThrow, updateMany } }),
+      );
+
+      return { findUnique, findUniqueOrThrow, updateMany };
+    };
+
+    it('cancels an unpaid, incomplete, active booking when slot start time is more than 24 hours away', async () => {
+      const { bookingId, studentUserId, tutorUserId } = createTestData();
+      const startAtUtc = new Date(Date.now() + 48 * 60 * 60 * 1000);
+      const canceledAt = new Date('2026-10-13T10:00:00.000Z');
+      const activeBooking = {
+        id: bookingId,
+        paymentStatus: PaymentStatus.UNPAID,
+        slot: { startAtUtc },
+        status: BookingStatus.CONFIRMED,
+        studentUserId,
+        tutorProfileId: tutorUserId,
+      };
+      const updatedBooking = {
+        canceledAt,
+        id: bookingId,
+        status: BookingStatus.CANCELED,
+      };
+
+      const { findUnique, findUniqueOrThrow, updateMany } = stubCancelTransaction({
+        booking: activeBooking,
+        canceledBooking: updatedBooking,
+      });
+
+      const result = await service.cancelBooking({
+        bookingId,
+        reason: 'Emergency schedule conflict',
+        userId: studentUserId,
+      });
+
+      expect(result).toEqual({
+        bookingId,
+        canceledAt: canceledAt.toISOString(),
+        status: BookingStatus.CANCELED,
+      });
+      expect(findUnique).toHaveBeenCalledWith({
+        select: {
+          id: true,
+          paymentStatus: true,
+          slot: { select: { startAtUtc: true } },
+          status: true,
+          studentUserId: true,
+          tutorProfileId: true,
+        },
+        where: { id: bookingId },
+      });
+
+      expect(updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            id: bookingId,
+            paymentStatus: PaymentStatus.UNPAID,
+            status: { in: [BookingStatus.PENDING, BookingStatus.CONFIRMED] },
+          },
+        }) as unknown,
+      );
+      const updateCalls = updateMany.mock.calls as unknown as Array<
+        [
+          {
+            data: {
+              canceledAt: unknown;
+              canceledById: string;
+              cancellationReason: string;
+              status: BookingStatus;
+            };
+          },
+        ]
+      >;
+      const updatePayload = updateCalls[0]?.[0];
+      expect(updatePayload?.data.status).toBe(BookingStatus.CANCELED);
+      expect(updatePayload?.data.canceledById).toBe(studentUserId);
+      expect(updatePayload?.data.cancellationReason).toBe('Emergency schedule conflict');
+      expect(updatePayload?.data.canceledAt).toBeInstanceOf(Date);
+
+      expect(findUniqueOrThrow).toHaveBeenCalledWith({
+        select: { canceledAt: true, id: true, status: true },
+        where: { id: bookingId },
+      });
+    });
+
+    it('allows the tutor participant to cancel the booking', async () => {
+      const { bookingId, studentUserId, tutorUserId } = createTestData();
+      const startAtUtc = new Date(Date.now() + 48 * 60 * 60 * 1000);
+      const canceledAt = new Date('2026-10-13T10:00:00.000Z');
+      const activeBooking = {
+        id: bookingId,
+        paymentStatus: PaymentStatus.UNPAID,
+        slot: { startAtUtc },
+        status: BookingStatus.PENDING,
+        studentUserId,
+        tutorProfileId: tutorUserId,
+      };
+      const updatedBooking = {
+        canceledAt,
+        id: bookingId,
+        status: BookingStatus.CANCELED,
+      };
+
+      const { updateMany } = stubCancelTransaction({
+        booking: activeBooking,
+        canceledBooking: updatedBooking,
+      });
+
+      const result = await service.cancelBooking({
+        bookingId,
+        reason: 'Tutor emergency',
+        userId: tutorUserId,
+      });
+
+      expect(result).toEqual({
+        bookingId,
+        canceledAt: canceledAt.toISOString(),
+        status: BookingStatus.CANCELED,
+      });
+      expect(updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            id: bookingId,
+            paymentStatus: PaymentStatus.UNPAID,
+            status: { in: [BookingStatus.PENDING, BookingStatus.CONFIRMED] },
+          },
+        }) as unknown,
+      );
+      const updateCalls = updateMany.mock.calls as unknown as Array<
+        [
+          {
+            data: {
+              canceledAt: unknown;
+              canceledById: string;
+              cancellationReason: string;
+              status: BookingStatus;
+            };
+          },
+        ]
+      >;
+      const updatePayload = updateCalls[0]?.[0];
+      expect(updatePayload?.data.status).toBe(BookingStatus.CANCELED);
+      expect(updatePayload?.data.canceledById).toBe(tutorUserId);
+      expect(updatePayload?.data.cancellationReason).toBe('Tutor emergency');
+      expect(updatePayload?.data.canceledAt).toBeInstanceOf(Date);
+    });
+
+    it('allows cancellation at exactly 24 hours before slot start time', async () => {
+      jest.useFakeTimers().setSystemTime(new Date('2026-10-13T10:00:00.000Z'));
+      try {
+        const { bookingId, studentUserId, tutorUserId } = createTestData();
+        const startAtUtc = new Date('2026-10-14T10:00:00.000Z');
+        const canceledAt = new Date('2026-10-13T10:00:00.000Z');
+        const activeBooking = {
+          id: bookingId,
+          paymentStatus: PaymentStatus.UNPAID,
+          slot: { startAtUtc },
+          status: BookingStatus.CONFIRMED,
+          studentUserId,
+          tutorProfileId: tutorUserId,
+        };
+
+        stubCancelTransaction({
+          booking: activeBooking,
+          canceledBooking: {
+            canceledAt,
+            id: bookingId,
+            status: BookingStatus.CANCELED,
+          },
+        });
+
+        const result = await service.cancelBooking({
+          bookingId,
+          reason: 'Valid cancellation on the 24h boundary',
+          userId: studentUserId,
+        });
+
+        expect(result.status).toBe(BookingStatus.CANCELED);
+      } finally {
+        jest.useRealTimers();
+      }
+    });
+
+    it('throws ForbiddenException when requesting user is not a participant', async () => {
+      const { bookingId, studentUserId, tutorUserId } = createTestData();
+      const foreignUserId = '99999999-9999-4999-8999-999999999999';
+      stubCancelTransaction({
+        booking: {
+          id: bookingId,
+          paymentStatus: PaymentStatus.UNPAID,
+          slot: { startAtUtc: new Date(Date.now() + 48 * 60 * 60 * 1000) },
+          status: BookingStatus.CONFIRMED,
+          studentUserId,
+          tutorProfileId: tutorUserId,
+        },
+      });
+
+      await expect(
+        service.cancelBooking({
+          bookingId,
+          reason: 'Unauthorized cancel attempt',
+          userId: foreignUserId,
+        }),
+      ).rejects.toMatchObject({
+        response: {
+          code: 'BOOKING_NOT_OWNED',
+          error: 'Forbidden',
+          message: 'This booking belongs to another user',
+          statusCode: 403,
+        },
+      });
+    });
+
+    it.each(['', '   ', undefined as unknown as string, null as unknown as string])(
+      'throws BadRequestException when reason is empty (%p)',
+      async (reason) => {
+        const { bookingId, studentUserId } = createTestData();
+
+        await expect(
+          service.cancelBooking({ bookingId, reason, userId: studentUserId }),
+        ).rejects.toMatchObject({
+          response: {
+            code: 'REASON_MISSING',
+            error: 'Bad Request',
+            message: 'Reason cannot be empty!',
+            statusCode: 400,
+          },
+        });
+        expect(mockPrismaService.$transaction).not.toHaveBeenCalled();
+      },
+    );
+
+    it('throws NotFoundException when booking does not exist', async () => {
+      const { bookingId, studentUserId } = createTestData();
+      stubCancelTransaction({ booking: null });
+
+      await expect(
+        service.cancelBooking({
+          bookingId,
+          reason: 'Valid reason',
+          userId: studentUserId,
+        }),
+      ).rejects.toMatchObject({
+        response: {
+          code: 'BOOKING_NOT_FOUND',
+          error: 'Not Found',
+          message: 'Booking not found',
+          statusCode: 404,
+        },
+      });
+    });
+
+    it('throws ConflictException when booking is already paid', async () => {
+      const { bookingId, studentUserId, tutorUserId } = createTestData();
+      stubCancelTransaction({
+        booking: {
+          id: bookingId,
+          paymentStatus: PaymentStatus.PAID,
+          slot: { startAtUtc: new Date(Date.now() + 48 * 60 * 60 * 1000) },
+          status: BookingStatus.CONFIRMED,
+          studentUserId,
+          tutorProfileId: tutorUserId,
+        },
+      });
+
+      await expect(
+        service.cancelBooking({
+          bookingId,
+          reason: 'Valid reason',
+          userId: studentUserId,
+        }),
+      ).rejects.toMatchObject({
+        response: {
+          code: 'BOOKING_ALREADY_PAID',
+          error: 'Conflict',
+          message: 'This booking is already paid',
+          statusCode: 409,
+        },
+      });
+    });
+
+    it('throws ConflictException when booking is already completed', async () => {
+      const { bookingId, studentUserId, tutorUserId } = createTestData();
+      stubCancelTransaction({
+        booking: {
+          id: bookingId,
+          paymentStatus: PaymentStatus.UNPAID,
+          slot: { startAtUtc: new Date(Date.now() + 48 * 60 * 60 * 1000) },
+          status: BookingStatus.COMPLETED,
+          studentUserId,
+          tutorProfileId: tutorUserId,
+        },
+      });
+
+      await expect(
+        service.cancelBooking({
+          bookingId,
+          reason: 'Valid reason',
+          userId: studentUserId,
+        }),
+      ).rejects.toMatchObject({
+        response: {
+          code: 'BOOKING_ALREADY_COMPLETED',
+          error: 'Conflict',
+          message: 'This booking is already completed',
+          statusCode: 409,
+        },
+      });
+    });
+
+    it('throws ConflictException when booking is already canceled', async () => {
+      const { bookingId, studentUserId, tutorUserId } = createTestData();
+      stubCancelTransaction({
+        booking: {
+          id: bookingId,
+          paymentStatus: PaymentStatus.UNPAID,
+          slot: { startAtUtc: new Date(Date.now() + 48 * 60 * 60 * 1000) },
+          status: BookingStatus.CANCELED,
+          studentUserId,
+          tutorProfileId: tutorUserId,
+        },
+      });
+
+      await expect(
+        service.cancelBooking({
+          bookingId,
+          reason: 'Valid reason',
+          userId: studentUserId,
+        }),
+      ).rejects.toMatchObject({
+        response: {
+          code: 'BOOKING_ALREADY_CANCELED',
+          error: 'Conflict',
+          message: 'This booking is already canceled',
+          statusCode: 409,
+        },
+      });
+    });
+
+    it('throws ConflictException when booking is already expired', async () => {
+      const { bookingId, studentUserId, tutorUserId } = createTestData();
+      stubCancelTransaction({
+        booking: {
+          id: bookingId,
+          paymentStatus: PaymentStatus.UNPAID,
+          slot: { startAtUtc: new Date(Date.now() + 48 * 60 * 60 * 1000) },
+          status: BookingStatus.EXPIRED,
+          studentUserId,
+          tutorProfileId: tutorUserId,
+        },
+      });
+
+      await expect(
+        service.cancelBooking({
+          bookingId,
+          reason: 'Valid reason',
+          userId: studentUserId,
+        }),
+      ).rejects.toMatchObject({
+        response: {
+          code: 'BOOKING_ALREADY_EXPIRED',
+          error: 'Conflict',
+          message: 'This booking is already expired',
+          statusCode: 409,
+        },
+      });
+    });
+
+    it('throws ConflictException when slot start time is within 24 hours', async () => {
+      const { bookingId, studentUserId, tutorUserId } = createTestData();
+      const startAtUtc = new Date(Date.now() + 2 * 60 * 60 * 1000);
+      stubCancelTransaction({
+        booking: {
+          id: bookingId,
+          paymentStatus: PaymentStatus.UNPAID,
+          slot: { startAtUtc },
+          status: BookingStatus.CONFIRMED,
+          studentUserId,
+          tutorProfileId: tutorUserId,
+        },
+      });
+
+      await expect(
+        service.cancelBooking({
+          bookingId,
+          reason: 'Valid reason',
+          userId: studentUserId,
+        }),
+      ).rejects.toMatchObject({
+        response: {
+          code: 'BOOKING_EXCEED_CANCEL_RANGE',
+          error: 'Conflict',
+          message: 'This booking is exceeding cancel range',
+          statusCode: 409,
+        },
+      });
+    });
+
+    it('throws ConflictException when slot start time has already passed', async () => {
+      const { bookingId, studentUserId, tutorUserId } = createTestData();
+      const startAtUtc = new Date(Date.now() - 1 * 60 * 60 * 1000);
+      stubCancelTransaction({
+        booking: {
+          id: bookingId,
+          paymentStatus: PaymentStatus.UNPAID,
+          slot: { startAtUtc },
+          status: BookingStatus.CONFIRMED,
+          studentUserId,
+          tutorProfileId: tutorUserId,
+        },
+      });
+
+      await expect(
+        service.cancelBooking({
+          bookingId,
+          reason: 'Valid reason',
+          userId: studentUserId,
+        }),
+      ).rejects.toMatchObject({
+        response: {
+          code: 'BOOKING_EXCEED_CANCEL_RANGE',
+          error: 'Conflict',
+          message: 'This booking is exceeding cancel range',
+          statusCode: 409,
+        },
+      });
+    });
+
+    it('throws ConflictException when concurrent update modifies the booking (transition count 0)', async () => {
+      const { bookingId, studentUserId, tutorUserId } = createTestData();
+      const startAtUtc = new Date(Date.now() + 48 * 60 * 60 * 1000);
+      stubCancelTransaction({
+        booking: {
+          id: bookingId,
+          paymentStatus: PaymentStatus.UNPAID,
+          slot: { startAtUtc },
+          status: BookingStatus.CONFIRMED,
+          studentUserId,
+          tutorProfileId: tutorUserId,
+        },
+        transitionCount: 0,
+      });
+
+      await expect(
+        service.cancelBooking({
+          bookingId,
+          reason: 'Valid reason',
+          userId: studentUserId,
+        }),
+      ).rejects.toMatchObject({
+        response: {
+          code: 'BOOKING_TRANSITION_CONFLICT',
+          error: 'Conflict',
+          message: 'The booking was already updated by another request',
+          statusCode: 409,
+        },
+      });
+    });
+
+    it.each(['P2002', 'P2003', 'P2004'])(
+      'throws ConflictException when database conflict %s occurs',
+      async (code) => {
+        const { bookingId, studentUserId, tutorUserId } = createTestData();
+        const startAtUtc = new Date(Date.now() + 48 * 60 * 60 * 1000);
+        stubCancelTransaction({
+          booking: {
+            id: bookingId,
+            paymentStatus: PaymentStatus.UNPAID,
+            slot: { startAtUtc },
+            status: BookingStatus.CONFIRMED,
+            studentUserId,
+            tutorProfileId: tutorUserId,
+          },
+        });
+        mockPrismaService.$transaction.mockRejectedValue(
+          createDatabaseError('Constraint violation', code),
+        );
+
+        await expect(
+          service.cancelBooking({
+            bookingId,
+            reason: 'Valid reason',
+            userId: studentUserId,
+          }),
+        ).rejects.toMatchObject({
+          response: {
+            code: 'BOOKING_TRANSITION_CONFLICT',
+            error: 'Conflict',
+            message: 'The booking was already updated by another request',
+            statusCode: 409,
+          },
+        });
+      },
+    );
   });
 });

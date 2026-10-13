@@ -2,6 +2,7 @@ import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
 
 import {
+  CancelBookingDto,
   ConfirmBookingDto,
   MAX_BOOKINGS_PAGE_SIZE,
   CreateMockPaymentDto,
@@ -175,4 +176,22 @@ describe('tutor inbox query boundaries', () => {
       ).not.toHaveLength(0);
     },
   );
+});
+
+describe('cancel booking DTO', () => {
+  it('accepts a non-empty cancellation reason', async () => {
+    const dto = plainToInstance(CancelBookingDto, { reason: 'Schedule conflict' });
+    await expect(validate(dto)).resolves.toHaveLength(0);
+  });
+
+  it.each([
+    ['', 'empty string'],
+    ['   ', 'whitespace only'],
+    [undefined, 'undefined'],
+    [null, 'null'],
+    [123, 'a number'],
+  ])('rejects invalid reason %p (%s)', async (reason) => {
+    const dto = plainToInstance(CancelBookingDto, { reason });
+    expect(await validate(dto)).not.toHaveLength(0);
+  });
 });

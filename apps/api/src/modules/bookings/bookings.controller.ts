@@ -22,6 +22,8 @@ import {
   BookingDetailResponseDto,
   BookingQuoteResponseDto,
   BookingResponseDto,
+  CancelBookingDto,
+  CanceledBookingDto,
   ConfirmBookingDto,
   CreateBookingDto,
   CreateMockPaymentDto,
@@ -36,11 +38,13 @@ import {
 } from '@modules/bookings/bookings.dto';
 import {
   BOOKING_OWNERSHIP_ERRORS,
+  CANCEL_BOOKING_OWNERSHIP_ERRORS,
   STUDENT_BOOKING_OWNERSHIP_ERRORS,
   BookingsService,
 } from '@modules/bookings/bookings.service';
 import {
   BookingsControllerDoc,
+  CancelBookingDoc,
   ConfirmTutorBookingDoc,
   CreateBookingDoc,
   CreateMockPaymentDoc,
@@ -67,6 +71,13 @@ const TUTOR_BOOKING_ACTION_OWNERSHIP = {
 /** The S2-T04 card answers a wrong student with 403, so this route declares its own bodies too. */
 const STUDENT_BOOKING_PAYMENT_OWNERSHIP = {
   errors: STUDENT_BOOKING_OWNERSHIP_ERRORS,
+  idParam: 'bookingId',
+  resource: 'booking',
+} as const satisfies OwnershipRule;
+
+/** The cancellation card answers a non-participant with 403, so this route declares its own bodies. */
+const CANCEL_BOOKING_OWNERSHIP = {
+  errors: CANCEL_BOOKING_OWNERSHIP_ERRORS,
   idParam: 'bookingId',
   resource: 'booking',
 } as const satisfies OwnershipRule;
@@ -196,6 +207,22 @@ export class BookingsController {
       ...dto,
       bookingId,
       tutorUserId: user.id,
+    });
+  }
+
+  @Post(':bookingId/cancel')
+  @HttpCode(HttpStatus.OK)
+  @CancelBookingDoc()
+  @RequireOwnership(CANCEL_BOOKING_OWNERSHIP)
+  async cancelBooking(
+    @Param('bookingId', UuidParamPipe) bookingId: string,
+    @Body() dto: CancelBookingDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<CanceledBookingDto> {
+    return this.bookingsService.cancelBooking({
+      bookingId,
+      reason: dto.reason,
+      userId: user.id,
     });
   }
 }
