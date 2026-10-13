@@ -416,3 +416,14 @@ export class MockPaymentResponseDto {
   @ApiProperty({ example: '2026-10-09T09:04:31.001Z' })
   paidAt!: string;
 }
+
+export class CanceledBookingDto {
+  @ApiProperty({ example: '3c54a0d6-e3f3-4a38-bd55-3b4011ee31ae' })
+  bookingId!: string;
+
+  @ApiProperty({ enum: BookingStatus, example: BookingStatus.CONFIRMED })
+  status!: BookingStatus;
+
+  @ApiProperty({ example: '2026-10-09T09:04:31.001Z' })
+  cancelAt!: string;
+}

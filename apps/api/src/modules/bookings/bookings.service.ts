@@ -21,6 +21,7 @@ import {
   BookingQuoteResponseDto,
   BookingResponseDto,
   BookingSlotStatus,
+  CanceledBookingDto,
   ConfirmBookingDto,
   CreateBookingDto,
   CreateMockPaymentDto,
@@ -163,6 +164,30 @@ const paymentAmountMismatch = (expected: Prisma.Decimal): BadRequestException =>
     error: 'Bad Request',
     message: 'amount does not match the amount recorded for this booking',
     statusCode: 400,
+  });
+
+const missingReason = (): BadRequestException =>
+  new BadRequestException({
+    code: 'REASON_MISSING',
+    error: 'Bad Request',
+    message: 'Reason cannot be empty!',
+    statusCode: 400,
+  });
+
+const bookingAlreadyCompleted = (): ConflictException =>
+  new ConflictException({
+    code: 'BOOKING_ALREADY_COMPLETED',
+    error: 'Conflict',
+    message: 'This booking is already completed',
+    statusCode: 409,
+  });
+
+const bookingExceedCancelRange = (): ConflictException =>
+  new ConflictException({
+    code: 'BOOKING_EXCEED_CANCEL_RANGE',
+    error: 'Conflict',
+    message: 'This booking is exceeding cancel range',
+    statusCode: 409,
   });
 
 const bookingListingSelect = {
@@ -805,6 +830,35 @@ export class BookingsService {
 
       throw error;
     }
+  }
+
+  async cancelBooking(input: {userId: string, bookingId: string, reason: string}): Promise<CanceledBookingDto> {
+    if(!input.reason) throw missingReason();
+
+    const result = await this.prisma.$transaction(async (tx) => {
+      const booking = await tx.booking.findUnique({ where: {id: input.bookingId}});
+      if(!booking) throw bookingNotFound();
+      if(booking.paymentStatus === PaymentStatus.PAID) throw bookingAlreadyPaid();
+      if(booking.status === BookingStatus.COMPLETED) throw bookingAlreadyCompleted();
+      if(booking.createdAt.getTime() - (new Date()).getTime() > 24*MILLISECONDS_PER_HOUR) throw bookingExceedCancelRange();
+
+      const canceledBooking = await tx.booking.update({
+        where: {
+          id: input.bookingId,
+        },
+        data: {
+          status: BookingStatus.CANCELED,
+          canceledAt: new Date(),
+          canceledById: input.userId,
+          cancellationReason: input.reason,
+          // slotId: '',
+        }
+      })
+
+      return {bookingId: canceledBooking.id, status: canceledBooking.status, cancelAt: canceledBooking.canceledAt?.toISOString() || (new Date()).toISOString()}
+    });
+
+    return result;
   }
 }
 
