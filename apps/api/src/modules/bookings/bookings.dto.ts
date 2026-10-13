@@ -436,5 +436,5 @@ export class CanceledBookingDto {
   status!: BookingStatus;
 
   @ApiProperty({ example: '2026-10-09T09:04:31.001Z' })
-  cancelAt!: string;
+  canceledAt!: string;
 }

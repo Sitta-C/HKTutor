@@ -325,7 +325,7 @@ describe('BookingsController', () => {
     const dto = { reason: 'Unable to attend' };
     const expected = {
       bookingId,
-      cancelAt: '2026-10-09T09:04:31.001Z',
+      canceledAt: '2026-10-09T09:04:31.001Z',
       status: BookingStatus.CANCELED,
     } as CanceledBookingDto;
     cancelBooking.mockResolvedValue(expected);
@@ -340,14 +340,24 @@ describe('BookingsController', () => {
     expect(result).toBe(expected);
   });
 
-  it('enforces booking ownership on booking cancellation', () => {
+  it('enforces booking ownership on booking cancellation and separates 403 from 404', () => {
     const handler = Object.getOwnPropertyDescriptor(BookingsController.prototype, 'cancelBooking')
       ?.value as object | undefined;
     const ownership = handler
       ? (Reflect.getMetadata(OWNERSHIP_KEY, handler) as OwnershipRule | undefined)
       : undefined;
 
-    expect(ownership).toEqual({ resource: 'booking', idParam: 'bookingId' });
+    expect(ownership).toEqual({
+      errors: {
+        foreignOwner: {
+          code: 'BOOKING_NOT_OWNED',
+          message: 'This booking belongs to another user',
+        },
+        missing: { code: 'BOOKING_NOT_FOUND', message: 'Booking not found' },
+      },
+      idParam: 'bookingId',
+      resource: 'booking',
+    });
   });
 });
 
@@ -663,14 +673,14 @@ describe('BookingsController OpenAPI contract', () => {
             allOf: [{ $ref: '#/components/schemas/CanceledBookingDto' }],
             example: {
               bookingId: '3c54a0d6-e3f3-4a38-bd55-3b4011ee31ae',
-              cancelAt: '2026-10-09T09:04:31.001Z',
+              canceledAt: '2026-10-09T09:04:31.001Z',
               status: 'CANCELED',
             },
           },
         },
       },
     });
-    for (const status of ['400', '401', '404', '409']) {
+    for (const status of ['400', '401', '403', '404', '409']) {
       expect(operation?.responses[status]).toBeDefined();
     }
     expect(operation?.security).toEqual([{ [JWT_BEARER_AUTH]: [] }]);

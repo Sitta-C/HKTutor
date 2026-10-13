@@ -770,7 +770,7 @@ export function CancelBookingDoc(): MethodDecorator {
       schema: {
         example: {
           bookingId: '3c54a0d6-e3f3-4a38-bd55-3b4011ee31ae',
-          cancelAt: '2026-10-09T09:04:31.001Z',
+          canceledAt: '2026-10-09T09:04:31.001Z',
           status: BookingStatus.CANCELED,
         },
         allOf: [{ $ref: getSchemaPath(CanceledBookingDto) }],
@@ -802,8 +802,20 @@ export function CancelBookingDoc(): MethodDecorator {
         type: 'object',
       },
     }),
+    ApiForbiddenResponse({
+      description: 'The authenticated user is not a participant in this booking',
+      schema: {
+        example: {
+          code: 'BOOKING_NOT_OWNED',
+          error: 'Forbidden',
+          message: 'This booking belongs to another user',
+          statusCode: 403,
+        },
+        type: 'object',
+      },
+    }),
     ApiNotFoundResponse({
-      description: 'No booking exists with this ID, or the booking belongs to another user',
+      description: 'No booking exists with this ID',
       schema: {
         example: {
           code: 'BOOKING_NOT_FOUND',
@@ -816,7 +828,8 @@ export function CancelBookingDoc(): MethodDecorator {
     }),
     ApiConflictResponse({
       description:
-        'The booking is already paid, already completed, already canceled, or exceeds the 24-hour cancel range',
+        'The booking is already paid, already in a final state (completed, canceled, or expired), ' +
+        'is inside the 24-hour cutoff before class start, or a concurrent update won the transition',
       schema: {
         example: {
           code: 'BOOKING_ALREADY_PAID',
