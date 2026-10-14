@@ -17,7 +17,9 @@ import {
 } from '@generated/prisma/enums';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import {
+  BookingClassDetailDto,
   BookingDetailResponseDto,
+  BookingMeetingLinkDto,
   BookingQuoteResponseDto,
   BookingResponseDto,
   BookingSlotStatus,
@@ -59,6 +61,10 @@ export type CreateMockPaymentInput = CreateMockPaymentDto & {
   bookingId: string;
   studentUserId: string;
 };
+export interface BookingMeetingLinkInput {
+  bookingId: string;
+  meetingUrl: string;
+}
 
 const MILLISECONDS_PER_HOUR = 60 * 60 * 1000;
 const BOOKING_CONFLICT_MESSAGE =
@@ -81,6 +87,17 @@ export const BOOKING_OWNERSHIP_ERRORS = {
  */
 export const STUDENT_BOOKING_OWNERSHIP_ERRORS = {
   foreignOwner: { code: 'BOOKING_NOT_OWNED', message: 'This booking belongs to another student' },
+  missing: { code: 'BOOKING_NOT_FOUND', message: 'Booking not found' },
+} as const;
+
+/**
+ * The class details route reports a foreign non-participant as 403 rather than the ownership-safe 404.
+ */
+export const CLASS_DETAIL_BOOKING_OWNERSHIP_ERRORS = {
+  foreignOwner: {
+    code: 'BOOKING_NOT_OWNED',
+    message: 'You are not a participant in this booking',
+  },
   missing: { code: 'BOOKING_NOT_FOUND', message: 'Booking not found' },
 } as const;
 
@@ -114,6 +131,14 @@ const bookingNotPending = (status: BookingStatus): ConflictException =>
     code: 'BOOKING_NOT_PENDING',
     error: 'Conflict',
     message: `Only a pending booking can be confirmed or rejected; this booking is ${status}`,
+    statusCode: 409,
+  });
+
+const bookingNotConfirmed = (status: BookingStatus): ConflictException =>
+  new ConflictException({
+    code: 'BOOKING_NOT_CONFIRMED',
+    error: 'Conflict',
+    message: `Only a confirmed booking can be updated meeting link; this booking is ${status}`,
     statusCode: 409,
   });
 
@@ -180,6 +205,14 @@ const paymentAmountMismatch = (expected: Prisma.Decimal): BadRequestException =>
     details: { expectedAmount: expected.toFixed(2) },
     error: 'Bad Request',
     message: 'amount does not match the amount recorded for this booking',
+    statusCode: 400,
+  });
+
+const invalidURLException = (): BadRequestException =>
+  new BadRequestException({
+    code: 'INVALID_URL',
+    error: 'Bad Request',
+    message: 'The given URL is invalid',
     statusCode: 400,
   });
 
@@ -502,7 +535,10 @@ export class BookingsService {
               subject: { select: { id: true, name: true } },
             },
           },
+          mockReference: true,
           netAmount: true,
+          paidAt: true,
+          paymentStatus: true,
           slot: { select: { endAtUtc: true, id: true, startAtUtc: true } },
           status: true,
           subtotalAmount: true,
@@ -530,7 +566,10 @@ export class BookingsService {
           subjectId: booking.listing.subject.id,
           subjectName: booking.listing.subject.name,
         },
+        mockReference: booking.mockReference,
         netAmount: booking.netAmount.toFixed(2),
+        paidAt: booking.paidAt?.toISOString() ?? null,
+        paymentStatus: booking.paymentStatus,
         slot: {
           endAtUtc: booking.slot.endAtUtc.toISOString(),
           id: booking.slot.id,
@@ -563,7 +602,10 @@ export class BookingsService {
             subject: { select: { id: true, name: true } },
           },
         },
+        mockReference: true,
         netAmount: true,
+        paidAt: true,
+        paymentStatus: true,
         slot: { select: { endAtUtc: true, id: true, startAtUtc: true } },
         status: true,
         subtotalAmount: true,
@@ -591,7 +633,10 @@ export class BookingsService {
         subjectId: booking.listing.subject.id,
         subjectName: booking.listing.subject.name,
       },
+      mockReference: booking.mockReference,
       netAmount: booking.netAmount.toFixed(2),
+      paidAt: booking.paidAt?.toISOString() ?? null,
+      paymentStatus: booking.paymentStatus,
       slot: {
         endAtUtc: booking.slot.endAtUtc.toISOString(),
         id: booking.slot.id,
@@ -865,6 +910,93 @@ export class BookingsService {
     }
   }
 
+  //Meeting
+  async updateMeetingLink(input: BookingMeetingLinkInput): Promise<BookingMeetingLinkDto> {
+    if (!isValidMeetingUrl(input.meetingUrl)) throw invalidURLException();
+    const booking = await this.prisma.booking.findFirst({
+      select: { id: true, status: true },
+      where: { id: input.bookingId },
+    });
+    if (!booking) throw bookingNotFound();
+    if (booking.status !== BookingStatus.CONFIRMED) throw bookingNotConfirmed(booking.status);
+
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        const transition = await tx.booking.updateMany({
+          data: { meetingUrl: input.meetingUrl },
+          where: {
+            id: input.bookingId,
+            status: BookingStatus.CONFIRMED,
+          },
+        });
+
+        if (transition.count !== 1) {
+          throw bookingTransitionConflict();
+        }
+
+        const responseBooking = await tx.booking.findUniqueOrThrow({
+          select: { id: true, meetingUrl: true, updatedAt: true },
+          where: { id: input.bookingId },
+        });
+
+        const response = new BookingMeetingLinkDto();
+        response.bookingId = responseBooking.id;
+        response.meetingUrl = responseBooking.meetingUrl;
+        response.updatedAt = responseBooking.updatedAt.toISOString();
+        return response;
+      });
+    } catch (error) {
+      if (isDatabaseConflict(error)) {
+        this.logger.warn(
+          `Rejecting meeting link update for ${input.bookingId}: database reported a conflict`,
+        );
+        throw bookingTransitionConflict();
+      }
+
+      throw error;
+    }
+  }
+
+  async getBookingClassDetail(bookingId: string): Promise<BookingClassDetailDto> {
+    const booking = await this.prisma.booking.findFirst({
+      where: { id: bookingId },
+      include: { slot: true, tutorProfile: true },
+    });
+    if (!booking) throw bookingNotFound();
+    if (booking.status !== BookingStatus.CONFIRMED) throw bookingNotConfirmed(booking.status);
+    let studentProfile;
+    if (booking?.studentUserId) {
+      studentProfile = await this.prisma.studentProfile.findFirst({
+        where: { userId: booking.studentUserId },
+      });
+    }
+    if (!studentProfile) throw new BadRequestException();
+    const response = new BookingClassDetailDto();
+    response.bookingId = booking.id;
+    response.status = booking.status;
+    response.startAt = booking.slot.startAtUtc.toISOString();
+    response.endAt = booking.slot.endAtUtc.toISOString();
+    response.meetingUrl = booking.meetingUrl;
+    response.attendance = booking.attendance;
+    response.participants = {
+      tutor: {
+        id: booking.tutorProfileId,
+        detail: {
+          firstName: booking.tutorProfile.firstName || '',
+          lastName: booking.tutorProfile.lastName || '',
+          nickname: booking.tutorProfile.nickname || '',
+          displayName: booking.tutorProfile.displayName,
+          bio: booking.tutorProfile.bio,
+          experienceYears: booking.tutorProfile.experienceYears,
+        },
+      },
+      student: {
+        id: booking.studentUserId,
+        detail: studentProfile,
+      },
+    };
+    return response;
+  }
   async cancelBooking(input: {
     bookingId: string;
     reason: string;
@@ -1035,4 +1167,21 @@ function deriveBookingAmounts(
     netAmount: subtotalAmount.minus(discountAmount),
     subtotalAmount,
   };
+}
+
+const HTTPS_MEETING_URL_PATTERN = /^https:\/\/[^\s/?#]+([/?#].*)?$/i;
+
+function isValidMeetingUrl(urlString: string): boolean {
+  if (typeof urlString !== 'string' || urlString !== urlString.trim()) {
+    return false;
+  }
+  if (!HTTPS_MEETING_URL_PATTERN.test(urlString)) {
+    return false;
+  }
+  try {
+    const url = new URL(urlString);
+    return url.protocol === 'https:' && url.hostname.length > 0;
+  } catch {
+    return false;
+  }
 }

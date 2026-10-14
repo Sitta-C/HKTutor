@@ -553,6 +553,16 @@ Two decisions worth stating, because the cards differ or the order is observable
   `BOOKING_NOT_PAYABLE` even when the amount is also wrong, because an unconfirmed booking cannot be
   paid at any amount.
 
+The student reads carry the recorded payment so a client never has to replay the POST to learn it:
+`GET /api/v1/bookings/me` and `GET /api/v1/bookings/me/:bookingId` both return `paymentStatus`,
+`paidAt` and `mockReference`. `paidAt` and `mockReference` are present and `null` while the booking
+is unpaid, so a client branches on the value rather than on the key being absent. The tutor list
+deliberately omits them: no card asks a tutor to see a student's payment reference, and the reads
+select only the columns they return.
+
+The field is `mockReference` here, matching the column, while the POST response calls the same value
+`reference`; the POST answers about one payment, where the shorter name is unambiguous.
+
 ## Private availability range queries
 
 `GET /api/v1/tutors/me/availability` accepts optional UTC `from` and `to` bounds. By default it
