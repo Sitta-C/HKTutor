@@ -1049,16 +1049,20 @@ export function UpdateAttendanceDoc(): MethodDecorator {
     ApiOperation({
       summary:
         "Update the attendance for one of the authenticated tutor's confirmed or completed bookings",
+      description:
+        'Record ATTENDED or ABSENT when the class end time is at or before now. The first write completes the booking atomically. A same-value replay returns the saved timestamp without writing; a different value returns 409.',
     }),
     ApiBearerAuth(JWT_BEARER_AUTH),
     ApiBody({ required: true, type: UpdateAttendanceDto }),
     ApiOkResponse({
-      description: 'The booking class attendance was recorded and the booking completed',
+      description:
+        'Attendance recorded with idempotentReplay=false, or the saved record returned with idempotentReplay=true',
       schema: {
         example: {
           attendance: AttendanceStatus.ATTENDED,
           attendanceMarkedAt: '2026-10-09T09:04:31.001Z',
           bookingId: '3c54a0d6-e3f3-4a38-bd55-3b4011ee31ae',
+          idempotentReplay: false,
           status: BookingStatus.COMPLETED,
         },
         allOf: [{ $ref: getSchemaPath(ClassAttendanceResponseDto) }],
@@ -1116,7 +1120,7 @@ export function UpdateAttendanceDoc(): MethodDecorator {
     }),
     ApiConflictResponse({
       description:
-        'The booking is neither confirmed nor completed, the class has not ended yet, attendance is already recorded with a different value, or a concurrent transition modified the booking',
+        'The booking is neither confirmed nor a completed replay, the class has not ended, attendance was recorded with a different value (ATTENDANCE_ALREADY_RECORDED), or a concurrent transition changed its eligibility',
       schema: {
         example: {
           code: 'CLASS_NOT_ENDED',

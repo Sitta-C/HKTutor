@@ -579,6 +579,12 @@ export class ClassAttendanceResponseDto {
   @ApiProperty({ example: '2026-10-09T09:04:31.001Z' })
   attendanceMarkedAt!: string;
 
+  @ApiProperty({
+    description: 'True when the saved attendance is returned without a new write.',
+    example: false,
+  })
+  idempotentReplay!: boolean;
+
   @ApiProperty({ enum: BookingStatus, example: BookingStatus.COMPLETED })
   status!: BookingStatus;
 }

@@ -10,7 +10,6 @@ import {
 import { Prisma } from '@generated/prisma/client';
 import {
   AccountStatus,
-  AttendanceStatus,
   BookingStatus,
   ListingPublicationStatus,
   PaymentStatus,
@@ -45,6 +44,8 @@ import {
   isPublicTutorVerificationStatus,
   publicTutorWhere,
 } from '@modules/tutors/public-tutor-access';
+
+import type { AttendanceStatus } from '@generated/prisma/enums';
 
 export type CreateBookingInput = CreateBookingDto & { studentUserId: string };
 export type GetBookingQuoteInput = GetBookingQuoteQueryDto & { studentUserId: string };
@@ -282,6 +283,39 @@ const classNotEnded = (): ConflictException =>
     message: 'Only ended class to be updated the attendance',
     statusCode: 409,
   });
+
+const attendanceRecordSelect = {
+  attendance: true,
+  attendanceMarkedAt: true,
+  id: true,
+  status: true,
+} as const satisfies Prisma.BookingSelect;
+
+type AttendanceRecord = Prisma.BookingGetPayload<{ select: typeof attendanceRecordSelect }>;
+
+function attendanceResponse(
+  booking: AttendanceRecord,
+  requestedAttendance: AttendanceStatus,
+  idempotentReplay: boolean,
+): ClassAttendanceResponseDto {
+  if (
+    booking.status !== BookingStatus.COMPLETED ||
+    booking.attendance === null ||
+    booking.attendanceMarkedAt === null
+  ) {
+    throw bookingTransitionConflict();
+  }
+  if (booking.attendance !== requestedAttendance) {
+    throw attendanceAlreadyRecorded(booking.attendance);
+  }
+  return {
+    attendance: booking.attendance,
+    attendanceMarkedAt: booking.attendanceMarkedAt.toISOString(),
+    bookingId: booking.id,
+    idempotentReplay,
+    status: booking.status,
+  };
+}
 
 const bookingListingSelect = {
   deletedAt: true,
@@ -1122,32 +1156,28 @@ export class BookingsService {
           where: { id: input.bookingId },
         });
 
-        if (!booking) throw bookingNotFound();
-        if (booking.tutorProfileId !== input.tutorId) throw bookingNotOwned();
+        if (!booking) {
+          throw bookingNotFound();
+        }
+        if (booking.tutorProfileId !== input.tutorId) {
+          throw bookingNotOwned();
+        }
         if (
           booking.status !== BookingStatus.CONFIRMED &&
           booking.status !== BookingStatus.COMPLETED
         ) {
           throw bookingNotConfirmedOrCompleted(booking.status);
         }
-        if (!booking.slot.endAtUtc || booking.slot.endAtUtc > new Date()) throw classNotEnded();
-
-        if (
-          booking.attendance === AttendanceStatus.ATTENDED ||
-          booking.attendance === AttendanceStatus.ABSENT
-        ) {
-          if (booking.attendance === input.attendance) {
-            return {
-              attendance: booking.attendance,
-              attendanceMarkedAt: (booking.attendanceMarkedAt ?? new Date()).toISOString(),
-              bookingId: booking.id,
-              status: booking.status,
-            };
-          }
-          throw attendanceAlreadyRecorded(booking.attendance);
+        const attendanceMarkedAtUtc = new Date();
+        if (!booking.slot.endAtUtc || booking.slot.endAtUtc > attendanceMarkedAtUtc) {
+          throw classNotEnded();
+        }
+        if (booking.status === BookingStatus.COMPLETED) {
+          return attendanceResponse(booking, input.attendance, true);
         }
 
-        const attendanceMarkedAtUtc = new Date();
+        // Only the first recording can win. PostgreSQL rechecks the predicate after a competing
+        // update commits, so a loser reads the saved value to distinguish replay from conflict.
         const transition = await tx.booking.updateMany({
           data: {
             attendance: input.attendance,
@@ -1156,7 +1186,9 @@ export class BookingsService {
           },
           where: {
             attendance: null,
+            attendanceMarkedAt: null,
             id: input.bookingId,
+            slot: { endAtUtc: { lte: attendanceMarkedAtUtc } },
             status: BookingStatus.CONFIRMED,
             tutorProfileId: input.tutorId,
           },
@@ -1164,46 +1196,22 @@ export class BookingsService {
 
         if (transition.count !== 1) {
           const current = await tx.booking.findUnique({
-            select: {
-              attendance: true,
-              attendanceMarkedAt: true,
-              id: true,
-              status: true,
-            },
+            select: attendanceRecordSelect,
             where: { id: input.bookingId },
           });
 
-          if (
-            current?.attendance === AttendanceStatus.ATTENDED ||
-            current?.attendance === AttendanceStatus.ABSENT
-          ) {
-            if (current.attendance === input.attendance) {
-              return {
-                attendance: current.attendance,
-                attendanceMarkedAt: (
-                  current.attendanceMarkedAt ?? attendanceMarkedAtUtc
-                ).toISOString(),
-                bookingId: current.id,
-                status: current.status,
-              };
-            }
-            throw attendanceAlreadyRecorded(current.attendance);
+          if (!current) {
+            throw bookingTransitionConflict();
           }
-
-          throw bookingTransitionConflict();
+          return attendanceResponse(current, input.attendance, true);
         }
 
         const updated = await tx.booking.findUniqueOrThrow({
-          select: { attendance: true, attendanceMarkedAt: true, id: true, status: true },
+          select: attendanceRecordSelect,
           where: { id: input.bookingId },
         });
 
-        return {
-          attendance: updated.attendance ?? input.attendance,
-          attendanceMarkedAt: (updated.attendanceMarkedAt ?? attendanceMarkedAtUtc).toISOString(),
-          bookingId: updated.id,
-          status: updated.status,
-        };
+        return attendanceResponse(updated, input.attendance, false);
       });
     } catch (error) {
       if (isDatabaseConflict(error)) {

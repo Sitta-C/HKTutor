@@ -455,7 +455,13 @@ describe('BookingsController', () => {
     };
     const bookingId = '3c54a0d6-e3f3-4a38-bd55-3b4011ee31ae';
     const dto = { attendance: AttendanceStatus.ATTENDED };
-    const expected = {} as ClassAttendanceResponseDto;
+    const expected: ClassAttendanceResponseDto = {
+      attendance: AttendanceStatus.ATTENDED,
+      attendanceMarkedAt: '2026-10-14T11:00:00.000Z',
+      bookingId,
+      idempotentReplay: false,
+      status: BookingStatus.COMPLETED,
+    };
     updateAttendance.mockResolvedValue(expected);
 
     const result = await controller.updateAttendance(bookingId, dto, user);
@@ -859,6 +865,7 @@ describe('BookingsController OpenAPI contract', () => {
               attendance: AttendanceStatus.ATTENDED,
               attendanceMarkedAt: '2026-10-09T09:04:31.001Z',
               bookingId: '3c54a0d6-e3f3-4a38-bd55-3b4011ee31ae',
+              idempotentReplay: false,
               status: BookingStatus.COMPLETED,
             },
           },
@@ -873,5 +880,9 @@ describe('BookingsController OpenAPI contract', () => {
     const schema = document.components?.schemas?.['UpdateAttendanceDto'] as
       { properties?: Record<string, unknown>; required?: string[] } | undefined;
     expect(Object.keys(schema?.properties ?? {}).sort()).toEqual(['attendance']);
+    expect(document.components?.schemas?.['ClassAttendanceResponseDto']).toMatchObject({
+      properties: { idempotentReplay: { type: 'boolean' } },
+      required: expect.arrayContaining(['idempotentReplay']) as unknown,
+    });
   });
 });
