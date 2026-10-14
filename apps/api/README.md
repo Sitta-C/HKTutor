@@ -563,6 +563,38 @@ select only the columns they return.
 The field is `mockReference` here, matching the column, while the POST response calls the same value
 `reference`; the POST answers about one payment, where the shorter name is unambiguous.
 
+## Class attendance API (S2-T35)
+
+`PUT /api/v1/bookings/tutor/:bookingId/attendance` accepts only
+`{attendance:"ATTENDED"|"ABSENT"}`. JWT authentication, tutor role and booking ownership are
+required. Unknown body fields and invalid UUIDs/attendance values return 400; missing/invalid
+authentication returns 401, another role/tutor returns 403, and a missing booking returns 404.
+
+The class end time must be at or before now. A first write requires a `CONFIRMED` booking with no
+attendance record and atomically saves attendance, `attendanceMarkedAt` and `COMPLETED` status.
+The 200 response is `{bookingId,attendance,attendanceMarkedAt,status:"COMPLETED",idempotentReplay}`
+with a UTC ISO 8601 timestamp. `idempotentReplay` is false for the first write; a same-value retry
+returns the original record and timestamp with true and performs no second write. A different-value
+retry returns 409 `ATTENDANCE_ALREADY_RECORDED`. Pending/canceled/expired bookings, future classes
+and completed bookings without a saved record return 409 without mutation.
+
+The conditional database update requires `CONFIRMED`, null attendance fields and an ended slot.
+When another recording wins, the losing request reads the saved record in the same transaction:
+the same value is a replay, a different value is a conflict. Persistence failures roll back the
+whole transaction. No schema migration or new configuration is needed.
+
+Verification:
+
+```bash
+pnpm --filter @hktutor/api test --runInBand bookings
+pnpm --filter @hktutor/api test:e2e --runInBand bookings-attendance
+```
+
+Unit tests cover the inclusive end-time boundary, replay/conflict and losing conditional updates.
+The HTTP suite exercises real validation, authentication, role/ownership guards and service logic
+with isolated persistence, including post-write failure rollback. These tests do not certify
+PostgreSQL concurrency against a live database.
+
 ## Private availability range queries
 
 `GET /api/v1/tutors/me/availability` accepts optional UTC `from` and `to` bounds. By default it
