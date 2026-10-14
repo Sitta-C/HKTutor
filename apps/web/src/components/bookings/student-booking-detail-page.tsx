@@ -11,6 +11,7 @@ import {
 } from '@/components/bookings/booking-docket';
 import { bookingRequestCopy } from '@/components/bookings/booking-request-copy';
 import { getBookingErrorMessage } from '@/components/bookings/booking-ui';
+import { MockPaymentPanel } from '@/components/bookings/mock-payment-panel';
 import { studentBookingsCopy } from '@/components/bookings/student-bookings-copy';
 import { DashboardIcon } from '@/components/dashboard/dashboard-icon';
 import { NotebookHeading, PaperCard } from '@/components/ui/notebook';
@@ -101,15 +102,23 @@ export default function StudentBookingDetailPage({ bookingId }: { bookingId: str
                     ? pageText.confirmedNotice
                     : pageText.otherNotice}
               </p>
-              <div className={styles.detailAmounts}>
-                <BookingDocketAmounts amounts={booking} text={text} />
-              </div>
-              <div className={styles.detailTotal}>
-                <BookingDocketTotal
-                  amount={booking.netAmount}
-                  currency={booking.currency}
-                  label={pageText.amount}
-                />
+
+              <div className={styles.paymentColumns}>
+                <div className={styles.amountColumn}>
+                  <div className={styles.detailAmounts}>
+                    <BookingDocketAmounts amounts={booking} text={text} />
+                  </div>
+
+                  <div className={styles.detailTotal}>
+                    <BookingDocketTotal
+                      amount={booking.netAmount}
+                      currency={booking.currency}
+                      label={pageText.amount}
+                    />
+                  </div>
+                </div>
+
+                <MockPaymentPanel key={booking.id} booking={booking} onBookingChange={setBooking} />
               </div>
             </div>
           </>

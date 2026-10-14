@@ -271,7 +271,8 @@ The user selected **Margin Index** and requested implementation on 2026-10-07 fo
   Use warm amber for pending, green for confirmed, stone for completed and muted red for canceled/expired.
   The opt-in tag appearance leaves the request docket's default badge intact. Keep the
   dashboard's existing `BookingStatusBadge` unchanged. Role selection and business status remain
-  distinct; no payment, cancellation, rescheduling, attendance, meeting or chat controls are added.
+  distinct. S2-T05 adds the Payment Slip below; cancellation, rescheduling, attendance, meeting and
+  chat controls remain outside this detail flow.
 - Heading counts describe the selected server status only. Counts remain unavailable during loading,
   retries, filter/page changes and errors; zero appears only after a successful empty response.
   The sidebar uses the global student booking total, independent of the selected status count. Loading/error/empty/detail-not-found content retains the shell and paper.
@@ -371,6 +372,22 @@ student/tutor button review and three-direction preview.
   at least 46px targets. Search View times labels stay on one line with a content-sized action
   column; other actions wrap labels inside narrow containers. No API, payload, permissions,
   data, pricing, scheduling or publication-rule changes belong to this update.
+
+## Student mock payment — Payment Slip (S2-T05)
+
+The student booking detail extends Margin Index with **Payment Slip**: retain the existing course,
+time band and persisted amount breakdown, then place the mint Ink Tickets payment form beside the
+amounts across a dashed seam. Stack below 600px. Keep the demonstration notice in the form and
+receipt, and show a separate paid/unpaid tag in student booking rows. Booking status remains distinct.
+
+Use the PR #98 student read fields and S2-T04 POST. Show the stored amount without an editable price;
+accept a trimmed demo reference and show the recorded reference and Bangkok payment time after
+success. Pending and other non-payable bookings show their localized explanation. Keep bilingual
+inline errors, NotebookToast feedback, focus restoration, disabled sending states and a synchronous
+submission gate. Uncertain results and amount/state/ownership conflicts require a successful explicit
+refresh before another POST; failed refreshes preserve the lock and reference. Keep all state in
+memory and show paid only from an actual API response. No card, bank or real-gateway fields belong
+to this flow.
 
 ## Profile photo editor
 

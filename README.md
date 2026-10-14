@@ -48,6 +48,13 @@ works the booking inbox and confirms or rejects one pending request at a time. A
 rendered only from the status the API returns, and a 403, 404, or 409 answer locks that row behind a
 refresh so the inbox never shows an optimistic status the server did not persist.
 
+Students see paid/unpaid status on booking rows and can record a mock payment from a confirmed,
+unpaid booking's detail page. The form sends the stored net amount and a unique demo reference,
+then displays only the payment returned by the API. Reloads read the persisted status, reference,
+and Bangkok-time payment timestamp. A stale amount, state conflict or uncertain network result
+requires a successful status refresh before another submission. This is a demonstration flow;
+no card/bank fields or real payment gateway are included.
+
 See [frontend direction](ui-design/frontend-direction.md) for the Notebook Focus patterns and
 [implemented frontend behavior](ui-design/implemented-behavior.md) for interaction, loading,
 responsive layout, and accessibility details.

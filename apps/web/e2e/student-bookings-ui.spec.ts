@@ -441,7 +441,12 @@ for (const status of statuses) {
     await expect(page.locator('main')).toContainText('Verification information unavailable');
     await expect(page.locator('main')).toContainText('730.00');
     await expect(page.locator('main')).not.toContainText('999.00');
-    await expect(page.locator('main')).not.toContainText('paid');
+    await expect(page.getByRole('region', { name: 'Mock payment', exact: true })).toContainText(
+      'Unpaid',
+    );
+    await expect(
+      page.getByRole('button', { name: 'Record mock payment', exact: true }),
+    ).toHaveCount(status === 'CONFIRMED' ? 1 : 0);
     if (status !== 'PENDING')
       await expect(page.locator('main')).not.toContainText('Wait for the tutor');
   });
