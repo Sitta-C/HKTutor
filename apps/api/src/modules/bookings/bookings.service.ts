@@ -266,6 +266,14 @@ const bookingExceedCancelRange = (): ConflictException =>
     statusCode: 409,
   });
 
+const classNotEnded = (): ConflictException =>
+  new ConflictException({
+    code: 'CLASS_NOT_ENDED',
+    error: 'Conflict',
+    message: 'Only ended class to be updated the attendance',
+    statusCode: 409,
+  });
+
 const bookingListingSelect = {
   deletedAt: true,
   description: true,
@@ -1094,6 +1102,11 @@ export class BookingsService {
             id: true,
             tutorProfileId: true,
             status: true,
+            slot: {
+              select: {
+                endAtUtc: true,
+              }
+            },
           },
           where: { id: input.bookingId },
         });
@@ -1105,6 +1118,7 @@ export class BookingsService {
           booking.status !== BookingStatus.COMPLETED
         )
           throw bookingNotConfirmedOrCompleted(booking.status);
+        if (!booking.slot.endAtUtc || booking.slot.endAtUtc > (new Date())) throw classNotEnded();
 
         const transition = await tx.booking.updateMany({
           data: {
