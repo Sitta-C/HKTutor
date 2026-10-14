@@ -24,6 +24,8 @@ import {
   BookingResponseDto,
   BookingSlotStatus,
   CanceledBookingDto,
+  ClassAttendanceRequestDto,
+  ClassAttendanceResponseDto,
   ConfirmBookingDto,
   CreateBookingDto,
   CreateMockPaymentDto,
@@ -139,6 +141,14 @@ const bookingNotConfirmed = (status: BookingStatus): ConflictException =>
     code: 'BOOKING_NOT_CONFIRMED',
     error: 'Conflict',
     message: `Only a confirmed booking can be updated meeting link; this booking is ${status}`,
+    statusCode: 409,
+  });
+
+const bookingNotConfirmedOrCompleted = (status: BookingStatus): ConflictException =>
+  new ConflictException({
+    code: 'BOOKING_NOT_CONFIRMED_OR_COMPLETED',
+    error: 'Conflict',
+    message: `Only a confirmed or completed booking can be updated attendance; this booking is ${status}`,
     statusCode: 409,
   });
 
@@ -997,6 +1007,7 @@ export class BookingsService {
     };
     return response;
   }
+
   async cancelBooking(input: {
     bookingId: string;
     reason: string;
@@ -1063,6 +1074,63 @@ export class BookingsService {
           status: updated.status,
         };
       });
+    } catch (error) {
+      if (isDatabaseConflict(error)) {
+        this.logger.warn(
+          `Rejecting booking cancellation for ${input.bookingId}: database reported a conflict`,
+        );
+        throw bookingTransitionConflict();
+      }
+
+      throw error;
+    }
+  }
+
+  async updateAttendance(input: ClassAttendanceRequestDto): Promise<ClassAttendanceResponseDto> {
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        const booking = await tx.booking.findUnique({
+          select: {
+            id: true,
+            tutorProfileId: true,
+            status: true,
+          },
+          where: { id: input.bookingId },
+        })
+
+        if (!booking) throw bookingNotFound();
+        if (booking.tutorProfileId !== input.tutorId) throw bookingNotOwned();
+        if (booking.status !== BookingStatus.CONFIRMED && booking.status !== BookingStatus.COMPLETED) throw bookingNotConfirmedOrCompleted(booking.status);
+
+        const transition = await tx.booking.updateMany({
+          data: {
+            attendance: input.attendance,
+            attendanceMarkedAt: (new Date()).toISOString(),
+            status: BookingStatus.COMPLETED,
+          },
+          where: {
+            id: input.bookingId,
+            tutorProfileId: input.tutorId,
+            status: { in: [BookingStatus.CONFIRMED, BookingStatus.COMPLETED] },
+          },
+        });
+
+        if (transition.count !== 1) {
+          throw bookingTransitionConflict();
+        }
+
+        const updated = await tx.booking.findUniqueOrThrow({
+          select: { id: true, attendance: true, attendanceMarkedAt: true, status: true },
+          where: { id: input.bookingId },
+        });
+
+        return {
+          bookingId: updated.id,
+          attendance: updated.attendance || input.attendance,
+          attendanceMarkedAt: updated.attendanceMarkedAt?.toISOString() || (new Date()).toISOString(),
+          status: updated.status,
+        };
+      })
     } catch (error) {
       if (isDatabaseConflict(error)) {
         this.logger.warn(

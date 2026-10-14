@@ -12,7 +12,7 @@ import {
 } from '@nestjs/common';
 
 import { UuidParamPipe } from '@common/pipes/uuid-param.pipe';
-import { Role } from '@generated/prisma/client';
+import { AttendanceStatus, Role } from '@generated/prisma/client';
 import { CurrentUser } from '@modules/auth/auth.decorator';
 import { JwtAuthGuard } from '@modules/auth/auth.guard';
 import { RequireOwnership } from '@modules/auth/ownership.decorator';
@@ -27,6 +27,7 @@ import {
   BookingResponseDto,
   CancelBookingDto,
   CanceledBookingDto,
+  ClassAttendanceResponseDto,
   ConfirmBookingDto,
   CreateBookingDto,
   CreateMockPaymentDto,
@@ -247,6 +248,7 @@ export class BookingsController {
   ): Promise<BookingClassDetailDto> {
     return this.bookingsService.getBookingClassDetail(bookingId);
   }
+
   @Post(':bookingId/cancel')
   @HttpCode(HttpStatus.OK)
   @CancelBookingDoc()
@@ -260,6 +262,22 @@ export class BookingsController {
       bookingId,
       reason: dto.reason,
       userId: user.id,
+    });
+  }
+
+  @Put('/tutor/:bookingId/attendance')
+  @HttpCode(HttpStatus.OK)
+  @Roles(Role.TUTOR)
+  @RequireOwnership(TUTOR_BOOKING_ACTION_OWNERSHIP)
+  async updateAttendance(
+    @Param('bookingId', UuidParamPipe) bookingId: string,
+    @Body() dto: {attendance: AttendanceStatus},
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<ClassAttendanceResponseDto> {
+    return this.bookingsService.updateAttendance({
+      bookingId: bookingId,
+      tutorId: user.id,
+      attendance: dto.attendance,
     });
   }
 }
