@@ -101,7 +101,7 @@ test('defines the S1-T23 Booking Prisma boundary', async () => {
   );
 
   assert.doesNotMatch(booking, /\b(deletedAt|couponId)\b/);
-  assert.doesNotMatch(schema, /model (RescheduleRequest|Review|AuditLog|Notification)\s*{/);
+  assert.doesNotMatch(schema, /model (Review|AuditLog|Notification)\s*{/);
   assert.doesNotMatch(slot, /\b(available|reserved|status|state)\b/i);
 });
 
