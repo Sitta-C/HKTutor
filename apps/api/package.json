@@ -33,7 +33,8 @@
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "typecheck:scripts": "tsc -p scripts/tsconfig.json",
     "storage:recover": "ts-node -r tsconfig-paths/register scripts/recover-storage-cleanup.ts",
-    "db:verify:avatars": "ts-node -r tsconfig-paths/register scripts/verify-avatar-concurrency.ts"
+    "db:verify:avatars": "ts-node -r tsconfig-paths/register scripts/verify-avatar-concurrency.ts",
+    "db:verify:tutor-verification": "ts-node -r tsconfig-paths/register scripts/verify-tutor-verification-visibility.ts"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",
