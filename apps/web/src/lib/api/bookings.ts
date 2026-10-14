@@ -8,6 +8,8 @@ import type {
   BookingResponse,
   ConfirmTutorBookingPayload,
   CreateBookingPayload,
+  MockPaymentPayload,
+  MockPaymentResult,
   MyBookingsQuery,
   MyBookingsResponse,
   RejectTutorBookingPayload,
@@ -58,6 +60,19 @@ export function getMyBookings(queryInput: MyBookingsQuery = {}): Promise<MyBooki
 
 export function getMyBooking(bookingId: string): Promise<BookingDetail> {
   return authenticatedFetch<BookingDetail>(`/bookings/me/${encodeURIComponent(bookingId)}`);
+}
+
+export function createMockPayment(
+  bookingId: string,
+  payload: MockPaymentPayload,
+): Promise<MockPaymentResult> {
+  return authenticatedFetch<MockPaymentResult>(
+    `/bookings/me/${encodeURIComponent(bookingId)}/mock-payment`,
+    {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    },
+  );
 }
 
 export function getTutorBookings(

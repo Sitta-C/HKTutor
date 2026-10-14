@@ -34,6 +34,9 @@ function booking(
     discountAmount: '0.00',
     netAmount: '450.00',
     currency: 'THB',
+    paymentStatus: 'UNPAID',
+    paidAt: null,
+    mockReference: null,
     createdAt: '2026-10-01T00:00:00Z',
   };
 }

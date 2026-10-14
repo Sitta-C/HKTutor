@@ -26,6 +26,9 @@ const base: BookingDetail = {
   discountAmount: '5.00',
   netAmount: '730.00',
   currency: 'THB',
+  paymentStatus: 'UNPAID',
+  paidAt: null,
+  mockReference: null,
   createdAt: '2026-10-07T07:20:00Z',
   updatedAt: '2026-10-07T07:20:00Z',
 };
