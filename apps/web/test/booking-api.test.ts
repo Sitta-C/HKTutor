@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
+  cancelBooking,
   confirmTutorBooking,
   createBooking,
   createBookingOnce,
@@ -63,6 +64,24 @@ describe('student booking API clients', () => {
     expect(fetchMock).toHaveBeenCalledWith(
       '/api/v1/bookings/quote?listingId=listing-id&slotId=slot-id',
       expect.objectContaining({ credentials: 'include' }),
+    );
+  });
+
+  it('cancels through the participant endpoint with an encoded ID and trimmed reason only', async () => {
+    const result = {
+      bookingId: 'booking/id',
+      status: 'CANCELED',
+      canceledAt: '2026-10-14T03:00:00Z',
+    };
+    fetchMock.mockResolvedValueOnce(jsonResponse(result));
+    await expect(cancelBooking('booking/id', '  Schedule conflict  ')).resolves.toEqual(result);
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/v1/bookings/booking%2Fid/cancel',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({ reason: 'Schedule conflict' }),
+        credentials: 'include',
+      }),
     );
   });
 
