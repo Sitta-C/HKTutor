@@ -3,7 +3,7 @@ import { Test } from '@nestjs/testing';
 
 import { API_GLOBAL_PREFIX } from '@app/app.setup';
 import { Role } from '@generated/prisma/client';
-import { BookingStatus } from '@generated/prisma/enums';
+import { AttendanceStatus, BookingStatus } from '@generated/prisma/enums';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import { JWT_BEARER_AUTH } from '@modules/auth/auth.swagger';
 import { OWNERSHIP_KEY } from '@modules/auth/ownership.decorator';
@@ -19,6 +19,7 @@ import type {
   BookingQuoteResponseDto,
   BookingResponseDto,
   CanceledBookingDto,
+  ClassAttendanceResponseDto,
   MockPaymentResponseDto,
   MyBookingsResponseDto,
   TutorBookingActionResponseDto,
@@ -441,6 +442,57 @@ describe('BookingsController', () => {
       resource: 'booking',
     });
   });
+
+  it('delegates updateAttendance to the bookings service', async () => {
+    const updateAttendance = jest.fn();
+    const bookingsService = { updateAttendance } as unknown as BookingsService;
+    const controller = new BookingsController(bookingsService);
+    const user: AuthenticatedUser = {
+      email: 'tutor@example.com',
+      id: 'ad08a291-dd8b-40c1-84e5-ddafca54c6fc',
+      role: Role.TUTOR,
+      sessionId: 'session-1',
+    };
+    const bookingId = '3c54a0d6-e3f3-4a38-bd55-3b4011ee31ae';
+    const dto = { attendance: AttendanceStatus.ATTENDED };
+    const expected = {} as ClassAttendanceResponseDto;
+    updateAttendance.mockResolvedValue(expected);
+
+    const result = await controller.updateAttendance(bookingId, dto, user);
+
+    expect(updateAttendance).toHaveBeenCalledWith({
+      attendance: AttendanceStatus.ATTENDED,
+      bookingId,
+      tutorId: user.id,
+    });
+    expect(result).toBe(expected);
+  });
+
+  it('restricts updateAttendance to tutors and enforces tutor booking action ownership', () => {
+    const handler = Object.getOwnPropertyDescriptor(
+      BookingsController.prototype,
+      'updateAttendance',
+    )?.value as object | undefined;
+    const roles = handler
+      ? (Reflect.getMetadata(ROLES_KEY, handler) as Role[] | undefined)
+      : undefined;
+    const ownership = handler
+      ? (Reflect.getMetadata(OWNERSHIP_KEY, handler) as OwnershipRule | undefined)
+      : undefined;
+
+    expect(roles).toEqual([Role.TUTOR]);
+    expect(ownership).toEqual({
+      errors: {
+        foreignOwner: {
+          code: 'BOOKING_NOT_OWNED',
+          message: 'This booking belongs to another tutor',
+        },
+        missing: { code: 'BOOKING_NOT_FOUND', message: 'Booking not found' },
+      },
+      idParam: 'bookingId',
+      resource: 'booking',
+    });
+  });
 });
 
 describe('BookingsController OpenAPI contract', () => {
@@ -789,5 +841,37 @@ describe('BookingsController OpenAPI contract', () => {
       expect(operation?.responses[status]).toBeDefined();
     }
     expect(operation?.security).toEqual([{ [JWT_BEARER_AUTH]: [] }]);
+  });
+
+  it('publishes the update-attendance contract', () => {
+    const operation =
+      document.paths[`/${API_GLOBAL_PREFIX}/bookings/tutor/{bookingId}/attendance`]?.put;
+
+    expect(operation?.summary).toBe(
+      "Update the attendance for one of the authenticated tutor's confirmed or completed bookings",
+    );
+    expect(operation?.responses['200']).toMatchObject({
+      content: {
+        'application/json': {
+          schema: {
+            allOf: [{ $ref: '#/components/schemas/ClassAttendanceResponseDto' }],
+            example: {
+              attendance: AttendanceStatus.ATTENDED,
+              attendanceMarkedAt: '2026-10-09T09:04:31.001Z',
+              bookingId: '3c54a0d6-e3f3-4a38-bd55-3b4011ee31ae',
+              status: BookingStatus.COMPLETED,
+            },
+          },
+        },
+      },
+    });
+    for (const status of ['400', '401', '403', '404', '409']) {
+      expect(operation?.responses[status]).toBeDefined();
+    }
+    expect(operation?.security).toEqual([{ [JWT_BEARER_AUTH]: [] }]);
+
+    const schema = document.components?.schemas?.['UpdateAttendanceDto'] as
+      { properties?: Record<string, unknown>; required?: string[] } | undefined;
+    expect(Object.keys(schema?.properties ?? {}).sort()).toEqual(['attendance']);
   });
 });

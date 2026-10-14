@@ -2801,4 +2801,291 @@ describe('BookingsService', () => {
       },
     );
   });
+
+  describe('updateAttendance', () => {
+    const stubAttendanceTransaction = (options: {
+      booking: unknown;
+      updatedBooking?: unknown;
+      transitionCount?: number;
+    }) => {
+      const findUnique = jest.fn().mockResolvedValue(options.booking);
+      const updateMany = jest.fn().mockResolvedValue({
+        count:
+          options.transitionCount !== undefined
+            ? options.transitionCount
+            : options.updatedBooking !== undefined
+              ? 1
+              : 0,
+      });
+      const findUniqueOrThrow = jest.fn().mockResolvedValue(options.updatedBooking);
+
+      mockPrismaService.$transaction.mockImplementation(async (callback: TransactionCallback) =>
+        callback({ booking: { findUnique, findUniqueOrThrow, updateMany } }),
+      );
+
+      return { findUnique, findUniqueOrThrow, updateMany };
+    };
+
+    it.each([AttendanceStatus.ATTENDED, AttendanceStatus.ABSENT])(
+      'marks attendance %s on a CONFIRMED booking and updates status to COMPLETED',
+      async (attendance) => {
+        const { bookingId, tutorUserId } = createTestData();
+        const attendanceMarkedAt = new Date('2026-10-14T10:00:00.000Z');
+        const activeBooking = {
+          id: bookingId,
+          status: BookingStatus.CONFIRMED,
+          tutorProfileId: tutorUserId,
+        };
+        const updatedBooking = {
+          attendance,
+          attendanceMarkedAt,
+          id: bookingId,
+          status: BookingStatus.COMPLETED,
+        };
+
+        const { findUnique, findUniqueOrThrow, updateMany } = stubAttendanceTransaction({
+          booking: activeBooking,
+          updatedBooking,
+        });
+
+        const result = await service.updateAttendance({
+          attendance,
+          bookingId,
+          tutorId: tutorUserId,
+        });
+
+        expect(result).toEqual({
+          attendance,
+          attendanceMarkedAt: attendanceMarkedAt.toISOString(),
+          bookingId,
+          status: BookingStatus.COMPLETED,
+        });
+        expect(findUnique).toHaveBeenCalledWith({
+          select: {
+            id: true,
+            status: true,
+            tutorProfileId: true,
+          },
+          where: { id: bookingId },
+        });
+        expect(updateMany).toHaveBeenCalledWith(
+          expect.objectContaining({
+            where: {
+              id: bookingId,
+              status: { in: [BookingStatus.CONFIRMED, BookingStatus.COMPLETED] },
+              tutorProfileId: tutorUserId,
+            },
+          }) as unknown,
+        );
+        const updateCalls = updateMany.mock.calls as unknown as Array<
+          [
+            {
+              data: {
+                attendance: AttendanceStatus;
+                attendanceMarkedAt: string;
+                status: BookingStatus;
+              };
+            },
+          ]
+        >;
+        const updatePayload = updateCalls[0]?.[0];
+        expect(updatePayload?.data.attendance).toBe(attendance);
+        expect(typeof updatePayload?.data.attendanceMarkedAt).toBe('string');
+        expect(updatePayload?.data.status).toBe(BookingStatus.COMPLETED);
+        expect(findUniqueOrThrow).toHaveBeenCalledWith({
+          select: { attendance: true, attendanceMarkedAt: true, id: true, status: true },
+          where: { id: bookingId },
+        });
+      },
+    );
+
+    it('updates attendance on an already COMPLETED booking and preserves COMPLETED status', async () => {
+      const { bookingId, tutorUserId } = createTestData();
+      const attendanceMarkedAt = new Date('2026-10-14T11:00:00.000Z');
+      const completedBooking = {
+        id: bookingId,
+        status: BookingStatus.COMPLETED,
+        tutorProfileId: tutorUserId,
+      };
+      const updatedBooking = {
+        attendance: AttendanceStatus.ABSENT,
+        attendanceMarkedAt,
+        id: bookingId,
+        status: BookingStatus.COMPLETED,
+      };
+
+      stubAttendanceTransaction({
+        booking: completedBooking,
+        updatedBooking,
+      });
+
+      const result = await service.updateAttendance({
+        attendance: AttendanceStatus.ABSENT,
+        bookingId,
+        tutorId: tutorUserId,
+      });
+
+      expect(result).toEqual({
+        attendance: AttendanceStatus.ABSENT,
+        attendanceMarkedAt: attendanceMarkedAt.toISOString(),
+        bookingId,
+        status: BookingStatus.COMPLETED,
+      });
+    });
+
+    it('rejects with 404 when booking does not exist', async () => {
+      const { bookingId, tutorUserId } = createTestData();
+      stubAttendanceTransaction({ booking: null });
+
+      await expect(
+        service.updateAttendance({
+          attendance: AttendanceStatus.ATTENDED,
+          bookingId,
+          tutorId: tutorUserId,
+        }),
+      ).rejects.toMatchObject({
+        response: {
+          code: 'BOOKING_NOT_FOUND',
+          error: 'Not Found',
+          message: 'Booking not found',
+          statusCode: 404,
+        },
+      });
+    });
+
+    it('rejects with 403 when booking belongs to another tutor', async () => {
+      const { bookingId, tutorUserId } = createTestData();
+      const otherTutorId = '88888888-8888-8888-8888-888888888888';
+      stubAttendanceTransaction({
+        booking: {
+          id: bookingId,
+          status: BookingStatus.CONFIRMED,
+          tutorProfileId: otherTutorId,
+        },
+      });
+
+      await expect(
+        service.updateAttendance({
+          attendance: AttendanceStatus.ATTENDED,
+          bookingId,
+          tutorId: tutorUserId,
+        }),
+      ).rejects.toMatchObject({
+        response: {
+          code: 'BOOKING_NOT_OWNED',
+          error: 'Forbidden',
+          message: 'This booking belongs to another tutor',
+          statusCode: 403,
+        },
+      });
+    });
+
+    it.each([BookingStatus.PENDING, BookingStatus.CANCELED, BookingStatus.EXPIRED])(
+      'rejects with 409 when booking status is %s',
+      async (status) => {
+        const { bookingId, tutorUserId } = createTestData();
+        stubAttendanceTransaction({
+          booking: {
+            id: bookingId,
+            status,
+            tutorProfileId: tutorUserId,
+          },
+        });
+
+        await expect(
+          service.updateAttendance({
+            attendance: AttendanceStatus.ATTENDED,
+            bookingId,
+            tutorId: tutorUserId,
+          }),
+        ).rejects.toMatchObject({
+          response: {
+            code: 'BOOKING_NOT_CONFIRMED_OR_COMPLETED',
+            error: 'Conflict',
+            message: `Only a confirmed or completed booking can be updated attendance; this booking is ${status}`,
+            statusCode: 409,
+          },
+        });
+      },
+    );
+
+    it('throws ConflictException when transition count is not 1', async () => {
+      const { bookingId, tutorUserId } = createTestData();
+      stubAttendanceTransaction({
+        booking: {
+          id: bookingId,
+          status: BookingStatus.CONFIRMED,
+          tutorProfileId: tutorUserId,
+        },
+        transitionCount: 0,
+      });
+
+      await expect(
+        service.updateAttendance({
+          attendance: AttendanceStatus.ATTENDED,
+          bookingId,
+          tutorId: tutorUserId,
+        }),
+      ).rejects.toMatchObject({
+        response: {
+          code: 'BOOKING_TRANSITION_CONFLICT',
+          error: 'Conflict',
+          message: 'The booking was already updated by another request',
+          statusCode: 409,
+        },
+      });
+    });
+
+    it.each(['P2002', 'P2003', 'P2004'])(
+      'throws ConflictException when database conflict %s occurs',
+      async (code) => {
+        const { bookingId, tutorUserId } = createTestData();
+        stubAttendanceTransaction({
+          booking: {
+            id: bookingId,
+            status: BookingStatus.CONFIRMED,
+            tutorProfileId: tutorUserId,
+          },
+        });
+        mockPrismaService.$transaction.mockRejectedValue(
+          createDatabaseError('Constraint violation', code),
+        );
+
+        await expect(
+          service.updateAttendance({
+            attendance: AttendanceStatus.ATTENDED,
+            bookingId,
+            tutorId: tutorUserId,
+          }),
+        ).rejects.toMatchObject({
+          response: {
+            code: 'BOOKING_TRANSITION_CONFLICT',
+            error: 'Conflict',
+            message: 'The booking was already updated by another request',
+            statusCode: 409,
+          },
+        });
+      },
+    );
+
+    it('rethrows unexpected errors', async () => {
+      const { bookingId, tutorUserId } = createTestData();
+      stubAttendanceTransaction({
+        booking: {
+          id: bookingId,
+          status: BookingStatus.CONFIRMED,
+          tutorProfileId: tutorUserId,
+        },
+      });
+      mockPrismaService.$transaction.mockRejectedValue(new Error('Connection failure'));
+
+      await expect(
+        service.updateAttendance({
+          attendance: AttendanceStatus.ATTENDED,
+          bookingId,
+          tutorId: tutorUserId,
+        }),
+      ).rejects.toThrow('Connection failure');
+    });
+  });
 });
