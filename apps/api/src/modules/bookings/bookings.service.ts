@@ -1096,16 +1096,20 @@ export class BookingsService {
             status: true,
           },
           where: { id: input.bookingId },
-        })
+        });
 
         if (!booking) throw bookingNotFound();
         if (booking.tutorProfileId !== input.tutorId) throw bookingNotOwned();
-        if (booking.status !== BookingStatus.CONFIRMED && booking.status !== BookingStatus.COMPLETED) throw bookingNotConfirmedOrCompleted(booking.status);
+        if (
+          booking.status !== BookingStatus.CONFIRMED &&
+          booking.status !== BookingStatus.COMPLETED
+        )
+          throw bookingNotConfirmedOrCompleted(booking.status);
 
         const transition = await tx.booking.updateMany({
           data: {
             attendance: input.attendance,
-            attendanceMarkedAt: (new Date()).toISOString(),
+            attendanceMarkedAt: new Date().toISOString(),
             status: BookingStatus.COMPLETED,
           },
           where: {
@@ -1127,10 +1131,10 @@ export class BookingsService {
         return {
           bookingId: updated.id,
           attendance: updated.attendance || input.attendance,
-          attendanceMarkedAt: updated.attendanceMarkedAt?.toISOString() || (new Date()).toISOString(),
+          attendanceMarkedAt: updated.attendanceMarkedAt?.toISOString() || new Date().toISOString(),
           status: updated.status,
         };
-      })
+      });
     } catch (error) {
       if (isDatabaseConflict(error)) {
         this.logger.warn(
