@@ -263,6 +263,16 @@ export default function TutorBookingInbox() {
                       setTarget({ booking, decision });
                     }}
                     onRefresh={reload}
+                    onCanceled={(result) => {
+                      const sync = planInboxSyncAfterDecision({
+                        filter,
+                        page,
+                        status: result.status,
+                        total,
+                      });
+                      setPage(sync.page);
+                      reload();
+                    }}
                   />
                 ))}
               </div>

@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 
+import { BookingCancellation } from '@/components/bookings/booking-cancellation';
 import {
   BookingDocketAmounts,
   BookingDocketStatus,
@@ -30,6 +31,7 @@ export default function StudentBookingDetailPage({ bookingId }: { bookingId: str
   const [booking, setBooking] = useState<BookingDetail | null>(null);
   const [error, setError] = useState<unknown | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [reloadKey, setReloadKey] = useState(0);
   const [loadedBookingId, setLoadedBookingId] = useState<string | null>(null);
   const isCurrentBookingLoaded = loadedBookingId === bookingId;
   const loading = isLoading || !isCurrentBookingLoaded;
@@ -57,7 +59,7 @@ export default function StudentBookingDetailPage({ bookingId }: { bookingId: str
     return () => {
       active = false;
     };
-  }, [bookingId]);
+  }, [bookingId, reloadKey]);
 
   return (
     <div className={styles.page}>
@@ -92,6 +94,21 @@ export default function StudentBookingDetailPage({ bookingId }: { bookingId: str
               requestText={requestText}
               presentation="detail"
               timeLabel={booking.status === 'PENDING' ? requestText.time : text.lessonTime}
+            />
+            <BookingCancellation
+              key={booking.id}
+              booking={booking}
+              onCanceled={(result) =>
+                setBooking((current) =>
+                  current?.id === result.bookingId
+                    ? { ...current, status: result.status }
+                    : current,
+                )
+              }
+              onRefresh={() => {
+                setIsLoading(true);
+                setReloadKey((value) => value + 1);
+              }}
             />
             <div className={styles.detailFooter}>
               <p className={styles.notice} data-status={booking.status}>
