@@ -212,6 +212,25 @@ export class BookingViewDto {
   @ApiProperty({ example: 'THB' })
   currency!: string;
 
+  @ApiProperty({ enum: PaymentStatus, example: PaymentStatus.UNPAID })
+  paymentStatus!: PaymentStatus;
+
+  @ApiProperty({
+    description: 'When the mock payment was recorded. Null while the booking is unpaid.',
+    example: '2026-10-09T09:04:31.001Z',
+    nullable: true,
+    type: String,
+  })
+  paidAt!: string | null;
+
+  @ApiProperty({
+    description: 'The demo reference stored by the mock payment. Null while the booking is unpaid.',
+    example: 'DEMO-7F3A91',
+    nullable: true,
+    type: String,
+  })
+  mockReference!: string | null;
+
   @ApiProperty({ example: '2026-09-10T09:04:31.001Z' })
   createdAt!: string;
 }
