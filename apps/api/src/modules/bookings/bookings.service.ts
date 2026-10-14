@@ -1105,7 +1105,7 @@ export class BookingsService {
             slot: {
               select: {
                 endAtUtc: true,
-              }
+              },
             },
           },
           where: { id: input.bookingId },
@@ -1118,7 +1118,7 @@ export class BookingsService {
           booking.status !== BookingStatus.COMPLETED
         )
           throw bookingNotConfirmedOrCompleted(booking.status);
-        if (!booking.slot.endAtUtc || booking.slot.endAtUtc > (new Date())) throw classNotEnded();
+        if (!booking.slot.endAtUtc || booking.slot.endAtUtc > new Date()) throw classNotEnded();
 
         const transition = await tx.booking.updateMany({
           data: {

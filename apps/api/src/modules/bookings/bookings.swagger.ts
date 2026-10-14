@@ -1116,13 +1116,12 @@ export function UpdateAttendanceDoc(): MethodDecorator {
     }),
     ApiConflictResponse({
       description:
-        'The booking is neither confirmed nor completed, or a concurrent transition modified the booking',
+        'The booking is neither confirmed nor completed, the class has not ended yet, or a concurrent transition modified the booking',
       schema: {
         example: {
-          code: 'BOOKING_NOT_CONFIRMED_OR_COMPLETED',
+          code: 'CLASS_NOT_ENDED',
           error: 'Conflict',
-          message:
-            'Only a confirmed or completed booking can be updated attendance; this booking is PENDING',
+          message: 'Only ended class to be updated the attendance',
           statusCode: 409,
         },
         type: 'object',

@@ -2803,6 +2803,8 @@ describe('BookingsService', () => {
   });
 
   describe('updateAttendance', () => {
+    const pastSlot = { endAtUtc: new Date(Date.now() - 60 * 60 * 1000) };
+
     const stubAttendanceTransaction = (options: {
       booking: unknown;
       updatedBooking?: unknown;
@@ -2833,6 +2835,7 @@ describe('BookingsService', () => {
         const attendanceMarkedAt = new Date('2026-10-14T10:00:00.000Z');
         const activeBooking = {
           id: bookingId,
+          slot: pastSlot,
           status: BookingStatus.CONFIRMED,
           tutorProfileId: tutorUserId,
         };
@@ -2863,6 +2866,11 @@ describe('BookingsService', () => {
         expect(findUnique).toHaveBeenCalledWith({
           select: {
             id: true,
+            slot: {
+              select: {
+                endAtUtc: true,
+              },
+            },
             status: true,
             tutorProfileId: true,
           },
@@ -2904,6 +2912,7 @@ describe('BookingsService', () => {
       const attendanceMarkedAt = new Date('2026-10-14T11:00:00.000Z');
       const completedBooking = {
         id: bookingId,
+        slot: pastSlot,
         status: BookingStatus.COMPLETED,
         tutorProfileId: tutorUserId,
       };
@@ -2959,6 +2968,7 @@ describe('BookingsService', () => {
       stubAttendanceTransaction({
         booking: {
           id: bookingId,
+          slot: pastSlot,
           status: BookingStatus.CONFIRMED,
           tutorProfileId: otherTutorId,
         },
@@ -2987,6 +2997,7 @@ describe('BookingsService', () => {
         stubAttendanceTransaction({
           booking: {
             id: bookingId,
+            slot: pastSlot,
             status,
             tutorProfileId: tutorUserId,
           },
@@ -3009,11 +3020,67 @@ describe('BookingsService', () => {
       },
     );
 
+    it('rejects with 409 when the class has not ended yet (endAtUtc is in the future)', async () => {
+      const { bookingId, tutorUserId } = createTestData();
+      const futureEndAtUtc = new Date(Date.now() + 60 * 60 * 1000);
+      stubAttendanceTransaction({
+        booking: {
+          id: bookingId,
+          slot: { endAtUtc: futureEndAtUtc },
+          status: BookingStatus.CONFIRMED,
+          tutorProfileId: tutorUserId,
+        },
+      });
+
+      await expect(
+        service.updateAttendance({
+          attendance: AttendanceStatus.ATTENDED,
+          bookingId,
+          tutorId: tutorUserId,
+        }),
+      ).rejects.toMatchObject({
+        response: {
+          code: 'CLASS_NOT_ENDED',
+          error: 'Conflict',
+          message: 'Only ended class to be updated the attendance',
+          statusCode: 409,
+        },
+      });
+    });
+
+    it('rejects with 409 when the slot endAtUtc is null or undefined', async () => {
+      const { bookingId, tutorUserId } = createTestData();
+      stubAttendanceTransaction({
+        booking: {
+          id: bookingId,
+          slot: { endAtUtc: null },
+          status: BookingStatus.CONFIRMED,
+          tutorProfileId: tutorUserId,
+        },
+      });
+
+      await expect(
+        service.updateAttendance({
+          attendance: AttendanceStatus.ATTENDED,
+          bookingId,
+          tutorId: tutorUserId,
+        }),
+      ).rejects.toMatchObject({
+        response: {
+          code: 'CLASS_NOT_ENDED',
+          error: 'Conflict',
+          message: 'Only ended class to be updated the attendance',
+          statusCode: 409,
+        },
+      });
+    });
+
     it('throws ConflictException when transition count is not 1', async () => {
       const { bookingId, tutorUserId } = createTestData();
       stubAttendanceTransaction({
         booking: {
           id: bookingId,
+          slot: pastSlot,
           status: BookingStatus.CONFIRMED,
           tutorProfileId: tutorUserId,
         },
@@ -3043,6 +3110,7 @@ describe('BookingsService', () => {
         stubAttendanceTransaction({
           booking: {
             id: bookingId,
+            slot: pastSlot,
             status: BookingStatus.CONFIRMED,
             tutorProfileId: tutorUserId,
           },
@@ -3073,6 +3141,7 @@ describe('BookingsService', () => {
       stubAttendanceTransaction({
         booking: {
           id: bookingId,
+          slot: pastSlot,
           status: BookingStatus.CONFIRMED,
           tutorProfileId: tutorUserId,
         },
