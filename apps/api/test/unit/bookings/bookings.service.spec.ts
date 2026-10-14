@@ -2807,10 +2807,18 @@ describe('BookingsService', () => {
 
     const stubAttendanceTransaction = (options: {
       booking: unknown;
-      updatedBooking?: unknown;
+      recheckBooking?: unknown;
       transitionCount?: number;
+      updatedBooking?: unknown;
     }) => {
-      const findUnique = jest.fn().mockResolvedValue(options.booking);
+      const findUnique = jest.fn();
+      if (options.recheckBooking !== undefined) {
+        findUnique
+          .mockResolvedValueOnce(options.booking)
+          .mockResolvedValueOnce(options.recheckBooking);
+      } else {
+        findUnique.mockResolvedValue(options.booking);
+      }
       const updateMany = jest.fn().mockResolvedValue({
         count:
           options.transitionCount !== undefined
@@ -2834,6 +2842,8 @@ describe('BookingsService', () => {
         const { bookingId, tutorUserId } = createTestData();
         const attendanceMarkedAt = new Date('2026-10-14T10:00:00.000Z');
         const activeBooking = {
+          attendance: null,
+          attendanceMarkedAt: null,
           id: bookingId,
           slot: pastSlot,
           status: BookingStatus.CONFIRMED,
@@ -2865,6 +2875,8 @@ describe('BookingsService', () => {
         });
         expect(findUnique).toHaveBeenCalledWith({
           select: {
+            attendance: true,
+            attendanceMarkedAt: true,
             id: true,
             slot: {
               select: {
@@ -2879,8 +2891,9 @@ describe('BookingsService', () => {
         expect(updateMany).toHaveBeenCalledWith(
           expect.objectContaining({
             where: {
+              attendance: null,
               id: bookingId,
-              status: { in: [BookingStatus.CONFIRMED, BookingStatus.COMPLETED] },
+              status: BookingStatus.CONFIRMED,
               tutorProfileId: tutorUserId,
             },
           }) as unknown,
@@ -2890,7 +2903,7 @@ describe('BookingsService', () => {
             {
               data: {
                 attendance: AttendanceStatus;
-                attendanceMarkedAt: string;
+                attendanceMarkedAt: Date;
                 status: BookingStatus;
               };
             },
@@ -2898,7 +2911,7 @@ describe('BookingsService', () => {
         >;
         const updatePayload = updateCalls[0]?.[0];
         expect(updatePayload?.data.attendance).toBe(attendance);
-        expect(typeof updatePayload?.data.attendanceMarkedAt).toBe('string');
+        expect(updatePayload?.data.attendanceMarkedAt).toBeInstanceOf(Date);
         expect(updatePayload?.data.status).toBe(BookingStatus.COMPLETED);
         expect(findUniqueOrThrow).toHaveBeenCalledWith({
           select: { attendance: true, attendanceMarkedAt: true, id: true, status: true },
@@ -2907,36 +2920,146 @@ describe('BookingsService', () => {
       },
     );
 
-    it('updates attendance on an already COMPLETED booking and preserves COMPLETED status', async () => {
+    it.each([AttendanceStatus.ATTENDED, AttendanceStatus.ABSENT])(
+      'returns persisted record on same-value retry (%s) without modifying the record or timestamp',
+      async (attendance) => {
+        const { bookingId, tutorUserId } = createTestData();
+        const originalMarkedAt = new Date('2026-10-14T10:00:00.000Z');
+        const completedBooking = {
+          attendance,
+          attendanceMarkedAt: originalMarkedAt,
+          id: bookingId,
+          slot: pastSlot,
+          status: BookingStatus.COMPLETED,
+          tutorProfileId: tutorUserId,
+        };
+
+        const { updateMany } = stubAttendanceTransaction({
+          booking: completedBooking,
+        });
+
+        const result = await service.updateAttendance({
+          attendance,
+          bookingId,
+          tutorId: tutorUserId,
+        });
+
+        expect(result).toEqual({
+          attendance,
+          attendanceMarkedAt: originalMarkedAt.toISOString(),
+          bookingId,
+          status: BookingStatus.COMPLETED,
+        });
+        expect(updateMany).not.toHaveBeenCalled();
+      },
+    );
+
+    it('rejects with 409 ATTENDANCE_ALREADY_RECORDED on different-value repeat and does not overwrite evidence', async () => {
       const { bookingId, tutorUserId } = createTestData();
-      const attendanceMarkedAt = new Date('2026-10-14T11:00:00.000Z');
+      const originalMarkedAt = new Date('2026-10-14T10:00:00.000Z');
       const completedBooking = {
+        attendance: AttendanceStatus.ATTENDED,
+        attendanceMarkedAt: originalMarkedAt,
         id: bookingId,
         slot: pastSlot,
         status: BookingStatus.COMPLETED,
         tutorProfileId: tutorUserId,
       };
-      const updatedBooking = {
-        attendance: AttendanceStatus.ABSENT,
-        attendanceMarkedAt,
+
+      const { updateMany } = stubAttendanceTransaction({
+        booking: completedBooking,
+      });
+
+      await expect(
+        service.updateAttendance({
+          attendance: AttendanceStatus.ABSENT,
+          bookingId,
+          tutorId: tutorUserId,
+        }),
+      ).rejects.toMatchObject({
+        response: {
+          code: 'ATTENDANCE_ALREADY_RECORDED',
+          error: 'Conflict',
+          message: 'Attendance is already recorded as ATTENDED for this booking',
+          statusCode: 409,
+        },
+      });
+      expect(updateMany).not.toHaveBeenCalled();
+    });
+
+    it('rejects losing request with 409 when concurrent requests compete with different attendance values', async () => {
+      const { bookingId, tutorUserId } = createTestData();
+      const concurrentMarkedAt = new Date('2026-10-14T10:00:00.000Z');
+      const initialBooking = {
+        attendance: null,
+        attendanceMarkedAt: null,
+        id: bookingId,
+        slot: pastSlot,
+        status: BookingStatus.CONFIRMED,
+        tutorProfileId: tutorUserId,
+      };
+      const recheckBooking = {
+        attendance: AttendanceStatus.ATTENDED,
+        attendanceMarkedAt: concurrentMarkedAt,
         id: bookingId,
         status: BookingStatus.COMPLETED,
       };
 
       stubAttendanceTransaction({
-        booking: completedBooking,
-        updatedBooking,
+        booking: initialBooking,
+        recheckBooking,
+        transitionCount: 0,
+      });
+
+      await expect(
+        service.updateAttendance({
+          attendance: AttendanceStatus.ABSENT,
+          bookingId,
+          tutorId: tutorUserId,
+        }),
+      ).rejects.toMatchObject({
+        response: {
+          code: 'ATTENDANCE_ALREADY_RECORDED',
+          error: 'Conflict',
+          message: 'Attendance is already recorded as ATTENDED for this booking',
+          statusCode: 409,
+        },
+      });
+    });
+
+    it('returns persisted record with original timestamp when concurrent requests race with same attendance value', async () => {
+      const { bookingId, tutorUserId } = createTestData();
+      const concurrentMarkedAt = new Date('2026-10-14T10:00:00.000Z');
+      const initialBooking = {
+        attendance: null,
+        attendanceMarkedAt: null,
+        id: bookingId,
+        slot: pastSlot,
+        status: BookingStatus.CONFIRMED,
+        tutorProfileId: tutorUserId,
+      };
+      const recheckBooking = {
+        attendance: AttendanceStatus.ATTENDED,
+        attendanceMarkedAt: concurrentMarkedAt,
+        id: bookingId,
+        status: BookingStatus.COMPLETED,
+      };
+
+      stubAttendanceTransaction({
+        booking: initialBooking,
+        recheckBooking,
+        transitionCount: 0,
       });
 
       const result = await service.updateAttendance({
-        attendance: AttendanceStatus.ABSENT,
+        attendance: AttendanceStatus.ATTENDED,
         bookingId,
         tutorId: tutorUserId,
       });
 
       expect(result).toEqual({
-        attendance: AttendanceStatus.ABSENT,
-        attendanceMarkedAt: attendanceMarkedAt.toISOString(),
+        attendance: AttendanceStatus.ATTENDED,
+        attendanceMarkedAt: concurrentMarkedAt.toISOString(),
         bookingId,
         status: BookingStatus.COMPLETED,
       });

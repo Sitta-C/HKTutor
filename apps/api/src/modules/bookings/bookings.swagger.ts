@@ -1116,7 +1116,7 @@ export function UpdateAttendanceDoc(): MethodDecorator {
     }),
     ApiConflictResponse({
       description:
-        'The booking is neither confirmed nor completed, the class has not ended yet, or a concurrent transition modified the booking',
+        'The booking is neither confirmed nor completed, the class has not ended yet, attendance is already recorded with a different value, or a concurrent transition modified the booking',
       schema: {
         example: {
           code: 'CLASS_NOT_ENDED',
