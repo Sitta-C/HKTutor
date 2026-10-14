@@ -755,3 +755,63 @@ two in `booking-flow-web.test.mjs`, one in `privacy-consent-foundation.test.mjs`
 `s1-t26-integration-flow.test.mjs`. They concern pre-existing booking-list, consent and route/role
 source assertions. S2-DB04's new contract tests and the updated Booking foundation contract pass.
 This task leaves those unrelated web assertions for their owning work.
+
+## Tutor verification visibility verification (S2-T12)
+
+`pnpm --filter @hktutor/api db:verify:tutor-verification` proves the S2-T10 publish gate
+(`TutorListingsService.postPublishListing`) and the discovery query it shares with search and the
+public tutor profile (`publicTutorWhere` in `public-tutor-access.ts`) against real PostgreSQL.
+`tutors.service.spec.ts`, `public-tutors.service.spec.ts` and `tutor-listing-publish.e2e-spec.ts`
+check the `where` clause a call receives against a mocked PrismaService; they cannot prove that
+clause actually excludes a persisted row, or that an excluded row survives unmodified. Neither root
+`pnpm check` nor `pnpm test` runs this command.
+
+```bash
+nvm use 24.19.0
+pnpm install --frozen-lockfile
+docker run --detach --name hktutor-verification-test \
+  --publish 127.0.0.1:55439:5432 \
+  --env POSTGRES_USER=postgres --env POSTGRES_PASSWORD=disposable-local-only \
+  --env POSTGRES_DB=hktutor_verification_test postgres:17
+docker exec hktutor-verification-test pg_isready -U postgres -d hktutor_verification_test
+export DATABASE_URL='postgresql://postgres:disposable-local-only@127.0.0.1:55439/hktutor_verification_test'
+pnpm db:generate
+pnpm --filter @hktutor/api db:migrate:deploy
+HKTUTOR_ALLOW_DISPOSABLE_DB_VERIFY=1 pnpm --filter @hktutor/api db:verify:tutor-verification
+docker rm --force --volumes hktutor-verification-test
+unset DATABASE_URL
+```
+
+The approval flag and explicit `DATABASE_URL` are both required; the runner never loads `.env` or
+falls back to a shared database. It accepts loopback hosts only, requires a database name matching
+`hktutor_*_test` or `hktutor-*-test`, refuses URL options/fragments, and checks that every
+committed migration under `prisma/migrations` is applied before creating fixtures. It creates its
+own catalog, tutor and listing rows; it has no seed dependency.
+
+**There is no admin "revoke verification" endpoint in this product.** A tutor's
+`verificationStatus` is derived from their `TutorDocument.reviewStatus` rows by
+`deriveTutorVerificationStatus`, and that derivation is sticky toward `VERIFIED`: it returns
+`VERIFIED` if _any_ document was ever approved, regardless of later uploads or rejections, so no
+reachable API call can walk a tutor back down once approved. The runner simulates the
+"pending/rejected/revoked/verified" transitions the card asks for by writing
+`TutorProfile.verificationStatus` directly -- the same write a future admin action would have to
+perform -- and does not exercise the qualification-document upload/review flow itself; that surface
+has its own disposable-database evidence (`db:verify:qualifications`). This gap (no product-facing
+way to revoke an already-verified tutor) is a QA finding from this card, not something this test
+task changes.
+
+Sequence, on one subject tutor plus an unrelated control tutor that stays `VERIFIED` throughout so
+an over-broad filter cannot pass by hiding everyone. The subject's first listing is forced straight
+to `PUBLISHED` in the database before the status loop, because a `DRAFT` listing is already excluded
+from discovery by `publicationStatus` alone: asserting exclusion against a `DRAFT` row would pass
+even with the verification filter deleted outright, and the state that matters is the one a listing
+is actually in once published and its tutor is later found ineligible. `UNVERIFIED` and `PENDING`
+and `REJECTED` each block `postPublishListing` with `ForbiddenException` and leave the listing row
+unchanged, compared in full before and after the rejection rather than only checked for `DRAFT`;
+`VERIFIED` publishes two listings for the same tutor and both appear in `searchPublicTutors` and
+`getPublicTutor`; simulated revocation back to `REJECTED` removes both already-`PUBLISHED` listings
+from search and makes the profile 404, while the `TeachingListing` rows stay `PUBLISHED` with their
+original `publishedAt` and a null `deletedAt` -- disappearance without deletion -- and a further
+publish attempt on either listing is blocked again, proving the gate re-reads live status rather
+than trusting the earlier success; re-verification restores both listings' visibility. The control
+tutor's listing is checked after every step.

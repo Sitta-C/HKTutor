@@ -556,3 +556,50 @@ test('clearing during an in-flight filtered search keeps the newest results', as
     release();
   }
 });
+
+test('a tutor who stops being discoverable disappears from a refreshed search without a stale badge', async ({
+  page,
+}) => {
+  // The API never sends a "revoked" status to this page; a tutor who stops being discoverable
+  // instead simply stops being returned. This proves a refresh reflects that change cleanly,
+  // rather than keeping the previous card, its badge, or its link rendered from the earlier
+  // response.
+  let revoked = false;
+  await mockSearch(page, {
+    respond: async (route, url) => {
+      const pageNumber = Number(url.searchParams.get('page') ?? 1);
+      const visible = revoked
+        ? courses.filter((course) => course.tutorId !== 'tutor/shared')
+        : courses;
+      return route.fulfill({
+        json: {
+          items: visible.slice((pageNumber - 1) * 10, pageNumber * 10),
+          page: pageNumber,
+          pageSize: 10,
+          total: visible.length,
+          totalPages: Math.ceil(visible.length / 10),
+        },
+      });
+    },
+  });
+  await page.goto('/tutors');
+  const main = page.locator('main');
+  await expect(main.getByRole('article')).toHaveCount(10);
+  await expect(
+    main.getByRole('heading', { level: 3, name: 'Teacher Anan', exact: true }),
+  ).toHaveCount(2);
+  await expect(main.getByRole('article').first()).toContainText('Verified tutor');
+  await expect(page.locator('a[href*="tutor%2Fshared"]')).toHaveCount(2);
+
+  revoked = true;
+  await page.reload();
+
+  // Both of the revoked tutor's cards are gone, their shared-tutor link along with them; the ten
+  // visible cards now belong to other, still-verified tutors, none of them stale leftovers.
+  await expect(main.getByRole('article')).toHaveCount(10);
+  await expect(
+    main.getByRole('heading', { level: 3, name: 'Teacher Anan', exact: true }),
+  ).toHaveCount(0);
+  await expect(page.locator('a[href*="tutor%2Fshared"]')).toHaveCount(0);
+  await expect(main.getByRole('article').first()).toContainText('Verified tutor');
+});
