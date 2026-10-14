@@ -39,6 +39,23 @@ const SQL_STATES = new Set([
   '57014',
 ]);
 
+function readProperty(value: unknown, key: string): unknown {
+  return value !== null && typeof value === 'object'
+    ? (value as Record<string, unknown>)[key]
+    : undefined;
+}
+
+/**
+ * Prisma 7 never populates `meta.code`. A failing raw query keeps the driver fault under
+ * `meta.driverAdapterError`, so the SQLSTATE is only readable from that fault's own cause; without
+ * this path every raw failure was logged as a bare P-code with its SQLSTATE dropped.
+ */
+function readDriverSqlState(error: Prisma.PrismaClientKnownRequestError): string | undefined {
+  const driverError = readProperty(error.meta, 'driverAdapterError');
+  const sqlState = readProperty(readProperty(driverError, 'cause'), 'originalCode');
+  return typeof sqlState === 'string' ? sqlState : undefined;
+}
+
 function recoveryErrorCode(error: unknown): string {
   if (error instanceof StorageRequestError) {
     return error.failureCode;
@@ -50,8 +67,8 @@ function recoveryErrorCode(error: unknown): string {
     ) {
       return 'P2028/START_TIMEOUT';
     }
-    const sqlState: unknown = error.meta?.['code'];
-    return typeof sqlState === 'string' && SQL_STATES.has(sqlState)
+    const sqlState = readDriverSqlState(error);
+    return sqlState !== undefined && SQL_STATES.has(sqlState)
       ? `${error.code}/${sqlState}`
       : error.code;
   }

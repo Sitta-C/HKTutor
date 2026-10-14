@@ -24,7 +24,10 @@ import type { BookingResponseDto } from '@modules/bookings/bookings.dto';
 import type { CreateBookingInput } from '@modules/bookings/bookings.service';
 import type { TestingModule } from '@nestjs/testing';
 
-type DatabaseError = Error & { code: string; meta?: { code?: string } };
+type DatabaseError = Error & {
+  code: string;
+  meta?: { driverAdapterError: { cause: { originalCode: string } } };
+};
 
 type TransactionCallback = (tx: {
   $queryRaw?: jest.Mock;
@@ -42,14 +45,14 @@ type TransactionCallback = (tx: {
   user?: { findUnique?: jest.Mock };
 }) => Promise<unknown>;
 
-const createDatabaseError = (
-  message: string,
-  code: string,
-  meta?: { code?: string },
-): DatabaseError => {
+// Mirrors how Prisma 7 reports a failing raw query: the P-code on `code`, and the driver fault —
+// which is the only carrier of the SQLSTATE — nested under `meta.driverAdapterError`.
+const createDatabaseError = (message: string, code: string, sqlState?: string): DatabaseError => {
   const error = new Error(message) as DatabaseError;
   error.code = code;
-  if (meta) error.meta = meta;
+  if (sqlState !== undefined) {
+    error.meta = { driverAdapterError: { cause: { originalCode: sqlState } } };
+  }
   return error;
 };
 
@@ -698,17 +701,19 @@ describe('BookingsService', () => {
     it.each([
       // Prisma's own unique-violation code, as `create()` sees it when the active-slot index trips.
       ['P2002', undefined],
-      // A raw query carries the SQLSTATE in meta.code; `code` itself stays a P-code.
-      ['P2010', { code: '23505' }],
+      // The `SELECT ... FOR UPDATE` losing its row lock to a concurrent booking: P2010 plus a
+      // serialization SQLSTATE, which Prisma exposes only through the nested driver fault.
+      ['P2010', '40001'],
+      ['P2010', '23505'],
     ])(
       'maps database conflict %s to a stable 409 without exposing database details',
-      async (code, meta) => {
+      async (code, sqlState) => {
         const { listingId, slotId, studentUserId } = createTestData();
 
         const databaseError = createDatabaseError(
           'Unique constraint failed on the fields: (`studentUserId`,`slotId`)',
           code,
-          meta,
+          sqlState,
         );
 
         mockPrismaService.$transaction.mockRejectedValue(databaseError);
@@ -729,12 +734,14 @@ describe('BookingsService', () => {
 
     it.each([
       // A check-constraint violation means this service wrote an invalid row: a defect, not a race.
-      ['a check-constraint violation', 'P2010', { code: '23514' }],
+      ['a check-constraint violation', 'P2010', '23514'],
+      // P2010 on its own says a raw query failed, not why, so it must never stand in for a race.
+      ['a raw-query fault carrying no SQLSTATE', 'P2010', undefined],
       // An unrecognised database fault arrives without any code at all.
       ['an unrecognised database fault', '', undefined],
-    ])('rethrows %s instead of reporting a conflict', async (_description, code, meta) => {
+    ])('rethrows %s instead of reporting a conflict', async (_description, code, sqlState) => {
       const { listingId, slotId, studentUserId } = createTestData();
-      const databaseError = createDatabaseError('database failed', code, meta);
+      const databaseError = createDatabaseError('database failed', code, sqlState);
 
       mockPrismaService.$transaction.mockRejectedValue(databaseError);
 

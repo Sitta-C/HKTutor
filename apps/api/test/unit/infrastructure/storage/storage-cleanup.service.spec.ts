@@ -18,11 +18,17 @@ const DOCUMENT_TARGET = {
 const AVATAR_TARGET = { purpose: StorageObjectPurpose.AVATAR, objectPath: AVATAR_PATH };
 const PRIVATE_DETAILS = `sb_secret_private ${DOCUMENT_PATH} ?token=private`;
 
+// Mirrors how Prisma 7 reports a failing raw query: the SQLSTATE lives on the driver fault's cause,
+// never on `meta.code`.
 function databaseError(code = 'P2028', sqlState?: string): Error {
   return new Prisma.PrismaClientKnownRequestError(PRIVATE_DETAILS, {
     code,
     clientVersion: '7.10.0',
-    meta: { code: sqlState, message: PRIVATE_DETAILS },
+    meta: {
+      driverAdapterError:
+        sqlState === undefined ? undefined : { cause: { originalCode: sqlState } },
+      message: PRIVATE_DETAILS,
+    },
   });
 }
 
