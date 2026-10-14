@@ -8,6 +8,7 @@ import {
   applyTutorBookingDecision,
   countInboxPages,
   describeDecisionSuccess,
+  formatInboxCount,
   getApiErrorCode,
   getStudentLabel,
   isDecidableBooking,
@@ -81,6 +82,18 @@ describe('tutor booking inbox query model', () => {
     expect(countInboxPages(0)).toBe(1);
     expect(countInboxPages(TUTOR_INBOX_PAGE_SIZE)).toBe(1);
     expect(countInboxPages(TUTOR_INBOX_PAGE_SIZE + 1)).toBe(2);
+  });
+
+  it('counts a single booking in the singular and everything else in the plural', () => {
+    expect(formatInboxCount(1, 'PENDING', copy)).toBe('1 booking · PENDING');
+    expect(formatInboxCount(0, 'PENDING', copy)).toBe('0 bookings · PENDING');
+    expect(formatInboxCount(21, 'All', copy)).toBe('21 bookings · All');
+  });
+
+  it('reads the same in Thai for one and many, which the language does not distinguish', () => {
+    const thai = tutorBookingInboxCopy.th;
+    expect(formatInboxCount(1, thai.all, thai)).toBe('1 รายการ · ทั้งหมด');
+    expect(formatInboxCount(2, thai.all, thai)).toBe('2 รายการ · ทั้งหมด');
   });
 });
 

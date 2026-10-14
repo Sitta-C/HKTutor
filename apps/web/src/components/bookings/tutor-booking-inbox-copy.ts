@@ -4,6 +4,7 @@ export const tutorBookingInboxCopy = {
     title: 'Booking inbox',
     subtitle: 'Review requests for your listings, then confirm or reject.',
     count: '{count} bookings · {status}',
+    countOne: '1 booking · {status}',
     countUnavailable: 'Booking count unavailable',
     filterLabel: 'Filter bookings by status',
     all: 'All',
@@ -61,6 +62,9 @@ export const tutorBookingInboxCopy = {
     title: 'กล่องคำขอจอง',
     subtitle: 'ตรวจคำขอจองในคอร์สของคุณ แล้วยืนยันหรือปฏิเสธ',
     count: '{count} รายการ · {status}',
+    // Thai does not inflect for number, so the singular reads the same; the key keeps both
+    // languages aligned and lets the formatter stay language-agnostic.
+    countOne: '1 รายการ · {status}',
     countUnavailable: 'ยังไม่ทราบจำนวนรายการจอง',
     filterLabel: 'กรองการจองตามสถานะ',
     all: 'ทั้งหมด',
