@@ -141,6 +141,11 @@ HKTUTOR_ALLOW_DISPOSABLE_DB_VERIFY=1 pnpm db:verify:sprint1
 The verifier refuses non-loopback hosts and database names that do not begin with `hktutor-` or
 `hktutor_`.
 
+S2-DB04 adds `RescheduleRequest` persistence with one pending request per booking and old/new slot
+relations. Its PostgreSQL race/rollback verifier is `pnpm db:verify:reschedules`; see the
+[API runbook](apps/api/README.md#reschedulerequest-persistence-s2-db04) for the disposable-target
+requirements and the separate S2-T25 endpoint work.
+
 ## Checks
 
 ```bash

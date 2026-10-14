@@ -627,3 +627,99 @@ the separate real mid-transaction reject rollback evidence. The new runner does 
 trigger test. It removes only its invocation's random fixture IDs in `finally`; retain failures and
 discard the disposable database afterward. Browser inbox tests intercept API responses and establish
 UI behavior, rather than live browser-to-database integration.
+
+## RescheduleRequest persistence (S2-DB04)
+
+The forward migration `20261014120000_add_reschedule_request` implements the
+[S2-DB04 card](https://trello.com/c/KS7mGzdM).
+Field names follow the approved
+[Data Model, row 13](https://docs.google.com/spreadsheets/d/17RMTjXa26ho7blv-TK5pbJFbHxVHJEBRPKCXk9x5AE0/edit#gid=1191524122&range=A13:D13):
+`bookingId`, `requestedById`, `fromSlotId`, `requestedSlotId`, `reason`, `status`,
+`reviewedById`, `requestedAt`, `decidedAt`, and `withdrawnAt`, plus a UUID `id`.
+This resolves the card's alternative `requesterUserId`, `targetSlotId`, and `decisionByUserId`
+wording in favor of its Data Model acceptance criterion. No existing migration or data is rewritten.
+
+Prisma exposes `PENDING | APPROVED | REJECTED | WITHDRAWN`; PostgreSQL stores the corresponding
+lowercase values. Timestamps use `TIMESTAMPTZ(3)` and remain UTC on the future API boundary.
+`fromSlotId` retains the original slot after approval; both slot and both user relations restrict
+hard deletion. Reasons must contain non-whitespace text, be trimmed, and contain 1–500 characters.
+
+The partial unique index `RescheduleRequest_pending_booking_key` permits one pending request per
+booking, while retaining any number of closed requests. Pending requests do not reserve targets:
+several bookings may request the same target. The existing `Booking_active_slot_key` remains the
+final guard against two active bookings taking that slot. Current/history queries use
+`(bookingId, status, requestedAt, id)`; requester inboxes use
+`(requestedById, status, requestedAt, id)`. Counterparty inboxes join through the existing
+student/tutor Booking indexes. Slot/reviewer indexes support relations.
+
+Database triggers require new requests to be pending, reference a confirmed booking's current
+slot, name a different slot belonging to the same tutor, and identify a student/tutor participant
+as requester. Creation locks the booking row. Decisions must identify the other participant;
+pending/decided/withdrawn timestamp and reviewer combinations are checked together. Request identity,
+reason and request time are immutable, and closed evidence cannot be modified or reopened.
+Rejecting/withdrawing a request does not move a booking. RLS and revoked PUBLIC/Supabase browser-role
+privileges keep this table behind the backend owner connection.
+
+S2-T25 still owns authenticated endpoints, requester-only withdrawal, active-account/consent checks,
+the inclusive cutoff, future/non-deleted/available target checks and HTTP conflict mapping. The
+database cannot infer the authenticated actor from a submitted UUID. Its verifier demonstrates a
+slot-swap transaction protocol; it is not a production approval service or HTTP authorization test.
+The future service must lock the booking first, revalidate eligibility, conditionally close the
+pending request, update the booking's slot and commit all changes together. A uniqueness/state
+failure must roll back both writes; never close the request in a separate transaction.
+
+### Verification and rollout
+
+`pnpm check` and `pnpm verify:workspace` do not run the database verifier. Contract tests check
+schema/migration invariants and verifier safety. For actual PostgreSQL constraints and transactions,
+create a new disposable local target, apply all migrations without seeding, then run:
+
+```bash
+docker run --detach --name hktutor-s2-db04-test \
+  --publish 127.0.0.1:55435:5432 \
+  --env POSTGRES_USER=postgres --env POSTGRES_PASSWORD=disposable-local-only \
+  --env POSTGRES_DB=hktutor_reschedule_test postgres:17-alpine
+# Wait until PostgreSQL is accepting connections.
+docker exec hktutor-s2-db04-test pg_isready -U postgres -d hktutor_reschedule_test
+export DATABASE_URL='postgresql://postgres:disposable-local-only@127.0.0.1:55435/hktutor_reschedule_test'
+pnpm db:migrate:deploy
+HKTUTOR_ALLOW_DISPOSABLE_DB_VERIFY=1 pnpm db:verify:reschedules
+docker rm --force --volumes hktutor-s2-db04-test
+unset DATABASE_URL
+```
+
+The verifier never loads `.env`. It requires the opt-in and an explicit PostgreSQL loopback URL
+whose database name matches `hktutor_*_test` or `hktutor-*-test`; URL options and fragments are
+refused. Choose an empty target you own: a loopback address alone does not prove disposability.
+The script preflights both partial unique indexes, creates random synthetic fixtures and removes
+only its own rows in `finally`. Discard the example container after success or failure.
+
+It checks invalid participants/reviewers, wrong tutor/original slot, reason boundaries, lifecycle
+metadata, immutable history, missing booking and restricted target deletion. Concurrent pending
+inserts yield one winner. A read gate synchronizes two approval transactions targeting one slot;
+the loser retains its original booking and pending request, while the winner releases its old slot.
+A deleted target fails the swap and preserves both the pending request and original booking.
+A forced PostgreSQL error after both request and booking writes verifies rollback by comparing
+complete booking/request/slot snapshots. Two simultaneous decisions on one request also yield one
+winner. These checks certify persistence behavior, not live S2-T25 endpoints or UI.
+
+Apply the new migration to a separately confirmed deployment target before enabling S2-T25.
+`pnpm db:generate` alone does not migrate that target. No new configuration, seed or API wire
+types are required for this schema-only task.
+
+Verification recorded on 2026-10-14:
+
+| Command                                                                                  | Result                                                                                                               |
+| ---------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `pnpm db:validate`                                                                       | Passed; Prisma schema valid.                                                                                         |
+| `node --test tests/booking-foundation.test.mjs tests/reschedule-request-schema.test.mjs` | 10 passed.                                                                                                           |
+| `pnpm check`                                                                             | Passed formatting, all workspace lint, 865 API/268 web unit tests and both builds.                                   |
+| `pnpm db:migrate:deploy` with the explicit disposable URL                                | All 20 migrations applied successfully to a new PostgreSQL 17 database; no seed.                                     |
+| `HKTUTOR_ALLOW_DISPOSABLE_DB_VERIFY=1 pnpm db:verify:reschedules` with that same URL     | Passed real constraints, concurrent pending/approval writes, deleted-target failure, slot release and full rollback. |
+| `pnpm verify:workspace`                                                                  | 118 passed, 5 existing web source-contract assertions failed.                                                        |
+
+The five workspace failures were reproduced from an isolated `git archive HEAD` snapshot:
+two in `booking-flow-web.test.mjs`, one in `privacy-consent-foundation.test.mjs` and two in
+`s1-t26-integration-flow.test.mjs`. They concern pre-existing booking-list, consent and route/role
+source assertions. S2-DB04's new contract tests and the updated Booking foundation contract pass.
+This task leaves those unrelated web assertions for their owning work.
