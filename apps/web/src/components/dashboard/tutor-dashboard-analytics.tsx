@@ -16,6 +16,7 @@ import { MonthRuler } from '@/components/date-time/month-ruler';
 import { ArrowIcon } from '@/components/public/public-ui';
 import { PaperCard, StatusBadge, notebookButtonClass } from '@/components/ui/notebook';
 import { NotebookLoadingRegion } from '@/components/ui/notebook-loading';
+import { NotebookMetadata } from '@/components/ui/notebook-metadata';
 import { SubjectCourseIndex } from '@/components/ui/subject-course-index';
 import { formatCalendarMonth, getBangkokToday, getCalendarLocale } from '@/lib/date-time';
 import { useLanguage } from '@/lib/i18n';
@@ -148,7 +149,7 @@ export function TutorDashboardAnalytics({
           >
             <dt className="min-h-10 text-sm text-notebook-muted">{metric.label}</dt>
             <dd className="mt-3 break-words text-2xl font-bold tabular-nums text-tutor-deep">
-              <span>{hasData ? metric.value : '—'}</span>
+              <NotebookMetadata items={hasData ? metric.value : '—'} />
               <span className="mt-2 block text-xs font-normal text-notebook-muted">
                 {monthLabel}
               </span>
@@ -158,7 +159,9 @@ export function TutorDashboardAnalytics({
         <div className="rounded-xl border border-dashed border-tutor-deep/25 bg-sticky-blue/20 p-4 sm:p-5">
           <dt className="min-h-10 text-sm text-notebook-muted">{text.receivedRevenue}</dt>
           <dd className="mt-3 break-words text-2xl font-bold tabular-nums text-notebook-ink">
-            <span>{receivedRevenue ? formatAmounts(receivedRevenue, language) : '—'}</span>
+            <NotebookMetadata
+              items={receivedRevenue ? formatAmounts(receivedRevenue, language) : '—'}
+            />
             <span className="mt-2 block text-xs font-normal leading-5 text-notebook-muted">
               {receivedRevenue ? monthLabel : text.waitingRevenue}
             </span>
@@ -288,7 +291,7 @@ export function TutorDashboardAnalytics({
               {text.courseOverview}
             </h3>
             <p className="mt-1 text-xs leading-5 text-notebook-muted">
-              {text.courseDescription} · {monthLabel}
+              <NotebookMetadata items={[text.courseDescription, monthLabel]} />
             </p>
           </div>
           <Link
@@ -353,7 +356,7 @@ export function TutorDashboardAnalytics({
                     <div key={metric.label}>
                       <dt className="text-xs text-notebook-muted">{metric.label}</dt>
                       <dd className="mt-2 break-words text-xl font-bold tabular-nums sm:text-2xl">
-                        {hasData ? metric.value : '—'}
+                        <NotebookMetadata items={hasData ? metric.value : '—'} />
                       </dd>
                     </div>
                   ))}

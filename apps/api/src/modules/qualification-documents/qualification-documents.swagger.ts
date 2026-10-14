@@ -149,7 +149,7 @@ export function UploadQualificationDoc(): MethodDecorator {
     ApiOperation({
       summary: 'Upload an owner-only private qualification document',
       description:
-        'PDF/JPEG/PNG, 0 < bytes <= 5242880. One pending document per tutor and documentType. APPROVED is mapped to database VERIFIED.',
+        'PDF/JPEG/PNG with matching byte signature and filename extension (.pdf, .jpg/.jpeg, or .png), 0 < bytes <= 5242880. One pending document per tutor and documentType. APPROVED is mapped to database VERIFIED.',
     }),
     ApiConsumes('multipart/form-data'),
     ApiBody({

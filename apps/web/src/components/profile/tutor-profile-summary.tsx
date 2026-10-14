@@ -8,6 +8,7 @@ import {
   TutorVerificationBadge,
   TutorVerificationGuidance,
 } from '@/components/tutors/tutor-verification-badge';
+import { NotebookMetadata } from '@/components/ui/notebook-metadata';
 
 import styles from './tutor-profile-summary.module.css';
 
@@ -82,12 +83,16 @@ export function TutorProfileSummary({
                 </span>
               </div>
               <p className={styles.reviewCount}>
-                {tutorMeta.reviewCount === 0
-                  ? text.newTutor
-                  : text.reviewCount.replace(
-                      '{count}',
-                      new Intl.NumberFormat(language).format(tutorMeta.reviewCount),
-                    )}
+                <NotebookMetadata
+                  items={
+                    tutorMeta.reviewCount === 0
+                      ? text.newTutor
+                      : text.reviewCount.replace(
+                          '{count}',
+                          new Intl.NumberFormat(language).format(tutorMeta.reviewCount),
+                        )
+                  }
+                />
               </p>
             </div>
             {tutorMeta.reviewCount > 0 && (

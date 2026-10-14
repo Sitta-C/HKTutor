@@ -31,6 +31,7 @@ export const qualificationCopy = {
     fileErrors: {
       empty: 'Choose a file that is not empty.',
       type: 'Choose a PDF, JPEG or PNG file.',
+      extension: 'The filename extension must match the PDF, JPEG or PNG file type.',
       size: 'The file must be 5 MB or smaller.',
     },
     status: { PENDING: 'Pending review', APPROVED: 'Approved', REJECTED: 'Rejected' },
@@ -100,6 +101,7 @@ export const qualificationCopy = {
     fileErrors: {
       empty: 'เลือกไฟล์ที่ไม่ว่างเปล่า',
       type: 'เลือกไฟล์ PDF, JPEG หรือ PNG',
+      extension: 'นามสกุลไฟล์ต้องตรงกับชนิดไฟล์ PDF, JPEG หรือ PNG',
       size: 'ไฟล์ต้องมีขนาดไม่เกิน 5 MB',
     },
     status: { PENDING: 'รอตรวจสอบ', APPROVED: 'อนุมัติแล้ว', REJECTED: 'ไม่ผ่าน' },

@@ -2,6 +2,7 @@ import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
 
 import {
+  CancelBookingDto,
   ConfirmBookingDto,
   MAX_BOOKINGS_PAGE_SIZE,
   CreateMockPaymentDto,
@@ -10,6 +11,7 @@ import {
   MAX_MOCK_PAYMENT_REFERENCE_LENGTH,
   MAX_TUTOR_ACTION_TEXT_LENGTH,
   RejectBookingDto,
+  UpdateMeetingLinkDto,
 } from '@modules/bookings/bookings.dto';
 
 describe('booking list pagination DTOs', () => {
@@ -175,4 +177,42 @@ describe('tutor inbox query boundaries', () => {
       ).not.toHaveLength(0);
     },
   );
+});
+
+describe('update meeting link DTO', () => {
+  it('accepts a non-empty string meetingUrl', async () => {
+    const dto = plainToInstance(UpdateMeetingLinkDto, {
+      meetingUrl: 'https://meet.google.com/abc-defg-hij',
+    });
+
+    await expect(validate(dto)).resolves.toHaveLength(0);
+  });
+
+  it.each(['', 42, true, [], {}])('rejects invalid meetingUrl %p', async (value) => {
+    const dto = plainToInstance(UpdateMeetingLinkDto, { meetingUrl: value });
+    expect(await validate(dto)).not.toHaveLength(0);
+  });
+
+  it('requires meetingUrl', async () => {
+    const dto = plainToInstance(UpdateMeetingLinkDto, {});
+    expect(await validate(dto)).not.toHaveLength(0);
+  });
+});
+
+describe('cancel booking DTO', () => {
+  it('accepts a non-empty cancellation reason', async () => {
+    const dto = plainToInstance(CancelBookingDto, { reason: 'Schedule conflict' });
+    await expect(validate(dto)).resolves.toHaveLength(0);
+  });
+
+  it.each([
+    ['', 'empty string'],
+    ['   ', 'whitespace only'],
+    [undefined, 'undefined'],
+    [null, 'null'],
+    [123, 'a number'],
+  ])('rejects invalid reason %p (%s)', async (reason) => {
+    const dto = plainToInstance(CancelBookingDto, { reason });
+    expect(await validate(dto)).not.toHaveLength(0);
+  });
 });

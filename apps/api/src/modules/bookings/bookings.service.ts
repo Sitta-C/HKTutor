@@ -17,10 +17,13 @@ import {
 } from '@generated/prisma/enums';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import {
+  BookingClassDetailDto,
   BookingDetailResponseDto,
+  BookingMeetingLinkDto,
   BookingQuoteResponseDto,
   BookingResponseDto,
   BookingSlotStatus,
+  CanceledBookingDto,
   ConfirmBookingDto,
   CreateBookingDto,
   CreateMockPaymentDto,
@@ -58,6 +61,10 @@ export type CreateMockPaymentInput = CreateMockPaymentDto & {
   bookingId: string;
   studentUserId: string;
 };
+export interface BookingMeetingLinkInput {
+  bookingId: string;
+  meetingUrl: string;
+}
 
 const MILLISECONDS_PER_HOUR = 60 * 60 * 1000;
 const BOOKING_CONFLICT_MESSAGE =
@@ -80,6 +87,26 @@ export const BOOKING_OWNERSHIP_ERRORS = {
  */
 export const STUDENT_BOOKING_OWNERSHIP_ERRORS = {
   foreignOwner: { code: 'BOOKING_NOT_OWNED', message: 'This booking belongs to another student' },
+  missing: { code: 'BOOKING_NOT_FOUND', message: 'Booking not found' },
+} as const;
+
+/**
+ * The class details route reports a foreign non-participant as 403 rather than the ownership-safe 404.
+ */
+export const CLASS_DETAIL_BOOKING_OWNERSHIP_ERRORS = {
+  foreignOwner: {
+    code: 'BOOKING_NOT_OWNED',
+    message: 'You are not a participant in this booking',
+  },
+  missing: { code: 'BOOKING_NOT_FOUND', message: 'Booking not found' },
+} as const;
+
+/**
+ * The cancellation route reports a foreign non-participant booking as 403 rather than 404,
+ * so the guard and this service answer with the same body whichever rejects the request first.
+ */
+export const CANCEL_BOOKING_OWNERSHIP_ERRORS = {
+  foreignOwner: { code: 'BOOKING_NOT_OWNED', message: 'This booking belongs to another user' },
   missing: { code: 'BOOKING_NOT_FOUND', message: 'Booking not found' },
 } as const;
 
@@ -107,6 +134,14 @@ const bookingNotPending = (status: BookingStatus): ConflictException =>
     statusCode: 409,
   });
 
+const bookingNotConfirmed = (status: BookingStatus): ConflictException =>
+  new ConflictException({
+    code: 'BOOKING_NOT_CONFIRMED',
+    error: 'Conflict',
+    message: `Only a confirmed booking can be updated meeting link; this booking is ${status}`,
+    statusCode: 409,
+  });
+
 const bookingTransitionConflict = (): ConflictException =>
   new ConflictException({
     code: 'BOOKING_TRANSITION_CONFLICT',
@@ -120,6 +155,14 @@ const studentBookingNotOwned = (): ForbiddenException =>
     code: STUDENT_BOOKING_OWNERSHIP_ERRORS.foreignOwner.code,
     error: 'Forbidden',
     message: STUDENT_BOOKING_OWNERSHIP_ERRORS.foreignOwner.message,
+    statusCode: 403,
+  });
+
+const bookingNotParticipant = (): ForbiddenException =>
+  new ForbiddenException({
+    code: CANCEL_BOOKING_OWNERSHIP_ERRORS.foreignOwner.code,
+    error: 'Forbidden',
+    message: CANCEL_BOOKING_OWNERSHIP_ERRORS.foreignOwner.message,
     statusCode: 403,
   });
 
@@ -163,6 +206,54 @@ const paymentAmountMismatch = (expected: Prisma.Decimal): BadRequestException =>
     error: 'Bad Request',
     message: 'amount does not match the amount recorded for this booking',
     statusCode: 400,
+  });
+
+const invalidURLException = (): BadRequestException =>
+  new BadRequestException({
+    code: 'INVALID_URL',
+    error: 'Bad Request',
+    message: 'The given URL is invalid',
+    statusCode: 400,
+  });
+
+const missingReason = (): BadRequestException =>
+  new BadRequestException({
+    code: 'REASON_MISSING',
+    error: 'Bad Request',
+    message: 'Reason cannot be empty!',
+    statusCode: 400,
+  });
+
+const bookingAlreadyCompleted = (): ConflictException =>
+  new ConflictException({
+    code: 'BOOKING_ALREADY_COMPLETED',
+    error: 'Conflict',
+    message: 'This booking is already completed',
+    statusCode: 409,
+  });
+
+const bookingAlreadyCanceled = (): ConflictException =>
+  new ConflictException({
+    code: 'BOOKING_ALREADY_CANCELED',
+    error: 'Conflict',
+    message: 'This booking is already canceled',
+    statusCode: 409,
+  });
+
+const bookingAlreadyExpired = (): ConflictException =>
+  new ConflictException({
+    code: 'BOOKING_ALREADY_EXPIRED',
+    error: 'Conflict',
+    message: 'This booking is already expired',
+    statusCode: 409,
+  });
+
+const bookingExceedCancelRange = (): ConflictException =>
+  new ConflictException({
+    code: 'BOOKING_EXCEED_CANCEL_RANGE',
+    error: 'Conflict',
+    message: 'This booking is exceeding cancel range',
+    statusCode: 409,
   });
 
 const bookingListingSelect = {
@@ -444,7 +535,10 @@ export class BookingsService {
               subject: { select: { id: true, name: true } },
             },
           },
+          mockReference: true,
           netAmount: true,
+          paidAt: true,
+          paymentStatus: true,
           slot: { select: { endAtUtc: true, id: true, startAtUtc: true } },
           status: true,
           subtotalAmount: true,
@@ -472,7 +566,10 @@ export class BookingsService {
           subjectId: booking.listing.subject.id,
           subjectName: booking.listing.subject.name,
         },
+        mockReference: booking.mockReference,
         netAmount: booking.netAmount.toFixed(2),
+        paidAt: booking.paidAt?.toISOString() ?? null,
+        paymentStatus: booking.paymentStatus,
         slot: {
           endAtUtc: booking.slot.endAtUtc.toISOString(),
           id: booking.slot.id,
@@ -505,7 +602,10 @@ export class BookingsService {
             subject: { select: { id: true, name: true } },
           },
         },
+        mockReference: true,
         netAmount: true,
+        paidAt: true,
+        paymentStatus: true,
         slot: { select: { endAtUtc: true, id: true, startAtUtc: true } },
         status: true,
         subtotalAmount: true,
@@ -533,7 +633,10 @@ export class BookingsService {
         subjectId: booking.listing.subject.id,
         subjectName: booking.listing.subject.name,
       },
+      mockReference: booking.mockReference,
       netAmount: booking.netAmount.toFixed(2),
+      paidAt: booking.paidAt?.toISOString() ?? null,
+      paymentStatus: booking.paymentStatus,
       slot: {
         endAtUtc: booking.slot.endAtUtc.toISOString(),
         id: booking.slot.id,
@@ -806,6 +909,171 @@ export class BookingsService {
       throw error;
     }
   }
+
+  //Meeting
+  async updateMeetingLink(input: BookingMeetingLinkInput): Promise<BookingMeetingLinkDto> {
+    if (!isValidMeetingUrl(input.meetingUrl)) throw invalidURLException();
+    const booking = await this.prisma.booking.findFirst({
+      select: { id: true, status: true },
+      where: { id: input.bookingId },
+    });
+    if (!booking) throw bookingNotFound();
+    if (booking.status !== BookingStatus.CONFIRMED) throw bookingNotConfirmed(booking.status);
+
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        const transition = await tx.booking.updateMany({
+          data: { meetingUrl: input.meetingUrl },
+          where: {
+            id: input.bookingId,
+            status: BookingStatus.CONFIRMED,
+          },
+        });
+
+        if (transition.count !== 1) {
+          throw bookingTransitionConflict();
+        }
+
+        const responseBooking = await tx.booking.findUniqueOrThrow({
+          select: { id: true, meetingUrl: true, updatedAt: true },
+          where: { id: input.bookingId },
+        });
+
+        const response = new BookingMeetingLinkDto();
+        response.bookingId = responseBooking.id;
+        response.meetingUrl = responseBooking.meetingUrl;
+        response.updatedAt = responseBooking.updatedAt.toISOString();
+        return response;
+      });
+    } catch (error) {
+      if (isDatabaseConflict(error)) {
+        this.logger.warn(
+          `Rejecting meeting link update for ${input.bookingId}: database reported a conflict`,
+        );
+        throw bookingTransitionConflict();
+      }
+
+      throw error;
+    }
+  }
+
+  async getBookingClassDetail(bookingId: string): Promise<BookingClassDetailDto> {
+    const booking = await this.prisma.booking.findFirst({
+      where: { id: bookingId },
+      include: { slot: true, tutorProfile: true },
+    });
+    if (!booking) throw bookingNotFound();
+    if (booking.status !== BookingStatus.CONFIRMED) throw bookingNotConfirmed(booking.status);
+    let studentProfile;
+    if (booking?.studentUserId) {
+      studentProfile = await this.prisma.studentProfile.findFirst({
+        where: { userId: booking.studentUserId },
+      });
+    }
+    if (!studentProfile) throw new BadRequestException();
+    const response = new BookingClassDetailDto();
+    response.bookingId = booking.id;
+    response.status = booking.status;
+    response.startAt = booking.slot.startAtUtc.toISOString();
+    response.endAt = booking.slot.endAtUtc.toISOString();
+    response.meetingUrl = booking.meetingUrl;
+    response.attendance = booking.attendance;
+    response.participants = {
+      tutor: {
+        id: booking.tutorProfileId,
+        detail: {
+          firstName: booking.tutorProfile.firstName || '',
+          lastName: booking.tutorProfile.lastName || '',
+          nickname: booking.tutorProfile.nickname || '',
+          displayName: booking.tutorProfile.displayName,
+          bio: booking.tutorProfile.bio,
+          experienceYears: booking.tutorProfile.experienceYears,
+        },
+      },
+      student: {
+        id: booking.studentUserId,
+        detail: studentProfile,
+      },
+    };
+    return response;
+  }
+  async cancelBooking(input: {
+    bookingId: string;
+    reason: string;
+    userId: string;
+  }): Promise<CanceledBookingDto> {
+    const reason = input.reason?.trim();
+    if (!reason) throw missingReason();
+
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        const booking = await tx.booking.findUnique({
+          select: {
+            id: true,
+            paymentStatus: true,
+            slot: { select: { startAtUtc: true } },
+            status: true,
+            studentUserId: true,
+            tutorProfileId: true,
+          },
+          where: { id: input.bookingId },
+        });
+
+        if (!booking) throw bookingNotFound();
+        if (booking.studentUserId !== input.userId && booking.tutorProfileId !== input.userId) {
+          throw bookingNotParticipant();
+        }
+        if (booking.paymentStatus === PaymentStatus.PAID) throw bookingAlreadyPaid();
+        if (booking.status === BookingStatus.COMPLETED) throw bookingAlreadyCompleted();
+        if (booking.status === BookingStatus.CANCELED) throw bookingAlreadyCanceled();
+        if (booking.status === BookingStatus.EXPIRED) throw bookingAlreadyExpired();
+
+        const now = new Date();
+        if (booking.slot.startAtUtc.getTime() - now.getTime() < 24 * MILLISECONDS_PER_HOUR) {
+          throw bookingExceedCancelRange();
+        }
+
+        const canceledAtUtc = new Date();
+        const transition = await tx.booking.updateMany({
+          data: {
+            canceledAt: canceledAtUtc,
+            canceledById: input.userId,
+            cancellationReason: reason,
+            status: BookingStatus.CANCELED,
+          },
+          where: {
+            id: input.bookingId,
+            paymentStatus: PaymentStatus.UNPAID,
+            status: { in: [BookingStatus.PENDING, BookingStatus.CONFIRMED] },
+          },
+        });
+
+        if (transition.count !== 1) {
+          throw bookingTransitionConflict();
+        }
+
+        const updated = await tx.booking.findUniqueOrThrow({
+          select: { canceledAt: true, id: true, status: true },
+          where: { id: input.bookingId },
+        });
+
+        return {
+          bookingId: updated.id,
+          canceledAt: (updated.canceledAt ?? canceledAtUtc).toISOString(),
+          status: updated.status,
+        };
+      });
+    } catch (error) {
+      if (isDatabaseConflict(error)) {
+        this.logger.warn(
+          `Rejecting booking cancellation for ${input.bookingId}: database reported a conflict`,
+        );
+        throw bookingTransitionConflict();
+      }
+
+      throw error;
+    }
+  }
 }
 
 function bookingPagination(input: { page?: number; pageSize?: number }): {
@@ -820,16 +1088,19 @@ function bookingPagination(input: { page?: number; pageSize?: number }): {
 /** Prisma's own codes for the constraint violations a booking race can produce. */
 const CONFLICTING_PRISMA_CODES = new Set(['P2002', 'P2003', 'P2004']);
 /**
- * A raw SQLSTATE never reaches `error.code` — `PrismaClientKnownRequestError.code` is always a
- * `P####` value and an unrecognised database fault arrives as `PrismaClientUnknownRequestError`
- * with no code at all. The only place a SQLSTATE surfaces is `meta.code`, for example on the `P2010`
- * raised by a failing raw query such as the `SELECT ... FOR UPDATE` in `create()`.
+ * A SQLSTATE never reaches `error.code` — `PrismaClientKnownRequestError.code` is always a `P####`
+ * value and an unrecognised database fault arrives as `PrismaClientUnknownRequestError` with no
+ * code at all. When a raw query fails, such as the `SELECT ... FOR UPDATE` in `create()`, Prisma 7
+ * raises `P2010` and keeps the driver fault under `meta.driverAdapterError`, so the SQLSTATE is only
+ * readable from that fault's own cause. `meta.code` is never populated.
  *
- * Only violations that mean "someone else changed the data first" belong here. A check-constraint
- * violation (`23514`) means this service wrote an invalid row, which is a defect rather than a
- * conflict, so it is deliberately absent and surfaces as a 500.
+ * Only faults that mean "someone else changed the data first" belong here. A serialization failure
+ * or a deadlock is what a row lock contended by concurrent bookings loses to, and the two constraint
+ * states cover a raw statement that writes; an ORM write surfaces those as `P2002`/`P2003` instead.
+ * A check-constraint violation (`23514`) means this service wrote an invalid row, which is a defect
+ * rather than a conflict, so it is deliberately absent and surfaces as a 500.
  */
-const CONFLICTING_SQL_STATES = new Set(['23503', '23505']);
+const CONFLICTING_SQL_STATES = new Set(['23503', '23505', '40001', '40P01']);
 
 /**
  * The payment update writes only mockReference, paidAt and paymentStatus. Booking's other unique
@@ -842,17 +1113,31 @@ function isDuplicateMockReference(error: unknown): boolean {
   return !!error && typeof error === 'object' && (error as { code?: unknown }).code === 'P2002';
 }
 
+function readProperty(value: unknown, key: string): unknown {
+  return value !== null && typeof value === 'object'
+    ? (value as Record<string, unknown>)[key]
+    : undefined;
+}
+
+/** Reads the SQLSTATE Prisma nests under `meta.driverAdapterError.cause.originalCode`. */
+function readDriverSqlState(error: object): string | undefined {
+  const driverError = readProperty(readProperty(error, 'meta'), 'driverAdapterError');
+  const sqlState = readProperty(readProperty(driverError, 'cause'), 'originalCode');
+  return typeof sqlState === 'string' ? sqlState : undefined;
+}
+
 function isDatabaseConflict(error: unknown): boolean {
   if (!error || typeof error !== 'object') {
     return false;
   }
 
-  const { code, meta } = error as { code?: unknown; meta?: { code?: unknown } };
+  const { code } = error as { code?: unknown };
   if (typeof code === 'string' && CONFLICTING_PRISMA_CODES.has(code)) {
     return true;
   }
 
-  return typeof meta?.code === 'string' && CONFLICTING_SQL_STATES.has(meta.code);
+  const sqlState = readDriverSqlState(error);
+  return sqlState !== undefined && CONFLICTING_SQL_STATES.has(sqlState);
 }
 
 function deriveBookingAmounts(
@@ -882,4 +1167,21 @@ function deriveBookingAmounts(
     netAmount: subtotalAmount.minus(discountAmount),
     subtotalAmount,
   };
+}
+
+const HTTPS_MEETING_URL_PATTERN = /^https:\/\/[^\s/?#]+([/?#].*)?$/i;
+
+function isValidMeetingUrl(urlString: string): boolean {
+  if (typeof urlString !== 'string' || urlString !== urlString.trim()) {
+    return false;
+  }
+  if (!HTTPS_MEETING_URL_PATTERN.test(urlString)) {
+    return false;
+  }
+  try {
+    const url = new URL(urlString);
+    return url.protocol === 'https:' && url.hostname.length > 0;
+  } catch {
+    return false;
+  }
 }
