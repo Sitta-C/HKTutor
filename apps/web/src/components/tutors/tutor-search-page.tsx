@@ -83,6 +83,9 @@ export default function TutorSearchPage() {
   const filterToggle = useRef<HTMLButtonElement>(null);
   const requestId = useRef(0);
   const controller = useRef<AbortController | null>(null);
+  const retryInFlight = useRef(false);
+  const retryButton = useRef<HTMLButtonElement>(null);
+  const resultsHeading = useRef<HTMLHeadingElement>(null);
 
   useEffect(() => {
     let active = true;
@@ -219,6 +222,23 @@ export default function TutorSearchPage() {
     void executeSearch({ ...activeQuery, page });
   };
 
+  const retrySearch = async () => {
+    if (retryInFlight.current) return;
+    retryInFlight.current = true;
+    const retryRequestId = requestId.current + 1;
+    try {
+      await executeSearch(activeQuery);
+    } finally {
+      retryInFlight.current = false;
+      requestAnimationFrame(() => {
+        if (retryRequestId !== requestId.current || document.activeElement !== document.body) {
+          return;
+        }
+        (retryButton.current ?? resultsHeading.current)?.focus();
+      });
+    }
+  };
+
   const filterCount = [form.subject, form.grade, form.maxPrice, form.minimumRating].filter(
     Boolean,
   ).length;
@@ -338,7 +358,7 @@ export default function TutorSearchPage() {
         <PaperCard className={styles.results} aria-live="polite" aria-busy={status === 'loading'}>
           <div className={styles.resultHeading}>
             <div>
-              <h2>
+              <h2 ref={resultsHeading} tabIndex={-1}>
                 {status === 'success' ? pagination.total : '—'} {text.exactMatches}
               </h2>
               <p>
@@ -369,7 +389,26 @@ export default function TutorSearchPage() {
           </div>
           <div className={styles.resultBody}>
             {status === 'error' && hasSearchError && (
-              <SearchState tone="error" message={text.searchError} />
+              <div className={styles.retryState}>
+                <div className={styles.returnSlip} role="alert">
+                  <div className={styles.returnSlipHeading}>
+                    <DashboardIcon name="info" className={styles.returnSlipIcon ?? ''} />
+                    <p>{text.searchError}</p>
+                  </div>
+                  <p className={styles.retryHint}>{text.retryHint}</p>
+                  <div className={styles.returnSlipFooter}>
+                    <button
+                      ref={retryButton}
+                      type="button"
+                      className={styles.retryAction}
+                      onClick={() => void retrySearch()}
+                    >
+                      <span>{text.retry}</span>
+                      <DashboardIcon name="refresh" className={styles.returnSlipIcon ?? ''} />
+                    </button>
+                  </div>
+                </div>
+              </div>
             )}
             {status === 'validation' && <SearchState tone="error" message={text.validationError} />}
             {status === 'loading' && <SearchState tone="loading" message={text.loading} />}

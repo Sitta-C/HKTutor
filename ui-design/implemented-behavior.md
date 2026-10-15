@@ -70,6 +70,13 @@ ink stamp icon and two-line copy inside a slightly tilted double frame; text sta
 budget follows as a quiet mint check with an underline. Both treatments wrap within narrow rows,
 remain display-only, and keep their existing server-derived meaning in both languages.
 
+Search request failures show the selected Return Slip with an explicit bilingual Try again button.
+It repeats the failed applied query, including its page and ranking, without applying filter drafts.
+The current loading region replaces the notice while a read is pending; duplicate retries are gated.
+Repeated failure restores the retry action and success restores results. Focus returns to the retry
+button after failure or the result heading after success, unless the user has moved focus elsewhere
+or started another search. Validation, empty results and catalog errors do not receive this button.
+
 ## Tutor qualification review
 
 Tutor verification distinguishes `UNVERIFIED` (no documents submitted) from `PENDING` (documents
