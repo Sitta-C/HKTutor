@@ -83,6 +83,15 @@ non-participant senders, and de-duplicates retries by sender and `clientMessageI
 indexes support both ID and UTC `sentAt` ordering; API handlers must still perform participant
 authorization and map expected uniqueness conflicts to the appropriate HTTP response.
 
+`POST /api/v1/conversations/:conversationId/messages` is guarded by `JwtAuthGuard` then
+`RolesGuard` and accepts only `STUDENT` and `TUTOR` callers. The handler takes the sender ID from
+the access token, validates trimmed text as 1–2,000 Unicode code points, then checks that sender is
+one of the conversation's two participants before inserting a `Message`. It returns `201` on
+success; `400 VALIDATION_FAILED` for invalid text, `401 UNAUTHENTICATED` for a missing or invalid
+session, `403 FORBIDDEN` for an admin or nonparticipant, and `404 NOT_FOUND` for a missing
+conversation. Failure responses do not return conversation/message content, and validation or
+authorization failures create no `Message` row.
+
 After confirming the target is disposable and filling the seed email/password values:
 
 ```bash
