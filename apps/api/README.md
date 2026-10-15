@@ -493,9 +493,11 @@ and PENDING/CONFIRMED-reserved slots. No supplied budget means no `FITS_BUDGET` 
 not treated as zero. Comparisons use the stored Decimal prices and ratings. An item with no applicable
 explanation returns `recommendationTags: []`.
 
-This contract addition delegates ordering and result pagination to the existing sorter. API tests
-for it use mocked persistence and do not certify PostgreSQL ordering or public-query eligibility.
-The ranking selector and translated result-card labels belong to S2-T14.
+This contract addition delegates ordering and result pagination to the existing sorter. The mocked
+API tests for it check the `orderBy`/SQL text a call is given, not that PostgreSQL actually orders
+rows that way; see "Tutor ranking verification (S2-T15)" below for that evidence. Public-query
+eligibility (which tutors and listings are visible at all) is S2-T10/S2-T12's own contract. The
+ranking selector and translated result-card labels belong to S2-T14.
 
 ## Mock payment API (S2-T04)
 
@@ -996,3 +998,107 @@ raised by PostgreSQL itself for the `now()` case and a genuine dropped message f
 A sixth, changing `hasMore`'s `>` to `>=`, passed every other check but failed the `pageSize=7` walk
 exactly as intended, confirming that walk earns its place rather than duplicating the `pageSize=20`
 one. Each mutation was reverted and confirmed byte-identical (`git diff`/checksum) before the next.
+
+## Tutor ranking verification (S2-T15)
+
+`pnpm --filter @hktutor/api db:verify:tutor-ranking` proves the S2-T13 ranking engine
+(`TutorDirectoryService.searchPublicTutors`, `tutor-ranking.ts`) against real PostgreSQL. As the
+S2-T13 section above already states, the mocked-Prisma suites (`tutor-ranking.spec.ts`,
+`tutor-ranking-explanations.service.spec.ts`, `public-tutors.service.spec.ts`,
+`tutor-ranking-contract.e2e-spec.ts`) check the `orderBy`/SQL text a call is given and the pure tag
+function in isolation; none of them execute a query against a real engine, so none can certify that
+the raw `$queryRaw` used for `earliest_availability` -- its `LEFT JOIN`, `NOT EXISTS` booking
+subquery and `deletedAt` filter -- actually orders rows correctly; that a tutor with no bookable
+future slot (no slot rows, only a past one, or only one blocked by a pending/confirmed booking)
+truly sorts last while one blocked only by a _canceled_ booking does not; that the subject filter
+survives on that same hand-written SQL path, not just the Prisma-built one; or that a real stored
+`Decimal` price, not an in-memory one, is compared correctly against `maxPrice`. Only a real database
+can. Neither root `pnpm check` nor `pnpm test` runs this command.
+
+```bash
+nvm use 24.19.0
+pnpm install --frozen-lockfile
+docker run --detach --name hktutor-ranking-test \
+  --publish 127.0.0.1:55440:5432 \
+  --env POSTGRES_USER=postgres --env POSTGRES_PASSWORD=disposable-local-only \
+  --env POSTGRES_DB=hktutor_ranking_test postgres:17
+docker exec hktutor-ranking-test pg_isready -U postgres -d hktutor_ranking_test
+export DATABASE_URL='postgresql://postgres:disposable-local-only@127.0.0.1:55440/hktutor_ranking_test'
+pnpm db:generate
+pnpm --filter @hktutor/api db:migrate:deploy
+HKTUTOR_ALLOW_DISPOSABLE_DB_VERIFY=1 pnpm --filter @hktutor/api db:verify:tutor-ranking
+docker rm --force --volumes hktutor-ranking-test
+unset DATABASE_URL
+```
+
+The approval flag and explicit `DATABASE_URL` are both required; the runner never loads `.env` or
+falls back to a shared database. It accepts loopback hosts only, requires a database name matching
+`hktutor_*_test` or `hktutor-*-test`, refuses URL options/fragments, and checks that every committed
+migration under `prisma/migrations` is applied before creating fixtures. It creates its own catalog,
+tutor, listing, slot and booking rows, every one of them with a randomly generated name or code, so
+a second run never collides with rows a crashed first run failed to clean up; it has no seed
+dependency and was run twice back to back while writing this to confirm it leaves nothing behind.
+
+`priority=<invalid>` returning 400 is **not** re-proven here: `resolveTutorRankingQuery` rejects an
+unsupported priority, or one combined with an individual sort parameter, before any query is built,
+so it is pure-function behavior already covered by `tutor-ranking.spec.ts` and, through the real HTTP
+validation pipe, by `tutor-ranking-contract.e2e-spec.ts`. Fabricating database evidence for a path
+that never reaches the database would not strengthen that proof. S2-T14's ranking selector and
+result-card tags have since merged (PR #104); its own Playwright suite
+(`apps/web/e2e/tutor-search-ui.spec.ts`) covers that changing the ranking preserves applied filters
+and that the cards render the server's reasons, including `FITS_BUDGET` only when `maxPrice` is
+sent. Ordering, the 400 response and the truth of each tag are all decided here, server-side, with
+the UI only rendering what this endpoint returns, so this verification stays scoped to the API
+contract those tags are read from.
+
+Nine tutors, one listing each, created directly as already-`PUBLISHED` and `VERIFIED` (bypassing the
+publish workflow, which is S2-T10/S2-T12's own contract) so the fixture is deterministic regardless
+of execution speed:
+
+- Two tutors genuinely **tied at the global-lowest price**, with different ratings and a
+  `publishedAt` that deliberately disagrees with the rating order -- so a regression that fell back
+  to the trailing `publishedAt` tie-break instead of the named price mode's own rating tie-break
+  would rank them the wrong way round and be caught, rather than passing by coincidence. Both carry
+  `LOWEST_PRICE`.
+- One tutor **tied at the global-highest rating** with one of the two above, priced differently so
+  it never collides with the price scenario; its more recent `publishedAt` must break that tie.
+- One **unrated** tutor, to prove a null rating is never mistaken for a sortable zero and never
+  carries `HIGHEST_RATED`.
+- One tutor with a real future slot and one **otherwise identical in price and rating but with no
+  bookable future slot at all** -- not because it has zero slot rows, but because its only two slot
+  rows are, respectively, already reserved by a `CONFIRMED` booking and soft-deleted, at a timestamp
+  chosen so that either slot leaking as "available" would land in a visibly wrong, middle position
+  rather than coincidentally matching where it already sorts. Having any real slot must still
+  outrank having none.
+- One tutor whose **only slot is already in the past**, to prove a slot that merely exists is not
+  enough: it must count as no bookable future slot at all, the same as the tutor above, not as an
+  impossibly early one.
+- One tutor whose one future slot carries a **`CANCELED`** booking, to prove a canceled booking does
+  not block a slot the way a pending or confirmed one does -- it must be counted as available and
+  sorted normally, not treated like the no-slot tutors above.
+- One tutor on a **different subject** that would win every single priority on price, rating and
+  availability alike, to prove a ranking change cannot widen or drop an existing subject filter --
+  checked against both query paths: the shared Prisma `where` (`lowest_price`) and the hand-written
+  raw SQL `WHERE` that only `earliest_availability` uses, where this tutor's slot is chronologically
+  earliest of all and would otherwise win page 1 outright if the filter ever leaked there.
+- One tutor priced **one satang above** the two lowest-price tutors, to prove a real stored
+  `Decimal` column, not an in-memory one, is compared correctly: querying with `maxPrice` equal to
+  the cheaper two's exact price must include and tag them both while excluding this one entirely.
+
+Each of the three named priorities is run once, filtered to this subject, and asserted against the
+exact ordering above (`lowest_price`, `highest_rating`, `earliest_availability`), together with each
+item's full `recommendationTags` array -- not merely checked to include the expected tag, but
+asserted equal to it, so an extra or leaked tag fails the same as a missing one. The price tie is
+additionally walked one page at a time to confirm it splits across the boundary with no duplicate
+and no skip, and the `maxPrice` boundary is checked as its own scenario.
+
+Eight regressions were deliberately reintroduced and reverted while writing this -- dropping the
+price-tie rating tie-break; sorting null ratings first instead of last; dropping the raw query's
+`startAtUtc > now`, booking-status, and `deletedAt` filters independently; dropping the raw query's
+subject filter; tagging every listing `FITS_BUDGET` unconditionally; and leaking the lowest-price
+context into another priority's tags -- and each was caught by exactly the assertion it should break,
+confirming the fixture is discriminating rather than accidentally passing. One of those regressions
+(the booking-status filter) was not caught on the first attempt: the reserved slot's timestamp had
+been chosen only to avoid colliding with `tiedHigh`'s, which left it landing in the same place
+whether the filter worked or not. Moving it to a timestamp where leaking is visibly different from
+being excluded restored the check.

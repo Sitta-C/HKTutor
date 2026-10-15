@@ -29,7 +29,8 @@
     "storage:recover": "pnpm --filter @hktutor/api storage:recover",
     "db:verify:avatars": "pnpm --filter @hktutor/api db:verify:avatars",
     "db:verify:tutor-verification": "pnpm --filter @hktutor/api db:verify:tutor-verification",
-    "db:verify:message-pagination": "pnpm --filter @hktutor/api db:verify:message-pagination"
+    "db:verify:message-pagination": "pnpm --filter @hktutor/api db:verify:message-pagination",
+    "db:verify:tutor-ranking": "pnpm --filter @hktutor/api db:verify:tutor-ranking"
   },
   "devDependencies": {
     "@hktutor/eslint-config": "workspace:*",

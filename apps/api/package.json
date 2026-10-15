@@ -36,7 +36,8 @@
     "storage:recover": "ts-node -r tsconfig-paths/register scripts/recover-storage-cleanup.ts",
     "db:verify:avatars": "ts-node -r tsconfig-paths/register scripts/verify-avatar-concurrency.ts",
     "db:verify:tutor-verification": "ts-node -r tsconfig-paths/register scripts/verify-tutor-verification-visibility.ts",
-    "db:verify:message-pagination": "ts-node -r tsconfig-paths/register scripts/verify-message-pagination.ts"
+    "db:verify:message-pagination": "ts-node -r tsconfig-paths/register scripts/verify-message-pagination.ts",
+    "db:verify:tutor-ranking": "ts-node -r tsconfig-paths/register scripts/verify-tutor-ranking.ts"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",
