@@ -17,6 +17,7 @@ import { PrismaService } from '@infrastructure/database/prisma.service';
 import { CURRENT_PRIVACY_POLICY_VERSION } from '@modules/auth/auth.constants';
 import { RescheduleAction } from '@modules/reschedule-requests/reschedule-requests.dto';
 
+import type { AvailabilitySlot } from '@generated/prisma/client';
 import type {
   ApproveRescheduleResponseDto,
   CreateRescheduleRequestDto,
@@ -246,6 +247,8 @@ export class RescheduleRequestsService {
 
     try {
       return await this.prisma.$transaction(async (tx) => {
+        // Match the persistence protocol: lock the booking before reading eligibility.
+        await tx.$queryRaw`SELECT "id" FROM "Booking" WHERE "id" = ${bookingId}::uuid FOR UPDATE`;
         const booking = await tx.booking.findUnique({
           select: {
             id: true,
@@ -273,7 +276,7 @@ export class RescheduleRequestsService {
         }
 
         const now = new Date();
-        if (booking.slot.startAtUtc.getTime() - now.getTime() <= RESCHEDULE_CUTOFF_MS) {
+        if (booking.slot.startAtUtc.getTime() - now.getTime() < RESCHEDULE_CUTOFF_MS) {
           throw rescheduleCutoffExceeded();
         }
 
@@ -373,7 +376,8 @@ export class RescheduleRequestsService {
     const booking = await this.prisma.booking.findUnique({
       select: {
         id: true,
-        slot: { select: { startAtUtc: true } },
+        slot: { select: { endAtUtc: true, startAtUtc: true } },
+        slotId: true,
         status: true,
         studentUserId: true,
         tutorProfileId: true,
@@ -392,17 +396,44 @@ export class RescheduleRequestsService {
     const pending = await this.prisma.rescheduleRequest.findFirst({
       include: {
         requestedSlot: {
-          select: { endAtUtc: true, id: true, startAtUtc: true, tutorProfileId: true },
+          select: {
+            bookings: {
+              select: { id: true },
+              take: 1,
+              where: { status: { in: [BookingStatus.PENDING, BookingStatus.CONFIRMED] } },
+            },
+            deletedAt: true,
+            endAtUtc: true,
+            id: true,
+            startAtUtc: true,
+            tutorProfileId: true,
+          },
         },
       },
       where: { bookingId: booking.id, status: RescheduleRequestStatus.PENDING },
     });
 
+    const now = new Date();
+    const canReschedule =
+      booking.status === BookingStatus.CONFIRMED &&
+      booking.slot.startAtUtc.getTime() - now.getTime() >= RESCHEDULE_CUTOFF_MS;
+
     if (pending) {
       const isRequester = userId === pending.requestedById;
+      const canApprove =
+        canReschedule &&
+        pending.fromSlotId === booking.slotId &&
+        pending.requestedSlot.deletedAt === null &&
+        pending.requestedSlot.startAtUtc > now &&
+        pending.requestedSlot.tutorProfileId === booking.tutorProfileId &&
+        pending.requestedSlot.bookings.length === 0 &&
+        (pending.requestedSlot.startAtUtc >= booking.slot.endAtUtc ||
+          pending.requestedSlot.endAtUtc <= booking.slot.startAtUtc);
       const allowedActions: RescheduleAction[] = isRequester
         ? [RescheduleAction.WITHDRAW]
-        : [RescheduleAction.APPROVE, RescheduleAction.REJECT];
+        : canApprove
+          ? [RescheduleAction.APPROVE, RescheduleAction.REJECT]
+          : [RescheduleAction.REJECT];
 
       return {
         allowedActions,
@@ -428,13 +459,8 @@ export class RescheduleRequestsService {
       };
     }
 
-    const now = new Date();
-    const canCreate =
-      booking.status === BookingStatus.CONFIRMED &&
-      booking.slot.startAtUtc.getTime() - now.getTime() > RESCHEDULE_CUTOFF_MS;
-
     return {
-      allowedActions: canCreate ? [RescheduleAction.CREATE] : [],
+      allowedActions: canReschedule ? [RescheduleAction.CREATE] : [],
       request: null,
       targetSlot: null,
     };
@@ -445,6 +471,15 @@ export class RescheduleRequestsService {
 
     try {
       return await this.prisma.$transaction(async (tx) => {
+        const identity = await tx.rescheduleRequest.findUnique({
+          select: { bookingId: true },
+          where: { id: requestId },
+        });
+        if (!identity) {
+          throw rescheduleRequestNotFound();
+        }
+        await tx.$queryRaw`SELECT "id" FROM "Booking" WHERE "id" = ${identity.bookingId}::uuid FOR UPDATE`;
+        // A competing decision may have committed while the booking lock was pending.
         const request = await tx.rescheduleRequest.findUnique({
           include: {
             booking: {
@@ -452,20 +487,11 @@ export class RescheduleRequestsService {
                 id: true,
                 listingId: true,
                 netAmount: true,
-                slot: { select: { startAtUtc: true } },
+                slot: { select: { endAtUtc: true, startAtUtc: true } },
                 slotId: true,
                 status: true,
                 studentUserId: true,
                 subtotalAmount: true,
-                tutorProfileId: true,
-              },
-            },
-            requestedSlot: {
-              select: {
-                deletedAt: true,
-                endAtUtc: true,
-                id: true,
-                startAtUtc: true,
                 tutorProfileId: true,
               },
             },
@@ -494,23 +520,48 @@ export class RescheduleRequestsService {
         if (request.booking.status !== BookingStatus.CONFIRMED) {
           throw bookingNotConfirmed(request.booking.status);
         }
+        if (request.booking.slotId !== request.fromSlotId) {
+          throw rescheduleRaceConflict();
+        }
+
+        // Deletion and booking writes also lock this row. Read it under that lock so a
+        // concurrent deletion becomes a domain 409 before either state is changed.
+        const [targetSlot] = await tx.$queryRaw<
+          Pick<
+            AvailabilitySlot,
+            'id' | 'tutorProfileId' | 'startAtUtc' | 'endAtUtc' | 'deletedAt'
+          >[]
+        >`
+          SELECT "id", "tutorProfileId", "startAtUtc", "endAtUtc", "deletedAt"
+          FROM "AvailabilitySlot" WHERE "id" = ${request.requestedSlotId}::uuid FOR UPDATE
+        `;
 
         const now = new Date();
-        if (request.booking.slot.startAtUtc.getTime() - now.getTime() <= RESCHEDULE_CUTOFF_MS) {
+        if (request.booking.slot.startAtUtc.getTime() - now.getTime() < RESCHEDULE_CUTOFF_MS) {
           throw rescheduleCutoffExceeded();
         }
 
-        if (request.requestedSlot.deletedAt !== null) {
+        if (!targetSlot || targetSlot.deletedAt !== null) {
           throw rescheduleTargetUnavailable();
         }
-        if (request.requestedSlot.startAtUtc.getTime() <= now.getTime()) {
+        if (targetSlot.tutorProfileId !== request.booking.tutorProfileId) {
+          throw rescheduleTargetWrongTutor();
+        }
+        if (targetSlot.startAtUtc.getTime() <= now.getTime()) {
           throw rescheduleTargetPast();
+        }
+        if (
+          targetSlot.id === request.fromSlotId ||
+          (targetSlot.startAtUtc < request.booking.slot.endAtUtc &&
+            targetSlot.endAtUtc > request.booking.slot.startAtUtc)
+        ) {
+          throw rescheduleSlotOverlap();
         }
 
         const existingBooking = await tx.booking.findFirst({
           select: { id: true },
           where: {
-            slotId: request.requestedSlot.id,
+            slotId: targetSlot.id,
             status: { in: [BookingStatus.PENDING, BookingStatus.CONFIRMED] },
           },
         });
@@ -562,10 +613,10 @@ export class RescheduleRequestsService {
             updatedAt: updatedBooking.updatedAt.toISOString(),
           },
           newSlot: {
-            endAtUtc: request.requestedSlot.endAtUtc.toISOString(),
-            id: request.requestedSlot.id,
-            startAtUtc: request.requestedSlot.startAtUtc.toISOString(),
-            tutorProfileId: request.requestedSlot.tutorProfileId,
+            endAtUtc: targetSlot.endAtUtc.toISOString(),
+            id: targetSlot.id,
+            startAtUtc: targetSlot.startAtUtc.toISOString(),
+            tutorProfileId: targetSlot.tutorProfileId,
           },
           requestId: request.id,
           status: RescheduleRequestStatus.APPROVED,

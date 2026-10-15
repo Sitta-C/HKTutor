@@ -692,13 +692,34 @@ reason and request time are immutable, and closed evidence cannot be modified or
 Rejecting/withdrawing a request does not move a booking. RLS and revoked PUBLIC/Supabase browser-role
 privileges keep this table behind the backend owner connection.
 
-S2-T25 still owns authenticated endpoints, requester-only withdrawal, active-account/consent checks,
-the inclusive cutoff, future/non-deleted/available target checks and HTTP conflict mapping. The
-database cannot infer the authenticated actor from a submitted UUID. Its verifier demonstrates a
-slot-swap transaction protocol; it is not a production approval service or HTTP authorization test.
-The future service must lock the booking first, revalidate eligibility, conditionally close the
-pending request, update the booking's slot and commit all changes together. A uniqueness/state
-failure must roll back both writes; never close the request in a separate transaction.
+S2-T25 implements the authenticated create/current/approve/reject/withdraw endpoints in
+`src/modules/reschedule-requests`. It enforces requester/counterparty ownership, active-account and
+current-consent checks, and an inclusive cutoff: create and approve allow exactly 24 hours before
+the current class and reject anything closer. A pending request never holds its target slot.
+
+Creation locks the booking before reading eligibility. Approval locks the booking, re-reads the
+request, then locks and reads the target slot before checking availability and changing either
+record. If target deletion commits first, approval returns `409 RESCHEDULE_TARGET_UNAVAILABLE`
+without closing the pending request or moving the booking. Request closure and the slot swap
+commit together; a uniqueness or state conflict rolls both back. No schema migration is added by
+these endpoint fixes.
+
+`GET /api/v1/bookings/:bookingId/reschedule-requests/current` advertises `APPROVE` only for an
+eligible confirmed booking and a future, non-deleted, unreserved, non-overlapping target belonging
+to the same tutor. If approval becomes unavailable, the counterparty can still `REJECT` and the
+requester can still `WITHDRAW` while the request is pending.
+
+Run the focused endpoint checks with:
+
+```bash
+pnpm --filter @hktutor/api test --runInBand reschedule-requests
+pnpm --filter @hktutor/api test:e2e --runInBand reschedule-requests
+```
+
+The HTTP suite uses real controllers, guards and validation with isolated mocked persistence. It
+checks exact-cutoff behavior, permitted actions, target deletion at the lock read, authorization,
+validation and modeled rollback. It does not prove PostgreSQL lock contention. The database
+verifier below tests the persistence protocol separately, not the production service or HTTP routes.
 
 ### Verification and rollout
 

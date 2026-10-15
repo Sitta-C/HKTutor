@@ -121,7 +121,11 @@ export class CurrentRescheduleRequestResponseDto {
   targetSlot!: RescheduleTargetSlotDto | null;
 
   @ApiProperty({
-    description: 'Permitted reschedule actions for the authenticated caller.',
+    description:
+      'Actions currently available to the caller. APPROVE requires a confirmed booking at least ' +
+      '24 hours before class (including exactly 24 hours) and a valid available target. ' +
+      'REJECT and WITHDRAW remain available to the counterparty and requester respectively ' +
+      'while the request is pending, even when approval is no longer possible.',
     enum: Object.values(RescheduleAction),
     example: [RescheduleAction.APPROVE, RescheduleAction.REJECT],
     isArray: true,

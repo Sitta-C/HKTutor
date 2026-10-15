@@ -38,6 +38,7 @@ describe('RescheduleRequestsService', () => {
   let service: RescheduleRequestsService;
 
   const mockPrisma = {
+    $queryRaw: jest.fn(),
     $transaction: jest.fn(),
     availabilitySlot: { findFirst: jest.fn(), findUnique: jest.fn() },
     booking: {
@@ -103,7 +104,7 @@ describe('RescheduleRequestsService', () => {
   });
 
   beforeEach(async () => {
-    jest.clearAllMocks();
+    jest.resetAllMocks();
     mockPrisma.$transaction.mockImplementation(
       async (callback: (tx: typeof mockPrisma) => Promise<unknown>) => callback(mockPrisma),
     );
@@ -113,7 +114,11 @@ describe('RescheduleRequestsService', () => {
     }).compile();
 
     service = moduleRef.get<RescheduleRequestsService>(RescheduleRequestsService);
+    jest.useFakeTimers().setSystemTime(new Date('2026-10-15T12:00:00.000Z'));
+    mockPrisma.$queryRaw.mockResolvedValue([mockTargetSlot()]);
   });
+
+  afterEach(() => jest.useRealTimers());
 
   describe('User account & consent assertions', () => {
     it('rejects when the account is not found', async () => {
@@ -159,6 +164,35 @@ describe('RescheduleRequestsService', () => {
   describe('create', () => {
     beforeEach(() => {
       mockPrisma.user.findUnique.mockResolvedValue(mockActiveUser());
+    });
+
+    it.each([-1, 0, 1])('checks the inclusive cutoff at 24h %+d ms', async (offset) => {
+      mockPrisma.booking.findUnique.mockResolvedValue(
+        mockBooking({
+          slot: {
+            startAtUtc: new Date(futureDate(24).getTime() + offset),
+            endAtUtc: futureDate(25),
+          },
+        }),
+      );
+      mockPrisma.rescheduleRequest.findFirst.mockResolvedValue(null);
+      mockPrisma.availabilitySlot.findUnique.mockResolvedValue(mockTargetSlot());
+      mockPrisma.booking.findFirst.mockResolvedValue(null);
+      mockPrisma.rescheduleRequest.create.mockResolvedValue({
+        bookingId: BOOKING_ID,
+        id: REQUEST_ID,
+        requestedSlotId: TARGET_SLOT_ID,
+        status: RescheduleRequestStatus.PENDING,
+      });
+      const result = service.create(STUDENT_ID, Role.STUDENT, BOOKING_ID, {
+        targetSlotId: TARGET_SLOT_ID,
+      });
+      if (offset < 0) {
+        await expect(result).rejects.toThrow(ConflictException);
+        expect(mockPrisma.rescheduleRequest.create).not.toHaveBeenCalled();
+      } else {
+        await expect(result).resolves.toMatchObject({ status: RescheduleRequestStatus.PENDING });
+      }
     });
 
     it('rejects if the booking does not exist (404)', async () => {
@@ -387,6 +421,69 @@ describe('RescheduleRequestsService', () => {
       mockPrisma.user.findUnique.mockResolvedValue(mockActiveUser());
     });
 
+    it.each([-1, 0, 1])(
+      'advertises CREATE at the inclusive boundary: 24h %+d ms',
+      async (offset) => {
+        mockPrisma.booking.findUnique.mockResolvedValue(
+          mockBooking({
+            slot: { startAtUtc: new Date(futureDate(24).getTime() + offset) },
+          }),
+        );
+        mockPrisma.rescheduleRequest.findFirst.mockResolvedValue(null);
+        const result = await service.getCurrent(STUDENT_ID, BOOKING_ID);
+        expect(result.allowedActions).toEqual(offset < 0 ? [] : ['CREATE']);
+      },
+    );
+
+    it.each([
+      { name: 'inside cutoff', status: BookingStatus.CONFIRMED, hours: 12, target: {} },
+      { name: 'canceled booking', status: BookingStatus.CANCELED, hours: 48, target: {} },
+      { name: 'completed booking', status: BookingStatus.COMPLETED, hours: 48, target: {} },
+      {
+        name: 'deleted target',
+        status: BookingStatus.CONFIRMED,
+        hours: 48,
+        target: { deletedAt: new Date('2026-10-15T11:00:00Z') },
+      },
+      {
+        name: 'reserved target',
+        status: BookingStatus.CONFIRMED,
+        hours: 48,
+        target: { bookings: [{ id: 'another-booking' }] },
+      },
+      {
+        name: 'past target',
+        status: BookingStatus.CONFIRMED,
+        hours: 48,
+        target: { startAtUtc: new Date('2026-10-15T11:00:00Z') },
+      },
+    ])('keeps REJECT/WITHDRAW but hides APPROVE for $name', async ({ status, hours, target }) => {
+      mockPrisma.booking.findUnique.mockResolvedValue(
+        mockBooking({
+          status,
+          slot: { startAtUtc: futureDate(hours), endAtUtc: futureDate(hours + 1) },
+        }),
+      );
+      mockPrisma.rescheduleRequest.findFirst.mockResolvedValue({
+        bookingId: BOOKING_ID,
+        fromSlotId: CURRENT_SLOT_ID,
+        id: REQUEST_ID,
+        requestedById: STUDENT_ID,
+        requestedAt: new Date(),
+        requestedSlot: { ...mockTargetSlot(), bookings: [], ...target },
+        requestedSlotId: TARGET_SLOT_ID,
+        reason: 'Exam conflict',
+        decidedAt: null,
+        reviewedById: null,
+        withdrawnAt: null,
+        status: RescheduleRequestStatus.PENDING,
+      });
+      expect((await service.getCurrent(TUTOR_ID, BOOKING_ID)).allowedActions).toEqual(['REJECT']);
+      expect((await service.getCurrent(STUDENT_ID, BOOKING_ID)).allowedActions).toEqual([
+        'WITHDRAW',
+      ]);
+    });
+
     it('rejects if booking does not exist (404)', async () => {
       mockPrisma.booking.findUnique.mockResolvedValue(null);
 
@@ -446,6 +543,8 @@ describe('RescheduleRequestsService', () => {
         requestedAt: new Date('2026-10-15T12:00:00Z'),
         requestedById: STUDENT_ID,
         requestedSlot: {
+          bookings: [],
+          deletedAt: null,
           endAtUtc: new Date('2026-10-25T11:00:00Z'),
           id: TARGET_SLOT_ID,
           startAtUtc: new Date('2026-10-25T10:00:00Z'),
@@ -476,6 +575,8 @@ describe('RescheduleRequestsService', () => {
         requestedAt: new Date('2026-10-15T12:00:00Z'),
         requestedById: STUDENT_ID,
         requestedSlot: {
+          bookings: [],
+          deletedAt: null,
           endAtUtc: new Date('2026-10-25T11:00:00Z'),
           id: TARGET_SLOT_ID,
           startAtUtc: new Date('2026-10-25T10:00:00Z'),
@@ -508,6 +609,100 @@ describe('RescheduleRequestsService', () => {
       requestedSlotId: TARGET_SLOT_ID,
       status: RescheduleRequestStatus.PENDING,
       ...overrides,
+    });
+
+    it.each([-1, 0, 1])('checks approval at the inclusive boundary: 24h %+d ms', async (offset) => {
+      mockPrisma.rescheduleRequest.findUnique.mockResolvedValue(
+        mockPendingRequestForApprove({
+          booking: mockBooking({
+            slot: {
+              startAtUtc: new Date(futureDate(24).getTime() + offset),
+              endAtUtc: futureDate(25),
+            },
+          }),
+        }),
+      );
+      mockPrisma.booking.findFirst.mockResolvedValue(null);
+      mockPrisma.rescheduleRequest.updateMany.mockResolvedValue({ count: 1 });
+      mockPrisma.booking.updateMany.mockResolvedValue({ count: 1 });
+      mockPrisma.booking.findUniqueOrThrow.mockResolvedValue(
+        mockBooking({ slotId: TARGET_SLOT_ID }),
+      );
+      const result = service.approve(TUTOR_ID, REQUEST_ID);
+      if (offset < 0) {
+        await expect(result).rejects.toThrow(ConflictException);
+        expect(mockPrisma.rescheduleRequest.updateMany).not.toHaveBeenCalled();
+      } else {
+        await expect(result).resolves.toMatchObject({ status: RescheduleRequestStatus.APPROVED });
+      }
+    });
+
+    it('re-reads a concurrent decision after acquiring the booking lock', async () => {
+      mockPrisma.rescheduleRequest.findUnique
+        .mockResolvedValueOnce(mockPendingRequestForApprove())
+        .mockResolvedValueOnce(
+          mockPendingRequestForApprove({ status: RescheduleRequestStatus.WITHDRAWN }),
+        );
+      await expect(service.approve(TUTOR_ID, REQUEST_ID)).rejects.toThrow(ConflictException);
+      expect(mockPrisma.rescheduleRequest.updateMany).not.toHaveBeenCalled();
+      expect(mockPrisma.booking.updateMany).not.toHaveBeenCalled();
+    });
+
+    it('revalidates deletion under the target lock before closing the request', async () => {
+      mockPrisma.rescheduleRequest.findUnique.mockResolvedValue(mockPendingRequestForApprove());
+      mockPrisma.$queryRaw
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([mockTargetSlot({ deletedAt: new Date() })]);
+      await expect(service.approve(TUTOR_ID, REQUEST_ID)).rejects.toMatchObject({
+        response: { code: 'RESCHEDULE_TARGET_UNAVAILABLE', statusCode: 409 },
+      });
+      expect(mockPrisma.rescheduleRequest.updateMany).not.toHaveBeenCalled();
+      expect(mockPrisma.booking.updateMany).not.toHaveBeenCalled();
+      const queries = mockPrisma.$queryRaw.mock.calls.map(([sql]: [TemplateStringsArray]) =>
+        sql.join(''),
+      );
+      expect(queries[0]).toContain('FROM "Booking"');
+      expect(queries[1]).toContain('FROM "AvailabilitySlot"');
+      expect(queries.every((sql) => sql.includes('FOR UPDATE'))).toBe(true);
+    });
+
+    it('returns a conflict if the locked target is missing', async () => {
+      mockPrisma.rescheduleRequest.findUnique.mockResolvedValue(mockPendingRequestForApprove());
+      mockPrisma.$queryRaw.mockResolvedValueOnce([]).mockResolvedValueOnce([]);
+      await expect(service.approve(TUTOR_ID, REQUEST_ID)).rejects.toThrow(ConflictException);
+      expect(mockPrisma.rescheduleRequest.updateMany).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      { name: 'wrong tutor', target: { tutorProfileId: OUTSIDER_ID } },
+      {
+        name: 'overlap',
+        target: {
+          startAtUtc: new Date('2026-10-17T12:30:00Z'),
+          endAtUtc: new Date('2026-10-17T13:30:00Z'),
+        },
+      },
+    ])('revalidates $name on the locked target', async ({ target }) => {
+      mockPrisma.rescheduleRequest.findUnique.mockResolvedValue(mockPendingRequestForApprove());
+      mockPrisma.$queryRaw
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([mockTargetSlot(target)]);
+      await expect(service.approve(TUTOR_ID, REQUEST_ID)).rejects.toThrow(BadRequestException);
+      expect(mockPrisma.rescheduleRequest.updateMany).not.toHaveBeenCalled();
+      expect(mockPrisma.booking.updateMany).not.toHaveBeenCalled();
+    });
+
+    it('rejects a booking that no longer occupies the original slot', async () => {
+      mockPrisma.rescheduleRequest.findUnique.mockResolvedValue(
+        mockPendingRequestForApprove({
+          booking: mockBooking({ slotId: 'different-slot' }),
+        }),
+      );
+      await expect(service.approve(TUTOR_ID, REQUEST_ID)).rejects.toMatchObject({
+        response: { code: 'RESCHEDULE_RACE_CONFLICT', statusCode: 409 },
+      });
+      expect(mockPrisma.rescheduleRequest.updateMany).not.toHaveBeenCalled();
+      expect(mockPrisma.booking.updateMany).not.toHaveBeenCalled();
     });
 
     it('rejects if the request does not exist (404)', async () => {
@@ -564,6 +759,9 @@ describe('RescheduleRequestsService', () => {
           requestedSlot: mockTargetSlot({ deletedAt: new Date() }),
         }),
       );
+      mockPrisma.$queryRaw
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([mockTargetSlot({ deletedAt: new Date() })]);
 
       await expect(service.approve(TUTOR_ID, REQUEST_ID)).rejects.toThrow(ConflictException);
     });
@@ -574,6 +772,9 @@ describe('RescheduleRequestsService', () => {
           requestedSlot: mockTargetSlot({ startAtUtc: pastDate(1) }),
         }),
       );
+      mockPrisma.$queryRaw
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([mockTargetSlot({ startAtUtc: pastDate(1) })]);
 
       await expect(service.approve(TUTOR_ID, REQUEST_ID)).rejects.toThrow(BadRequestException);
     });

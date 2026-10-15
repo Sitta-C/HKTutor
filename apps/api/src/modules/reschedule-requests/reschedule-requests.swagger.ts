@@ -41,7 +41,11 @@ export function RescheduleRequestsControllerDoc(): ClassDecorator {
 export function CreateRescheduleRequestDoc(): MethodDecorator {
   return applyDecorators(
     ApiExtraModels(CreateRescheduleRequestDto, CreateRescheduleRequestResponseDto),
-    ApiOperation({ summary: 'Create a booking reschedule request' }),
+    ApiOperation({
+      summary: 'Create a booking reschedule request',
+      description:
+        'The current class must start at least 24 hours later; exactly 24 hours is allowed.',
+    }),
     ApiBearerAuth(JWT_BEARER_AUTH),
     ApiParam({
       description: 'The booking UUID to reschedule',
@@ -136,6 +140,10 @@ export function GetCurrentRescheduleRequestDoc(): MethodDecorator {
     ),
     ApiOperation({
       summary: 'Get current pending reschedule request and allowed actions for a booking',
+      description:
+        'CREATE includes the exact 24-hour boundary. APPROVE is returned only while the ' +
+        'booking and target are eligible. Pending requests can still be rejected or withdrawn ' +
+        'by the appropriate participant when approval is unavailable.',
     }),
     ApiBearerAuth(JWT_BEARER_AUTH),
     ApiParam({
@@ -230,7 +238,13 @@ export function ApproveRescheduleRequestDoc(): MethodDecorator {
       ApprovedRescheduleBookingDto,
       RescheduleTargetSlotDto,
     ),
-    ApiOperation({ summary: 'Approve a pending reschedule request and swap booking slot' }),
+    ApiOperation({
+      summary: 'Approve a pending reschedule request and swap booking slot',
+      description:
+        'Locks the booking, re-reads the request, then locks and revalidates the target before ' +
+        'closing the request and swapping slots in one transaction. Exactly 24 hours before ' +
+        'the current class is allowed. A target deleted while waiting for the lock returns 409.',
+    }),
     ApiBearerAuth(JWT_BEARER_AUTH),
     ApiParam({
       description: 'The reschedule request UUID',
