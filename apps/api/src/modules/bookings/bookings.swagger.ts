@@ -16,7 +16,7 @@ import {
   getSchemaPath,
 } from '@nestjs/swagger';
 
-import { BookingStatus, PaymentStatus } from '@generated/prisma/enums';
+import { AttendanceStatus, BookingStatus, PaymentStatus } from '@generated/prisma/enums';
 import { JWT_BEARER_AUTH } from '@modules/auth/auth.swagger';
 import {
   BookingClassDetailDto,
@@ -27,6 +27,7 @@ import {
   BookingSlotStatus,
   CancelBookingDto,
   CanceledBookingDto,
+  ClassAttendanceResponseDto,
   ConfirmBookingDto,
   CreateBookingDto,
   CreateMockPaymentDto,
@@ -38,6 +39,7 @@ import {
   RejectBookingDto,
   TutorBookingActionResponseDto,
   TutorBookingsResponseDto,
+  UpdateAttendanceDto,
   UpdateMeetingLinkDto,
 } from '@modules/bookings/bookings.dto';
 
@@ -1033,6 +1035,97 @@ export function CancelBookingDoc(): MethodDecorator {
           code: 'BOOKING_ALREADY_PAID',
           error: 'Conflict',
           message: 'This booking is already paid',
+          statusCode: 409,
+        },
+        type: 'object',
+      },
+    }),
+  );
+}
+
+export function UpdateAttendanceDoc(): MethodDecorator {
+  return applyDecorators(
+    ApiExtraModels(UpdateAttendanceDto, ClassAttendanceResponseDto),
+    ApiOperation({
+      summary:
+        "Update the attendance for one of the authenticated tutor's confirmed or completed bookings",
+      description:
+        'Record ATTENDED or ABSENT when the class end time is at or before now. The first write completes the booking atomically. A same-value replay returns the saved timestamp without writing; a different value returns 409.',
+    }),
+    ApiBearerAuth(JWT_BEARER_AUTH),
+    ApiBody({ required: true, type: UpdateAttendanceDto }),
+    ApiOkResponse({
+      description:
+        'Attendance recorded with idempotentReplay=false, or the saved record returned with idempotentReplay=true',
+      schema: {
+        example: {
+          attendance: AttendanceStatus.ATTENDED,
+          attendanceMarkedAt: '2026-10-09T09:04:31.001Z',
+          bookingId: '3c54a0d6-e3f3-4a38-bd55-3b4011ee31ae',
+          idempotentReplay: false,
+          status: BookingStatus.COMPLETED,
+        },
+        allOf: [{ $ref: getSchemaPath(ClassAttendanceResponseDto) }],
+        type: 'object',
+      },
+    }),
+    ApiBadRequestResponse({
+      description: 'The booking ID is not a valid UUID or the attendance status failed validation',
+      schema: {
+        example: {
+          code: 'VALIDATION_FAILED',
+          error: 'Bad Request',
+          message: ['attendance must be one of the following values: ATTENDED, ABSENT'],
+          statusCode: 400,
+        },
+        type: 'object',
+      },
+    }),
+    ApiUnauthorizedResponse({
+      description:
+        'The access token or its backing session is missing, invalid, expired, or revoked',
+      schema: {
+        example: {
+          code: 'UNAUTHENTICATED',
+          error: 'Unauthorized',
+          message: 'Invalid or expired authentication token',
+          statusCode: 401,
+        },
+        type: 'object',
+      },
+    }),
+    ApiForbiddenResponse({
+      description: 'The authenticated user is not a tutor, or the booking belongs to another tutor',
+      schema: {
+        example: {
+          code: 'BOOKING_NOT_OWNED',
+          error: 'Forbidden',
+          message: 'This booking belongs to another tutor',
+          statusCode: 403,
+        },
+        type: 'object',
+      },
+    }),
+    ApiNotFoundResponse({
+      description: 'No booking exists with this ID',
+      schema: {
+        example: {
+          code: 'BOOKING_NOT_FOUND',
+          error: 'Not Found',
+          message: 'Booking not found',
+          statusCode: 404,
+        },
+        type: 'object',
+      },
+    }),
+    ApiConflictResponse({
+      description:
+        'The booking is neither confirmed nor a completed replay, the class has not ended, attendance was recorded with a different value (ATTENDANCE_ALREADY_RECORDED), or a concurrent transition changed its eligibility',
+      schema: {
+        example: {
+          code: 'CLASS_NOT_ENDED',
+          error: 'Conflict',
+          message: 'Only ended class to be updated the attendance',
           statusCode: 409,
         },
         type: 'object',

@@ -15,6 +15,7 @@
     "db:seed": "prisma db seed",
     "db:verify:sprint1": "node scripts/verify-sprint1-database.mjs",
     "db:verify:bookings": "ts-node -r tsconfig-paths/register scripts/verify-booking-endpoint-concurrency.ts",
+    "db:verify:reschedules": "node scripts/verify-reschedule-request-database.mjs",
     "db:verify:tutor-transitions": "ts-node -r tsconfig-paths/register scripts/verify-tutor-booking-transitions.ts",
     "db:verify:qualifications": "ts-node -r tsconfig-paths/register scripts/verify-qualification-document-concurrency.ts",
     "format": "prettier --write \"src/**/*.ts\" \"scripts/**/*.ts\" \"docs/examples/**/*.ts\" \"test/**/*.ts\"",
@@ -32,7 +33,8 @@
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "typecheck:scripts": "tsc -p scripts/tsconfig.json",
     "storage:recover": "ts-node -r tsconfig-paths/register scripts/recover-storage-cleanup.ts",
-    "db:verify:avatars": "ts-node -r tsconfig-paths/register scripts/verify-avatar-concurrency.ts"
+    "db:verify:avatars": "ts-node -r tsconfig-paths/register scripts/verify-avatar-concurrency.ts",
+    "db:verify:tutor-verification": "ts-node -r tsconfig-paths/register scripts/verify-tutor-verification-visibility.ts"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",

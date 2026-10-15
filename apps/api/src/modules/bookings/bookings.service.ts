@@ -24,6 +24,8 @@ import {
   BookingResponseDto,
   BookingSlotStatus,
   CanceledBookingDto,
+  ClassAttendanceRequestDto,
+  ClassAttendanceResponseDto,
   ConfirmBookingDto,
   CreateBookingDto,
   CreateMockPaymentDto,
@@ -42,6 +44,8 @@ import {
   isPublicTutorVerificationStatus,
   publicTutorWhere,
 } from '@modules/tutors/public-tutor-access';
+
+import type { AttendanceStatus } from '@generated/prisma/enums';
 
 export type CreateBookingInput = CreateBookingDto & { studentUserId: string };
 export type GetBookingQuoteInput = GetBookingQuoteQueryDto & { studentUserId: string };
@@ -139,6 +143,22 @@ const bookingNotConfirmed = (status: BookingStatus): ConflictException =>
     code: 'BOOKING_NOT_CONFIRMED',
     error: 'Conflict',
     message: `Only a confirmed booking can be updated meeting link; this booking is ${status}`,
+    statusCode: 409,
+  });
+
+const bookingNotConfirmedOrCompleted = (status: BookingStatus): ConflictException =>
+  new ConflictException({
+    code: 'BOOKING_NOT_CONFIRMED_OR_COMPLETED',
+    error: 'Conflict',
+    message: `Only a confirmed or completed booking can be updated attendance; this booking is ${status}`,
+    statusCode: 409,
+  });
+
+const attendanceAlreadyRecorded = (status: AttendanceStatus): ConflictException =>
+  new ConflictException({
+    code: 'ATTENDANCE_ALREADY_RECORDED',
+    error: 'Conflict',
+    message: `Attendance is already recorded as ${status} for this booking`,
     statusCode: 409,
   });
 
@@ -255,6 +275,47 @@ const bookingExceedCancelRange = (): ConflictException =>
     message: 'This booking is exceeding cancel range',
     statusCode: 409,
   });
+
+const classNotEnded = (): ConflictException =>
+  new ConflictException({
+    code: 'CLASS_NOT_ENDED',
+    error: 'Conflict',
+    message: 'Only ended class to be updated the attendance',
+    statusCode: 409,
+  });
+
+const attendanceRecordSelect = {
+  attendance: true,
+  attendanceMarkedAt: true,
+  id: true,
+  status: true,
+} as const satisfies Prisma.BookingSelect;
+
+type AttendanceRecord = Prisma.BookingGetPayload<{ select: typeof attendanceRecordSelect }>;
+
+function attendanceResponse(
+  booking: AttendanceRecord,
+  requestedAttendance: AttendanceStatus,
+  idempotentReplay: boolean,
+): ClassAttendanceResponseDto {
+  if (
+    booking.status !== BookingStatus.COMPLETED ||
+    booking.attendance === null ||
+    booking.attendanceMarkedAt === null
+  ) {
+    throw bookingTransitionConflict();
+  }
+  if (booking.attendance !== requestedAttendance) {
+    throw attendanceAlreadyRecorded(booking.attendance);
+  }
+  return {
+    attendance: booking.attendance,
+    attendanceMarkedAt: booking.attendanceMarkedAt.toISOString(),
+    bookingId: booking.id,
+    idempotentReplay,
+    status: booking.status,
+  };
+}
 
 const bookingListingSelect = {
   deletedAt: true,
@@ -997,6 +1058,7 @@ export class BookingsService {
     };
     return response;
   }
+
   async cancelBooking(input: {
     bookingId: string;
     reason: string;
@@ -1067,6 +1129,94 @@ export class BookingsService {
       if (isDatabaseConflict(error)) {
         this.logger.warn(
           `Rejecting booking cancellation for ${input.bookingId}: database reported a conflict`,
+        );
+        throw bookingTransitionConflict();
+      }
+
+      throw error;
+    }
+  }
+
+  async updateAttendance(input: ClassAttendanceRequestDto): Promise<ClassAttendanceResponseDto> {
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        const booking = await tx.booking.findUnique({
+          select: {
+            attendance: true,
+            attendanceMarkedAt: true,
+            id: true,
+            slot: {
+              select: {
+                endAtUtc: true,
+              },
+            },
+            status: true,
+            tutorProfileId: true,
+          },
+          where: { id: input.bookingId },
+        });
+
+        if (!booking) {
+          throw bookingNotFound();
+        }
+        if (booking.tutorProfileId !== input.tutorId) {
+          throw bookingNotOwned();
+        }
+        if (
+          booking.status !== BookingStatus.CONFIRMED &&
+          booking.status !== BookingStatus.COMPLETED
+        ) {
+          throw bookingNotConfirmedOrCompleted(booking.status);
+        }
+        const attendanceMarkedAtUtc = new Date();
+        if (!booking.slot.endAtUtc || booking.slot.endAtUtc > attendanceMarkedAtUtc) {
+          throw classNotEnded();
+        }
+        if (booking.status === BookingStatus.COMPLETED) {
+          return attendanceResponse(booking, input.attendance, true);
+        }
+
+        // Only the first recording can win. PostgreSQL rechecks the predicate after a competing
+        // update commits, so a loser reads the saved value to distinguish replay from conflict.
+        const transition = await tx.booking.updateMany({
+          data: {
+            attendance: input.attendance,
+            attendanceMarkedAt: attendanceMarkedAtUtc,
+            status: BookingStatus.COMPLETED,
+          },
+          where: {
+            attendance: null,
+            attendanceMarkedAt: null,
+            id: input.bookingId,
+            slot: { endAtUtc: { lte: attendanceMarkedAtUtc } },
+            status: BookingStatus.CONFIRMED,
+            tutorProfileId: input.tutorId,
+          },
+        });
+
+        if (transition.count !== 1) {
+          const current = await tx.booking.findUnique({
+            select: attendanceRecordSelect,
+            where: { id: input.bookingId },
+          });
+
+          if (!current) {
+            throw bookingTransitionConflict();
+          }
+          return attendanceResponse(current, input.attendance, true);
+        }
+
+        const updated = await tx.booking.findUniqueOrThrow({
+          select: attendanceRecordSelect,
+          where: { id: input.bookingId },
+        });
+
+        return attendanceResponse(updated, input.attendance, false);
+      });
+    } catch (error) {
+      if (isDatabaseConflict(error)) {
+        this.logger.warn(
+          `Rejecting booking attendance update for ${input.bookingId}: database reported a conflict`,
         );
         throw bookingTransitionConflict();
       }

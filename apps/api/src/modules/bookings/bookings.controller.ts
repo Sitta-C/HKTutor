@@ -27,6 +27,7 @@ import {
   BookingResponseDto,
   CancelBookingDto,
   CanceledBookingDto,
+  ClassAttendanceResponseDto,
   ConfirmBookingDto,
   CreateBookingDto,
   CreateMockPaymentDto,
@@ -38,6 +39,7 @@ import {
   RejectBookingDto,
   TutorBookingActionResponseDto,
   TutorBookingsResponseDto,
+  UpdateAttendanceDto,
   UpdateMeetingLinkDto,
 } from '@modules/bookings/bookings.dto';
 import {
@@ -59,6 +61,7 @@ import {
   GetMyBookingsDoc,
   GetTutorBookingsDoc,
   RejectTutorBookingDoc,
+  UpdateAttendanceDoc,
   UpdateMeetingLinkDoc,
 } from '@modules/bookings/bookings.swagger';
 
@@ -247,6 +250,7 @@ export class BookingsController {
   ): Promise<BookingClassDetailDto> {
     return this.bookingsService.getBookingClassDetail(bookingId);
   }
+
   @Post(':bookingId/cancel')
   @HttpCode(HttpStatus.OK)
   @CancelBookingDoc()
@@ -260,6 +264,23 @@ export class BookingsController {
       bookingId,
       reason: dto.reason,
       userId: user.id,
+    });
+  }
+
+  @Put('tutor/:bookingId/attendance')
+  @HttpCode(HttpStatus.OK)
+  @UpdateAttendanceDoc()
+  @Roles(Role.TUTOR)
+  @RequireOwnership(TUTOR_BOOKING_ACTION_OWNERSHIP)
+  async updateAttendance(
+    @Param('bookingId', UuidParamPipe) bookingId: string,
+    @Body() dto: UpdateAttendanceDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<ClassAttendanceResponseDto> {
+    return this.bookingsService.updateAttendance({
+      bookingId,
+      tutorId: user.id,
+      attendance: dto.attendance,
     });
   }
 }

@@ -1,6 +1,7 @@
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
 
+import { AttendanceStatus } from '@generated/prisma/enums';
 import {
   CancelBookingDto,
   ConfirmBookingDto,
@@ -11,6 +12,7 @@ import {
   MAX_MOCK_PAYMENT_REFERENCE_LENGTH,
   MAX_TUTOR_ACTION_TEXT_LENGTH,
   RejectBookingDto,
+  UpdateAttendanceDto,
   UpdateMeetingLinkDto,
 } from '@modules/bookings/bookings.dto';
 
@@ -213,6 +215,30 @@ describe('cancel booking DTO', () => {
     [123, 'a number'],
   ])('rejects invalid reason %p (%s)', async (reason) => {
     const dto = plainToInstance(CancelBookingDto, { reason });
+    expect(await validate(dto)).not.toHaveLength(0);
+  });
+});
+
+describe('update attendance DTO', () => {
+  it.each([AttendanceStatus.ATTENDED, AttendanceStatus.ABSENT])(
+    'accepts valid attendance status %s',
+    async (attendance) => {
+      const dto = plainToInstance(UpdateAttendanceDto, { attendance });
+      await expect(validate(dto)).resolves.toHaveLength(0);
+    },
+  );
+
+  it.each([
+    ['', 'empty string'],
+    ['PRESENT', 'unknown enum value'],
+    ['attended', 'lowercase string'],
+    [123, 'a number'],
+    [true, 'a boolean'],
+    [null, 'null'],
+    [undefined, 'undefined'],
+    [{}, 'an object'],
+  ])('rejects invalid attendance %p (%s)', async (attendance) => {
+    const dto = plainToInstance(UpdateAttendanceDto, { attendance });
     expect(await validate(dto)).not.toHaveLength(0);
   });
 });
