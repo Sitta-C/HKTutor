@@ -153,6 +153,9 @@ for (const language of ['en', 'th'] as const) {
   test(`${language} ranking preserves applied filters, drafts and pagination and displays server reasons`, async ({
     page,
   }, testInfo) => {
+    if (testInfo.project.name === 'mobile-chromium') {
+      await page.setViewportSize({ width: 320, height: 900 });
+    }
     const { calls, unexpected } = await mockSearch(page, {
       language,
       student: true,
@@ -233,6 +236,10 @@ for (const language of ['en', 'th'] as const) {
       );
       await expect(page.locator('#tutor-search-max-price')).toHaveValue('-1');
       await expect(page.getByText(/500\.25฿/)).toBeVisible();
+      await articles.first().screenshot({
+        path: testInfo.outputPath(`library-stamp-${language}-${priority}.png`),
+        animations: 'disabled',
+      });
       index += 1;
     }
     await page.locator('#tutor-search-max-price').fill('600.75');

@@ -529,6 +529,12 @@ function TutorResultCard({
     ? `${text.next}: ${formatNextAvailable(result.nextAvailableAt, language)}`
     : text.noFutureSlots;
   const tags = result.recommendationTags ?? [];
+  const rankingTags = tags.filter((tag) => tag !== 'FITS_BUDGET');
+  const recommendationTitles = {
+    LOWEST_PRICE: text.lowest_price,
+    HIGHEST_RATED: text.highest_rating,
+    EARLIEST_AVAILABILITY: text.earliest_availability,
+  };
 
   return (
     <article className={styles.course}>
@@ -575,9 +581,21 @@ function TutorResultCard({
         <p className={styles.description}>{result.description}</p>
         {tags.length > 0 && (
           <ul className={styles.recommendations} aria-label={text.recommendationReasons}>
-            {tags.map((tag) => (
-              <li key={tag}>{text[tag]}</li>
+            {rankingTags.map((tag) => (
+              <li key={tag} className={styles.recommendationStamp}>
+                <DashboardIcon name="stamp" className={styles.stampIcon ?? ''} />
+                <span className={styles.stampText}>
+                  <strong>{recommendationTitles[tag]}</strong>
+                  <small>{text.recommendationScope}</small>
+                </span>
+              </li>
             ))}
+            {tags.includes('FITS_BUDGET') && (
+              <li className={styles.budgetReason}>
+                <DashboardIcon name="check-single" className={styles.budgetIcon ?? ''} />
+                <span>{text.FITS_BUDGET}</span>
+              </li>
+            )}
           </ul>
         )}
       </div>

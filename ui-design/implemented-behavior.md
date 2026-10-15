@@ -65,6 +65,11 @@ tags refer to the complete filtered result set, as computed by the API. Loading,
 searches remove previous cards/reasons; request cancellation and a request sequence guard prevent
 late responses from replacing newer results. The selector remains usable during loading or failure.
 
+Recommendation reasons use the user-selected Library Stamps design: best-value reasons have a warm
+ink stamp icon and two-line copy inside a slightly tilted double frame; text stays upright. Fits
+budget follows as a quiet mint check with an underline. Both treatments wrap within narrow rows,
+remain display-only, and keep their existing server-derived meaning in both languages.
+
 ## Tutor qualification review
 
 Tutor verification distinguishes `UNVERIFIED` (no documents submitted) from `PENDING` (documents
