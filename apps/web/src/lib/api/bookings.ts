@@ -63,10 +63,7 @@ export function getMyBooking(bookingId: string): Promise<BookingDetail> {
   return authenticatedFetch<BookingDetail>(`/bookings/me/${encodeURIComponent(bookingId)}`);
 }
 
-export function cancelBooking(
-  bookingId: string,
-  reason: string,
-): Promise<CancelBookingResult> {
+export function cancelBooking(bookingId: string, reason: string): Promise<CancelBookingResult> {
   return authenticatedFetch<CancelBookingResult>(
     `/bookings/${encodeURIComponent(bookingId)}/cancel`,
     { method: 'POST', body: JSON.stringify({ reason: reason.trim() }) },

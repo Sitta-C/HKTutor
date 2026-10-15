@@ -163,9 +163,7 @@ export function BookingCancellation({
             <p className="font-bold">
               {booking.listing.subjectName} · {booking.listing.gradeLevelName}
             </p>
-            <p>
-              {formatBangkokRange(booking.slot.startAtUtc, booking.slot.endAtUtc, language)}
-            </p>
+            <p>{formatBangkokRange(booking.slot.startAtUtc, booking.slot.endAtUtc, language)}</p>
           </div>
           <p className="text-sm text-notebook-muted">{copy.policy}</p>
           <label htmlFor={`${id}-reason`} className="block text-sm font-bold">
