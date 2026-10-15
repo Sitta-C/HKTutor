@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 
-import type { TeachingListing } from '@/lib/api/types';
+import type { TeachingListing, TutorProfile } from '@/lib/api/types';
 import type { Page } from '@playwright/test';
 
 const listings: TeachingListing[] = [
@@ -44,6 +44,7 @@ async function mockListings(
   options: {
     language?: 'en' | 'th';
     verified?: boolean;
+    verificationStatus?: TutorProfile['verificationStatus'];
     fail?: boolean;
     empty?: boolean;
     beforeRead?: () => Promise<void>;
@@ -89,11 +90,16 @@ async function mockListings(
           displayName: 'Anan',
           bio: 'Mathematics tutor',
           experienceYears: 5,
-          verificationStatus: options.verified === false ? 'PENDING' : 'VERIFIED',
+          verificationStatus:
+            options.verificationStatus ?? (options.verified === false ? 'PENDING' : 'VERIFIED'),
           ratingAverage: null,
           reviewCount: 0,
         },
       };
+    } else if (path === '/subjects') {
+      body = { items: listings.map((listing) => listing.subject) };
+    } else if (path === '/grade-levels') {
+      body = { items: [listings[0]?.gradeLevel, listings[2]?.gradeLevel] };
     } else if (path === '/tutors/me/listings') {
       await options.beforeRead?.();
       if (options.fail) {
@@ -420,7 +426,7 @@ test('fits the Thai ledger and archive alert at 320px and respects verification'
   await page.setViewportSize({ width: 320, height: 900 });
   const writes = await mockListings(page, { verified: false });
   await page.goto('/dashboard/listings');
-  await expect(page.getByText('กำลังรอตรวจสอบโปรไฟล์', { exact: true })).toBeVisible();
+  await expect(page.getByText('รอการตรวจสอบ', { exact: true })).toBeVisible();
   const ledger = page.getByRole('region', { name: 'รายการประกาศสอน', exact: true });
   const publishButtons = ledger.getByRole('button', { name: 'เผยแพร่', exact: true });
   await expect(publishButtons).toHaveCount(2);
@@ -601,3 +607,66 @@ test('shows zero counts and the first listing action for a successfully empty ac
     '/dashboard/listings/new',
   );
 });
+
+for (const language of ['en', 'th'] as const) {
+  test(`unverified tutors see upload guidance and cannot publish (${language})`, async ({
+    page,
+  }) => {
+    const writes = await mockListings(page, { language, verificationStatus: 'UNVERIFIED' });
+    await page.goto('/dashboard/listings');
+    await expect(
+      page.getByText(
+        language === 'en' ? 'No verification documents submitted' : 'ยังไม่ได้ส่งเอกสารยืนยัน',
+        { exact: true },
+      ),
+    ).toBeVisible();
+    await expect(
+      page.getByText(language === 'en' ? 'Pending review' : 'รอการตรวจสอบ', { exact: true }),
+    ).toHaveCount(0);
+    const ledger = page.getByRole('region', {
+      name: language === 'en' ? 'Teaching listings' : 'รายการประกาศสอน',
+      exact: true,
+    });
+    const publishButtons = ledger.getByRole('button', {
+      name: language === 'en' ? 'Publish' : 'เผยแพร่',
+      exact: true,
+    });
+    await expect(publishButtons).toHaveCount(2);
+    for (const button of await publishButtons.all()) {
+      await expect(button).toBeDisabled();
+    }
+    expect(writes).toEqual([]);
+  });
+}
+
+for (const language of ['en', 'th'] as const) {
+  test(`unverified course previews stay hidden and allow drafts (${language})`, async ({
+    page,
+  }) => {
+    const writes = await mockListings(page, { language, verificationStatus: 'UNVERIFIED' });
+    await page.goto('/dashboard/listings/new');
+    await expect(
+      page.getByText(
+        language === 'en'
+          ? 'Your course is hidden from search'
+          : 'คอร์สของคุณยังไม่แสดงในหน้าค้นหา',
+        { exact: true },
+      ),
+    ).toBeVisible();
+    await expect(page.locator('aside [data-tutor-verification="UNVERIFIED"]')).toHaveCount(2);
+    await expect(
+      page.getByRole('button', {
+        name: language === 'en' ? 'Save & publish' : 'บันทึกและเผยแพร่',
+        exact: true,
+      }),
+    ).toBeDisabled();
+    await expect(
+      page.getByRole('button', {
+        name: language === 'en' ? 'Save draft' : 'บันทึกฉบับร่าง',
+        exact: true,
+      }),
+    ).toBeEnabled();
+    await expect(page.locator('[data-verification-guidance="UNVERIFIED"]')).toBeVisible();
+    expect(writes).toEqual([]);
+  });
+}

@@ -16,15 +16,22 @@ import {
   getSchemaPath,
 } from '@nestjs/swagger';
 
-import { BookingStatus } from '@generated/prisma/enums';
+import { AttendanceStatus, BookingStatus, PaymentStatus } from '@generated/prisma/enums';
 import { JWT_BEARER_AUTH } from '@modules/auth/auth.swagger';
 import {
+  BookingClassDetailDto,
   BookingDetailResponseDto,
+  BookingMeetingLinkDto,
   BookingQuoteResponseDto,
   BookingResponseDto,
   BookingSlotStatus,
+  CancelBookingDto,
+  CanceledBookingDto,
+  ClassAttendanceResponseDto,
   ConfirmBookingDto,
   CreateBookingDto,
+  CreateMockPaymentDto,
+  MockPaymentResponseDto,
   GetBookingQuoteQueryDto,
   GetMyBookingsQueryDto,
   GetTutorBookingsQueryDto,
@@ -32,6 +39,8 @@ import {
   RejectBookingDto,
   TutorBookingActionResponseDto,
   TutorBookingsResponseDto,
+  UpdateAttendanceDto,
+  UpdateMeetingLinkDto,
 } from '@modules/bookings/bookings.dto';
 
 export function BookingsControllerDoc(): ClassDecorator {
@@ -652,5 +661,475 @@ export function RejectTutorBookingDoc(): MethodDecorator {
       },
     }),
     ...tutorBookingActionErrorResponses(),
+  );
+}
+
+function mockPaymentErrorResponses(): MethodDecorator[] {
+  return [
+    ApiBadRequestResponse({
+      description:
+        'bookingId is not a valid UUID, the body failed validation, or the declared amount does ' +
+        "not match the booking's stored amount",
+      schema: {
+        example: {
+          code: 'BOOKING_PAYMENT_AMOUNT_MISMATCH',
+          details: { expectedAmount: '450.00' },
+          error: 'Bad Request',
+          message: 'amount does not match the amount recorded for this booking',
+          statusCode: 400,
+        },
+        type: 'object',
+      },
+    }),
+    ApiUnauthorizedResponse({
+      description:
+        'The access token or its backing session is missing, invalid, expired, or revoked',
+      schema: {
+        example: {
+          code: 'UNAUTHENTICATED',
+          error: 'Unauthorized',
+          message: 'Invalid or expired authentication token',
+          statusCode: 401,
+        },
+        type: 'object',
+      },
+    }),
+    ApiForbiddenResponse({
+      description:
+        'The authenticated user is not a student, or the booking belongs to another student',
+      schema: {
+        example: {
+          code: 'BOOKING_NOT_OWNED',
+          error: 'Forbidden',
+          message: 'This booking belongs to another student',
+          statusCode: 403,
+        },
+        type: 'object',
+      },
+    }),
+    ApiNotFoundResponse({
+      description: 'No booking exists with this ID',
+      schema: {
+        example: {
+          code: 'BOOKING_NOT_FOUND',
+          error: 'Not Found',
+          message: 'Booking not found',
+          statusCode: 404,
+        },
+        type: 'object',
+      },
+    }),
+    ApiConflictResponse({
+      description:
+        'The booking is not confirmed, is already paid, the reference belongs to another ' +
+        'booking, or a concurrent payment won the transition',
+      schema: {
+        example: {
+          code: 'BOOKING_ALREADY_PAID',
+          error: 'Conflict',
+          message: 'This booking is already paid',
+          statusCode: 409,
+        },
+        type: 'object',
+      },
+    }),
+  ];
+}
+
+export function CreateMockPaymentDoc(): MethodDecorator {
+  return applyDecorators(
+    ApiExtraModels(CreateMockPaymentDto, MockPaymentResponseDto),
+    ApiOperation({
+      summary: "Record the demo payment for one of the authenticated student's confirmed bookings",
+    }),
+    ApiBearerAuth(JWT_BEARER_AUTH),
+    ApiBody({ required: true, type: CreateMockPaymentDto }),
+    ApiOkResponse({
+      description:
+        "The confirmed, unpaid booking became paid in one conditional update, storing the server's " +
+        'amount, the paid timestamp and the globally unique demo reference',
+      schema: {
+        example: {
+          amount: '450.00',
+          bookingId: '3c54a0d6-e3f3-4a38-bd55-3b4011ee31ae',
+          paidAt: '2026-10-09T09:04:31.001Z',
+          paymentStatus: PaymentStatus.PAID,
+          reference: 'DEMO-7F3A91',
+        },
+        allOf: [{ $ref: getSchemaPath(MockPaymentResponseDto) }],
+        type: 'object',
+      },
+    }),
+    ...mockPaymentErrorResponses(),
+  );
+}
+
+export function UpdateMeetingLinkDoc(): MethodDecorator {
+  return applyDecorators(
+    ApiExtraModels(UpdateMeetingLinkDto, BookingMeetingLinkDto),
+    ApiOperation({
+      summary: "Update the meeting link for one of the authenticated tutor's confirmed bookings",
+    }),
+    ApiBearerAuth(JWT_BEARER_AUTH),
+    ApiBody({ required: true, type: UpdateMeetingLinkDto }),
+    ApiOkResponse({
+      description: 'The booking meeting URL was updated successfully',
+      schema: {
+        example: {
+          bookingId: '3c54a0d6-e3f3-4a38-bd55-3b4011ee31ae',
+          meetingUrl: 'https://meet.google.com/abc-defg-hij',
+          updatedAt: '2026-10-09T09:04:31.001Z',
+        },
+        allOf: [{ $ref: getSchemaPath(BookingMeetingLinkDto) }],
+        type: 'object',
+      },
+    }),
+    ApiBadRequestResponse({
+      description:
+        'bookingId is not a valid UUID, the request body failed validation, or the meeting URL is invalid',
+      schema: {
+        example: {
+          code: 'INVALID_URL',
+          error: 'Bad Request',
+          message: 'The given URL is invalid',
+          statusCode: 400,
+        },
+        type: 'object',
+      },
+    }),
+    ApiUnauthorizedResponse({
+      description:
+        'The access token or its backing session is missing, invalid, expired, or revoked',
+      schema: {
+        example: {
+          code: 'UNAUTHENTICATED',
+          error: 'Unauthorized',
+          message: 'Invalid or expired authentication token',
+          statusCode: 401,
+        },
+        type: 'object',
+      },
+    }),
+    ApiForbiddenResponse({
+      description: 'The authenticated user is not a tutor, or the booking belongs to another tutor',
+      schema: {
+        example: {
+          code: 'BOOKING_NOT_OWNED',
+          error: 'Forbidden',
+          message: 'This booking belongs to another tutor',
+          statusCode: 403,
+        },
+        type: 'object',
+      },
+    }),
+    ApiNotFoundResponse({
+      description: 'No booking exists with this ID',
+      schema: {
+        example: {
+          code: 'BOOKING_NOT_FOUND',
+          error: 'Not Found',
+          message: 'Booking not found',
+          statusCode: 404,
+        },
+        type: 'object',
+      },
+    }),
+    ApiConflictResponse({
+      description:
+        'The booking is not confirmed (pending, canceled, completed or expired), or a concurrent transition modified the booking status',
+      schema: {
+        example: {
+          code: 'BOOKING_NOT_CONFIRMED',
+          error: 'Conflict',
+          message: 'Only a confirmed booking can be updated meeting link; this booking is PENDING',
+          statusCode: 409,
+        },
+        type: 'object',
+      },
+    }),
+  );
+}
+
+export function GetBookingClassDetailDoc(): MethodDecorator {
+  return applyDecorators(
+    ApiExtraModels(BookingClassDetailDto),
+    ApiOperation({ summary: 'Get class details for a confirmed booking' }),
+    ApiBearerAuth(JWT_BEARER_AUTH),
+    ApiOkResponse({
+      description:
+        'The booking class details including schedule, meeting URL, attendance, and participant profiles',
+      schema: {
+        example: {
+          attendance: null,
+          bookingId: '3c54a0d6-e3f3-4a38-bd55-3b4011ee31ae',
+          endAt: '2026-10-09T10:00:00.000Z',
+          meetingUrl: 'https://meet.google.com/abc-defg-hij',
+          participants: {
+            student: {
+              detail: {
+                firstName: 'Suda',
+                gradeLevel: 'Grade 10',
+                lastName: 'Dee',
+                nickname: 'Da',
+                phone: '0812345678',
+                school: 'Demo School',
+              },
+              id: '6bb01222-1fce-4bc3-a69d-3d90db2fdf57',
+            },
+            tutor: {
+              detail: {
+                bio: 'Experienced math tutor',
+                displayName: 'Anan Suksawat',
+                experienceYears: 5,
+                firstName: 'Anan',
+                lastName: 'Suksawat',
+                nickname: 'Nan',
+              },
+              id: '1772b6be-ebb5-40b7-b5bd-1c1fcfe26857',
+            },
+          },
+          startAt: '2026-10-09T09:00:00.000Z',
+          status: 'CONFIRMED',
+        },
+        allOf: [{ $ref: getSchemaPath(BookingClassDetailDto) }],
+        type: 'object',
+      },
+    }),
+    ApiBadRequestResponse({
+      description: 'bookingId is not a valid UUID, or the student profile is missing',
+      schema: {
+        example: {
+          code: 'INVALID_UUID',
+          error: 'Bad Request',
+          message: 'bookingId must be a valid UUID',
+          statusCode: 400,
+        },
+        type: 'object',
+      },
+    }),
+    ApiUnauthorizedResponse({
+      description:
+        'The access token or its backing session is missing, invalid, expired, or revoked',
+      schema: {
+        example: {
+          code: 'UNAUTHENTICATED',
+          error: 'Unauthorized',
+          message: 'Invalid or expired authentication token',
+          statusCode: 401,
+        },
+        type: 'object',
+      },
+    }),
+    ApiForbiddenResponse({
+      description: 'The authenticated user is not a participant in this booking',
+      schema: {
+        example: {
+          code: 'BOOKING_NOT_OWNED',
+          error: 'Forbidden',
+          message: 'You are not a participant in this booking',
+          statusCode: 403,
+        },
+        type: 'object',
+      },
+    }),
+    ApiNotFoundResponse({
+      description: 'No booking exists with this ID',
+      schema: {
+        example: {
+          code: 'BOOKING_NOT_FOUND',
+          error: 'Not Found',
+          message: 'Booking not found',
+          statusCode: 404,
+        },
+        type: 'object',
+      },
+    }),
+    ApiConflictResponse({
+      description: 'The booking is not confirmed',
+      schema: {
+        example: {
+          code: 'BOOKING_NOT_CONFIRMED',
+          error: 'Conflict',
+          message: 'Only a confirmed booking can be updated meeting link; this booking is PENDING',
+          statusCode: 409,
+        },
+        type: 'object',
+      },
+    }),
+  );
+}
+
+export function CancelBookingDoc(): MethodDecorator {
+  return applyDecorators(
+    ApiExtraModels(CancelBookingDto, CanceledBookingDto),
+    ApiOperation({ summary: 'Cancel a booking' }),
+    ApiBearerAuth(JWT_BEARER_AUTH),
+    ApiBody({ required: true, type: CancelBookingDto }),
+    ApiOkResponse({
+      description: 'The booking was canceled successfully',
+      schema: {
+        example: {
+          bookingId: '3c54a0d6-e3f3-4a38-bd55-3b4011ee31ae',
+          canceledAt: '2026-10-09T09:04:31.001Z',
+          status: BookingStatus.CANCELED,
+        },
+        allOf: [{ $ref: getSchemaPath(CanceledBookingDto) }],
+        type: 'object',
+      },
+    }),
+    ApiBadRequestResponse({
+      description: 'The booking ID is not a valid UUID or the cancellation reason is empty/missing',
+      schema: {
+        example: {
+          code: 'REASON_MISSING',
+          error: 'Bad Request',
+          message: 'Reason cannot be empty!',
+          statusCode: 400,
+        },
+        type: 'object',
+      },
+    }),
+    ApiUnauthorizedResponse({
+      description:
+        'The access token or its backing session is missing, invalid, expired, or revoked',
+      schema: {
+        example: {
+          code: 'UNAUTHENTICATED',
+          error: 'Unauthorized',
+          message: 'Invalid or expired authentication token',
+          statusCode: 401,
+        },
+        type: 'object',
+      },
+    }),
+    ApiForbiddenResponse({
+      description: 'The authenticated user is not a participant in this booking',
+      schema: {
+        example: {
+          code: 'BOOKING_NOT_OWNED',
+          error: 'Forbidden',
+          message: 'This booking belongs to another user',
+          statusCode: 403,
+        },
+        type: 'object',
+      },
+    }),
+    ApiNotFoundResponse({
+      description: 'No booking exists with this ID',
+      schema: {
+        example: {
+          code: 'BOOKING_NOT_FOUND',
+          error: 'Not Found',
+          message: 'Booking not found',
+          statusCode: 404,
+        },
+        type: 'object',
+      },
+    }),
+    ApiConflictResponse({
+      description:
+        'The booking is already paid, already in a final state (completed, canceled, or expired), ' +
+        'is inside the 24-hour cutoff before class start, or a concurrent update won the transition',
+      schema: {
+        example: {
+          code: 'BOOKING_ALREADY_PAID',
+          error: 'Conflict',
+          message: 'This booking is already paid',
+          statusCode: 409,
+        },
+        type: 'object',
+      },
+    }),
+  );
+}
+
+export function UpdateAttendanceDoc(): MethodDecorator {
+  return applyDecorators(
+    ApiExtraModels(UpdateAttendanceDto, ClassAttendanceResponseDto),
+    ApiOperation({
+      summary:
+        "Update the attendance for one of the authenticated tutor's confirmed or completed bookings",
+      description:
+        'Record ATTENDED or ABSENT when the class end time is at or before now. The first write completes the booking atomically. A same-value replay returns the saved timestamp without writing; a different value returns 409.',
+    }),
+    ApiBearerAuth(JWT_BEARER_AUTH),
+    ApiBody({ required: true, type: UpdateAttendanceDto }),
+    ApiOkResponse({
+      description:
+        'Attendance recorded with idempotentReplay=false, or the saved record returned with idempotentReplay=true',
+      schema: {
+        example: {
+          attendance: AttendanceStatus.ATTENDED,
+          attendanceMarkedAt: '2026-10-09T09:04:31.001Z',
+          bookingId: '3c54a0d6-e3f3-4a38-bd55-3b4011ee31ae',
+          idempotentReplay: false,
+          status: BookingStatus.COMPLETED,
+        },
+        allOf: [{ $ref: getSchemaPath(ClassAttendanceResponseDto) }],
+        type: 'object',
+      },
+    }),
+    ApiBadRequestResponse({
+      description: 'The booking ID is not a valid UUID or the attendance status failed validation',
+      schema: {
+        example: {
+          code: 'VALIDATION_FAILED',
+          error: 'Bad Request',
+          message: ['attendance must be one of the following values: ATTENDED, ABSENT'],
+          statusCode: 400,
+        },
+        type: 'object',
+      },
+    }),
+    ApiUnauthorizedResponse({
+      description:
+        'The access token or its backing session is missing, invalid, expired, or revoked',
+      schema: {
+        example: {
+          code: 'UNAUTHENTICATED',
+          error: 'Unauthorized',
+          message: 'Invalid or expired authentication token',
+          statusCode: 401,
+        },
+        type: 'object',
+      },
+    }),
+    ApiForbiddenResponse({
+      description: 'The authenticated user is not a tutor, or the booking belongs to another tutor',
+      schema: {
+        example: {
+          code: 'BOOKING_NOT_OWNED',
+          error: 'Forbidden',
+          message: 'This booking belongs to another tutor',
+          statusCode: 403,
+        },
+        type: 'object',
+      },
+    }),
+    ApiNotFoundResponse({
+      description: 'No booking exists with this ID',
+      schema: {
+        example: {
+          code: 'BOOKING_NOT_FOUND',
+          error: 'Not Found',
+          message: 'Booking not found',
+          statusCode: 404,
+        },
+        type: 'object',
+      },
+    }),
+    ApiConflictResponse({
+      description:
+        'The booking is neither confirmed nor a completed replay, the class has not ended, attendance was recorded with a different value (ATTENDANCE_ALREADY_RECORDED), or a concurrent transition changed its eligibility',
+      schema: {
+        example: {
+          code: 'CLASS_NOT_ENDED',
+          error: 'Conflict',
+          message: 'Only ended class to be updated the attendance',
+          statusCode: 409,
+        },
+        type: 'object',
+      },
+    }),
   );
 }

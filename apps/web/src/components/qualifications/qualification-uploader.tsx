@@ -2,6 +2,7 @@
 
 import { useRef, useState } from 'react';
 
+import { DashboardIcon } from '@/components/dashboard/dashboard-icon';
 import {
   canUploadType,
   qualificationErrorKind,
@@ -9,6 +10,8 @@ import {
   validateQualificationFile,
 } from '@/components/qualifications/qualification-model';
 import { NotebookAction } from '@/components/ui/notebook-action';
+import { NotebookSelect } from '@/components/ui/notebook-select';
+import { useNotebookToast } from '@/components/ui/notebook-toast';
 import { uploadQualification } from '@/lib/api/qualifications';
 
 import type { QualificationCopy } from '@/components/qualifications/qualification-copy';
@@ -30,6 +33,7 @@ function formatSelectedFileSize(bytes: number): string {
 }
 
 export function QualificationUploader({ documents, copy, onUploaded }: QualificationUploaderProps) {
+  const toast = useNotebookToast();
   const fileInput = useRef<HTMLInputElement>(null);
   const [type, setType] = useState<QualificationDocumentType>('DEGREE');
   const [file, setFile] = useState<File | null>(null);
@@ -49,15 +53,18 @@ export function QualificationUploader({ documents, copy, onUploaded }: Qualifica
     setSuccess(false);
     if (!file) {
       setError(copy.selectFile);
+      toast.error(copy.selectFile);
       return;
     }
     const fileError = validateQualificationFile(file);
     if (fileError) {
       setError(copy.fileErrors[fileError]);
+      toast.error(copy.fileErrors[fileError]);
       return;
     }
     if (!canUploadType(documents, type)) {
       setError(copy.pendingType);
+      toast.error(copy.pendingType);
       return;
     }
 
@@ -70,6 +77,7 @@ export function QualificationUploader({ documents, copy, onUploaded }: Qualifica
         fileInput.current.value = '';
       }
       setSuccess(true);
+      toast.success(copy.uploadSuccess);
       try {
         await onUploaded();
       } catch {
@@ -78,6 +86,7 @@ export function QualificationUploader({ documents, copy, onUploaded }: Qualifica
     } catch (caught) {
       if (qualificationErrorKind(caught) === 'conflict') {
         setError(copy.uploadConflict);
+        toast.error(copy.uploadConflict);
         try {
           await onUploaded();
         } catch {
@@ -85,6 +94,7 @@ export function QualificationUploader({ documents, copy, onUploaded }: Qualifica
         }
       } else if (uploadOutcomeIsUncertain(caught)) {
         setError(copy.uploadUncertain);
+        toast.error(copy.uploadUncertain);
         try {
           await onUploaded();
         } catch {
@@ -92,6 +102,7 @@ export function QualificationUploader({ documents, copy, onUploaded }: Qualifica
         }
       } else {
         setError(copy.uploadError);
+        toast.error(copy.uploadError);
       }
     } finally {
       setBusy(false);
@@ -107,20 +118,21 @@ export function QualificationUploader({ documents, copy, onUploaded }: Qualifica
       >
         {copy.typeLabel}
       </label>
-      <select
-        id="qualification-type"
-        className="mb-3 min-h-11 w-full rounded-lg border border-paper-edge bg-paper px-3 text-notebook-ink focus-visible:outline-2 focus-visible:outline-tutor-deep"
-        value={type}
-        disabled={busy}
-        onChange={(event) => {
-          setType(event.target.value === 'CERTIFICATE' ? 'CERTIFICATE' : 'DEGREE');
-          setError(null);
-          setRefreshError(null);
-        }}
-      >
-        <option value="DEGREE">{copy.types.DEGREE}</option>
-        <option value="CERTIFICATE">{copy.types.CERTIFICATE}</option>
-      </select>
+      <div className="mb-3">
+        <NotebookSelect
+          id="qualification-type"
+          value={type}
+          disabled={busy}
+          onChange={(event) => {
+            setType(event.target.value === 'CERTIFICATE' ? 'CERTIFICATE' : 'DEGREE');
+            setError(null);
+            setRefreshError(null);
+          }}
+        >
+          <option value="DEGREE">{copy.types.DEGREE}</option>
+          <option value="CERTIFICATE">{copy.types.CERTIFICATE}</option>
+        </NotebookSelect>
+      </div>
       <div className="group relative">
         <input
           ref={fileInput}
@@ -134,6 +146,9 @@ export function QualificationUploader({ documents, copy, onUploaded }: Qualifica
             setFile(selected);
             const issue = selected ? validateQualificationFile(selected) : null;
             setError(issue ? copy.fileErrors[issue] : null);
+            if (issue) {
+              toast.error(copy.fileErrors[issue]);
+            }
             setRefreshError(null);
             setSuccess(false);
           }}
@@ -217,6 +232,8 @@ export function QualificationUploader({ documents, copy, onUploaded }: Qualifica
       <NotebookAction
         className="mt-4"
         type="submit"
+        icon={<DashboardIcon name="check" />}
+        aria-busy={busy}
         disabled={busy || !canUploadType(documents, type)}
       >
         {busy ? copy.uploading : copy.upload}

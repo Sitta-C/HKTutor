@@ -4,7 +4,6 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 
-import { DashboardIcon } from '@/components/dashboard/dashboard-icon';
 import DashboardShell from '@/components/dashboard/dashboard-shell';
 import {
   ListingIcon,
@@ -20,8 +19,13 @@ import {
   validateListingForm,
 } from '@/components/listings/tutor-listing-editor-model';
 import { OwnProfileAvatar } from '@/components/profile/profile-avatar';
+import {
+  TutorVerificationBadge,
+  TutorVerificationGuidance,
+} from '@/components/tutors/tutor-verification-badge';
 import { PaperCard, StickyNote, WashiTape } from '@/components/ui/notebook';
 import { NotebookAction } from '@/components/ui/notebook-action';
+import { NotebookMetadata } from '@/components/ui/notebook-metadata';
 import { NotebookSelect } from '@/components/ui/notebook-select';
 import { useNotebookToast } from '@/components/ui/notebook-toast';
 import {
@@ -588,6 +592,17 @@ export default function TutorListingEditor({
                   <p className="mt-1 text-xs leading-5 text-notebook-muted">{copy.previewBody}</p>
                 </div>
                 <ListingStatusBadge status={status} labels={statusLabels} variant="ledger" />
+                {(profile?.verificationStatus === 'UNVERIFIED' ||
+                  profile?.verificationStatus === 'PENDING' ||
+                  profile?.verificationStatus === 'REJECTED') && (
+                  <p
+                    className={styles.previewVisibility}
+                    data-tutor-verification={profile.verificationStatus}
+                  >
+                    <strong>{copy.previewHiddenTitle}</strong>
+                    {copy.previewVisibility}
+                  </p>
+                )}
               </header>
               <PaperCard className={styles.previewPaper}>
                 <WashiTape tone="blue" className={`${styles.previewTape}`} />
@@ -608,17 +623,24 @@ export default function TutorListingEditor({
                 </div>
 
                 <div className={styles.previewTrust}>
-                  <span
-                    className={`${styles.previewVerification} ${isVerified ? 'text-emerald-800' : 'text-amber-800'}`}
-                  >
-                    <ListingIcon name={isVerified ? 'check' : 'info'} />
-                    {isVerified ? copy.verified : copy.verificationPending}
-                  </span>
+                  <TutorVerificationBadge
+                    status={profile?.verificationStatus}
+                    language={language}
+                    audience="owner"
+                    compact
+                  />
                   <span className={styles.previewRating}>
                     <ListingIcon name="star" />
-                    {profile?.ratingAverage
-                      ? `${profile.ratingAverage} · ${profile.reviewCount} ${copy.reviews}`
-                      : copy.noReviews}
+                    <NotebookMetadata
+                      items={
+                        profile?.ratingAverage
+                          ? [
+                              String(profile.ratingAverage),
+                              `${profile.reviewCount} ${copy.reviews}`,
+                            ]
+                          : copy.noReviews
+                      }
+                    />
                   </span>
                 </div>
 
@@ -688,17 +710,11 @@ export default function TutorListingEditor({
                   </li>
                 ))}
               </ul>
-              <div
-                className={`mt-4 flex items-start gap-2.5 text-sm leading-6 ${
-                  isVerified ? 'text-emerald-800' : 'text-amber-800'
-                }`}
-              >
-                <DashboardIcon
-                  name={isVerified ? 'shield' : 'info'}
-                  className="mt-0.5 h-5 w-5 shrink-0"
-                />
-                <p>{isVerified ? copy.canPublish : copy.cannotPublish}</p>
-              </div>
+              <TutorVerificationGuidance
+                status={profile?.verificationStatus}
+                language={language}
+                documentsHref="/dashboard/profile#qualification-documents"
+              />
             </StickyNote>
 
             <StickyNote tone="yellow" className="mt-4 p-4 text-sm leading-6">
@@ -806,8 +822,6 @@ const englishCopy = {
   decreasePrice: 'Decrease price by 50 baht',
   priceHelp: 'Enter Thai baht with up to two decimal places.',
   priceError: 'Enter a price greater than zero with no more than two decimal places.',
-  canPublish: 'Profile verified. You can publish this listing.',
-  cannotPublish: 'Save this listing as a draft until your tutor profile is verified.',
   description: 'Listing description',
   descriptionPlaceholder:
     'Explain what students will learn, your teaching approach, and who this course suits.',
@@ -818,11 +832,12 @@ const englishCopy = {
   descriptionGood: 'Clear enough to publish.',
   previewTitle: 'Student preview',
   previewBody: 'This preview updates while you edit.',
+  previewHiddenTitle: 'Your course is hidden from search',
+  previewVisibility:
+    'Tutors without approved qualifications do not appear in search. Courses appear only after the tutor is verified and the course is published.',
   subjectFallback: 'Subject',
   gradeFallback: 'Grade level',
   descriptionFallback: 'Your course description will appear here.',
-  verified: 'Verified tutor',
-  verificationPending: 'Verification pending',
   reviews: 'reviews',
   noReviews: 'No reviews yet',
   hour: 'hour',
@@ -883,8 +898,6 @@ const thaiCopy: typeof englishCopy = {
   decreasePrice: 'ลดราคา 50 บาท',
   priceHelp: 'กรอกราคาเป็นเงินบาทและมีทศนิยมได้ไม่เกินสองตำแหน่ง',
   priceError: 'กรุณากรอกราคามากกว่าศูนย์และมีทศนิยมไม่เกินสองตำแหน่ง',
-  canPublish: 'โปรไฟล์ยืนยันแล้ว สามารถเผยแพร่ได้',
-  cannotPublish: 'บันทึกประกาศนี้เป็นฉบับร่างได้ และเผยแพร่เมื่อโปรไฟล์ติวเตอร์ผ่านการยืนยันแล้ว',
   description: 'คำอธิบายคอร์ส',
   descriptionPlaceholder: 'อธิบายว่านักเรียนจะได้เรียนรู้อะไร แนวทางการสอน และคอร์สนี้เหมาะกับใคร',
   descriptionHelp: 'เขียน 20–1,000 ตัวอักษร ระบุผลลัพธ์ที่ชัดเจนและใช้ภาษาที่เข้าใจง่าย',
@@ -894,11 +907,12 @@ const thaiCopy: typeof englishCopy = {
   descriptionGood: 'คำอธิบายพร้อมเผยแพร่แล้ว',
   previewTitle: 'ตัวอย่างสำหรับนักเรียน',
   previewBody: 'ตัวอย่างจะเปลี่ยนตามข้อมูลที่คุณกรอก',
+  previewHiddenTitle: 'คอร์สของคุณยังไม่แสดงในหน้าค้นหา',
+  previewVisibility:
+    'ติวเตอร์ที่ยังไม่มีเอกสารคุณวุฒิที่ผ่านการตรวจสอบจะไม่แสดงในหน้าค้นหา คอร์สจะแสดงเมื่อติวเตอร์ผ่านการตรวจสอบและเผยแพร่คอร์สแล้ว',
   subjectFallback: 'รายวิชา',
   gradeFallback: 'ระดับชั้น',
   descriptionFallback: 'คำอธิบายคอร์สของคุณจะแสดงที่นี่',
-  verified: 'ติวเตอร์ยืนยันแล้ว',
-  verificationPending: 'รอการยืนยัน',
   reviews: 'รีวิว',
   noReviews: 'ยังไม่มีรีวิว',
   hour: 'ชั่วโมง',

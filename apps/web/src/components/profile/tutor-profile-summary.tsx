@@ -4,7 +4,11 @@ import { useId, useState } from 'react';
 
 import { DashboardIcon } from '@/components/dashboard/dashboard-icon';
 import { buildProfileRatingSummary } from '@/components/profile/profile-rating-model';
-import { StatusBadge } from '@/components/ui/notebook';
+import {
+  TutorVerificationBadge,
+  TutorVerificationGuidance,
+} from '@/components/tutors/tutor-verification-badge';
+import { NotebookMetadata } from '@/components/ui/notebook-metadata';
 
 import styles from './tutor-profile-summary.module.css';
 
@@ -13,10 +17,16 @@ import type { TutorProfile } from '@/lib/api/types';
 interface TutorProfileSummaryProps {
   email: string;
   language: 'en' | 'th';
+  documentsHref?: string | undefined;
   tutorMeta: Pick<TutorProfile, 'ratingAverage' | 'reviewCount' | 'verificationStatus'>;
 }
 
-export function TutorProfileSummary({ email, language, tutorMeta }: TutorProfileSummaryProps) {
+export function TutorProfileSummary({
+  email,
+  language,
+  documentsHref,
+  tutorMeta,
+}: TutorProfileSummaryProps) {
   const text = copy[language];
   const noticeId = useId();
   const [showReviewsNotice, setShowReviewsNotice] = useState(false);
@@ -24,8 +34,6 @@ export function TutorProfileSummary({ email, language, tutorMeta }: TutorProfile
     tutorMeta.ratingAverage,
     tutorMeta.reviewCount,
   );
-  const verified = tutorMeta.verificationStatus === 'VERIFIED';
-  const rejected = tutorMeta.verificationStatus === 'REJECTED';
   const scoreLabel =
     score === null ? text.noRating : text.ratingLabel.replace('{score}', score.toFixed(1));
 
@@ -39,16 +47,16 @@ export function TutorProfileSummary({ email, language, tutorMeta }: TutorProfile
         <dl className={styles.field}>
           <dt className={styles.caption}>{text.verification}</dt>
           <dd className={styles.statusValue}>
-            <StatusBadge
-              tone={verified ? 'tutor' : rejected ? 'danger' : 'warning'}
-              className={styles.badge ?? ''}
-            >
-              <DashboardIcon
-                name={verified ? 'shield' : rejected ? 'info' : 'clock'}
-                className="h-3.5 w-3.5 shrink-0"
-              />
-              {text.status[tutorMeta.verificationStatus]}
-            </StatusBadge>
+            <TutorVerificationBadge
+              status={tutorMeta.verificationStatus}
+              language={language}
+              audience="owner"
+            />
+            <TutorVerificationGuidance
+              status={tutorMeta.verificationStatus}
+              language={language}
+              documentsHref={documentsHref}
+            />
           </dd>
         </dl>
         <div className={`${styles.field} ${styles.feedback}`}>
@@ -75,12 +83,16 @@ export function TutorProfileSummary({ email, language, tutorMeta }: TutorProfile
                 </span>
               </div>
               <p className={styles.reviewCount}>
-                {tutorMeta.reviewCount === 0
-                  ? text.newTutor
-                  : text.reviewCount.replace(
-                      '{count}',
-                      new Intl.NumberFormat(language).format(tutorMeta.reviewCount),
-                    )}
+                <NotebookMetadata
+                  items={
+                    tutorMeta.reviewCount === 0
+                      ? text.newTutor
+                      : text.reviewCount.replace(
+                          '{count}',
+                          new Intl.NumberFormat(language).format(tutorMeta.reviewCount),
+                        )
+                  }
+                />
               </p>
             </div>
             {tutorMeta.reviewCount > 0 && (
@@ -124,11 +136,6 @@ const copy = {
     reviewCount: 'From {count} reviews',
     readReviews: 'Read all reviews',
     reviewsUnavailable: 'Individual reviews are not available to read yet.',
-    status: {
-      VERIFIED: 'Verified',
-      PENDING: 'Pending review',
-      REJECTED: 'Not verified',
-    },
   },
   th: {
     title: 'สรุปบัญชีติวเตอร์',
@@ -141,10 +148,5 @@ const copy = {
     reviewCount: 'จาก {count} รีวิว',
     readReviews: 'อ่านรีวิวทั้งหมด',
     reviewsUnavailable: 'ยังไม่เปิดให้อ่านรีวิวรายรายการในขณะนี้',
-    status: {
-      VERIFIED: 'ผ่านการตรวจสอบแล้ว',
-      PENDING: 'รอการตรวจสอบ',
-      REJECTED: 'ไม่ผ่านการตรวจสอบ',
-    },
   },
 } as const;

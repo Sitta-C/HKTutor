@@ -54,6 +54,7 @@ export function MarginInbox({ user, tutorId }: { user: AuthUser; tutorId: string
   const listPosition = useRef(0);
   const lastContact = useRef<HTMLButtonElement | null>(null);
   const listRequest = useRef(false);
+  const pendingRefresh = useRef(false);
   const refreshTarget = useRef<{ count: number; conversationId: string | null }>({
     count: 0,
     conversationId: null,
@@ -93,6 +94,7 @@ export function MarginInbox({ user, tutorId }: { user: AuthUser; tutorId: string
 
   const refreshInbox = useCallback(() => {
     if (listRequest.current || sending) {
+      pendingRefresh.current = true;
       return;
     }
     refreshTarget.current = {
@@ -103,6 +105,13 @@ export function MarginInbox({ user, tutorId }: { user: AuthUser; tutorId: string
     setLoading(true);
     setReloadKey((value) => value + 1);
   }, [items.length, selected?.conversationId, sending]);
+
+  useEffect(() => {
+    if (!loading && !sending && pendingRefresh.current) {
+      pendingRefresh.current = false;
+      refreshInbox();
+    }
+  }, [loading, sending, refreshInbox]);
 
   useEffect(() => {
     mounted.current = true;

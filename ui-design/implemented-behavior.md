@@ -38,7 +38,12 @@ as a closable modal from registration and the dashboard instead of using a separ
 
 The tutor profile's read-only account summary places labels above plain paper fields, matching
 the profile form's typography, spacing, field height, and responsive columns. Tutor verification
-uses a standalone status badge; the score, five stars, review count, and review action share one
+uses the shared tutor verification badge, with distinct VERIFIED/PENDING/REJECTED text and icons.
+Owner-only guidance explains publication eligibility and links unverified tutors to qualification
+documents only when the document section is rendered in the profile editor. Onboarding keeps the
+status and guidance but omits the document link until the tutor reaches `/dashboard/profile`.
+Document anchors focus and scroll into view after the profile loads. The score, five
+stars, review count, and review action share one
 compact row. Stars fill proportionally from the existing profile rating, and ratings, review counts,
 and verification states update from the existing profile API responses. Tutors without
 reviews see an explicit new-tutor state.
@@ -46,6 +51,13 @@ The bilingual “Read all reviews” control currently explains that individual 
 it does not submit the profile form or call an unsupported reviews endpoint.
 
 ## Tutor qualification review
+
+Tutor verification distinguishes `UNVERIFIED` (no documents submitted) from `PENDING` (documents
+submitted and awaiting review), `VERIFIED`, and `REJECTED`. New tutor onboarding uses `UNVERIFIED`
+even before the profile exists. Owner badges, profile summaries and course previews show bilingual
+guidance for each state; a successful upload refreshes the profile to its server-reported state.
+Only `VERIFIED` tutors can publish courses and appear publicly. Document review statuses remain
+pending, approved and rejected.
 
 The tutor edit page at `/dashboard/profile` adds a private document section after the profile form.
 Its dashed file picker, selected-file row, compact document rows, and two-column layout follow the
@@ -96,14 +108,13 @@ location during loading/errors/empty results, independent of the tutor index. Th
 global header has no find-tutor action; header booking actions remain removed.
 
 The right sheet lists tutors derived from that same booking response. The existing Map preserves
-first tutor insertion order and retains the last encountered booking for each tutor; each row still
-opens that booking's encoded detail URL. Four tutors appear per page through the shared
-`NotebookPagination`'s student-only opt-in paper-turn presentation, with a live range, icon-only
-previous/next buttons, localized accessible names, keyboard focus, and disabled boundaries. The small
-visible controls retain 44px touch targets; record-range and page-count numbers are visually hidden
-and remain accessible. The sheet tab reads “Your tutors” / “ติวเตอร์ของคุณ”. The unique tutor
-count appears on a passive mint bookmark ribbon at the sheet's top-right edge, without changing
-the existing count or adding an action.
+first tutor insertion order and retains the last encountered booking for each tutor's subject/grade.
+Each row opens `/tutors/{tutorId}` using the encoded canonical tutor User ID, with the bilingual
+“View tutor profile” / “ดูโปรไฟล์ติวเตอร์” label and matching helper text. Four tutors appear per page through the shared
+`NotebookPagination` with visible range, rounded text buttons, a localized page count between
+previous/next, keyboard focus and disabled boundaries. The controls retain 48px touch targets.
+The sheet tab reads “Your tutors” / “ติวเตอร์ของคุณ”. The unique tutor count appears on a passive
+mint bookmark ribbon at the sheet's top-right edge, without changing the count or adding an action.
 It is entirely frontend pagination: changing tutor pages does not fetch more records or change the
 left sheet. Pagination is hidden for zero to four tutors and resets to page one after the existing
 booking load succeeds. The dashboard keeps the original `getMyBookings({ pageSize: 100 })` load and
@@ -111,8 +122,8 @@ language-dependent effect for dashboard content. The sidebar uses the global unf
 Loading retains the shared shell and student Mint loading note, and hides summary counts/empty states. Zero appears only after a successful response. The disabled search,
 quick-action block, repeated pending panel, and duplicate find-tutor CTAs are removed; a single
 find-tutor CTA beside the greeting and existing shell navigation remain. Styles are isolated to Student Dashboard;
-shared shell and tutor layouts remain unchanged, and the pagination's standard text-button mode
-remains the default for other consumers. Thai/English copy and reduced-motion
+shared shell and tutor layouts remain unchanged. All Previous/Next pagination uses the same
+plain rounded controls. Thai/English copy and reduced-motion
 preferences are preserved.
 
 The public/student search page at `/tutors` uses **Course Index**. A filter memo sits left of one
@@ -126,7 +137,7 @@ its existing number input, step, hint and validation. Catalog loading/errors kee
 selects disabled, independently of result loading/errors.
 
 Each search row is keyed by listing ID: the same tutor can have multiple separate courses, including
-across pages. Tutor identity, a plain mint verification tag without a checkmark, rating/reviews and
+across pages. Tutor identity, a compact shared VERIFIED badge with a shield icon, rating/reviews and
 experience accompany a blue grade tab, subject, upright hourly price on slightly tilted yellow paper,
 two-line description, Bangkok next availability and the view-times action. Null ratings show New tutor;
 missing future availability remains explicit. Narrow result sheets stack the same anatomy through a
@@ -148,15 +159,16 @@ unchanged. Styling is local to `tutor-search-page.module.css`; guest sign-in rem
 header position. Browser checks cover action alignment, target sizes, unclipped labels and focus
 alongside the existing request, validation, pagination and loading/error/empty flows.
 
-Search pagination uses **Ticket Pair**: Previous/Next are adjacent paper tickets with inset dashed
-edges, a perforated center seam and top/bottom notches. The next ticket is pale mint. Wider result
-sheets show the page count left and tickets right; sheets up to 450px put the count above a full-width
-pair. Both native buttons have 48px minimum height, localized text, decorative arrow icons, visible
-keyboard focus and explicit disabled boundaries. Reduced motion removes transitions. Pagination
-still appears only after successful results with more than one server page. These styles are local
-to search in `tutor-search-pagination.module.css`, independent of the result-sheet stylesheet,
-and do not change shared `NotebookPagination` consumers. Browser checks assert the actual ticket
-layout and borders, alongside the keyboard and pagination flow.
+Search pagination uses the shared `NotebookPagination`, updated to the user's plain rounded
+reference on 2026-10-12 across search, booking lists, dashboard lists and Binder Dropdown. The visible
+record range sits left; separate Previous / localized page count / Next controls sit right. Buttons
+use warm-white fill, thin solid paper-colored borders, 8px corners, regular text and 48px targets,
+without arrows, ticket decorations or shadows. Compact containers wrap below the range and keep
+all three controls on one row. Native disabled boundaries, keyboard focus, polite range/page
+announcements and reduced motion remain intact. Search's stylesheet only supplies paper spacing.
+Pagination still appears only after successful results with more than one server page. Browser
+checks cover TH/EN layout, visible ranges, separated buttons and the page count between them,
+alongside existing keyboard, filters and pagination flows.
 
 The `/tutors` header shows Sign in for guests and no booking action for authenticated users, with
 no link back to search. My bookings is omitted from all student/public headers, including the booking
@@ -164,7 +176,7 @@ list, request and detail pages. The sidebar booking link remains available. Its 
 alter shared primitives or tutor UI.
 
 Public tutor detail at `/tutors/[tutorId]?listingId=...` uses **Appointment Pad**, selected as option 3
-on 2026-10-07. One profile paper leads with tutor name, initial avatar and plain verification, actual
+on 2026-10-07. One profile paper leads with tutor name, initial avatar and the shared VERIFIED badge, actual
 rating/review aggregate, a yellow experience note and ruled biography. Null rating shows New tutor
 alongside the actual review count. Individual reviews remain unavailable; no endpoint or action is
 added. The profile composition follows the tutor's selected **Profile Page** preview.
@@ -270,13 +282,9 @@ results. Errors retain the existing retry/sign-in behavior; empty states appear 
 with zero only then. Filtered empty copy suggests another status without implying an empty account.
 The shell's sidebar badge uses the global all-status total below, separately from list filter counts. Shared
 `NotebookPagination` uses page/total with page size 10; previous/next remain disabled at boundaries,
-and pagination is omitted for one page. The user refined its opt-in ticket variant to **Ticket Pair**
-on 2026-10-07: connected warm-paper Previous and pale-mint Next buttons with inset dashed edges,
-a perforated center seam, top/bottom seam notches and a shared 3px paper edge. Both buttons have
-48px targets, decorative left/right arrows and visible keyboard focus; disabled boundaries use muted
-paper. Page count appears left of the pair on wide paper and above the full-width pair in containers
-up to 450px. The record range remains in a polite screen-reader live region. Shared standard/paper-turn
-consumers retain their existing presentation, and the original server paging/filter behavior remains.
+and pagination is omitted for one page. It uses the shared plain rounded controls described above,
+with the visible record range and page count, 48px targets and visible keyboard focus. The original
+server paging/filter behavior remains.
 
 Detail keeps `getMyBooking`, its active-response/current-ID guards, existing resource error messages,
 session-expiry behavior and original back/find-tutor links. Loading and errors retain the shared
@@ -286,7 +294,7 @@ anatomy from the request. Its DOM order is course information then one mint time
 hourly rate is omitted; persisted subtotal/discount/currency and net total appear beneath a dashed
 seam through `BookingDocketAmounts`/`BookingDocketTotal`. No money is recomputed. PENDING explicitly
 means awaiting tutor confirmation and uses requested-time copy; other statuses use their real label
-and an appropriate confirmed/neutral explanation. No paid/meeting/cancel/reschedule affordance is added.
+and an appropriate confirmed/neutral explanation. Meeting/cancel/reschedule actions remain outside this flow.
 List/detail status tags match the selected preview's 4px corners, thin border, light fill and decorative
 clock/check/double-check/slash icons, with amber/green/stone/muted-red business tones. The optional
 `BookingDocketStatus` tag appearance keeps the request's default badge and dashboard badge unchanged.
@@ -298,6 +306,29 @@ default docket composition and shared `booking-ui` helpers/dashboard badge remai
 checks intercept all API traffic and cover both languages at 320/768/1440px, responsive filters,
 long content, loading/error/empty/404, all statuses, session expiry, order, pagination, keyboard focus,
 midnight, stale filter responses and persisted amounts that differ from the current hourly price.
+
+S2-T05 adds **Payment Slip** to the student detail footer: the existing persisted amount breakdown
+sits beside one ruled payment region with a perforated seam; below 600px they stack. List rows show
+a separate paid/unpaid tag without changing booking status. Both read the payment fields added by
+PR #98. Confirmed, unpaid bookings accept one trimmed Unicode demo reference of 1–64 code points;
+pending and other non-payable states retain their actual payment label and a localized explanation.
+No card or bank fields are collected, and the demonstration notice stays visible in both states.
+
+The submit action uses the shared mint Ink Ticket, a synchronous duplicate-submit gate, and a
+disabled sending label. It sends the booking's fixed-decimal net amount unchanged and only renders
+paid/reference/amount/UTC timestamp values returned by the API. Timestamp presentation uses the
+shared Bangkok helper. Blank/invalid/duplicate references receive inline errors, NotebookToast
+feedback and input focus after the control is enabled. Amount mismatches, ownership/not-found/state
+conflicts and uncertain network/server failures lock resubmission until a successful explicit GET.
+A failed refresh retains the lock and reference; a successful refresh replaces the booking and can
+reveal an already-recorded payment. The POST is never retried automatically for an uncertain result.
+Payment requests and refreshes share a gate, and unmounted forms ignore late responses.
+
+Browser coverage intercepts all API traffic and checks payment persistence across reload/navigation,
+trimmed Thai references, no optimistic payment while sending, duplicate and stale-amount recovery,
+wrong-owner/missing/already-paid/concurrent conflicts, lost responses, failed refreshes, keyboard
+operation and form/long-receipt layouts in TH/EN at 320/768/1440px. This does not replace backend
+authorization, transaction or real-database verification.
 
 The tutor dashboard follows the Notebook Focus layout: the next confirmed session, today's
 availability, pending requests, monthly teaching analytics, and course performance. Today's availability
@@ -437,15 +468,22 @@ focus and makes that contact visible if it moved. Manual inbox refresh refetches
 range and selected contact, retaining drafts and reading state. A list read that started before a send
 cannot overwrite that acknowledged message or discard its known contact when its pagination shifts.
 
-Initial history follows forward API pages of 50 to the end; unavailable history leaves the composer
-disabled and provides retry. A load is bounded to 200 history pages and one 60-second deadline across
-all pages, including stalled requests/authentication awaits. A finite loop rejects cursor cycles,
-missing/inconsistent cursors and empty continuing pages. The deadline aborts the history request and
-settles the load even if an inner await ignores cancellation. Timers/listeners are cleaned on success,
-failure or caller cancellation. Reaching a bound fails with bilingual recovery copy instead of
-returning partial history as complete; cached history, drafts and the GET cursor survive a failed
-refresh. Very long conversations that exceed these bounds cannot finish their initial load in T17;
-incremental history remains a T20 task. Refresh loads after the last GET cursor. New messages append without
+Initial history opens with the latest 20 messages. Quiet Receipts (selected 2026-10-11, S2-T20)
+adds a centered Load earlier messages action which prepends one backward page and preserves the
+visible reading anchor. At the end of history the action becomes Beginning of conversation.
+Failed older loads preserve fetched messages, drafts and both independent cursors, with inline
+recovery; initial failures leave the composer disabled with retry.
+
+The visible open thread checks every four seconds, without overlapping reads. Hidden documents
+abort current reads and pause the timer; visibility resumes updates. Closing/switching the thread
+or unmounting the authenticated page cleans timers, listeners and requests. Manual Refresh remains.
+Catch-up follows forward pages of 50, bounded to 200 pages and one 60-second deadline including
+authentication awaits. Broken/cycling cursors and empty continuing pages fail explicitly. Deadlines
+settle stalled inner awaits, and failed refreshes preserve drafts/history and the last GET cursor.
+Read-state refresh starts inclusively from the oldest loaded unread outgoing message when that
+boundary is at/before the last GET, otherwise after the GET cursor. Send responses never replace
+that cursor, so concurrent incoming messages remain discoverable. Receipt merges never regress an
+acknowledged read timestamp because a stale request returns null. New messages append without
 moving a reader browsing older history, with a floating latest-message button; a reader already at
 the bottom follows the new messages. Cached reentry restores the reading position and checks for
 updates. Refresh failures retain fetched history. Switching conversations aborts their reads, and
@@ -458,11 +496,18 @@ the actual returned message plus NotebookToast. A failed/uncertain send retains 
 inline and toast recovery and performs no automatic retry. The outgoing response never advances the
 GET cursor, preserving concurrent incoming messages for a later refresh, with ID deduplication.
 
-Automatic polling, mark-read commands, sent/read receipts and an incremental older-history interface
-remain S2-T20. Inbox unread counts are server values; opening/GET does not clear them. With the current
-forward-only contract, initial reads/memory scale with full history length. Browser verification uses
-intercepted APIs (including two-page history, concurrent incoming, permissions and auth/profile gates)
-on desktop, 768px tablet and 320px/mobile. It does not verify a live database or migration rollout.
+Outgoing timestamps show quiet single/double checks and explicit Sent/Read labels. Read requires
+server `readAt`; a successful send initially remains Sent. Only a visible open thread at the latest
+reading position acknowledges received messages through the latest received boundary. The
+recipient-only idempotent API never marks the caller's own messages. Failures keep drafts/history
+and show retry feedback without inventing a read receipt. Inbox refreshes after received activity
+and successful acknowledgements; unread counts remain server values and GET itself never marks read.
+No global unread total is derived from partially loaded inbox pages.
+
+Browser verification uses intercepted APIs (including 35-message backward pagination, four-second
+updates, sent/read states, deduplication, close/hidden-tab cleanup, stalled requests, draft retention,
+concurrent incoming, permissions and auth/profile gates) on desktop, 768px tablet and 320px/mobile.
+It does not verify a live database or migration rollout.
 Regression coverage also checks sending from an older inbox page, refresh of an older selected contact,
 an in-flight stale inbox response, visible restored focus and the bilingual temporary-draft expectation.
 These fixes use the existing HTTP contract and do not add client-send idempotency or server rate limits.
@@ -482,3 +527,24 @@ The follow-up pass adds 16px above the page heading and a continuous clockwise r
 geometry checks explicitly assert that Send is beside the input and the eyebrow clears the shell
 header. The corrected layout was also visually checked in the running Safari session after loading
 fresh CSS from origin; an ordinary reload had retained old development styles.
+
+## Tutor verification presentation (S2-T11)
+
+Search rows and public tutor profiles show the verification badge only when the returned tutor
+status is VERIFIED. Unexpected, missing, PENDING, REJECTED or document-level APPROVED metadata
+never produces a public success badge. Loading and error/404 branches do not render it.
+
+Private tutor profile summaries, profile previews and listing previews use the same bilingual
+status labels and semantic colors: green shield for VERIFIED, amber clock for PENDING, red info
+for REJECTED. A rejected listing preview is not labelled pending. Guidance on private profiles and
+listing editors links pending/rejected tutors to `/dashboard/profile#qualification-documents`.
+The onboarding profile summary omits its document link because that route has no document section;
+it retains status guidance and does not navigate away from unsaved profile fields.
+Search badges have clearance below the avatar/name row; narrow layouts retain the existing wrapped
+spacing. The profile preview explains that discovery requires verification and a published course.
+For PENDING/REJECTED tutors, the listing editor explains below its student preview heading that
+they do not appear in search, and courses appear only after verification and publication. This
+guidance spans the preview column with a bold hidden-course heading and an amber or red tinted
+notice, matching the status badge. It does not use a “Note:” prefix. VERIFIED tutors do not see
+this visibility notice. Existing
+publication checks and API requests remain authoritative; no per-card status request is added.

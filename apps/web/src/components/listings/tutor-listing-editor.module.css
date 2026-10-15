@@ -22,6 +22,49 @@
   border-radius: 0.25rem;
 }
 
+.previewVisibility {
+  flex-basis: 100%;
+  font-size: 0.8125rem;
+  line-height: 1.7;
+}
+
+.previewVisibility strong {
+  display: block;
+  margin-bottom: 0.375rem;
+  font-size: 0.875rem;
+  font-weight: 700;
+}
+
+.previewVisibility[data-tutor-verification='UNVERIFIED'],
+.previewVisibility[data-tutor-verification='PENDING'],
+.previewVisibility[data-tutor-verification='REJECTED'] {
+  padding: 0.75rem 0.875rem;
+  border: 1px solid;
+  border-left-width: 3px;
+  border-radius: 0.375rem;
+}
+
+.previewVisibility[data-tutor-verification='UNVERIFIED'] {
+  border-color: var(--color-paper-edge);
+  border-left-color: var(--color-notebook-muted);
+  background: var(--color-paper-deep);
+  color: var(--color-notebook-ink);
+}
+
+.previewVisibility[data-tutor-verification='PENDING'] {
+  border-color: var(--color-amber-200);
+  border-left-color: var(--color-amber-700);
+  background: var(--color-amber-50);
+  color: var(--color-amber-900);
+}
+
+.previewVisibility[data-tutor-verification='REJECTED'] {
+  border-color: var(--color-red-200);
+  border-left-color: var(--color-red-700);
+  background: var(--color-red-50);
+  color: var(--color-red-800);
+}
+
 .preview .previewPaper {
   padding: 1.625rem;
   border-radius: 0.625rem;
@@ -57,7 +100,6 @@
   margin-top: 0.625rem;
 }
 
-.previewVerification,
 .previewRating {
   display: inline-flex;
   align-items: center;
@@ -70,7 +112,6 @@
   color: var(--color-notebook-muted);
 }
 
-.previewVerification svg,
 .previewRating svg {
   flex-shrink: 0;
   width: 0.9375rem;

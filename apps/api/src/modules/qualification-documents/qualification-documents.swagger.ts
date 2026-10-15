@@ -149,7 +149,7 @@ export function UploadQualificationDoc(): MethodDecorator {
     ApiOperation({
       summary: 'Upload an owner-only private qualification document',
       description:
-        'PDF/JPEG/PNG, 0 < bytes <= 5242880. One pending document per tutor and documentType. APPROVED is mapped to database VERIFIED.',
+        'PDF/JPEG/PNG with matching byte signature and filename extension (.pdf, .jpg/.jpeg, or .png), 0 < bytes <= 5242880. One pending document per tutor and documentType. APPROVED is mapped to database VERIFIED.',
     }),
     ApiConsumes('multipart/form-data'),
     ApiBody({
@@ -221,7 +221,7 @@ export function ReviewQualificationDoc(): MethodDecorator {
     ApiOperation({
       summary: 'Review a pending qualification document once',
       description:
-        'ADMIN only. Document, tutor status and audit update atomically. Tutor is VERIFIED if any document is approved, otherwise PENDING if any is pending, otherwise REJECTED.',
+        'ADMIN only. Document, tutor status and audit update atomically. Tutor is VERIFIED if any document is approved, otherwise PENDING if any is pending, otherwise REJECTED if documents exist, or UNVERIFIED without documents.',
     }),
     ApiOkResponse({ type: QualificationReviewResponseDto }),
     ...errors(true, true),

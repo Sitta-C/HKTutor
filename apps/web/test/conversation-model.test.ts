@@ -4,6 +4,7 @@ import { ApiError, ConversationHistoryLoadError } from '@/lib/api/error';
 import {
   canSendMessage,
   conversationErrorKey,
+  conversationReceiptCursor,
   mergeMessages,
   messageLength,
   recordSentMessage,
@@ -25,6 +26,25 @@ const message = (
 });
 
 describe('conversation boundaries', () => {
+  it('never regresses read receipts when older polling or pagination responses overlap', () => {
+    const read = { ...message('one', 'Sent'), readAt: '2026-10-08T11:00:00.000Z' };
+    expect(mergeMessages([read], [message('one', 'Sent')])[0]?.readAt).toBe(read.readAt);
+  });
+
+  it('refreshes unread sent receipts while retaining the GET boundary before concurrent incoming messages', () => {
+    const current = [
+      message('old', 'old', '2026-10-08T09:00:00Z'),
+      message('get', 'last GET'),
+      message('sent', 'send response', '2026-10-08T11:00:00Z'),
+    ];
+    expect(conversationReceiptCursor(current, 'get', 'student')).toBe('old');
+    const read = current.map((item) =>
+      item.messageId === 'sent' ? item : { ...item, readAt: '2026-10-08T10:30:00Z' },
+    );
+    expect(conversationReceiptCursor(read, 'get', 'student')).toBeNull();
+    expect(conversationReceiptCursor(current, null, 'student')).toBeNull();
+    expect(conversationReceiptCursor(current, 'sent', 'student')).toBe('old');
+  });
   it.each([
     ['timeout', 'historyTimeout'],
     ['limit', 'historyLimit'],

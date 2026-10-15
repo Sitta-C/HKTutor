@@ -221,7 +221,7 @@ test('Notebook Focus uses existing data and keeps only contextual management lin
     requests.getByRole('switch', { name: 'แสดงคำขอที่วันเรียนผ่านแล้ว' }),
   ).not.toBeChecked();
   await expect(requests.getByRole('button')).toHaveCount(0);
-  const availability = page.getByRole('region', { name: 'วันนี้ · เวลาตามกรุงเทพฯ' });
+  const availability = page.getByRole('region', { name: 'วันนี้ เวลาตามกรุงเทพฯ' });
   await expect(availability.getByRole('listitem').first()).toContainText('15:00–16:00');
   await expect(availability.getByText('ว่าง', { exact: true })).toBeVisible();
   await expect(availability.getByText('ถูกจอง', { exact: true })).toBeVisible();
@@ -250,6 +250,12 @@ test('Notebook Focus uses existing data and keeps only contextual management lin
   await expect(main.getByText('รายได้ที่ได้รับแล้ว', { exact: true })).toBeVisible();
   await expect(main.getByText('ความสมบูรณ์โปรไฟล์')).toHaveCount(0);
   await expect(main.getByRole('searchbox')).toHaveCount(0);
+  for (const metadata of await main.locator('[data-notebook-metadata]').all()) {
+    await expect(metadata).not.toContainText('·');
+    expect(await metadata.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(
+      true,
+    );
+  }
   await expect(page.locator('header').getByRole('link')).toHaveCount(0);
   expect([...new Set(calls)].sort()).toEqual([
     'GET /bookings/tutor',
@@ -260,6 +266,11 @@ test('Notebook Focus uses existing data and keeps only contextual management lin
   ]);
   await expectResponsiveShell(page);
   await page.evaluate(() => document.fonts.ready);
+  await next.screenshot({
+    path: testInfo.outputPath('session-metadata-th.png'),
+    animations: 'disabled',
+    scale: 'css',
+  });
   await page.screenshot({
     path: testInfo.outputPath('tutor-dashboard-th.png'),
     fullPage: true,
@@ -458,7 +469,7 @@ test('today availability requests overlaps and displays overnight portions insid
     ],
   });
   await page.goto('/dashboard');
-  const availability = page.getByRole('region', { name: 'วันนี้ · เวลาตามกรุงเทพฯ' });
+  const availability = page.getByRole('region', { name: 'วันนี้ เวลาตามกรุงเทพฯ' });
   await expect(availability.getByRole('listitem')).toHaveCount(2);
   await expect(availability.getByRole('listitem').first()).toContainText('00:00–01:00');
   await expect(availability.getByRole('listitem').last()).toContainText('23:00–24:00');
@@ -801,6 +812,10 @@ test('course summary expands beneath its own row with repeat toggles, keyboard a
   const calls = await mockDashboard(page);
   await page.emulateMedia({ reducedMotion: 'no-preference' });
   await page.goto('/dashboard');
+  await page.evaluate(() => document.fonts.ready);
+  await expect(
+    page.getByRole('region', { name: 'ภาพรวมการสอน', exact: true }).locator('dl').first(),
+  ).toHaveAttribute('aria-busy', 'false');
   const courses = page.getByRole('region', { name: 'ภาพรวมรายคอร์ส', exact: true });
   const choices = courses.getByRole('listitem').getByRole('button');
   await choices.first().click();
@@ -823,6 +838,14 @@ test('course summary expands beneath its own row with repeat toggles, keyboard a
   });
   expect(expandedHeight).toBeGreaterThan(40);
   const callCount = calls.length;
+  // Pause the closing transition as soon as it starts so assertions cannot outlive its 220ms.
+  await details.evaluate((element) => {
+    const observer = new MutationObserver(() => {
+      element.getAnimations()[0]?.pause();
+      observer.disconnect();
+    });
+    observer.observe(element, { attributes: true, attributeFilter: ['data-open'] });
+  });
   await toggle.click();
   await expect(toggle).toHaveAttribute('aria-expanded', 'false');
   await expect(details).toHaveAttribute('inert', '');

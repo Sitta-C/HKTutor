@@ -3,6 +3,7 @@
 import { useEffect, useRef } from 'react';
 
 import { NotebookButton, WashiTape } from '@/components/ui/notebook';
+import { NotebookMetadata } from '@/components/ui/notebook-metadata';
 import { useLanguage } from '@/lib/i18n';
 import { privacyNoticeCopy } from '@/lib/privacy-notice-copy';
 
@@ -40,7 +41,12 @@ export default function PrivacyNoticeModal({ open, onClose }: PrivacyNoticeModal
             {notice.title}
           </h2>
           <p className="mt-1 text-xs text-notebook-muted">
-            {notice.versionLabel} {notice.version} · {notice.effectiveLabel} {notice.effectiveDate}
+            <NotebookMetadata
+              items={[
+                `${notice.versionLabel} ${notice.version}`,
+                `${notice.effectiveLabel} ${notice.effectiveDate}`,
+              ]}
+            />
           </p>
         </div>
         <button

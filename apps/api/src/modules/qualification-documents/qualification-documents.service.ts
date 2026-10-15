@@ -14,7 +14,6 @@ import {
   StorageObjectPurpose,
   TutorDocumentAuditAction,
   TutorDocumentReviewStatus,
-  TutorVerificationStatus,
 } from '@generated/prisma/enums';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import {
@@ -35,6 +34,7 @@ import {
 import {
   ACTIVE_TUTOR_WHERE,
   decodeQualificationCursor,
+  deriveTutorVerificationStatus,
   DOCUMENT_OWNERSHIP_ERRORS,
   DOCUMENT_SELECT,
   encodeQualificationCursor,
@@ -44,6 +44,7 @@ import {
   toReviewStatus,
 } from '@modules/qualification-documents/qualification-documents.model';
 
+import type { TutorVerificationStatus } from '@generated/prisma/enums';
 import type { AuthenticatedUser } from '@modules/auth/auth.guard';
 import type {
   QualificationListQueryDto,
@@ -61,6 +62,12 @@ import type {
   QualificationUploadResponseDto,
 } from '@modules/qualification-documents/qualification-documents.swagger';
 import type {} from 'multer';
+
+const DOCUMENT_EXTENSIONS: Readonly<Record<string, readonly string[]>> = {
+  'application/pdf': ['pdf'],
+  'image/jpeg': ['jpg', 'jpeg'],
+  'image/png': ['png'],
+};
 
 @Injectable()
 export class QualificationDocumentsService {
@@ -91,6 +98,10 @@ export class QualificationDocumentsService {
     const originalName = file.originalname.trim();
     if (!originalName || originalName.length > 255 || /[/\\]|\p{Cc}/u.test(originalName)) {
       throw new BadRequestException('Invalid document filename');
+    }
+    const extension = originalName.split('.').at(-1)?.toLowerCase();
+    if (!extension || !DOCUMENT_EXTENSIONS[file.mimetype]?.includes(extension)) {
+      throw new BadRequestException('Document filename extension must match its file type');
     }
     if (
       await this.prisma.tutorDocument.findFirst({
@@ -440,13 +451,9 @@ export class QualificationDocumentsService {
       where: { tutorUserId },
       select: { reviewStatus: true },
     });
-    const verificationStatus = documents.some(
-      (doc) => doc.reviewStatus === TutorDocumentReviewStatus.VERIFIED,
-    )
-      ? TutorVerificationStatus.VERIFIED
-      : documents.some((doc) => doc.reviewStatus === TutorDocumentReviewStatus.PENDING)
-        ? TutorVerificationStatus.PENDING
-        : TutorVerificationStatus.REJECTED;
+    const verificationStatus = deriveTutorVerificationStatus(
+      documents.map((doc) => doc.reviewStatus),
+    );
     await tx.tutorProfile.update({
       where: { userId: tutorUserId },
       data: { verificationStatus },

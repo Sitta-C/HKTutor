@@ -60,6 +60,14 @@ different and at least 32 characters.
 
 ## Database
 
+The API's PostgreSQL driver pool allows at most three connections per process, waits up to
+10 seconds for a connection, and releases idle connections after 10 seconds. This limits pressure
+on the shared Supabase session pool when dashboard requests run concurrently. Budget connections
+across all API processes and database tools; a per-process limit cannot prevent other clients from
+exhausting the shared pool. Restart the API after changing these settings. Disconnect unused database
+tool sessions and stop duplicate development API processes when troubleshooting connection limits.
+This pool configuration does not require a schema migration.
+
 Generate and validate the Prisma schema without changing a database:
 
 ```bash
@@ -83,14 +91,36 @@ non-participant senders, and de-duplicates retries by sender and `clientMessageI
 indexes support both ID and UTC `sentAt` ordering; API handlers must still perform participant
 authorization and map expected uniqueness conflicts to the appropriate HTTP response.
 
-`POST /api/v1/conversations/:conversationId/messages` is guarded by `JwtAuthGuard` then
-`RolesGuard` and accepts only `STUDENT` and `TUTOR` callers. The handler takes the sender ID from
-the access token, validates trimmed text as 1–2,000 Unicode code points, then checks that sender is
-one of the conversation's two participants before inserting a `Message`. It returns `201` on
-success; `400 VALIDATION_FAILED` for invalid text, `401 UNAUTHENTICATED` for a missing or invalid
-session, `403 FORBIDDEN` for an admin or nonparticipant, and `404 NOT_FOUND` for a missing
-conversation. Failure responses do not return conversation/message content, and validation or
-authorization failures create no `Message` row.
+### Conversation history and read receipts (S2-T20)
+
+`GET /api/v1/conversations/:conversationId/messages` keeps its original oldest-first forward
+contract: no cursor starts at the beginning; `afterMessageId` is exclusive, and an empty forward
+page keeps that cursor. `pageSize` remains 1–50, default 20. Participant authentication/authorization
+and cross-conversation cursor validation apply to every mode. GET never marks messages read.
+
+S2-T20 adds three mutually exclusive optional modes alongside `afterMessageId`:
+
+- `latest=true` returns the newest page, ordered oldest first for display.
+- `beforeMessageId` returns the immediately preceding page, also oldest first.
+- `fromMessageId` reads inclusively from an existing message to refresh persisted read states,
+  then the caller can follow `nextAfterMessageId` as usual for forward catch-up.
+
+Backward pages add `nextBeforeMessageId`: the first returned message if older history remains,
+otherwise null. Their `hasMore` describes older history; forward `hasMore` describes newer history.
+Ordering uses `(sentAt, id)` for all comparisons, including equal timestamps. Mixed modes and
+invalid cursor IDs/flags return 400. Existing forward response fields and semantics remain unchanged.
+
+The web opens the latest 20 messages, loads one earlier page per click and polls every four seconds
+while the thread/document is visible. Receipt refresh begins at the earliest loaded unread sent
+message when it is at/before the cached GET boundary, so an acknowledged send cannot skip a
+concurrent incoming message. Polling is serialized and catch-up is bounded to 200 pages/60 seconds;
+older pages never replace the latest GET cursor.
+
+`POST /api/v1/conversations/:conversationId/read` retains the S2-T19 recipient-only idempotent
+contract. The web sends `upToMessageId` for the received boundary only at the latest reading
+position in a visible open thread. Sent/Read display comes from persisted `readAt`. No schema or
+migration changes are required. API HTTP tests use mocked persistence; browser tests intercept APIs,
+so these checks do not certify a live database deployment.
 
 After confirming the target is disposable and filling the seed email/password values:
 
@@ -277,7 +307,8 @@ longer tutor accounts are excluded. Tutor IDs and reviewer IDs come from the aut
 
 Upload uses multipart fields `file` and `documentType`. The initial allowed types are `DEGREE` and
 `CERTIFICATE`, matching the qualification form's degree/certificate categories. Only PDF, JPEG,
-and PNG with matching byte signatures are accepted, with an inclusive maximum of 5 MiB
+and PNG with matching byte signatures and filename extensions (`.pdf`, `.jpg`/`.jpeg`, `.png`)
+are accepted, with an inclusive maximum of 5 MiB
 (5242880 bytes). Empty files, unsupported types, excess bytes, unknown fields, multiple files,
 and invalid document types return 400. The API maps the infrastructure's oversize 413 to this
 card's 400 contract. Stored paths contain generated UUIDs, never original filenames. One pending
@@ -290,7 +321,10 @@ The 201 upload response is `{documentId,status,fileName,mimeType,size,createdAt}
 and detail additionally include safe file metadata.
 The tutor list supports optional `status`. All qualification status filters and responses use
 `PENDING | APPROVED | REJECTED`; `APPROVED` maps to the existing database `VERIFIED` enum. Tutor
-profile `verificationStatus` retains its existing `PENDING | VERIFIED | REJECTED` contract.
+profile `verificationStatus` uses `UNVERIFIED | PENDING | VERIFIED | REJECTED`.
+Registration and email verification do not create a tutor profile. Its first save creates an
+`UNVERIFIED` profile, meaning no qualification document has been submitted. The first successful
+upload moves it to `PENDING`; selecting a file or a failed upload does not change verification.
 Legacy document category strings remain readable; new uploads accept only the two types above.
 Metadata responses never contain `objectPath`, public download URLs, or service credentials.
 
@@ -316,11 +350,20 @@ trimmed reason of 1–500 characters; an approval may include a note of the same
 document cannot be reviewed again (409). A transaction locks the tutor profile row, conditionally
 updates the pending document, updates tutor verification, and inserts one immutable `REVIEWED`
 audit event. The profile is `VERIFIED` when any document is approved; otherwise `PENDING` when any
-document is pending; otherwise `REJECTED`. Rejecting another document cannot revoke existing
+document is pending; otherwise `REJECTED` if documents exist, or `UNVERIFIED` without documents.
+Rejecting another document cannot revoke existing
 approved evidence. Uploads and reviews for the same tutor serialize on the profile lock. The response is
 `{documentId,status,reviewedAt,reviewedBy,tutorVerificationStatus}`. Approval notes live in the
 audit history; `rejectionReason` remains null on approved documents. Persistence failures roll
 back the entire review and return a sanitized 503.
+
+The two forward migrations `20261012100000_add_unverified_tutor_status` and
+`20261012100100_default_tutor_status_unverified` add the enum value before using it, change the
+profile default, and backfill only `PENDING` profiles with no `TutorDocument` rows. Completed
+`VERIFIED`/`REJECTED` decisions are preserved, including provisioned demo tutors. Apply both
+migrations before running the updated API against a database; `pnpm db:generate` only regenerates
+the client and does not apply them. Document review statuses and admin queue filters retain their
+existing contract. Only `VERIFIED` tutors can publish courses or appear in public discovery.
 
 Uploads persist a qualification-document row in the shared `StorageCleanupIntent` queue before
 Storage I/O. Metadata, the `UPLOADED` audit, aggregate profile state, and intent consumption share
@@ -403,11 +446,14 @@ pnpm check
 
 The HTTP suite runs real validation, JWT/session/role/ownership guards, feature services, and the
 Storage SDK with isolated database and HTTP transports. It covers the seven contracts, byte-size
-boundaries, spoofed MIME signatures, authorization, pagination, audit failures, conditional review
-contention, and transactional failure propagation. Its persistence double models rollback; it does
-not prove PostgreSQL locks or Supabase expiry against live services. The SQL contract tests protect
-the migration invariants. Swagger and shared web wire types describe the API; frontend upload and
-admin review screens remain the separate S2-T08 task.
+boundaries, spoofed MIME signatures, filename extension mismatches, authorization, pagination,
+audit failures, conditional review contention, and transactional failure propagation. Its
+persistence double models rollback; it does not prove PostgreSQL locks or Supabase expiry against
+live services. The SQL contract tests protect the migration invariants. Swagger and shared web wire
+types describe the API; frontend upload and admin review screens remain the separate S2-T08 task.
+
+The [S2-T09 QA record](../../tests/s2-t09-qa.md) lists the upload, authorization, expiry, privacy,
+and review checks with exact commands, results, and live-environment limits.
 
 For PostgreSQL concurrency and rollback verification, create an empty disposable loopback database
 whose name matches `hktutor_*_test`, apply migrations, then run:
@@ -422,6 +468,133 @@ status, audit-trigger rollback, cleanup retries, reference protection, worker lo
 simulated Storage transport. It inserts test actors/documents and retains immutable audit evidence;
 discard the test database afterward. It does not test live Supabase URL expiry.
 
+## Tutor ranking request and explanation contract (S2-T13)
+
+`GET /api/v1/tutors` accepts optional `priority=lowest_price`, `highest_rating`, or
+`earliest_availability`. These select ascending hourly price, descending rating, or ascending next
+availability in the existing sorter. Existing subject, grade, `maxPrice`, `minimumRating`, page and
+page-size filters keep their meanings. Unknown priorities return 400. Omitting all sort parameters
+preserves the published-date ordering. Individual sort priorities/directions remain supported, but
+combining any of them with `priority` returns 400 rather than silently overriding the chosen mode.
+
+Each result adds `recommendationTags`, an array of language-neutral codes for the UI to translate:
+
+| Code                    | Rule                                                                   |
+| ----------------------- | ---------------------------------------------------------------------- |
+| `FITS_BUDGET`           | An explicit `maxPrice` is supplied and the actual hourly price fits.   |
+| `LOWEST_PRICE`          | Under `lowest_price`, this is a minimum-price matching public listing. |
+| `HIGHEST_RATED`         | Under `highest_rating`, this is a maximum known matching tutor rating. |
+| `EARLIEST_AVAILABILITY` | Under `earliest_availability`, this is the earliest bookable slot.     |
+
+Best-value tags use all matching published listings owned by verified, active, non-deleted tutor
+accounts, before pagination. Every tie receives its applicable tag. Null ratings and no-slot tutors
+never receive their respective best-value tag. Earliest-slot explanations exclude deleted, started,
+and PENDING/CONFIRMED-reserved slots. No supplied budget means no `FITS_BUDGET` tag; missing data is
+not treated as zero. Comparisons use the stored Decimal prices and ratings. An item with no applicable
+explanation returns `recommendationTags: []`.
+
+This contract addition delegates ordering and result pagination to the existing sorter. API tests
+for it use mocked persistence and do not certify PostgreSQL ordering or public-query eligibility.
+The ranking selector and translated result-card labels belong to S2-T14.
+
+## Mock payment API (S2-T04)
+
+`POST /api/v1/bookings/me/:bookingId/mock-payment` records the demo payment for one booking. It is
+a demonstration flow only: the body carries `amount` and `reference` and nothing else, and the
+global validation pipe rejects any card, bank or other unknown field.
+
+Access is `JwtAuthGuard`, then `RolesGuard(STUDENT)`, then `ResourceOwnershipGuard`. The route
+declares its own ownership bodies so a booking owned by another student answers 403
+`BOOKING_NOT_OWNED` rather than the ownership-safe 404 used elsewhere.
+
+`amount` is a fixed two-decimal string and is compared with the booking's stored `netAmount` only to
+detect a stale client; the server amount is the one recorded, and the comparison is a `Decimal`
+comparison rather than string equality. `reference` is trimmed, single-line, at most 64 characters
+and globally unique across bookings. It accepts text in any language, Thai included; only control
+and format characters are rejected, because no card asks the field to be ASCII and the rest of the
+API keeps user-supplied text Unicode-aware.
+
+Only a `CONFIRMED` and `UNPAID` booking can be paid. One transaction writes `paymentStatus=PAID`,
+`paidAt` and `mockReference` through a conditional update whose `where` still requires
+`paymentStatus=UNPAID`, so two concurrent payments cannot both succeed and a losing request reads
+nothing back. Outcomes:
+
+| Status | Code                                | Cause                                                        |
+| ------ | ----------------------------------- | ------------------------------------------------------------ |
+| 200    | —                                   | Payment recorded; returns the stored amount and UTC `paidAt` |
+| 400    | `BOOKING_PAYMENT_AMOUNT_MISMATCH`   | Declared amount differs from the stored `netAmount`          |
+| 400    | `VALIDATION_FAILED`, `INVALID_UUID` | Blank or oversized reference, loose amount, unknown field    |
+| 403    | `BOOKING_NOT_OWNED`                 | Booking belongs to another student                           |
+| 404    | `BOOKING_NOT_FOUND`                 | No booking with this ID                                      |
+| 409    | `BOOKING_NOT_PAYABLE`               | Booking is not confirmed                                     |
+| 409    | `BOOKING_ALREADY_PAID`              | Booking is already paid                                      |
+| 409    | `MOCK_REFERENCE_TAKEN`              | Reference already recorded for another booking               |
+| 409    | `BOOKING_PAYMENT_CONFLICT`          | A concurrent payment won the transition                      |
+
+No state-changing error leaves a partial write: every rejection happens before the transaction or
+inside it, where the transaction rolls back. `db:verify:bookings` proves this against PostgreSQL with
+a temporary `AFTER UPDATE` trigger that fails once the row is already PAID; the booking must come back
+CONFIRMED and UNPAID with a null `paidAt` and `mockReference`. The same check pays the booking once
+and then reuses its reference on a second booking to prove the unique index surfaces as
+`MOCK_REFERENCE_TAKEN`.
+
+Two decisions worth stating, because the cards differ or the order is observable:
+
+- **Amount mismatch answers 400, and the cards disagree about it.** Product Backlog US12-5 and the
+  parent S2-T04 card say "Return 400 for amount mismatch/invalid reference"; the endpoint contract
+  card lists the mismatch under 409. The acceptance criteria win, so the endpoint answers 400. Note
+  the inconsistency this leaves inside this file: `assertBookableSlot` reports an already-started
+  slot as 409 because a client acting on a stale view is a state conflict, which is the same shape
+  of failure as a stale amount. That is a conflict between the cards rather than a defect in either
+  code path, and moving the mismatch to 409 needs the backlog changed first. The body carries
+  `BOOKING_PAYMENT_AMOUNT_MISMATCH` and `details.expectedAmount`, so a client can react to the
+  specific cause whichever status the backlog settles on.
+- **State is checked before the amount.** Paying a booking that is still PENDING answers 409
+  `BOOKING_NOT_PAYABLE` even when the amount is also wrong, because an unconfirmed booking cannot be
+  paid at any amount.
+
+The student reads carry the recorded payment so a client never has to replay the POST to learn it:
+`GET /api/v1/bookings/me` and `GET /api/v1/bookings/me/:bookingId` both return `paymentStatus`,
+`paidAt` and `mockReference`. `paidAt` and `mockReference` are present and `null` while the booking
+is unpaid, so a client branches on the value rather than on the key being absent. The tutor list
+deliberately omits them: no card asks a tutor to see a student's payment reference, and the reads
+select only the columns they return.
+
+The field is `mockReference` here, matching the column, while the POST response calls the same value
+`reference`; the POST answers about one payment, where the shorter name is unambiguous.
+
+## Class attendance API (S2-T35)
+
+`PUT /api/v1/bookings/tutor/:bookingId/attendance` accepts only
+`{attendance:"ATTENDED"|"ABSENT"}`. JWT authentication, tutor role and booking ownership are
+required. Unknown body fields and invalid UUIDs/attendance values return 400; missing/invalid
+authentication returns 401, another role/tutor returns 403, and a missing booking returns 404.
+
+The class end time must be at or before now. A first write requires a `CONFIRMED` booking with no
+attendance record and atomically saves attendance, `attendanceMarkedAt` and `COMPLETED` status.
+The 200 response is `{bookingId,attendance,attendanceMarkedAt,status:"COMPLETED",idempotentReplay}`
+with a UTC ISO 8601 timestamp. `idempotentReplay` is false for the first write; a same-value retry
+returns the original record and timestamp with true and performs no second write. A different-value
+retry returns 409 `ATTENDANCE_ALREADY_RECORDED`. Pending/canceled/expired bookings, future classes
+and completed bookings without a saved record return 409 without mutation.
+
+The conditional database update requires `CONFIRMED`, null attendance fields and an ended slot.
+When another recording wins, the losing request reads the saved record in the same transaction:
+the same value is a replay, a different value is a conflict. Persistence failures roll back the
+whole transaction. No schema migration or new configuration is needed.
+
+Verification:
+
+```bash
+pnpm --filter @hktutor/api test --runInBand bookings
+pnpm --filter @hktutor/api test:e2e --runInBand bookings-attendance
+```
+
+Unit tests cover the inclusive end-time boundary, replay/conflict and losing conditional updates.
+The HTTP suite exercises real validation, authentication, role/ownership guards and service logic
+with isolated persistence, including post-write failure rollback. These tests do not certify
+PostgreSQL concurrency against a live database.
+
 ## Private availability range queries
 
 `GET /api/v1/tutors/me/availability` accepts optional UTC `from` and `to` bounds. By default it
@@ -430,3 +603,215 @@ slots spanning the range (`endAtUtc > from` and `startAtUtc < to`); omitted boun
 This mode excludes slots ending exactly at `from` or starting exactly at `to`. It retains tutor
 ownership, soft-delete filtering, and derived reservation states. The public availability endpoint
 keeps its existing future-start behavior and does not accept `rangeMode`.
+
+## Tutor booking transition verification (S2-T03)
+
+`pnpm --filter @hktutor/api db:verify:tutor-transitions` exercises the real Nest HTTP pipeline and
+Prisma transactions against PostgreSQL. Neither root `pnpm check` nor `pnpm test` runs this command.
+The HTTP Jest suite uses persistence doubles; it checks routing, validation and failure propagation,
+but cannot establish database atomicity.
+
+Use Node.js 24.19.0, the repository pnpm version, installed dependencies, and Docker (or an empty
+disposable PostgreSQL database). From the repository root, this example creates a new local target,
+applies committed migrations without seeding, and runs the verifier:
+
+```bash
+nvm use 24.19.0
+pnpm install --frozen-lockfile
+docker run --detach --name hktutor-tutor-transitions-test \
+  --publish 127.0.0.1:55434:5432 \
+  --env POSTGRES_USER=postgres --env POSTGRES_PASSWORD=disposable-local-only \
+  --env POSTGRES_DB=hktutor_transitions_test postgres:17
+# Wait until this reports that PostgreSQL is accepting connections.
+docker exec hktutor-tutor-transitions-test pg_isready -U postgres -d hktutor_transitions_test
+export DATABASE_URL='postgresql://postgres:disposable-local-only@127.0.0.1:55434/hktutor_transitions_test'
+pnpm db:generate
+pnpm --filter @hktutor/api db:migrate:deploy
+HKTUTOR_ALLOW_DISPOSABLE_DB_VERIFY=1 pnpm --filter @hktutor/api db:verify:tutor-transitions
+# Discard this example's container and its anonymous data volume, including after a failed run.
+docker rm --force --volumes hktutor-tutor-transitions-test
+unset DATABASE_URL
+```
+
+The approval flag and explicit `DATABASE_URL` are both required. The runner never loads `.env` or
+uses `AppModule` to select a fallback database. It accepts loopback hosts (`localhost`, `127.0.0.1`,
+IPv6 loopback) and database names starting with `hktutor_` or `hktutor-`; ports and users are configurable.
+URL options, schema overrides, fragments, remote hosts, and omitted targets are refused. These gates
+do not establish that a local database is disposable: choose an empty target that you own before
+applying migrations or running either verifier. Preflight checks applied `_prisma_migrations`,
+the active-slot partial unique index, and the cancellation constraint before creating fixtures.
+
+The runner creates random actors, catalog entries, a DRAFT listing, slots and bookings itself; it
+has no seed dependency. It verifies role/ownership errors and terminal states with persisted
+booking/slot snapshots, successful reservation/release through the real private availability
+projection, all four repeat/switch transitions, and all four concurrent action pairs. A read gate
+holds both real service SELECTs after they observe PENDING, then releases them to contend through
+the real database transaction. Text boundaries are 499/500/501 ASCII characters; inbox bounds use
+one-millisecond neighbors of persisted timestamps and the DTO pagination limits. Timeout handling
+and URL safety have separate unit tests (`tutor-transition-verifier.spec.ts`); these are test-runner
+checks, not database atomicity evidence.
+
+Compared with `db:verify:bookings` (`verify-booking-endpoint-concurrency.ts`), this runner adds the
+synchronized four-pair decision matrix, full persisted snapshots, terminal/authorization decision
+tables, and tutor inbox boundaries without requiring a seeded published listing. Keep the older
+runner for booking creation/payment contention and its `probe_reject_rollback` trigger: it supplies
+the separate real mid-transaction reject rollback evidence. The new runner does not replace that
+trigger test. It removes only its invocation's random fixture IDs in `finally`; retain failures and
+discard the disposable database afterward. Browser inbox tests intercept API responses and establish
+UI behavior, rather than live browser-to-database integration.
+
+## RescheduleRequest persistence (S2-DB04)
+
+The forward migration `20261014120000_add_reschedule_request` implements the
+[S2-DB04 card](https://trello.com/c/KS7mGzdM).
+Field names follow the approved
+[Data Model, row 13](https://docs.google.com/spreadsheets/d/17RMTjXa26ho7blv-TK5pbJFbHxVHJEBRPKCXk9x5AE0/edit#gid=1191524122&range=A13:D13):
+`bookingId`, `requestedById`, `fromSlotId`, `requestedSlotId`, `reason`, `status`,
+`reviewedById`, `requestedAt`, `decidedAt`, and `withdrawnAt`, plus a UUID `id`.
+This resolves the card's alternative `requesterUserId`, `targetSlotId`, and `decisionByUserId`
+wording in favor of its Data Model acceptance criterion. No existing migration or data is rewritten.
+
+Prisma exposes `PENDING | APPROVED | REJECTED | WITHDRAWN`; PostgreSQL stores the corresponding
+lowercase values. Timestamps use `TIMESTAMPTZ(3)` and remain UTC on the future API boundary.
+`fromSlotId` retains the original slot after approval; both slot and both user relations restrict
+hard deletion. Reasons must contain non-whitespace text, be trimmed, and contain 1–500 characters.
+
+The partial unique index `RescheduleRequest_pending_booking_key` permits one pending request per
+booking, while retaining any number of closed requests. Pending requests do not reserve targets:
+several bookings may request the same target. The existing `Booking_active_slot_key` remains the
+final guard against two active bookings taking that slot. Current/history queries use
+`(bookingId, status, requestedAt, id)`; requester inboxes use
+`(requestedById, status, requestedAt, id)`. Counterparty inboxes join through the existing
+student/tutor Booking indexes. Slot/reviewer indexes support relations.
+
+Database triggers require new requests to be pending, reference a confirmed booking's current
+slot, name a different slot belonging to the same tutor, and identify a student/tutor participant
+as requester. Creation locks the booking row. Decisions must identify the other participant;
+pending/decided/withdrawn timestamp and reviewer combinations are checked together. Request identity,
+reason and request time are immutable, and closed evidence cannot be modified or reopened.
+Rejecting/withdrawing a request does not move a booking. RLS and revoked PUBLIC/Supabase browser-role
+privileges keep this table behind the backend owner connection.
+
+S2-T25 still owns authenticated endpoints, requester-only withdrawal, active-account/consent checks,
+the inclusive cutoff, future/non-deleted/available target checks and HTTP conflict mapping. The
+database cannot infer the authenticated actor from a submitted UUID. Its verifier demonstrates a
+slot-swap transaction protocol; it is not a production approval service or HTTP authorization test.
+The future service must lock the booking first, revalidate eligibility, conditionally close the
+pending request, update the booking's slot and commit all changes together. A uniqueness/state
+failure must roll back both writes; never close the request in a separate transaction.
+
+### Verification and rollout
+
+`pnpm check` and `pnpm verify:workspace` do not run the database verifier. Contract tests check
+schema/migration invariants and verifier safety. For actual PostgreSQL constraints and transactions,
+create a new disposable local target, apply all migrations without seeding, then run:
+
+```bash
+docker run --detach --name hktutor-s2-db04-test \
+  --publish 127.0.0.1:55435:5432 \
+  --env POSTGRES_USER=postgres --env POSTGRES_PASSWORD=disposable-local-only \
+  --env POSTGRES_DB=hktutor_reschedule_test postgres:17-alpine
+# Wait until PostgreSQL is accepting connections.
+docker exec hktutor-s2-db04-test pg_isready -U postgres -d hktutor_reschedule_test
+export DATABASE_URL='postgresql://postgres:disposable-local-only@127.0.0.1:55435/hktutor_reschedule_test'
+pnpm db:migrate:deploy
+HKTUTOR_ALLOW_DISPOSABLE_DB_VERIFY=1 pnpm db:verify:reschedules
+docker rm --force --volumes hktutor-s2-db04-test
+unset DATABASE_URL
+```
+
+The verifier never loads `.env`. It requires the opt-in and an explicit PostgreSQL loopback URL
+whose database name matches `hktutor_*_test` or `hktutor-*-test`; URL options and fragments are
+refused. Choose an empty target you own: a loopback address alone does not prove disposability.
+The script preflights both partial unique indexes, creates random synthetic fixtures and removes
+only its own rows in `finally`. Discard the example container after success or failure.
+
+It checks invalid participants/reviewers, wrong tutor/original slot, reason boundaries, lifecycle
+metadata, immutable history, missing booking and restricted target deletion. Concurrent pending
+inserts yield one winner. A read gate synchronizes two approval transactions targeting one slot;
+the loser retains its original booking and pending request, while the winner releases its old slot.
+A deleted target fails the swap and preserves both the pending request and original booking.
+A forced PostgreSQL error after both request and booking writes verifies rollback by comparing
+complete booking/request/slot snapshots. Two simultaneous decisions on one request also yield one
+winner. These checks certify persistence behavior, not live S2-T25 endpoints or UI.
+
+Apply the new migration to a separately confirmed deployment target before enabling S2-T25.
+`pnpm db:generate` alone does not migrate that target. No new configuration, seed or API wire
+types are required for this schema-only task.
+
+Verification recorded on 2026-10-14:
+
+| Command                                                                                  | Result                                                                                                               |
+| ---------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `pnpm db:validate`                                                                       | Passed; Prisma schema valid.                                                                                         |
+| `node --test tests/booking-foundation.test.mjs tests/reschedule-request-schema.test.mjs` | 10 passed.                                                                                                           |
+| `pnpm check`                                                                             | Passed formatting, all workspace lint, 865 API/268 web unit tests and both builds.                                   |
+| `pnpm db:migrate:deploy` with the explicit disposable URL                                | All 20 migrations applied successfully to a new PostgreSQL 17 database; no seed.                                     |
+| `HKTUTOR_ALLOW_DISPOSABLE_DB_VERIFY=1 pnpm db:verify:reschedules` with that same URL     | Passed real constraints, concurrent pending/approval writes, deleted-target failure, slot release and full rollback. |
+| `pnpm verify:workspace`                                                                  | 118 passed, 5 existing web source-contract assertions failed.                                                        |
+
+The five workspace failures were reproduced from an isolated `git archive HEAD` snapshot:
+two in `booking-flow-web.test.mjs`, one in `privacy-consent-foundation.test.mjs` and two in
+`s1-t26-integration-flow.test.mjs`. They concern pre-existing booking-list, consent and route/role
+source assertions. S2-DB04's new contract tests and the updated Booking foundation contract pass.
+This task leaves those unrelated web assertions for their owning work.
+
+## Tutor verification visibility verification (S2-T12)
+
+`pnpm --filter @hktutor/api db:verify:tutor-verification` proves the S2-T10 publish gate
+(`TutorListingsService.postPublishListing`) and the discovery query it shares with search and the
+public tutor profile (`publicTutorWhere` in `public-tutor-access.ts`) against real PostgreSQL.
+`tutors.service.spec.ts`, `public-tutors.service.spec.ts` and `tutor-listing-publish.e2e-spec.ts`
+check the `where` clause a call receives against a mocked PrismaService; they cannot prove that
+clause actually excludes a persisted row, or that an excluded row survives unmodified. Neither root
+`pnpm check` nor `pnpm test` runs this command.
+
+```bash
+nvm use 24.19.0
+pnpm install --frozen-lockfile
+docker run --detach --name hktutor-verification-test \
+  --publish 127.0.0.1:55439:5432 \
+  --env POSTGRES_USER=postgres --env POSTGRES_PASSWORD=disposable-local-only \
+  --env POSTGRES_DB=hktutor_verification_test postgres:17
+docker exec hktutor-verification-test pg_isready -U postgres -d hktutor_verification_test
+export DATABASE_URL='postgresql://postgres:disposable-local-only@127.0.0.1:55439/hktutor_verification_test'
+pnpm db:generate
+pnpm --filter @hktutor/api db:migrate:deploy
+HKTUTOR_ALLOW_DISPOSABLE_DB_VERIFY=1 pnpm --filter @hktutor/api db:verify:tutor-verification
+docker rm --force --volumes hktutor-verification-test
+unset DATABASE_URL
+```
+
+The approval flag and explicit `DATABASE_URL` are both required; the runner never loads `.env` or
+falls back to a shared database. It accepts loopback hosts only, requires a database name matching
+`hktutor_*_test` or `hktutor-*-test`, refuses URL options/fragments, and checks that every
+committed migration under `prisma/migrations` is applied before creating fixtures. It creates its
+own catalog, tutor and listing rows; it has no seed dependency.
+
+**There is no admin "revoke verification" endpoint in this product.** A tutor's
+`verificationStatus` is derived from their `TutorDocument.reviewStatus` rows by
+`deriveTutorVerificationStatus`, and that derivation is sticky toward `VERIFIED`: it returns
+`VERIFIED` if _any_ document was ever approved, regardless of later uploads or rejections, so no
+reachable API call can walk a tutor back down once approved. The runner simulates the
+"pending/rejected/revoked/verified" transitions the card asks for by writing
+`TutorProfile.verificationStatus` directly -- the same write a future admin action would have to
+perform -- and does not exercise the qualification-document upload/review flow itself; that surface
+has its own disposable-database evidence (`db:verify:qualifications`). This gap (no product-facing
+way to revoke an already-verified tutor) is a QA finding from this card, not something this test
+task changes.
+
+Sequence, on one subject tutor plus an unrelated control tutor that stays `VERIFIED` throughout so
+an over-broad filter cannot pass by hiding everyone. The subject's first listing is forced straight
+to `PUBLISHED` in the database before the status loop, because a `DRAFT` listing is already excluded
+from discovery by `publicationStatus` alone: asserting exclusion against a `DRAFT` row would pass
+even with the verification filter deleted outright, and the state that matters is the one a listing
+is actually in once published and its tutor is later found ineligible. `UNVERIFIED` and `PENDING`
+and `REJECTED` each block `postPublishListing` with `ForbiddenException` and leave the listing row
+unchanged, compared in full before and after the rejection rather than only checked for `DRAFT`;
+`VERIFIED` publishes two listings for the same tutor and both appear in `searchPublicTutors` and
+`getPublicTutor`; simulated revocation back to `REJECTED` removes both already-`PUBLISHED` listings
+from search and makes the profile 404, while the `TeachingListing` rows stay `PUBLISHED` with their
+original `publishedAt` and a null `deletedAt` -- disappearance without deletion -- and a further
+publish attempt on either listing is blocked again, proving the gate re-reads live status rather
+than trusting the earlier success; re-verification restores both listings' visibility. The control
+tutor's listing is checked after every step.

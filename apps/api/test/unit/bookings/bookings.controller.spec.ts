@@ -3,7 +3,7 @@ import { Test } from '@nestjs/testing';
 
 import { API_GLOBAL_PREFIX } from '@app/app.setup';
 import { Role } from '@generated/prisma/client';
-import { BookingStatus } from '@generated/prisma/enums';
+import { AttendanceStatus, BookingStatus } from '@generated/prisma/enums';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import { JWT_BEARER_AUTH } from '@modules/auth/auth.swagger';
 import { OWNERSHIP_KEY } from '@modules/auth/ownership.decorator';
@@ -13,9 +13,14 @@ import { BookingsController } from '@modules/bookings/bookings.controller';
 import type { AuthenticatedUser } from '@modules/auth/auth.guard';
 import type { OwnershipRule } from '@modules/auth/ownership.decorator';
 import type {
+  BookingClassDetailDto,
   BookingDetailResponseDto,
+  BookingMeetingLinkDto,
   BookingQuoteResponseDto,
   BookingResponseDto,
+  CanceledBookingDto,
+  ClassAttendanceResponseDto,
+  MockPaymentResponseDto,
   MyBookingsResponseDto,
   TutorBookingActionResponseDto,
   TutorBookingsResponseDto,
@@ -245,6 +250,58 @@ describe('BookingsController', () => {
     },
   );
 
+  it('derives the paying student from the authenticated user', async () => {
+    const createMockPayment = jest.fn();
+    const bookingsService = { createMockPayment } as unknown as BookingsService;
+    const controller = new BookingsController(bookingsService);
+    const user: AuthenticatedUser = {
+      email: 'student@example.com',
+      id: '6bb01222-1fce-4bc3-a69d-3d90db2fdf57',
+      role: Role.STUDENT,
+      sessionId: 'session-1',
+    };
+    const bookingId = '3c54a0d6-e3f3-4a38-bd55-3b4011ee31ae';
+    const paid = {} as MockPaymentResponseDto;
+    createMockPayment.mockResolvedValue(paid);
+
+    await expect(
+      controller.createMockPayment(bookingId, { amount: '450.00', reference: 'DEMO-7F3A91' }, user),
+    ).resolves.toBe(paid);
+
+    expect(createMockPayment).toHaveBeenCalledWith({
+      amount: '450.00',
+      bookingId,
+      reference: 'DEMO-7F3A91',
+      studentUserId: user.id,
+    });
+  });
+
+  it('restricts the mock payment to the owning student and separates 403 from 404', () => {
+    const handler = Object.getOwnPropertyDescriptor(
+      BookingsController.prototype,
+      'createMockPayment',
+    )?.value as object | undefined;
+    const roles = handler
+      ? (Reflect.getMetadata(ROLES_KEY, handler) as Role[] | undefined)
+      : undefined;
+    const ownership = handler
+      ? (Reflect.getMetadata(OWNERSHIP_KEY, handler) as OwnershipRule | undefined)
+      : undefined;
+
+    expect(roles).toEqual([Role.STUDENT]);
+    expect(ownership).toEqual({
+      errors: {
+        foreignOwner: {
+          code: 'BOOKING_NOT_OWNED',
+          message: 'This booking belongs to another student',
+        },
+        missing: { code: 'BOOKING_NOT_FOUND', message: 'Booking not found' },
+      },
+      idParam: 'bookingId',
+      resource: 'booking',
+    });
+  });
+
   it('restricts the tutor-bookings endpoint to tutors', () => {
     const handler = Object.getOwnPropertyDescriptor(
       BookingsController.prototype,
@@ -255,6 +312,192 @@ describe('BookingsController', () => {
       : undefined;
 
     expect(roles).toEqual([Role.TUTOR]);
+  });
+
+  it('delegates updateMeetingLink to the bookings service', async () => {
+    const updateMeetingLink = jest.fn();
+    const bookingsService = { updateMeetingLink } as unknown as BookingsService;
+    const controller = new BookingsController(bookingsService);
+    const bookingId = '3c54a0d6-e3f3-4a38-bd55-3b4011ee31ae';
+    const dto = { meetingUrl: 'https://meet.google.com/abc-defg-hij' };
+    const expected = {} as BookingMeetingLinkDto;
+    updateMeetingLink.mockResolvedValue(expected);
+
+    const result = await controller.updateMeetingLink(bookingId, dto);
+
+    expect(updateMeetingLink).toHaveBeenCalledWith({
+      bookingId,
+      meetingUrl: dto.meetingUrl,
+    });
+    expect(result).toBe(expected);
+  });
+
+  it('restricts updateMeetingLink to tutors and enforces tutor booking action ownership', () => {
+    const handler = Object.getOwnPropertyDescriptor(
+      BookingsController.prototype,
+      'updateMeetingLink',
+    )?.value as object | undefined;
+    const roles = handler
+      ? (Reflect.getMetadata(ROLES_KEY, handler) as Role[] | undefined)
+      : undefined;
+    const ownership = handler
+      ? (Reflect.getMetadata(OWNERSHIP_KEY, handler) as OwnershipRule | undefined)
+      : undefined;
+
+    expect(roles).toEqual([Role.TUTOR]);
+    expect(ownership).toEqual({
+      errors: {
+        foreignOwner: {
+          code: 'BOOKING_NOT_OWNED',
+          message: 'This booking belongs to another tutor',
+        },
+        missing: { code: 'BOOKING_NOT_FOUND', message: 'Booking not found' },
+      },
+      idParam: 'bookingId',
+      resource: 'booking',
+    });
+  });
+
+  it('delegates getBookingClassDetail to the bookings service', async () => {
+    const getBookingClassDetail = jest.fn();
+    const bookingsService = { getBookingClassDetail } as unknown as BookingsService;
+    const controller = new BookingsController(bookingsService);
+    const bookingId = '3c54a0d6-e3f3-4a38-bd55-3b4011ee31ae';
+    const expected = {} as BookingClassDetailDto;
+    getBookingClassDetail.mockResolvedValue(expected);
+
+    const result = await controller.getBookingClassDetail(bookingId);
+
+    expect(getBookingClassDetail).toHaveBeenCalledWith(bookingId);
+    expect(result).toBe(expected);
+  });
+
+  it('enforces booking ownership and distinguishes 403 non-participant from 404 missing for getBookingClassDetail', () => {
+    const handler = Object.getOwnPropertyDescriptor(
+      BookingsController.prototype,
+      'getBookingClassDetail',
+    )?.value as object | undefined;
+    const ownership = handler
+      ? (Reflect.getMetadata(OWNERSHIP_KEY, handler) as OwnershipRule | undefined)
+      : undefined;
+
+    expect(ownership).toEqual({
+      errors: {
+        foreignOwner: {
+          code: 'BOOKING_NOT_OWNED',
+          message: 'You are not a participant in this booking',
+        },
+        missing: { code: 'BOOKING_NOT_FOUND', message: 'Booking not found' },
+      },
+      idParam: 'bookingId',
+      resource: 'booking',
+    });
+  });
+
+  it('derives the canceling user from the authenticated user and delegates to the service', async () => {
+    const cancelBooking = jest.fn();
+    const bookingsService = { cancelBooking } as unknown as BookingsService;
+    const controller = new BookingsController(bookingsService);
+    const user: AuthenticatedUser = {
+      email: 'student@example.com',
+      id: '70e1232d-3c06-4d5d-b3d2-6026df5ff315',
+      role: Role.STUDENT,
+      sessionId: 'session-1',
+    };
+    const bookingId = '3c54a0d6-e3f3-4a38-bd55-3b4011ee31ae';
+    const dto = { reason: 'Unable to attend' };
+    const expected = {
+      bookingId,
+      canceledAt: '2026-10-09T09:04:31.001Z',
+      status: BookingStatus.CANCELED,
+    } as CanceledBookingDto;
+    cancelBooking.mockResolvedValue(expected);
+
+    const result = await controller.cancelBooking(bookingId, dto, user);
+
+    expect(cancelBooking).toHaveBeenCalledWith({
+      bookingId,
+      reason: dto.reason,
+      userId: user.id,
+    });
+    expect(result).toBe(expected);
+  });
+
+  it('enforces booking ownership on booking cancellation and separates 403 from 404', () => {
+    const handler = Object.getOwnPropertyDescriptor(BookingsController.prototype, 'cancelBooking')
+      ?.value as object | undefined;
+    const ownership = handler
+      ? (Reflect.getMetadata(OWNERSHIP_KEY, handler) as OwnershipRule | undefined)
+      : undefined;
+
+    expect(ownership).toEqual({
+      errors: {
+        foreignOwner: {
+          code: 'BOOKING_NOT_OWNED',
+          message: 'This booking belongs to another user',
+        },
+        missing: { code: 'BOOKING_NOT_FOUND', message: 'Booking not found' },
+      },
+      idParam: 'bookingId',
+      resource: 'booking',
+    });
+  });
+
+  it('delegates updateAttendance to the bookings service', async () => {
+    const updateAttendance = jest.fn();
+    const bookingsService = { updateAttendance } as unknown as BookingsService;
+    const controller = new BookingsController(bookingsService);
+    const user: AuthenticatedUser = {
+      email: 'tutor@example.com',
+      id: 'ad08a291-dd8b-40c1-84e5-ddafca54c6fc',
+      role: Role.TUTOR,
+      sessionId: 'session-1',
+    };
+    const bookingId = '3c54a0d6-e3f3-4a38-bd55-3b4011ee31ae';
+    const dto = { attendance: AttendanceStatus.ATTENDED };
+    const expected: ClassAttendanceResponseDto = {
+      attendance: AttendanceStatus.ATTENDED,
+      attendanceMarkedAt: '2026-10-14T11:00:00.000Z',
+      bookingId,
+      idempotentReplay: false,
+      status: BookingStatus.COMPLETED,
+    };
+    updateAttendance.mockResolvedValue(expected);
+
+    const result = await controller.updateAttendance(bookingId, dto, user);
+
+    expect(updateAttendance).toHaveBeenCalledWith({
+      attendance: AttendanceStatus.ATTENDED,
+      bookingId,
+      tutorId: user.id,
+    });
+    expect(result).toBe(expected);
+  });
+
+  it('restricts updateAttendance to tutors and enforces tutor booking action ownership', () => {
+    const handler = Object.getOwnPropertyDescriptor(
+      BookingsController.prototype,
+      'updateAttendance',
+    )?.value as object | undefined;
+    const roles = handler
+      ? (Reflect.getMetadata(ROLES_KEY, handler) as Role[] | undefined)
+      : undefined;
+    const ownership = handler
+      ? (Reflect.getMetadata(OWNERSHIP_KEY, handler) as OwnershipRule | undefined)
+      : undefined;
+
+    expect(roles).toEqual([Role.TUTOR]);
+    expect(ownership).toEqual({
+      errors: {
+        foreignOwner: {
+          code: 'BOOKING_NOT_OWNED',
+          message: 'This booking belongs to another tutor',
+        },
+        missing: { code: 'BOOKING_NOT_FOUND', message: 'Booking not found' },
+      },
+      idParam: 'bookingId',
+      resource: 'booking',
+    });
   });
 });
 
@@ -492,5 +735,154 @@ describe('BookingsController OpenAPI contract', () => {
       'status',
     ]);
     expect(schema?.properties?.['slotStatus']).toMatchObject({ enum: ['AVAILABLE', 'RESERVED'] });
+  });
+  it('publishes the mock-payment contract', () => {
+    const operation =
+      document.paths[`/${API_GLOBAL_PREFIX}/bookings/me/{bookingId}/mock-payment`]?.post;
+
+    expect(operation?.summary).toBe(
+      "Record the demo payment for one of the authenticated student's confirmed bookings",
+    );
+    expect(operation?.responses['200']).toMatchObject({
+      content: {
+        'application/json': {
+          schema: {
+            allOf: [{ $ref: '#/components/schemas/MockPaymentResponseDto' }],
+            example: {
+              amount: '450.00',
+              bookingId: '3c54a0d6-e3f3-4a38-bd55-3b4011ee31ae',
+              paidAt: '2026-10-09T09:04:31.001Z',
+              paymentStatus: 'PAID',
+              reference: 'DEMO-7F3A91',
+            },
+          },
+        },
+      },
+    });
+    for (const status of ['400', '401', '403', '404', '409']) {
+      expect(operation?.responses[status]).toBeDefined();
+    }
+    expect(operation?.security).toEqual([{ [JWT_BEARER_AUTH]: [] }]);
+  });
+
+  // Both 400 and 409 always exist on this operation, so the loop above cannot notice the amount
+  // mismatch drifting between them. Product Backlog US12-5 puts it on 400, and it is the only 400
+  // here that carries `details`, so pin both examples until the backlog says otherwise.
+  it('publishes the amount mismatch as a bad request, as the backlog requires', () => {
+    const operation =
+      document.paths[`/${API_GLOBAL_PREFIX}/bookings/me/{bookingId}/mock-payment`]?.post;
+
+    expect(operation?.responses['400']).toMatchObject({
+      content: {
+        'application/json': {
+          schema: {
+            example: {
+              code: 'BOOKING_PAYMENT_AMOUNT_MISMATCH',
+              details: { expectedAmount: '450.00' },
+              statusCode: 400,
+            },
+          },
+        },
+      },
+    });
+    expect(operation?.responses['409']).toMatchObject({
+      content: {
+        'application/json': {
+          schema: { example: { code: 'BOOKING_ALREADY_PAID', statusCode: 409 } },
+        },
+      },
+    });
+  });
+
+  it('accepts only an amount and a reference, never payment instrument fields', () => {
+    const schema = document.components?.schemas?.['CreateMockPaymentDto'] as
+      { properties?: Record<string, unknown>; required?: string[] } | undefined;
+
+    expect(Object.keys(schema?.properties ?? {}).sort()).toEqual(['amount', 'reference']);
+    expect(schema?.required?.sort()).toEqual(['amount', 'reference']);
+  });
+
+  it('publishes the update-meeting-link contract', () => {
+    const operation =
+      document.paths[`/${API_GLOBAL_PREFIX}/bookings/tutor/{bookingId}/meeting-link`]?.put;
+
+    expect(operation?.summary).toBe(
+      "Update the meeting link for one of the authenticated tutor's confirmed bookings",
+    );
+    expect(operation?.responses['200']).toMatchObject({
+      content: {
+        'application/json': {
+          schema: {
+            allOf: [{ $ref: '#/components/schemas/BookingMeetingLinkDto' }],
+            example: {
+              bookingId: '3c54a0d6-e3f3-4a38-bd55-3b4011ee31ae',
+              meetingUrl: 'https://meet.google.com/abc-defg-hij',
+              updatedAt: '2026-10-09T09:04:31.001Z',
+            },
+          },
+        },
+      },
+    });
+    for (const status of ['400', '401', '403', '404', '409']) {
+      expect(operation?.responses[status]).toBeDefined();
+    }
+    expect(operation?.security).toEqual([{ [JWT_BEARER_AUTH]: [] }]);
+  });
+
+  it('publishes the class-details contract', () => {
+    const operation =
+      document.paths[`/${API_GLOBAL_PREFIX}/bookings/{bookingId}/class-details`]?.get;
+
+    expect(operation?.summary).toBe('Get class details for a confirmed booking');
+    expect(operation?.responses['200']).toMatchObject({
+      content: {
+        'application/json': {
+          schema: {
+            allOf: [{ $ref: '#/components/schemas/BookingClassDetailDto' }],
+          },
+        },
+      },
+    });
+    for (const status of ['400', '401', '403', '404', '409']) {
+      expect(operation?.responses[status]).toBeDefined();
+    }
+    expect(operation?.security).toEqual([{ [JWT_BEARER_AUTH]: [] }]);
+  });
+
+  it('publishes the update-attendance contract', () => {
+    const operation =
+      document.paths[`/${API_GLOBAL_PREFIX}/bookings/tutor/{bookingId}/attendance`]?.put;
+
+    expect(operation?.summary).toBe(
+      "Update the attendance for one of the authenticated tutor's confirmed or completed bookings",
+    );
+    expect(operation?.responses['200']).toMatchObject({
+      content: {
+        'application/json': {
+          schema: {
+            allOf: [{ $ref: '#/components/schemas/ClassAttendanceResponseDto' }],
+            example: {
+              attendance: AttendanceStatus.ATTENDED,
+              attendanceMarkedAt: '2026-10-09T09:04:31.001Z',
+              bookingId: '3c54a0d6-e3f3-4a38-bd55-3b4011ee31ae',
+              idempotentReplay: false,
+              status: BookingStatus.COMPLETED,
+            },
+          },
+        },
+      },
+    });
+    for (const status of ['400', '401', '403', '404', '409']) {
+      expect(operation?.responses[status]).toBeDefined();
+    }
+    expect(operation?.security).toEqual([{ [JWT_BEARER_AUTH]: [] }]);
+
+    const schema = document.components?.schemas?.['UpdateAttendanceDto'] as
+      { properties?: Record<string, unknown>; required?: string[] } | undefined;
+    expect(Object.keys(schema?.properties ?? {}).sort()).toEqual(['attendance']);
+    expect(document.components?.schemas?.['ClassAttendanceResponseDto']).toMatchObject({
+      properties: { idempotentReplay: { type: 'boolean' } },
+      required: expect.arrayContaining(['idempotentReplay']) as unknown,
+    });
   });
 });

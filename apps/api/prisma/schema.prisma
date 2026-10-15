@@ -20,9 +20,10 @@ enum AccountStatus {
 }
 
 enum TutorVerificationStatus {
-  PENDING  @map("pending")
-  VERIFIED @map("verified")
-  REJECTED @map("rejected")
+  UNVERIFIED @map("unverified")
+  PENDING    @map("pending")
+  VERIFIED   @map("verified")
+  REJECTED   @map("rejected")
 }
 
 enum ListingPublicationStatus {
@@ -47,6 +48,13 @@ enum PaymentStatus {
 enum AttendanceStatus {
   ATTENDED @map("attended")
   ABSENT   @map("absent")
+}
+
+enum RescheduleRequestStatus {
+  PENDING   @map("pending")
+  APPROVED  @map("approved")
+  REJECTED  @map("rejected")
+  WITHDRAWN @map("withdrawn")
 }
 
 enum TutorDocumentReviewStatus {
@@ -89,6 +97,8 @@ model User {
   studentProfile       StudentProfile?
   studentBookings      Booking[]                @relation("BookingStudent")
   canceledBookings     Booking[]                @relation("BookingCanceledBy")
+  requestedReschedules RescheduleRequest[]      @relation("RescheduleRequester")
+  reviewedReschedules  RescheduleRequest[]      @relation("RescheduleReviewer")
   studentConversations Conversation[]           @relation("ConversationStudent")
   tutorConversations   Conversation[]           @relation("ConversationTutor")
   sentMessages         Message[]                @relation("MessageSender")
@@ -148,7 +158,7 @@ model TutorProfile {
   displayName        String
   bio                String
   experienceYears    Int
-  verificationStatus TutorVerificationStatus @default(PENDING)
+  verificationStatus TutorVerificationStatus @default(UNVERIFIED)
   ratingAverage      Decimal?                @db.Decimal(3, 2)
   reviewCount        Int                     @default(0)
   ratingUpdatedAt    DateTime?               @db.Timestamptz(3)
@@ -213,14 +223,16 @@ model StorageCleanupIntent {
 }
 
 model AvailabilitySlot {
-  id             String       @id @default(uuid()) @db.Uuid
-  tutorProfileId String       @db.Uuid
-  startAtUtc     DateTime     @db.Timestamptz(3)
-  endAtUtc       DateTime     @db.Timestamptz(3)
-  createdAt      DateTime     @default(now()) @db.Timestamptz(3)
-  deletedAt      DateTime?    @db.Timestamptz(3)
-  tutorProfile   TutorProfile @relation(fields: [tutorProfileId], references: [userId], onDelete: Restrict, onUpdate: Cascade)
-  bookings       Booking[]
+  id                   String              @id @default(uuid()) @db.Uuid
+  tutorProfileId       String              @db.Uuid
+  startAtUtc           DateTime            @db.Timestamptz(3)
+  endAtUtc             DateTime            @db.Timestamptz(3)
+  createdAt            DateTime            @default(now()) @db.Timestamptz(3)
+  deletedAt            DateTime?           @db.Timestamptz(3)
+  tutorProfile         TutorProfile        @relation(fields: [tutorProfileId], references: [userId], onDelete: Restrict, onUpdate: Cascade)
+  bookings             Booking[]
+  reschedulesFrom      RescheduleRequest[] @relation("RescheduleFromSlot")
+  reschedulesRequested RescheduleRequest[] @relation("RescheduleRequestedSlot")
 
   @@index([tutorProfileId, startAtUtc], map: "AvailabilitySlot_tutorProfileId_startAtUtc_idx")
 }
@@ -268,36 +280,63 @@ model TeachingListing {
 }
 
 model Booking {
-  id                 String            @id @default(uuid()) @db.Uuid
-  studentUserId      String            @db.Uuid
-  tutorProfileId     String            @db.Uuid
-  listingId          String            @db.Uuid
-  slotId             String            @db.Uuid
-  status             BookingStatus     @default(PENDING)
-  subtotalAmount     Decimal           @db.Decimal(10, 2)
-  discountAmount     Decimal           @default(0) @db.Decimal(10, 2)
-  netAmount          Decimal           @db.Decimal(10, 2)
-  currency           String            @default("THB") @db.Char(3)
-  paymentStatus      PaymentStatus     @default(UNPAID)
-  mockReference      String?           @unique
-  paidAt             DateTime?         @db.Timestamptz(3)
+  id                 String              @id @default(uuid()) @db.Uuid
+  studentUserId      String              @db.Uuid
+  tutorProfileId     String              @db.Uuid
+  listingId          String              @db.Uuid
+  slotId             String              @db.Uuid
+  status             BookingStatus       @default(PENDING)
+  subtotalAmount     Decimal             @db.Decimal(10, 2)
+  discountAmount     Decimal             @default(0) @db.Decimal(10, 2)
+  netAmount          Decimal             @db.Decimal(10, 2)
+  currency           String              @default("THB") @db.Char(3)
+  paymentStatus      PaymentStatus       @default(UNPAID)
+  mockReference      String?             @unique
+  paidAt             DateTime?           @db.Timestamptz(3)
   meetingUrl         String?
   attendance         AttendanceStatus?
-  attendanceMarkedAt DateTime?         @db.Timestamptz(3)
-  canceledById       String?           @db.Uuid
+  attendanceMarkedAt DateTime?           @db.Timestamptz(3)
+  canceledById       String?             @db.Uuid
   cancellationReason String?
-  canceledAt         DateTime?         @db.Timestamptz(3)
+  canceledAt         DateTime?           @db.Timestamptz(3)
   /// A partial index on createdAt for PENDING bookings is migration-managed.
-  createdAt          DateTime          @default(now()) @db.Timestamptz(3)
-  updatedAt          DateTime          @updatedAt @db.Timestamptz(3)
-  student            User              @relation("BookingStudent", fields: [studentUserId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  canceledBy         User?             @relation("BookingCanceledBy", fields: [canceledById], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  tutorProfile       TutorProfile      @relation(fields: [tutorProfileId], references: [userId], onDelete: Restrict, onUpdate: Cascade)
-  listing            TeachingListing   @relation(fields: [listingId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  slot               AvailabilitySlot  @relation(fields: [slotId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  createdAt          DateTime            @default(now()) @db.Timestamptz(3)
+  updatedAt          DateTime            @updatedAt @db.Timestamptz(3)
+  student            User                @relation("BookingStudent", fields: [studentUserId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  canceledBy         User?               @relation("BookingCanceledBy", fields: [canceledById], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  tutorProfile       TutorProfile        @relation(fields: [tutorProfileId], references: [userId], onDelete: Restrict, onUpdate: Cascade)
+  listing            TeachingListing     @relation(fields: [listingId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  slot               AvailabilitySlot    @relation(fields: [slotId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  rescheduleRequests RescheduleRequest[]
 
   @@index([studentUserId, status, createdAt], map: "Booking_studentUserId_status_createdAt_idx")
   @@index([tutorProfileId, status, createdAt], map: "Booking_tutorProfileId_status_createdAt_idx")
+}
+
+/// A pending request does not reserve its target. One pending request per booking is migration-managed.
+model RescheduleRequest {
+  id              String                  @id @default(uuid()) @db.Uuid
+  bookingId       String                  @db.Uuid
+  requestedById   String                  @db.Uuid
+  fromSlotId      String                  @db.Uuid
+  requestedSlotId String                  @db.Uuid
+  reason          String
+  status          RescheduleRequestStatus @default(PENDING)
+  reviewedById    String?                 @db.Uuid
+  requestedAt     DateTime                @default(now()) @db.Timestamptz(3)
+  decidedAt       DateTime?               @db.Timestamptz(3)
+  withdrawnAt     DateTime?               @db.Timestamptz(3)
+  booking         Booking                 @relation(fields: [bookingId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  requestedBy     User                    @relation("RescheduleRequester", fields: [requestedById], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  reviewedBy      User?                   @relation("RescheduleReviewer", fields: [reviewedById], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  fromSlot        AvailabilitySlot        @relation("RescheduleFromSlot", fields: [fromSlotId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  requestedSlot   AvailabilitySlot        @relation("RescheduleRequestedSlot", fields: [requestedSlotId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@index([bookingId, status, requestedAt, id], map: "RescheduleRequest_bookingId_status_requestedAt_id_idx")
+  @@index([requestedById, status, requestedAt, id], map: "RescheduleRequest_requestedById_status_requestedAt_id_idx")
+  @@index([reviewedById], map: "RescheduleRequest_reviewedById_idx")
+  @@index([fromSlotId], map: "RescheduleRequest_fromSlotId_idx")
+  @@index([requestedSlotId], map: "RescheduleRequest_requestedSlotId_idx")
 }
 
 model Conversation {

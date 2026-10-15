@@ -374,10 +374,39 @@ describe('Conversation APIs (e2e)', () => {
       expect(response.body).toEqual({ hasMore: false, items: [], nextAfterMessageId: MESSAGE_ID });
     });
 
+    it('serves a latest page with a backward cursor without changing the forward response contract', async () => {
+      authenticateAs(Role.STUDENT);
+      conversationFindUnique.mockResolvedValue(participants);
+      messageFindMany.mockResolvedValue([
+        historyRow(OTHER_MESSAGE_ID, 'newest'),
+        historyRow(MESSAGE_ID, 'older'),
+      ]);
+      const response = await get(`${messagesPath}?latest=true&pageSize=1`).expect(200);
+      expect(response.body).toMatchObject({
+        items: [{ messageId: OTHER_MESSAGE_ID }],
+        hasMore: true,
+        nextBeforeMessageId: OTHER_MESSAGE_ID,
+        nextAfterMessageId: OTHER_MESSAGE_ID,
+      });
+      expect(messageFindMany).toHaveBeenCalledWith(
+        expect.objectContaining({ orderBy: [{ sentAt: 'desc' }, { id: 'desc' }], take: 2 }),
+      );
+    });
+
+    it('rejects conflicting history modes after authenticating the participant', async () => {
+      authenticateAs(Role.STUDENT);
+      conversationFindUnique.mockResolvedValue(participants);
+      await get(`${messagesPath}?latest=true&beforeMessageId=${MESSAGE_ID}`).expect(400);
+      expect(messageFindMany).not.toHaveBeenCalled();
+    });
+
     it.each([
       ['a page size over 50', '?pageSize=51'],
       ['a page size of 0', '?pageSize=0'],
       ['a cursor that is not a UUID', '?afterMessageId=m-20'],
+      ['a backward cursor that is not a UUID', '?beforeMessageId=m-20'],
+      ['an inclusive cursor that is not a UUID', '?fromMessageId=m-20'],
+      ['an invalid latest flag', '?latest=false'],
     ])('returns 400 for %s before any lookup', async (_label, query) => {
       authenticateAs(Role.STUDENT);
 

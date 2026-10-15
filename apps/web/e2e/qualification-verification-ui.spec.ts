@@ -59,10 +59,13 @@ async function session(page: Page) {
 
 test('tutor validates, uploads, sees pending status and retries denied preview', async ({
   page,
-}) => {
-  await page.setViewportSize({ width: 320, height: 900 });
+}, testInfo) => {
+  if ((page.viewportSize()?.width ?? 0) < 640) {
+    await page.setViewportSize({ width: 320, height: 900 });
+  }
   await session(page);
   let uploaded = false;
+  let uploadRequests = 0;
   let previews = 0;
   let releaseUpload: (() => void) | undefined;
   const uploadGate = new Promise<void>((resolve) => {
@@ -75,10 +78,14 @@ test('tutor validates, uploads, sees pending status and retries denied preview',
       return json(route, { accessToken: 'ui-test-token', user: tutor });
     }
     if (path === '/api/v1/profiles/me') {
-      return json(route, profile);
+      return json(route, {
+        ...profile,
+        profile: { ...profile.profile, verificationStatus: uploaded ? 'PENDING' : 'UNVERIFIED' },
+      });
     }
     if (path === '/api/v1/tutors/me/qualification-documents') {
       if (request.method() === 'POST') {
+        uploadRequests += 1;
         await uploadGate;
         uploaded = true;
         expect(request.headers()['authorization']).toBe('Bearer ui-test-token');
@@ -129,6 +136,31 @@ test('tutor validates, uploads, sees pending status and retries denied preview',
   await page.goto('/dashboard/profile');
   const section = page.getByRole('region', { name: 'Tutor certificates' });
   await expect(section.getByText('No documents submitted yet.')).toBeVisible();
+  const documentType = section.getByRole('combobox', { name: 'Document type' });
+  await expect(documentType).toHaveCSS('appearance', 'none');
+  await expect(documentType).toHaveCSS('height', '48px');
+  await documentType.selectOption('CERTIFICATE');
+  await expect(documentType).toHaveValue('CERTIFICATE');
+  await documentType.selectOption('DEGREE');
+  const submit = section.getByRole('button', { name: 'Submit document', exact: true });
+  await expect(submit.locator('svg')).toHaveAttribute('aria-hidden', 'true');
+  await expect(submit.locator('svg').locator('..')).toHaveCSS('border-right-style', 'dashed');
+  await page.keyboard.press('Tab');
+  await submit.focus();
+  await expect(submit).toHaveCSS('outline-style', 'solid');
+  await section.screenshot({ path: testInfo.outputPath('qualification-controls.png') });
+  await page.getByRole('button', { name: 'Switch language to Thai' }).click();
+  const thaiSection = page.locator('#qualification-documents');
+  await expect(thaiSection.getByRole('combobox', { name: 'ประเภทเอกสาร' })).toHaveValue('DEGREE');
+  await expect(thaiSection.getByRole('button', { name: 'ส่งเอกสาร', exact: true })).toBeVisible();
+  await thaiSection.screenshot({ path: testInfo.outputPath('qualification-controls-th.png') });
+  await page.getByRole('button', { name: 'เปลี่ยนภาษาเป็นภาษาอังกฤษ' }).click();
+  await expect(section.getByText('No documents submitted yet.')).toBeVisible();
+  const summary = page.locator('[data-profile-summary]');
+  await expect(
+    summary.getByText('No verification documents submitted', { exact: true }),
+  ).toBeVisible();
+  await expect(summary.locator('[data-tutor-verification="PENDING"]')).toHaveCount(0);
   const file = section.getByLabel('PDF, JPEG or PNG, up to 5 MB');
   await file.setInputFiles({
     name: 'empty.pdf',
@@ -136,6 +168,9 @@ test('tutor validates, uploads, sees pending status and retries denied preview',
     buffer: Buffer.alloc(0),
   });
   await expect(section.getByRole('alert')).toHaveText('Choose a file that is not empty.');
+  await expect(page.locator('[data-notebook-toast="error"]')).toHaveText(
+    'Choose a file that is not empty.',
+  );
   await file.setInputFiles({
     name: 'image.webp',
     mimeType: 'image/webp',
@@ -148,7 +183,16 @@ test('tutor validates, uploads, sees pending status and retries denied preview',
     buffer: Buffer.alloc(5 * 1024 * 1024 + 1),
   });
   await expect(section.getByRole('alert')).toHaveText('The file must be 5 MB or smaller.');
+  await file.setInputFiles({
+    name: 'wrong.png',
+    mimeType: 'application/pdf',
+    buffer: Buffer.from('%PDF-1.4 test'),
+  });
+  await expect(section.getByRole('alert')).toHaveText(
+    'The filename extension must match the PDF, JPEG or PNG file type.',
+  );
   expect(uploaded).toBe(false);
+  expect(uploadRequests).toBe(0);
 
   await file.setInputFiles({
     name: 'degree.pdf',
@@ -165,9 +209,28 @@ test('tutor validates, uploads, sees pending status and retries denied preview',
   });
   await section.getByRole('button', { name: 'Submit document' }).click();
   await expect(section.getByRole('progressbar')).toBeVisible();
+  await expect(documentType).toBeDisabled();
+  await expect(
+    section.getByRole('button', { name: 'Uploading document', exact: true }),
+  ).toBeDisabled();
+  await expect(summary.locator('[data-tutor-verification]')).toHaveAttribute(
+    'data-tutor-verification',
+    'UNVERIFIED',
+  );
   releaseUpload?.();
+  await expect(page.locator('[data-notebook-toast="success"]')).toHaveText(
+    'Document submitted for review.',
+  );
   await expect(section.getByText('Document submitted for review.')).toBeVisible();
+  expect(uploadRequests).toBe(1);
   await expect(section.getByText('Pending review', { exact: true })).toBeVisible();
+  await expect(documentType).toBeEnabled();
+  await expect(submit).toBeDisabled();
+  await documentType.selectOption('CERTIFICATE');
+  await expect(submit).toBeEnabled();
+  await documentType.selectOption('DEGREE');
+  await expect(summary.getByText('Pending review', { exact: true })).toBeVisible();
+  await expect(summary.locator('[data-tutor-verification="UNVERIFIED"]')).toHaveCount(0);
   await section.getByRole('button', { name: 'View document' }).click();
   await expect(
     section.getByText('Preview access was denied. Refresh the list and try again.'),
@@ -377,6 +440,9 @@ test('an ambiguous upload response reloads the committed document before another
     buffer: Buffer.from('%PDF-1.4 test'),
   });
   await section.getByRole('button', { name: 'Submit document' }).click();
+  await expect(page.locator('[data-notebook-toast="error"]')).toHaveText(
+    'Could not confirm the upload. Check the latest documents before submitting again.',
+  );
   await expect(
     section.getByText(
       'Could not confirm the upload. Check the latest documents before submitting again.',
@@ -494,6 +560,9 @@ test('upload conflict refreshes the list without showing a new successful submis
     buffer: Buffer.from('%PDF-1.4 test'),
   });
   await section.getByRole('button', { name: 'Submit document' }).click();
+  await expect(page.locator('[data-notebook-toast="error"]')).toHaveText(
+    'A document of this type is already pending. The list has been refreshed.',
+  );
   await expect(
     section.getByText('A document of this type is already pending. The list has been refreshed.'),
   ).toBeVisible();

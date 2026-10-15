@@ -14,7 +14,7 @@ import {
   getSchemaPath,
 } from '@nestjs/swagger';
 
-import { Role } from '@generated/prisma/client';
+import { Role, TutorVerificationStatus } from '@generated/prisma/client';
 import { JWT_BEARER_AUTH } from '@modules/auth/auth.swagger';
 import { SaveStudentProfileDto, SaveTutorProfileDto } from '@modules/profiles/profiles.dto';
 
@@ -64,8 +64,12 @@ class TutorProfileResponseDto {
   @ApiProperty({ example: 5, minimum: 0, type: Number })
   experienceYears!: number;
 
-  @ApiProperty({ enum: ['PENDING', 'VERIFIED', 'REJECTED'], example: 'PENDING' })
-  verificationStatus!: 'PENDING' | 'VERIFIED' | 'REJECTED';
+  @ApiProperty({
+    enum: TutorVerificationStatus,
+    example: TutorVerificationStatus.UNVERIFIED,
+    description: 'UNVERIFIED until a qualification document is submitted; PENDING while in review',
+  })
+  verificationStatus!: TutorVerificationStatus;
 
   @ApiProperty({ example: '4.50', nullable: true, type: String })
   ratingAverage!: string | null;
@@ -159,7 +163,10 @@ export function SaveTutorProfileDoc(): MethodDecorator {
   return applyDecorators(
     ApiOperation({ summary: 'Create or update the current tutor profile' }),
     ApiBody({ type: SaveTutorProfileDto }),
-    ApiOkResponse({ description: 'Tutor profile saved', type: TutorProfileResponseDto }),
+    ApiOkResponse({
+      description: 'Tutor profile saved; a new profile starts UNVERIFIED',
+      type: TutorProfileResponseDto,
+    }),
     ApiBadRequestResponse({
       description: 'The request is invalid or the current privacy notice has not been accepted',
       type: ApiErrorResponseDto,

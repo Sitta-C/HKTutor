@@ -26,6 +26,9 @@ const base: BookingDetail = {
   discountAmount: '5.00',
   netAmount: '730.00',
   currency: 'THB',
+  paymentStatus: 'UNPAID',
+  paidAt: null,
+  mockReference: null,
   createdAt: '2026-10-07T07:20:00Z',
   updatedAt: '2026-10-07T07:20:00Z',
 };
@@ -240,25 +243,22 @@ for (const language of ['en', 'th'] as const) {
       });
       await expect(previous).toBeDisabled();
       await expect(next).toBeEnabled();
-      await expect(next).toHaveCSS('border-left-style', 'dashed');
+      await expect(next).toHaveCSS('border-left-style', 'solid');
+      await expect(next).toHaveCSS('border-radius', '8px');
+      await expect(pagination.getByText('1–10 / 13', { exact: true })).toBeVisible();
+      await expect(pagination.locator('svg')).toHaveCount(0);
       await next.focus();
       await expect(next).toHaveCSS('outline-style', 'solid');
-      const ticketBoxes = await pagination
+      const buttonBoxes = await pagination
         .getByRole('button')
         .evaluateAll((elements) => elements.map((el) => el.getBoundingClientRect().toJSON()));
-      expect(ticketBoxes[0]?.right).toBe(ticketBoxes[1]?.left);
-      expect(ticketBoxes[0]?.top).toBe(ticketBoxes[1]?.top);
-      for (const box of ticketBoxes) expect(box.height).toBeGreaterThanOrEqual(48);
+      expect(buttonBoxes[0]?.right).toBeLessThan(buttonBoxes[1]?.left ?? 0);
+      expect(buttonBoxes[0]?.top).toBe(buttonBoxes[1]?.top);
+      for (const box of buttonBoxes) expect(box.height).toBeGreaterThanOrEqual(48);
       const countBox = await pageCount.evaluate((el) => el.getBoundingClientRect().toJSON());
-      const paperWidth = await pagination.evaluate(
-        (el) => el.parentElement?.parentElement?.clientWidth ?? 0,
-      );
-      if (paperWidth > 450) {
-        expect(countBox.right).toBeLessThan(ticketBoxes[0]?.left ?? 0);
-        expect(countBox.top).toBeGreaterThan(ticketBoxes[0]?.top ?? 0);
-      } else {
-        expect(countBox.bottom).toBeLessThan(ticketBoxes[0]?.top ?? 0);
-      }
+      expect(countBox.left).toBeGreaterThan(buttonBoxes[0]?.right ?? 0);
+      expect(countBox.right).toBeLessThan(buttonBoxes[1]?.left ?? 0);
+      expect(countBox.top).toBeGreaterThan(buttonBoxes[0]?.top ?? 0);
       await noOverflow(page);
       await pagination.screenshot({
         path: testInfo.outputPath(`bookings-pagination-${language}-${width}.png`),
@@ -441,7 +441,12 @@ for (const status of statuses) {
     await expect(page.locator('main')).toContainText('Verification information unavailable');
     await expect(page.locator('main')).toContainText('730.00');
     await expect(page.locator('main')).not.toContainText('999.00');
-    await expect(page.locator('main')).not.toContainText('paid');
+    await expect(page.getByRole('region', { name: 'Mock payment', exact: true })).toContainText(
+      'Unpaid',
+    );
+    await expect(
+      page.getByRole('button', { name: 'Record mock payment', exact: true }),
+    ).toHaveCount(status === 'CONFIRMED' ? 1 : 0);
     if (status !== 'PENDING')
       await expect(page.locator('main')).not.toContainText('Wait for the tutor');
   });
@@ -506,7 +511,7 @@ test('switching filters back during a load keeps counts unavailable and ignores 
   await expect(page.locator('[data-booking-count]')).toHaveText('Booking count unavailable');
   releaseAll();
   await expect(page.locator('[data-booking-row]')).toHaveCount(10);
-  await expect(page.locator('[data-booking-count]')).toHaveText('13 bookings · All');
+  await expect(page.locator('[data-booking-count]')).toHaveText('13 bookings All');
 });
 
 for (const language of ['en', 'th'] as const) {

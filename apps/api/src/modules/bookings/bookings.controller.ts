@@ -6,6 +6,7 @@ import {
   HttpStatus,
   Param,
   Post,
+  Put,
   Query,
   UseGuards,
 } from '@nestjs/common';
@@ -19,29 +20,49 @@ import { ResourceOwnershipGuard } from '@modules/auth/ownership.guard';
 import { Roles } from '@modules/auth/roles.decorator';
 import { RolesGuard } from '@modules/auth/roles.guard';
 import {
+  BookingClassDetailDto,
   BookingDetailResponseDto,
+  BookingMeetingLinkDto,
   BookingQuoteResponseDto,
   BookingResponseDto,
+  CancelBookingDto,
+  CanceledBookingDto,
+  ClassAttendanceResponseDto,
   ConfirmBookingDto,
   CreateBookingDto,
+  CreateMockPaymentDto,
   GetBookingQuoteQueryDto,
   GetMyBookingsQueryDto,
   GetTutorBookingsQueryDto,
+  MockPaymentResponseDto,
   MyBookingsResponseDto,
   RejectBookingDto,
   TutorBookingActionResponseDto,
   TutorBookingsResponseDto,
+  UpdateAttendanceDto,
+  UpdateMeetingLinkDto,
 } from '@modules/bookings/bookings.dto';
-import { BOOKING_OWNERSHIP_ERRORS, BookingsService } from '@modules/bookings/bookings.service';
+import {
+  BOOKING_OWNERSHIP_ERRORS,
+  CLASS_DETAIL_BOOKING_OWNERSHIP_ERRORS,
+  CANCEL_BOOKING_OWNERSHIP_ERRORS,
+  STUDENT_BOOKING_OWNERSHIP_ERRORS,
+  BookingsService,
+} from '@modules/bookings/bookings.service';
 import {
   BookingsControllerDoc,
+  CancelBookingDoc,
   ConfirmTutorBookingDoc,
   CreateBookingDoc,
+  CreateMockPaymentDoc,
+  GetBookingClassDetailDoc,
   GetBookingQuoteDoc,
   GetMyBookingDoc,
   GetMyBookingsDoc,
   GetTutorBookingsDoc,
   RejectTutorBookingDoc,
+  UpdateAttendanceDoc,
+  UpdateMeetingLinkDoc,
 } from '@modules/bookings/bookings.swagger';
 
 import type { AuthenticatedUser } from '@modules/auth/auth.guard';
@@ -53,6 +74,26 @@ import type { OwnershipRule } from '@modules/auth/ownership.decorator';
  */
 const TUTOR_BOOKING_ACTION_OWNERSHIP = {
   errors: BOOKING_OWNERSHIP_ERRORS,
+  idParam: 'bookingId',
+  resource: 'booking',
+} as const satisfies OwnershipRule;
+
+/** The S2-T04 card answers a wrong student with 403, so this route declares its own bodies too. */
+const STUDENT_BOOKING_PAYMENT_OWNERSHIP = {
+  errors: STUDENT_BOOKING_OWNERSHIP_ERRORS,
+  idParam: 'bookingId',
+  resource: 'booking',
+} as const satisfies OwnershipRule;
+
+/** The class-details endpoint answers authenticated non-participants with 403 rather than 404. */
+const CLASS_DETAIL_BOOKING_OWNERSHIP = {
+  errors: CLASS_DETAIL_BOOKING_OWNERSHIP_ERRORS,
+  idParam: 'bookingId',
+  resource: 'booking',
+} as const satisfies OwnershipRule;
+/** The cancellation card answers a non-participant with 403, so this route declares its own bodies. */
+const CANCEL_BOOKING_OWNERSHIP = {
+  errors: CANCEL_BOOKING_OWNERSHIP_ERRORS,
   idParam: 'bookingId',
   resource: 'booking',
 } as const satisfies OwnershipRule;
@@ -120,6 +161,23 @@ export class BookingsController {
     });
   }
 
+  @Post('me/:bookingId/mock-payment')
+  @HttpCode(HttpStatus.OK)
+  @CreateMockPaymentDoc()
+  @Roles(Role.STUDENT)
+  @RequireOwnership(STUDENT_BOOKING_PAYMENT_OWNERSHIP)
+  async createMockPayment(
+    @Param('bookingId', UuidParamPipe) bookingId: string,
+    @Body() dto: CreateMockPaymentDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<MockPaymentResponseDto> {
+    return this.bookingsService.createMockPayment({
+      ...dto,
+      bookingId,
+      studentUserId: user.id,
+    });
+  }
+
   @Get('tutor')
   @HttpCode(HttpStatus.OK)
   @GetTutorBookingsDoc()
@@ -165,6 +223,64 @@ export class BookingsController {
       ...dto,
       bookingId,
       tutorUserId: user.id,
+    });
+  }
+
+  @Put('tutor/:bookingId/meeting-link')
+  @HttpCode(HttpStatus.OK)
+  @UpdateMeetingLinkDoc()
+  @Roles(Role.TUTOR)
+  @RequireOwnership(TUTOR_BOOKING_ACTION_OWNERSHIP)
+  async updateMeetingLink(
+    @Param('bookingId', UuidParamPipe) bookingId: string,
+    @Body() dto: UpdateMeetingLinkDto,
+  ): Promise<BookingMeetingLinkDto> {
+    return this.bookingsService.updateMeetingLink({
+      bookingId,
+      meetingUrl: dto.meetingUrl,
+    });
+  }
+
+  @Get(':bookingId/class-details')
+  @HttpCode(HttpStatus.OK)
+  @GetBookingClassDetailDoc()
+  @RequireOwnership(CLASS_DETAIL_BOOKING_OWNERSHIP)
+  async getBookingClassDetail(
+    @Param('bookingId', UuidParamPipe) bookingId: string,
+  ): Promise<BookingClassDetailDto> {
+    return this.bookingsService.getBookingClassDetail(bookingId);
+  }
+
+  @Post(':bookingId/cancel')
+  @HttpCode(HttpStatus.OK)
+  @CancelBookingDoc()
+  @RequireOwnership(CANCEL_BOOKING_OWNERSHIP)
+  async cancelBooking(
+    @Param('bookingId', UuidParamPipe) bookingId: string,
+    @Body() dto: CancelBookingDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<CanceledBookingDto> {
+    return this.bookingsService.cancelBooking({
+      bookingId,
+      reason: dto.reason,
+      userId: user.id,
+    });
+  }
+
+  @Put('tutor/:bookingId/attendance')
+  @HttpCode(HttpStatus.OK)
+  @UpdateAttendanceDoc()
+  @Roles(Role.TUTOR)
+  @RequireOwnership(TUTOR_BOOKING_ACTION_OWNERSHIP)
+  async updateAttendance(
+    @Param('bookingId', UuidParamPipe) bookingId: string,
+    @Body() dto: UpdateAttendanceDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<ClassAttendanceResponseDto> {
+    return this.bookingsService.updateAttendance({
+      bookingId,
+      tutorId: user.id,
+      attendance: dto.attendance,
     });
   }
 }

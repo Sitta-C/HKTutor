@@ -1,7 +1,7 @@
 import { BadRequestException } from '@nestjs/common';
 
 import { isUuid } from '@common/pipes/uuid-param.pipe';
-import { TutorDocumentReviewStatus } from '@generated/prisma/enums';
+import { TutorDocumentReviewStatus, TutorVerificationStatus } from '@generated/prisma/enums';
 import { QualificationStatus } from '@modules/qualification-documents/qualification-documents.dto';
 
 import type { Prisma } from '@generated/prisma/client';
@@ -36,6 +36,21 @@ export const DOCUMENT_OWNERSHIP_ERRORS = {
 export type DocumentMetadata = Prisma.TutorDocumentGetPayload<{
   select: typeof DOCUMENT_SELECT;
 }>;
+
+export function deriveTutorVerificationStatus(
+  reviewStatuses: readonly TutorDocumentReviewStatus[],
+): TutorVerificationStatus {
+  if (reviewStatuses.includes(TutorDocumentReviewStatus.VERIFIED)) {
+    return TutorVerificationStatus.VERIFIED;
+  }
+  if (reviewStatuses.includes(TutorDocumentReviewStatus.PENDING)) {
+    return TutorVerificationStatus.PENDING;
+  }
+  if (reviewStatuses.length === 0) {
+    return TutorVerificationStatus.UNVERIFIED;
+  }
+  return TutorVerificationStatus.REJECTED;
+}
 
 export function toQualificationStatus(status: TutorDocumentReviewStatus): QualificationStatus {
   switch (status) {

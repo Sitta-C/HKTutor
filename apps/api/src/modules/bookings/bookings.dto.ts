@@ -1,9 +1,10 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
   IsEnum,
   IsInt,
   IsISO8601,
+  IsNotEmpty,
   IsOptional,
   IsString,
   IsUUID,
@@ -13,7 +14,11 @@ import {
   Min,
 } from 'class-validator';
 
-import { BookingStatus } from '@generated/prisma/enums';
+import { AttendanceStatus, BookingStatus, PaymentStatus } from '@generated/prisma/enums';
+import { SaveStudentProfileDto } from '@modules/profiles/profiles.dto';
+
+const trimString = ({ value }: { value: unknown }): unknown =>
+  typeof value === 'string' ? value.trim() : value;
 
 export class CreateBookingDto {
   @ApiProperty({ example: '7a0f9ab0-8f25-4d80-bb00-67b3a0c7d3d5' })
@@ -207,6 +212,25 @@ export class BookingViewDto {
   @ApiProperty({ example: 'THB' })
   currency!: string;
 
+  @ApiProperty({ enum: PaymentStatus, example: PaymentStatus.UNPAID })
+  paymentStatus!: PaymentStatus;
+
+  @ApiProperty({
+    description: 'When the mock payment was recorded. Null while the booking is unpaid.',
+    example: '2026-10-09T09:04:31.001Z',
+    nullable: true,
+    type: String,
+  })
+  paidAt!: string | null;
+
+  @ApiProperty({
+    description: 'The demo reference stored by the mock payment. Null while the booking is unpaid.',
+    example: 'DEMO-7F3A91',
+    nullable: true,
+    type: String,
+  })
+  mockReference!: string | null;
+
   @ApiProperty({ example: '2026-09-10T09:04:31.001Z' })
   createdAt!: string;
 }
@@ -349,4 +373,218 @@ export class TutorBookingActionResponseDto {
     type: String,
   })
   canceledAt!: string | null;
+}
+
+export const MAX_MOCK_PAYMENT_REFERENCE_LENGTH = 64;
+
+/**
+ * Money crosses the wire as the same fixed two-decimal string every booking amount uses, so a
+ * declared amount can be compared with the server's Decimal without binary floating point.
+ */
+const FIXED_DECIMAL_PATTERN = /^\d{1,8}\.\d{2}$/;
+
+/**
+ * A demo identifier: printable, single-line and bounded. Never a card or bank value. Only control
+ * and format characters are excluded, so a Thai reference is as valid as an ASCII one; no card
+ * requires the field to be ASCII, and the rest of the API keeps user text Unicode-aware.
+ */
+const MOCK_PAYMENT_REFERENCE_PATTERN = /^\P{C}+$/u;
+
+export class CreateMockPaymentDto {
+  @ApiProperty({
+    description:
+      "The amount the student believes is due. Compared with the booking's stored netAmount to " +
+      'detect a stale client; the server amount is the one recorded.',
+    example: '450.00',
+  })
+  @IsString()
+  @Matches(FIXED_DECIMAL_PATTERN, {
+    message: 'amount must be a fixed two-decimal string, for example 450.00',
+  })
+  amount!: string;
+
+  @ApiProperty({
+    description:
+      'Demo payment identifier, unique across all bookings. No payment instrument data. Single-' +
+      'line text in any language is accepted; control characters are rejected.',
+    example: 'DEMO-7F3A91',
+    maxLength: MAX_MOCK_PAYMENT_REFERENCE_LENGTH,
+  })
+  @IsString()
+  @Transform(trimString)
+  @IsNotEmpty({ message: 'reference must not be blank' })
+  @MaxLength(MAX_MOCK_PAYMENT_REFERENCE_LENGTH)
+  @Matches(MOCK_PAYMENT_REFERENCE_PATTERN, {
+    message: 'reference must be printable single-line text',
+  })
+  reference!: string;
+}
+
+export class MockPaymentResponseDto {
+  @ApiProperty({ example: '3c54a0d6-e3f3-4a38-bd55-3b4011ee31ae' })
+  bookingId!: string;
+
+  @ApiProperty({ enum: PaymentStatus, example: PaymentStatus.PAID })
+  paymentStatus!: PaymentStatus;
+
+  @ApiProperty({ description: "The booking's stored netAmount.", example: '450.00' })
+  amount!: string;
+
+  @ApiProperty({ example: 'DEMO-7F3A91' })
+  reference!: string;
+
+  @ApiProperty({ example: '2026-10-09T09:04:31.001Z' })
+  paidAt!: string;
+}
+
+export class UpdateMeetingLinkDto {
+  @ApiProperty({
+    description: 'The online meeting URL for the class (must be an https URL).',
+    example: 'https://meet.google.com/abc-defg-hij',
+  })
+  @IsString()
+  @IsNotEmpty()
+  meetingUrl!: string;
+}
+
+export class BookingMeetingLinkDto {
+  @ApiProperty({ example: '3c54a0d6-e3f3-4a38-bd55-3b4011ee31ae' })
+  bookingId!: string;
+
+  @ApiProperty({ example: 'https://foo.com/abc1234' })
+  meetingUrl!: string | null;
+
+  @ApiProperty({ example: '2026-10-09T09:04:31.001Z' })
+  updatedAt!: string;
+}
+
+export class BookingClassParticipantTutorDetailDto {
+  @ApiProperty({ example: 'Anan' })
+  firstName!: string;
+
+  @ApiProperty({ example: 'Suksawat' })
+  lastName!: string;
+
+  @ApiProperty({ example: 'Nan' })
+  nickname!: string;
+
+  @ApiProperty({ example: 'Anan Suksawat' })
+  displayName!: string;
+
+  @ApiProperty({ example: 'Mathematics tutor' })
+  bio!: string;
+
+  @ApiProperty({ example: 5 })
+  experienceYears!: number;
+}
+
+export class BookingClassParticipantTutorDto {
+  @ApiProperty({ example: 'ad08a291-dd8b-40c1-84e5-ddafca54c6fc' })
+  id!: string;
+
+  @ApiProperty({ type: BookingClassParticipantTutorDetailDto })
+  detail!: BookingClassParticipantTutorDetailDto;
+}
+
+export class BookingClassParticipantStudentDto {
+  @ApiProperty({ example: '70e1232d-3c06-4d5d-b3d2-6026df5ff315' })
+  id!: string;
+
+  @ApiProperty({ type: SaveStudentProfileDto })
+  detail!: SaveStudentProfileDto;
+}
+
+export class BookingClassParticipantsDto {
+  @ApiProperty({ type: BookingClassParticipantTutorDto })
+  tutor!: BookingClassParticipantTutorDto;
+
+  @ApiProperty({ type: BookingClassParticipantStudentDto })
+  student!: BookingClassParticipantStudentDto;
+}
+
+export class BookingClassDetailDto {
+  @ApiProperty({ example: '3c54a0d6-e3f3-4a38-bd55-3b4011ee31ae' })
+  bookingId!: string;
+
+  @ApiProperty({ example: 'CONFIRMED' })
+  status!: string;
+
+  @ApiProperty({ example: '2026-10-09T09:00:00.000Z' })
+  startAt?: string;
+
+  @ApiProperty({ example: '2026-10-09T10:00:00.000Z' })
+  endAt?: string;
+
+  @ApiProperty({ example: 'https://foo.com/abc1234' })
+  meetingUrl!: string | null;
+
+  @ApiProperty({ enum: AttendanceStatus, example: AttendanceStatus.ATTENDED, nullable: true })
+  attendance!: AttendanceStatus | null;
+
+  @ApiProperty({ type: BookingClassParticipantsDto })
+  participants!: BookingClassParticipantsDto;
+}
+
+export class CancelBookingDto {
+  @ApiProperty({
+    description: 'Why the booking was canceled.',
+    example: 'Unable to attend due to a schedule conflict.',
+  })
+  @IsString()
+  @Transform(trimString)
+  @IsNotEmpty({ message: 'Reason cannot be empty!' })
+  reason!: string;
+}
+
+export class CanceledBookingDto {
+  @ApiProperty({ example: '3c54a0d6-e3f3-4a38-bd55-3b4011ee31ae' })
+  bookingId!: string;
+
+  @ApiProperty({ enum: BookingStatus, example: BookingStatus.CANCELED })
+  status!: BookingStatus;
+
+  @ApiProperty({ example: '2026-10-09T09:04:31.001Z' })
+  canceledAt!: string;
+}
+
+export class UpdateAttendanceDto {
+  @ApiProperty({
+    description: 'The attendance status of the student for the class.',
+    enum: AttendanceStatus,
+    enumName: 'AttendanceStatus',
+    example: AttendanceStatus.ATTENDED,
+  })
+  @IsEnum(AttendanceStatus)
+  attendance!: AttendanceStatus;
+}
+
+export class ClassAttendanceRequestDto {
+  @ApiProperty({ example: '3c54a0d6-e3f3-4a38-bd55-3b4011ee31ae' })
+  bookingId!: string;
+
+  @ApiProperty({ example: '70e1232d-3c06-4d5d-b3d2-6026df5ff315' })
+  tutorId!: string;
+
+  @ApiProperty({ enum: AttendanceStatus, example: AttendanceStatus.ATTENDED })
+  attendance!: AttendanceStatus;
+}
+
+export class ClassAttendanceResponseDto {
+  @ApiProperty({ example: '3c54a0d6-e3f3-4a38-bd55-3b4011ee31ae' })
+  bookingId!: string;
+
+  @ApiProperty({ enum: AttendanceStatus, example: AttendanceStatus.ATTENDED })
+  attendance!: AttendanceStatus;
+
+  @ApiProperty({ example: '2026-10-09T09:04:31.001Z' })
+  attendanceMarkedAt!: string;
+
+  @ApiProperty({
+    description: 'True when the saved attendance is returned without a new write.',
+    example: false,
+  })
+  idempotentReplay!: boolean;
+
+  @ApiProperty({ enum: BookingStatus, example: BookingStatus.COMPLETED })
+  status!: BookingStatus;
 }

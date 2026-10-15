@@ -242,6 +242,11 @@
   overflow-wrap: anywhere;
 }
 
+.verification {
+  display: flex;
+  margin-top: 8px;
+}
+
 .metadata {
   display: grid;
   gap: 4px;
@@ -400,6 +405,7 @@
     gap: 8px 16px;
   }
 
+  .verification,
   .metadata {
     margin-top: 0;
   }

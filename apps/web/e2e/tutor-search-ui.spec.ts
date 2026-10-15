@@ -211,7 +211,9 @@ for (const language of ['en', 'th'] as const) {
         main.getByRole('heading', { level: 3, name: 'Teacher Anan', exact: true }),
       ).toHaveCount(2);
       const first = main.getByRole('article').first();
-      await expect(first).toContainText(language === 'th' ? 'ยืนยันแล้ว' : 'Verified');
+      await expect(first).toContainText(
+        language === 'th' ? 'ผ่านการตรวจสอบแล้ว' : 'Verified tutor',
+      );
       await expect(first).toContainText('Grade 10');
       await expect(first).toContainText('450.5 ฿');
       await expect(first).toContainText('4.8');
@@ -292,12 +294,19 @@ for (const language of ['en', 'th'] as const) {
       await noOverflow(page);
       const pagination = main.getByRole('navigation');
       await expect(pagination.getByRole('button').first()).toBeDisabled();
-      const tickets = pagination.locator('div').filter({ has: page.getByRole('button') });
-      await expect(tickets).toHaveCSS('display', 'grid');
-      await expect(tickets).toHaveCSS('border-top-width', '1px');
-      await expect(pagination.getByRole('button').last()).toHaveCSS('border-left-style', 'dashed');
+      const controls = pagination.locator('div').filter({ has: page.getByRole('button') });
+      await expect(controls).toHaveCSS('display', 'grid');
+      await expect(controls).toHaveCSS('border-top-width', '0px');
+      await expect(pagination.getByText('1–10 / 12', { exact: true })).toBeVisible();
+      const pageCount = pagination.getByText(language === 'th' ? 'หน้า 1 จาก 2' : 'Page 1 of 2', {
+        exact: true,
+      });
+      await expect(pageCount).toBeVisible();
       for (const button of await pagination.getByRole('button').all()) {
         await expect(button).toHaveCSS('display', 'flex');
+        await expect(button).toHaveCSS('border-radius', '8px');
+        await expect(button).toHaveCSS('border-left-style', 'solid');
+        await expect(button.locator('svg')).toHaveCount(0);
         const bounds = await button.boundingBox();
         expect(bounds?.height).toBeGreaterThanOrEqual(44);
         expect(bounds?.width).toBeGreaterThanOrEqual(44);
@@ -306,6 +315,11 @@ for (const language of ['en', 'th'] as const) {
       const nextBounds = await pagination.getByRole('button').last().boundingBox();
       expect(previousBounds?.y).toBe(nextBounds?.y);
       expect(previousBounds?.x).toBeLessThan(nextBounds?.x ?? 0);
+      const countBounds = await pageCount.boundingBox();
+      expect(countBounds?.x).toBeGreaterThan(
+        (previousBounds?.x ?? 0) + (previousBounds?.width ?? 0),
+      );
+      expect((countBounds?.x ?? 0) + (countBounds?.width ?? 0)).toBeLessThan(nextBounds?.x ?? 0);
       await pagination.screenshot({
         path: testInfo.outputPath(`pagination-${language}-${student ? 'student' : 'guest'}.png`),
         animations: 'disabled',
@@ -541,4 +555,51 @@ test('clearing during an in-flight filtered search keeps the newest results', as
   } finally {
     release();
   }
+});
+
+test('a tutor who stops being discoverable disappears from a refreshed search without a stale badge', async ({
+  page,
+}) => {
+  // The API never sends a "revoked" status to this page; a tutor who stops being discoverable
+  // instead simply stops being returned. This proves a refresh reflects that change cleanly,
+  // rather than keeping the previous card, its badge, or its link rendered from the earlier
+  // response.
+  let revoked = false;
+  await mockSearch(page, {
+    respond: async (route, url) => {
+      const pageNumber = Number(url.searchParams.get('page') ?? 1);
+      const visible = revoked
+        ? courses.filter((course) => course.tutorId !== 'tutor/shared')
+        : courses;
+      return route.fulfill({
+        json: {
+          items: visible.slice((pageNumber - 1) * 10, pageNumber * 10),
+          page: pageNumber,
+          pageSize: 10,
+          total: visible.length,
+          totalPages: Math.ceil(visible.length / 10),
+        },
+      });
+    },
+  });
+  await page.goto('/tutors');
+  const main = page.locator('main');
+  await expect(main.getByRole('article')).toHaveCount(10);
+  await expect(
+    main.getByRole('heading', { level: 3, name: 'Teacher Anan', exact: true }),
+  ).toHaveCount(2);
+  await expect(main.getByRole('article').first()).toContainText('Verified tutor');
+  await expect(page.locator('a[href*="tutor%2Fshared"]')).toHaveCount(2);
+
+  revoked = true;
+  await page.reload();
+
+  // Both of the revoked tutor's cards are gone, their shared-tutor link along with them; the ten
+  // visible cards now belong to other, still-verified tutors, none of them stale leftovers.
+  await expect(main.getByRole('article')).toHaveCount(10);
+  await expect(
+    main.getByRole('heading', { level: 3, name: 'Teacher Anan', exact: true }),
+  ).toHaveCount(0);
+  await expect(page.locator('a[href*="tutor%2Fshared"]')).toHaveCount(0);
+  await expect(main.getByRole('article').first()).toContainText('Verified tutor');
 });

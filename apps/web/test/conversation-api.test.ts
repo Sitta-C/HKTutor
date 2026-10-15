@@ -6,6 +6,8 @@ import {
   CONVERSATION_HISTORY_TIMEOUT_MS,
   getConversations,
   loadConversationMessages,
+  loadOlderConversationMessages,
+  markConversationRead,
   openTutorConversation,
   sendConversationMessage,
 } from '@/lib/api/conversations';
@@ -38,6 +40,80 @@ describe('participant-only conversation client', () => {
     expect(init?.body).toBe(JSON.stringify({ tutorId: 'tutor' }));
     expect(init?.credentials).toBe('include');
     expect(new Headers(init?.headers).get('Authorization')).toBe('Bearer test-token');
+  });
+
+  it('opens a single newest page and uses a separate backward cursor on load-more', async () => {
+    fetchMock.mockResolvedValueOnce(
+      response({
+        items: [{ messageId: 'new' }],
+        hasMore: true,
+        nextBeforeMessageId: 'new',
+        nextAfterMessageId: 'new',
+      }),
+    );
+    const signal = new AbortController().signal;
+    expect(await loadOlderConversationMessages('pair/one', null, signal)).toEqual({
+      items: [{ messageId: 'new' }],
+      cursor: 'new',
+      olderCursor: 'new',
+    });
+    expect(fetchMock).toHaveBeenCalledOnce();
+    expect(fetchMock.mock.calls[0]?.[0]).toBe(
+      '/api/v1/conversations/pair%2Fone/messages?pageSize=20&latest=true',
+    );
+    fetchMock.mockResolvedValueOnce(
+      response({
+        items: [{ messageId: 'old' }],
+        hasMore: false,
+        nextBeforeMessageId: null,
+        nextAfterMessageId: 'old',
+      }),
+    );
+    expect((await loadOlderConversationMessages('pair/one', 'new', signal)).olderCursor).toBeNull();
+    expect(fetchMock.mock.calls[1]?.[0]).toContain('beforeMessageId=new');
+  });
+
+  it('refreshes receipts inclusively once, then follows forward cursors', async () => {
+    fetchMock.mockResolvedValueOnce(
+      response({ items: [{ messageId: 'two' }], hasMore: true, nextAfterMessageId: 'two' }),
+    );
+    fetchMock.mockResolvedValueOnce(
+      response({ items: [{ messageId: 'three' }], hasMore: false, nextAfterMessageId: 'three' }),
+    );
+    await loadConversationMessages('pair', 'get', new AbortController().signal, 'one');
+    expect(fetchMock.mock.calls[0]?.[0]).toContain('fromMessageId=one');
+    expect(fetchMock.mock.calls[0]?.[0]).not.toContain('afterMessageId=');
+    expect(fetchMock.mock.calls[1]?.[0]).toContain('afterMessageId=two');
+  });
+
+  it('acknowledges only the received boundary through the authenticated, abortable read API', async () => {
+    fetchMock.mockResolvedValueOnce(response({ updatedCount: 1, readAt: '2026-10-11T03:00:00Z' }));
+    await markConversationRead('pair/one', 'received', new AbortController().signal);
+    expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/v1/conversations/pair%2Fone/read');
+    expect(fetchMock.mock.calls[0]?.[1]?.body).toBe(JSON.stringify({ upToMessageId: 'received' }));
+    expect(fetchMock.mock.calls[0]?.[1]?.signal).toBeInstanceOf(AbortSignal);
+  });
+
+  it.each([
+    { items: [], hasMore: true, nextBeforeMessageId: 'empty', nextAfterMessageId: null },
+    {
+      items: [{ messageId: 'one' }],
+      hasMore: true,
+      nextBeforeMessageId: 'one',
+      nextAfterMessageId: 'one',
+    },
+    {
+      items: [{ messageId: 'old' }],
+      hasMore: false,
+      nextBeforeMessageId: 'old',
+      nextAfterMessageId: 'old',
+    },
+  ])('rejects malformed or repeated backward pages: %j', async (page) => {
+    fetchMock.mockResolvedValueOnce(response(page));
+    await expect(
+      loadOlderConversationMessages('pair', 'one', new AbortController().signal),
+    ).rejects.toThrow();
+    expect(fetchMock).toHaveBeenCalledOnce();
   });
 
   it('encodes opaque list cursors and path segments', async () => {

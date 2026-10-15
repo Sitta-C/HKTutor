@@ -114,7 +114,7 @@ export interface TutorProfile {
   displayName: string;
   bio: string;
   experienceYears: number;
-  verificationStatus: 'PENDING' | 'VERIFIED' | 'REJECTED';
+  verificationStatus: 'UNVERIFIED' | 'PENDING' | 'VERIFIED' | 'REJECTED';
   ratingAverage: string | null;
   reviewCount: number;
 }
@@ -294,6 +294,21 @@ export interface BookingResponse {
   createdAt: string;
 }
 
+export type PaymentStatus = 'UNPAID' | 'PAID';
+
+export interface MockPaymentPayload {
+  amount: string;
+  reference: string;
+}
+
+export interface MockPaymentResult {
+  bookingId: string;
+  paymentStatus: 'PAID';
+  amount: string;
+  reference: string;
+  paidAt: string;
+}
+
 export interface BookingView {
   id: string;
   status: BookingStatus;
@@ -304,6 +319,9 @@ export interface BookingView {
   discountAmount: string;
   netAmount: string;
   currency: string;
+  paymentStatus: PaymentStatus;
+  paidAt: string | null;
+  mockReference: string | null;
   createdAt: string;
 }
 
@@ -421,5 +439,6 @@ export interface ConversationMessage {
 export interface ConversationMessagesResponse {
   items: ConversationMessage[];
   nextAfterMessageId: string | null;
+  nextBeforeMessageId?: string | null;
   hasMore: boolean;
 }

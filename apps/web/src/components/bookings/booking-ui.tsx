@@ -4,6 +4,7 @@ import Link from 'next/link';
 
 import { PaperCard, StatusBadge, WashiTape, notebookButtonClass } from '@/components/ui/notebook';
 import { NotebookLoadingRegion } from '@/components/ui/notebook-loading';
+import { NotebookMetadata } from '@/components/ui/notebook-metadata';
 import { ApiError } from '@/lib/api/error';
 import { useLanguage } from '@/lib/i18n';
 
@@ -125,11 +126,17 @@ export function BookingSummaryRow({
           {booking.tutor.displayName}
         </h2>
         <p className="mt-1 text-sm font-semibold text-notebook-ink">
-          {booking.listing.subjectName} · {booking.listing.gradeLevelName}
+          <NotebookMetadata items={[booking.listing.subjectName, booking.listing.gradeLevelName]} />
         </p>
         <p className="mt-1 text-sm text-notebook-muted">
-          {formatBangkokRange(booking.slot.startAtUtc, booking.slot.endAtUtc, language)} ·{' '}
-          {formatMoney(booking.netAmount, booking.currency)}
+          <NotebookMetadata
+            items={[
+              ...formatBangkokRange(booking.slot.startAtUtc, booking.slot.endAtUtc, language).split(
+                ' · ',
+              ),
+              formatMoney(booking.netAmount, booking.currency),
+            ]}
+          />
         </p>
       </div>
       <div className="flex w-full shrink-0 items-center justify-between gap-2 pl-16 sm:w-auto sm:flex-col sm:items-end sm:pl-0">

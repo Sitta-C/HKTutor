@@ -1,7 +1,7 @@
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
 
-import { SaveStudentProfileDto } from '@modules/profiles/profiles.dto';
+import { SaveStudentProfileDto, SaveTutorProfileDto } from '@modules/profiles/profiles.dto';
 
 describe('SaveStudentProfileDto', () => {
   const validProfile = {
@@ -46,4 +46,25 @@ describe('SaveStudentProfileDto', () => {
     expect(errors[0]?.property).toBe('userId');
     expect(errors[0]?.constraints).toHaveProperty('whitelistValidation');
   });
+});
+
+describe('SaveTutorProfileDto', () => {
+  it.each(['UNVERIFIED', 'PENDING', 'VERIFIED', 'REJECTED'])(
+    'rejects a caller-supplied %s verification status',
+    async (verificationStatus) => {
+      const dto = plainToInstance(SaveTutorProfileDto, {
+        firstName: 'Anan',
+        lastName: 'Dee',
+        nickname: 'Anan',
+        displayName: 'Kru Anan',
+        bio: 'Mathematics tutor',
+        experienceYears: 5,
+        verificationStatus,
+      });
+      const errors = await validate(dto, { forbidNonWhitelisted: true, whitelist: true });
+      expect(errors).toHaveLength(1);
+      expect(errors[0]?.property).toBe('verificationStatus');
+      expect(errors[0]?.constraints).toHaveProperty('whitelistValidation');
+    },
+  );
 });

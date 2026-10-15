@@ -13,11 +13,17 @@ import {
   publicTutorWhere,
 } from '@modules/tutors/public-tutor-access';
 import {
+  buildTutorRecommendationTags,
+  resolveTutorRankingQuery,
+  TutorRankingPriority,
+} from '@modules/tutors/tutor-ranking';
+import {
   DEFAULT_TUTOR_SEARCH_PAGE,
   DEFAULT_TUTOR_SEARCH_PAGE_SIZE,
 } from '@modules/tutors/tutors.dto';
 
 import type { PublicTutorVerificationStatus } from '@modules/tutors/public-tutor-access';
+import type { TutorRecommendationContext } from '@modules/tutors/tutor-ranking';
 import type {
   GradeLevelCatalogResponseDto,
   PublicTeachingListingDto,
@@ -134,7 +140,8 @@ export class TutorDirectoryService {
 
   constructor(private readonly prisma: PrismaService) {}
 
-  async searchPublicTutors(query: TutorSearchQueryDto): Promise<TutorSearchResponseDto> {
+  async searchPublicTutors(input: TutorSearchQueryDto): Promise<TutorSearchResponseDto> {
+    const query = resolveTutorRankingQuery(input);
     const [subject, gradeLevel] = await Promise.all([
       query.subject === undefined
         ? Promise.resolve(null)
@@ -157,6 +164,11 @@ export class TutorDirectoryService {
       throw new BadRequestException('grade is not a supported active catalog value');
     }
 
+    const now = new Date();
+    const page = query.page ?? DEFAULT_TUTOR_SEARCH_PAGE;
+    const pageSize = query.pageSize ?? DEFAULT_TUTOR_SEARCH_PAGE_SIZE;
+    const skip = (page - 1) * pageSize;
+
     const where: Prisma.TeachingListingWhereInput = {
       ...publicListingWhere,
       ...(subject === null ? {} : { subjectId: subject.id }),
@@ -169,19 +181,132 @@ export class TutorDirectoryService {
           : { ratingAverage: { gte: query.minimumRating } }),
       },
     };
-    const page = query.page ?? DEFAULT_TUTOR_SEARCH_PAGE;
-    const pageSize = query.pageSize ?? DEFAULT_TUTOR_SEARCH_PAGE_SIZE;
-    const now = new Date();
-    const [listings, total] = await Promise.all([
-      this.prisma.teachingListing.findMany({
-        orderBy: [{ publishedAt: 'desc' }, { id: 'asc' }],
-        select: publicSearchSelect(now),
-        skip: (page - 1) * pageSize,
-        take: pageSize,
-        where,
-      }),
+
+    const sortItems: {
+      priority: number;
+      sqlClause: string;
+      prismaOrder?: Prisma.TeachingListingOrderByWithRelationInput;
+    }[] = [];
+
+    if (query.ratingPriority !== undefined) {
+      const dir = (query.ratingOrder ?? 'desc').toLowerCase() as 'asc' | 'desc';
+      const sqlDir = dir.toUpperCase();
+      sortItems.push({
+        priority: query.ratingPriority,
+        sqlClause: `tp."ratingAverage" ${sqlDir} NULLS LAST`,
+        prismaOrder: {
+          tutorProfile: {
+            ratingAverage: {
+              sort: dir,
+              nulls: 'last',
+            },
+          },
+        },
+      });
+    }
+
+    if (query.pricePriority !== undefined) {
+      const dir = (query.priceOrder ?? 'asc').toUpperCase();
+      sortItems.push({
+        priority: query.pricePriority,
+        sqlClause: `tl."pricePerHour" ${dir}`,
+        prismaOrder: { pricePerHour: query.priceOrder ?? 'asc' },
+      });
+    }
+
+    if (query.availabilityPriority !== undefined) {
+      const dir = (query.availabilityOrder ?? 'asc').toUpperCase();
+      sortItems.push({
+        priority: query.availabilityPriority,
+        sqlClause: `MIN(slot."startAtUtc") ${dir} NULLS LAST`,
+      });
+    }
+
+    sortItems.sort((a, b) => a.priority - b.priority);
+
+    const ratingTieBreakPrisma: Prisma.TeachingListingOrderByWithRelationInput[] =
+      query.pricePriority !== undefined && query.ratingPriority === undefined
+        ? [{ tutorProfile: { ratingAverage: { sort: 'desc', nulls: 'last' } } }]
+        : [];
+
+    const ratingTieBreakSql: string[] =
+      query.pricePriority !== undefined && query.ratingPriority === undefined
+        ? [`tp."ratingAverage" DESC NULLS LAST`]
+        : [];
+
+    const hasAvailabilitySort = query.availabilityPriority !== undefined;
+    let listingIds: string[] = [];
+
+    if (hasAvailabilitySort) {
+      const orderClauses = [
+        ...sortItems.map((item) => item.sqlClause),
+        ...ratingTieBreakSql,
+        `tl."publishedAt" DESC`,
+        `tl."id" ASC`,
+      ].join(', ');
+
+      const rawResults = await this.prisma.$queryRaw<{ id: string }[]>`
+        SELECT tl.id
+        FROM "TeachingListing" tl
+        JOIN "TutorProfile" tp ON tl."tutorProfileId" = tp."userId"
+        JOIN "User" u ON tp."userId" = u."id"
+        LEFT JOIN "AvailabilitySlot" slot 
+          ON slot."tutorProfileId" = tp."userId" 
+          AND slot."startAtUtc" > ${now}
+          AND slot."deletedAt" IS NULL
+          AND NOT EXISTS (
+            SELECT 1 FROM "Booking" b
+            WHERE b."slotId" = slot."id"
+              AND b.status IN ('pending'::"BookingStatus", 'confirmed'::"BookingStatus")
+          )
+        WHERE tl."publicationStatus" = 'published'::"ListingPublicationStatus"
+          AND tl."publishedAt" IS NOT NULL
+          AND tl."deletedAt" IS NULL
+          AND tp."verificationStatus" = 'verified'::"TutorVerificationStatus"
+          AND u."accountStatus" = 'active'::"AccountStatus"
+          AND u."deletedAt" IS NULL
+          AND u."role" = 'tutor'::"Role"
+          ${subject ? Prisma.sql`AND tl."subjectId" = ${subject.id}::uuid` : Prisma.empty}
+          ${gradeLevel ? Prisma.sql`AND tl."gradeLevelId" = ${gradeLevel.id}::uuid` : Prisma.empty}
+          ${query.maxPrice !== undefined ? Prisma.sql`AND tl."pricePerHour" <= ${query.maxPrice}` : Prisma.empty}
+          ${query.minimumRating !== undefined ? Prisma.sql`AND tp."ratingAverage" >= ${query.minimumRating}` : Prisma.empty}
+        GROUP BY tl.id, tp."ratingAverage", tl."pricePerHour", tl."publishedAt"
+        ORDER BY ${Prisma.raw(orderClauses)}
+        OFFSET ${skip} LIMIT ${pageSize}
+      `;
+
+      listingIds = rawResults.map((r) => r.id);
+    }
+
+    const [listingsRaw, total, recommendationContext] = await Promise.all([
+      hasAvailabilitySort
+        ? listingIds.length > 0
+          ? this.prisma.teachingListing.findMany({
+              where: { id: { in: listingIds }, ...where },
+              select: publicSearchSelect(now),
+            })
+          : Promise.resolve([])
+        : this.prisma.teachingListing.findMany({
+            where,
+            orderBy: [
+              ...sortItems.map((item) => item.prismaOrder!),
+              ...ratingTieBreakPrisma,
+              { publishedAt: 'desc' },
+              { id: 'asc' },
+            ],
+            select: publicSearchSelect(now),
+            skip,
+            take: pageSize,
+          }),
       this.prisma.teachingListing.count({ where }),
+      this.getRecommendationContext(query, where, now),
     ]);
+
+    let listings = listingsRaw;
+    if (hasAvailabilitySort && listingIds.length > 0) {
+      const idMap = new Map(listingsRaw.map((item) => [item.id, item]));
+      listings = listingIds.map((id) => idMap.get(id)!).filter(Boolean);
+    }
 
     const items = listings.flatMap((listing) => {
       const status = listing.tutorProfile.verificationStatus;
@@ -192,7 +317,7 @@ export class TutorDirectoryService {
         return [];
       }
 
-      return [mapPublicSearchListing(listing, status)];
+      return [mapPublicSearchListing(listing, status, recommendationContext)];
     });
 
     return {
@@ -202,6 +327,59 @@ export class TutorDirectoryService {
       total,
       totalPages: Math.ceil(total / pageSize),
     };
+  }
+
+  private async getRecommendationContext(
+    query: TutorSearchQueryDto,
+    where: Prisma.TeachingListingWhereInput,
+    now: Date,
+  ): Promise<TutorRecommendationContext> {
+    const context: TutorRecommendationContext = {
+      earliestAvailableAt: null,
+      highestRating: null,
+      lowestPrice: null,
+      ...(query.maxPrice === undefined ? {} : { maxPrice: query.maxPrice }),
+    };
+
+    // Evaluate explanations over the complete eligible result set, before pagination.
+    switch (query.priority) {
+      case TutorRankingPriority.LOWEST_PRICE: {
+        const prices = await this.prisma.teachingListing.aggregate({
+          _min: { pricePerHour: true },
+          where,
+        });
+        context.lowestPrice = prices._min.pricePerHour;
+        break;
+      }
+      case TutorRankingPriority.HIGHEST_RATING: {
+        const ratings = await this.prisma.tutorProfile.aggregate({
+          _max: { ratingAverage: true },
+          where: { ...publicTutorWhere, listings: { some: where } },
+        });
+        context.highestRating = ratings._max.ratingAverage;
+        break;
+      }
+      case TutorRankingPriority.EARLIEST_AVAILABILITY: {
+        const slot = await this.prisma.availabilitySlot.findFirst({
+          orderBy: [{ startAtUtc: 'asc' }, { id: 'asc' }],
+          select: { startAtUtc: true },
+          where: {
+            bookings: {
+              none: { status: { in: [BookingStatus.PENDING, BookingStatus.CONFIRMED] } },
+            },
+            deletedAt: null,
+            startAtUtc: { gt: now },
+            tutorProfile: { ...publicTutorWhere, listings: { some: where } },
+          },
+        });
+        context.earliestAvailableAt = slot?.startAtUtc ?? null;
+        break;
+      }
+      case undefined:
+        break;
+    }
+
+    return context;
   }
 
   async getPublicTutor(tutorId: string): Promise<PublicTutorDetailResponseDto> {
@@ -257,10 +435,19 @@ export class TutorDirectoryService {
 function mapPublicSearchListing(
   listing: SelectedPublicSearchListing,
   verificationStatus: PublicTutorVerificationStatus,
+  recommendationContext: TutorRecommendationContext,
 ): TutorSearchResultDto {
   const tutor = listing.tutorProfile;
 
   return {
+    recommendationTags: buildTutorRecommendationTags(
+      {
+        nextAvailableAt: tutor.availabilitySlots[0]?.startAtUtc ?? null,
+        pricePerHour: listing.pricePerHour,
+        ratingAverage: tutor.ratingAverage,
+      },
+      recommendationContext,
+    ),
     avatarUpdatedAt: tutor.user.avatarUpdatedAt,
     description: listing.description,
     displayName: tutor.displayName,

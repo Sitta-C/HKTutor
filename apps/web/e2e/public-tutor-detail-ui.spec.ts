@@ -307,9 +307,7 @@ test('choosing a course on another page updates the pad and booking without extr
     .getByRole('button', { name: 'Choose this course: Course 2 · Grade 11', exact: true })
     .click();
   await expect(ruler.locator('[aria-current="page"]')).toHaveAttribute('data-course-page', '1');
-  await expect(
-    page.getByRole('heading', { name: 'Course 2 · Grade 11', exact: true }),
-  ).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Course 2 Grade 11', exact: true })).toBeVisible();
   expect(calls).toHaveLength(initialRequests);
   await page
     .getByRole('button', { name: /^Choose this time ·/ })
@@ -631,4 +629,45 @@ test('long public text and many loaded days fit without trimming content', async
   ).toBeVisible();
   await noOverflow(page);
   await page.screenshot({ path: testInfo.outputPath('detail-long-text.png'), fullPage: true });
+});
+
+for (const verificationStatus of ['UNVERIFIED', 'PENDING', 'REJECTED', 'APPROVED']) {
+  test(`does not show a verified badge for unexpected public ${verificationStatus} metadata`, async ({
+    page,
+  }) => {
+    await mockDetail(page);
+    await page.route('**/api/v1/tutors/tutor-anna', async (route) => {
+      await route.fulfill({ json: { ...detail, tutor: { ...detail.tutor, verificationStatus } } });
+    });
+    await page.goto('/tutors/tutor-anna');
+    await expect(page.getByRole('heading', { name: 'Teacher Anna', exact: true })).toBeVisible();
+    await expect(page.locator('[data-tutor-verification]')).toHaveCount(0);
+    await expect(page.getByRole('link', { name: 'Review qualification documents' })).toHaveCount(0);
+  });
+}
+
+test('a profile that becomes unavailable on reload shows no stale badge or content', async ({
+  page,
+}) => {
+  // The API never sends a "revoked" status; a tutor who stops being discoverable instead 404s on
+  // the next request, exactly like a tutor who was never published. This proves the page reflects
+  // that change rather than keeping the previous successful render.
+  await mockDetail(page);
+  await page.goto('/tutors/tutor-anna');
+  await expect(page.getByRole('heading', { name: 'Teacher Anna', exact: true })).toBeVisible();
+  await expect(page.locator('[data-tutor-verification]')).toHaveText(/Verified/);
+
+  await page.route('**/api/v1/tutors/tutor-anna', async (route) => {
+    await route.fulfill({ status: 404, json: { message: 'Tutor not found' } });
+  });
+  await page.reload();
+
+  await expect(page.locator('main').getByRole('alert')).toContainText(
+    'This tutor is not publicly available.',
+  );
+  await expect(page.getByRole('heading', { name: 'Teacher Anna', exact: true })).toHaveCount(0);
+  await expect(page.locator('[data-tutor-verification]')).toHaveCount(0);
+  await expect(
+    page.getByText('Build a strong foundation with progressively challenging practice.'),
+  ).toHaveCount(0);
 });

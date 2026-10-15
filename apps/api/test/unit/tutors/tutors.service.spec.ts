@@ -317,16 +317,24 @@ describe('Tutor listing and availability services', () => {
       );
     });
 
-    it('returns 403 when a pending or rejected tutor tries to publish', async () => {
-      const prisma = createPrisma();
-      prisma.tutorProfile.findFirst.mockResolvedValue(null);
-      const service = new TutorsService(prisma as unknown as PrismaService);
+    it.each(['UNVERIFIED', 'PENDING', 'REJECTED'])(
+      'returns 403 when a %s tutor tries to publish',
+      async (verificationStatus) => {
+        const prisma = createPrisma();
+        prisma.tutorProfile.findFirst.mockImplementation(
+          ({ where }: { where: { verificationStatus: string } }) =>
+            Promise.resolve(
+              where.verificationStatus === verificationStatus ? { userId: USER_ID } : null,
+            ),
+        );
+        const service = new TutorsService(prisma as unknown as PrismaService);
 
-      await expect(service.postPublishListing(USER_ID, LISTING_ID)).rejects.toThrow(
-        new ForbiddenException('Tutor is not eligible to publish listings'),
-      );
-      expect(prisma.teachingListing.update).not.toHaveBeenCalled();
-    });
+        await expect(service.postPublishListing(USER_ID, LISTING_ID)).rejects.toThrow(
+          new ForbiddenException('Tutor is not eligible to publish listings'),
+        );
+        expect(prisma.teachingListing.update).not.toHaveBeenCalled();
+      },
+    );
   });
 
   describe('updateListingStatus', () => {
@@ -389,6 +397,22 @@ describe('Tutor listing and availability services', () => {
       await expect(service.updateListingStatus(USER_ID, LISTING_ID, 'ARCHIVED')).rejects.toThrow(
         new NotFoundException('Listing not found'),
       );
+    });
+
+    it('blocks the status endpoint from publishing for an ineligible tutor the same way as the dedicated route', async () => {
+      // publicTutorWhere's eligibility filter is a single verificationStatus=VERIFIED condition
+      // with no other status as an input, so a mocked findFirst cannot distinguish which
+      // non-VERIFIED status a tutor actually has -- every one of them resolves this same query to
+      // null. A %s-style loop here would only run the identical mock three times; the real
+      // per-status distinction is proven against a real row by `db:verify:tutor-verification`.
+      const prisma = createPrisma();
+      prisma.tutorProfile.findFirst.mockResolvedValue(null);
+      const service = new TutorsService(prisma as unknown as PrismaService);
+
+      await expect(service.updateListingStatus(USER_ID, LISTING_ID, 'PUBLISHED')).rejects.toThrow(
+        new ForbiddenException('Tutor is not eligible to publish listings'),
+      );
+      expect(prisma.teachingListing.update).not.toHaveBeenCalled();
     });
   });
 

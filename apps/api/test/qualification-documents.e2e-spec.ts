@@ -154,6 +154,20 @@ describe('S2-T07 qualification documents (HTTP contracts with isolated persisten
   );
   const createAudit = jest.fn(({ data }: { data: AuditData }) => {
     auditRecords.push(data);
+    if (data.action === 'REVIEWED' && data.createdAt && data.decision) {
+      document = {
+        ...document,
+        auditEvents: [
+          ...document.auditEvents,
+          {
+            actorUserId: data.actorUserId,
+            createdAt: data.createdAt,
+            decision: data.decision,
+            reason: data.reason ?? null,
+          },
+        ],
+      };
+    }
     return Promise.resolve({ id: 'audit-id' });
   });
   const updateTutor = jest.fn(({ data }: { data: { verificationStatus: string } }) => {
@@ -358,6 +372,8 @@ describe('S2-T07 qualification documents (HTTP contracts with isolated persisten
         size: buffer.length,
         createdAt: '2026-10-05T01:00:00.000Z',
       });
+      expect(JSON.stringify(result.body)).not.toContain(document.objectPath);
+      expect(JSON.stringify(result.body)).not.toContain(ENVIRONMENT.SUPABASE_SECRET_KEY);
       expect(document.objectPath).toMatch(new RegExp(`^${TUTOR_ID}/[a-f0-9-]+\\.${extension}$`));
       expect(auditRecords).toEqual([
         { documentId: DOCUMENT_ID, actorUserId: TUTOR_ID, action: 'UPLOADED' },
@@ -429,24 +445,88 @@ describe('S2-T07 qualification documents (HTTP contracts with isolated persisten
       .attach('file', buffer, { filename: 'certificate.pdf', contentType: 'application/pdf' })
       .expect(201);
     expect(result.body).toMatchObject({ size: DOCUMENT_MAX_SIZE_BYTES });
+    expect(createDocument).toHaveBeenCalledWith(
+      matchingObject({ data: matchingObject({ sizeBytes: DOCUMENT_MAX_SIZE_BYTES }) }),
+    );
+    expect(auditRecords).toEqual([
+      { documentId: DOCUMENT_ID, actorUserId: TUTOR_ID, action: 'UPLOADED' },
+    ]);
+    expect(intents.size).toBe(0);
   });
 
-  it.each([
-    [Buffer.alloc(0), 'application/pdf'],
-    [Buffer.alloc(DOCUMENT_MAX_SIZE_BYTES + 1), 'application/pdf'],
-    [Buffer.from('fake PNG'), 'image/png'],
-    [PDF, 'image/png'],
-    [PNG, 'image/webp'],
-    [Buffer.from('<svg/>'), 'image/svg+xml'],
-  ])('rejects empty, oversize, unsupported and mismatched files', async (buffer, contentType) => {
+  it('rejects an upload above the Multer hard limit before persistence', async () => {
+    const buffer = Buffer.alloc(DOCUMENT_MAX_SIZE_BYTES + 2);
+    PDF.copy(buffer);
     await request(app.getHttpServer())
       .post(TUTOR_BASE)
       .auth('tutor', { type: 'bearer' })
       .field('documentType', 'DEGREE')
-      .attach('file', buffer, { filename: 'document.pdf', contentType })
+      .attach('file', buffer, { filename: 'oversized.pdf', contentType: 'application/pdf' })
+      .expect(400);
+    expect(findTutorAccount).not.toHaveBeenCalled();
+    expect(createIntent).not.toHaveBeenCalled();
+    expect(createDocument).not.toHaveBeenCalled();
+    expect(createAudit).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(document).toEqual(fixture());
+    expect(verificationStatus).toBe('PENDING');
+  });
+
+  it.each([
+    { caseName: '0-byte PDF', buffer: Buffer.alloc(0), mime: 'application/pdf', name: 'empty.pdf' },
+    {
+      caseName: '5 MiB plus one byte',
+      buffer: Buffer.concat([PDF, Buffer.alloc(DOCUMENT_MAX_SIZE_BYTES + 1 - PDF.length)]),
+      mime: 'application/pdf',
+      name: 'large.pdf',
+    },
+    {
+      caseName: 'invalid PNG signature',
+      buffer: Buffer.from('fake PNG'),
+      mime: 'image/png',
+      name: 'fake.png',
+    },
+    { caseName: 'PDF bytes declared as PNG', buffer: PDF, mime: 'image/png', name: 'fake.png' },
+    { caseName: 'unsupported WebP MIME', buffer: PNG, mime: 'image/webp', name: 'image.webp' },
+    {
+      caseName: 'unsupported SVG MIME',
+      buffer: Buffer.from('<svg/>'),
+      mime: 'image/svg+xml',
+      name: 'image.svg',
+    },
+    { caseName: 'PDF with PNG extension', buffer: PDF, mime: 'application/pdf', name: 'wrong.png' },
+    { caseName: 'JPEG with PDF extension', buffer: JPEG, mime: 'image/jpeg', name: 'wrong.pdf' },
+    { caseName: 'PNG with JPEG extension', buffer: PNG, mime: 'image/png', name: 'wrong.jpg' },
+    {
+      caseName: 'PDF with unsupported extension',
+      buffer: PDF,
+      mime: 'application/pdf',
+      name: 'wrong.exe',
+    },
+  ])('rejects $caseName without persistent changes', async ({ buffer, mime, name }) => {
+    await request(app.getHttpServer())
+      .post(TUTOR_BASE)
+      .auth('tutor', { type: 'bearer' })
+      .field('documentType', 'DEGREE')
+      .attach('file', buffer, { filename: name, contentType: mime })
       .expect(400);
     expect(fetchMock).not.toHaveBeenCalled();
     expect(createDocument).not.toHaveBeenCalled();
+    expect(createIntent).not.toHaveBeenCalled();
+    expect(auditRecords).toEqual([]);
+    expect(verificationStatus).toBe('PENDING');
+    expect(document).toEqual(fixture());
+  });
+
+  it('accepts a JPEG .jpeg extension regardless of filename case', async () => {
+    await request(app.getHttpServer())
+      .post(TUTOR_BASE)
+      .auth('tutor', { type: 'bearer' })
+      .field('documentType', 'CERTIFICATE')
+      .attach('file', JPEG, { filename: 'Certificate.JPEG', contentType: 'image/jpeg' })
+      .expect(201);
+    expect(document.originalName).toBe('Certificate.JPEG');
+    expect(document.objectPath).toMatch(/\.jpg$/);
   });
 
   it('rejects a missing file, invalid type, unknown fields and multiple files', async () => {
@@ -642,10 +722,12 @@ describe('S2-T07 qualification documents (HTTP contracts with isolated persisten
   });
 
   it('defaults the admin queue to PENDING and 20 rows', async () => {
-    await request(app.getHttpServer())
+    const result = await request(app.getHttpServer())
       .get(ADMIN_BASE)
       .auth('admin', { type: 'bearer' })
       .expect(200);
+    expect(JSON.stringify(result.body)).not.toContain(document.objectPath);
+    expect(JSON.stringify(result.body)).not.toContain(ENVIRONMENT.SUPABASE_SECRET_KEY);
     expect(findMany).toHaveBeenCalledWith(
       matchingObject({
         take: 21,
@@ -719,6 +801,17 @@ describe('S2-T07 qualification documents (HTTP contracts with isolated persisten
       url: `${ENVIRONMENT.SUPABASE_URL}/storage/v1/object/sign/test-documents/preview?token=test`,
       expiresAt: matchingType(String),
     });
+    const signedResponse: unknown = result.body;
+    if (
+      !signedResponse ||
+      typeof signedResponse !== 'object' ||
+      !('expiresAt' in signedResponse) ||
+      typeof signedResponse.expiresAt !== 'string'
+    ) {
+      throw new Error('Expected an ISO expiry timestamp');
+    }
+    expect(signedResponse.expiresAt).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
+    expect(JSON.stringify(result.body)).not.toContain(ENVIRONMENT.SUPABASE_SECRET_KEY);
     const audit = auditRecords[0];
     expect(audit).toMatchObject({
       documentId: DOCUMENT_ID,
@@ -726,6 +819,8 @@ describe('S2-T07 qualification documents (HTTP contracts with isolated persisten
       action: 'SIGNED_URL_ISSUED',
     });
     expect(audit?.expiresAt?.getTime()).toBe((audit?.createdAt?.getTime() ?? 0) + 300_000);
+    expect(JSON.stringify(auditRecords)).not.toContain('token=test');
+    expect(JSON.stringify(auditRecords)).not.toContain(document.objectPath);
     const call = fetchMock.mock.calls.find(([url]) => requestUrl(url).includes('/object/sign/'));
     if (!call) {
       throw new Error('Expected signing request');
@@ -855,12 +950,46 @@ describe('S2-T07 qualification documents (HTTP contracts with isolated persisten
           createdAt: document.reviewedAt,
         },
       ]);
-      await request(app.getHttpServer())
-        .patch(`${ADMIN_BASE}/${DOCUMENT_ID}`)
+      const detail = await request(app.getHttpServer())
+        .get(`${ADMIN_BASE}/${DOCUMENT_ID}`)
         .auth('admin', { type: 'bearer' })
-        .send({ decision })
-        .expect(decision === 'REJECTED' ? 400 : 409);
-      expect(auditRecords).toHaveLength(1);
+        .expect(200);
+      if (!document.reviewedAt) {
+        throw new Error('Expected a persisted review timestamp');
+      }
+      const reviewedAt = document.reviewedAt.toISOString();
+      expect(detail.body).toMatchObject({
+        document: {
+          status: decision,
+          reviewedAt,
+          rejectionReason: decision === 'REJECTED' ? 'Reviewed evidence' : null,
+        },
+        reviewHistory: [
+          {
+            status: decision,
+            reviewedAt,
+            reviewedBy: ADMIN_ID,
+            reason: 'Reviewed evidence',
+          },
+        ],
+      });
+      expect(JSON.stringify(detail.body)).not.toContain(document.objectPath);
+      expect(JSON.stringify(detail.body)).not.toContain(ENVIRONMENT.SUPABASE_SECRET_KEY);
+      const savedDocument = structuredClone(document);
+      const savedAudits = structuredClone(auditRecords);
+      for (const nextDecision of ['APPROVED', 'REJECTED']) {
+        const conflict = await request(app.getHttpServer())
+          .patch(`${ADMIN_BASE}/${DOCUMENT_ID}`)
+          .auth('admin', { type: 'bearer' })
+          .send({ decision: nextDecision, reason: 'Second review attempt' })
+          .expect(409);
+        expect(conflict.body).toMatchObject({ code: 'DOCUMENT_ALREADY_REVIEWED' });
+        expect(document).toEqual(savedDocument);
+        expect(verificationStatus).toBe(status);
+        expect(auditRecords).toEqual(savedAudits);
+      }
+      expect(updateTutor).toHaveBeenCalledTimes(1);
+      expect(createAudit).toHaveBeenCalledTimes(1);
     },
   );
 
@@ -900,16 +1029,19 @@ describe('S2-T07 qualification documents (HTTP contracts with isolated persisten
     expect(verificationStatus).toBe(expected);
   });
 
-  it('resets a rejected tutor to pending when new evidence is uploaded', async () => {
-    verificationStatus = 'REJECTED';
-    await request(app.getHttpServer())
-      .post(TUTOR_BASE)
-      .auth('tutor', { type: 'bearer' })
-      .field('documentType', 'CERTIFICATE')
-      .attach('file', PDF, 'certificate.pdf')
-      .expect(201);
-    expect(verificationStatus).toBe('PENDING');
-  });
+  it.each(['UNVERIFIED', 'REJECTED'])(
+    'moves a %s tutor to pending when new evidence is uploaded',
+    async (status) => {
+      verificationStatus = status;
+      await request(app.getHttpServer())
+        .post(TUTOR_BASE)
+        .auth('tutor', { type: 'bearer' })
+        .field('documentType', 'CERTIFICATE')
+        .attach('file', PDF, 'certificate.pdf')
+        .expect(201);
+      expect(verificationStatus).toBe('PENDING');
+    },
+  );
 
   it('retains an upload intent after ambiguous Storage failure for later recovery', async () => {
     fetchMock
@@ -952,6 +1084,7 @@ describe('S2-T07 qualification documents (HTTP contracts with isolated persisten
     { decision: 'REJECTED' },
     { decision: 'REJECTED', reason: '   ' },
     { decision: 'REJECTED', reason: 'x'.repeat(501) },
+    { decision: 'REJECTED', reason: '😀'.repeat(501) },
     { decision: 'APPROVED', reason: null },
     { decision: 'APPROVED', reviewerUserId: TUTOR_ID },
   ])('rejects invalid review input %j', async (body) => {
@@ -1024,6 +1157,9 @@ describe('S2-T07 qualification documents (HTTP contracts with isolated persisten
       expect(findFirst).not.toHaveBeenCalled();
       expect(findMany).not.toHaveBeenCalled();
       expect(createDocument).not.toHaveBeenCalled();
+      expect(createIntent).not.toHaveBeenCalled();
+      expect(createAudit).not.toHaveBeenCalled();
+      expect(updateDocument).not.toHaveBeenCalled();
       expect(fetchMock).not.toHaveBeenCalled();
     },
   );
