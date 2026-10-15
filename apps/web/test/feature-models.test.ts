@@ -21,6 +21,7 @@ import {
 } from '@/components/profile/profile-editor-model';
 import { tutorSearchCopy } from '@/components/tutors/tutor-search-copy';
 import {
+  formatTutorSearchSummary,
   initialTutorSearchForm,
   toTutorSearchQuery,
   validateTutorSearch,
@@ -45,6 +46,14 @@ const profileValidationCopy = {
 };
 
 describe('feature form models', () => {
+  it('describes a zero applied budget distinctly from an omitted budget in both languages', () => {
+    for (const language of ['en', 'th'] as const) {
+      const copy = tutorSearchCopy[language];
+      expect(formatTutorSearchSummary({ maxPrice: 0 }, copy)).toContain(`${copy.upTo} 0฿`);
+      expect(formatTutorSearchSummary({}, copy)).toContain(copy.anyBudget);
+    }
+  });
+
   it('validates tutor-search numbers and omits empty filters from the query', () => {
     expect(
       validateTutorSearch(

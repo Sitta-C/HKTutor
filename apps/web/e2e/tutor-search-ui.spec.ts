@@ -1,10 +1,16 @@
 import { expect, test } from '@playwright/test';
 
-import type { TutorSearchResponse, TutorSearchResult } from '@/lib/api/types';
+import type {
+  TutorRankingPriority,
+  TutorRecommendationTag,
+  TutorSearchResponse,
+  TutorSearchResult,
+} from '@/lib/api/types';
 import type { Page, Route } from '@playwright/test';
 
 // Isolated preview fixtures; every API request is intercepted, including authentication.
 const courses: TutorSearchResult[] = Array.from({ length: 12 }, (_, index) => ({
+  recommendationTags: [],
   listingId: `course/${index + 1}`,
   tutorId: index < 2 ? 'tutor/shared' : `tutor-${index}`,
   displayName: index < 2 ? 'Teacher Anan' : `Teacher ${index + 1}`,
@@ -137,7 +143,339 @@ async function noOverflow(page: Page) {
   ).toBeLessThanOrEqual(1);
 }
 
+const rankingTags: Record<TutorRankingPriority, TutorRecommendationTag> = {
+  lowest_price: 'LOWEST_PRICE',
+  highest_rating: 'HIGHEST_RATED',
+  earliest_availability: 'EARLIEST_AVAILABILITY',
+};
+
 for (const language of ['en', 'th'] as const) {
+  test(`${language} ranking preserves applied filters, drafts and pagination and displays server reasons`, async ({
+    page,
+  }, testInfo) => {
+    if (testInfo.project.name === 'mobile-chromium') {
+      await page.setViewportSize({ width: 320, height: 900 });
+    }
+    const { calls, unexpected } = await mockSearch(page, {
+      language,
+      student: true,
+      respond: (route, url) => {
+        const response = searchPage(url);
+        const priority = url.searchParams.get('priority');
+        const tag = Object.entries(rankingTags).find(([key]) => key === priority)?.[1];
+        response.items = response.items.map((course, index) => ({
+          ...course,
+          displayName: index === 0 && priority ? `Server first: ${priority}` : course.displayName,
+          recommendationTags: [
+            ...(url.searchParams.has('maxPrice') ? ['FITS_BUDGET' as const] : []),
+            ...(index === 0 && response.page === 1 && tag ? [tag] : []),
+          ],
+        }));
+        return route.fulfill({ json: response });
+      },
+    });
+    await page.goto('/tutors');
+    const articles = page.getByRole('article');
+    await expect(articles).toHaveCount(10);
+    const ranking = page.getByLabel(language === 'th' ? 'เรียงตาม' : 'Sort by', { exact: true });
+    await expect(ranking).toHaveValue('');
+    await expect(
+      page.getByRole('list', { name: /Recommendation reasons|เหตุผลที่แนะนำ/ }),
+    ).toHaveCount(0);
+    await openFilters(page);
+    await page.locator('#tutor-search-subject').selectOption('Mathematics');
+    await page.locator('#tutor-search-grade').selectOption('Grade 10');
+    await page.locator('#tutor-search-max-price').fill('500.25');
+    await page.locator('#tutor-search-min-rating').selectOption('4.5');
+    await page
+      .getByRole('button', {
+        name: language === 'th' ? 'ใช้ตัวกรอง' : 'Apply filters',
+        exact: true,
+      })
+      .click();
+    await expect(articles).toHaveCount(10);
+    await openFilters(page);
+    // Ranking uses the applied query, including when an unsubmitted draft is invalid.
+    await page.locator('#tutor-search-max-price').fill('-1');
+    const next = page.getByRole('button', {
+      name: language === 'th' ? 'ถัดไป' : 'Next',
+      exact: true,
+    });
+    const fitsBudget = language === 'th' ? 'อยู่ในงบ' : 'Fits budget';
+    const labels =
+      language === 'th'
+        ? ['ราคาต่ำสุดในผลลัพธ์นี้', 'คะแนนสูงสุดในผลลัพธ์นี้', 'เวลาว่างเร็วสุดในผลลัพธ์นี้']
+        : [
+            'Lowest price in these results',
+            'Highest rating in these results',
+            'Earliest availability in these results',
+          ];
+    let index = 0;
+    for (const priority of ['lowest_price', 'highest_rating', 'earliest_availability'] as const) {
+      await next.click();
+      await expect(articles).toHaveCount(2);
+      await ranking.selectOption(priority);
+      await expect(articles).toHaveCount(10);
+      expect(Object.fromEntries(calls.at(-1)?.searchParams ?? [])).toEqual({
+        priority,
+        subject: 'Mathematics',
+        grade: 'Grade 10',
+        maxPrice: '500.25',
+        minimumRating: '4.5',
+        page: '1',
+        pageSize: '10',
+      });
+      await expect(articles.first().getByRole('heading', { level: 3 })).toHaveText(
+        `Server first: ${priority}`,
+      );
+      await expect(articles.first().getByRole('list')).toContainText(labels[index] ?? '');
+      await expect(articles.first().getByRole('list')).toContainText(fitsBudget);
+      await expect(articles.nth(1).getByRole('listitem')).toHaveText([fitsBudget]);
+      await expect(articles.nth(1)).toContainText(
+        language === 'th' ? 'ยังไม่มีเวลาว่างในอนาคต' : 'No future slots',
+      );
+      await expect(page.locator('#tutor-search-max-price')).toHaveValue('-1');
+      await expect(page.getByText(/500\.25฿/)).toBeVisible();
+      await articles.first().screenshot({
+        path: testInfo.outputPath(`library-stamp-${language}-${priority}.png`),
+        animations: 'disabled',
+      });
+      index += 1;
+    }
+    await page.locator('#tutor-search-max-price').fill('600.75');
+    await page
+      .getByRole('button', {
+        name: language === 'th' ? 'ใช้ตัวกรอง' : 'Apply filters',
+        exact: true,
+      })
+      .click();
+    await expect(articles).toHaveCount(10);
+    await expect(ranking).toHaveValue('earliest_availability');
+    expect(calls.at(-1)?.searchParams.get('priority')).toBe('earliest_availability');
+    expect(calls.at(-1)?.searchParams.get('maxPrice')).toBe('600.75');
+    await openFilters(page);
+    await next.click();
+    await expect(articles).toHaveCount(2);
+    expect(calls.at(-1)?.searchParams.get('priority')).toBe('earliest_availability');
+    // A page-local first result does not receive a best-value tag from the UI.
+    await expect(articles.first().getByRole('listitem')).toHaveText([fitsBudget]);
+    await page
+      .getByRole('button', { name: language === 'th' ? 'ล้าง' : 'Clear', exact: true })
+      .click();
+    await expect(articles).toHaveCount(10);
+    expect(Object.fromEntries(calls.at(-1)?.searchParams ?? [])).toEqual({
+      priority: 'earliest_availability',
+      page: '1',
+      pageSize: '10',
+    });
+    await expect(page.getByText(fitsBudget, { exact: true })).toHaveCount(0);
+    await expect(articles.first().getByRole('listitem')).toHaveText([labels[2] ?? '']);
+    if (testInfo.project.name === 'mobile-chromium') {
+      await page.setViewportSize({ width: 320, height: 900 });
+    }
+    await ranking.focus();
+    await expect(ranking).toBeFocused();
+    await expect(ranking).toHaveCSS('outline-style', 'solid');
+    await noOverflow(page);
+    await page.screenshot({
+      path: testInfo.outputPath(`ranking-${language}.png`),
+      fullPage: true,
+      animations: 'disabled',
+    });
+    await ranking.selectOption('');
+    await expect(articles.first().getByRole('heading', { level: 3 })).toHaveText('Teacher Anan');
+    expect(calls.at(-1)?.searchParams.toString()).toBe('page=1&pageSize=10');
+    expect(unexpected).toEqual([]);
+  });
+}
+
+test('ranking changes discard stale responses and their reasons', async ({ page }) => {
+  let release = () => {};
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const { calls } = await mockSearch(page, {
+    respond: async (route, url) => {
+      const priority = url.searchParams.get('priority');
+      if (priority === 'lowest_price') await gate;
+      const response = searchPage(url);
+      response.items = response.items.slice(0, 1).map((course) => ({
+        ...course,
+        displayName: priority ?? 'Initial tutor',
+        recommendationTags: priority === 'lowest_price' ? ['LOWEST_PRICE'] : [],
+      }));
+      return route.fulfill({ json: response });
+    },
+  });
+  try {
+    await page.goto('/tutors');
+    await expect(page.getByRole('article')).toHaveCount(1);
+    const ranking = page.getByLabel('Sort by', { exact: true });
+    await ranking.selectOption('lowest_price');
+    await expect.poll(() => calls.at(-1)?.searchParams.get('priority')).toBe('lowest_price');
+    await expect(page.getByRole('article')).toHaveCount(0);
+    await expect(page.getByRole('heading', { level: 2, name: '— matching courses' })).toBeVisible();
+    const canceled = page.waitForEvent('requestfailed', {
+      predicate: (request) =>
+        new URL(request.url()).searchParams.get('priority') === 'lowest_price',
+    });
+    await ranking.selectOption('highest_rating');
+    await canceled;
+    await expect(page.getByRole('article').getByRole('heading', { level: 3 })).toHaveText(
+      'highest_rating',
+    );
+    release();
+    await expect(page.getByRole('list', { name: 'Recommendation reasons' })).toHaveCount(0);
+    await expect(ranking).toHaveValue('highest_rating');
+  } finally {
+    release();
+  }
+});
+
+test('ranking failures and empty results retain selection and filters without stale reasons', async ({
+  page,
+}) => {
+  await mockSearch(page, {
+    respond: (route, url) => {
+      const priority = url.searchParams.get('priority');
+      if (priority === 'highest_rating')
+        return route.fulfill({ status: 500, json: { message: 'Unavailable' } });
+      if (priority === 'earliest_availability')
+        return route.fulfill({
+          json: { items: [], page: 1, pageSize: 10, total: 0, totalPages: 0 },
+        });
+      const response = searchPage(url);
+      response.items = response.items.map((course) => ({
+        ...course,
+        recommendationTags: ['FITS_BUDGET'],
+      }));
+      return route.fulfill({ json: response });
+    },
+  });
+  await page.goto('/tutors');
+  await expect(page.getByRole('article')).toHaveCount(10);
+  await openFilters(page);
+  await page.locator('#tutor-search-max-price').fill('500');
+  await page.getByRole('button', { name: 'Apply filters', exact: true }).click();
+  await expect(page.getByRole('article')).toHaveCount(10);
+  const ranking = page.getByLabel('Sort by', { exact: true });
+  await ranking.selectOption('highest_rating');
+  await expect(page.locator('main').getByRole('alert')).toContainText('We could not load tutors');
+  await expect(page.getByRole('article')).toHaveCount(0);
+  await expect(ranking).toHaveValue('highest_rating');
+  await openFilters(page);
+  await expect(page.locator('#tutor-search-max-price')).toHaveValue('500');
+  await ranking.selectOption('earliest_availability');
+  await expect(page.getByText('No exact matches found', { exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { level: 2, name: '0 matching courses' })).toBeVisible();
+  await expect(page.getByRole('list', { name: 'Recommendation reasons' })).toHaveCount(0);
+  await expect(ranking).toHaveValue('earliest_availability');
+});
+
+for (const language of ['en', 'th'] as const) {
+  test(`${language} Return Slip retries the failed page and applied query while keeping filter drafts`, async ({
+    page,
+  }, testInfo) => {
+    if (testInfo.project.name === 'mobile-chromium') {
+      await page.setViewportSize({ width: 320, height: 900 });
+    }
+    let secondPageReads = 0;
+    let release = () => {};
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const { calls, unexpected } = await mockSearch(page, {
+      language,
+      respond: async (route, url) => {
+        if (url.searchParams.get('page') === '2') {
+          secondPageReads += 1;
+          if (secondPageReads === 2) await gate;
+          if (secondPageReads <= 2) {
+            return route.fulfill({ status: 503, json: { message: 'Temporarily unavailable' } });
+          }
+        }
+        return route.fulfill({ json: searchPage(url) });
+      },
+    });
+    try {
+      await page.goto('/tutors');
+      await expect(page.getByRole('article')).toHaveCount(10);
+      await openFilters(page);
+      await page.locator('#tutor-search-subject').selectOption('Mathematics');
+      await page.locator('#tutor-search-grade').selectOption('Grade 10');
+      await page.locator('#tutor-search-max-price').fill('500');
+      await page.locator('#tutor-search-min-rating').selectOption('4');
+      await page
+        .getByRole('button', {
+          name: language === 'th' ? 'ใช้ตัวกรอง' : 'Apply filters',
+          exact: true,
+        })
+        .click();
+      await expect(page.getByRole('article')).toHaveCount(10);
+      await page.locator('#tutor-search-ranking').selectOption('highest_rating');
+      await expect(page.getByRole('article')).toHaveCount(10);
+      await openFilters(page);
+      await page.locator('#tutor-search-max-price').fill('900');
+      await page
+        .getByRole('button', { name: language === 'th' ? 'ถัดไป' : 'Next', exact: true })
+        .click();
+      const retry = page.getByRole('button', {
+        name: language === 'th' ? 'ลองใหม่' : 'Try again',
+        exact: true,
+      });
+      const alert = page.locator('main').getByRole('alert');
+      await expect(retry).toBeVisible();
+      await expect(page.getByRole('article')).toHaveCount(0);
+      const failedQuery = calls.at(-1)?.search;
+      expect(Object.fromEntries(calls.at(-1)?.searchParams ?? [])).toEqual({
+        priority: 'highest_rating',
+        subject: 'Mathematics',
+        grade: 'Grade 10',
+        maxPrice: '500',
+        minimumRating: '4',
+        page: '2',
+        pageSize: '10',
+      });
+      await alert.locator('..').screenshot({
+        path: testInfo.outputPath(`return-slip-${language}.png`),
+        animations: 'disabled',
+      });
+      await noOverflow(page);
+      await page.keyboard.press('Tab');
+      await retry.focus();
+      await expect(retry).toHaveCSS('outline-style', 'solid');
+      await page.keyboard.press('Enter');
+      await expect(retry).toHaveCount(0);
+      await expect(
+        page.getByText(language === 'th' ? 'กำลังโหลดข้อมูลติวเตอร์…' : 'Loading tutors…', {
+          exact: true,
+        }),
+      ).toBeVisible();
+      expect(secondPageReads).toBe(2);
+      expect(calls.at(-1)?.search).toBe(failedQuery);
+      release();
+      await expect(retry).toBeVisible();
+      await expect(retry).toBeFocused();
+      await expect(page.locator('#tutor-search-max-price')).toHaveValue('900');
+      await retry.click();
+      await expect(page.getByRole('article')).toHaveCount(2);
+      await expect(
+        page.getByRole('heading', {
+          level: 2,
+          name: language === 'th' ? '12 คอร์สที่ตรงกัน' : '12 matching courses',
+        }),
+      ).toBeFocused();
+      expect(secondPageReads).toBe(3);
+      expect(calls.at(-1)?.search).toBe(failedQuery);
+      await expect(retry).toHaveCount(0);
+      await expect(page.locator('#tutor-search-ranking')).toHaveValue('highest_rating');
+      await expect(page.locator('#tutor-search-max-price')).toHaveValue('900');
+      expect(unexpected).toEqual([]);
+    } finally {
+      release();
+    }
+  });
+
   test(`${language} View times stays on a single line after a reload at each breakpoint`, async ({
     page,
   }) => {

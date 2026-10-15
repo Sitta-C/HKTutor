@@ -9,7 +9,9 @@ import { tutorSearchCopy } from '@/components/tutors/tutor-search-copy';
 import {
   formatTutorSearchSummary,
   initialTutorSearchForm,
+  isTutorRankingPriority,
   toTutorSearchQuery,
+  tutorRankingPriorities,
   tutorRatingOptions,
   validateTutorSearch,
 } from '@/components/tutors/tutor-search-model';
@@ -81,6 +83,9 @@ export default function TutorSearchPage() {
   const filterToggle = useRef<HTMLButtonElement>(null);
   const requestId = useRef(0);
   const controller = useRef<AbortController | null>(null);
+  const retryInFlight = useRef(false);
+  const retryButton = useRef<HTMLButtonElement>(null);
+  const resultsHeading = useRef<HTMLHeadingElement>(null);
 
   useEffect(() => {
     let active = true;
@@ -189,6 +194,7 @@ export default function TutorSearchPage() {
     }
     void executeSearch({
       ...toTutorSearchQuery(form),
+      ...(activeQuery.priority === undefined ? {} : { priority: activeQuery.priority }),
       page: 1,
       pageSize: TUTOR_SEARCH_PAGE_SIZE,
     });
@@ -197,7 +203,18 @@ export default function TutorSearchPage() {
   const clearFilters = () => {
     setForm(initialTutorSearchForm);
     setFieldErrors({});
-    void executeSearch({ page: 1, pageSize: TUTOR_SEARCH_PAGE_SIZE });
+    void executeSearch({
+      ...(activeQuery.priority === undefined ? {} : { priority: activeQuery.priority }),
+      page: 1,
+      pageSize: TUTOR_SEARCH_PAGE_SIZE,
+    });
+  };
+
+  const changeRanking = (value: string) => {
+    if (value !== '' && !isTutorRankingPriority(value)) return;
+    const { priority: previousPriority, ...filters } = activeQuery;
+    if (value === (previousPriority ?? '')) return;
+    void executeSearch({ ...filters, ...(value === '' ? {} : { priority: value }), page: 1 });
   };
 
   const changePage = (page: number) => {
@@ -205,10 +222,27 @@ export default function TutorSearchPage() {
     void executeSearch({ ...activeQuery, page });
   };
 
+  const retrySearch = async () => {
+    if (retryInFlight.current) return;
+    retryInFlight.current = true;
+    const retryRequestId = requestId.current + 1;
+    try {
+      await executeSearch(activeQuery);
+    } finally {
+      retryInFlight.current = false;
+      requestAnimationFrame(() => {
+        if (retryRequestId !== requestId.current || document.activeElement !== document.body) {
+          return;
+        }
+        (retryButton.current ?? resultsHeading.current)?.focus();
+      });
+    }
+  };
+
   const filterCount = [form.subject, form.grade, form.maxPrice, form.minimumRating].filter(
     Boolean,
   ).length;
-  const resultSummary = formatTutorSearchSummary(form, text);
+  const resultSummary = formatTutorSearchSummary(activeQuery, text);
 
   return (
     <div className={styles.page}>
@@ -324,7 +358,7 @@ export default function TutorSearchPage() {
         <PaperCard className={styles.results} aria-live="polite" aria-busy={status === 'loading'}>
           <div className={styles.resultHeading}>
             <div>
-              <h2>
+              <h2 ref={resultsHeading} tabIndex={-1}>
                 {status === 'success' ? pagination.total : '—'} {text.exactMatches}
               </h2>
               <p>
@@ -335,9 +369,46 @@ export default function TutorSearchPage() {
               {text.verifiedOnly}
             </StatusBadge>
           </div>
+          <div className={styles.ranking}>
+            <label htmlFor="tutor-search-ranking">{text.sortBy}</label>
+            <NotebookSelect
+              id="tutor-search-ranking"
+              controlSize="compact"
+              value={activeQuery.priority ?? ''}
+              onChange={(event) => changeRanking(event.target.value)}
+              aria-describedby="tutor-search-ranking-hint"
+            >
+              <option value="">{text.latestPublished}</option>
+              {tutorRankingPriorities.map((priority) => (
+                <option key={priority} value={priority}>
+                  {text[priority]}
+                </option>
+              ))}
+            </NotebookSelect>
+            <p id="tutor-search-ranking-hint">{text.rankingHint}</p>
+          </div>
           <div className={styles.resultBody}>
             {status === 'error' && hasSearchError && (
-              <SearchState tone="error" message={text.searchError} />
+              <div className={styles.retryState}>
+                <div className={styles.returnSlip} role="alert">
+                  <div className={styles.returnSlipHeading}>
+                    <DashboardIcon name="info" className={styles.returnSlipIcon ?? ''} />
+                    <p>{text.searchError}</p>
+                  </div>
+                  <p className={styles.retryHint}>{text.retryHint}</p>
+                  <div className={styles.returnSlipFooter}>
+                    <button
+                      ref={retryButton}
+                      type="button"
+                      className={styles.retryAction}
+                      onClick={() => void retrySearch()}
+                    >
+                      <span>{text.retry}</span>
+                      <DashboardIcon name="refresh" className={styles.returnSlipIcon ?? ''} />
+                    </button>
+                  </div>
+                </div>
+              </div>
             )}
             {status === 'validation' && <SearchState tone="error" message={text.validationError} />}
             {status === 'loading' && <SearchState tone="loading" message={text.loading} />}
@@ -496,6 +567,13 @@ function TutorResultCard({
   const nextAvailable = result.nextAvailableAt
     ? `${text.next}: ${formatNextAvailable(result.nextAvailableAt, language)}`
     : text.noFutureSlots;
+  const tags = result.recommendationTags ?? [];
+  const rankingTags = tags.filter((tag) => tag !== 'FITS_BUDGET');
+  const recommendationTitles = {
+    LOWEST_PRICE: text.lowest_price,
+    HIGHEST_RATED: text.highest_rating,
+    EARLIEST_AVAILABILITY: text.earliest_availability,
+  };
 
   return (
     <article className={styles.course}>
@@ -538,7 +616,28 @@ function TutorResultCard({
         <strong>{formatPrice(result.pricePerHour, language)} ฿</strong>
         <span>/{text.hour}</span>
       </div>
-      <p className={styles.description}>{result.description}</p>
+      <div className={styles.courseDetails}>
+        <p className={styles.description}>{result.description}</p>
+        {tags.length > 0 && (
+          <ul className={styles.recommendations} aria-label={text.recommendationReasons}>
+            {rankingTags.map((tag) => (
+              <li key={tag} className={styles.recommendationStamp}>
+                <DashboardIcon name="stamp" className={styles.stampIcon ?? ''} />
+                <span className={styles.stampText}>
+                  <strong>{recommendationTitles[tag]}</strong>
+                  <small>{text.recommendationScope}</small>
+                </span>
+              </li>
+            ))}
+            {tags.includes('FITS_BUDGET') && (
+              <li className={styles.budgetReason}>
+                <DashboardIcon name="check-single" className={styles.budgetIcon ?? ''} />
+                <span>{text.FITS_BUDGET}</span>
+              </li>
+            )}
+          </ul>
+        )}
+      </div>
       <p className={styles.availability}>{nextAvailable}</p>
       <Link
         href={`/tutors/${encodeURIComponent(result.tutorId)}?listingId=${encodeURIComponent(result.listingId)}`}

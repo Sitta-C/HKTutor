@@ -175,7 +175,13 @@ export interface SaveTutorProfilePayload {
   experienceYears: number;
 }
 
+export type TutorRankingPriority = 'lowest_price' | 'highest_rating' | 'earliest_availability';
+
+export type TutorRecommendationTag =
+  'FITS_BUDGET' | 'LOWEST_PRICE' | 'HIGHEST_RATED' | 'EARLIEST_AVAILABILITY';
+
 export interface TutorSearchQuery {
+  priority?: TutorRankingPriority;
   subject?: string;
   grade?: string;
   maxPrice?: number;
@@ -185,6 +191,7 @@ export interface TutorSearchQuery {
 }
 
 export interface TutorSearchResult {
+  recommendationTags: TutorRecommendationTag[];
   avatarUpdatedAt?: string | null;
   listingId: string;
   tutorId: string;

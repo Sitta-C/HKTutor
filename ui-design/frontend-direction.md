@@ -123,6 +123,19 @@ The user selected **Course Index** for `/tutors` on 2026-10-07, with filters on 
 existing `NotebookSelect` dropdowns, more dimensional price paper, and verification as a text tag
 without a checkmark. This is implemented for guests and signed-in students.
 
+On 2026-10-15 the user selected **Library Stamps** for S2-T14 recommendation reasons. Show best-price,
+highest-rating and earliest-availability reasons as compact warm-ink library stamps with a stamp
+icon, a double inset frame and two lines of localized copy. Tilt only the frame slightly; keep text
+upright. The second line scopes the claim to the filtered results. Show Fits budget as a separate
+mint check and quiet underline after the stamp. Let reasons wrap in narrow course rows, preserve
+their full text, and keep tutor verification visually distinct. Use only actual API tags.
+
+The user also selected **Return Slip** for search-read failures on 2026-10-15: one small pale-pink
+notice with yellow tape, an error heading, recovery hint and a quiet mint Try again action in its
+perforated lower-right section. Retry the applied query, including ranking and page, while keeping
+filter drafts. Retain the current loading region during the retry. Validation and empty states keep
+their existing presentation; retries remain explicit, with no automatic loop.
+
 - Use one continuous result sheet with a restrained binding margin and ruled separators. Keep the
   filter memo on the left from 768px; below that width it sits above results and starts collapsed.
   The native toggle preserves mounted field values, explicit Apply/Clear controls, keyboard focus,
