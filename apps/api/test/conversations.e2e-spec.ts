@@ -260,9 +260,9 @@ describe('Conversation APIs (e2e)', () => {
       const response = await post(messagesPath).send({ text }).expect(201);
 
       expect(response.body).toMatchObject({ text: 'Hello tutor' });
-      expect(messageCreate).toHaveBeenCalledWith(
-        expect.objectContaining({ data: expect.objectContaining({ text: 'Hello tutor' }) }),
-      );
+      expect(messageCreate).toHaveBeenCalledTimes(1);
+      const calls = messageCreate.mock.calls as unknown as Array<[{ data: { text: string } }]>;
+      expect(calls[0]?.[0].data.text).toBe('Hello tutor');
     });
 
     it.each([
