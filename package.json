@@ -28,7 +28,8 @@
     "check": "pnpm db:generate && pnpm format:check && pnpm lint && pnpm test && pnpm build",
     "storage:recover": "pnpm --filter @hktutor/api storage:recover",
     "db:verify:avatars": "pnpm --filter @hktutor/api db:verify:avatars",
-    "db:verify:tutor-verification": "pnpm --filter @hktutor/api db:verify:tutor-verification"
+    "db:verify:tutor-verification": "pnpm --filter @hktutor/api db:verify:tutor-verification",
+    "db:verify:message-pagination": "pnpm --filter @hktutor/api db:verify:message-pagination"
   },
   "devDependencies": {
     "@hktutor/eslint-config": "workspace:*",
