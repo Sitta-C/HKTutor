@@ -7,7 +7,7 @@ import {
   getCancellationEligibility,
   getCancellationFailure,
 } from '@/components/bookings/booking-cancellation-model';
-import { formatBangkokRange } from '@/components/bookings/booking-ui';
+import { formatBookingDocketSlot } from '@/components/bookings/booking-docket-model';
 import { NotebookAction } from '@/components/ui/notebook-action';
 import { useNotebookToast } from '@/components/ui/notebook-toast';
 import { cancelBooking } from '@/lib/api/bookings';
@@ -165,7 +165,7 @@ export function BookingCancellation({
             <p className="font-bold">
               {booking.listing.subjectName} · {booking.listing.gradeLevelName}
             </p>
-            <p>{formatBangkokRange(booking.slot.startAtUtc, booking.slot.endAtUtc, language)}</p>
+            <p>{formatBookingDocketSlot(booking.slot, language).label}</p>
           </div>
           <p className="text-sm text-notebook-muted">{copy.policy}</p>
           <label htmlFor={`${id}-reason`} className="block text-sm font-bold">

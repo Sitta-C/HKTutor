@@ -10,7 +10,11 @@ async function setup(
   responseStatus = 200,
   responseGate?: Promise<void>,
   language: 'en' | 'th' = 'en',
-  options: { status?: 'PENDING' | 'CONFIRMED'; paymentStatus?: 'PAID' | 'UNPAID' } = {},
+  options: {
+    status?: 'PENDING' | 'CONFIRMED';
+    paymentStatus?: 'PAID' | 'UNPAID';
+    slot?: { startAtUtc: string; endAtUtc: string };
+  } = {},
 ) {
   let status: BookingStatus = options.status ?? 'PENDING';
   const requests: unknown[] = [];
@@ -28,7 +32,12 @@ async function setup(
       pricePerHour: '500.00',
       description: '',
     },
-    slot: { id: 'slot', startAtUtc: '2099-10-15T03:00:00Z', endAtUtc: '2099-10-15T04:00:00Z' },
+    slot: {
+      id: 'slot',
+      startAtUtc: '2099-10-15T03:00:00Z',
+      endAtUtc: '2099-10-15T04:00:00Z',
+      ...options.slot,
+    },
     subtotalAmount: '500.00',
     discountAmount: '0.00',
     netAmount: '500.00',
@@ -167,6 +176,36 @@ test('Thai cancellation remains usable at 320px', async ({ page }, testInfo) => 
 });
 
 for (const role of ['STUDENT', 'TUTOR'] as const) {
+  for (const language of ['en', 'th'] as const) {
+    for (const endAtUtc of [
+      '2099-10-15T18:00:00Z',
+      '2099-10-17T18:00:00Z',
+      '2099-10-15T17:00:00Z',
+    ]) {
+      test(`${role} ${language} cancellation shows both actual endpoints ending ${endAtUtc}`, async ({
+        page,
+      }) => {
+        await setup(page, role, 200, undefined, language, {
+          slot: { startAtUtc: '2099-10-15T16:00:00Z', endAtUtc },
+        });
+        const action = language === 'en' ? 'Cancel class' : 'ยกเลิกคลาส';
+        await page.getByRole('button', { name: action, exact: true }).click();
+        const dialog = page.getByRole('dialog');
+        const startDate = language === 'en' ? '15 Oct 2099' : '15 ต.ค. 2642';
+        const endDate =
+          language === 'en'
+            ? endAtUtc === '2099-10-17T18:00:00Z'
+              ? '18 Oct 2099'
+              : '16 Oct 2099'
+            : endAtUtc === '2099-10-17T18:00:00Z'
+              ? '18 ต.ค. 2642'
+              : '16 ต.ค. 2642';
+        const endTime = endAtUtc === '2099-10-15T17:00:00Z' ? '00:00' : '01:00';
+        await expect(dialog).toContainText(`${startDate} · 23:00 → ${endDate} · ${endTime}`);
+      });
+    }
+  }
+
   test(`${role} cannot dismiss or submit again while cancellation is pending`, async ({ page }) => {
     let release = () => {};
     const gate = new Promise<void>((resolve) => {

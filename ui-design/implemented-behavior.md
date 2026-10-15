@@ -544,7 +544,9 @@ publication checks and API requests remain authoritative; no per-card status req
 
 Students cancel from booking details; tutors cancel from their booking inbox. The shared action
 uses existing notebook controls and a native confirmation dialog with a required reason, course
-and Bangkok-time summary. Keep class receives initial focus; Escape restores trigger focus.
+and Bangkok-time summary. The summary preserves both actual dates and times for overnight and
+multi-day lessons, including the next-day date for midnight endings, using Thai Buddhist or
+English Gregorian years. Keep class receives initial focus; Escape restores trigger focus.
 Submission disables dismissal and duplicate requests. The dialog scrolls within the viewport on
 small screens, and actions wrap.
 
