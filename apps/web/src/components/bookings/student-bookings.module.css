@@ -335,3 +335,22 @@
     transition: none;
   }
 }
+.paymentColumns {
+  display: grid;
+  grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
+}
+
+.amountColumn {
+  min-width: 0;
+  padding: 22px 22px 0 0;
+}
+
+@media (max-width: 600px) {
+  .paymentColumns {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .amountColumn {
+    padding: 0 0 18px;
+  }
+}
