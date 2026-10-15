@@ -26,6 +26,7 @@ export type DashboardIconName =
   | 'settings'
   | 'shield'
   | 'star'
+  | 'stamp'
   | 'support'
   | 'trash';
 
@@ -141,6 +142,12 @@ export function DashboardIcon({
       </>
     ),
     star: <path d="m12 3 2.8 5.7 6.3.9-4.5 4.4 1.1 6.2L12 17.3l-5.7 3 1.1-6.2L2.9 9.6l6.3-.9z" />,
+    stamp: (
+      <>
+        <path d="M9 14v-3.8a4 4 0 1 1 6 0V14M6 17v-3h12v3" />
+        <rect x="4" y="17" width="16" height="4" rx="1" />
+      </>
+    ),
     support: (
       <>
         <path d="M4 13v-1a8 8 0 0 1 16 0v1" />

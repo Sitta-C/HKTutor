@@ -34,6 +34,7 @@ export function searchTutors(
 ): Promise<TutorSearchResponse> {
   const params = new URLSearchParams();
 
+  if (query.priority) params.set('priority', query.priority);
   if (query.subject) params.set('subject', query.subject);
   if (query.grade) params.set('grade', query.grade);
   if (query.maxPrice !== undefined) params.set('maxPrice', String(query.maxPrice));

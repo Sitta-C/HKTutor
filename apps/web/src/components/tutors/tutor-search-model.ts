@@ -1,5 +1,15 @@
 import type { TutorSearchCopy } from '@/components/tutors/tutor-search-copy';
-import type { TutorSearchQuery } from '@/lib/api/types';
+import type { TutorRankingPriority, TutorSearchQuery } from '@/lib/api/types';
+
+export const tutorRankingPriorities: TutorRankingPriority[] = [
+  'lowest_price',
+  'highest_rating',
+  'earliest_availability',
+];
+
+export function isTutorRankingPriority(value: string): value is TutorRankingPriority {
+  return tutorRankingPriorities.some((priority) => priority === value);
+}
 
 export interface TutorSearchForm {
   subject: string;
@@ -53,12 +63,13 @@ export function toTutorSearchQuery(form: TutorSearchForm): TutorSearchQuery {
   };
 }
 
-export function formatTutorSearchSummary(form: TutorSearchForm, text: TutorSearchCopy): string {
-  const subject = form.subject || text.anySubject;
-  const grade = form.grade || text.anyGrade;
-  const budget = form.maxPrice ? `${text.upTo} ${form.maxPrice}฿/${text.hour}` : text.anyBudget;
-  const rating = form.minimumRating
-    ? `${text.ratingSummary} ${Number(form.minimumRating).toFixed(1)}+`
+export function formatTutorSearchSummary(query: TutorSearchQuery, text: TutorSearchCopy): string {
+  const subject = query.subject || text.anySubject;
+  const grade = query.grade || text.anyGrade;
+  const budget =
+    query.maxPrice !== undefined ? `${text.upTo} ${query.maxPrice}฿/${text.hour}` : text.anyBudget;
+  const rating = query.minimumRating
+    ? `${text.ratingSummary} ${query.minimumRating.toFixed(1)}+`
     : text.anyRating;
 
   return [subject, grade, budget, rating].join(' · ');
