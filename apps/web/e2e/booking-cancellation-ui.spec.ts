@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 
-import type { BookingStatus } from '@/lib/api/types';
+import type { BookingDetail, BookingStatus } from '@/lib/api/types';
 import type { Page } from '@playwright/test';
 
 // All API traffic is intercepted. These tests never change a real booking.
@@ -158,6 +158,61 @@ test('recording a mock payment immediately disables cancellation', async ({ page
   await expect(payment.getByText('Paid', { exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Cancel class', exact: true })).toBeDisabled();
   expect(requests).toHaveLength(0);
+});
+
+test('a stale payment refresh cannot overwrite successful cancellation', async ({ page }) => {
+  const initialRead = page.waitForResponse(
+    (response) => new URL(response.url()).pathname === '/api/v1/bookings/me/cancel-preview',
+  );
+  const requests = await setup(page, 'STUDENT', 200, undefined, 'en', { status: 'CONFIRMED' });
+  const snapshot: BookingDetail = await (await initialRead).json();
+  const readPath = '**/api/v1/bookings/me/cancel-preview';
+  let release = () => {};
+  let readStarted = () => {};
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const started = new Promise<void>((resolve) => {
+    readStarted = resolve;
+  });
+  await page.route(readPath, async (route) => {
+    readStarted();
+    await gate;
+    await route.fulfill({ json: snapshot });
+  });
+  const refresh = page.getByRole('button', { name: 'Load latest status', exact: true });
+  await refresh.click();
+  await started;
+  await page.getByRole('button', { name: 'Cancel class', exact: true }).click();
+  const dialog = page.getByRole('dialog');
+  await dialog.getByLabel('Reason for cancellation').fill('Schedule conflict');
+  await dialog.getByRole('button', { name: 'Confirm cancellation', exact: true }).click();
+  const notice = page.locator('section[aria-label="Cancel class"] > p').first();
+  await expect(notice).toHaveText('This class has already been canceled.');
+
+  release();
+  await expect(refresh).toBeEnabled();
+  await expect(notice).toHaveText('This class has already been canceled.');
+  await expect(page.getByRole('button', { name: 'Cancel class', exact: true })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Record mock payment', exact: true })).toHaveCount(
+    0,
+  );
+  expect(requests).toEqual([{ reason: 'Schedule conflict' }]);
+
+  // A read started after cancellation must still be accepted, rather than locking out all reads.
+  await page.unroute(readPath);
+  await page.route(readPath, (route) =>
+    route.fulfill({
+      json: {
+        ...snapshot,
+        status: 'CANCELED',
+        listing: { ...snapshot.listing, subjectName: 'Updated Mathematics' },
+      },
+    }),
+  );
+  await refresh.click();
+  await expect(page.locator('main')).toContainText('Updated Mathematics');
+  await expect(notice).toHaveText('This class has already been canceled.');
 });
 
 test('Thai cancellation remains usable at 320px', async ({ page }, testInfo) => {

@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import { BookingCancellation } from '@/components/bookings/booking-cancellation';
 import {
@@ -34,6 +34,8 @@ export default function StudentBookingDetailPage({ bookingId }: { bookingId: str
   const [isLoading, setIsLoading] = useState(true);
   const [reloadKey, setReloadKey] = useState(0);
   const [loadedBookingId, setLoadedBookingId] = useState<string | null>(null);
+  const [bookingRevision, setBookingRevision] = useState(0);
+  const latestBookingRevision = useRef(0);
   const isCurrentBookingLoaded = loadedBookingId === bookingId;
   const loading = isLoading || !isCurrentBookingLoaded;
 
@@ -99,13 +101,17 @@ export default function StudentBookingDetailPage({ bookingId }: { bookingId: str
             <BookingCancellation
               key={booking.id}
               booking={booking}
-              onCanceled={(result) =>
+              onCanceled={(result) => {
+                // Invalidate callbacks captured by payment reads before this server-confirmed write.
+                // The ref changes synchronously, including before React commits the new state.
+                latestBookingRevision.current += 1;
+                setBookingRevision(latestBookingRevision.current);
                 setBooking((current) =>
                   current?.id === result.bookingId
                     ? { ...current, status: result.status }
                     : current,
-                )
-              }
+                );
+              }}
               onRefresh={() => {
                 setIsLoading(true);
                 setReloadKey((value) => value + 1);
@@ -135,7 +141,17 @@ export default function StudentBookingDetailPage({ bookingId }: { bookingId: str
                   </div>
                 </div>
 
-                <MockPaymentPanel key={booking.id} booking={booking} onBookingChange={setBooking} />
+                <MockPaymentPanel
+                  key={booking.id}
+                  booking={booking}
+                  onBookingChange={(nextBooking) => {
+                    // An in-flight refresh keeps the callback from the render that started it.
+                    if (bookingRevision !== latestBookingRevision.current) {
+                      return;
+                    }
+                    setBooking(nextBooking);
+                  }}
+                />
               </div>
             </div>
           </>

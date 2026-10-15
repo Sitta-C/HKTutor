@@ -555,5 +555,8 @@ Thai and English. Student bookings with a known PAID status show the paid-inelig
 disable cancellation, including immediately after a successful mock payment. The tutor read model
 does not include payment status, and the cancellation endpoint always checks eligibility again.
 No status is changed optimistically. A successful server response updates
-student details and refreshes the tutor's filtered inbox. Conflict, forbidden/missing booking and
+student details and refreshes the tutor's filtered inbox. Student details invalidate payment-panel
+callbacks captured before a successful cancellation, so a delayed older refresh cannot overwrite
+the saved canceled status; reads started afterward still update the page normally.
+Conflict, forbidden/missing booking and
 uncertain request outcomes require a refreshed booking before another cancellation attempt.
