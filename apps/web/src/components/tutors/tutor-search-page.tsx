@@ -9,7 +9,9 @@ import { tutorSearchCopy } from '@/components/tutors/tutor-search-copy';
 import {
   formatTutorSearchSummary,
   initialTutorSearchForm,
+  isTutorRankingPriority,
   toTutorSearchQuery,
+  tutorRankingPriorities,
   tutorRatingOptions,
   validateTutorSearch,
 } from '@/components/tutors/tutor-search-model';
@@ -189,6 +191,7 @@ export default function TutorSearchPage() {
     }
     void executeSearch({
       ...toTutorSearchQuery(form),
+      ...(activeQuery.priority === undefined ? {} : { priority: activeQuery.priority }),
       page: 1,
       pageSize: TUTOR_SEARCH_PAGE_SIZE,
     });
@@ -197,7 +200,18 @@ export default function TutorSearchPage() {
   const clearFilters = () => {
     setForm(initialTutorSearchForm);
     setFieldErrors({});
-    void executeSearch({ page: 1, pageSize: TUTOR_SEARCH_PAGE_SIZE });
+    void executeSearch({
+      ...(activeQuery.priority === undefined ? {} : { priority: activeQuery.priority }),
+      page: 1,
+      pageSize: TUTOR_SEARCH_PAGE_SIZE,
+    });
+  };
+
+  const changeRanking = (value: string) => {
+    if (value !== '' && !isTutorRankingPriority(value)) return;
+    const { priority: previousPriority, ...filters } = activeQuery;
+    if (value === (previousPriority ?? '')) return;
+    void executeSearch({ ...filters, ...(value === '' ? {} : { priority: value }), page: 1 });
   };
 
   const changePage = (page: number) => {
@@ -208,7 +222,7 @@ export default function TutorSearchPage() {
   const filterCount = [form.subject, form.grade, form.maxPrice, form.minimumRating].filter(
     Boolean,
   ).length;
-  const resultSummary = formatTutorSearchSummary(form, text);
+  const resultSummary = formatTutorSearchSummary(activeQuery, text);
 
   return (
     <div className={styles.page}>
@@ -334,6 +348,24 @@ export default function TutorSearchPage() {
             <StatusBadge tone="student" className={styles.tag ?? ''}>
               {text.verifiedOnly}
             </StatusBadge>
+          </div>
+          <div className={styles.ranking}>
+            <label htmlFor="tutor-search-ranking">{text.sortBy}</label>
+            <NotebookSelect
+              id="tutor-search-ranking"
+              controlSize="compact"
+              value={activeQuery.priority ?? ''}
+              onChange={(event) => changeRanking(event.target.value)}
+              aria-describedby="tutor-search-ranking-hint"
+            >
+              <option value="">{text.latestPublished}</option>
+              {tutorRankingPriorities.map((priority) => (
+                <option key={priority} value={priority}>
+                  {text[priority]}
+                </option>
+              ))}
+            </NotebookSelect>
+            <p id="tutor-search-ranking-hint">{text.rankingHint}</p>
           </div>
           <div className={styles.resultBody}>
             {status === 'error' && hasSearchError && (
@@ -496,6 +528,7 @@ function TutorResultCard({
   const nextAvailable = result.nextAvailableAt
     ? `${text.next}: ${formatNextAvailable(result.nextAvailableAt, language)}`
     : text.noFutureSlots;
+  const tags = result.recommendationTags ?? [];
 
   return (
     <article className={styles.course}>
@@ -538,7 +571,16 @@ function TutorResultCard({
         <strong>{formatPrice(result.pricePerHour, language)} ฿</strong>
         <span>/{text.hour}</span>
       </div>
-      <p className={styles.description}>{result.description}</p>
+      <div className={styles.courseDetails}>
+        <p className={styles.description}>{result.description}</p>
+        {tags.length > 0 && (
+          <ul className={styles.recommendations} aria-label={text.recommendationReasons}>
+            {tags.map((tag) => (
+              <li key={tag}>{text[tag]}</li>
+            ))}
+          </ul>
+        )}
+      </div>
       <p className={styles.availability}>{nextAvailable}</p>
       <Link
         href={`/tutors/${encodeURIComponent(result.tutorId)}?listingId=${encodeURIComponent(result.listingId)}`}

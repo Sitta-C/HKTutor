@@ -162,6 +162,27 @@
   padding-left: 22px;
 }
 
+.ranking {
+  display: grid;
+  grid-template-columns: auto minmax(0, 250px);
+  align-items: center;
+  gap: 6px 12px;
+  padding: 12px 22px;
+  border-bottom: 1px solid var(--color-paper-edge);
+}
+
+.ranking label {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.ranking p {
+  grid-column: 1 / -1;
+  color: var(--color-notebook-muted);
+  font-size: 11px;
+  line-height: 1.7;
+}
+
 .resultBody::before {
   position: absolute;
   inset: 0 auto 0 14px;
@@ -336,8 +357,31 @@
   color: color-mix(in srgb, var(--color-notebook-muted) 90%, var(--color-notebook-ink));
 }
 
-.description {
+.courseDetails {
   grid-area: description;
+}
+
+.recommendations {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+  list-style: none;
+}
+
+.recommendations li {
+  max-width: 100%;
+  border: 1px solid color-mix(in srgb, var(--color-student-deep) 25%, var(--color-paper-edge));
+  border-radius: 4px;
+  padding: 3px 7px;
+  background: var(--color-sticky-green);
+  color: var(--search-accent-ink);
+  font-size: 11px;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+
+.description {
   display: -webkit-box;
   overflow: hidden;
   -webkit-box-orient: vertical;
@@ -469,6 +513,11 @@
 
   .resultHeading {
     padding: 16px;
+  }
+
+  .ranking {
+    grid-template-columns: minmax(0, 1fr);
+    padding: 12px 16px;
   }
 
   .resultHeading h2 {

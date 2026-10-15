@@ -50,6 +50,21 @@ reviews see an explicit new-tutor state.
 The bilingual “Read all reviews” control currently explains that individual reviews are unavailable;
 it does not submit the profile form or call an unsupported reviews endpoint.
 
+## Tutor search ranking (S2-T14)
+
+The Course Index has a bilingual Sort by control above the results: latest published (the
+existing default), lowest price, highest rating, and earliest availability. Changing it requests
+page 1 with the applied filters; unsubmitted filter drafts stay untouched. Applying new filters
+or paging retains the selected ranking. Clearing filters retains ranking and returns to page 1.
+The results summary describes the applied query, including a zero maximum budget.
+
+Cards display the API's `recommendationTags` as localized reasons: fits budget, lowest price,
+highest rating, or earliest availability in the filtered results. The browser preserves the API's
+order and does not infer winners from a page or invent tags for unrated/no-slot tutors. Best-value
+tags refer to the complete filtered result set, as computed by the API. Loading, empty, and failed
+searches remove previous cards/reasons; request cancellation and a request sequence guard prevent
+late responses from replacing newer results. The selector remains usable during loading or failure.
+
 ## Tutor qualification review
 
 Tutor verification distinguishes `UNVERIFIED` (no documents submitted) from `PENDING` (documents
