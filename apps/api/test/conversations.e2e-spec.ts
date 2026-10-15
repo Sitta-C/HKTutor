@@ -22,6 +22,7 @@ const MESSAGE_ID = '50000000-0000-4000-8000-000000000001';
 const OTHER_MESSAGE_ID = '50000000-0000-4000-8000-000000000002';
 const CREATED_AT = new Date('2026-10-07T02:00:00.000Z');
 const SENT_AT = new Date('2026-10-07T02:05:00.000Z');
+const PRIVATE_MESSAGE_TEXT = 'Private conversation text must not be disclosed.';
 
 const USER_IDS: Record<Role, string> = {
   [Role.ADMIN]: ADMIN_ID,
@@ -208,42 +209,61 @@ describe('Conversation APIs (e2e)', () => {
 
       expect(response.body).toMatchObject({ code: 'UNAUTHENTICATED', statusCode: 401 });
       expect(messageCreate).not.toHaveBeenCalled();
+      expectNoConversationContent(response.body);
     });
 
-    it.each([1, 2000])(
-      'stores a %i-character message with 201 and the API-02 body',
-      async (length) => {
-        const text = 'a'.repeat(length);
-        authenticateAs(Role.STUDENT);
-        conversationFindUnique.mockResolvedValue({
-          studentUserId: STUDENT_ID,
-          tutorUserId: TUTOR_ID,
-        });
-        messageCreate.mockResolvedValue({
-          conversationId: CONVERSATION_ID,
-          id: MESSAGE_ID,
-          readAt: null,
-          senderUserId: STUDENT_ID,
-          sentAt: SENT_AT,
-          text,
-        });
+    it.each([
+      [Role.STUDENT, 'a'.repeat(2000)],
+      [Role.TUTOR, 'Yes, I do.'],
+    ])('stores a valid reply from a %s with 201 and the API-02 body', async (role, text) => {
+      const senderId = USER_IDS[role];
+      authenticateAs(role);
+      conversationFindUnique.mockResolvedValue(participants);
+      messageCreate.mockResolvedValue({
+        conversationId: CONVERSATION_ID,
+        id: MESSAGE_ID,
+        readAt: null,
+        senderUserId: senderId,
+        sentAt: SENT_AT,
+        text,
+      });
 
-        const response = await post(messagesPath).send({ text }).expect(201);
+      const response = await post(messagesPath).send({ text }).expect(201);
 
-        expect(response.body).toEqual({
-          conversationId: CONVERSATION_ID,
-          messageId: MESSAGE_ID,
-          readAt: null,
-          senderId: STUDENT_ID,
-          sentAt: SENT_AT.toISOString(),
-          text,
-        });
-        const createdData = (
-          messageCreate.mock.calls as unknown as Array<[{ data: { senderUserId: string } }]>
-        )[0]?.[0].data;
-        expect(createdData).toMatchObject({ senderUserId: STUDENT_ID, text });
-      },
-    );
+      expect(response.body).toEqual({
+        conversationId: CONVERSATION_ID,
+        messageId: MESSAGE_ID,
+        readAt: null,
+        senderId,
+        sentAt: SENT_AT.toISOString(),
+        text,
+      });
+      const createdData = (
+        messageCreate.mock.calls as unknown as Array<[{ data: { senderUserId: string } }]>
+      )[0]?.[0].data;
+      expect(createdData).toMatchObject({ senderUserId: senderId, text });
+    });
+
+    it('trims valid text before storing and returning it', async () => {
+      const text = '  \n Hello tutor \t ';
+      authenticateAs(Role.STUDENT);
+      conversationFindUnique.mockResolvedValue(participants);
+      messageCreate.mockResolvedValue({
+        conversationId: CONVERSATION_ID,
+        id: MESSAGE_ID,
+        readAt: null,
+        senderUserId: STUDENT_ID,
+        sentAt: SENT_AT,
+        text: 'Hello tutor',
+      });
+
+      const response = await post(messagesPath).send({ text }).expect(201);
+
+      expect(response.body).toMatchObject({ text: 'Hello tutor' });
+      expect(messageCreate).toHaveBeenCalledTimes(1);
+      const calls = messageCreate.mock.calls as unknown as Array<[{ data: { text: string } }]>;
+      expect(calls[0]?.[0].data.text).toBe('Hello tutor');
+    });
 
     it.each([
       ['a 2001-character text', 'a'.repeat(2001)],
@@ -256,16 +276,18 @@ describe('Conversation APIs (e2e)', () => {
       expect(response.body).toMatchObject({ code: 'VALIDATION_FAILED', statusCode: 400 });
       expect(conversationFindUnique).not.toHaveBeenCalled();
       expect(messageCreate).not.toHaveBeenCalled();
+      expectNoConversationContent(response.body);
     });
 
     it('returns 404 when the conversation does not exist', async () => {
       authenticateAs(Role.STUDENT);
       conversationFindUnique.mockResolvedValue(null);
 
-      const response = await post(messagesPath).send({ text: 'Hello' }).expect(404);
+      const response = await post(messagesPath).send({ text: PRIVATE_MESSAGE_TEXT }).expect(404);
 
       expect(response.body).toMatchObject({ code: 'NOT_FOUND', message: 'Conversation not found' });
       expect(messageCreate).not.toHaveBeenCalled();
+      expectNoConversationContent(response.body);
     });
 
     it('returns 403 to a student who is not a participant', async () => {
@@ -275,23 +297,25 @@ describe('Conversation APIs (e2e)', () => {
         tutorUserId: TUTOR_ID,
       });
 
-      const response = await post(messagesPath).send({ text: 'Hello' }).expect(403);
+      const response = await post(messagesPath).send({ text: PRIVATE_MESSAGE_TEXT }).expect(403);
 
       expect(response.body).toMatchObject({
         code: 'FORBIDDEN',
         message: 'Only participants can send messages in this conversation.',
       });
       expect(messageCreate).not.toHaveBeenCalled();
+      expectNoConversationContent(response.body);
     });
 
     it('returns 403 to an admin', async () => {
       authenticateAs(Role.ADMIN);
 
-      const response = await post(messagesPath).send({ text: 'Hello' }).expect(403);
+      const response = await post(messagesPath).send({ text: PRIVATE_MESSAGE_TEXT }).expect(403);
 
       expect(response.body).toMatchObject({ code: 'FORBIDDEN', statusCode: 403 });
       expect(conversationFindUnique).not.toHaveBeenCalled();
       expect(messageCreate).not.toHaveBeenCalled();
+      expectNoConversationContent(response.body);
     });
   });
 
@@ -597,5 +621,14 @@ describe('Conversation APIs (e2e)', () => {
       },
       userId: id,
     });
+  }
+
+  function expectNoConversationContent(body: unknown): void {
+    const responseText = JSON.stringify(body);
+
+    expect(responseText).not.toContain(CONVERSATION_ID);
+    expect(responseText).not.toContain(STUDENT_ID);
+    expect(responseText).not.toContain(TUTOR_ID);
+    expect(responseText).not.toContain(PRIVATE_MESSAGE_TEXT);
   }
 });

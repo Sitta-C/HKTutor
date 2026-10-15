@@ -592,7 +592,11 @@ test.describe('decision API response edges', () => {
         await page.getByRole('button', { name: 'Switch language to Thai' }).click();
       }
       await page.keyboard.press('Tab');
-      const actions = pending.getByRole('button');
+      const actions = pending.getByRole('button', {
+        name:
+          language === 'th' ? /^(ยืนยัน|ปฏิเสธ)การจองจาก /u : /^(Confirm|Reject) the booking from /,
+      });
+      await expect(actions).toHaveCount(2);
       for (const action of await actions.all()) {
         await expect(action.locator('svg')).toHaveCount(1);
         await expect(action.locator('svg')).toHaveAttribute('aria-hidden', 'true');
