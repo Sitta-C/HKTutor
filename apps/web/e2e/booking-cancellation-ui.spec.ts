@@ -201,6 +201,7 @@ for (const role of ['STUDENT', 'TUTOR'] as const) {
     await expect(action).toBeFocused();
     expect(requests).toHaveLength(0);
     await action.click();
+    await expect(dialog.getByRole('button', { name: 'Keep class' })).toBeFocused();
     await dialog.getByLabel('Reason for cancellation').fill('   ');
     await dialog.getByRole('button', { name: 'Confirm cancellation' }).click();
     await expect(dialog.getByRole('alert')).toHaveText('Enter a reason for cancellation.');
@@ -210,9 +211,9 @@ for (const role of ['STUDENT', 'TUTOR'] as const) {
     await expect(dialog).not.toBeVisible();
     expect(requests).toEqual([{ reason: 'Schedule conflict' }]);
     if (role === 'STUDENT') {
-      await expect(
-        page.getByText('This class has already been canceled.', { exact: true }),
-      ).toBeVisible();
+      await expect(page.locator('section[aria-label="Cancel class"] > p').first()).toHaveText(
+        'This class has already been canceled.',
+      );
       await expect(action).toBeDisabled();
     } else {
       await expect(page.getByRole('article')).toHaveCount(0);

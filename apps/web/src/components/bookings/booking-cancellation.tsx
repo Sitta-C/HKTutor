@@ -35,6 +35,7 @@ export function BookingCancellation({
   const toast = useNotebookToast();
   const dialog = useRef<HTMLDialogElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
+  const keepAction = useRef<HTMLButtonElement>(null);
   const inFlight = useRef(false);
   const id = useId();
   const [now, setNow] = useState(() => Date.now());
@@ -118,6 +119,7 @@ export function BookingCancellation({
           setFailure(null);
           setNow(Date.now());
           dialog.current?.showModal();
+          keepAction.current?.focus();
         }}
       >
         {copy.action}
@@ -190,7 +192,7 @@ export function BookingCancellation({
             </p>
           )}
           <div className="flex flex-wrap justify-end gap-2">
-            <NotebookAction autoFocus tone="secondary" disabled={pending} onClick={close}>
+            <NotebookAction ref={keepAction} tone="secondary" disabled={pending} onClick={close}>
               {copy.keep}
             </NotebookAction>
             {failure?.requiresRefresh ? (
