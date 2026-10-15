@@ -815,3 +815,118 @@ original `publishedAt` and a null `deletedAt` -- disappearance without deletion 
 publish attempt on either listing is blocked again, proving the gate re-reads live status rather
 than trusting the earlier success; re-verification restores both listings' visibility. The control
 tutor's listing is checked after every step.
+
+## Message pagination and read-receipt verification (S2-T21)
+
+`pnpm --filter @hktutor/api db:verify:message-pagination` proves the forward `afterMessageId`
+history walk and the mark-everything-read call of the S2-T19 message history/read-receipt contract
+(`ConversationsService.getMessages`/`markMessagesRead`) against real PostgreSQL. The mocked-Prisma
+suites (`conversations.service.spec.ts`,
+`conversations.controller.spec.ts`, `conversations.e2e-spec.ts`) check the `where`/`orderBy` a call
+is given and the raw SQL _text_ `markMessagesRead` sends; they hand `findMany` whatever rows the
+test writes, so they can prove the service asks the right question but not that walking
+`afterMessageId` across real inserted rows -- including two genuinely tied on `sentAt`, which only
+the `id` half of the compound `(sentAt, id)` tie-break can place correctly across a page boundary --
+is actually gap-free and duplicate-free; that the `readAt IS NULL` guard really makes a second
+read-receipt call a no-op against a row Postgres has already written; or that a message sent with a
+near-future `sentAt` doesn't trip `Message_read_time_check` (`readAt IS NULL OR readAt >= sentAt`)
+once a real transaction tries to satisfy it. Neither root `pnpm check` nor `pnpm test` runs this
+command.
+
+```bash
+nvm use 24.19.0
+pnpm install --frozen-lockfile
+docker run --detach --name hktutor-message-test \
+  --publish 127.0.0.1:55441:5432 \
+  --env POSTGRES_USER=postgres --env POSTGRES_PASSWORD=disposable-local-only \
+  --env POSTGRES_DB=hktutor_message_test postgres:17
+docker exec hktutor-message-test pg_isready -U postgres -d hktutor_message_test
+export DATABASE_URL='postgresql://postgres:disposable-local-only@127.0.0.1:55441/hktutor_message_test'
+pnpm db:generate
+pnpm --filter @hktutor/api db:migrate:deploy
+HKTUTOR_ALLOW_DISPOSABLE_DB_VERIFY=1 pnpm --filter @hktutor/api db:verify:message-pagination
+docker rm --force --volumes hktutor-message-test
+unset DATABASE_URL
+```
+
+The approval flag and explicit `DATABASE_URL` are both required; the runner never loads `.env` or
+falls back to a shared database. It accepts loopback hosts only, requires a database name matching
+`hktutor_*_test` or `hktutor-*-test`, refuses URL options/fragments, and checks that every committed
+migration under `prisma/migrations` is applied before creating fixtures. It creates its own tutor,
+student, conversation and message rows and has no seed dependency; a `Message`/`Conversation`/`User`
+row count taken before and after a run, including three deliberately failing runs while writing
+this, confirmed zero rows left behind each time.
+
+`pageSize`/cursor _format_ validation returning 400 is **not** re-proven here: `@Min`/`@Max`/
+`@IsUUID` reject those before any query is built, so they are pure-pipe behavior already covered by
+`conversations.dto.spec.ts` and, through the real HTTP validation pipe, by `conversations.e2e-spec.ts`.
+A cursor that _is_ a well-formed UUID but belongs to a different, real, persisted conversation is a
+genuine database question instead, and is covered below. The participant/role authorization the card
+also asks for is a primary-key lookup followed by an in-memory comparison
+(`assertParticipant` in `conversations.service.ts`), with no query shape for a mock to get wrong, so
+it is left to the existing coverage (`conversations.service.spec.ts`, `conversations.e2e-spec.ts`)
+rather than repeated here. This script does not exercise `getMessages`'s `latest`, `beforeMessageId`
+or `fromMessageId` modes, or `markMessagesRead`'s `upToMessageId` bound -- all four remain covered
+only by the mocked suites' SQL-text assertions, and `upToMessageId` in particular is the only read
+path the shipped S2-T20 UI actually calls. Real-database coverage of it would be a worthwhile
+follow-up.
+
+Sequence, on one conversation plus an unrelated second conversation that stays untouched throughout
+so an over-broad query cannot pass by reading or writing across conversations:
+
+- A student sends exactly 35 messages, every one with a `sentAt` already a few minutes in the past
+  (not "just now": every one of these 35 must already be behind the real wall clock once
+  `markMessagesRead` reads it below, or a bug that used the stored `sentAt` directly instead of the
+  database clock would be unable to produce a wrong answer), one second apart from each other --
+  except the two straddling the `pageSize=20` boundary (messages 20 and 21, derived from `PAGE_SIZE`
+  rather than hard-coded, so they track it if it ever changes), which are sent at the **identical
+  instant** on purpose. Their expected order is derived by sorting the real rows Postgres returns on
+  `(sentAt, id)`, the server's own tie-break, rather than assumed from send order, since whichever of
+  the tied pair the database places second is only reachable from the other's cursor through the
+  `id` half of that tie-break.
+- The student immediately reopens their own conversation and calls the read-receipt endpoint as
+  themselves: all 35 stay unread, because read receipts track the recipient, not the sender.
+- The tutor (the recipient) pages forward with `afterMessageId`/`pageSize=20` until `hasMore` is
+  `false`, collecting every returned ID; the walk takes exactly two requests and returns all 35
+  exactly once, tied pair included, in the database's own order. The same walk is repeated with
+  `pageSize=7`, an exact divisor of 35 that `20` cannot exercise: it is the one page size where the
+  look-ahead fetch can return exactly `pageSize` rows on the true last page rather than fewer, so
+  `hasMore` must still read `false` there rather than drifting true from an off-by-one on
+  `rows.length > pageSize`. Polling the final cursor from the first walk again returns an empty page
+  and the identical cursor back, which is what makes it safe for a client to re-poll.
+- A well-formed `afterMessageId` that names a real message in the _other_ conversation is rejected,
+  not silently accepted as "no cursor" and not found by coincidence.
+- A 36th message is sent with `sentAt` 60 seconds in the **future**: a `sentAt` the database clock
+  has not yet reached, which could arise from clock drift between hosts or a row written outside the
+  normal `sendMessage` path, not from a client supplying its own `sentAt` (`sendMessage` never
+  accepts one; the column default sets it). The tutor then marks every unread message read in one
+  call: it marks all 36. This is checked entirely from database-returned values compared against
+  each other, never against this script's own `Date.now()` -- bracketing with the Node clock while
+  `readAt` comes from PostgreSQL, two different clocks under Docker, was tried first and left only a
+  few milliseconds of slack, risking a false failure from ordinary drift. Instead: a single raw
+  `UPDATE`'s `now()` is constant for the whole statement, so the 35 past-dated messages, which carry
+  34 different `sentAt` values a second apart, must all be read back sharing the exact same `readAt`
+  -- a bug that used each message's own `sentAt` would surface directly as more than one distinct
+  value, with no clock comparison needed. The one future-dated message must instead be read back at
+  a `readAt` equal to exactly its own `sentAt`, the only value that satisfies
+  `Message_read_time_check` (`readAt IS NULL OR readAt >= sentAt`) for it. A "just use `sentAt`" bug
+  would pass that second check and produce 34 distinct values in the first; a "just use `now()`" bug
+  would pass the first and trip the real constraint on the second. Only `GREATEST(now(), sentAt)`
+  satisfies both, which is why both are asserted together rather than either alone.
+- Repeating that same call marks nothing (`updatedCount: 0`) and leaves every stored `readAt`
+  byte-for-byte unchanged. Because the 35 messages now carry a real, recent database-clock `readAt`
+  rather than their own distant `sentAt`, a regression that dropped the `readAt IS NULL` guard would
+  re-run `GREATEST` with a later `now()` and genuinely move that timestamp forward, not just skip an
+  already-equal value.
+- The second conversation's one message is read back last and is still unread, confirming nothing
+  above ever touched it.
+
+Five regressions were deliberately reintroduced and reverted while writing this -- dropping the
+`readAt IS NULL` idempotency guard, replacing `GREATEST(now(), "sentAt")` with a bare `now()` and
+separately with a bare `"sentAt"`, dropping the sender-exclusion filter from the read-receipt
+`UPDATE`, and dropping the `id` tie-break from the forward-pagination cursor -- and each broke
+exactly the assertion it should, including a genuine `23514 Message_read_time_check` violation
+raised by PostgreSQL itself for the `now()` case and a genuine dropped message for the cursor case.
+A sixth, changing `hasMore`'s `>` to `>=`, passed every other check but failed the `pageSize=7` walk
+exactly as intended, confirming that walk earns its place rather than duplicating the `pageSize=20`
+one. Each mutation was reverted and confirmed byte-identical (`git diff`/checksum) before the next.

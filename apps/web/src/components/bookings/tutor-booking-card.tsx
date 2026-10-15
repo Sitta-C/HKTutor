@@ -1,5 +1,8 @@
 'use client';
 
+import { useState } from 'react';
+
+import { BookingCancellation } from '@/components/bookings/booking-cancellation';
 import { formatBookingDocketSlot } from '@/components/bookings/booking-docket-model';
 import { bookingRequestCopy } from '@/components/bookings/booking-request-copy';
 import { BookingStatusBadge, formatMoney } from '@/components/bookings/booking-ui';
@@ -18,7 +21,7 @@ import type {
   TutorBookingDecision,
   TutorBookingDecisionError,
 } from '@/components/bookings/tutor-booking-inbox-model';
-import type { TutorBookingView } from '@/lib/api/types';
+import type { CancelBookingResult, TutorBookingView } from '@/lib/api/types';
 import type { Language } from '@/lib/i18n';
 
 export interface TutorBookingCardProps {
@@ -32,6 +35,7 @@ export interface TutorBookingCardProps {
   language: Language;
   onDecide: (decision: TutorBookingDecision) => void;
   onRefresh: () => void;
+  onCanceled: (result: CancelBookingResult) => void;
 }
 
 export function TutorBookingCard({
@@ -43,7 +47,9 @@ export function TutorBookingCard({
   language,
   onDecide,
   onRefresh,
+  onCanceled,
 }: TutorBookingCardProps) {
+  const [cancellationRequiresRefresh, setCancellationRequiresRefresh] = useState(false);
   const studentLabel = getStudentLabel(booking, copy);
   const time = formatBookingDocketSlot(booking.slot, language);
   // Only the cross-day Start/End wording comes from the shared request copy.
@@ -53,7 +59,7 @@ export function TutorBookingCard({
   const isPending = isDecidableBooking(booking);
   // A stale row is locked until the inbox reloads, so one failed decision cannot be retried blindly.
   const isStale = decisionError?.requiresRefresh === true;
-  const canDecide = isPending && !isStale;
+  const canDecide = isPending && !isStale && !cancellationRequiresRefresh;
 
   return (
     <article className={styles.row} aria-labelledby={titleId} aria-busy={isSubmitting}>
@@ -138,6 +144,15 @@ export function TutorBookingCard({
         </p>
       )}
 
+      <div className="col-span-full min-w-0">
+        <BookingCancellation
+          booking={booking}
+          disabled={isSubmitting || isStale}
+          onCanceled={onCanceled}
+          onRefresh={onRefresh}
+          onRequiresRefresh={() => setCancellationRequiresRefresh(true)}
+        />
+      </div>
       <span className="sr-only">{copy.bangkokTime}</span>
     </article>
   );
