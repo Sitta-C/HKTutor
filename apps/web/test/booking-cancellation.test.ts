@@ -39,6 +39,14 @@ describe('cancellation eligibility', () => {
   it.each(['PENDING', 'CONFIRMED'] as const)('allows active %s bookings', (status) => {
     expect(getCancellationEligibility({ ...booking, status }, now)).toBe('eligible');
   });
+  it.each(['PENDING', 'CONFIRMED'] as const)('blocks known-paid %s bookings', (status) => {
+    expect(getCancellationEligibility({ ...booking, status, paymentStatus: 'PAID' }, now)).toBe(
+      'paid',
+    );
+    expect(getCancellationEligibility({ ...booking, status, paymentStatus: 'UNPAID' }, now)).toBe(
+      'eligible',
+    );
+  });
   it.each([
     ['COMPLETED', 'completed'],
     ['CANCELED', 'canceled'],

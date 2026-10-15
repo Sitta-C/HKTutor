@@ -549,7 +549,9 @@ Submission disables dismissal and duplicate requests. The dialog scrolls within 
 small screens, and actions wrap.
 
 The UI explains the inclusive 24-hour cutoff, terminal booking states and unpaid requirement in
-Thai and English. Payment is checked by the cancellation endpoint because read models do not
-include payment status. No status is changed optimistically. A successful server response updates
+Thai and English. Student bookings with a known PAID status show the paid-ineligible message and
+disable cancellation, including immediately after a successful mock payment. The tutor read model
+does not include payment status, and the cancellation endpoint always checks eligibility again.
+No status is changed optimistically. A successful server response updates
 student details and refreshes the tutor's filtered inbox. Conflict, forbidden/missing booking and
 uncertain request outcomes require a refreshed booking before another cancellation attempt.

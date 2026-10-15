@@ -3,9 +3,10 @@ import { ApiError } from '@/lib/api/error';
 import type { BookingCancellationCopy } from '@/components/bookings/booking-cancellation-copy';
 import type { BookingView } from '@/lib/api/types';
 
-export type CancellationBooking = Pick<BookingView, 'id' | 'status' | 'slot' | 'listing'>;
+export type CancellationBooking = Pick<BookingView, 'id' | 'status' | 'slot' | 'listing'> &
+  Partial<Pick<BookingView, 'paymentStatus'>>;
 export type CancellationEligibility =
-  'eligible' | 'tooLate' | 'completed' | 'canceled' | 'expired' | 'unavailable';
+  'eligible' | 'tooLate' | 'paid' | 'completed' | 'canceled' | 'expired' | 'unavailable';
 
 export function getCancellationEligibility(
   booking: CancellationBooking,
@@ -19,6 +20,9 @@ export function getCancellationEligibility(
   }
   if (booking.status === 'EXPIRED') {
     return 'expired';
+  }
+  if (booking.paymentStatus === 'PAID') {
+    return 'paid';
   }
   const start = Date.parse(booking.slot.startAtUtc);
   if (!Number.isFinite(start) || !Number.isFinite(now)) {

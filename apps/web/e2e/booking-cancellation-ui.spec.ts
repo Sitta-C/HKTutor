@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test';
 
+import type { BookingStatus } from '@/lib/api/types';
 import type { Page } from '@playwright/test';
 
 // All API traffic is intercepted. These tests never change a real booking.
@@ -9,8 +10,9 @@ async function setup(
   responseStatus = 200,
   responseGate?: Promise<void>,
   language: 'en' | 'th' = 'en',
+  options: { status?: 'PENDING' | 'CONFIRMED'; paymentStatus?: 'PAID' | 'UNPAID' } = {},
 ) {
-  let status = 'PENDING';
+  let status: BookingStatus = options.status ?? 'PENDING';
   const requests: unknown[] = [];
   const booking = {
     id: 'cancel-preview',
@@ -31,6 +33,13 @@ async function setup(
     discountAmount: '0.00',
     netAmount: '500.00',
     currency: 'THB',
+    ...(role === 'STUDENT'
+      ? {
+          paymentStatus: options.paymentStatus ?? 'UNPAID',
+          paidAt: options.paymentStatus === 'PAID' ? '2026-10-14T03:00:00Z' : null,
+          mockReference: options.paymentStatus === 'PAID' ? 'DEMO-PAID' : null,
+        }
+      : {}),
     createdAt: '2026-10-14T03:00:00Z',
     updatedAt: '2026-10-14T03:00:00Z',
   };
@@ -105,6 +114,42 @@ async function setup(
   );
   return requests;
 }
+
+test('a known-paid student booking explains why cancellation is unavailable', async ({ page }) => {
+  const requests = await setup(page, 'STUDENT', 200, undefined, 'en', {
+    status: 'CONFIRMED',
+    paymentStatus: 'PAID',
+  });
+  await expect(page.getByRole('region', { name: 'Mock payment', exact: true })).toContainText(
+    'Paid',
+  );
+  await expect(page.getByRole('button', { name: 'Cancel class', exact: true })).toBeDisabled();
+  await expect(page.locator('section[aria-label="Cancel class"]')).toContainText(
+    'This booking has already been paid and cannot be canceled.',
+  );
+  expect(requests).toHaveLength(0);
+});
+
+test('recording a mock payment immediately disables cancellation', async ({ page }) => {
+  const requests = await setup(page, 'STUDENT', 200, undefined, 'en', { status: 'CONFIRMED' });
+  await page.route('**/api/v1/bookings/me/cancel-preview/mock-payment', (route) =>
+    route.fulfill({
+      json: {
+        bookingId: 'cancel-preview',
+        paymentStatus: 'PAID',
+        amount: '500.00',
+        reference: 'DEMO-NEW',
+        paidAt: '2026-10-15T03:00:00Z',
+      },
+    }),
+  );
+  const payment = page.getByRole('region', { name: 'Mock payment', exact: true });
+  await payment.getByRole('textbox').fill('DEMO-NEW');
+  await payment.getByRole('button', { name: 'Record mock payment', exact: true }).click();
+  await expect(payment.getByText('Paid', { exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Cancel class', exact: true })).toBeDisabled();
+  expect(requests).toHaveLength(0);
+});
 
 test('Thai cancellation remains usable at 320px', async ({ page }, testInfo) => {
   await page.setViewportSize({ width: 320, height: 740 });
