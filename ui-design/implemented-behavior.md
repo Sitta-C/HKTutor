@@ -435,6 +435,15 @@ are redirected to their dashboard and never request conversation data. A failed 
 shows recovery rather than opening private chat. The server remains authoritative for role and
 participant access; 401/403/404 failures never expose raw API details.
 
+For conversation-related functions, API sends use `400 VALIDATION_FAILED` for blank/overlong text,
+`401 UNAUTHENTICATED` for an absent or expired session, `403 FORBIDDEN` for an admin or
+nonparticipant, and `404 NOT_FOUND` for an unavailable conversation. The UI maps 401 to its
+bilingual sign-in/session-expired state, 403 to its bilingual no-access state, and 404 to its
+bilingual unavailable-conversation state; it never renders raw API details or private conversation
+content. A role/participant failure while loading a thread disables its composer; a denied send
+uses the same bilingual uncertain-send recovery while preserving the draft and never adding an
+optimistic message. Client presentation does not replace the server's role and participant checks.
+
 The list uses opaque API cursors with a More conversations action and deduplication. Contact names
 are the server's tutor display name or private student nickname; absent names use a localized role
 fallback. The selected thread renders message text without interpreting HTML, with Bangkok date/time
