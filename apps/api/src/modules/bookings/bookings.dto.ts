@@ -524,6 +524,7 @@ export class BookingClassDetailDto {
   @ApiProperty({ type: BookingClassParticipantsDto })
   participants!: BookingClassParticipantsDto;
 }
+
 export class CancelBookingDto {
   @ApiProperty({
     description: 'Why the booking was canceled.',
@@ -544,4 +545,46 @@ export class CanceledBookingDto {
 
   @ApiProperty({ example: '2026-10-09T09:04:31.001Z' })
   canceledAt!: string;
+}
+
+export class UpdateAttendanceDto {
+  @ApiProperty({
+    description: 'The attendance status of the student for the class.',
+    enum: AttendanceStatus,
+    enumName: 'AttendanceStatus',
+    example: AttendanceStatus.ATTENDED,
+  })
+  @IsEnum(AttendanceStatus)
+  attendance!: AttendanceStatus;
+}
+
+export class ClassAttendanceRequestDto {
+  @ApiProperty({ example: '3c54a0d6-e3f3-4a38-bd55-3b4011ee31ae' })
+  bookingId!: string;
+
+  @ApiProperty({ example: '70e1232d-3c06-4d5d-b3d2-6026df5ff315' })
+  tutorId!: string;
+
+  @ApiProperty({ enum: AttendanceStatus, example: AttendanceStatus.ATTENDED })
+  attendance!: AttendanceStatus;
+}
+
+export class ClassAttendanceResponseDto {
+  @ApiProperty({ example: '3c54a0d6-e3f3-4a38-bd55-3b4011ee31ae' })
+  bookingId!: string;
+
+  @ApiProperty({ enum: AttendanceStatus, example: AttendanceStatus.ATTENDED })
+  attendance!: AttendanceStatus;
+
+  @ApiProperty({ example: '2026-10-09T09:04:31.001Z' })
+  attendanceMarkedAt!: string;
+
+  @ApiProperty({
+    description: 'True when the saved attendance is returned without a new write.',
+    example: false,
+  })
+  idempotentReplay!: boolean;
+
+  @ApiProperty({ enum: BookingStatus, example: BookingStatus.COMPLETED })
+  status!: BookingStatus;
 }

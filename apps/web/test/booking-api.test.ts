@@ -5,6 +5,7 @@ import {
   confirmTutorBooking,
   createBooking,
   createBookingOnce,
+  createMockPayment,
   getBookingQuote,
   getMyBooking,
   getMyBookings,
@@ -19,6 +20,74 @@ function jsonResponse(body: unknown, status = 200): Response {
     status,
   });
 }
+
+describe('student mock-payment client', () => {
+  const fetchMock = vi.fn<typeof fetch>();
+
+  beforeEach(() => {
+    clearAccessToken();
+    vi.stubGlobal('fetch', fetchMock);
+  });
+
+  afterEach(() => {
+    clearAccessToken();
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it('posts the exact amount string and reference to the encoded student booking path', async () => {
+    const paid = {
+      bookingId: 'booking id/1',
+      paymentStatus: 'PAID',
+      amount: '730.00',
+      reference: 'เดโม-001',
+      paidAt: '2026-10-14T12:52:00.000Z',
+    };
+    fetchMock.mockResolvedValueOnce(jsonResponse(paid));
+
+    await expect(
+      createMockPayment('booking id/1', { amount: '730.00', reference: 'เดโม-001' }),
+    ).resolves.toEqual(paid);
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/v1/bookings/me/booking%20id%2F1/mock-payment',
+      expect.objectContaining({
+        method: 'POST',
+        credentials: 'include',
+        body: JSON.stringify({ amount: '730.00', reference: 'เดโม-001' }),
+      }),
+    );
+  });
+
+  it.each([
+    [400, 'BOOKING_PAYMENT_AMOUNT_MISMATCH'],
+    [403, 'BOOKING_NOT_OWNED'],
+    [404, 'BOOKING_NOT_FOUND'],
+    [409, 'BOOKING_ALREADY_PAID'],
+    [409, 'MOCK_REFERENCE_TAKEN'],
+    [409, 'BOOKING_PAYMENT_CONFLICT'],
+  ])(
+    'preserves the %s %s error body for recovery without retrying the POST',
+    async (status, code) => {
+      fetchMock.mockResolvedValueOnce(jsonResponse({ code, message: 'rejected' }, status));
+
+      await expect(
+        createMockPayment('booking-1', { amount: '730.00', reference: 'DEMO-1' }),
+      ).rejects.toMatchObject({ status, details: { code } });
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it('does not automatically retry an uncertain network failure', async () => {
+    fetchMock.mockRejectedValueOnce(new TypeError('Network error'));
+
+    await expect(
+      createMockPayment('booking-1', { amount: '730.00', reference: 'DEMO-1' }),
+    ).rejects.toThrow('Network error');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+});
 
 const quote = {
   tutor: { tutorId: 'tutor-id', displayName: 'Anan' },

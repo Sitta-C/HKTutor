@@ -294,6 +294,21 @@ export interface BookingResponse {
   createdAt: string;
 }
 
+export type PaymentStatus = 'UNPAID' | 'PAID';
+
+export interface MockPaymentPayload {
+  amount: string;
+  reference: string;
+}
+
+export interface MockPaymentResult {
+  bookingId: string;
+  paymentStatus: 'PAID';
+  amount: string;
+  reference: string;
+  paidAt: string;
+}
+
 export interface BookingView {
   id: string;
   status: BookingStatus;
@@ -304,6 +319,9 @@ export interface BookingView {
   discountAmount: string;
   netAmount: string;
   currency: string;
+  paymentStatus: PaymentStatus;
+  paidAt: string | null;
+  mockReference: string | null;
   createdAt: string;
 }
 

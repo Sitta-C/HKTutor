@@ -1,0 +1,125 @@
+.panel {
+  min-width: 0;
+  padding: 22px;
+  border-left: 1px dashed var(--color-paper-edge);
+  background-image: repeating-linear-gradient(
+    transparent 0 31px,
+    color-mix(in srgb, var(--color-notebook-line) 25%, transparent) 32px
+  );
+}
+.heading {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
+}
+.heading h2 {
+  font-size: 17px;
+  font-weight: 700;
+}
+.badge {
+  padding: 3px 7px;
+  border-radius: 4px;
+  background: var(--color-sticky-yellow);
+  color: var(--color-amber-800);
+  font-size: 12px;
+}
+.badge[data-paid='true'] {
+  background: color-mix(in srgb, var(--color-student) 12%, var(--color-paper));
+  color: var(--color-student-deep);
+}
+.note {
+  margin: 12px 0 18px;
+  font-size: 12px;
+  color: var(--color-notebook-muted);
+}
+.label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 13px;
+}
+.input {
+  width: 100%;
+  min-width: 0;
+  min-height: 46px;
+  padding: 10px 12px;
+  border: 1px solid var(--color-paper-edge);
+  border-radius: 4px;
+  background: var(--color-paper);
+  color: var(--color-notebook-ink);
+  font-size: 16px;
+}
+.input:focus-visible {
+  outline: 2px solid var(--color-student-deep);
+  outline-offset: 3px;
+}
+.input:disabled {
+  opacity: 0.65;
+}
+.help {
+  margin: 7px 0 16px;
+  font-size: 12px;
+  color: var(--color-notebook-muted);
+}
+.ticket {
+  composes: ticket from './booking-docket.module.css';
+  width: 100%;
+}
+.ticketLabel {
+  composes: ticketLabel from './booking-docket.module.css';
+}
+.ticketStub {
+  composes: ticketStub from './booking-docket.module.css';
+}
+.refresh {
+  composes: link from './booking-docket.module.css';
+  margin-top: 8px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+.refresh:disabled {
+  opacity: 0.65;
+  cursor: wait;
+}
+.error {
+  padding: 11px;
+  margin: 12px 0;
+  border-left: 2px solid var(--color-red-700);
+  color: var(--color-red-800);
+  background: var(--color-red-50);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+.receipt > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: space-between;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--color-paper-edge);
+  font-size: 13px;
+}
+.receipt dt {
+  color: var(--color-notebook-muted);
+}
+.receipt dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+  font-variant-numeric: tabular-nums;
+}
+.notice {
+  padding: 12px;
+  border-left: 2px solid var(--color-student-deep);
+  background: color-mix(in srgb, var(--color-student) 10%, var(--color-paper));
+  font-size: 13px;
+}
+@media (max-width: 600px) {
+  .panel {
+    border-left: 0;
+    border-top: 1px dashed var(--color-paper-edge);
+    padding: 18px 0 0;
+  }
+}

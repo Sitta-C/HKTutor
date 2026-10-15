@@ -24,6 +24,8 @@ import {
   BookingResponseDto,
   BookingSlotStatus,
   CanceledBookingDto,
+  ClassAttendanceRequestDto,
+  ClassAttendanceResponseDto,
   ConfirmBookingDto,
   CreateBookingDto,
   CreateMockPaymentDto,
@@ -42,6 +44,8 @@ import {
   isPublicTutorVerificationStatus,
   publicTutorWhere,
 } from '@modules/tutors/public-tutor-access';
+
+import type { AttendanceStatus } from '@generated/prisma/enums';
 
 export type CreateBookingInput = CreateBookingDto & { studentUserId: string };
 export type GetBookingQuoteInput = GetBookingQuoteQueryDto & { studentUserId: string };
@@ -139,6 +143,22 @@ const bookingNotConfirmed = (status: BookingStatus): ConflictException =>
     code: 'BOOKING_NOT_CONFIRMED',
     error: 'Conflict',
     message: `Only a confirmed booking can be updated meeting link; this booking is ${status}`,
+    statusCode: 409,
+  });
+
+const bookingNotConfirmedOrCompleted = (status: BookingStatus): ConflictException =>
+  new ConflictException({
+    code: 'BOOKING_NOT_CONFIRMED_OR_COMPLETED',
+    error: 'Conflict',
+    message: `Only a confirmed or completed booking can be updated attendance; this booking is ${status}`,
+    statusCode: 409,
+  });
+
+const attendanceAlreadyRecorded = (status: AttendanceStatus): ConflictException =>
+  new ConflictException({
+    code: 'ATTENDANCE_ALREADY_RECORDED',
+    error: 'Conflict',
+    message: `Attendance is already recorded as ${status} for this booking`,
     statusCode: 409,
   });
 
@@ -255,6 +275,47 @@ const bookingExceedCancelRange = (): ConflictException =>
     message: 'This booking is exceeding cancel range',
     statusCode: 409,
   });
+
+const classNotEnded = (): ConflictException =>
+  new ConflictException({
+    code: 'CLASS_NOT_ENDED',
+    error: 'Conflict',
+    message: 'Only ended class to be updated the attendance',
+    statusCode: 409,
+  });
+
+const attendanceRecordSelect = {
+  attendance: true,
+  attendanceMarkedAt: true,
+  id: true,
+  status: true,
+} as const satisfies Prisma.BookingSelect;
+
+type AttendanceRecord = Prisma.BookingGetPayload<{ select: typeof attendanceRecordSelect }>;
+
+function attendanceResponse(
+  booking: AttendanceRecord,
+  requestedAttendance: AttendanceStatus,
+  idempotentReplay: boolean,
+): ClassAttendanceResponseDto {
+  if (
+    booking.status !== BookingStatus.COMPLETED ||
+    booking.attendance === null ||
+    booking.attendanceMarkedAt === null
+  ) {
+    throw bookingTransitionConflict();
+  }
+  if (booking.attendance !== requestedAttendance) {
+    throw attendanceAlreadyRecorded(booking.attendance);
+  }
+  return {
+    attendance: booking.attendance,
+    attendanceMarkedAt: booking.attendanceMarkedAt.toISOString(),
+    bookingId: booking.id,
+    idempotentReplay,
+    status: booking.status,
+  };
+}
 
 const bookingListingSelect = {
   deletedAt: true,
@@ -997,6 +1058,7 @@ export class BookingsService {
     };
     return response;
   }
+
   async cancelBooking(input: {
     bookingId: string;
     reason: string;
@@ -1074,6 +1136,94 @@ export class BookingsService {
       throw error;
     }
   }
+
+  async updateAttendance(input: ClassAttendanceRequestDto): Promise<ClassAttendanceResponseDto> {
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        const booking = await tx.booking.findUnique({
+          select: {
+            attendance: true,
+            attendanceMarkedAt: true,
+            id: true,
+            slot: {
+              select: {
+                endAtUtc: true,
+              },
+            },
+            status: true,
+            tutorProfileId: true,
+          },
+          where: { id: input.bookingId },
+        });
+
+        if (!booking) {
+          throw bookingNotFound();
+        }
+        if (booking.tutorProfileId !== input.tutorId) {
+          throw bookingNotOwned();
+        }
+        if (
+          booking.status !== BookingStatus.CONFIRMED &&
+          booking.status !== BookingStatus.COMPLETED
+        ) {
+          throw bookingNotConfirmedOrCompleted(booking.status);
+        }
+        const attendanceMarkedAtUtc = new Date();
+        if (!booking.slot.endAtUtc || booking.slot.endAtUtc > attendanceMarkedAtUtc) {
+          throw classNotEnded();
+        }
+        if (booking.status === BookingStatus.COMPLETED) {
+          return attendanceResponse(booking, input.attendance, true);
+        }
+
+        // Only the first recording can win. PostgreSQL rechecks the predicate after a competing
+        // update commits, so a loser reads the saved value to distinguish replay from conflict.
+        const transition = await tx.booking.updateMany({
+          data: {
+            attendance: input.attendance,
+            attendanceMarkedAt: attendanceMarkedAtUtc,
+            status: BookingStatus.COMPLETED,
+          },
+          where: {
+            attendance: null,
+            attendanceMarkedAt: null,
+            id: input.bookingId,
+            slot: { endAtUtc: { lte: attendanceMarkedAtUtc } },
+            status: BookingStatus.CONFIRMED,
+            tutorProfileId: input.tutorId,
+          },
+        });
+
+        if (transition.count !== 1) {
+          const current = await tx.booking.findUnique({
+            select: attendanceRecordSelect,
+            where: { id: input.bookingId },
+          });
+
+          if (!current) {
+            throw bookingTransitionConflict();
+          }
+          return attendanceResponse(current, input.attendance, true);
+        }
+
+        const updated = await tx.booking.findUniqueOrThrow({
+          select: attendanceRecordSelect,
+          where: { id: input.bookingId },
+        });
+
+        return attendanceResponse(updated, input.attendance, false);
+      });
+    } catch (error) {
+      if (isDatabaseConflict(error)) {
+        this.logger.warn(
+          `Rejecting booking attendance update for ${input.bookingId}: database reported a conflict`,
+        );
+        throw bookingTransitionConflict();
+      }
+
+      throw error;
+    }
+  }
 }
 
 function bookingPagination(input: { page?: number; pageSize?: number }): {
@@ -1088,16 +1238,19 @@ function bookingPagination(input: { page?: number; pageSize?: number }): {
 /** Prisma's own codes for the constraint violations a booking race can produce. */
 const CONFLICTING_PRISMA_CODES = new Set(['P2002', 'P2003', 'P2004']);
 /**
- * A raw SQLSTATE never reaches `error.code` — `PrismaClientKnownRequestError.code` is always a
- * `P####` value and an unrecognised database fault arrives as `PrismaClientUnknownRequestError`
- * with no code at all. The only place a SQLSTATE surfaces is `meta.code`, for example on the `P2010`
- * raised by a failing raw query such as the `SELECT ... FOR UPDATE` in `create()`.
+ * A SQLSTATE never reaches `error.code` — `PrismaClientKnownRequestError.code` is always a `P####`
+ * value and an unrecognised database fault arrives as `PrismaClientUnknownRequestError` with no
+ * code at all. When a raw query fails, such as the `SELECT ... FOR UPDATE` in `create()`, Prisma 7
+ * raises `P2010` and keeps the driver fault under `meta.driverAdapterError`, so the SQLSTATE is only
+ * readable from that fault's own cause. `meta.code` is never populated.
  *
- * Only violations that mean "someone else changed the data first" belong here. A check-constraint
- * violation (`23514`) means this service wrote an invalid row, which is a defect rather than a
- * conflict, so it is deliberately absent and surfaces as a 500.
+ * Only faults that mean "someone else changed the data first" belong here. A serialization failure
+ * or a deadlock is what a row lock contended by concurrent bookings loses to, and the two constraint
+ * states cover a raw statement that writes; an ORM write surfaces those as `P2002`/`P2003` instead.
+ * A check-constraint violation (`23514`) means this service wrote an invalid row, which is a defect
+ * rather than a conflict, so it is deliberately absent and surfaces as a 500.
  */
-const CONFLICTING_SQL_STATES = new Set(['23503', '23505']);
+const CONFLICTING_SQL_STATES = new Set(['23503', '23505', '40001', '40P01']);
 
 /**
  * The payment update writes only mockReference, paidAt and paymentStatus. Booking's other unique
@@ -1110,17 +1263,31 @@ function isDuplicateMockReference(error: unknown): boolean {
   return !!error && typeof error === 'object' && (error as { code?: unknown }).code === 'P2002';
 }
 
+function readProperty(value: unknown, key: string): unknown {
+  return value !== null && typeof value === 'object'
+    ? (value as Record<string, unknown>)[key]
+    : undefined;
+}
+
+/** Reads the SQLSTATE Prisma nests under `meta.driverAdapterError.cause.originalCode`. */
+function readDriverSqlState(error: object): string | undefined {
+  const driverError = readProperty(readProperty(error, 'meta'), 'driverAdapterError');
+  const sqlState = readProperty(readProperty(driverError, 'cause'), 'originalCode');
+  return typeof sqlState === 'string' ? sqlState : undefined;
+}
+
 function isDatabaseConflict(error: unknown): boolean {
   if (!error || typeof error !== 'object') {
     return false;
   }
 
-  const { code, meta } = error as { code?: unknown; meta?: { code?: unknown } };
+  const { code } = error as { code?: unknown };
   if (typeof code === 'string' && CONFLICTING_PRISMA_CODES.has(code)) {
     return true;
   }
 
-  return typeof meta?.code === 'string' && CONFLICTING_SQL_STATES.has(meta.code);
+  const sqlState = readDriverSqlState(error);
+  return sqlState !== undefined && CONFLICTING_SQL_STATES.has(sqlState);
 }
 
 function deriveBookingAmounts(

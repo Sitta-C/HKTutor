@@ -4,6 +4,7 @@ import { BookingDocketStatus } from '@/components/bookings/booking-docket';
 import { formatBookingDocketSlot } from '@/components/bookings/booking-docket-model';
 import { bookingRequestCopy } from '@/components/bookings/booking-request-copy';
 import { formatMoney } from '@/components/bookings/booking-ui';
+import { PaymentStatusBadge } from '@/components/bookings/mock-payment-panel';
 import { studentBookingsCopy } from '@/components/bookings/student-bookings-copy';
 import { DashboardIcon } from '@/components/dashboard/dashboard-icon';
 
@@ -58,6 +59,7 @@ export function StudentBookingLedgerRow({
       </div>
       <div className={styles.rowStub}>
         <BookingDocketStatus status={booking.status} text={requestText} appearance="tag" />
+        <PaymentStatusBadge status={booking.paymentStatus} />
         <p className={styles.amount}>
           <span className="sr-only">{studentBookingsCopy[language].amount}: </span>
           {formatMoney(booking.netAmount, booking.currency)}

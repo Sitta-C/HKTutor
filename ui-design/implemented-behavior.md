@@ -294,7 +294,7 @@ anatomy from the request. Its DOM order is course information then one mint time
 hourly rate is omitted; persisted subtotal/discount/currency and net total appear beneath a dashed
 seam through `BookingDocketAmounts`/`BookingDocketTotal`. No money is recomputed. PENDING explicitly
 means awaiting tutor confirmation and uses requested-time copy; other statuses use their real label
-and an appropriate confirmed/neutral explanation. No paid/meeting/cancel/reschedule affordance is added.
+and an appropriate confirmed/neutral explanation. Meeting/cancel/reschedule actions remain outside this flow.
 List/detail status tags match the selected preview's 4px corners, thin border, light fill and decorative
 clock/check/double-check/slash icons, with amber/green/stone/muted-red business tones. The optional
 `BookingDocketStatus` tag appearance keeps the request's default badge and dashboard badge unchanged.
@@ -306,6 +306,29 @@ default docket composition and shared `booking-ui` helpers/dashboard badge remai
 checks intercept all API traffic and cover both languages at 320/768/1440px, responsive filters,
 long content, loading/error/empty/404, all statuses, session expiry, order, pagination, keyboard focus,
 midnight, stale filter responses and persisted amounts that differ from the current hourly price.
+
+S2-T05 adds **Payment Slip** to the student detail footer: the existing persisted amount breakdown
+sits beside one ruled payment region with a perforated seam; below 600px they stack. List rows show
+a separate paid/unpaid tag without changing booking status. Both read the payment fields added by
+PR #98. Confirmed, unpaid bookings accept one trimmed Unicode demo reference of 1–64 code points;
+pending and other non-payable states retain their actual payment label and a localized explanation.
+No card or bank fields are collected, and the demonstration notice stays visible in both states.
+
+The submit action uses the shared mint Ink Ticket, a synchronous duplicate-submit gate, and a
+disabled sending label. It sends the booking's fixed-decimal net amount unchanged and only renders
+paid/reference/amount/UTC timestamp values returned by the API. Timestamp presentation uses the
+shared Bangkok helper. Blank/invalid/duplicate references receive inline errors, NotebookToast
+feedback and input focus after the control is enabled. Amount mismatches, ownership/not-found/state
+conflicts and uncertain network/server failures lock resubmission until a successful explicit GET.
+A failed refresh retains the lock and reference; a successful refresh replaces the booking and can
+reveal an already-recorded payment. The POST is never retried automatically for an uncertain result.
+Payment requests and refreshes share a gate, and unmounted forms ignore late responses.
+
+Browser coverage intercepts all API traffic and checks payment persistence across reload/navigation,
+trimmed Thai references, no optimistic payment while sending, duplicate and stale-amount recovery,
+wrong-owner/missing/already-paid/concurrent conflicts, lost responses, failed refreshes, keyboard
+operation and form/long-receipt layouts in TH/EN at 320/768/1440px. This does not replace backend
+authorization, transaction or real-database verification.
 
 The tutor dashboard follows the Notebook Focus layout: the next confirmed session, today's
 availability, pending requests, monthly teaching analytics, and course performance. Today's availability

@@ -48,6 +48,13 @@ works the booking inbox and confirms or rejects one pending request at a time. A
 rendered only from the status the API returns, and a 403, 404, or 409 answer locks that row behind a
 refresh so the inbox never shows an optimistic status the server did not persist.
 
+Students see paid/unpaid status on booking rows and can record a mock payment from a confirmed,
+unpaid booking's detail page. The form sends the stored net amount and a unique demo reference,
+then displays only the payment returned by the API. Reloads read the persisted status, reference,
+and Bangkok-time payment timestamp. A stale amount, state conflict or uncertain network result
+requires a successful status refresh before another submission. This is a demonstration flow;
+no card/bank fields or real payment gateway are included.
+
 See [frontend direction](ui-design/frontend-direction.md) for the Notebook Focus patterns and
 [implemented frontend behavior](ui-design/implemented-behavior.md) for interaction, loading,
 responsive layout, and accessibility details.
@@ -140,6 +147,11 @@ HKTUTOR_ALLOW_DISPOSABLE_DB_VERIFY=1 pnpm db:verify:sprint1
 
 The verifier refuses non-loopback hosts and database names that do not begin with `hktutor-` or
 `hktutor_`.
+
+S2-DB04 adds `RescheduleRequest` persistence with one pending request per booking and old/new slot
+relations. Its PostgreSQL race/rollback verifier is `pnpm db:verify:reschedules`; see the
+[API runbook](apps/api/README.md#reschedulerequest-persistence-s2-db04) for the disposable-target
+requirements and the separate S2-T25 endpoint work.
 
 ## Checks
 

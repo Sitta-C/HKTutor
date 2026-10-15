@@ -13,6 +13,7 @@ import {
   TUTOR_INBOX_PAGE_SIZE,
   applyTutorBookingDecision,
   describeDecisionSuccess,
+  formatInboxCount,
   planInboxSyncAfterDecision,
   resolveTutorBookingDecisionError,
   toTutorBookingsQuery,
@@ -171,22 +172,17 @@ export default function TutorBookingInbox() {
 
   const filterLabel = (value: TutorInboxFilter) =>
     value === 'ALL' ? copy.all : getBookingStatusLabel(value, statusText);
-  const countsAvailable = !isLoading && !loadFailed && total !== null;
+  const countLabel =
+    isLoading || loadFailed || total === null
+      ? copy.countUnavailable
+      : formatInboxCount(total, filterLabel(filter), copy);
 
   return (
     <div className={styles.page}>
       <div className={styles.heading}>
         <NotebookHeading eyebrow={copy.eyebrow} title={copy.title} description={copy.subtitle} />
         <p className={styles.count} aria-live="polite">
-          <NotebookMetadata
-            items={
-              countsAvailable
-                ? copy.count
-                    .replace('{count}', String(total))
-                    .replace('{status}', filterLabel(filter))
-                : copy.countUnavailable
-            }
-          />
+          <NotebookMetadata items={countLabel} />
         </p>
       </div>
 
