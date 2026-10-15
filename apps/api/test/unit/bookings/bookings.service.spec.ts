@@ -2320,13 +2320,14 @@ describe('BookingsService', () => {
     };
 
     it('cancels an unpaid, incomplete, active booking when slot start time is more than 24 hours away', async () => {
-      const { bookingId, studentUserId, tutorUserId } = createTestData();
+      const { bookingId, slotId, studentUserId, tutorUserId } = createTestData();
       const startAtUtc = new Date(Date.now() + 48 * 60 * 60 * 1000);
       const canceledAt = new Date('2026-10-13T10:00:00.000Z');
       const activeBooking = {
         id: bookingId,
         paymentStatus: PaymentStatus.UNPAID,
         slot: { startAtUtc },
+        slotId,
         status: BookingStatus.CONFIRMED,
         studentUserId,
         tutorProfileId: tutorUserId,
@@ -2358,6 +2359,7 @@ describe('BookingsService', () => {
           id: true,
           paymentStatus: true,
           slot: { select: { startAtUtc: true } },
+          slotId: true,
           status: true,
           studentUserId: true,
           tutorProfileId: true,
@@ -2370,6 +2372,7 @@ describe('BookingsService', () => {
           where: {
             id: bookingId,
             paymentStatus: PaymentStatus.UNPAID,
+            slotId,
             status: { in: [BookingStatus.PENDING, BookingStatus.CONFIRMED] },
           },
         }) as unknown,
@@ -2399,13 +2402,14 @@ describe('BookingsService', () => {
     });
 
     it('allows the tutor participant to cancel the booking', async () => {
-      const { bookingId, studentUserId, tutorUserId } = createTestData();
+      const { bookingId, slotId, studentUserId, tutorUserId } = createTestData();
       const startAtUtc = new Date(Date.now() + 48 * 60 * 60 * 1000);
       const canceledAt = new Date('2026-10-13T10:00:00.000Z');
       const activeBooking = {
         id: bookingId,
         paymentStatus: PaymentStatus.UNPAID,
         slot: { startAtUtc },
+        slotId,
         status: BookingStatus.PENDING,
         studentUserId,
         tutorProfileId: tutorUserId,
@@ -2437,6 +2441,7 @@ describe('BookingsService', () => {
           where: {
             id: bookingId,
             paymentStatus: PaymentStatus.UNPAID,
+            slotId,
             status: { in: [BookingStatus.PENDING, BookingStatus.CONFIRMED] },
           },
         }) as unknown,
@@ -2463,13 +2468,14 @@ describe('BookingsService', () => {
     it('allows cancellation at exactly 24 hours before slot start time', async () => {
       jest.useFakeTimers().setSystemTime(new Date('2026-10-13T10:00:00.000Z'));
       try {
-        const { bookingId, studentUserId, tutorUserId } = createTestData();
+        const { bookingId, slotId, studentUserId, tutorUserId } = createTestData();
         const startAtUtc = new Date('2026-10-14T10:00:00.000Z');
         const canceledAt = new Date('2026-10-13T10:00:00.000Z');
         const activeBooking = {
           id: bookingId,
           paymentStatus: PaymentStatus.UNPAID,
           slot: { startAtUtc },
+          slotId,
           status: BookingStatus.CONFIRMED,
           studentUserId,
           tutorProfileId: tutorUserId,
@@ -2494,6 +2500,45 @@ describe('BookingsService', () => {
       } finally {
         jest.useRealTimers();
       }
+    });
+
+    it('preserves a rescheduled class when approval changes the slot after the cancellation read', async () => {
+      const { bookingId, slotId, studentUserId, tutorUserId } = createTestData();
+      const targetSlotId = 'd8789a2e-5e37-45c0-801d-6b646f9f9be2';
+      const eligibleSnapshot = {
+        id: bookingId,
+        paymentStatus: PaymentStatus.UNPAID,
+        slot: { startAtUtc: new Date(Date.now() + 48 * 60 * 60 * 1000) },
+        slotId,
+        status: BookingStatus.CONFIRMED,
+        studentUserId,
+        tutorProfileId: tutorUserId,
+      };
+      const currentBooking = {
+        ...eligibleSnapshot,
+        slot: { startAtUtc: new Date(Date.now() + 60 * 60 * 1000) },
+        slotId: targetSlotId,
+      };
+      const { findUniqueOrThrow, updateMany } = stubCancelTransaction({
+        booking: eligibleSnapshot,
+      });
+      updateMany.mockImplementation((args: Prisma.BookingUpdateManyArgs) => {
+        // Model the database's predicate against the slot committed by approval.
+        if (args.where?.slotId !== undefined && args.where.slotId !== currentBooking.slotId) {
+          return Promise.resolve({ count: 0 });
+        }
+        currentBooking.status = BookingStatus.CANCELED;
+        return Promise.resolve({ count: 1 });
+      });
+
+      await expect(
+        service.cancelBooking({ bookingId, reason: 'Schedule changed', userId: studentUserId }),
+      ).rejects.toMatchObject({
+        response: { code: 'BOOKING_TRANSITION_CONFLICT', statusCode: 409 },
+      });
+      expect(currentBooking.status).toBe(BookingStatus.CONFIRMED);
+      expect(currentBooking.slotId).toBe(targetSlotId);
+      expect(findUniqueOrThrow).not.toHaveBeenCalled();
     });
 
     it('throws ForbiddenException when requesting user is not a participant', async () => {

@@ -455,3 +455,81 @@ export interface ConversationMessagesResponse {
   nextBeforeMessageId?: string | null;
   hasMore: boolean;
 }
+
+export type RescheduleRequestStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'WITHDRAWN';
+
+export type RescheduleAction = 'CREATE' | 'APPROVE' | 'REJECT' | 'WITHDRAW';
+
+export interface CreateRescheduleRequestPayload {
+  targetSlotId: string;
+  reason?: string;
+}
+
+export interface CreateRescheduleRequestResponse {
+  requestId: string;
+  status: 'PENDING';
+  bookingId: string;
+  targetSlotId: string;
+}
+
+export interface RescheduleTargetSlot {
+  id: string;
+  startAtUtc: string;
+  endAtUtc: string;
+  tutorProfileId: string;
+}
+
+export interface RescheduleRequestView {
+  id: string;
+  bookingId: string;
+  requestedById: string;
+  fromSlotId: string;
+  requestedSlotId: string;
+  reason: string;
+  status: RescheduleRequestStatus;
+  requestedAt: string;
+  reviewedById: string | null;
+  decidedAt: string | null;
+  withdrawnAt: string | null;
+}
+
+export interface CurrentRescheduleRequestResponse {
+  request: RescheduleRequestView | null;
+  targetSlot: RescheduleTargetSlot | null;
+  allowedActions: RescheduleAction[];
+}
+
+export interface ApprovedRescheduleBooking {
+  id: string;
+  status: BookingStatus;
+  slotId: string;
+  studentUserId: string;
+  tutorProfileId: string;
+  listingId: string;
+  subtotalAmount: string;
+  netAmount: string;
+  updatedAt: string;
+}
+
+export interface ApproveRescheduleResponse {
+  requestId: string;
+  status: 'APPROVED';
+  booking: ApprovedRescheduleBooking;
+  newSlot: RescheduleTargetSlot;
+}
+
+export interface RejectReschedulePayload {
+  reason?: string;
+}
+
+export interface RejectRescheduleResponse {
+  requestId: string;
+  status: 'REJECTED';
+  reviewedAt: string;
+}
+
+export interface WithdrawRescheduleResponse {
+  requestId: string;
+  status: 'WITHDRAWN';
+  withdrawnAt: string;
+}
