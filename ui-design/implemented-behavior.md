@@ -548,3 +548,24 @@ guidance spans the preview column with a bold hidden-course heading and an amber
 notice, matching the status badge. It does not use a “Note:” prefix. VERIFIED tutors do not see
 this visibility notice. Existing
 publication checks and API requests remain authoritative; no per-card status request is added.
+
+## Booking cancellation (S2-T23)
+
+Students cancel from booking details; tutors cancel from their booking inbox. The shared action
+uses existing notebook controls and a native confirmation dialog with a required reason, course
+and Bangkok-time summary. The summary preserves both actual dates and times for overnight and
+multi-day lessons, including the next-day date for midnight endings, using Thai Buddhist or
+English Gregorian years. Keep class receives initial focus; Escape restores trigger focus.
+Submission disables dismissal and duplicate requests. The dialog scrolls within the viewport on
+small screens, and actions wrap.
+
+The UI explains the inclusive 24-hour cutoff, terminal booking states and unpaid requirement in
+Thai and English. Student bookings with a known PAID status show the paid-ineligible message and
+disable cancellation, including immediately after a successful mock payment. The tutor read model
+does not include payment status, and the cancellation endpoint always checks eligibility again.
+No status is changed optimistically. A successful server response updates
+student details and refreshes the tutor's filtered inbox. Student details invalidate payment-panel
+callbacks captured before a successful cancellation, so a delayed older refresh cannot overwrite
+the saved canceled status; reads started afterward still update the page normally.
+Conflict, forbidden/missing booking and
+uncertain request outcomes require a refreshed booking before another cancellation attempt.

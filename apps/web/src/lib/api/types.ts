@@ -329,6 +329,12 @@ export interface BookingDetail extends BookingView {
   updatedAt: string;
 }
 
+export interface CancelBookingResult {
+  bookingId: string;
+  status: BookingStatus;
+  canceledAt: string;
+}
+
 export interface MyBookingsResponse {
   items: BookingView[];
   total: number;
