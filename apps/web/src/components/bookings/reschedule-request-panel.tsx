@@ -3,6 +3,7 @@
 import { useEffect, useId, useRef, useState } from 'react';
 
 import { formatBookingDocketSlot } from '@/components/bookings/booking-docket-model';
+import { formatDuration } from '@/components/bookings/booking-ui';
 import { rescheduleCopy } from '@/components/bookings/reschedule-copy';
 import {
   filterTargetSlots,
@@ -10,6 +11,8 @@ import {
   getRescheduleFailure,
 } from '@/components/bookings/reschedule-model';
 import { TargetSlotPicker } from '@/components/bookings/target-slot-picker';
+import { DashboardIcon } from '@/components/dashboard/dashboard-icon';
+import { NotebookField, StatusBadge, notebookInputClass } from '@/components/ui/notebook';
 import { NotebookAction } from '@/components/ui/notebook-action';
 import { NotebookLoadingRegion } from '@/components/ui/notebook-loading';
 import { useNotebookToast } from '@/components/ui/notebook-toast';
@@ -62,6 +65,7 @@ export function RescheduleRequestPanel({
   onRequiresRefresh,
   outcome,
   onOutcome,
+  onPendingChange,
 }: {
   booking: RescheduleBooking;
   tutorId: string;
@@ -72,15 +76,19 @@ export function RescheduleRequestPanel({
   onRequiresRefresh: () => void;
   outcome: RescheduleRequestStatus | null;
   onOutcome: (status: RescheduleRequestStatus | null) => void;
+  onPendingChange?: (pending: boolean) => void;
 }) {
   const { user } = useAuth();
-  const { language } = useLanguage();
+  const { language, copy: appCopy } = useLanguage();
   const copy = rescheduleCopy[language];
   const toast = useNotebookToast();
   const id = useId();
   const gate = useRef(false);
   const alive = useRef(false);
   const readRevision = useRef(0);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const detailsRef = useRef<HTMLDivElement>(null);
+  const [expanded, setExpanded] = useState(false);
   const [current, setCurrent] = useState<CurrentRescheduleRequestResponse | null>(null);
   const [slots, setSlots] = useState<RescheduleTargetSlot[]>([]);
   const [selectedId, setSelectedId] = useState('');
@@ -137,6 +145,17 @@ export function RescheduleRequestPanel({
   const request = current?.request;
   const isPending = request?.status === 'PENDING';
   const actionRole = user?.role === 'STUDENT' ? 'student' : 'tutor';
+
+  useEffect(() => {
+    onPendingChange?.(isPending);
+  }, [isPending, onPendingChange]);
+
+  function toggleDetails(): void {
+    setExpanded(!expanded);
+    if (!expanded) {
+      window.requestAnimationFrame(() => detailsRef.current?.focus());
+    }
+  }
 
   async function submit(action: RescheduleAction): Promise<void> {
     if (gate.current || locked || !current || !user) {
@@ -243,37 +262,79 @@ export function RescheduleRequestPanel({
     <section
       aria-label={copy.title}
       aria-busy={loading || pending}
-      className="min-w-0 space-y-3 border-t border-dashed border-paper-edge p-4"
+      className="min-w-0 space-y-3 border-t border-dashed border-paper-edge px-4 py-3"
+      onKeyDown={(event) => {
+        if (event.key === 'Escape' && expanded && !pending) {
+          event.preventDefault();
+          setExpanded(false);
+          triggerRef.current?.focus();
+        }
+      }}
     >
-      <h3 className="font-semibold">{copy.title}</h3>
-      <p className="text-sm text-notebook-muted">{copy.policy}</p>
+      <h3 className="sr-only">{copy.title}</h3>
+      <div className="flex flex-wrap items-center gap-2">
+        {!loading && (
+          <p role="status" className={isPending || outcome ? 'text-sm font-semibold' : 'sr-only'}>
+            {request ? (
+              <StatusBadge tone="warning">{copy[request.status]}</StatusBadge>
+            ) : outcome ? (
+              copy[outcome]
+            ) : current ? (
+              copy.noRequest
+            ) : null}
+          </p>
+        )}
+        <NotebookAction
+          ref={triggerRef}
+          role={actionRole}
+          size="compact"
+          tone="secondary"
+          aria-expanded={expanded}
+          aria-controls={`${id}-details`}
+          disabled={pending || loading}
+          onClick={toggleDetails}
+        >
+          {expanded ? copy.close : isPending ? copy.review : copy.open}
+        </NotebookAction>
+      </div>
+      {isPending && (
+        <p className="text-sm text-notebook-muted">
+          {request.requestedById === user?.id ? copy.requester : copy.reviewer}
+        </p>
+      )}
       {loading ? (
         <NotebookLoadingRegion label={copy.loading} />
       ) : (
-        <>
-          <p role="status" className="text-sm font-semibold">
-            {request
-              ? copy[request.status]
-              : outcome
-                ? copy[outcome]
-                : current
-                  ? copy.noRequest
-                  : null}
-          </p>
-          <p className="text-sm">
-            {copy.original}: {formatBookingDocketSlot(booking.slot, language).label}
-          </p>
-          {request && (
-            <div className="space-y-2 text-sm [overflow-wrap:anywhere]">
-              {current?.targetSlot && (
-                <p>
-                  {copy.target}: {formatBookingDocketSlot(current.targetSlot, language).label}
+        <div
+          id={`${id}-details`}
+          ref={detailsRef}
+          hidden={!expanded}
+          tabIndex={-1}
+          className="space-y-3 rounded focus-visible:outline-2 focus-visible:outline-offset-4"
+        >
+          <div className="grid gap-3 text-sm sm:grid-cols-2">
+            {[
+              { label: copy.original, slot: booking.slot },
+              ...(current?.targetSlot ? [{ label: copy.target, slot: current.targetSlot }] : []),
+            ].map(({ label, slot }) => (
+              <div
+                key={label}
+                role="group"
+                aria-label={label}
+                className="border-l-2 border-paper-edge pl-3"
+              >
+                <p className="text-xs text-notebook-muted">{label}: </p>
+                <p className="font-semibold">{formatBookingDocketSlot(slot, language).label}</p>
+                <p className="text-xs text-notebook-muted">
+                  {formatDuration(slot.startAtUtc, slot.endAtUtc, appCopy.dashboard.booking)}
                 </p>
-              )}
-              <p>{request.reason}</p>
-              {isPending && (
-                <p>{request.requestedById === user?.id ? copy.requester : copy.reviewer}</p>
-              )}
+              </div>
+            ))}
+          </div>
+          {request?.reason && (
+            <div className="rounded border border-paper-edge bg-paper p-3 text-sm [overflow-wrap:anywhere]">
+              <p className="font-semibold">{copy.requestReason}</p>
+              <p className="mt-1 whitespace-pre-wrap">{request.reason}</p>
             </div>
           )}
           {current && !isPending && !actions.includes('CREATE') && (
@@ -294,19 +355,18 @@ export function RescheduleRequestPanel({
                 language={language}
                 copy={copy}
               />
-              <label htmlFor={`${id}-reason`} className="block text-sm">
-                {copy.reason}
-              </label>
-              <textarea
-                id={`${id}-reason`}
-                maxLength={500}
-                rows={2}
-                value={reason}
-                onChange={(event) => setReason(event.target.value)}
-                disabled={locked}
-                aria-describedby={`${id}-reason-hint`}
-                className="w-full rounded border border-paper-edge p-2 text-sm"
-              />
+              <NotebookField htmlFor={`${id}-reason`} label={copy.reason}>
+                <textarea
+                  id={`${id}-reason`}
+                  maxLength={500}
+                  rows={2}
+                  value={reason}
+                  onChange={(event) => setReason(event.target.value)}
+                  disabled={locked}
+                  aria-describedby={`${id}-reason-hint`}
+                  className={notebookInputClass({ className: 'py-2 text-sm' })}
+                />
+              </NotebookField>
               <p id={`${id}-reason-hint`} className="text-sm text-notebook-muted">
                 {copy.reasonLimit}
               </p>
@@ -328,6 +388,7 @@ export function RescheduleRequestPanel({
                   role={actionRole}
                   key={action}
                   size="compact"
+                  icon={<DashboardIcon name={action === 'APPROVE' ? 'check' : 'close'} />}
                   tone={action === 'APPROVE' ? 'primary' : 'secondary'}
                   disabled={locked}
                   onClick={() => void submit(action)}
@@ -336,22 +397,25 @@ export function RescheduleRequestPanel({
                 </NotebookAction>
               ))}
           </div>
-        </>
+          <p className="text-xs text-notebook-muted">{copy.policy}</p>
+        </div>
       )}
       {failure && (
         <p role="alert" className="text-sm text-red-800">
           {failure.message}
         </p>
       )}
-      <NotebookAction
-        role={actionRole}
-        size="compact"
-        tone="secondary"
-        disabled={pending || disabled}
-        onClick={onRefresh}
-      >
-        {copy.refresh}
-      </NotebookAction>
+      {(expanded || failure) && (
+        <NotebookAction
+          role={actionRole}
+          size="compact"
+          tone="secondary"
+          disabled={pending || disabled}
+          onClick={onRefresh}
+        >
+          {copy.refresh}
+        </NotebookAction>
+      )}
     </section>
   );
 }

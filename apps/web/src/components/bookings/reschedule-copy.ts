@@ -1,8 +1,12 @@
 export const rescheduleCopy = {
   en: {
     title: 'Reschedule class',
+    open: 'Reschedule',
+    review: 'Review reschedule request',
+    close: 'Hide reschedule details',
+    requestReason: 'Reason for rescheduling',
     policy:
-      'Request and approve at least 24 hours before the current class. Times are Asia/Bangkok (UTC+7). The server checks availability again when approving; a request does not reserve the target.',
+      'Request and approve at least 24 hours before the current class. The new time remains unreserved until approval. Times are Asia/Bangkok (UTC+7).',
     noRequest: 'No reschedule request.',
     PENDING: 'Pending reschedule',
     APPROVED: 'Reschedule approved',
@@ -42,8 +46,12 @@ export const rescheduleCopy = {
   },
   th: {
     title: 'เลื่อนเวลาคลาส',
+    open: 'ขอเลื่อนเวลา',
+    review: 'พิจารณาคำขอเลื่อนเวลา',
+    close: 'ซ่อนรายละเอียดเลื่อนเวลา',
+    requestReason: 'เหตุผลที่ขอเลื่อนเวลา',
     policy:
-      'ส่งคำขอและอนุมัติอย่างน้อย 24 ชั่วโมงก่อนคลาสเดิม เวลาแสดงตาม Asia/Bangkok (UTC+7) เซิร์ฟเวอร์จะตรวจเวลาว่างอีกครั้งเมื่ออนุมัติ คำขอยังไม่จองเวลาใหม่ไว้',
+      'ส่งคำขอและอนุมัติอย่างน้อย 24 ชั่วโมงก่อนคลาสเดิม เวลาใหม่ยังไม่ถูกจองจนกว่าจะอนุมัติ เวลาแสดงตาม Asia/Bangkok (UTC+7)',
     noRequest: 'ยังไม่มีคำขอเลื่อนเวลา',
     PENDING: 'รอตอบรับการเลื่อนเวลา',
     APPROVED: 'อนุมัติการเลื่อนเวลาแล้ว',
