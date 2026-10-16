@@ -36,6 +36,8 @@ export const rescheduleCopy = {
       'Approval is unavailable. The booking or target may have changed, or the cutoff has passed. You can still reject this request.',
     collision:
       'The target is no longer available. Refresh before choosing another slot or reviewing this request.',
+    targetPast:
+      'The requested time has already started. Refresh to check the request and your available actions.',
     conflict: 'Another action changed this booking or request. Refresh before continuing.',
     forbidden:
       'You do not have permission for this action. Refresh to check your available actions.',
@@ -80,6 +82,7 @@ export const rescheduleCopy = {
     approvalUnavailable:
       'ยังอนุมัติไม่ได้ การจองหรือเวลาใหม่อาจเปลี่ยนไป หรือพ้นเวลาที่กำหนด คุณยังปฏิเสธคำขอได้',
     collision: 'เวลาใหม่ไม่ว่างแล้ว กรุณารีเฟรชก่อนเลือกเวลาอื่นหรือพิจารณาคำขอ',
+    targetPast: 'เวลาที่ขอเริ่มไปแล้ว กรุณารีเฟรชเพื่อตรวจสอบคำขอและรายการที่ยังทำได้',
     conflict: 'การจองหรือคำขอเปลี่ยนไปจากการทำรายการอื่น กรุณารีเฟรชก่อนทำต่อ',
     forbidden: 'คุณไม่มีสิทธิ์ทำรายการนี้ กรุณารีเฟรชเพื่อตรวจสอบสิทธิ์ล่าสุด',
     session: 'เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่',

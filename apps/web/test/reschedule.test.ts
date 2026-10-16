@@ -102,6 +102,17 @@ describe('participant actions', () => {
       ),
     ).toEqual([]);
   });
+  it.each([new Date(now).toISOString(), new Date(now - 1).toISOString(), 'invalid', null])(
+    'suppresses approval for a non-future or missing target (%s), retaining closure actions',
+    (startAtUtc) => {
+      const state = {
+        ...current,
+        targetSlot: startAtUtc === null ? null : { ...target, startAtUtc },
+      };
+      expect(getRescheduleActions(state, 'tutor', booking, now)).toEqual(['REJECT']);
+      expect(getRescheduleActions(state, 'student', booking, now)).toEqual(['WITHDRAW']);
+    },
+  );
 });
 
 describe('reschedule recovery', () => {
@@ -120,6 +131,11 @@ describe('reschedule recovery', () => {
   });
   it.each([401, 403, 404, 409, 500])('locks uncertain or unauthorized HTTP %s', (status) => {
     expect(getRescheduleFailure(new ApiError('error', status), copy).requiresRefresh).toBe(true);
+  });
+  it('requires refreshed state when the server rejects an expired target with HTTP 400', () => {
+    expect(
+      getRescheduleFailure(new ApiError('expired', 400, { code: 'RESCHEDULE_TARGET_PAST' }), copy),
+    ).toEqual({ message: copy.targetPast, requiresRefresh: true });
   });
   it('locks network failures but lets validation errors be corrected', () => {
     expect(getRescheduleFailure(new TypeError('network'), copy)).toEqual({

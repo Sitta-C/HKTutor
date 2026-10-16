@@ -34,8 +34,10 @@ async function setup(
     readStatus?: number;
     open?: boolean;
     inboxCount?: number;
+    targetSlot?: RescheduleTargetSlot;
   } = {},
 ) {
+  const requestedTarget = options.targetSlot ?? target;
   const userId = role === 'TUTOR' ? 'tutor' : 'student';
   const otherId = role === 'TUTOR' ? 'student' : 'tutor';
   let booking: BookingDetail = {
@@ -73,7 +75,7 @@ async function setup(
         id: 'request',
         bookingId: booking.id,
         fromSlotId: original.id,
-        requestedSlotId: target.id,
+        requestedSlotId: requestedTarget.id,
         requestedById: options.requester === 'self' ? userId : otherId,
         reason: 'Exam conflict',
         status: 'PENDING',
@@ -93,7 +95,7 @@ async function setup(
     }
     latest = { ...latest, status };
     if (status === 'APPROVED') {
-      booking = { ...booking, slot: target };
+      booking = { ...booking, slot: requestedTarget };
     }
   };
   await page.addInitScript(
@@ -175,10 +177,10 @@ async function setup(
       slotReads += 1;
       expect(url.searchParams.get('from')).toMatch(/Z$/);
       const slots = [
-        target,
-        { ...target, ...original },
-        { ...target, id: 'past', startAtUtc: '2020-01-01T00:00:00Z' },
-        { ...target, id: 'overlap', startAtUtc: '2099-10-17T03:30:00Z' },
+        requestedTarget,
+        { ...requestedTarget, ...original },
+        { ...requestedTarget, id: 'past', startAtUtc: '2020-01-01T00:00:00Z' },
+        { ...requestedTarget, id: 'overlap', startAtUtc: '2099-10-17T03:30:00Z' },
       ];
       return route.fulfill({
         json: slots.map((slot) => ({ ...slot, state: 'OPEN', createdAt: '2026-10-16T03:00:00Z' })),
@@ -204,7 +206,7 @@ async function setup(
       return route.fulfill({
         json: {
           request: latest?.status === 'PENDING' ? latest : null,
-          targetSlot: latest?.status === 'PENDING' ? target : null,
+          targetSlot: latest?.status === 'PENDING' ? requestedTarget : null,
           allowedActions,
         },
       });
@@ -240,7 +242,7 @@ async function setup(
           id: 'request',
           bookingId: booking.id,
           fromSlotId: booking.slot.id,
-          requestedSlotId: target.id,
+          requestedSlotId: requestedTarget.id,
           requestedById: userId,
           status: 'PENDING',
           reason: 'Exam conflict',
@@ -254,7 +256,7 @@ async function setup(
           json: {
             requestId: 'request',
             bookingId: booking.id,
-            targetSlotId: target.id,
+            targetSlotId: requestedTarget.id,
             status: 'PENDING',
           },
         });
@@ -268,10 +270,10 @@ async function setup(
           status: latest?.status,
           ...(action === 'approve'
             ? {
-                newSlot: target,
+                newSlot: requestedTarget,
                 booking: {
                   id: booking.id,
-                  slotId: target.id,
+                  slotId: requestedTarget.id,
                   status: 'CONFIRMED',
                   subtotalAmount: '500.00',
                   netAmount: '500.00',
@@ -442,6 +444,65 @@ for (const role of ['STUDENT', 'TUTOR'] as const) {
     await expect(ui.panel.getByRole('status')).toHaveText('No reschedule request.');
     await expect(ui.panel).toContainText('Current class time: 18 Oct 2099');
     expect(ui.writes).toHaveLength(0);
+  });
+
+  for (const requester of ['self', 'other'] as const) {
+    test(`${role} expired target suppresses approval but retains ${requester === 'self' ? 'withdrawal' : 'rejection'}`, async ({
+      page,
+    }) => {
+      await page.clock.install({ time: new Date('2099-10-10T03:00:00Z') });
+      const ui = await setup(page, role, {
+        requester,
+        targetSlot: {
+          ...target,
+          startAtUtc: '2099-10-10T03:01:00Z',
+          endAtUtc: '2099-10-10T05:01:00Z',
+        },
+      });
+      const approve = ui.panel.getByRole('button', { name: 'Approve reschedule', exact: true });
+      if (requester === 'other') {
+        await expect(approve).toBeEnabled();
+      }
+      await page.clock.runFor(61_000);
+      await expect(approve).toHaveCount(0);
+      await expect(ui.panel.getByRole('status')).toHaveText('Pending reschedule');
+      const closeAction = requester === 'self' ? 'Withdraw reschedule' : 'Reject reschedule';
+      await ui.panel.getByRole('button', { name: closeAction, exact: true }).click();
+      await expect(ui.panel.getByRole('status')).toContainText(
+        requester === 'self' ? 'Reschedule withdrawn' : 'Reschedule rejected',
+      );
+      expect(ui.getBooking().slot).toEqual(original);
+      expect(ui.writes.map((write) => write.action)).toEqual([
+        requester === 'self' ? 'withdraw' : 'reject',
+      ]);
+    });
+  }
+
+  test(`${role} server target expiry requires refresh before another action`, async ({ page }) => {
+    const ui = await setup(page, role, {
+      requester: 'other',
+      errorStatus: 400,
+      errorCode: 'RESCHEDULE_TARGET_PAST',
+    });
+    await ui.panel.getByRole('button', { name: 'Approve reschedule', exact: true }).click();
+    await expect(ui.panel.getByRole('alert')).toContainText('requested time has already started');
+    await expect(
+      ui.panel.getByRole('button', { name: 'Approve reschedule', exact: true }),
+    ).toBeDisabled();
+    await expect(
+      ui.panel.getByRole('button', { name: 'Reject reschedule', exact: true }),
+    ).toBeDisabled();
+    expect(ui.getBooking().slot).toEqual(original);
+    ui.disableApproval();
+    await ui.panel.getByRole('button', { name: 'Refresh reschedule and booking' }).click();
+    await ui.open();
+    await expect(
+      ui.panel.getByRole('button', { name: 'Approve reschedule', exact: true }),
+    ).toHaveCount(0);
+    await expect(
+      ui.panel.getByRole('button', { name: 'Reject reschedule', exact: true }),
+    ).toBeEnabled();
+    expect(ui.writes).toHaveLength(1);
   });
 }
 
@@ -799,6 +860,7 @@ test('student payment stays ahead of the optional reschedule form and disclosure
 test('Thai target selection remains keyboard accessible at 320px', async ({ page }, testInfo) => {
   await page.setViewportSize({ width: 320, height: 740 });
   const ui = await setup(page, 'STUDENT', { language: 'th' });
+  await expect(ui.panel.locator('[tabindex="-1"]')).toBeFocused();
   const radio = ui.panel.getByRole('radio');
   await radio.focus();
   await page.keyboard.press('Space');

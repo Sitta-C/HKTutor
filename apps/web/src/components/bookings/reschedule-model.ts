@@ -48,12 +48,14 @@ export function getRescheduleActions(
     booking.status === 'CONFIRMED' && Date.parse(booking.slot.startAtUtc) - now >= 86_400_000;
   const pending = current.request?.status === 'PENDING';
   const requester = current.request?.requestedById === userId;
+  const hasFutureTarget =
+    current.targetSlot !== null && Date.parse(current.targetSlot.startAtUtc) > now;
   return current.allowedActions.filter((action) => {
     switch (action) {
       case 'CREATE':
         return !pending && eligible;
       case 'APPROVE':
-        return pending && !requester && eligible;
+        return pending && !requester && eligible && hasFutureTarget;
       case 'REJECT':
         return pending && !requester;
       case 'WITHDRAW':
@@ -76,6 +78,7 @@ export function getRescheduleFailure(
     RESCHEDULE_CUTOFF_EXCEEDED: copy.cutoff,
     RESCHEDULE_TARGET_RESERVED: copy.collision,
     RESCHEDULE_TARGET_UNAVAILABLE: copy.collision,
+    RESCHEDULE_TARGET_PAST: copy.targetPast,
     RESCHEDULE_ALREADY_PENDING: copy.conflict,
     RESCHEDULE_REQUEST_NOT_PENDING: copy.conflict,
     RESCHEDULE_RACE_CONFLICT: copy.conflict,
@@ -94,6 +97,6 @@ export function getRescheduleFailure(
               : error.status === 400
                 ? copy.invalid
                 : copy.uncertain),
-    requiresRefresh: error.status !== 400,
+    requiresRefresh: error.status !== 400 || code === 'RESCHEDULE_TARGET_PAST',
   };
 }
