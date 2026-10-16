@@ -23,12 +23,14 @@ export function BookingCancellation({
   onCanceled,
   onRefresh,
   onRequiresRefresh,
+  onBusyChange,
 }: {
   booking: CancellationBooking;
   disabled?: boolean;
   onCanceled: (result: CancelBookingResult) => void;
   onRefresh: () => void;
   onRequiresRefresh?: () => void;
+  onBusyChange?: (busy: boolean) => void;
 }) {
   const { language } = useLanguage();
   const copy = bookingCancellationCopy[language];
@@ -75,6 +77,7 @@ export function BookingCancellation({
     }
     inFlight.current = true;
     setPending(true);
+    onBusyChange?.(true);
     setFailure(null);
     try {
       const result = await cancelBooking(booking.id, reason);
@@ -96,6 +99,7 @@ export function BookingCancellation({
     } finally {
       inFlight.current = false;
       setPending(false);
+      onBusyChange?.(false);
     }
   };
 

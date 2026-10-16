@@ -112,9 +112,13 @@ function paymentErrorCode(error: unknown): string | null {
 export function MockPaymentPanel({
   booking,
   onBookingChange,
+  disabled = false,
+  onSubmittingChange,
 }: {
   booking: BookingDetail;
   onBookingChange: (nextBooking: BookingDetail) => void;
+  disabled?: boolean;
+  onSubmittingChange?: (submitting: boolean) => void;
 }) {
   const { language } = useLanguage();
   const text = COPY[language];
@@ -129,7 +133,7 @@ export function MockPaymentPanel({
   const isPaid = booking.paymentStatus === 'PAID';
   const isUnpaid = booking.paymentStatus === 'UNPAID';
   const canPay = booking.status === 'CONFIRMED' && isUnpaid;
-  const busy = activity !== 'idle';
+  const busy = activity !== 'idle' || disabled;
   const referenceError = errorKey === 'blank' || errorKey === 'invalid' || errorKey === 'duplicate';
 
   useEffect(() => {
@@ -151,7 +155,7 @@ export function MockPaymentPanel({
   }
 
   async function refreshBooking(): Promise<void> {
-    if (gate.current) {
+    if (gate.current || disabled) {
       return;
     }
     gate.current = true;
@@ -178,7 +182,7 @@ export function MockPaymentPanel({
 
   async function submitPayment(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
-    if (gate.current || locked || !canPay) {
+    if (gate.current || disabled || locked || !canPay) {
       return;
     }
     const trimmed = reference.trim();
@@ -195,6 +199,7 @@ export function MockPaymentPanel({
 
     gate.current = true;
     setActivity('sending');
+    onSubmittingChange?.(true);
     setErrorKey(null);
     try {
       const result = await createMockPayment(booking.id, {
@@ -250,6 +255,7 @@ export function MockPaymentPanel({
       }
     } finally {
       gate.current = false;
+      onSubmittingChange?.(false);
       if (mounted.current) {
         setActivity('idle');
       }

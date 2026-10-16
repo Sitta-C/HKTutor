@@ -13,6 +13,7 @@ import {
 import { bookingRequestCopy } from '@/components/bookings/booking-request-copy';
 import { getBookingErrorMessage } from '@/components/bookings/booking-ui';
 import { MockPaymentPanel } from '@/components/bookings/mock-payment-panel';
+import { RescheduleRequestPanel } from '@/components/bookings/reschedule-request-panel';
 import { studentBookingsCopy } from '@/components/bookings/student-bookings-copy';
 import { DashboardIcon } from '@/components/dashboard/dashboard-icon';
 import { NotebookHeading, PaperCard } from '@/components/ui/notebook';
@@ -22,7 +23,7 @@ import { useLanguage } from '@/lib/i18n';
 
 import styles from './student-bookings.module.css';
 
-import type { BookingDetail } from '@/lib/api/types';
+import type { BookingDetail, RescheduleRequestStatus } from '@/lib/api/types';
 
 export default function StudentBookingDetailPage({ bookingId }: { bookingId: string }) {
   const { copy, language } = useLanguage();
@@ -35,6 +36,12 @@ export default function StudentBookingDetailPage({ bookingId }: { bookingId: str
   const [reloadKey, setReloadKey] = useState(0);
   const [loadedBookingId, setLoadedBookingId] = useState<string | null>(null);
   const [bookingRevision, setBookingRevision] = useState(0);
+  const [rescheduleBusy, setRescheduleBusy] = useState(false);
+  const [cancellationBusy, setCancellationBusy] = useState(false);
+  const [paymentBusy, setPaymentBusy] = useState(false);
+  const [rescheduleStale, setRescheduleStale] = useState(false);
+  const [cancellationStale, setCancellationStale] = useState(false);
+  const [rescheduleOutcome, setRescheduleOutcome] = useState<RescheduleRequestStatus | null>(null);
   const latestBookingRevision = useRef(0);
   const isCurrentBookingLoaded = loadedBookingId === bookingId;
   const loading = isLoading || !isCurrentBookingLoaded;
@@ -46,6 +53,9 @@ export default function StudentBookingDetailPage({ bookingId }: { bookingId: str
       .then((result) => {
         if (!active) return;
         setBooking(result);
+        setRescheduleStale(false);
+        setCancellationStale(false);
+        setRescheduleOutcome(null);
         setError(null);
         setLoadedBookingId(bookingId);
       })
@@ -101,6 +111,9 @@ export default function StudentBookingDetailPage({ bookingId }: { bookingId: str
             <BookingCancellation
               key={booking.id}
               booking={booking}
+              disabled={rescheduleBusy || rescheduleStale}
+              onBusyChange={setCancellationBusy}
+              onRequiresRefresh={() => setCancellationStale(true)}
               onCanceled={(result) => {
                 // Invalidate callbacks captured by payment reads before this server-confirmed write.
                 // The ref changes synchronously, including before React commits the new state.
@@ -109,6 +122,42 @@ export default function StudentBookingDetailPage({ bookingId }: { bookingId: str
                 setBooking((current) =>
                   current?.id === result.bookingId
                     ? { ...current, status: result.status }
+                    : current,
+                );
+              }}
+              onRefresh={() => {
+                setIsLoading(true);
+                setReloadKey((value) => value + 1);
+              }}
+            />
+            <RescheduleRequestPanel
+              key={`${booking.id}:${booking.slot.id}:${booking.status}`}
+              booking={booking}
+              tutorId={booking.tutor.tutorId}
+              disabled={cancellationBusy || cancellationStale || paymentBusy}
+              onBusyChange={(busy) => {
+                setRescheduleBusy(busy);
+                if (busy) {
+                  latestBookingRevision.current += 1;
+                  setBookingRevision(latestBookingRevision.current);
+                }
+              }}
+              onRequiresRefresh={() => setRescheduleStale(true)}
+              outcome={rescheduleOutcome}
+              onOutcome={setRescheduleOutcome}
+              onApproved={(result) => {
+                latestBookingRevision.current += 1;
+                setBookingRevision(latestBookingRevision.current);
+                setBooking((current) =>
+                  current?.id === result.booking.id
+                    ? {
+                        ...current,
+                        slot: result.newSlot,
+                        status: result.booking.status,
+                        netAmount: result.booking.netAmount,
+                        subtotalAmount: result.booking.subtotalAmount,
+                        updatedAt: result.booking.updatedAt,
+                      }
                     : current,
                 );
               }}
@@ -142,8 +191,10 @@ export default function StudentBookingDetailPage({ bookingId }: { bookingId: str
                 </div>
 
                 <MockPaymentPanel
-                  key={booking.id}
+                  key={`${booking.id}:${booking.slot.id}`}
                   booking={booking}
+                  disabled={rescheduleBusy || rescheduleStale || cancellationStale}
+                  onSubmittingChange={setPaymentBusy}
                   onBookingChange={(nextBooking) => {
                     // An in-flight refresh keeps the callback from the render that started it.
                     if (bookingRevision !== latestBookingRevision.current) {

@@ -6,12 +6,14 @@ import { BookingCancellation } from '@/components/bookings/booking-cancellation'
 import { formatBookingDocketSlot } from '@/components/bookings/booking-docket-model';
 import { bookingRequestCopy } from '@/components/bookings/booking-request-copy';
 import { BookingStatusBadge, formatMoney } from '@/components/bookings/booking-ui';
+import { RescheduleRequestPanel } from '@/components/bookings/reschedule-request-panel';
 import {
   getStudentLabel,
   isDecidableBooking,
 } from '@/components/bookings/tutor-booking-inbox-model';
 import { DashboardIcon } from '@/components/dashboard/dashboard-icon';
 import { NotebookAction } from '@/components/ui/notebook-action';
+import { useAuth } from '@/lib/auth-context';
 
 import styles from './tutor-booking-inbox.module.css';
 
@@ -21,7 +23,12 @@ import type {
   TutorBookingDecision,
   TutorBookingDecisionError,
 } from '@/components/bookings/tutor-booking-inbox-model';
-import type { CancelBookingResult, TutorBookingView } from '@/lib/api/types';
+import type {
+  ApproveRescheduleResponse,
+  CancelBookingResult,
+  RescheduleRequestStatus,
+  TutorBookingView,
+} from '@/lib/api/types';
 import type { Language } from '@/lib/i18n';
 
 export interface TutorBookingCardProps {
@@ -36,6 +43,7 @@ export interface TutorBookingCardProps {
   onDecide: (decision: TutorBookingDecision) => void;
   onRefresh: () => void;
   onCanceled: (result: CancelBookingResult) => void;
+  onRescheduled: (result: ApproveRescheduleResponse) => void;
 }
 
 export function TutorBookingCard({
@@ -48,8 +56,14 @@ export function TutorBookingCard({
   onDecide,
   onRefresh,
   onCanceled,
+  onRescheduled,
 }: TutorBookingCardProps) {
+  const { user } = useAuth();
   const [cancellationRequiresRefresh, setCancellationRequiresRefresh] = useState(false);
+  const [cancellationBusy, setCancellationBusy] = useState(false);
+  const [rescheduleBusy, setRescheduleBusy] = useState(false);
+  const [rescheduleStale, setRescheduleStale] = useState(false);
+  const [rescheduleOutcome, setRescheduleOutcome] = useState<RescheduleRequestStatus | null>(null);
   const studentLabel = getStudentLabel(booking, copy);
   const time = formatBookingDocketSlot(booking.slot, language);
   // Only the cross-day Start/End wording comes from the shared request copy.
@@ -147,11 +161,26 @@ export function TutorBookingCard({
       <div className="col-span-full min-w-0">
         <BookingCancellation
           booking={booking}
-          disabled={isSubmitting || isStale}
+          disabled={isSubmitting || isStale || rescheduleBusy || rescheduleStale}
+          onBusyChange={setCancellationBusy}
           onCanceled={onCanceled}
           onRefresh={onRefresh}
           onRequiresRefresh={() => setCancellationRequiresRefresh(true)}
         />
+        {user && (
+          <RescheduleRequestPanel
+            key={`${booking.id}:${booking.slot.id}:${booking.status}`}
+            booking={booking}
+            tutorId={user.id}
+            disabled={isSubmitting || isStale || cancellationBusy || cancellationRequiresRefresh}
+            onBusyChange={setRescheduleBusy}
+            onRequiresRefresh={() => setRescheduleStale(true)}
+            outcome={rescheduleOutcome}
+            onOutcome={setRescheduleOutcome}
+            onApproved={onRescheduled}
+            onRefresh={onRefresh}
+          />
+        )}
       </div>
       <span className="sr-only">{copy.bangkokTime}</span>
     </article>

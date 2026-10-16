@@ -269,6 +269,21 @@ export default function TutorBookingInbox() {
                       setPage(sync.page);
                       reload();
                     }}
+                    onRescheduled={(result) => {
+                      setItems((current) =>
+                        current.map((item) =>
+                          item.id === result.booking.id
+                            ? {
+                                ...item,
+                                slot: result.newSlot,
+                                status: result.booking.status,
+                                netAmount: result.booking.netAmount,
+                                subtotalAmount: result.booking.subtotalAmount,
+                              }
+                            : item,
+                        ),
+                      );
+                    }}
                   />
                 ))}
               </div>
