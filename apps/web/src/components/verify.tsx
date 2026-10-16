@@ -15,8 +15,12 @@ import {
 } from '@/components/ui/notebook';
 import { useNotebookToast } from '@/components/ui/notebook-toast';
 import { resendVerification } from '@/lib/api/auth';
+import { ApiError } from '@/lib/api/error';
 import { useAuth } from '@/lib/auth-context';
 import { useLanguage } from '@/lib/i18n';
+import { formatResendTime, useEmailFlow } from '@/lib/use-email-flow';
+
+import type { Translation } from '@/lib/i18n';
 
 const EMAIL_VERIFICATION_CHANNEL = 'hktutor-email-verification';
 const ORIGINAL_TAB_RESPONSE_TIMEOUT_MS = 1_500;
@@ -73,21 +77,17 @@ function VerifyForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const token = searchParams.get('token');
-  const initialEmail = searchParams.get('email') ?? '';
   const deliveryFailed = searchParams.get('delivery') === 'failed';
   const attemptedToken = useRef<string | null>(null);
   const verificationCopy = useRef(copy.register);
   const handledVerificationEvent = useRef(false);
-  const [email, setEmail] = useState(initialEmail);
+  const resend = useEmailFlow('verification');
+  const resending = useRef(false);
   const [status, setStatus] = useState<'waiting' | 'verifying' | 'verified' | 'error'>(
     token ? 'verifying' : 'waiting',
   );
-  const [message, setMessage] = useState(
-    token
-      ? copy.register.otpLoading
-      : deliveryFailed
-        ? copy.register.verificationDeliveryFailed
-        : copy.register.otpSubtitle.replace('{email}', initialEmail || copy.register.emailLabel),
+  const [message, setMessage] = useState<keyof Translation['register'] | 'flowChanged'>(
+    token ? 'otpLoading' : deliveryFailed ? 'verificationDeliveryFailed' : 'otpResendPrompt',
   );
   const [isResending, setIsResending] = useState(false);
 
@@ -132,7 +132,7 @@ function VerifyForm() {
     verify(token)
       .then(async () => {
         setStatus('verified');
-        setMessage(verificationCopy.current.verificationSuccess);
+        setMessage('verificationSuccess');
         toast.success(verificationCopy.current.verificationSuccess);
         const originalTabAcknowledged = await notifyOriginalTab();
 
@@ -141,36 +141,48 @@ function VerifyForm() {
           return;
         }
 
-        setMessage(verificationCopy.current.verificationReturningToOriginalTab);
+        setMessage('verificationReturningToOriginalTab');
         window.close();
 
         // Some browsers refuse programmatic closing. Keep a clear manual fallback
         // instead of opening a second dashboard in that tab.
         window.setTimeout(() => {
-          setMessage(verificationCopy.current.verificationCloseTab);
+          setMessage('verificationCloseTab');
         }, 250);
       })
       .catch(() => {
         setStatus('error');
-        setMessage(verificationCopy.current.verificationFailed);
+        setMessage('verificationFailed');
         toast.error(verificationCopy.current.verificationFailed);
       });
   }, [router, token, toast, verify]);
 
   const handleResend = async () => {
-    if (!email.trim()) return;
+    if (!resend.flow || resend.remainingSeconds > 0 || resending.current) {
+      return;
+    }
+    resending.current = true;
     setIsResending(true);
     try {
-      await resendVerification(email.trim());
+      const result = await resendVerification(resend.flow.id);
+      resend.accept(result.emailFlow);
       setStatus('waiting');
-      setMessage(copy.register.otpResent);
+      setMessage('otpResent');
       toast.success(copy.register.otpResent);
-    } catch {
+    } catch (error) {
+      resend.refresh();
       setStatus('error');
-      setMessage(copy.register.resendFailed);
-      toast.error(copy.register.resendFailed);
+      const failed =
+        error instanceof ApiError && error.status === 400
+          ? copy.emailResend.changed
+          : copy.register.resendFailed;
+      setMessage(
+        error instanceof ApiError && error.status === 400 ? 'flowChanged' : 'resendFailed',
+      );
+      toast.error(failed);
     } finally {
       setIsResending(false);
+      resending.current = false;
     }
   };
 
@@ -188,11 +200,17 @@ function VerifyForm() {
             className={`mx-auto mt-4 max-w-[390px] leading-7 ${status === 'error' ? 'text-red-700' : 'text-notebook-muted'}`}
             role={status === 'error' ? 'alert' : 'status'}
           >
-            {message}
+            {message === 'flowChanged' ? copy.emailResend.changed : copy.register[message]}
           </p>
 
           {(status === 'waiting' || status === 'error') && (
             <div className="mt-8 space-y-3">
+              {resend.loading && <p role="status">{copy.emailResend.loading}</p>}
+              {resend.failed && (
+                <p role="alert" className="text-sm text-red-700">
+                  {copy.emailResend.missing}
+                </p>
+              )}
               <NotebookField
                 htmlFor="verificationEmail"
                 label={copy.register.emailLabel}
@@ -203,19 +221,49 @@ function VerifyForm() {
                   type="email"
                   autoComplete="email"
                   placeholder={copy.register.emailPlaceholder}
-                  value={email}
-                  onChange={(event) => setEmail(event.target.value)}
+                  value={resend.flow?.email ?? ''}
+                  readOnly
+                  aria-readonly="true"
                   className={notebookInputClass({ className: 'h-[3.65rem] text-left' })}
                 />
               </NotebookField>
               <NotebookButton
                 type="button"
                 onClick={handleResend}
-                disabled={isResending || !email.trim()}
+                disabled={
+                  isResending ||
+                  resend.loading ||
+                  resend.failed ||
+                  !resend.flow ||
+                  resend.remainingSeconds > 0
+                }
                 className="h-[3.65rem] w-full text-base"
               >
-                {isResending ? copy.register.otpResending : copy.register.otpResend}
+                {isResending
+                  ? copy.register.otpResending
+                  : resend.remainingSeconds > 0
+                    ? copy.emailResend.wait.replace(
+                        '{time}',
+                        formatResendTime(resend.remainingSeconds),
+                      )
+                    : copy.register.otpResend}
               </NotebookButton>
+              {resend.failed && (
+                <NotebookButton
+                  type="button"
+                  tone="secondary"
+                  onClick={() => void resend.refresh()}
+                >
+                  {copy.emailResend.retry}
+                </NotebookButton>
+              )}
+              <p className="text-sm text-notebook-muted">{copy.emailResend.verificationHelp}</p>
+              <Link
+                href="/register"
+                className="inline-block rounded-sm p-2 text-sm font-bold underline underline-offset-4"
+              >
+                {copy.emailResend.wrongEmail} {copy.emailResend.backToRegister}
+              </Link>
             </div>
           )}
 

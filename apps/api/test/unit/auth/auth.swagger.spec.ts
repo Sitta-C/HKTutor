@@ -8,6 +8,7 @@ import { AuthController } from '@modules/auth/auth.controller';
 import { JwtAuthGuard } from '@modules/auth/auth.guard';
 import { AuthService } from '@modules/auth/auth.service';
 import { JWT_BEARER_AUTH, REFRESH_COOKIE_AUTH } from '@modules/auth/auth.swagger';
+import { EmailFlowService } from '@modules/auth/email-flow.service';
 
 import type { INestApplication } from '@nestjs/common';
 import type { OpenAPIObject, OperationObject } from '@nestjs/swagger';
@@ -22,6 +23,7 @@ describe('authentication Swagger contract', () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
       controllers: [AuthController],
       providers: [
+        EmailFlowService,
         { provide: AuthService, useValue: {} },
         { provide: AuthConfigService, useValue: {} },
       ],
@@ -47,6 +49,8 @@ describe('authentication Swagger contract', () => {
     ['post', '/api/v1/auth/register', 'Register with email and password'],
     ['post', '/api/v1/auth/verify-email', 'Verify an email address and start a session'],
     ['post', '/api/v1/auth/resend-verification', 'Send a new email verification link'],
+    ['post', '/api/v1/auth/forgot-password', 'Request a password reset email'],
+    ['post', '/api/v1/auth/reset-password', 'Set a new password using a one-time reset link'],
     ['post', '/api/v1/auth/login', 'Sign in with email and password'],
     ['post', '/api/v1/auth/refresh', 'Rotate the refresh session and issue a new access token'],
     ['post', '/api/v1/auth/logout', 'Revoke the current refresh session'],
@@ -82,6 +86,17 @@ describe('authentication Swagger contract', () => {
     expect(registration.responses).toHaveProperty('201');
     expect(registration.responses).not.toHaveProperty('409');
     expect(JSON.stringify(registration)).toContain('account existence is not disclosed');
+  });
+
+  it('documents public reset endpoints with validation and rate limits but no session issuance', () => {
+    for (const path of ['/api/v1/auth/forgot-password', '/api/v1/auth/reset-password']) {
+      const endpoint = operation('post', path);
+      expect(endpoint.responses).toHaveProperty('200');
+      expect(endpoint.responses).toHaveProperty('400');
+      expect(endpoint.responses).toHaveProperty('429');
+      expect(endpoint.security ?? []).toEqual([]);
+      expect(JSON.stringify(endpoint.responses['200'])).not.toContain('accessToken');
+    }
   });
 
   function operation(method: string, path: string): OperationObject {

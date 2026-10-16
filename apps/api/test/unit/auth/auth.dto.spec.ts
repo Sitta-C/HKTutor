@@ -1,7 +1,7 @@
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
 
-import { RegisterDto } from '@modules/auth/auth.dto';
+import { ForgotPasswordDto, RegisterDto, ResetPasswordDto } from '@modules/auth/auth.dto';
 
 describe('RegisterDto', () => {
   it('normalizes a valid email/password registration', async () => {
@@ -32,5 +32,33 @@ describe('RegisterDto', () => {
     });
 
     expect(await validate(dto)).not.toHaveLength(0);
+  });
+});
+
+describe('password recovery DTOs', () => {
+  it('normalizes the recovery address', async () => {
+    const dto = plainToInstance(ForgotPasswordDto, { email: ' Student@Example.COM ' });
+    expect(await validate(dto)).toHaveLength(0);
+    expect(dto.email).toBe('student@example.com');
+  });
+
+  it.each([
+    { token: 'short', password: 'password123' },
+    { token: 'a'.repeat(43), password: 'short1' },
+    { token: 'a'.repeat(43), password: 'allletters' },
+    { token: 'a'.repeat(43), password: '1234567890' },
+    { token: 'a'.repeat(43), password: 'a1'.repeat(65) },
+    { token: '<'.repeat(43), password: 'password123' },
+    { token: 'a'.repeat(43) },
+  ])('rejects invalid reset data %#', async (input) => {
+    expect(await validate(plainToInstance(ResetPasswordDto, input))).not.toHaveLength(0);
+  });
+
+  it('accepts a reset token and the existing password policy', async () => {
+    expect(
+      await validate(
+        plainToInstance(ResetPasswordDto, { token: 'a'.repeat(43), password: 'password123' }),
+      ),
+    ).toHaveLength(0);
   });
 });

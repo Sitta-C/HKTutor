@@ -82,11 +82,11 @@ export default function Register() {
         ...buildOnboardingConsent(acceptedPolicy),
       });
       toast.success(copy.register.accountCreated);
-      router.push(`/register/verify?email=${encodeURIComponent(email)}`);
+      router.push('/register/verify');
     } catch (err: unknown) {
       if (err instanceof ApiError && err.status === 503) {
         toast.error(copy.register.verificationDeliveryFailed);
-        router.push(`/register/verify?email=${encodeURIComponent(email)}&delivery=failed`);
+        router.push('/register/verify?delivery=failed');
         return;
       }
       setErrorMessage(copy.register.registrationFailed);

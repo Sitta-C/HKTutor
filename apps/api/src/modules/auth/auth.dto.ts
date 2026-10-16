@@ -1,5 +1,14 @@
 import { Transform } from 'class-transformer';
-import { IsBoolean, IsEmail, IsIn, IsString, Matches, MaxLength, MinLength } from 'class-validator';
+import {
+  IsBoolean,
+  IsEmail,
+  IsIn,
+  IsString,
+  IsUUID,
+  Matches,
+  MaxLength,
+  MinLength,
+} from 'class-validator';
 
 import { CURRENT_PRIVACY_POLICY_VERSION } from '@modules/auth/auth.constants';
 
@@ -51,7 +60,7 @@ export class VerifyEmailDto {
   token!: string;
 }
 
-export class ResendVerificationDto {
+export class ForgotPasswordDto {
   @Transform(normalizeEmail)
   @IsEmail()
   @MaxLength(254)
@@ -65,4 +74,27 @@ export class AcceptPrivacyNoticeDto {
   @Matches(/^\d{4}-\d{2}-\d{2}$/)
   @IsIn([...POLICY_VERSIONS])
   policyVersion!: string;
+}
+
+export class ResendEmailDto {
+  @IsUUID()
+  flowId!: string;
+}
+
+export class EmailFlowQueryDto {
+  @IsIn(['verification', 'password-reset'])
+  purpose!: 'verification' | 'password-reset';
+}
+
+export class ResetPasswordDto {
+  @IsString()
+  @Matches(/^[A-Za-z0-9_-]{43}$/)
+  token!: string;
+
+  @IsString()
+  @MinLength(10)
+  @MaxLength(128)
+  @Matches(/[A-Za-z]/, { message: 'Password must contain a letter' })
+  @Matches(/\d/, { message: 'Password must contain a number' })
+  password!: string;
 }

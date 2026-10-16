@@ -85,6 +85,14 @@ export class AuthConfigService {
     );
   }
 
+  get passwordResetTtlMinutes(): number {
+    return positiveInteger(
+      this.config.get<string>('PASSWORD_RESET_TTL_MINUTES'),
+      30,
+      'PASSWORD_RESET_TTL_MINUTES',
+    );
+  }
+
   get appUrl(): string {
     return this.config.get<string>('APP_URL', 'http://localhost:3000');
   }
