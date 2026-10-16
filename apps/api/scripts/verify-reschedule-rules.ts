@@ -2,9 +2,11 @@ import assert from 'node:assert/strict';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { readdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
+import { setTimeout as delay } from 'node:timers/promises';
 
 import { ConfigService } from '@nestjs/config';
 import { Test } from '@nestjs/testing';
+import { Pool } from 'pg';
 import 'reflect-metadata';
 import request from 'supertest';
 
@@ -128,6 +130,8 @@ async function main(): Promise<void> {
   const clock = installControlledClock();
   const databaseUrl = disposableDatabaseUrl();
   const prisma = new PrismaService(new ConfigService({ DATABASE_URL: databaseUrl }));
+  // Holds a slot's row lock for the race checks without using the application's own pool.
+  const control = new Pool({ connectionString: databaseUrl, max: 2 });
   const jwt = new JwtTokenService(
     new AuthConfigService(
       new ConfigService({
@@ -1052,6 +1056,111 @@ async function main(): Promise<void> {
       );
     }
 
+    // 9. Approval racing another student's booking of the same target slot, in both orders. Both
+    // services lock the target's AvailabilitySlot row. A control transaction holds that lock; the
+    // first request is seen waiting on it before the second starts, so PostgreSQL grants the lock
+    // in that order once the control transaction commits.
+    async function slotLockWaiters(): Promise<number> {
+      const result = await control.query<{ count: number }>(
+        `SELECT count(*)::int AS count FROM pg_stat_activity
+         WHERE datname = current_database() AND wait_event_type = 'Lock'
+           AND query LIKE '%FROM "AvailabilitySlot"%FOR UPDATE%'`,
+      );
+      return result.rows[0]?.count ?? 0;
+    }
+
+    async function waitForSlotLockWaiters(count: number, label: string): Promise<void> {
+      const deadline = Date.now() + 5000;
+      while ((await slotLockWaiters()) < count) {
+        assert.ok(Date.now() < deadline, `${label} must wait for the target slot's row lock`);
+        await delay(20);
+      }
+    }
+
+    for (const first of ['approval', 'booking'] as const) {
+      const item = await fixture();
+      const targetSlotId = await slot();
+      const requestId = await pendingRequest(item, targetSlotId);
+      const before = await world();
+      const blocker = await control.connect();
+      const jobs: Array<Promise<request.Response>> = [];
+      let holdingLock = false;
+      try {
+        await blocker.query('BEGIN');
+        holdingLock = true;
+        await blocker.query('SELECT "id" FROM "AvailabilitySlot" WHERE "id" = $1 FOR UPDATE', [
+          targetSlotId,
+        ]);
+        const start = (job: 'approval' | 'booking'): void => {
+          const call =
+            job === 'approval'
+              ? decide('approve', requestId, tutor)
+              : post('bookings', otherStudent, { listingId, slotId: targetSlotId });
+          const response = call.then((result) => result);
+          void response.catch(() => {});
+          jobs.push(response);
+        };
+        start(first);
+        await waitForSlotLockWaiters(1, `The ${first}`);
+        start(first === 'approval' ? 'booking' : 'approval');
+        await waitForSlotLockWaiters(2, 'Both requests');
+        await blocker.query('COMMIT');
+        holdingLock = false;
+        const [firstResponse, secondResponse] = await Promise.all(jobs);
+        assert.ok(firstResponse && secondResponse);
+        const [approval, booking] =
+          first === 'approval' ? [firstResponse, secondResponse] : [secondResponse, firstResponse];
+
+        if (first === 'approval') {
+          assert.equal(approval.status, 200, `approval: ${JSON.stringify(approval.body)}`);
+          assert.equal(booking.status, 409, `booking: ${JSON.stringify(booking.body)}`);
+          assert.equal(field(booking.body as unknown, 'code'), 'CONFLICT');
+          await assertApproved(
+            item,
+            requestId,
+            targetSlotId,
+            tutor,
+            approval.body as unknown,
+            before,
+          );
+        } else {
+          assert.equal(booking.status, 201, `booking: ${JSON.stringify(booking.body)}`);
+          assert.equal(approval.status, 409, `approval: ${JSON.stringify(approval.body)}`);
+          assert.equal(field(approval.body as unknown, 'code'), 'RESCHEDULE_TARGET_RESERVED');
+          const newBookingId = field(booking.body as unknown, 'id');
+          assert.ok(typeof newBookingId === 'string');
+          created.bookings.push(newBookingId);
+          const after = await world();
+          assert.deepEqual(
+            after.bookings.filter((row) => row.id !== newBookingId),
+            before.bookings,
+            'The losing approval moved a booking',
+          );
+          assert.deepEqual(
+            after.requests,
+            before.requests,
+            'The losing approval closed the request',
+          );
+          assert.deepEqual(after.slots, before.slots);
+          assert.deepEqual(await activeHolders([item.slotId, targetSlotId]), {
+            [item.slotId]: [item.bookingId],
+            [targetSlotId]: [newBookingId],
+          });
+        }
+        pass(
+          `approval and another student's booking race for one target; the ${first} locks it ` +
+            `first → ${first === 'approval' ? 'approval 200, booking 409' : 'booking 201, approval 409'}; ` +
+            'exactly one booking holds the target',
+        );
+      } finally {
+        if (holdingLock) {
+          await blocker.query('ROLLBACK');
+        }
+        await Promise.allSettled(jobs);
+        blocker.release();
+      }
+    }
+
     process.stdout.write(`Reschedule rules verification passed: ${passed} real-database checks\n`);
   } finally {
     try {
@@ -1068,6 +1177,7 @@ async function main(): Promise<void> {
     } finally {
       await app?.close();
       await prisma.$disconnect();
+      await control.end();
       clock.uninstall();
     }
   }
