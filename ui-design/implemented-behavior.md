@@ -597,6 +597,22 @@ the saved canceled status; reads started afterward still update the page normall
 Conflict, forbidden/missing booking and
 uncertain request outcomes require a refreshed booking before another cancellation attempt.
 
+## Booking rescheduling (S2-T26)
+
+Student booking details and tutor inbox rows expose rescheduling through a collapsed disclosure,
+with a pending-request cue kept visible. The requester can view and withdraw; the counterparty
+can review, approve or reject. Current/requested times include Bangkok dates and durations, and
+the selected target keeps its role-colored treatment after focus moves. Student payment details
+remain ahead of the optional form. Approval restores focus after replacing the panel.
+
+Approval requires a future target as well as an eligible original booking. The UI checks target
+expiry while the page is open and again before submission; rejection and withdrawal remain
+available after expiry. A server `400 RESCHEDULE_TARGET_PAST` response shows a bilingual explanation
+and locks further writes until the booking and request are refreshed. The refreshed server actions
+still determine which decisions are available. Generic editable validation errors remain correctable
+without a refresh. These paths are covered by `reschedule.test.ts` and `booking-reschedule-ui.spec.ts`;
+the browser suite intercepts APIs and does not verify database transactions.
+
 ## Password recovery
 
 The login's small recovery link opens `/forgot-password`, using the existing auth shell and notebook
