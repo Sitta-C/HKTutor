@@ -735,13 +735,61 @@ with stable `(createdAt, id)` cursor ordering, including equal timestamps; `book
 for joins. Read state is derived from `readAt`, without a separate status column.
 
 RLS and revoked PUBLIC/Supabase `anon`/`authenticated` privileges keep the table behind the backend
-connection. This card adds persistence only. S2-T28 owns event production, recipient/counterparty
-selection, no-self-notification checks and retry handling. Writers must derive a stable key for
-each domain event (including the request identity for repeat reschedules), use the same database
-transaction as the domain action, and handle duplicates without changing existing content/read
-state (for example, `ON CONFLICT ("userId", "eventKey") DO NOTHING`). S2-T29 owns authenticated,
+connection. S2-DB05 adds persistence; the S2-T28 event writer below implements recipient selection,
+no-self-notification checks and retry handling within domain transactions. S2-T29 owns authenticated,
 owner-only list/read endpoints; S2-T30 owns the UI. No endpoint or Swagger/wire contract changes
 are introduced here. The schema cannot determine the actor or authorize a caller on its own.
+
+### Notification events (S2-T28)
+
+`NotificationEventsService` is shared by booking and reschedule services. It writes only through
+the domain action's transaction client. There are no new endpoints, schema changes, background
+jobs or external deliveries in this task. Notification list/read APIs and UI remain S2-T29/T30;
+scheduled reminders remain Sprint 3.
+
+| Event type             | Event key                          | Recipient                                  |
+| ---------------------- | ---------------------------------- | ------------------------------------------ |
+| `BOOKING_CREATED`      | `BOOKING_CREATED:<bookingId>`      | Booking tutor                              |
+| `BOOKING_CONFIRMED`    | `BOOKING_CONFIRMED:<bookingId>`    | Booking student                            |
+| `BOOKING_REJECTED`     | `BOOKING_REJECTED:<bookingId>`     | Booking student                            |
+| `BOOKING_CANCELED`     | `BOOKING_CANCELED:<bookingId>`     | Participant other than the canceling actor |
+| `RESCHEDULE_REQUESTED` | `RESCHEDULE_REQUESTED:<requestId>` | Participant other than the requester       |
+| `RESCHEDULE_APPROVED`  | `RESCHEDULE_APPROVED:<requestId>`  | Original requester                         |
+| `RESCHEDULE_REJECTED`  | `RESCHEDULE_REJECTED:<requestId>`  | Original requester                         |
+| `RESCHEDULE_WITHDRAWN` | `RESCHEDULE_WITHDRAWN:<requestId>` | Participant other than the requester       |
+
+Participants come from persisted booking data and the actor comes from the authenticated flow.
+The writer rejects nonparticipant actors and skips self-notification. Only a successful conditional
+transition produces its event. Failed/unauthorized/repeated domain actions retain their existing
+error contracts and produce no notification. Repeated event writes use Prisma `createMany` with
+`skipDuplicates`, backed by PostgreSQL's unique `(userId, eventKey)` index; they leave existing
+IDs, title/body, creation time and read state unchanged. Each reschedule request has a separate
+key even when several rounds concern the same booking.
+
+Notification persistence failures abort the entire domain transaction. Reject/withdraw reschedule
+decisions now share the booking-first lock order used by approval, preventing a request/booking
+lock inversion when notification foreign keys are checked. No notification is visible before commit.
+Stored English title/body are static, minimal fallback text, with no names, reasons, amounts,
+class details or URLs. Future bilingual UI can translate the stable event types. There is no
+backfill of historical actions.
+
+The focused unit suites cover event recipients, no-self checks, duplicate handling and verifier
+target safety. Existing booking/reschedule HTTP suites exercise guards and response contracts
+with isolated persistence; they mock the event writer and do not establish notification atomicity.
+For real domain services, inserts, concurrent retries/decisions and post-insert rollback across
+all eight event paths, apply migrations without seeding to a new disposable PostgreSQL database:
+
+```bash
+HKTUTOR_ALLOW_DISPOSABLE_DB_VERIFY=1 \
+  DATABASE_URL='postgresql://postgres:disposable-local-only@127.0.0.1:55438/hktutor_notification_events_test' \
+  pnpm db:verify:notification-events
+```
+
+This runner never loads `.env`, requires explicit opt-in and a loopback `hktutor_*_test` or
+`hktutor-*-test` target, and refuses URL options/fragments. It checks all committed migrations
+before creating its synthetic fixtures, removes only its own records and performs no migration
+or seed itself. Discard the disposable database after success or failure. It uses actual services
+and PostgreSQL, without an HTTP server, Supabase Storage or external email.
 
 `node --test tests/notification-schema.test.mjs` checks the committed contract without a database.
 For PostgreSQL constraint, concurrent retry, cursor and transaction rollback evidence, prepare

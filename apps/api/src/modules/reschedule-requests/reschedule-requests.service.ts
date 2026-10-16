@@ -15,9 +15,10 @@ import {
 } from '@generated/prisma/enums';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import { CURRENT_PRIVACY_POLICY_VERSION } from '@modules/auth/auth.constants';
+import { NotificationEventsService } from '@modules/notifications/notification-events.service';
 import { RescheduleAction } from '@modules/reschedule-requests/reschedule-requests.dto';
 
-import type { AvailabilitySlot } from '@generated/prisma/client';
+import type { AvailabilitySlot, Prisma } from '@generated/prisma/client';
 import type {
   ApproveRescheduleResponseDto,
   CreateRescheduleRequestDto,
@@ -222,7 +223,10 @@ const privacyConsentRequired = (): BadRequestException =>
 export class RescheduleRequestsService {
   private readonly logger = new Logger(RescheduleRequestsService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notificationEvents: NotificationEventsService,
+  ) {}
 
   private async assertActiveUserWithConsent(userId: string): Promise<void> {
     const user = await this.prisma.user.findUnique({
@@ -235,6 +239,19 @@ export class RescheduleRequestsService {
     if (user.policyVersion !== CURRENT_PRIVACY_POLICY_VERSION) {
       throw privacyConsentRequired();
     }
+  }
+
+  private async lockRequestBooking(tx: Prisma.TransactionClient, requestId: string): Promise<void> {
+    const identity = await tx.rescheduleRequest.findUnique({
+      select: { bookingId: true },
+      where: { id: requestId },
+    });
+    if (!identity) {
+      throw rescheduleRequestNotFound();
+    }
+    // All decisions lock booking before request. Notification's booking FK also takes a lock;
+    // reversing this order in reject/withdraw can deadlock with concurrent approval.
+    await tx.$queryRaw`SELECT "id" FROM "Booking" WHERE "id" = ${identity.bookingId}::uuid FOR UPDATE`;
   }
 
   async create(
@@ -347,6 +364,13 @@ export class RescheduleRequestsService {
             requestedSlotId: targetSlot.id,
             status: RescheduleRequestStatus.PENDING,
           },
+        });
+
+        await this.notificationEvents.write(tx, {
+          actorUserId: userId,
+          booking,
+          eventType: 'RESCHEDULE_REQUESTED',
+          requestId: created.id,
         });
 
         return {
@@ -471,14 +495,7 @@ export class RescheduleRequestsService {
 
     try {
       return await this.prisma.$transaction(async (tx) => {
-        const identity = await tx.rescheduleRequest.findUnique({
-          select: { bookingId: true },
-          where: { id: requestId },
-        });
-        if (!identity) {
-          throw rescheduleRequestNotFound();
-        }
-        await tx.$queryRaw`SELECT "id" FROM "Booking" WHERE "id" = ${identity.bookingId}::uuid FOR UPDATE`;
+        await this.lockRequestBooking(tx, requestId);
         // A competing decision may have committed while the booking lock was pending.
         const request = await tx.rescheduleRequest.findUnique({
           include: {
@@ -600,6 +617,13 @@ export class RescheduleRequestsService {
           where: { id: request.bookingId },
         });
 
+        await this.notificationEvents.write(tx, {
+          actorUserId: userId,
+          booking: request.booking,
+          eventType: 'RESCHEDULE_APPROVED',
+          requestId: request.id,
+        });
+
         return {
           booking: {
             id: updatedBooking.id,
@@ -644,97 +668,117 @@ export class RescheduleRequestsService {
       this.logger.log(`Reschedule request ${requestId} rejected with reason: ${dto.reason}`);
     }
 
-    const request = await this.prisma.rescheduleRequest.findUnique({
-      include: {
-        booking: { select: { studentUserId: true, tutorProfileId: true } },
-      },
-      where: { id: requestId },
-    });
+    return this.prisma.$transaction(async (tx) => {
+      await this.lockRequestBooking(tx, requestId);
+      const request = await tx.rescheduleRequest.findUnique({
+        include: {
+          booking: { select: { studentUserId: true, tutorProfileId: true } },
+        },
+        where: { id: requestId },
+      });
 
-    if (!request) {
-      throw rescheduleRequestNotFound();
-    }
+      if (!request) {
+        throw rescheduleRequestNotFound();
+      }
 
-    const isParticipant =
-      request.booking.studentUserId === userId || request.booking.tutorProfileId === userId;
-    if (!isParticipant) {
-      throw bookingNotParticipant();
-    }
+      const isParticipant =
+        request.booking.studentUserId === userId || request.booking.tutorProfileId === userId;
+      if (!isParticipant) {
+        throw bookingNotParticipant();
+      }
 
-    if (request.requestedById === userId) {
-      throw rescheduleNotReviewer();
-    }
+      if (request.requestedById === userId) {
+        throw rescheduleNotReviewer();
+      }
 
-    if (request.status !== RescheduleRequestStatus.PENDING) {
-      throw rescheduleRequestNotPending(request.status);
-    }
+      if (request.status !== RescheduleRequestStatus.PENDING) {
+        throw rescheduleRequestNotPending(request.status);
+      }
 
-    const decidedAt = new Date();
-    const result = await this.prisma.rescheduleRequest.updateMany({
-      data: {
-        decidedAt,
-        reviewedById: userId,
+      const decidedAt = new Date();
+      const result = await tx.rescheduleRequest.updateMany({
+        data: {
+          decidedAt,
+          reviewedById: userId,
+          status: RescheduleRequestStatus.REJECTED,
+        },
+        where: { id: requestId, status: RescheduleRequestStatus.PENDING },
+      });
+
+      if (result.count !== 1) {
+        throw rescheduleRaceConflict();
+      }
+
+      await this.notificationEvents.write(tx, {
+        actorUserId: userId,
+        booking: { ...request.booking, id: request.bookingId },
+        eventType: 'RESCHEDULE_REJECTED',
+        requestId: request.id,
+      });
+
+      return {
+        requestId: request.id,
+        reviewedAt: decidedAt.toISOString(),
         status: RescheduleRequestStatus.REJECTED,
-      },
-      where: { id: requestId, status: RescheduleRequestStatus.PENDING },
+      };
     });
-
-    if (result.count !== 1) {
-      throw rescheduleRaceConflict();
-    }
-
-    return {
-      requestId: request.id,
-      reviewedAt: decidedAt.toISOString(),
-      status: RescheduleRequestStatus.REJECTED,
-    };
   }
 
   async withdraw(userId: string, requestId: string): Promise<WithdrawRescheduleResponseDto> {
     await this.assertActiveUserWithConsent(userId);
 
-    const request = await this.prisma.rescheduleRequest.findUnique({
-      include: {
-        booking: { select: { studentUserId: true, tutorProfileId: true } },
-      },
-      where: { id: requestId },
-    });
+    return this.prisma.$transaction(async (tx) => {
+      await this.lockRequestBooking(tx, requestId);
+      const request = await tx.rescheduleRequest.findUnique({
+        include: {
+          booking: { select: { studentUserId: true, tutorProfileId: true } },
+        },
+        where: { id: requestId },
+      });
 
-    if (!request) {
-      throw rescheduleRequestNotFound();
-    }
+      if (!request) {
+        throw rescheduleRequestNotFound();
+      }
 
-    const isParticipant =
-      request.booking.studentUserId === userId || request.booking.tutorProfileId === userId;
-    if (!isParticipant) {
-      throw bookingNotParticipant();
-    }
+      const isParticipant =
+        request.booking.studentUserId === userId || request.booking.tutorProfileId === userId;
+      if (!isParticipant) {
+        throw bookingNotParticipant();
+      }
 
-    if (request.requestedById !== userId) {
-      throw rescheduleNotRequester();
-    }
+      if (request.requestedById !== userId) {
+        throw rescheduleNotRequester();
+      }
 
-    if (request.status !== RescheduleRequestStatus.PENDING) {
-      throw rescheduleRequestNotPending(request.status);
-    }
+      if (request.status !== RescheduleRequestStatus.PENDING) {
+        throw rescheduleRequestNotPending(request.status);
+      }
 
-    const withdrawnAt = new Date();
-    const result = await this.prisma.rescheduleRequest.updateMany({
-      data: {
+      const withdrawnAt = new Date();
+      const result = await tx.rescheduleRequest.updateMany({
+        data: {
+          status: RescheduleRequestStatus.WITHDRAWN,
+          withdrawnAt,
+        },
+        where: { id: requestId, status: RescheduleRequestStatus.PENDING },
+      });
+
+      if (result.count !== 1) {
+        throw rescheduleRaceConflict();
+      }
+
+      await this.notificationEvents.write(tx, {
+        actorUserId: userId,
+        booking: { ...request.booking, id: request.bookingId },
+        eventType: 'RESCHEDULE_WITHDRAWN',
+        requestId: request.id,
+      });
+
+      return {
+        requestId: request.id,
         status: RescheduleRequestStatus.WITHDRAWN,
-        withdrawnAt,
-      },
-      where: { id: requestId, status: RescheduleRequestStatus.PENDING },
+        withdrawnAt: withdrawnAt.toISOString(),
+      };
     });
-
-    if (result.count !== 1) {
-      throw rescheduleRaceConflict();
-    }
-
-    return {
-      requestId: request.id,
-      status: RescheduleRequestStatus.WITHDRAWN,
-      withdrawnAt: withdrawnAt.toISOString(),
-    };
   }
 }

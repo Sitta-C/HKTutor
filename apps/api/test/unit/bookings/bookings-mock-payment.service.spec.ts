@@ -5,6 +5,7 @@ import { Prisma } from '@generated/prisma/client';
 import { BookingStatus, PaymentStatus } from '@generated/prisma/enums';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import { BookingsService } from '@modules/bookings/bookings.service';
+import { NotificationEventsService } from '@modules/notifications/notification-events.service';
 
 import type { TestingModule } from '@nestjs/testing';
 
@@ -72,7 +73,11 @@ describe('BookingsService mock payment', () => {
     jest.clearAllMocks();
 
     const module: TestingModule = await Test.createTestingModule({
-      providers: [BookingsService, { provide: PrismaService, useValue: prisma }],
+      providers: [
+        { provide: NotificationEventsService, useValue: { write: jest.fn() } },
+        BookingsService,
+        { provide: PrismaService, useValue: prisma },
+      ],
     }).compile();
 
     service = module.get(BookingsService);

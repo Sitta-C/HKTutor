@@ -18,6 +18,7 @@ import { ResourceOwnershipGuard } from '@modules/auth/ownership.guard';
 import { RolesGuard } from '@modules/auth/roles.guard';
 import { BookingsController } from '@modules/bookings/bookings.controller';
 import { BookingsService } from '@modules/bookings/bookings.service';
+import { NotificationEventsService } from '@modules/notifications/notification-events.service';
 import { TutorAvailabilityService } from '@modules/tutors/tutor-availability.service';
 import { AvailabilityState } from '@modules/tutors/tutors.dto';
 
@@ -246,6 +247,7 @@ async function main(): Promise<void> {
     const module = await Test.createTestingModule({
       controllers: [BookingsController],
       providers: [
+        NotificationEventsService,
         BookingsService,
         JwtAuthGuard,
         RolesGuard,
@@ -739,6 +741,7 @@ async function main(): Promise<void> {
     gate?.close();
     try {
       // Only this invocation's random IDs are removed, including after a partially built fixture.
+      await prisma.notification.deleteMany({ where: { bookingId: { in: created.bookings } } });
       await prisma.booking.deleteMany({ where: { id: { in: created.bookings } } });
       await prisma.availabilitySlot.deleteMany({ where: { id: { in: created.slots } } });
       await prisma.teachingListing.deleteMany({ where: { id: { in: created.listings } } });
