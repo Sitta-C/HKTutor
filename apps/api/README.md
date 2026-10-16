@@ -922,18 +922,11 @@ Two approvals for one target, competing creates and duplicate approvals are cove
 `db:verify:reschedule-endpoints` above. The frozen clock and the URL gate have unit tests in
 `reschedule-rules-verifier.spec.ts`.
 
-**Target-availability rule, as implemented.** A target must be a live, future slot of the booking's
-tutor, other than the booking's own slot, with no pending or confirmed booking. A pending request
-never holds its target, so approval checks it again. Three points await a team decision; until then
-the checks follow the API as written:
-
-- The API lets either participant request and the other decide, and the S2-DB04 triggers allow the
-  same. The RBAC tab gives requesting and withdrawing to the student and deciding to the owning tutor.
-- US5-2 expects 400 for "a slot that overlaps an existing booking". The API returns 409
-  `RESCHEDULE_TARGET_RESERVED` for a slot another booking holds, and it does not check the student's
-  own bookings with other tutors at the same time.
-- US5-2 says a rejected target "stays unavailable". The Data Model says rejection changes no slots,
-  and the API leaves the target bookable.
+**Target-availability rule.** A target must be a live, future slot of the booking's tutor, other
+than the booking's own slot, with no pending or confirmed booking. A pending request never holds its
+target, so approval checks it again. Either participant may request and the other decides. A slot
+held by another booking returns 409 `RESCHEDULE_TARGET_RESERVED`, and a rejected target stays
+bookable.
 
 ## Tutor verification visibility verification (S2-T12)
 
