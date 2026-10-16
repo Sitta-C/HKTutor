@@ -107,6 +107,7 @@ describe('Student mock payment (e2e)', () => {
   });
 
   it.each([
+    ['an empty reference', { amount: '450.00', reference: '' }],
     ['a blank reference', { amount: '450.00', reference: '   ' }],
     ['a missing reference', { amount: '450.00' }],
     ['a loose amount', { amount: '450', reference: 'DEMO-1' }],
