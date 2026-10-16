@@ -592,9 +592,9 @@ async function runMockPaymentChecks(
   await assertRejectedPayment({
     bookingId,
     body: { amount: netAmount, reference: 'DEMO-PENDING' },
-    status: 409,
+    status: 400,
     code: 'BOOKING_NOT_PAYABLE',
-    label: 'pending booking cannot be paid (current API contract: 409)',
+    label: 'pending booking cannot be paid (400, matching US12-5)',
   });
 
   const confirmed = await request(httpServer)
