@@ -1,6 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { loginAccount, logoutSession, registerAccount } from '@/lib/api/auth';
+import {
+  loginAccount,
+  logoutSession,
+  registerAccount,
+  requestPasswordReset,
+  getEmailFlow,
+  resendVerification,
+  resendPasswordReset,
+  resetAccountPassword,
+} from '@/lib/api/auth';
 import {
   authenticatedFetch,
   clearAccessToken,
@@ -119,6 +128,52 @@ describe('authentication API client', () => {
     await authenticatedFetch('/profiles/me');
     const request = fetchMock.mock.calls[1]?.[1] as RequestInit;
     expect(new Headers(request.headers).has('Authorization')).toBe(false);
+  });
+
+  it('requests recovery through the public same-origin API without a bearer token', async () => {
+    setAccessToken('current-access-token');
+    fetchMock.mockResolvedValueOnce(jsonResponse({ message: 'Generic result' }));
+    await requestPasswordReset('student@example.com');
+    expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/v1/auth/forgot-password');
+    const init = fetchMock.mock.calls[0]?.[1];
+    expect(init).toMatchObject({
+      method: 'POST',
+      credentials: 'include',
+      body: JSON.stringify({ email: 'student@example.com' }),
+    });
+    expect(new Headers(init?.headers).has('Authorization')).toBe(false);
+  });
+
+  it('reads server-bound flow state and resends with an ID rather than a replacement address', async () => {
+    for (let index = 0; index < 3; index += 1) {
+      fetchMock.mockResolvedValueOnce(jsonResponse({}));
+    }
+    await getEmailFlow('verification');
+    await resendVerification('flow-id');
+    await resendPasswordReset('reset-flow-id');
+    expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/v1/auth/email-flow?purpose=verification');
+    expect(fetchMock.mock.calls[1]?.[1]?.body).toBe(JSON.stringify({ flowId: 'flow-id' }));
+    expect(fetchMock.mock.calls[2]?.[0]).toBe('/api/v1/auth/resend-password-reset');
+    expect(fetchMock.mock.calls[2]?.[1]?.body).toBe(JSON.stringify({ flowId: 'reset-flow-id' }));
+  });
+
+  it('clears the in-memory access token only after a successful reset', async () => {
+    setAccessToken('current-access-token');
+    const payload = { token: 'a'.repeat(43), password: 'password123' };
+    fetchMock.mockResolvedValueOnce(jsonResponse({ message: 'Invalid link' }, 400));
+    await expect(resetAccountPassword(payload)).rejects.toMatchObject({ status: 400 });
+    fetchMock.mockResolvedValueOnce(jsonResponse({}));
+    await authenticatedFetch('/profiles/me');
+    expect(new Headers(fetchMock.mock.calls[1]?.[1]?.headers).get('Authorization')).toBe(
+      'Bearer current-access-token',
+    );
+    fetchMock.mockResolvedValueOnce(jsonResponse({ message: 'Password reset' }));
+    await resetAccountPassword(payload);
+    expect(fetchMock.mock.calls[2]?.[0]).toBe('/api/v1/auth/reset-password');
+    expect(fetchMock.mock.calls[2]?.[1]?.body).toBe(JSON.stringify(payload));
+    fetchMock.mockResolvedValueOnce(jsonResponse({}));
+    await authenticatedFetch('/profiles/me');
+    expect(new Headers(fetchMock.mock.calls[3]?.[1]?.headers).has('Authorization')).toBe(false);
   });
 
   it('makes repeated logout safe and clears the access token each time', async () => {

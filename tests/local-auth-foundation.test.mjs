@@ -102,3 +102,17 @@ test('web keeps access tokens in memory and sends refresh cookies as credentials
   assert.match(layout, /<AuthProvider>/);
   assert.match(proxy, /hktutor_refresh/);
 });
+
+test('password recovery adds a separate hashed-token table without changing existing data', async () => {
+  const [schema, sql] = await Promise.all([
+    read('apps/api/prisma/schema.prisma'),
+    read('apps/api/prisma/migrations/20261016120000_add_password_reset_token/migration.sql'),
+  ]);
+  assert.match(schema, /model PasswordResetToken\s*{[\s\S]*tokenHash\s+String\s+@unique/);
+  for (const field of ['userId', 'expiresAt', 'consumedAt', 'createdAt']) {
+    assert.match(sql, new RegExp(`"${field}"`));
+  }
+  assert.match(sql, /REFERENCES "User"\("id"\) ON DELETE CASCADE ON UPDATE CASCADE/);
+  assert.match(sql, /CREATE UNIQUE INDEX "PasswordResetToken_tokenHash_key"/);
+  assert.doesNotMatch(sql, /(?:DELETE FROM|DROP TABLE|TRUNCATE|ALTER TABLE "User")/i);
+});

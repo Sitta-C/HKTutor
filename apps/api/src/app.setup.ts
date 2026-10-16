@@ -48,6 +48,16 @@ export function configureApplication(app: INestApplication): void {
       },
       REFRESH_COOKIE_AUTH,
     )
+    .addCookieAuth(
+      'hktutor_verification_flow',
+      { type: 'apiKey', in: 'cookie', description: 'HttpOnly signed registration email flow' },
+      'verification-flow',
+    )
+    .addCookieAuth(
+      'hktutor_password_reset_flow',
+      { type: 'apiKey', in: 'cookie', description: 'HttpOnly signed password recovery email flow' },
+      'password-reset-flow',
+    )
     .build();
   const documentFactory = () => SwaggerModule.createDocument(app, swaggerConfig);
 

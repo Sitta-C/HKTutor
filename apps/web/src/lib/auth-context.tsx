@@ -7,13 +7,14 @@ import {
   logoutSession,
   refreshSession,
   registerAccount,
+  resetAccountPassword,
   verifyEmail,
 } from '@/lib/api/auth';
 import { onSessionExpired } from '@/lib/api/client';
 import { clearCurrentProfileCache } from '@/lib/current-profile';
 import { clearStudentBookingCount } from '@/lib/student-booking-count';
 
-import type { AuthUser } from '@/lib/api/types';
+import type { AuthUser, ResetPasswordPayload } from '@/lib/api/types';
 import type { ReactNode } from 'react';
 
 interface RegisterInput {
@@ -31,6 +32,7 @@ interface AuthContextValue {
   logout(): Promise<void>;
   register(input: RegisterInput): Promise<void>;
   verify(token: string): Promise<void>;
+  resetPassword(payload: ResetPasswordPayload): Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -82,6 +84,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           clearStudentBookingCount();
           setUser(null);
         }
+      },
+      async resetPassword(payload) {
+        await resetAccountPassword(payload);
+        clearCurrentProfileCache();
+        clearStudentBookingCount();
+        setUser(null);
       },
       async register(input) {
         await registerAccount(input);

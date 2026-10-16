@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import AuthShell, { EyeIcon } from '@/components/auth-shell';
 import {
@@ -34,7 +34,6 @@ export default function Login() {
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const passwordHelpRef = useRef<HTMLDialogElement>(null);
 
   useEffect(() => {
     if (!isAuthLoading && user) router.replace(returnTo);
@@ -121,15 +120,12 @@ export default function Login() {
             </NotebookField>
 
             <div className="!mt-2 flex justify-end">
-              <button
-                type="button"
-                aria-haspopup="dialog"
-                aria-controls="password-help"
-                onClick={() => passwordHelpRef.current?.showModal()}
-                className="min-h-10 cursor-pointer rounded-sm px-1 !text-sm font-medium text-amber-700 underline decoration-amber-700/40 underline-offset-4 transition-colors hover:text-amber-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-notebook-ink/30 focus-visible:ring-offset-2"
+              <Link
+                href="/forgot-password"
+                className="inline-flex min-h-10 items-center rounded-sm px-1 !text-sm font-medium text-amber-700 underline decoration-amber-700/40 underline-offset-4 transition-colors hover:text-amber-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-notebook-ink/30 focus-visible:ring-offset-2"
               >
                 {copy.login.forgotPassword}
-              </button>
+              </Link>
             </div>
 
             <NotebookButton
@@ -152,23 +148,6 @@ export default function Login() {
           </p>
         </div>
       </PaperCard>
-      <dialog
-        id="password-help"
-        ref={passwordHelpRef}
-        aria-labelledby="password-help-title"
-        aria-describedby="password-help-description"
-        className="m-auto w-[min(92vw,420px)] rounded-[1.5rem] border border-paper-edge bg-paper p-6 text-notebook-ink shadow-paper backdrop:bg-stone-900/45 sm:p-8"
-      >
-        <h2 id="password-help-title" className="text-xl font-bold">
-          {copy.login.forgotPassword}
-        </h2>
-        <p id="password-help-description" className="mt-3 text-sm leading-7 text-notebook-muted">
-          {copy.login.passwordResetUnavailable}
-        </p>
-        <form method="dialog" className="mt-6 text-right">
-          <NotebookButton type="submit">{copy.login.closePasswordHelp}</NotebookButton>
-        </form>
-      </dialog>
     </AuthShell>
   );
 }

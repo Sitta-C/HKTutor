@@ -97,6 +97,56 @@ UI must be ported into `apps/web`; do not import or iframe the prototype HTML.
 Public auth endpoints are rate-limited. Access tokens are held in browser memory; they are not
 written to local storage. Refresh-token rotation detects reuse and revokes the affected session.
 
+### Email resend behavior
+
+Accepted registration and initial password-reset requests start separate signed email flows, stored
+in HttpOnly, SameSite=Strict cookies scoped to `/api/v1/auth` for 24 hours. Responses contain a
+non-secret `emailFlow` view (`id`, `email`, `purpose`, `resendAvailableAt`, `retryAfterSeconds`).
+`GET /api/v1/auth/email-flow?purpose=verification|password-reset` restores this view with
+`Cache-Control: no-store`, without querying whether an account exists. Flow cookies cannot be used
+as authentication, verification or password-reset credentials.
+
+The verification page displays the registration email read-only; URL email parameters are ignored.
+After the first password-reset request, the same form displays its email read-only. Both resend
+buttons count down 60 seconds using the server's remaining wait and restore it after refresh.
+`POST /api/v1/auth/resend-verification` and `POST /api/v1/auth/resend-password-reset` accept only
+`{ flowId }`; the API obtains the original email from the signed cookie. Replacement email fields,
+missing/expired/tampered cookies and mismatched IDs are rejected with 400. The ID check prevents a
+stale tab from sending to an address selected by another tab. Early requests receive 429 with
+`Retry-After`. A resend reserves a fresh cooldown even if the verification email provider fails.
+Both services also lock the user row and enforce one issued email per account per minute, including
+the initial verification email, so starting another flow or replaying a cookie cannot bypass that
+account limit. Existing IP limits remain in place.
+
+If an email was mistyped during registration, return to registration with the correct address;
+this does not rename or delete the original pending account. Password recovery offers an explicit
+start-new-request action before entering a different account email. No raw email-link tokens or flow
+cookies are saved in browser storage. Deploy the updated web/API together because resend no longer
+accepts an email body. These changes require no additional database migration or configuration.
+
+### Password recovery
+
+The login recovery link opens `/forgot-password`. `POST /api/v1/auth/forgot-password` accepts
+`{ email }` and returns the same generic result for unknown, inactive, unverified, passwordless,
+and eligible accounts. Eligible accounts receive a Resend link to `/reset-password?token=...`.
+Account lookup, token persistence and delivery run asynchronously so response timing does not reveal
+account eligibility. Delivery is best effort, without a durable mail queue; processing failures produce
+only a generic server warning. Retry after one minute if no email arrives. Requests are limited to three per IP per minute and one email per account per minute.
+A newly issued link replaces older reset links. Requesting a link does not change the password.
+
+`POST /api/v1/auth/reset-password` accepts `{ token, password }`. Tokens are random, stored only
+as SHA-256 hashes, expire after `PASSWORD_RESET_TTL_MINUTES` (default 30), and can be used once.
+Passwords follow the registration policy: 10–128 characters with a letter and number. Redemption
+atomically updates the Argon2id hash, consumes outstanding reset/verification links, and revokes all
+account sessions. Users must sign in again; recovery never verifies an email or starts a session.
+Reset submissions are limited to five per IP per minute. Both recovery pages prevent indexing and
+send a `no-referrer` policy. Keep query strings out of proxy/access logs because reset URLs contain
+credentials.
+
+Apply the additive `20261016120000_add_password_reset_token` migration through the normal reviewed
+deployment workflow before using recovery. No existing users or credentials are deleted. Tests
+with mocked persistence/email do not certify a live database migration or Resend delivery.
+
 ### Environment
 
 Copy `.env.example` to the ignored `.env` and replace every bracketed placeholder. Important values:
@@ -178,11 +228,8 @@ deployed demo.
 ## Demo scope
 
 The local authentication implementation covers registration, verification-link resend, email
-verification, login, refresh rotation, logout, current-user lookup, and route protection. Password
-reset, email change, multi-factor authentication, and session-management UI are intentionally out
-of scope for this small demo.
-The login page's "Forgot password?" action opens a dismissible notice explaining that password reset
-is not available yet.
+verification, login, refresh rotation, logout, current-user lookup, and route protection. Email change, multi-factor authentication, and session-management UI are intentionally out of scope
+for this small demo. Password recovery is available through `/forgot-password` and `/reset-password`.
 
 Domain models for tutor profiles, teaching listings, availability slots, and bookings already
 exist in Prisma. The tutor availability flow is connected to its production API; other domain web

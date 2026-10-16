@@ -596,3 +596,26 @@ callbacks captured before a successful cancellation, so a delayed older refresh 
 the saved canceled status; reads started afterward still update the page normally.
 Conflict, forbidden/missing booking and
 uncertain request outcomes require a refreshed booking before another cancellation attempt.
+
+## Password recovery
+
+The login's small recovery link opens `/forgot-password`, using the existing auth shell and notebook
+form primitives. Email submission shows generic success without disclosing account existence;
+network and rate-limit errors retain the form. `/reset-password` accepts the emailed token, checks
+password confirmation and the registration policy, disables submission while pending, and offers
+request-new-link recovery for invalid/expired/used links. Success clears the local auth/profile/count
+state and removes the token from the URL; users return to sign in with their new password.
+Both pages provide aligned Thai/English copy, inline alerts and action toasts, labeled native inputs,
+visible keyboard focus, noindex/nofollow metadata and a no-referrer policy.
+
+### Locked email and resend countdown
+
+Verification uses the signed registration flow's original email in a read-only field, ignoring URL
+email substitutions. Password recovery permits email entry only for an initial request; accepted
+requests show the same read-only field and an actual resend action. Both display a bilingual
+`01:00` countdown on the disabled button, restore remaining time from the API after reload and
+account for background-tab time. No token or email state is written to browser storage. Missing
+verification flows offer reload and return-to-registration actions; changing a mistyped registration
+address starts a new registration and does not change the original account. Recovery has an explicit
+start-new-request action. Resends submit the current flow ID; the signed HttpOnly cookie determines
+the email, and a changed flow from another tab cannot silently change the resend destination.

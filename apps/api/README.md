@@ -16,11 +16,29 @@ All controller routes receive the global `/api/v1` prefix. Authentication endpoi
 
 - `POST /register`
 - `POST /verify-email`
-- `POST /resend-verification`
+- `POST /resend-verification` (signed flow cookie + `{ flowId }`)
+- `GET /email-flow?purpose=verification|password-reset`
+- `POST /forgot-password`
+- `POST /resend-password-reset` (signed flow cookie + `{ flowId }`)
+- `POST /reset-password`
 - `POST /login`
 - `POST /refresh`
 - `POST /logout`
 - `GET /me`
+
+Registration/initial recovery return a signed HttpOnly email-flow cookie and a non-secret flow
+view. Resends reject caller-provided email fields and resolve the original address from that cookie;
+60-second cookie cooldowns and transaction-protected account cooldowns apply together. GET flow
+status restores server-calculated remaining time without querying account existence. See
+[root resend behavior](../../README.md#email-resend-behavior) for expiry, stale-tab protection,
+error contracts, wrong-email recovery and coordinated web/API deployment. No new migration is needed.
+
+Password recovery uses a separate `PasswordResetToken` table and the existing Resend sender.
+See the [root recovery contract](../../README.md#password-recovery) for eligibility, generic
+responses, cooldowns, token expiry, session revocation, delivery limitations, and migration rollout.
+Concurrent reset issuance/redemption, email verification, and password-login session creation lock
+the user row first. A login whose old password was verified before a concurrent reset cannot issue
+a surviving session after that reset commits.
 
 ## Source layout
 

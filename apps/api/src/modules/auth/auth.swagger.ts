@@ -9,6 +9,7 @@ import {
   ApiNoContentResponse,
   ApiOkResponse,
   ApiOperation,
+  ApiQuery,
   ApiResponse,
   ApiServiceUnavailableResponse,
   ApiTags,
@@ -99,6 +100,35 @@ const rateLimitResponse = ApiResponse({
   status: 429,
 });
 
+const emailFlowSchema: SchemaObject = {
+  type: 'object',
+  required: ['id', 'email', 'purpose', 'resendAvailableAt', 'retryAfterSeconds'],
+  properties: {
+    id: { type: 'string', format: 'uuid' },
+    email: { type: 'string', format: 'email' },
+    purpose: { type: 'string', enum: ['verification', 'password-reset'] },
+    resendAvailableAt: { type: 'string', format: 'date-time' },
+    retryAfterSeconds: { type: 'integer', minimum: 0, maximum: 60 },
+  },
+};
+const emailRequestSchema: SchemaObject = {
+  type: 'object',
+  required: ['message', 'emailFlow'],
+  properties: { message: { type: 'string' }, emailFlow: emailFlowSchema },
+};
+const resendBodySchema: SchemaObject = {
+  type: 'object',
+  required: ['flowId'],
+  additionalProperties: false,
+  properties: {
+    flowId: {
+      type: 'string',
+      format: 'uuid',
+      description: 'ID returned by the current signed email flow; email input is rejected',
+    },
+  },
+};
+
 export function RegisterAuthDoc(): MethodDecorator {
   return applyDecorators(
     ApiOperation({
@@ -132,15 +162,9 @@ export function RegisterAuthDoc(): MethodDecorator {
       },
     }),
     ApiCreatedResponse({
-      description: 'Generic registration result',
-      schema: {
-        example: {
-          message: 'If an account can be created, a verification email has been sent.',
-        },
-        properties: { message: { type: 'string' } },
-        required: ['message'],
-        type: 'object',
-      },
+      description:
+        'Generic registration result; HttpOnly verification-flow cookie is set for all accepted registrations',
+      schema: emailRequestSchema,
     }),
     ApiBadRequestResponse({
       description: 'Registration data or consent is invalid',
@@ -187,33 +211,63 @@ export function VerifyEmailAuthDoc(): MethodDecorator {
 export function ResendVerificationAuthDoc(): MethodDecorator {
   return applyDecorators(
     ApiOperation({
-      description: 'Always returns a generic result so account existence is not disclosed.',
       summary: 'Send a new email verification link',
+      description:
+        'Uses the email bound to the HttpOnly verification-flow cookie, never a caller-provided email. Requires a matching flow ID and a 60-second cooldown. Account eligibility is not disclosed. Cookies rotate even if delivery fails.',
     }),
-    ApiBody({
-      schema: {
-        example: { email: 'student@example.com' },
-        properties: {
-          email: { example: 'student@example.com', format: 'email', type: 'string' },
-        },
-        required: ['email'],
-        type: 'object',
-      },
-    }),
+    ApiCookieAuth('verification-flow'),
+    ApiBody({ schema: resendBodySchema }),
     ApiOkResponse({
-      description: 'Generic verification-email result',
-      schema: {
-        example: {
-          message: 'If the account can be verified, a verification email has been sent.',
-        },
-        properties: { message: { type: 'string' } },
-        required: ['message'],
-        type: 'object',
-      },
+      description: 'Generic verification-email result and updated cooldown',
+      schema: emailRequestSchema,
     }),
-    ApiBadRequestResponse({ description: 'Email format is invalid', schema: errorSchema }),
+    ApiBadRequestResponse({
+      description: 'Missing, expired, tampered or changed flow, or invalid body',
+      schema: errorSchema,
+    }),
     ApiServiceUnavailableResponse({
-      description: 'The email provider could not accept the message for an eligible account',
+      description: 'Delivery failed; refresh flow status for its reserved cooldown',
+      schema: errorSchema,
+    }),
+    rateLimitResponse,
+  );
+}
+
+export function ResendPasswordResetAuthDoc(): MethodDecorator {
+  return applyDecorators(
+    ApiOperation({
+      summary: 'Resend the password reset email to the original address',
+      description:
+        'Requires the HttpOnly password-reset-flow cookie and matching ID. Rejects replacement email fields. Enforces 60 seconds between accepted requests; issuing a new initial request cannot bypass the database account cooldown.',
+    }),
+    ApiCookieAuth('password-reset-flow'),
+    ApiBody({ schema: resendBodySchema }),
+    ApiOkResponse({
+      description: 'Generic reset-email result and updated cooldown',
+      schema: emailRequestSchema,
+    }),
+    ApiBadRequestResponse({
+      description: 'Missing, expired, tampered or changed flow, or invalid body',
+      schema: errorSchema,
+    }),
+    rateLimitResponse,
+  );
+}
+
+export function EmailFlowAuthDoc(): MethodDecorator {
+  return applyDecorators(
+    ApiOperation({
+      summary: 'Read the current signed email request and remaining resend wait',
+      description:
+        'Returns only cookie-bound flow information, with Cache-Control: no-store. This never queries account existence. Flow cookies expire after 24 hours.',
+    }),
+    ApiQuery({ name: 'purpose', enum: ['verification', 'password-reset'], required: true }),
+    ApiOkResponse({
+      description: 'Current email and server-calculated remaining wait',
+      schema: emailFlowSchema,
+    }),
+    ApiBadRequestResponse({
+      description: 'Invalid purpose or unavailable signed flow',
       schema: errorSchema,
     }),
     rateLimitResponse,
@@ -303,5 +357,76 @@ export function GetCurrentUserAuthDoc(): MethodDecorator {
       description: 'Access token or its backing session is missing, invalid, expired, or revoked',
       schema: errorSchema,
     }),
+  );
+}
+
+export function ForgotPasswordAuthDoc(): MethodDecorator {
+  return applyDecorators(
+    ApiOperation({
+      summary: 'Request a password reset email',
+      description:
+        'Returns the same result for unknown, ineligible and eligible accounts. Account lookup and delivery are asynchronous and best effort; processing failures do not disclose account existence. At most one email per account per minute. A new link invalidates older reset links.',
+    }),
+    ApiBody({
+      schema: {
+        type: 'object',
+        required: ['email'],
+        properties: {
+          email: { type: 'string', format: 'email', maxLength: 254 },
+        },
+      },
+    }),
+    ApiOkResponse({
+      description:
+        'Generic password-reset request result; HttpOnly password-reset-flow cookie is set regardless of account eligibility',
+      schema: emailRequestSchema,
+    }),
+    ApiBadRequestResponse({ description: 'Email format is invalid', schema: errorSchema }),
+    rateLimitResponse,
+  );
+}
+
+export function ResetPasswordAuthDoc(): MethodDecorator {
+  return applyDecorators(
+    ApiOperation({
+      summary: 'Set a new password using a one-time reset link',
+      description:
+        'Consumes a separate opaque reset token for an active, verified account. Atomically changes the password, invalidates outstanding reset/verification links and revokes all sessions. Does not sign in or change email verification status.',
+    }),
+    ApiBody({
+      schema: {
+        type: 'object',
+        required: ['token', 'password'],
+        properties: {
+          token: {
+            type: 'string',
+            pattern: '^[A-Za-z0-9_-]{43}$',
+            description:
+              'One-time token from the reset email (not a JWT or email-verification token)',
+          },
+          password: {
+            type: 'string',
+            format: 'password',
+            minLength: 10,
+            maxLength: 128,
+            description: 'Must contain at least one letter and one number',
+          },
+        },
+      },
+    }),
+    ApiOkResponse({
+      description: 'Password changed; sign in again',
+      schema: {
+        type: 'object',
+        required: ['message'],
+        properties: { message: { type: 'string' } },
+        example: { message: 'Password reset successfully. Sign in with your new password.' },
+      },
+    }),
+    ApiBadRequestResponse({
+      description: 'Invalid data or invalid, expired or already-used reset token',
+      schema: errorSchema,
+    }),
+    rateLimitResponse,
   );
 }

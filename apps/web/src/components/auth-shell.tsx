@@ -8,7 +8,7 @@ import { useLanguage } from '@/lib/i18n';
 
 import type { ReactNode } from 'react';
 
-type AuthPage = 'login' | 'register';
+type AuthPage = 'login' | 'register' | 'recovery';
 
 export function EyeIcon({ visible }: { visible: boolean }) {
   return (
@@ -87,7 +87,7 @@ export default function AuthShell({ page, children }: { page: AuthPage; children
               className: 'border-amber-200 bg-sticky-yellow sm:px-6',
             })}
           >
-            {isLogin ? navCopy.nav : navCopy.cta}
+            {isLogin ? navCopy.nav : page === 'recovery' ? copy.shell.register.nav : navCopy.cta}
           </Link>
         </nav>
       </header>

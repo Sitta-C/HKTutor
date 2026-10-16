@@ -96,10 +96,31 @@ async function mockActions(
       return options.registerStatus
         ? fail(options.registerStatus)
         : route.fulfill({ json: { message: 'Created' } });
+    if (path === '/auth/email-flow')
+      return route.fulfill({
+        json: {
+          id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+          email: 'preview@example.test',
+          purpose: 'verification',
+          resendAvailableAt: new Date(0).toISOString(),
+          retryAfterSeconds: 0,
+        },
+      });
     if (path === '/auth/resend-verification')
       return options.resendStatus
         ? fail(options.resendStatus)
-        : route.fulfill({ json: { message: 'Sent' } });
+        : route.fulfill({
+            json: {
+              message: 'Sent',
+              emailFlow: {
+                id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+                email: 'preview@example.test',
+                purpose: 'verification',
+                resendAvailableAt: new Date(Date.now() + 60000).toISOString(),
+                retryAfterSeconds: 60,
+              },
+            },
+          });
     if (path === '/auth/consent') {
       if (options.consentFailure) return fail();
       consentCurrent = true;
@@ -238,7 +259,10 @@ for (const language of ['en', 'th'] as const) {
             ? translations[language].register.verificationDeliveryFailed
             : translations[language].register.registrationFailed,
       );
-      if (status !== 500) await expect(page).toHaveURL(/register\/verify\?email=/);
+      if (status !== 500)
+        await expect(page).toHaveURL(
+          status === 503 ? '/register/verify?delivery=failed' : '/register/verify',
+        );
       expect(calls.writes).toEqual(['POST /auth/register']);
     });
   }
