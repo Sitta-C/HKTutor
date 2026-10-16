@@ -525,10 +525,11 @@ nothing back. Outcomes:
 | ------ | ----------------------------------- | ------------------------------------------------------------ |
 | 200    | —                                   | Payment recorded; returns the stored amount and UTC `paidAt` |
 | 400    | `BOOKING_PAYMENT_AMOUNT_MISMATCH`   | Declared amount differs from the stored `netAmount`          |
+| 400    | `BOOKING_NOT_PAYABLE`               | Booking is still pending                                     |
 | 400    | `VALIDATION_FAILED`, `INVALID_UUID` | Blank or oversized reference, loose amount, unknown field    |
 | 403    | `BOOKING_NOT_OWNED`                 | Booking belongs to another student                           |
 | 404    | `BOOKING_NOT_FOUND`                 | No booking with this ID                                      |
-| 409    | `BOOKING_NOT_PAYABLE`               | Booking is not confirmed                                     |
+| 409    | `BOOKING_NOT_PAYABLE`               | Booking is canceled, completed or expired                    |
 | 409    | `BOOKING_ALREADY_PAID`              | Booking is already paid                                      |
 | 409    | `MOCK_REFERENCE_TAKEN`              | Reference already recorded for another booking               |
 | 409    | `BOOKING_PAYMENT_CONFLICT`          | A concurrent payment won the transition                      |
@@ -551,9 +552,11 @@ Two decisions worth stating, because the cards differ or the order is observable
   code path, and moving the mismatch to 409 needs the backlog changed first. The body carries
   `BOOKING_PAYMENT_AMOUNT_MISMATCH` and `details.expectedAmount`, so a client can react to the
   specific cause whichever status the backlog settles on.
-- **State is checked before the amount.** Paying a booking that is still PENDING answers 409
+- **State is checked before the amount.** Paying a booking that is still PENDING answers 400
   `BOOKING_NOT_PAYABLE` even when the amount is also wrong, because an unconfirmed booking cannot be
-  paid at any amount.
+  paid at any amount. This follows the US12-5 pending-booking acceptance criterion. Other
+  non-payable states (CANCELED, COMPLETED, EXPIRED) retain 409. Clients must handle
+  `BOOKING_NOT_PAYABLE` by refreshing booking state before retrying, even when its HTTP status is 400.
 
 The student reads carry the recorded payment so a client never has to replay the POST to learn it:
 `GET /api/v1/bookings/me` and `GET /api/v1/bookings/me/:bookingId` both return `paymentStatus`,
@@ -661,6 +664,38 @@ the separate real mid-transaction reject rollback evidence. The new runner does 
 trigger test. It removes only its invocation's random fixture IDs in `finally`; retain failures and
 discard the disposable database afterward. Browser inbox tests intercept API responses and establish
 UI behavior, rather than live browser-to-database integration.
+
+## Booking cancellation verification (S2-T24)
+
+`pnpm --filter @hktutor/api db:verify:cancellation` checks `POST /api/v1/bookings/:bookingId/cancel`
+through the real Nest HTTP pipeline and Prisma transactions against PostgreSQL. Like the S2-T03
+runner, it is not part of `pnpm check`, needs the approval flag and an explicit loopback `hktutor_`
+or `hktutor-` `DATABASE_URL`, never loads `.env`, and creates and removes its own random fixtures.
+Prepare the database as in the S2-T03 example (migrations, no seed), then run:
+
+```bash
+HKTUTOR_ALLOW_DISPOSABLE_DB_VERIFY=1 pnpm --filter @hktutor/api db:verify:cancellation
+```
+
+- **Cutoff.** The runner freezes `new Date()` and `Date.now()` in its own process, so classes that
+  start exactly 24 hours, 24 hours plus 1 second, and 24 hours minus 1 second away hit the boundary
+  exactly against persisted timestamps. The first two cancel; the last returns 409 and changes nothing.
+  Classes starting in 2 hours or already started also return 409.
+- **Success.** Student and tutor cancellations, including a pending booking as the API allows,
+  store the trimmed reason, the canceler and the cancel time, change no other booking or payment
+  field, and free the slot in the private availability projection. A new booking can then take the
+  slot, and cancelling the old booking again (409) leaves that booking holding it.
+- **Failures.** A missing, blank or non-string reason (400), a booking paid through mock payment, a
+  completed, canceled or expired booking (409), another student, another tutor, an admin (403), no
+  token (401), and missing or malformed IDs leave full booking, payment and slot snapshots unchanged.
+- **Races.** Student and tutor cancelling at once give one 200 and one 409. Cancellation racing mock
+  payment runs in both commit orders: both requests read the unpaid booking first, and the second
+  writer's update waits on the first's row lock, re-checks its guard and returns 409. A booking never
+  ends both canceled and paid, and paying a canceled booking returns 409.
+
+The frozen clock and the URL gate have unit tests in `cancellation-verifier.spec.ts`. The HTTP-level
+contract, including the exact boundaries with a frozen clock, is also covered without a database in
+`test/bookings-cancellation.e2e-spec.ts`.
 
 ## RescheduleRequest persistence (S2-DB04)
 

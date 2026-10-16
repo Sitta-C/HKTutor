@@ -52,6 +52,7 @@ const ids = {
   studentA: '95000000-0000-4000-8000-000000000001',
   studentB: '95000000-0000-4000-8000-000000000002',
   studentPayment: '95000000-0000-4000-8000-000000000005',
+  studentPaymentOther: '95000000-0000-4000-8000-000000000006',
   studentRejectRollback: '95000000-0000-4000-8000-000000000004',
   studentRollback: '95000000-0000-4000-8000-000000000003',
 };
@@ -59,6 +60,7 @@ const studentIds = [
   ids.studentA,
   ids.studentB,
   ids.studentPayment,
+  ids.studentPaymentOther,
   ids.studentRejectRollback,
   ids.studentRollback,
 ];
@@ -528,6 +530,40 @@ async function runMockPaymentChecks(
     'mock-payment@hktutor.invalid',
     'Rollback Payment',
   );
+  const otherStudentToken = await createAuthenticatedStudent(
+    prisma,
+    jwtTokens,
+    ids.studentPaymentOther,
+    'mock-payment-other@hktutor.invalid',
+    'Other Payment Student',
+  );
+
+  // Compare both fixture bookings so a duplicate reference cannot damage the original receipt.
+  const paymentSnapshot = () =>
+    prisma.booking.findMany({
+      orderBy: { id: 'asc' },
+      where: { slotId: { in: [ids.paymentSlot, ids.paymentDuplicateSlot] } },
+    });
+
+  async function assertRejectedPayment(input: {
+    bookingId: string;
+    token?: string;
+    body: { amount: string; reference: string };
+    status: number;
+    code: string;
+    label: string;
+  }): Promise<void> {
+    const before = await paymentSnapshot();
+    assert.ok(before.some((booking) => booking.id === input.bookingId));
+    const response = await request(httpServer)
+      .post(`/${API_GLOBAL_PREFIX}/bookings/me/${input.bookingId}/mock-payment`)
+      .set('Authorization', `Bearer ${input.token ?? studentToken}`)
+      .send(input.body);
+    assert.equal(response.status, input.status, input.label);
+    assert.equal((response.body as { code?: string }).code, input.code, input.label);
+    assert.deepEqual(await paymentSnapshot(), before, `${input.label}: no persisted changes`);
+    process.stdout.write(`PASS [real PostgreSQL] ${input.label}; booking snapshots unchanged\n`);
+  }
 
   const startAtUtc = new Date(Date.now() + 6 * 60 * 60 * 1000);
   const endAtUtc = new Date(startAtUtc.getTime() + 60 * 60 * 1000);
@@ -553,22 +589,44 @@ async function runMockPaymentChecks(
   assert.ok(bookingId, 'the booking response must carry an id');
   assert.ok(netAmount, 'the booking response must carry its net amount');
 
+  await assertRejectedPayment({
+    bookingId,
+    body: { amount: netAmount, reference: 'DEMO-PENDING' },
+    status: 400,
+    code: 'BOOKING_NOT_PAYABLE',
+    label: 'pending booking cannot be paid (400, matching US12-5)',
+  });
+
   const confirmed = await request(httpServer)
     .post(`/${API_GLOBAL_PREFIX}/bookings/tutor/${bookingId}/confirm`)
     .set('Authorization', `Bearer ${tutorToken}`)
     .send({});
   assert.equal(confirmed.status, 200, 'only a confirmed booking can be paid');
 
-  const mismatched = await request(httpServer)
-    .post(`/${API_GLOBAL_PREFIX}/bookings/me/${bookingId}/mock-payment`)
-    .set('Authorization', `Bearer ${studentToken}`)
-    .send({ amount: '0.01', reference: 'DEMO-MISMATCH' });
-  assert.equal(mismatched.status, 400, 'a stale amount must be rejected before any write');
-  assert.equal(
-    (mismatched.body as { code?: string }).code,
-    'BOOKING_PAYMENT_AMOUNT_MISMATCH',
-    'the mismatch must carry its own code',
-  );
+  await assertRejectedPayment({
+    bookingId,
+    body: { amount: '0.01', reference: 'DEMO-MISMATCH' },
+    status: 400,
+    code: 'BOOKING_PAYMENT_AMOUNT_MISMATCH',
+    label: 'amount mismatch returns 400',
+  });
+  await assertRejectedPayment({
+    bookingId,
+    token: otherStudentToken,
+    body: { amount: netAmount, reference: 'DEMO-WRONG-OWNER' },
+    status: 403,
+    code: 'BOOKING_NOT_OWNED',
+    label: 'another student cannot pay the booking',
+  });
+  for (const reference of ['', '   ']) {
+    await assertRejectedPayment({
+      bookingId,
+      body: { amount: netAmount, reference },
+      status: 400,
+      code: 'VALIDATION_FAILED',
+      label: reference === '' ? 'empty reference returns 400' : 'whitespace reference returns 400',
+    });
+  }
 
   await installPaymentRollbackProbe(prisma);
   try {
@@ -610,14 +668,25 @@ async function runMockPaymentChecks(
     .set('Authorization', `Bearer ${studentToken}`)
     .send({ amount: netAmount, reference: PAYMENT_REFERENCE });
   assert.equal(paid.status, 200, 'the retried payment must succeed after the rollback');
-  assert.equal((paid.body as { paymentStatus?: string }).paymentStatus, 'PAID');
+  const storedPayment = await prisma.booking.findUniqueOrThrow({ where: { id: bookingId } });
+  assert.equal(storedPayment.paymentStatus, PaymentStatus.PAID);
+  assert.ok(storedPayment.paidAt, 'successful payment must store paidAt');
+  assert.deepEqual(paid.body, {
+    amount: storedPayment.netAmount.toFixed(2),
+    bookingId,
+    paidAt: storedPayment.paidAt.toISOString(),
+    paymentStatus: 'PAID',
+    reference: PAYMENT_REFERENCE,
+  });
+  assert.equal(storedPayment.mockReference, PAYMENT_REFERENCE);
 
-  const repeated = await request(httpServer)
-    .post(`/${API_GLOBAL_PREFIX}/bookings/me/${bookingId}/mock-payment`)
-    .set('Authorization', `Bearer ${studentToken}`)
-    .send({ amount: netAmount, reference: `${PAYMENT_REFERENCE}-2` });
-  assert.equal(repeated.status, 409, 'a paid booking cannot be paid again');
-  assert.equal((repeated.body as { code?: string }).code, 'BOOKING_ALREADY_PAID');
+  await assertRejectedPayment({
+    bookingId,
+    body: { amount: netAmount, reference: `${PAYMENT_REFERENCE}-2` },
+    status: 409,
+    code: 'BOOKING_ALREADY_PAID',
+    label: 'paid booking cannot be paid again or have its receipt overwritten',
+  });
 
   process.stdout.write(
     'PASS a confirmed booking is paid exactly once and reports PAID with paidAt\n',
@@ -654,16 +723,15 @@ async function runMockPaymentChecks(
     .send({});
   assert.equal(secondConfirmed.status, 200, 'the second booking has to be confirmed first');
 
-  const duplicate = await request(httpServer)
-    .post(`/${API_GLOBAL_PREFIX}/bookings/me/${secondId}/mock-payment`)
-    .set('Authorization', `Bearer ${studentToken}`)
-    .send({ amount: netAmount, reference: PAYMENT_REFERENCE });
-  assert.equal(duplicate.status, 409, 'a reused reference must conflict');
-  assert.equal(
-    (duplicate.body as { code?: string }).code,
-    'MOCK_REFERENCE_TAKEN',
-    'a reused reference must report its own code, not a generic payment conflict',
-  );
+  const secondAmount = (secondBooking.body as { netAmount?: string }).netAmount;
+  assert.ok(secondAmount, 'the second booking must supply its own authoritative amount');
+  await assertRejectedPayment({
+    bookingId: secondId,
+    body: { amount: secondAmount, reference: PAYMENT_REFERENCE },
+    status: 409,
+    code: 'MOCK_REFERENCE_TAKEN',
+    label: 'duplicate reference preserves both the unpaid booking and original paid receipt',
+  });
 
   const untouched = await prisma.booking.findUniqueOrThrow({
     select: { mockReference: true, paidAt: true, paymentStatus: true },

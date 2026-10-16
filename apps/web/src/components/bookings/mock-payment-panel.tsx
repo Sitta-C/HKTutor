@@ -231,6 +231,9 @@ export function MockPaymentPanel({
       } else if (code === 'BOOKING_ALREADY_PAID') {
         setLocked(true);
         showError('alreadyPaid');
+      } else if (code === 'BOOKING_NOT_PAYABLE') {
+        setLocked(true);
+        showError('conflict');
       } else if (error instanceof ApiError && error.status === 400) {
         showError('validation');
       } else {
