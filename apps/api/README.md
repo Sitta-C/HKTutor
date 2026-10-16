@@ -715,6 +715,50 @@ The frozen clock and the URL gate have unit tests in `cancellation-verifier.spec
 contract, including the exact boundaries with a frozen clock, is also covered without a database in
 `test/bookings-cancellation.e2e-spec.ts`.
 
+## Notification persistence (S2-DB05)
+
+The forward migration `20261016130000_add_notification` implements the
+[S2-DB05 card](https://trello.com/c/PRkMFAT7). `Notification` stores UUID `id`/`userId`,
+`eventKey`, `eventType`, optional UUID `bookingId`, plain-text `title`/`body`, nullable `readAt`,
+and defaulted `createdAt`. Both timestamps use `TIMESTAMPTZ(3)` for UTC exchange.
+The [Data Model, row 17](https://docs.google.com/spreadsheets/d/17RMTjXa26ho7blv-TK5pbJFbHxVHJEBRPKCXk9x5AE0/edit#gid=1191524122&range=A17:I17)
+is a reference: the card's `eventType` and explicit title/body take precedence over the sheet's
+`type`/`payloadJson`. The optional booking link follows the sheet. No generic JSON payload,
+credentials, meeting links, signed URLs, or copied booking details belong in these display fields.
+
+The database enforces unique `(userId, eventKey)` even for simultaneous writes; the same event
+may have multiple recipients. Event keys/types must be nonblank and trimmed; title/body must
+contain non-whitespace text. New rows default to unread (`readAt = null`), and `readAt` cannot
+precede `createdAt`. User and booking foreign keys restrict hard deletion. Separate
+`(userId, createdAt, id)` and `(userId, readAt, createdAt, id)` indexes support all/unread inboxes
+with stable `(createdAt, id)` cursor ordering, including equal timestamps; `bookingId` is indexed
+for joins. Read state is derived from `readAt`, without a separate status column.
+
+RLS and revoked PUBLIC/Supabase `anon`/`authenticated` privileges keep the table behind the backend
+connection. This card adds persistence only. S2-T28 owns event production, recipient/counterparty
+selection, no-self-notification checks and retry handling. Writers must derive a stable key for
+each domain event (including the request identity for repeat reschedules), use the same database
+transaction as the domain action, and handle duplicates without changing existing content/read
+state (for example, `ON CONFLICT ("userId", "eventKey") DO NOTHING`). S2-T29 owns authenticated,
+owner-only list/read endpoints; S2-T30 owns the UI. No endpoint or Swagger/wire contract changes
+are introduced here. The schema cannot determine the actor or authorize a caller on its own.
+
+`node --test tests/notification-schema.test.mjs` checks the committed contract without a database.
+For PostgreSQL constraint, concurrent retry, cursor and transaction rollback evidence, prepare
+a newly created disposable local PostgreSQL database with all migrations and no seed, then run:
+
+```bash
+HKTUTOR_ALLOW_DISPOSABLE_DB_VERIFY=1 \
+  DATABASE_URL='postgresql://postgres:disposable-local-only@127.0.0.1:55437/hktutor_notification_test' \
+  pnpm db:verify:notifications
+```
+
+The verifier requires both the opt-in and explicit loopback `hktutor_*_test`/`hktutor-*-test`
+target, refuses URL options/fragments, never loads `.env`, and creates/removes only its random
+fixtures. It does not migrate or seed, and is separate from `pnpm check`. This is database evidence;
+event production and HTTP authorization still require their later task tests. Apply this migration
+before deploying any writer or reader that uses the new Prisma model.
+
 ## RescheduleRequest persistence (S2-DB04)
 
 The forward migration `20261014120000_add_reschedule_request` implements the

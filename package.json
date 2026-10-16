@@ -15,6 +15,7 @@
     "db:seed": "pnpm --filter @hktutor/api db:seed",
     "db:verify:bookings": "pnpm --filter @hktutor/api db:verify:bookings",
     "db:verify:reschedules": "pnpm --filter @hktutor/api db:verify:reschedules",
+    "db:verify:notifications": "pnpm --filter @hktutor/api db:verify:notifications",
     "db:verify:qualifications": "pnpm --filter @hktutor/api db:verify:qualifications",
     "db:verify:sprint1": "pnpm --filter @hktutor/api db:verify:sprint1",
     "test": "pnpm -r --if-present test",
