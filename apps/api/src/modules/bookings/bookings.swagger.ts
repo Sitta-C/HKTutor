@@ -669,7 +669,7 @@ function mockPaymentErrorResponses(): MethodDecorator[] {
     ApiBadRequestResponse({
       description:
         'bookingId is not a valid UUID, the body failed validation, or the declared amount does ' +
-        "not match the booking's stored amount",
+        "not match the booking's stored amount; also returned for PENDING (BOOKING_NOT_PAYABLE)",
       schema: {
         example: {
           code: 'BOOKING_PAYMENT_AMOUNT_MISMATCH',
@@ -721,7 +721,7 @@ function mockPaymentErrorResponses(): MethodDecorator[] {
     }),
     ApiConflictResponse({
       description:
-        'The booking is not confirmed, is already paid, the reference belongs to another ' +
+        'The booking is canceled, completed or expired, is already paid, the reference belongs to another ' +
         'booking, or a concurrent payment won the transition',
       schema: {
         example: {

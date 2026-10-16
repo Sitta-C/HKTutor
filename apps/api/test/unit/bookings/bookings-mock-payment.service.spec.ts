@@ -122,15 +122,15 @@ describe('BookingsService mock payment', () => {
   });
 
   it.each([
-    BookingStatus.PENDING,
-    BookingStatus.CANCELED,
-    BookingStatus.COMPLETED,
-    BookingStatus.EXPIRED,
-  ])('answers 409 BOOKING_NOT_PAYABLE for a %s booking', async (status) => {
+    [BookingStatus.PENDING, 400],
+    [BookingStatus.CANCELED, 409],
+    [BookingStatus.COMPLETED, 409],
+    [BookingStatus.EXPIRED, 409],
+  ])('answers BOOKING_NOT_PAYABLE for a %s booking with HTTP %s', async (status, statusCode) => {
     prisma.booking.findUnique.mockResolvedValue({ ...payableBooking(), status });
 
     await expect(service.createMockPayment(payment())).rejects.toMatchObject({
-      response: { code: 'BOOKING_NOT_PAYABLE', statusCode: 409 },
+      response: { code: 'BOOKING_NOT_PAYABLE', statusCode },
     });
     expect(prisma.$transaction).not.toHaveBeenCalled();
   });

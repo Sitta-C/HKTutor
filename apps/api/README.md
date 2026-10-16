@@ -523,10 +523,11 @@ nothing back. Outcomes:
 | ------ | ----------------------------------- | ------------------------------------------------------------ |
 | 200    | —                                   | Payment recorded; returns the stored amount and UTC `paidAt` |
 | 400    | `BOOKING_PAYMENT_AMOUNT_MISMATCH`   | Declared amount differs from the stored `netAmount`          |
+| 400    | `BOOKING_NOT_PAYABLE`               | Booking is still pending                                     |
 | 400    | `VALIDATION_FAILED`, `INVALID_UUID` | Blank or oversized reference, loose amount, unknown field    |
 | 403    | `BOOKING_NOT_OWNED`                 | Booking belongs to another student                           |
 | 404    | `BOOKING_NOT_FOUND`                 | No booking with this ID                                      |
-| 409    | `BOOKING_NOT_PAYABLE`               | Booking is not confirmed                                     |
+| 409    | `BOOKING_NOT_PAYABLE`               | Booking is canceled, completed or expired                    |
 | 409    | `BOOKING_ALREADY_PAID`              | Booking is already paid                                      |
 | 409    | `MOCK_REFERENCE_TAKEN`              | Reference already recorded for another booking               |
 | 409    | `BOOKING_PAYMENT_CONFLICT`          | A concurrent payment won the transition                      |
@@ -549,9 +550,11 @@ Two decisions worth stating, because the cards differ or the order is observable
   code path, and moving the mismatch to 409 needs the backlog changed first. The body carries
   `BOOKING_PAYMENT_AMOUNT_MISMATCH` and `details.expectedAmount`, so a client can react to the
   specific cause whichever status the backlog settles on.
-- **State is checked before the amount.** Paying a booking that is still PENDING answers 409
+- **State is checked before the amount.** Paying a booking that is still PENDING answers 400
   `BOOKING_NOT_PAYABLE` even when the amount is also wrong, because an unconfirmed booking cannot be
-  paid at any amount.
+  paid at any amount. This follows the US12-5 pending-booking acceptance criterion. Other
+  non-payable states (CANCELED, COMPLETED, EXPIRED) retain 409. Clients must handle
+  `BOOKING_NOT_PAYABLE` by refreshing booking state before retrying, even when its HTTP status is 400.
 
 The student reads carry the recorded payment so a client never has to replay the POST to learn it:
 `GET /api/v1/bookings/me` and `GET /api/v1/bookings/me/:bookingId` both return `paymentStatus`,
