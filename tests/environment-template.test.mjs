@@ -34,6 +34,7 @@ test('documents the required server-only and intentionally public environment va
     'JWT_ISSUER',
     'JWT_REFRESH_SECRET',
     'JWT_REFRESH_TTL_SECONDS',
+    'PASSWORD_RESET_TTL_MINUTES',
     'RESEND_API_KEY',
     'SEED_ADMIN_EMAIL',
     'SEED_ADMIN_PASSWORD',
@@ -64,6 +65,7 @@ test('documents the required server-only and intentionally public environment va
   assert.equal(template.JWT_ACCESS_SECRET, '[JWT_ACCESS_SECRET_AT_LEAST_32_CHARACTERS]');
   assert.equal(template.JWT_REFRESH_SECRET, '[JWT_REFRESH_SECRET_AT_LEAST_32_CHARACTERS]');
   assert.equal(template.RESEND_API_KEY, '[RESEND_API_KEY]');
+  assert.equal(template.PASSWORD_RESET_TTL_MINUTES, '30');
   assert.equal(template.API_INTERNAL_URL, 'http://localhost:3001');
   const nextPublicKeys = Object.keys(template)
     .filter((name) => name.startsWith('NEXT_PUBLIC_'))

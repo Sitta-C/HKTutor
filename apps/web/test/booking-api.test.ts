@@ -62,6 +62,8 @@ describe('student mock-payment client', () => {
 
   it.each([
     [400, 'BOOKING_PAYMENT_AMOUNT_MISMATCH'],
+    [400, 'BOOKING_NOT_PAYABLE'],
+    [409, 'BOOKING_NOT_PAYABLE'],
     [403, 'BOOKING_NOT_OWNED'],
     [404, 'BOOKING_NOT_FOUND'],
     [409, 'BOOKING_ALREADY_PAID'],

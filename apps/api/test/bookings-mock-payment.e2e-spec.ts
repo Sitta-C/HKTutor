@@ -107,6 +107,7 @@ describe('Student mock payment (e2e)', () => {
   });
 
   it.each([
+    ['an empty reference', { amount: '450.00', reference: '' }],
     ['a blank reference', { amount: '450.00', reference: '   ' }],
     ['a missing reference', { amount: '450.00' }],
     ['a loose amount', { amount: '450', reference: 'DEMO-1' }],
@@ -144,15 +145,24 @@ describe('Student mock payment (e2e)', () => {
     expect(transaction).not.toHaveBeenCalled();
   });
 
-  it('returns 409 for a booking that is still pending', async () => {
-    authenticateAs(Role.STUDENT);
-    bookingFindUnique.mockResolvedValue(payableBooking({ status: BookingStatus.PENDING }));
+  it.each(['450.00', '400.00'])(
+    'returns 400 BOOKING_NOT_PAYABLE for a pending booking even with amount %s',
+    async (amount) => {
+      authenticateAs(Role.STUDENT);
+      bookingFindUnique.mockResolvedValue(payableBooking({ status: BookingStatus.PENDING }));
 
-    const response = await paymentRequest().send(PAYMENT).expect(409);
+      const response = await paymentRequest()
+        .send({ ...PAYMENT, amount })
+        .expect(400);
 
-    expect(response.body).toMatchObject({ code: 'BOOKING_NOT_PAYABLE', statusCode: 409 });
-    expect(transaction).not.toHaveBeenCalled();
-  });
+      expect(response.body).toMatchObject({
+        code: 'BOOKING_NOT_PAYABLE',
+        error: 'Bad Request',
+        statusCode: 400,
+      });
+      expect(transaction).not.toHaveBeenCalled();
+    },
+  );
 
   it('returns 409 for a booking that is already paid', async () => {
     authenticateAs(Role.STUDENT);

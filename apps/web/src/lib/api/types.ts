@@ -533,3 +533,23 @@ export interface WithdrawRescheduleResponse {
   status: 'WITHDRAWN';
   withdrawnAt: string;
 }
+
+export interface ResetPasswordPayload {
+  token: string;
+  password: string;
+}
+
+export type EmailFlowPurpose = 'verification' | 'password-reset';
+
+export interface EmailFlow {
+  id: string;
+  email: string;
+  purpose: EmailFlowPurpose;
+  resendAvailableAt: string;
+  retryAfterSeconds: number;
+}
+
+export interface EmailRequestResponse {
+  message: string;
+  emailFlow: EmailFlow;
+}

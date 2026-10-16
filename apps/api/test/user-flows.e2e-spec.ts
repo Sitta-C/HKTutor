@@ -17,6 +17,7 @@ import { CURRENT_PRIVACY_POLICY_VERSION } from '@modules/auth/auth.constants';
 import { AuthController } from '@modules/auth/auth.controller';
 import { JwtAuthGuard } from '@modules/auth/auth.guard';
 import { AuthService } from '@modules/auth/auth.service';
+import { EmailFlowService } from '@modules/auth/email-flow.service';
 import { JwtTokenService } from '@modules/auth/jwt.service';
 import { ResourceOwnershipGuard } from '@modules/auth/ownership.guard';
 import { RolesGuard } from '@modules/auth/roles.guard';
@@ -91,6 +92,9 @@ describe('End-to-End User Flow Verification (Student & Tutor)', () => {
   };
 
   const authConfig = {
+    accessSecret: 'test-email-flow-secret-more-than-thirty-two-characters',
+    audience: 'hktutor-web',
+    issuer: 'hktutor-api',
     refreshCookieOptions: {
       httpOnly: true,
       maxAge: 60_000,
@@ -111,6 +115,7 @@ describe('End-to-End User Flow Verification (Student & Tutor)', () => {
         BookingsController,
       ],
       providers: [
+        EmailFlowService,
         RolesGuard,
         ResourceOwnershipGuard,
         { provide: BookingsService, useValue: bookingsService },

@@ -106,6 +106,7 @@ model User {
   documentAuditEvents  TutorDocumentAudit[]
   authSessions         AuthSession[]
   verificationTokens   EmailVerificationToken[]
+  passwordResetTokens  PasswordResetToken[]
 }
 
 model StudentProfile {
@@ -131,6 +132,18 @@ model EmailVerificationToken {
   user       User      @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
 
   @@index([userId, expiresAt], map: "EmailVerificationToken_userId_expiresAt_idx")
+}
+
+model PasswordResetToken {
+  id         String    @id @default(uuid()) @db.Uuid
+  userId     String    @db.Uuid
+  tokenHash  String    @unique
+  expiresAt  DateTime  @db.Timestamptz(3)
+  consumedAt DateTime? @db.Timestamptz(3)
+  createdAt  DateTime  @default(now()) @db.Timestamptz(3)
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@index([userId, createdAt], map: "PasswordResetToken_userId_createdAt_idx")
 }
 
 model AuthSession {

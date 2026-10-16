@@ -16,11 +16,29 @@ All controller routes receive the global `/api/v1` prefix. Authentication endpoi
 
 - `POST /register`
 - `POST /verify-email`
-- `POST /resend-verification`
+- `POST /resend-verification` (signed flow cookie + `{ flowId }`)
+- `GET /email-flow?purpose=verification|password-reset`
+- `POST /forgot-password`
+- `POST /resend-password-reset` (signed flow cookie + `{ flowId }`)
+- `POST /reset-password`
 - `POST /login`
 - `POST /refresh`
 - `POST /logout`
 - `GET /me`
+
+Registration/initial recovery return a signed HttpOnly email-flow cookie and a non-secret flow
+view. Resends reject caller-provided email fields and resolve the original address from that cookie;
+60-second cookie cooldowns and transaction-protected account cooldowns apply together. GET flow
+status restores server-calculated remaining time without querying account existence. See
+[root resend behavior](../../README.md#email-resend-behavior) for expiry, stale-tab protection,
+error contracts, wrong-email recovery and coordinated web/API deployment. No new migration is needed.
+
+Password recovery uses a separate `PasswordResetToken` table and the existing Resend sender.
+See the [root recovery contract](../../README.md#password-recovery) for eligibility, generic
+responses, cooldowns, token expiry, session revocation, delivery limitations, and migration rollout.
+Concurrent reset issuance/redemption, email verification, and password-login session creation lock
+the user row first. A login whose old password was verified before a concurrent reset cannot issue
+a surviving session after that reset commits.
 
 ## Source layout
 
@@ -493,9 +511,11 @@ and PENDING/CONFIRMED-reserved slots. No supplied budget means no `FITS_BUDGET` 
 not treated as zero. Comparisons use the stored Decimal prices and ratings. An item with no applicable
 explanation returns `recommendationTags: []`.
 
-This contract addition delegates ordering and result pagination to the existing sorter. API tests
-for it use mocked persistence and do not certify PostgreSQL ordering or public-query eligibility.
-The ranking selector and translated result-card labels belong to S2-T14.
+This contract addition delegates ordering and result pagination to the existing sorter. The mocked
+API tests for it check the `orderBy`/SQL text a call is given, not that PostgreSQL actually orders
+rows that way; see "Tutor ranking verification (S2-T15)" below for that evidence. Public-query
+eligibility (which tutors and listings are visible at all) is S2-T10/S2-T12's own contract. The
+ranking selector and translated result-card labels belong to S2-T14.
 
 ## Mock payment API (S2-T04)
 
@@ -523,10 +543,11 @@ nothing back. Outcomes:
 | ------ | ----------------------------------- | ------------------------------------------------------------ |
 | 200    | —                                   | Payment recorded; returns the stored amount and UTC `paidAt` |
 | 400    | `BOOKING_PAYMENT_AMOUNT_MISMATCH`   | Declared amount differs from the stored `netAmount`          |
+| 400    | `BOOKING_NOT_PAYABLE`               | Booking is still pending                                     |
 | 400    | `VALIDATION_FAILED`, `INVALID_UUID` | Blank or oversized reference, loose amount, unknown field    |
 | 403    | `BOOKING_NOT_OWNED`                 | Booking belongs to another student                           |
 | 404    | `BOOKING_NOT_FOUND`                 | No booking with this ID                                      |
-| 409    | `BOOKING_NOT_PAYABLE`               | Booking is not confirmed                                     |
+| 409    | `BOOKING_NOT_PAYABLE`               | Booking is canceled, completed or expired                    |
 | 409    | `BOOKING_ALREADY_PAID`              | Booking is already paid                                      |
 | 409    | `MOCK_REFERENCE_TAKEN`              | Reference already recorded for another booking               |
 | 409    | `BOOKING_PAYMENT_CONFLICT`          | A concurrent payment won the transition                      |
@@ -549,9 +570,11 @@ Two decisions worth stating, because the cards differ or the order is observable
   code path, and moving the mismatch to 409 needs the backlog changed first. The body carries
   `BOOKING_PAYMENT_AMOUNT_MISMATCH` and `details.expectedAmount`, so a client can react to the
   specific cause whichever status the backlog settles on.
-- **State is checked before the amount.** Paying a booking that is still PENDING answers 409
+- **State is checked before the amount.** Paying a booking that is still PENDING answers 400
   `BOOKING_NOT_PAYABLE` even when the amount is also wrong, because an unconfirmed booking cannot be
-  paid at any amount.
+  paid at any amount. This follows the US12-5 pending-booking acceptance criterion. Other
+  non-payable states (CANCELED, COMPLETED, EXPIRED) retain 409. Clients must handle
+  `BOOKING_NOT_PAYABLE` by refreshing booking state before retrying, even when its HTTP status is 400.
 
 The student reads carry the recorded payment so a client never has to replay the POST to learn it:
 `GET /api/v1/bookings/me` and `GET /api/v1/bookings/me/:bookingId` both return `paymentStatus`,
@@ -659,6 +682,38 @@ the separate real mid-transaction reject rollback evidence. The new runner does 
 trigger test. It removes only its invocation's random fixture IDs in `finally`; retain failures and
 discard the disposable database afterward. Browser inbox tests intercept API responses and establish
 UI behavior, rather than live browser-to-database integration.
+
+## Booking cancellation verification (S2-T24)
+
+`pnpm --filter @hktutor/api db:verify:cancellation` checks `POST /api/v1/bookings/:bookingId/cancel`
+through the real Nest HTTP pipeline and Prisma transactions against PostgreSQL. Like the S2-T03
+runner, it is not part of `pnpm check`, needs the approval flag and an explicit loopback `hktutor_`
+or `hktutor-` `DATABASE_URL`, never loads `.env`, and creates and removes its own random fixtures.
+Prepare the database as in the S2-T03 example (migrations, no seed), then run:
+
+```bash
+HKTUTOR_ALLOW_DISPOSABLE_DB_VERIFY=1 pnpm --filter @hktutor/api db:verify:cancellation
+```
+
+- **Cutoff.** The runner freezes `new Date()` and `Date.now()` in its own process, so classes that
+  start exactly 24 hours, 24 hours plus 1 second, and 24 hours minus 1 second away hit the boundary
+  exactly against persisted timestamps. The first two cancel; the last returns 409 and changes nothing.
+  Classes starting in 2 hours or already started also return 409.
+- **Success.** Student and tutor cancellations, including a pending booking as the API allows,
+  store the trimmed reason, the canceler and the cancel time, change no other booking or payment
+  field, and free the slot in the private availability projection. A new booking can then take the
+  slot, and cancelling the old booking again (409) leaves that booking holding it.
+- **Failures.** A missing, blank or non-string reason (400), a booking paid through mock payment, a
+  completed, canceled or expired booking (409), another student, another tutor, an admin (403), no
+  token (401), and missing or malformed IDs leave full booking, payment and slot snapshots unchanged.
+- **Races.** Student and tutor cancelling at once give one 200 and one 409. Cancellation racing mock
+  payment runs in both commit orders: both requests read the unpaid booking first, and the second
+  writer's update waits on the first's row lock, re-checks its guard and returns 409. A booking never
+  ends both canceled and paid, and paying a canceled booking returns 409.
+
+The frozen clock and the URL gate have unit tests in `cancellation-verifier.spec.ts`. The HTTP-level
+contract, including the exact boundaries with a frozen clock, is also covered without a database in
+`test/bookings-cancellation.e2e-spec.ts`.
 
 ## RescheduleRequest persistence (S2-DB04)
 
@@ -996,3 +1051,107 @@ raised by PostgreSQL itself for the `now()` case and a genuine dropped message f
 A sixth, changing `hasMore`'s `>` to `>=`, passed every other check but failed the `pageSize=7` walk
 exactly as intended, confirming that walk earns its place rather than duplicating the `pageSize=20`
 one. Each mutation was reverted and confirmed byte-identical (`git diff`/checksum) before the next.
+
+## Tutor ranking verification (S2-T15)
+
+`pnpm --filter @hktutor/api db:verify:tutor-ranking` proves the S2-T13 ranking engine
+(`TutorDirectoryService.searchPublicTutors`, `tutor-ranking.ts`) against real PostgreSQL. As the
+S2-T13 section above already states, the mocked-Prisma suites (`tutor-ranking.spec.ts`,
+`tutor-ranking-explanations.service.spec.ts`, `public-tutors.service.spec.ts`,
+`tutor-ranking-contract.e2e-spec.ts`) check the `orderBy`/SQL text a call is given and the pure tag
+function in isolation; none of them execute a query against a real engine, so none can certify that
+the raw `$queryRaw` used for `earliest_availability` -- its `LEFT JOIN`, `NOT EXISTS` booking
+subquery and `deletedAt` filter -- actually orders rows correctly; that a tutor with no bookable
+future slot (no slot rows, only a past one, or only one blocked by a pending/confirmed booking)
+truly sorts last while one blocked only by a _canceled_ booking does not; that the subject filter
+survives on that same hand-written SQL path, not just the Prisma-built one; or that a real stored
+`Decimal` price, not an in-memory one, is compared correctly against `maxPrice`. Only a real database
+can. Neither root `pnpm check` nor `pnpm test` runs this command.
+
+```bash
+nvm use 24.19.0
+pnpm install --frozen-lockfile
+docker run --detach --name hktutor-ranking-test \
+  --publish 127.0.0.1:55440:5432 \
+  --env POSTGRES_USER=postgres --env POSTGRES_PASSWORD=disposable-local-only \
+  --env POSTGRES_DB=hktutor_ranking_test postgres:17
+docker exec hktutor-ranking-test pg_isready -U postgres -d hktutor_ranking_test
+export DATABASE_URL='postgresql://postgres:disposable-local-only@127.0.0.1:55440/hktutor_ranking_test'
+pnpm db:generate
+pnpm --filter @hktutor/api db:migrate:deploy
+HKTUTOR_ALLOW_DISPOSABLE_DB_VERIFY=1 pnpm --filter @hktutor/api db:verify:tutor-ranking
+docker rm --force --volumes hktutor-ranking-test
+unset DATABASE_URL
+```
+
+The approval flag and explicit `DATABASE_URL` are both required; the runner never loads `.env` or
+falls back to a shared database. It accepts loopback hosts only, requires a database name matching
+`hktutor_*_test` or `hktutor-*-test`, refuses URL options/fragments, and checks that every committed
+migration under `prisma/migrations` is applied before creating fixtures. It creates its own catalog,
+tutor, listing, slot and booking rows, every one of them with a randomly generated name or code, so
+a second run never collides with rows a crashed first run failed to clean up; it has no seed
+dependency and was run twice back to back while writing this to confirm it leaves nothing behind.
+
+`priority=<invalid>` returning 400 is **not** re-proven here: `resolveTutorRankingQuery` rejects an
+unsupported priority, or one combined with an individual sort parameter, before any query is built,
+so it is pure-function behavior already covered by `tutor-ranking.spec.ts` and, through the real HTTP
+validation pipe, by `tutor-ranking-contract.e2e-spec.ts`. Fabricating database evidence for a path
+that never reaches the database would not strengthen that proof. S2-T14's ranking selector and
+result-card tags have since merged (PR #104); its own Playwright suite
+(`apps/web/e2e/tutor-search-ui.spec.ts`) covers that changing the ranking preserves applied filters
+and that the cards render the server's reasons, including `FITS_BUDGET` only when `maxPrice` is
+sent. Ordering, the 400 response and the truth of each tag are all decided here, server-side, with
+the UI only rendering what this endpoint returns, so this verification stays scoped to the API
+contract those tags are read from.
+
+Nine tutors, one listing each, created directly as already-`PUBLISHED` and `VERIFIED` (bypassing the
+publish workflow, which is S2-T10/S2-T12's own contract) so the fixture is deterministic regardless
+of execution speed:
+
+- Two tutors genuinely **tied at the global-lowest price**, with different ratings and a
+  `publishedAt` that deliberately disagrees with the rating order -- so a regression that fell back
+  to the trailing `publishedAt` tie-break instead of the named price mode's own rating tie-break
+  would rank them the wrong way round and be caught, rather than passing by coincidence. Both carry
+  `LOWEST_PRICE`.
+- One tutor **tied at the global-highest rating** with one of the two above, priced differently so
+  it never collides with the price scenario; its more recent `publishedAt` must break that tie.
+- One **unrated** tutor, to prove a null rating is never mistaken for a sortable zero and never
+  carries `HIGHEST_RATED`.
+- One tutor with a real future slot and one **otherwise identical in price and rating but with no
+  bookable future slot at all** -- not because it has zero slot rows, but because its only two slot
+  rows are, respectively, already reserved by a `CONFIRMED` booking and soft-deleted, at a timestamp
+  chosen so that either slot leaking as "available" would land in a visibly wrong, middle position
+  rather than coincidentally matching where it already sorts. Having any real slot must still
+  outrank having none.
+- One tutor whose **only slot is already in the past**, to prove a slot that merely exists is not
+  enough: it must count as no bookable future slot at all, the same as the tutor above, not as an
+  impossibly early one.
+- One tutor whose one future slot carries a **`CANCELED`** booking, to prove a canceled booking does
+  not block a slot the way a pending or confirmed one does -- it must be counted as available and
+  sorted normally, not treated like the no-slot tutors above.
+- One tutor on a **different subject** that would win every single priority on price, rating and
+  availability alike, to prove a ranking change cannot widen or drop an existing subject filter --
+  checked against both query paths: the shared Prisma `where` (`lowest_price`) and the hand-written
+  raw SQL `WHERE` that only `earliest_availability` uses, where this tutor's slot is chronologically
+  earliest of all and would otherwise win page 1 outright if the filter ever leaked there.
+- One tutor priced **one satang above** the two lowest-price tutors, to prove a real stored
+  `Decimal` column, not an in-memory one, is compared correctly: querying with `maxPrice` equal to
+  the cheaper two's exact price must include and tag them both while excluding this one entirely.
+
+Each of the three named priorities is run once, filtered to this subject, and asserted against the
+exact ordering above (`lowest_price`, `highest_rating`, `earliest_availability`), together with each
+item's full `recommendationTags` array -- not merely checked to include the expected tag, but
+asserted equal to it, so an extra or leaked tag fails the same as a missing one. The price tie is
+additionally walked one page at a time to confirm it splits across the boundary with no duplicate
+and no skip, and the `maxPrice` boundary is checked as its own scenario.
+
+Eight regressions were deliberately reintroduced and reverted while writing this -- dropping the
+price-tie rating tie-break; sorting null ratings first instead of last; dropping the raw query's
+`startAtUtc > now`, booking-status, and `deletedAt` filters independently; dropping the raw query's
+subject filter; tagging every listing `FITS_BUDGET` unconditionally; and leaking the lowest-price
+context into another priority's tags -- and each was caught by exactly the assertion it should break,
+confirming the fixture is discriminating rather than accidentally passing. One of those regressions
+(the booking-status filter) was not caught on the first attempt: the reserved slot's timestamp had
+been chosen only to avoid colliding with `tiedHigh`'s, which left it landing in the same place
+whether the filter worked or not. Moving it to a timestamp where leaking is visibly different from
+being excluded restored the check.

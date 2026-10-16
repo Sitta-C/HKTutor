@@ -211,9 +211,12 @@ test('validates references locally and restores input focus after the server rej
   const panel = page.getByRole('region', { name: 'Mock payment', exact: true });
   const input = panel.getByRole('textbox');
   const submit = panel.getByRole('button', { name: 'Record mock payment', exact: true });
-  await submit.click();
-  await expect(panel.getByRole('alert')).toHaveText('Enter a demo reference.');
-  await expect(input).toBeFocused();
+  for (const blankReference of ['', '   ']) {
+    await input.fill(blankReference);
+    await submit.click();
+    await expect(panel.getByRole('alert')).toHaveText('Enter a demo reference.');
+    await expect(input).toBeFocused();
+  }
   await input.fill('x'.repeat(65));
   await submit.click();
   await expect(panel.getByRole('alert')).toHaveText('Use single-line text of up to 64 characters.');
@@ -247,12 +250,16 @@ for (const status of ['PENDING', 'CANCELED', 'COMPLETED', 'EXPIRED'] as const) {
 
 for (const failure of [
   { status: 400, code: 'BOOKING_PAYMENT_AMOUNT_MISMATCH' },
+  { status: 400, code: 'BOOKING_NOT_PAYABLE' },
   { status: 403, code: 'BOOKING_NOT_OWNED' },
   { status: 404, code: 'BOOKING_NOT_FOUND' },
   { status: 409, code: 'BOOKING_ALREADY_PAID' },
+  { status: 409, code: 'BOOKING_NOT_PAYABLE' },
   { status: 409, code: 'BOOKING_PAYMENT_CONFLICT' },
 ]) {
-  test(`${failure.code} locks submission until a successful refresh`, async ({ page }) => {
+  test(`${failure.status} ${failure.code} locks submission until a successful refresh`, async ({
+    page,
+  }) => {
     const state = await mockPayments(page);
     state.failure = failure;
     await page.goto(DETAIL_PATH);
@@ -262,6 +269,12 @@ for (const failure of [
     await input.fill('DEMO-1');
     await submit.click();
     await expect(panel.getByRole('alert')).toBeVisible();
+    if (failure.code === 'BOOKING_NOT_PAYABLE') {
+      await expect(panel.getByRole('alert')).toHaveText(
+        'The booking changed. Load the latest status.',
+      );
+    }
+    await expect(panel.getByText('Unpaid', { exact: true })).toBeVisible();
     await expect(submit).toBeDisabled();
     await expect(input).toHaveValue('DEMO-1');
     state.failRefresh = true;
@@ -281,6 +294,70 @@ for (const failure of [
     ]);
   });
 }
+
+for (const latestStatus of ['PENDING', 'PAID'] as const) {
+  test(`refreshing a ${latestStatus} conflict removes the payment form without a retry`, async ({
+    page,
+  }) => {
+    const state = await mockPayments(page);
+    state.failure = {
+      status: latestStatus === 'PAID' ? 409 : 400,
+      code: latestStatus === 'PAID' ? 'BOOKING_ALREADY_PAID' : 'BOOKING_NOT_PAYABLE',
+    };
+    await page.goto(DETAIL_PATH);
+    const panel = page.getByRole('region', { name: 'Mock payment', exact: true });
+    await panel.getByRole('textbox').fill('DEMO-STALE');
+    await panel.getByRole('button', { name: 'Record mock payment', exact: true }).click();
+    await expect(panel.getByRole('alert')).toBeVisible();
+    await expect(panel.getByText('Unpaid', { exact: true })).toBeVisible();
+    await expect(panel.getByRole('textbox')).toBeDisabled();
+    state.booking =
+      latestStatus === 'PAID'
+        ? {
+            ...state.booking,
+            paymentStatus: 'PAID',
+            mockReference: 'DEMO-OTHER-TAB',
+            paidAt: PAID_AT,
+          }
+        : { ...state.booking, status: 'PENDING' };
+    await panel.getByRole('button', { name: 'Load latest status', exact: true }).click();
+    await expect(panel.getByRole('textbox')).toHaveCount(0);
+    await expect(
+      panel.getByRole('button', { name: 'Record mock payment', exact: true }),
+    ).toHaveCount(0);
+    await expect(panel).toContainText(
+      latestStatus === 'PAID' ? 'DEMO-OTHER-TAB' : 'Wait for tutor confirmation',
+    );
+    await page.reload();
+    await expect(panel).toContainText(
+      latestStatus === 'PAID' ? 'DEMO-OTHER-TAB' : 'Wait for tutor confirmation',
+    );
+    expect(state.payments).toHaveLength(1);
+    expect(state.unexpected).toEqual([]);
+  });
+}
+
+test('a generic server validation error keeps the reference editable without retrying', async ({
+  page,
+}) => {
+  const state = await mockPayments(page);
+  state.failure = { status: 400, code: 'VALIDATION_FAILED' };
+  await page.goto(DETAIL_PATH);
+  const panel = page.getByRole('region', { name: 'Mock payment', exact: true });
+  const input = panel.getByRole('textbox');
+  const submit = panel.getByRole('button', { name: 'Record mock payment', exact: true });
+  await input.fill('DEMO-VALIDATION');
+  await submit.click();
+  await expect(panel.getByRole('alert')).toHaveText(
+    'Invalid payment details. Check the reference.',
+  );
+  await expect(input).toHaveValue('DEMO-VALIDATION');
+  await expect(input).toBeEnabled();
+  await expect(submit).toBeEnabled();
+  await expect(panel.getByText('Unpaid', { exact: true })).toBeVisible();
+  expect(state.payments).toHaveLength(1);
+  expect(state.unexpected).toEqual([]);
+});
 
 test('a lost successful response requires a GET before retry and never resubmits automatically', async ({
   page,

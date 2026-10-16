@@ -43,7 +43,10 @@ See [implemented frontend behavior](implemented-behavior.md) for detailed intera
   actual action should look operable. Do not add hover lift or button styling to passive summaries.
 - Keep one necessary registration/login CTA in public headers. Password recovery is a small
   accent text link beside the password label, not a large pink assistance banner. Pink paper can
-  support an actual error state. The current recovery link explains that reset is not supported.
+  support an actual error state. The recovery link opens the bilingual `/forgot-password` email form; `/reset-password` accepts
+  the emailed one-time link and returns users to sign in after a successful reset. Resend steps
+  keep the original email read-only and show a disabled 60-second countdown restored from the server
+  after refresh. Wrong-email actions start a new request/registration explicitly.
 - Dashboard headers use the same `LanguageSwitch` as the login/public header: a globe icon with the
   TH/EN label and a light rounded hover state, without the former boxed button or colored role dot.
 - Keep the “Why HKTutor?” navigation in the about page's top section; repeated clicks must scroll

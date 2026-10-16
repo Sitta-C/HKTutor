@@ -186,13 +186,16 @@ const bookingNotParticipant = (): ForbiddenException =>
     statusCode: 403,
   });
 
-const bookingNotPayable = (status: BookingStatus): ConflictException =>
-  new ConflictException({
+const bookingNotPayable = (status: BookingStatus): BadRequestException | ConflictException => {
+  const isPending = status === BookingStatus.PENDING;
+  const response = {
     code: 'BOOKING_NOT_PAYABLE',
-    error: 'Conflict',
+    error: isPending ? 'Bad Request' : 'Conflict',
     message: `Only a confirmed booking can be paid; this booking is ${status}`,
-    statusCode: 409,
-  });
+    statusCode: isPending ? 400 : 409,
+  };
+  return isPending ? new BadRequestException(response) : new ConflictException(response);
+};
 
 const bookingAlreadyPaid = (): ConflictException =>
   new ConflictException({

@@ -4,6 +4,7 @@ import {
   BadRequestException,
   ForbiddenException,
   Injectable,
+  Logger,
   UnauthorizedException,
 } from '@nestjs/common';
 
@@ -14,11 +15,13 @@ import { EmailService } from '@infrastructure/email/email.service';
 import { JwtTokenService } from '@modules/auth/jwt.service';
 import { PasswordService } from '@modules/auth/password.service';
 
+import type { Prisma } from '@generated/prisma/client';
 import type {
   AcceptPrivacyNoticeDto,
+  ForgotPasswordDto,
   LoginDto,
+  ResetPasswordDto,
   RegisterDto,
-  ResendVerificationDto,
   VerifyEmailDto,
 } from '@modules/auth/auth.dto';
 import type { AuthResult, JwtPayload, PublicUser } from '@modules/auth/auth.types';
@@ -26,6 +29,9 @@ import type { AuthResult, JwtPayload, PublicUser } from '@modules/auth/auth.type
 const GENERIC_LOGIN_ERROR = 'Email or password is incorrect';
 const REGISTRATION_MESSAGE = 'If an account can be created, a verification email has been sent.';
 const VERIFICATION_MESSAGE = 'If the account can be verified, a verification email has been sent.';
+
+const PASSWORD_RESET_MESSAGE = 'If the account is eligible, a password reset email will be sent.';
+const INVALID_RESET_LINK = 'Password reset link is invalid or expired';
 
 const roleMap = {
   student: Role.STUDENT,
@@ -47,6 +53,7 @@ function hashesMatch(left: string, right: string): boolean {
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
   constructor(
     private readonly prisma: PrismaService,
     private readonly passwords: PasswordService,
@@ -121,33 +128,49 @@ export class AuthService {
     };
   }
 
-  async resendVerification(dto: ResendVerificationDto): Promise<{ message: string }> {
+  async resendVerification(email: string): Promise<{ message: string }> {
     const user = await this.prisma.user.findFirst({
-      where: { email: dto.email, deletedAt: null },
-      select: { id: true, email: true, emailVerifiedAt: true, accountStatus: true },
+      where: { email, deletedAt: null },
+      select: { id: true },
     });
-
-    if (!user || user.emailVerifiedAt || user.accountStatus !== AccountStatus.ACTIVE) {
+    if (!user) {
       return { message: VERIFICATION_MESSAGE };
     }
-
-    const token = randomBytes(32).toString('base64url');
-    const now = new Date();
-    await this.prisma.$transaction(async (tx) => {
+    const delivery = await this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT "id" FROM "User" WHERE "id" = ${user.id}::uuid FOR UPDATE`;
+      const eligible = await tx.user.findFirst({
+        where: {
+          id: user.id,
+          deletedAt: null,
+          accountStatus: AccountStatus.ACTIVE,
+          emailVerifiedAt: null,
+        },
+        select: { email: true },
+      });
+      if (!eligible) {
+        return null;
+      }
+      const now = new Date();
+      const recent = await tx.emailVerificationToken.findFirst({
+        where: { userId: user.id, createdAt: { gt: new Date(now.getTime() - 60_000) } },
+        select: { id: true },
+      });
+      if (recent) {
+        return null;
+      }
+      const token = randomBytes(32).toString('base64url');
       await tx.emailVerificationToken.updateMany({
         where: { userId: user.id, consumedAt: null },
         data: { consumedAt: now },
       });
       await tx.emailVerificationToken.create({
-        data: {
-          userId: user.id,
-          tokenHash: digest(token),
-          expiresAt: this.verificationExpiry(),
-        },
+        data: { userId: user.id, tokenHash: digest(token), expiresAt: this.verificationExpiry() },
       });
+      return { email: eligible.email, token };
     });
-
-    await this.email.sendVerificationEmail(user.email, token);
+    if (delivery) {
+      await this.email.sendVerificationEmail(delivery.email, delivery.token);
+    }
     return { message: VERIFICATION_MESSAGE };
   }
 
@@ -168,29 +191,145 @@ export class AuthService {
       throw new BadRequestException('Verification link is invalid or expired');
     }
 
-    const consumed = await this.prisma.$transaction(async (tx) => {
+    return this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT "id" FROM "User" WHERE "id" = ${tokenRecord.userId}::uuid FOR UPDATE`;
+      const user = await tx.user.findFirst({
+        where: { id: tokenRecord.userId, deletedAt: null, accountStatus: AccountStatus.ACTIVE },
+        select: { id: true, email: true, role: true, emailVerifiedAt: true },
+      });
+      const consumedAt = new Date();
+      if (!user) {
+        throw new BadRequestException('Verification link is invalid or expired');
+      }
       const result = await tx.emailVerificationToken.updateMany({
-        where: { id: tokenRecord.id, consumedAt: null, expiresAt: { gt: now } },
-        data: { consumedAt: now },
+        where: { id: tokenRecord.id, consumedAt: null, expiresAt: { gt: consumedAt } },
+        data: { consumedAt },
       });
-      if (result.count !== 1) return false;
-
+      if (result.count !== 1) {
+        throw new BadRequestException('Verification link is invalid or expired');
+      }
       await tx.user.update({
-        where: { id: tokenRecord.userId },
-        data: { emailVerifiedAt: tokenRecord.user.emailVerifiedAt ?? now },
+        where: { id: user.id },
+        data: { emailVerifiedAt: user.emailVerifiedAt ?? consumedAt },
       });
-      return true;
+      return this.createSession({ id: user.id, email: user.email, role: user.role }, tx);
     });
+  }
 
-    if (!consumed) {
-      throw new BadRequestException('Verification link is invalid or expired');
+  forgotPassword(dto: ForgotPasswordDto): Promise<{ message: string }> {
+    // Return before account lookup so database/provider latency cannot disclose eligibility.
+    void this.issuePasswordReset(dto).catch(() => {
+      this.logger.warn('Password reset request processing failed');
+    });
+    return Promise.resolve({ message: PASSWORD_RESET_MESSAGE });
+  }
+
+  private async issuePasswordReset(dto: ForgotPasswordDto): Promise<void> {
+    const user = await this.prisma.user.findFirst({
+      where: {
+        email: dto.email,
+        deletedAt: null,
+        accountStatus: AccountStatus.ACTIVE,
+        emailVerifiedAt: { not: null },
+        passwordHash: { not: null },
+      },
+      select: { id: true },
+    });
+    if (!user) {
+      return;
     }
 
-    return this.createSession({
-      id: tokenRecord.user.id,
-      email: tokenRecord.user.email,
-      role: tokenRecord.user.role,
+    const delivery = await this.prisma.$transaction(async (tx) => {
+      // Serialize issuance and redemption for an account, including requests from different IPs.
+      await tx.$queryRaw`SELECT "id" FROM "User" WHERE "id" = ${user.id}::uuid FOR UPDATE`;
+      const eligible = await tx.user.findFirst({
+        where: {
+          id: user.id,
+          deletedAt: null,
+          accountStatus: AccountStatus.ACTIVE,
+          emailVerifiedAt: { not: null },
+          passwordHash: { not: null },
+        },
+        select: { email: true },
+      });
+      if (!eligible) {
+        return null;
+      }
+      const now = new Date();
+      const recent = await tx.passwordResetToken.findFirst({
+        where: { userId: user.id, createdAt: { gt: new Date(now.getTime() - 60_000) } },
+        select: { id: true },
+      });
+      if (recent) {
+        return null;
+      }
+      const token = randomBytes(32).toString('base64url');
+      await tx.passwordResetToken.updateMany({
+        where: { userId: user.id, consumedAt: null },
+        data: { consumedAt: now },
+      });
+      await tx.passwordResetToken.create({
+        data: {
+          userId: user.id,
+          tokenHash: digest(token),
+          expiresAt: new Date(now.getTime() + this.config.passwordResetTtlMinutes * 60_000),
+        },
+      });
+      return { email: eligible.email, token };
     });
+
+    if (delivery) {
+      await this.email.sendPasswordResetEmail(delivery.email, delivery.token);
+    }
+  }
+
+  async resetPassword(dto: ResetPasswordDto): Promise<{ message: string }> {
+    const record = await this.prisma.passwordResetToken.findUnique({
+      where: { tokenHash: digest(dto.token) },
+      select: { id: true, userId: true, consumedAt: true, expiresAt: true },
+    });
+    if (!record || record.consumedAt || record.expiresAt <= new Date()) {
+      throw new BadRequestException(INVALID_RESET_LINK);
+    }
+    const passwordHash = await this.passwords.hash(dto.password);
+    await this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT "id" FROM "User" WHERE "id" = ${record.userId}::uuid FOR UPDATE`;
+      const user = await tx.user.findFirst({
+        where: {
+          id: record.userId,
+          deletedAt: null,
+          accountStatus: AccountStatus.ACTIVE,
+          emailVerifiedAt: { not: null },
+          passwordHash: { not: null },
+        },
+        select: { id: true },
+      });
+      if (!user) {
+        throw new BadRequestException(INVALID_RESET_LINK);
+      }
+      const now = new Date();
+      const consumed = await tx.passwordResetToken.updateMany({
+        where: { id: record.id, consumedAt: null, expiresAt: { gt: now } },
+        data: { consumedAt: now },
+      });
+      if (consumed.count !== 1) {
+        throw new BadRequestException(INVALID_RESET_LINK);
+      }
+      await tx.user.update({ where: { id: user.id }, data: { passwordHash } });
+      await tx.passwordResetToken.updateMany({
+        where: { userId: user.id, consumedAt: null },
+        data: { consumedAt: now },
+      });
+      await tx.emailVerificationToken.updateMany({
+        where: { userId: user.id, consumedAt: null },
+        data: { consumedAt: now },
+      });
+      await tx.authSession.updateMany({
+        where: { userId: user.id, revokedAt: null },
+        data: { revokedAt: now },
+      });
+    });
+    return { message: 'Password reset successfully. Sign in with your new password.' };
   }
 
   async login(dto: LoginDto): Promise<AuthResult> {
@@ -215,7 +354,23 @@ export class AuthService {
       throw new ForbiddenException('Verify your email before signing in');
     }
 
-    return this.createSession({ id: user.id, email: user.email, role: user.role });
+    return this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT "id" FROM "User" WHERE "id" = ${user.id}::uuid FOR UPDATE`;
+      const current = await tx.user.findFirst({
+        where: {
+          id: user.id,
+          passwordHash: user.passwordHash,
+          deletedAt: null,
+          accountStatus: AccountStatus.ACTIVE,
+          emailVerifiedAt: { not: null },
+        },
+        select: { id: true },
+      });
+      if (!current) {
+        throw new UnauthorizedException(GENERIC_LOGIN_ERROR);
+      }
+      return this.createSession({ id: user.id, email: user.email, role: user.role }, tx);
+    });
   }
 
   async refresh(refreshToken: string | undefined): Promise<AuthResult> {
@@ -270,11 +425,14 @@ export class AuthService {
     });
   }
 
-  private async createSession(user: PublicUser): Promise<AuthResult> {
+  private async createSession(
+    user: PublicUser,
+    database: Prisma.TransactionClient = this.prisma,
+  ): Promise<AuthResult> {
     const sessionId = randomUUID();
     const refreshToken = this.jwtTokens.signRefreshToken(user.id, sessionId, user.role);
 
-    await this.prisma.authSession.create({
+    await database.authSession.create({
       data: {
         id: sessionId,
         userId: user.id,
