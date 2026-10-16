@@ -102,6 +102,7 @@ model User {
   studentConversations Conversation[]           @relation("ConversationStudent")
   tutorConversations   Conversation[]           @relation("ConversationTutor")
   sentMessages         Message[]                @relation("MessageSender")
+  notifications        Notification[]
   reviewedDocuments    TutorDocument[]          @relation("TutorDocumentReviewer")
   documentAuditEvents  TutorDocumentAudit[]
   authSessions         AuthSession[]
@@ -321,6 +322,7 @@ model Booking {
   listing            TeachingListing     @relation(fields: [listingId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   slot               AvailabilitySlot    @relation(fields: [slotId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   rescheduleRequests RescheduleRequest[]
+  notifications      Notification[]
 
   @@index([studentUserId, status, createdAt], map: "Booking_studentUserId_status_createdAt_idx")
   @@index([tutorProfileId, status, createdAt], map: "Booking_tutorProfileId_status_createdAt_idx")
@@ -350,6 +352,26 @@ model RescheduleRequest {
   @@index([reviewedById], map: "RescheduleRequest_reviewedById_idx")
   @@index([fromSlotId], map: "RescheduleRequest_fromSlotId_idx")
   @@index([requestedSlotId], map: "RescheduleRequest_requestedSlotId_idx")
+}
+
+/// Minimal display metadata only; secrets and signed URLs must never be persisted here.
+model Notification {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @db.Uuid
+  eventKey  String
+  eventType String
+  bookingId String?   @db.Uuid
+  title     String
+  body      String
+  readAt    DateTime? @db.Timestamptz(3)
+  createdAt DateTime  @default(now()) @db.Timestamptz(3)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  booking   Booking?  @relation(fields: [bookingId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@unique([userId, eventKey], map: "Notification_userId_eventKey_key")
+  @@index([userId, createdAt, id], map: "Notification_userId_createdAt_id_idx")
+  @@index([userId, readAt, createdAt, id], map: "Notification_userId_readAt_createdAt_id_idx")
+  @@index([bookingId], map: "Notification_bookingId_idx")
 }
 
 model Conversation {
