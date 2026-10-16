@@ -877,6 +877,64 @@ two in `booking-flow-web.test.mjs`, one in `privacy-consent-foundation.test.mjs`
 source assertions. S2-DB04's new contract tests and the updated Booking foundation contract pass.
 This task leaves those unrelated web assertions for their owning work.
 
+## Reschedule rules verification (S2-T27)
+
+`pnpm --filter @hktutor/api db:verify:reschedule-rules` checks the S2-T25 reschedule endpoints,
+together with the booking API, through the real Nest HTTP pipeline, JWT sessions and Prisma
+transactions against PostgreSQL. Like the S2-T24 runner, it is not part of `pnpm check`, needs the
+approval flag and an explicit loopback `hktutor_` or `hktutor-` `DATABASE_URL`, never loads `.env`,
+and creates and removes its own random fixtures. Prepare the database as in the S2-T25 example
+(migrations, no seed), then run:
+
+```bash
+HKTUTOR_ALLOW_DISPOSABLE_DB_VERIFY=1 pnpm --filter @hktutor/api db:verify:reschedule-rules
+```
+
+Every rejected action compares all of the run's bookings, slots and reschedule requests before and
+after it.
+
+- **Cutoff.** The runner freezes `new Date()` and `Date.now()` in its own process. Requesting and
+  approving for a class exactly 24 hours or 24 hours plus 1 second away succeed; 24 hours minus
+  1 second returns 409 `RESCHEDULE_CUTOFF_EXCEEDED`. Requests for a class 2 hours away or already
+  started also return 409.
+- **Target.** The booking's own slot, a past slot or another tutor's slot returns 400; a deleted
+  slot or one held by a pending or confirmed booking returns 409; an unknown slot returns 404. A
+  slot whose only booking was canceled is accepted. PostgreSQL refuses a second live slot of the
+  same tutor that partly overlaps the booked one (`AvailabilitySlot_no_overlap_excl`), so the
+  booking's own slot is the only overlap that can occur.
+- **State.** Only a confirmed booking can be rescheduled; pending, canceled, completed and expired
+  bookings return 409. A second request while one is pending returns 409, and a withdrawal or
+  rejection makes room for a new one.
+- **Authorization.** Another student, another tutor or an admin gets 403 for create, approve, reject
+  and withdraw. The requester cannot approve or reject, and the other participant cannot withdraw
+  (403). No token returns 401; unknown and malformed IDs return 404 and 400.
+- **Decisions.** Approval moves only the booking's slot, closes the request once and frees the old
+  slot, which another student can then book through the booking API. Rejection and withdrawal change
+  nothing else, and a rejected target stays bookable. Any further action on a decided request
+  returns 409. If another student books the target, or the target is deleted or starts, before
+  approval, approval returns 409 or 400 and the original booking keeps its slot.
+- **Race.** Approval and another student's booking compete for one target, in both orders. A control
+  connection holds the target's row lock until `pg_stat_activity` shows the first request, then
+  both, waiting on it. The first to lock wins (200 or 201), the other returns 409, and exactly one
+  booking holds the target.
+
+Two approvals for one target, competing creates and duplicate approvals are covered by
+`db:verify:reschedule-endpoints` above. The frozen clock and the URL gate have unit tests in
+`reschedule-rules-verifier.spec.ts`.
+
+**Target-availability rule, as implemented.** A target must be a live, future slot of the booking's
+tutor, other than the booking's own slot, with no pending or confirmed booking. A pending request
+never holds its target, so approval checks it again. Three points await a team decision; until then
+the checks follow the API as written:
+
+- The API lets either participant request and the other decide, and the S2-DB04 triggers allow the
+  same. The RBAC tab gives requesting and withdrawing to the student and deciding to the owning tutor.
+- US5-2 expects 400 for "a slot that overlaps an existing booking". The API returns 409
+  `RESCHEDULE_TARGET_RESERVED` for a slot another booking holds, and it does not check the student's
+  own bookings with other tutors at the same time.
+- US5-2 says a rejected target "stays unavailable". The Data Model says rejection changes no slots,
+  and the API leaves the target bookable.
+
 ## Tutor verification visibility verification (S2-T12)
 
 `pnpm --filter @hktutor/api db:verify:tutor-verification` proves the S2-T10 publish gate
