@@ -2,7 +2,8 @@ export const rescheduleCopy = {
   en: {
     title: 'Reschedule class',
     open: 'Reschedule',
-    review: 'View reschedule request',
+    view: 'View reschedule request',
+    review: 'Review reschedule request',
     close: 'Hide reschedule details',
     requestReason: 'Reason for rescheduling',
     policy:
@@ -47,7 +48,8 @@ export const rescheduleCopy = {
   th: {
     title: 'เลื่อนเวลาคลาส',
     open: 'ขอเลื่อนเวลา',
-    review: 'ดูคำขอเลื่อนเวลา',
+    view: 'ดูคำขอเลื่อนเวลา',
+    review: 'พิจารณาคำขอเลื่อนเวลา',
     close: 'ซ่อนรายละเอียดเลื่อนเวลา',
     requestReason: 'เหตุผลที่ขอเลื่อนเวลา',
     policy:

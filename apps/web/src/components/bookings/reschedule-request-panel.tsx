@@ -86,6 +86,7 @@ export function RescheduleRequestPanel({
   const gate = useRef(false);
   const alive = useRef(false);
   const readRevision = useRef(0);
+  const approvalFocusHandled = useRef(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const detailsRef = useRef<HTMLDivElement>(null);
   const [expanded, setExpanded] = useState(false);
@@ -149,6 +150,18 @@ export function RescheduleRequestPanel({
   useEffect(() => {
     onPendingChange?.(isPending);
   }, [isPending, onPendingChange]);
+
+  useEffect(() => {
+    if (outcome !== 'APPROVED' || loading || approvalFocusHandled.current) {
+      return;
+    }
+    approvalFocusHandled.current = true;
+    // Approval replaces this panel. Restore focus once its trigger is enabled,
+    // unless the user has already moved to another control during the reload.
+    if (document.activeElement === document.body) {
+      triggerRef.current?.focus();
+    }
+  }, [loading, outcome]);
 
   function toggleDetails(): void {
     setExpanded(!expanded);
@@ -294,7 +307,13 @@ export function RescheduleRequestPanel({
           disabled={pending || loading}
           onClick={toggleDetails}
         >
-          {expanded ? copy.close : isPending ? copy.review : copy.open}
+          {expanded
+            ? copy.close
+            : isPending
+              ? request.requestedById === user?.id
+                ? copy.view
+                : copy.review
+              : copy.open}
         </NotebookAction>
       </div>
       {isPending && (
