@@ -2,6 +2,7 @@ import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 
+import { formatDuration } from '@/components/bookings/booking-ui';
 import { rescheduleCopy } from '@/components/bookings/reschedule-copy';
 import {
   filterTargetSlots,
@@ -10,6 +11,7 @@ import {
 } from '@/components/bookings/reschedule-model';
 import { TargetSlotPicker } from '@/components/bookings/target-slot-picker';
 import { ApiError } from '@/lib/api/error';
+import { translations } from '@/lib/i18n';
 
 import type { RescheduleBooking } from '@/components/bookings/reschedule-model';
 import type { CurrentRescheduleRequestResponse, RescheduleTargetSlot } from '@/lib/api/types';
@@ -146,6 +148,8 @@ describe('TargetSlotPicker component', () => {
           disabled: true,
           language,
           copy: rescheduleCopy[language],
+          role: 'student',
+          bookingText: translations[language].dashboard.booking,
         }),
       );
       expect(html).toContain('<fieldset disabled=""');
@@ -154,6 +158,13 @@ describe('TargetSlotPicker component', () => {
       expect(html).toContain('23:00 →');
       expect(html).toContain('01:00');
       expect(html).toContain(rescheduleCopy[language].choose);
+      expect(html).toContain(
+        formatDuration(
+          target.startAtUtc,
+          target.endAtUtc,
+          translations[language].dashboard.booking,
+        ),
+      );
     },
   );
 });

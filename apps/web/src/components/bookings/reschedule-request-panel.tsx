@@ -354,6 +354,8 @@ export function RescheduleRequestPanel({
                 disabled={locked}
                 language={language}
                 copy={copy}
+                role={actionRole}
+                bookingText={appCopy.dashboard.booking}
               />
               <NotebookField htmlFor={`${id}-reason`} label={copy.reason}>
                 <textarea
