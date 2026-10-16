@@ -941,8 +941,7 @@ async function main(): Promise<void> {
         before,
       );
       pass(
-        'the tutor requests and the student approves → 200 (the API as written; the RBAC tab ' +
-          'gives approval to the tutor only)',
+        'the tutor requests and the student approves → 200; booking moved, request approved once',
       );
     }
 
@@ -966,10 +965,7 @@ async function main(): Promise<void> {
       pass('the tutor rejects → 200; request rejected, booking and slots unchanged');
       const taken = await book(targetSlotId, otherStudent);
       assert.deepEqual(await activeHolders([targetSlotId]), { [targetSlotId]: [taken] });
-      pass(
-        'after a rejection the target stays bookable: another student books it ' +
-          '(Data Model rule; US5-2 says it "stays unavailable")',
-      );
+      pass('after a rejection the target stays bookable: another student books it');
       await unchanged(
         'approving the rejected request',
         () => decide('approve', requestId, tutor),
