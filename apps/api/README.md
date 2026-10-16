@@ -663,6 +663,38 @@ trigger test. It removes only its invocation's random fixture IDs in `finally`; 
 discard the disposable database afterward. Browser inbox tests intercept API responses and establish
 UI behavior, rather than live browser-to-database integration.
 
+## Booking cancellation verification (S2-T24)
+
+`pnpm --filter @hktutor/api db:verify:cancellation` checks `POST /api/v1/bookings/:bookingId/cancel`
+through the real Nest HTTP pipeline and Prisma transactions against PostgreSQL. Like the S2-T03
+runner, it is not part of `pnpm check`, needs the approval flag and an explicit loopback `hktutor_`
+or `hktutor-` `DATABASE_URL`, never loads `.env`, and creates and removes its own random fixtures.
+Prepare the database as in the S2-T03 example (migrations, no seed), then run:
+
+```bash
+HKTUTOR_ALLOW_DISPOSABLE_DB_VERIFY=1 pnpm --filter @hktutor/api db:verify:cancellation
+```
+
+- **Cutoff.** The runner freezes `new Date()` and `Date.now()` in its own process, so classes that
+  start exactly 24 hours, 24 hours plus 1 second, and 24 hours minus 1 second away hit the boundary
+  exactly against persisted timestamps. The first two cancel; the last returns 409 and changes nothing.
+  Classes starting in 2 hours or already started also return 409.
+- **Success.** Student and tutor cancellations, including a pending booking as the API allows,
+  store the trimmed reason, the canceler and the cancel time, change no other booking or payment
+  field, and free the slot in the private availability projection. A new booking can then take the
+  slot, and cancelling the old booking again (409) leaves that booking holding it.
+- **Failures.** A missing, blank or non-string reason (400), a booking paid through mock payment, a
+  completed, canceled or expired booking (409), another student, another tutor, an admin (403), no
+  token (401), and missing or malformed IDs leave full booking, payment and slot snapshots unchanged.
+- **Races.** Student and tutor cancelling at once give one 200 and one 409. Cancellation racing mock
+  payment runs in both commit orders: both requests read the unpaid booking first, and the second
+  writer's update waits on the first's row lock, re-checks its guard and returns 409. A booking never
+  ends both canceled and paid, and paying a canceled booking returns 409.
+
+The frozen clock and the URL gate have unit tests in `cancellation-verifier.spec.ts`. The HTTP-level
+contract, including the exact boundaries with a frozen clock, is also covered without a database in
+`test/bookings-cancellation.e2e-spec.ts`.
+
 ## RescheduleRequest persistence (S2-DB04)
 
 The forward migration `20261014120000_add_reschedule_request` implements the
