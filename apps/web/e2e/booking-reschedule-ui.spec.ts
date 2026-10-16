@@ -32,6 +32,8 @@ async function setup(
     gate?: Promise<void>;
     cutoff?: boolean;
     readStatus?: number;
+    open?: boolean;
+    inboxCount?: number;
   } = {},
 ) {
   const userId = role === 'TUTOR' ? 'tutor' : 'student';
@@ -144,9 +146,30 @@ async function setup(
     }
     if (path === '/bookings/me' || path === '/bookings/tutor') {
       const filter = url.searchParams.get('status');
+      const ordinary = Array.from({ length: (options.inboxCount ?? 1) - 1 }, (_, index) => ({
+        ...booking,
+        id: `ordinary-${index}`,
+        student: { nickname: `Student ${index + 1}` },
+        slot: {
+          id: `ordinary-slot-${index}`,
+          startAtUtc: new Date(
+            Date.parse(original.startAtUtc) + (index + 1) * 86_400_000,
+          ).toISOString(),
+          endAtUtc: new Date(
+            Date.parse(original.endAtUtc) + (index + 1) * 86_400_000,
+          ).toISOString(),
+        },
+      }));
       const items =
-        !filter || filter === booking.status ? [{ ...booking, student: { nickname: 'Mint' } }] : [];
+        !filter || filter === booking.status
+          ? [...ordinary, { ...booking, student: { nickname: 'Mint' } }]
+          : [];
       return route.fulfill({ json: { items, total: items.length } });
+    }
+    if (/^\/bookings\/ordinary-\d+\/reschedule-requests\/current$/.test(path)) {
+      return route.fulfill({
+        json: { request: null, targetSlot: null, allowedActions: ['CREATE'] },
+      });
     }
     if (path === '/tutors/tutor/availability' || path === '/tutors/me/availability') {
       slotReads += 1;
@@ -272,14 +295,29 @@ async function setup(
       })
       .click();
   }
-  const panel = page.getByRole('region', {
-    name: options.language === 'th' ? 'เลื่อนเวลาคลาส' : 'Reschedule class',
-    exact: true,
-  });
+  const panel = page
+    .getByRole('region', {
+      name: options.language === 'th' ? 'เลื่อนเวลาคลาส' : 'Reschedule class',
+      exact: true,
+    })
+    .last();
+  const open = async () => {
+    const disclosure = panel.locator('button[aria-expanded]');
+    await expect(disclosure).toBeEnabled();
+    if ((await disclosure.getAttribute('aria-expanded')) === 'false') {
+      await disclosure.click();
+    }
+  };
+  if (options.open !== false) {
+    await open();
+  }
   const reload = async () => {
     await page.reload();
     if (role === 'TUTOR') {
       await page.getByRole('button', { name: 'CONFIRMED', exact: true }).click();
+    }
+    if (options.open !== false) {
+      await open();
     }
   };
   return {
@@ -287,6 +325,7 @@ async function setup(
     writes,
     closeRequest,
     reload,
+    open,
     getBooking: () => booking,
     getSlotReads: () => slotReads,
     disableApproval: () => {
@@ -340,6 +379,7 @@ for (const role of ['STUDENT', 'TUTOR'] as const) {
     ).toHaveCount(0);
     await ui.panel.getByRole('button', { name: 'Approve reschedule', exact: true }).click();
     await expect(ui.panel.getByRole('status')).toHaveText('Reschedule approved');
+    await ui.open();
     await expect(ui.panel).toContainText(
       'Current class time: 18 Oct 2099 · 23:00 → 19 Oct 2099 · 01:00',
     );
@@ -373,6 +413,7 @@ for (const role of ['STUDENT', 'TUTOR'] as const) {
     expect(ui.getBooking().slot).toEqual(original);
     ui.disableApproval();
     await ui.panel.getByRole('button', { name: 'Refresh reschedule and booking' }).click();
+    await ui.open();
     await expect(
       ui.panel.getByRole('button', { name: 'Approve reschedule', exact: true }),
     ).toHaveCount(0);
@@ -389,6 +430,7 @@ for (const role of ['STUDENT', 'TUTOR'] as const) {
     await expect(ui.panel.getByRole('status')).toHaveText('Pending reschedule');
     ui.closeRequest('APPROVED');
     await ui.panel.getByRole('button', { name: 'Refresh reschedule and booking' }).click();
+    await ui.open();
     await expect(ui.panel.getByRole('status')).toHaveText('No reschedule request.');
     await expect(ui.panel).toContainText('Current class time: 18 Oct 2099');
     expect(ui.writes).toHaveLength(0);
@@ -453,6 +495,7 @@ test('a payment refresh started before approval cannot restore the original slot
   await reading;
   await ui.panel.getByRole('button', { name: 'Approve reschedule', exact: true }).click();
   await expect(ui.panel.getByRole('status')).toHaveText('Reschedule approved');
+  await ui.open();
   const response = page.waitForResponse(
     (result) => new URL(result.url()).pathname === '/api/v1/bookings/me/reschedule-preview',
   );
@@ -547,9 +590,130 @@ test('an in-flight decision disables duplicate writes, refresh and cancellation'
     ui.panel.getByRole('button', { name: 'Refresh reschedule and booking' }),
   ).toBeDisabled();
   await expect(page.getByRole('button', { name: 'Cancel class', exact: true })).toBeDisabled();
+  await expect(ui.panel.getByRole('button', { expanded: true })).toBeDisabled();
   await expect.poll(() => ui.writes.length).toBe(1);
   release();
   await expect(ui.panel.getByRole('status')).toHaveText('Reschedule approved');
+});
+
+for (const language of ['en', 'th'] as const) {
+  for (const width of [320, 768, 1440]) {
+    test(`a ten-booking tutor inbox stays compact with a visible pending cue in ${language} at ${width}px`, async ({
+      page,
+    }, testInfo) => {
+      await page.setViewportSize({ width, height: 900 });
+      const ui = await setup(page, 'TUTOR', {
+        language,
+        requester: 'other',
+        open: false,
+        inboxCount: 10,
+      });
+      const rows = page.getByRole('article');
+      await expect(rows).toHaveCount(10);
+      await expect(rows.getByRole('button', { expanded: false })).toHaveCount(10);
+      await expect(rows.getByRole('radio')).toHaveCount(0);
+      await expect(rows.getByRole('textbox')).toHaveCount(0);
+      const pendingCopy = language === 'th' ? 'รอตอบรับการเลื่อนเวลา' : 'Pending reschedule';
+      const identity = rows
+        .last()
+        .getByRole('heading', { name: 'Mint', exact: true })
+        .locator('..');
+      await expect(identity.getByText(pendingCopy, { exact: true })).toBeVisible();
+      await expect(
+        rows.last().getByText(language === 'th' ? 'ยืนยันแล้ว' : 'CONFIRMED', {
+          exact: true,
+        }),
+      ).toBeVisible();
+      const sizes = await rows.evaluateAll((elements) =>
+        elements.map((element) => element.getBoundingClientRect().height),
+      );
+      expect(Math.max(...sizes.slice(0, 9))).toBeLessThan(700);
+      const idlePanels = page.getByRole('region', {
+        name: language === 'th' ? 'เลื่อนเวลาคลาส' : 'Reschedule class',
+        exact: true,
+      });
+      const panelSizes = await idlePanels.evaluateAll((elements) =>
+        elements.slice(0, 9).map((element) => element.getBoundingClientRect().height),
+      );
+      expect(Math.max(...panelSizes)).toBeLessThan(120);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+        true,
+      );
+      await page.screenshot({
+        path: testInfo.outputPath(`compact-inbox-${language}-${width}.png`),
+      });
+      await ui.open();
+      await expect(
+        ui.panel.getByRole('button', {
+          name: language === 'th' ? 'อนุมัติการเลื่อนเวลา' : 'Approve reschedule',
+          exact: true,
+        }),
+      ).toBeEnabled();
+      const targetTime = ui.panel.getByRole('group', {
+        name: language === 'th' ? 'เวลาคลาสที่ขอ' : 'Requested class time',
+        exact: true,
+      });
+      await expect(targetTime).toContainText('23:00 →');
+      await expect(targetTime).toContainText('01:00');
+      await expect(targetTime).toContainText(language === 'th' ? '2 ชั่วโมง' : '2 hours');
+      await expect(ui.panel.getByText('Exam conflict', { exact: true })).toBeVisible();
+      await rows
+        .last()
+        .screenshot({ path: testInfo.outputPath(`request-review-${language}-${width}.png`) });
+      await page.keyboard.press('Escape');
+      const disclosure = ui.panel.getByRole('button', { expanded: false });
+      await expect(disclosure).toBeFocused();
+      await expect(identity.getByText(pendingCopy, { exact: true })).toBeVisible();
+      expect(ui.writes).toHaveLength(0);
+    });
+  }
+}
+
+test('closing and reopening a failed request preserves its error, refresh and action locks', async ({
+  page,
+}) => {
+  const ui = await setup(page, 'TUTOR', { requester: 'other', errorStatus: 409 });
+  await ui.panel.getByRole('button', { name: 'Approve reschedule', exact: true }).click();
+  await expect(ui.panel.getByRole('alert')).toContainText('Refresh before continuing');
+  await ui.panel.getByRole('button', { expanded: true }).click();
+  await expect(ui.panel.getByRole('alert')).toBeVisible();
+  await expect(
+    ui.panel.getByRole('button', { name: 'Refresh reschedule and booking' }),
+  ).toBeEnabled();
+  await ui.open();
+  await expect(
+    ui.panel.getByRole('button', { name: 'Approve reschedule', exact: true }),
+  ).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Cancel class', exact: true })).toBeDisabled();
+  expect(ui.writes).toHaveLength(1);
+});
+
+test('student payment stays ahead of the optional reschedule form and disclosure preserves its draft', async ({
+  page,
+}) => {
+  const ui = await setup(page, 'STUDENT', { open: false });
+  await expect(ui.panel.getByRole('radio')).toHaveCount(0);
+  const payment = page.getByRole('region', { name: 'Mock payment', exact: true });
+  await expect(payment).toBeVisible();
+  expect(
+    await payment.evaluate((element) => {
+      const reschedule = document.querySelector('section[aria-label="Reschedule class"]');
+      return (
+        reschedule !== null &&
+        Boolean(element.compareDocumentPosition(reschedule) & Node.DOCUMENT_POSITION_FOLLOWING)
+      );
+    }),
+  ).toBe(true);
+  await ui.open();
+  await ui.panel.getByRole('radio').check();
+  await ui.panel.getByRole('textbox').fill('Keep my reason');
+  await page.keyboard.press('Escape');
+  await expect(ui.panel.getByRole('button', { expanded: false })).toBeFocused();
+  await expect(ui.panel.getByRole('radio')).toHaveCount(0);
+  await ui.open();
+  await expect(ui.panel.getByRole('radio')).toBeChecked();
+  await expect(ui.panel.getByRole('textbox')).toHaveValue('Keep my reason');
+  expect(ui.writes).toHaveLength(0);
 });
 
 test('Thai target selection remains keyboard accessible at 320px', async ({ page }, testInfo) => {
