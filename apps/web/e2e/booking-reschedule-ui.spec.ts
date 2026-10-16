@@ -350,8 +350,16 @@ for (const role of ['STUDENT', 'TUTOR'] as const) {
     await expect(
       ui.panel.getByRole('button', { name: 'Send reschedule request', exact: true }),
     ).toBeDisabled();
+    const slotRow = ui.panel.getByRole('radio').locator('..');
+    const unselectedColor = await slotRow.evaluate(
+      (element) => getComputedStyle(element).backgroundColor,
+    );
     await ui.panel.getByRole('radio').check();
     await ui.panel.getByRole('textbox').fill('  Exam conflict  ');
+    await expect(slotRow).toContainText('2 hours');
+    expect(await slotRow.evaluate((element) => getComputedStyle(element).backgroundColor)).not.toBe(
+      unselectedColor,
+    );
     await ui.panel.getByRole('button', { name: 'Send reschedule request', exact: true }).click();
     await expect(ui.panel.getByRole('status')).toHaveText('Pending reschedule');
     await expect(ui.panel).toContainText('Only the other participant can approve or reject');
@@ -436,6 +444,78 @@ for (const role of ['STUDENT', 'TUTOR'] as const) {
     expect(ui.writes).toHaveLength(0);
   });
 }
+
+for (const role of ['STUDENT', 'TUTOR'] as const) {
+  for (const language of ['en', 'th'] as const) {
+    for (const requester of ['self', 'other'] as const) {
+      test(`${role} pending ${requester} disclosure uses ${language} role wording and restores approval focus`, async ({
+        page,
+      }) => {
+        const ui = await setup(page, role, { language, requester, open: false });
+        const viewLabel = language === 'th' ? 'ดูคำขอเลื่อนเวลา' : 'View reschedule request';
+        const reviewLabel =
+          language === 'th' ? 'พิจารณาคำขอเลื่อนเวลา' : 'Review reschedule request';
+        const label = requester === 'self' ? viewLabel : reviewLabel;
+        await expect(ui.panel.getByRole('button', { name: label, exact: true })).toBeEnabled();
+        await expect(
+          ui.panel.getByRole('button', {
+            name: requester === 'self' ? reviewLabel : viewLabel,
+            exact: true,
+          }),
+        ).toHaveCount(0);
+        await ui.open();
+        const approve = ui.panel.getByRole('button', {
+          name: language === 'th' ? 'อนุมัติการเลื่อนเวลา' : 'Approve reschedule',
+          exact: true,
+        });
+        if (requester === 'self') {
+          await expect(approve).toHaveCount(0);
+          await expect(
+            ui.panel.getByRole('button', {
+              name: language === 'th' ? 'ถอนคำขอเลื่อนเวลา' : 'Withdraw reschedule',
+              exact: true,
+            }),
+          ).toBeEnabled();
+          await page.keyboard.press('Escape');
+          await expect(ui.panel.getByRole('button', { name: label, exact: true })).toBeFocused();
+          expect(ui.writes).toHaveLength(0);
+        } else {
+          await approve.click();
+          await expect(ui.panel.getByRole('status')).toHaveText(
+            language === 'th' ? 'อนุมัติการเลื่อนเวลาแล้ว' : 'Reschedule approved',
+          );
+          const trigger = ui.panel.getByRole('button', { expanded: false });
+          await expect(trigger).toBeFocused();
+          await expect(trigger).toBeEnabled();
+          expect(ui.getBooking().slot.id).toBe(target.id);
+          expect(ui.writes).toHaveLength(1);
+        }
+      });
+    }
+  }
+}
+
+test('approval does not steal focus after the user leaves while the new panel loads', async ({
+  page,
+}) => {
+  const ui = await setup(page, 'STUDENT', { requester: 'other' });
+  let release = () => {};
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await page.route('**/bookings/reschedule-preview/reschedule-requests/current', async (route) => {
+    await gate;
+    await route.fulfill({ json: { request: null, targetSlot: null, allowedActions: ['CREATE'] } });
+  });
+  await ui.panel.getByRole('button', { name: 'Approve reschedule', exact: true }).click();
+  await expect(ui.panel.getByRole('button', { name: 'Reschedule', exact: true })).toBeDisabled();
+  const back = page.getByRole('link', { name: 'Back to my bookings', exact: true });
+  await back.focus();
+  release();
+  await expect(ui.panel.getByRole('status')).toHaveText('Reschedule approved');
+  await expect(ui.panel.getByRole('button', { name: 'Reschedule', exact: true })).toBeEnabled();
+  await expect(back).toBeFocused();
+});
 
 test('cutoff suppresses create and approve while retaining reject/withdraw', async ({ page }) => {
   const ui = await setup(page, 'STUDENT', { cutoff: true, requester: 'other' });
@@ -724,6 +804,9 @@ test('Thai target selection remains keyboard accessible at 320px', async ({ page
   await page.keyboard.press('Space');
   await expect(radio).toBeChecked();
   await expect(ui.panel.getByRole('textbox')).toHaveAccessibleName('เหตุผล (ไม่บังคับ)');
+  await ui.panel.getByRole('textbox').focus();
+  await expect(radio.locator('..')).toContainText('2 ชั่วโมง');
+  await expect(radio.locator('..')).toHaveClass(/border-student-deep\/30/);
   await expect(
     ui.panel.getByRole('button', { name: 'ส่งคำขอเลื่อนเวลา', exact: true }),
   ).toBeEnabled();
