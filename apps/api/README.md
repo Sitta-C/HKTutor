@@ -724,13 +724,79 @@ reason and request time are immutable, and closed evidence cannot be modified or
 Rejecting/withdrawing a request does not move a booking. RLS and revoked PUBLIC/Supabase browser-role
 privileges keep this table behind the backend owner connection.
 
-S2-T25 still owns authenticated endpoints, requester-only withdrawal, active-account/consent checks,
-the inclusive cutoff, future/non-deleted/available target checks and HTTP conflict mapping. The
-database cannot infer the authenticated actor from a submitted UUID. Its verifier demonstrates a
-slot-swap transaction protocol; it is not a production approval service or HTTP authorization test.
-The future service must lock the booking first, revalidate eligibility, conditionally close the
-pending request, update the booking's slot and commit all changes together. A uniqueness/state
-failure must roll back both writes; never close the request in a separate transaction.
+S2-T25 implements the authenticated create/current/approve/reject/withdraw endpoints in
+`src/modules/reschedule-requests`. It enforces requester/counterparty ownership, active-account and
+current-consent checks, and an inclusive cutoff: create and approve allow exactly 24 hours before
+the current class and reject anything closer. A pending request never holds its target slot.
+
+Creation locks the booking before reading eligibility. Approval locks the booking, re-reads the
+request, then locks and reads the target slot before checking availability and changing either
+record. If target deletion commits first, approval returns `409 RESCHEDULE_TARGET_UNAVAILABLE`
+without closing the pending request or moving the booking. Request closure and the slot swap
+commit together; a uniqueness or state conflict rolls both back. No schema migration is added by
+these endpoint fixes.
+
+Cancellation also compares the booking's current `slotId` with the slot used for its cutoff check.
+If approval moves the booking after cancellation reads it, cancellation returns
+`409 BOOKING_TRANSITION_CONFLICT` and preserves the rescheduled class. The client must refresh
+before retrying, so the new class time is checked against the cancellation cutoff.
+
+`GET /api/v1/bookings/:bookingId/reschedule-requests/current` advertises `APPROVE` only for an
+eligible confirmed booking and a future, non-deleted, unreserved, non-overlapping target belonging
+to the same tutor. If approval becomes unavailable, the counterparty can still `REJECT` and the
+requester can still `WITHDRAW` while the request is pending.
+
+Run the focused endpoint checks with:
+
+```bash
+pnpm --filter @hktutor/api test --runInBand reschedule-requests
+pnpm --filter @hktutor/api test:e2e --runInBand reschedule-requests
+```
+
+The HTTP suite uses real controllers, guards and validation with isolated mocked persistence. It
+checks exact-cutoff behavior, permitted actions, target deletion at the lock read, authorization,
+validation and modeled rollback. It does not prove PostgreSQL lock contention. The database
+verifier below tests the persistence protocol separately, not the production service or HTTP routes.
+
+### Endpoint concurrency verification (S2-T25)
+
+`pnpm --filter @hktutor/api db:verify:reschedule-endpoints` exercises the real Nest HTTP pipeline,
+JWT sessions, production services and Prisma transactions against PostgreSQL. It does not load
+`.env`, migrate or seed a database, and is not run by `pnpm check`. Use a newly created disposable
+target that you own; the explicit opt-in, loopback host, `hktutor_*_test`/`hktutor-*-test` database
+name, and lack of URL options/fragments are required. All committed migrations and the active-slot
+and pending-request partial unique indexes are preflighted before fixtures are created.
+
+For example, create a fresh isolated PostgreSQL 17 container, apply migrations without seeding,
+and verify the endpoints:
+
+```bash
+docker run --detach --name hktutor-pr107-reschedule-test \
+  --publish 127.0.0.1:55436:5432 \
+  --env POSTGRES_USER=postgres --env POSTGRES_PASSWORD=disposable-local-only \
+  --env POSTGRES_DB=hktutor_reschedule_endpoints_test postgres:17-alpine
+docker exec hktutor-pr107-reschedule-test pg_isready -U postgres -d hktutor_reschedule_endpoints_test
+# Continue only after PostgreSQL reports that it is accepting connections.
+export DATABASE_URL='postgresql://postgres:disposable-local-only@127.0.0.1:55436/hktutor_reschedule_endpoints_test'
+pnpm db:migrate:deploy
+HKTUTOR_ALLOW_DISPOSABLE_DB_VERIFY=1 pnpm --filter @hktutor/api db:verify:reschedule-endpoints
+docker rm --force --volumes hktutor-pr107-reschedule-test
+unset DATABASE_URL
+```
+
+The runner checks six scenarios: approval between cancellation's read and write, cancellation
+winning first, duplicate pending creation, two requests approving the same target, two approvals
+of the same request, and rollback after both actual request/booking writes. A separate control
+connection holds a row lock until `pg_stat_activity` shows both real HTTP transactions waiting;
+releasing it must produce one success and one 409. Snapshots verify that the loser keeps its
+original booking and pending request, the winner alone reserves the target and releases its old
+slot, and failure rolls back both writes. Prisma query extensions only pause a real cancellation
+SELECT or inject a failure after a real swap UPDATE; no persistence results are mocked.
+Only this invocation's randomly identified fixtures are deleted in `finally`.
+
+On 2026-10-15, the cancellation regression failed against commit `2ffd56f` (200 instead of 409),
+then all six real HTTP/PostgreSQL scenarios passed with the slot comparison fix. All 20 committed
+migrations were applied to the new container; no project database or seed data was used.
 
 ### Verification and rollout
 

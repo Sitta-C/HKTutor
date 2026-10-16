@@ -14,6 +14,7 @@ import { ConversationsModule } from '@modules/conversations/conversations.module
 import { HealthModule } from '@modules/health/health.module';
 import { ProfilesModule } from '@modules/profiles/profiles.module';
 import { QualificationDocumentsModule } from '@modules/qualification-documents/qualification-documents.module';
+import { RescheduleRequestsModule } from '@modules/reschedule-requests/reschedule-requests.module';
 import { TutorsModule } from '@modules/tutors/tutors.module';
 
 @Module({
@@ -35,6 +36,7 @@ import { TutorsModule } from '@modules/tutors/tutors.module';
     AvatarsModule,
     ProfilesModule,
     QualificationDocumentsModule,
+    RescheduleRequestsModule,
     TutorsModule,
   ],
 })

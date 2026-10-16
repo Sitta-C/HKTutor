@@ -1029,7 +1029,7 @@ export function CancelBookingDoc(): MethodDecorator {
     ApiConflictResponse({
       description:
         'The booking is already paid, already in a final state (completed, canceled, or expired), ' +
-        'is inside the 24-hour cutoff before class start, or a concurrent update won the transition',
+        'is inside the 24-hour cutoff before class start, or a concurrent update changed its slot/state',
       schema: {
         example: {
           code: 'BOOKING_ALREADY_PAID',

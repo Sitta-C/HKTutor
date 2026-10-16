@@ -1074,6 +1074,7 @@ export class BookingsService {
             id: true,
             paymentStatus: true,
             slot: { select: { startAtUtc: true } },
+            slotId: true,
             status: true,
             studentUserId: true,
             tutorProfileId: true,
@@ -1106,6 +1107,9 @@ export class BookingsService {
           where: {
             id: input.bookingId,
             paymentStatus: PaymentStatus.UNPAID,
+            // Approval can move the class after the cutoff check above. Invalidate a
+            // cancellation based on the old slot instead of canceling the new class.
+            slotId: booking.slotId,
             status: { in: [BookingStatus.PENDING, BookingStatus.CONFIRMED] },
           },
         });
