@@ -1926,6 +1926,16 @@ describe('BookingsService', () => {
       ['https:/meet.google.com/abc'],
       [' https://meet.google.com/abc '],
       ['https://'],
+      // S2-T34 QA: NUL previously reached PostgreSQL and returned 500.
+      ['https://meet.google.com/a\u0000b'],
+      ['https://meet.google.com/a\u0001b'],
+      ['https://meet.google.com/a\u007fb'],
+      ['https://meet.google.com/a b'],
+      ['https://meet.google.com/a\tb'],
+      ['https://meet.google.com/‮gpj.exe'],
+      ['https://meet.google.com@evil.example/abc'],
+      ['https://user:secret@meet.google.com/abc'],
+      ['https://:secret@meet.google.com/abc'],
     ])('rejects invalid or non-https URL %j with 400', async (meetingUrl) => {
       const { bookingId } = createTestData();
 
@@ -1994,6 +2004,27 @@ describe('BookingsService', () => {
         });
       },
     );
+
+    it.each([
+      'https://zoom.us/j/1234567890?pwd=AbC123#success',
+      'https://teams.microsoft.com/l/meetup-join/19%3ameeting_x%40thread.v2/0',
+      'https://meet.example.com/a%20b',
+      'HTTPS://Meet.Example.com/Room',
+      'https://meet.example.com:8443/room',
+      'https://meet.example.com/ห้องเรียน',
+    ])('still accepts the real-world https link %j', async (meetingUrl) => {
+      const { bookingId } = createTestData();
+      mockPrismaService.booking.findFirst.mockResolvedValue({
+        id: bookingId,
+        status: BookingStatus.CONFIRMED,
+      });
+      const { updateMany } = stubMeetingLinkTransaction({ bookingId, meetingUrl });
+
+      await expect(service.updateMeetingLink({ bookingId, meetingUrl })).resolves.toMatchObject({
+        meetingUrl,
+      });
+      expect(updateMany).toHaveBeenCalledWith(expect.objectContaining({ data: { meetingUrl } }));
+    });
 
     it('throws ConflictException when a concurrent transition modifies status before update', async () => {
       const { bookingId } = createTestData();
