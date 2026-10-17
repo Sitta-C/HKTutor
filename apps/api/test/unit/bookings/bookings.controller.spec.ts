@@ -807,7 +807,7 @@ describe('BookingsController OpenAPI contract', () => {
       document.paths[`/${API_GLOBAL_PREFIX}/bookings/tutor/{bookingId}/meeting-link`]?.put;
 
     expect(operation?.summary).toBe(
-      "Update the meeting link for one of the authenticated tutor's confirmed bookings",
+      "Update the meeting link for one of the authenticated tutor's confirmed or completed bookings",
     );
     expect(operation?.responses['200']).toMatchObject({
       content: {
@@ -833,7 +833,7 @@ describe('BookingsController OpenAPI contract', () => {
     const operation =
       document.paths[`/${API_GLOBAL_PREFIX}/bookings/{bookingId}/class-details`]?.get;
 
-    expect(operation?.summary).toBe('Get class details for a confirmed booking');
+    expect(operation?.summary).toBe('Get class details for a booking participant');
     expect(operation?.responses['200']).toMatchObject({
       content: {
         'application/json': {
@@ -843,9 +843,17 @@ describe('BookingsController OpenAPI contract', () => {
         },
       },
     });
-    for (const status of ['400', '401', '403', '404', '409']) {
+    for (const status of ['400', '401', '403', '404']) {
       expect(operation?.responses[status]).toBeDefined();
     }
+    expect(operation?.responses['409']).toBeUndefined();
+    expect(document.components?.schemas?.['BookingClassDetailDto']).toMatchObject({
+      properties: {
+        meetingUrl: { type: 'string', nullable: true },
+        subject: { $ref: '#/components/schemas/BookingClassSubjectDto' },
+      },
+      required: expect.arrayContaining(['subject', 'startAt', 'endAt', 'meetingUrl']) as unknown,
+    });
     expect(operation?.security).toEqual([{ [JWT_BEARER_AUTH]: [] }]);
   });
 

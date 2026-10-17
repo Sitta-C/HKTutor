@@ -768,7 +768,8 @@ export function UpdateMeetingLinkDoc(): MethodDecorator {
   return applyDecorators(
     ApiExtraModels(UpdateMeetingLinkDto, BookingMeetingLinkDto),
     ApiOperation({
-      summary: "Update the meeting link for one of the authenticated tutor's confirmed bookings",
+      summary:
+        "Update the meeting link for one of the authenticated tutor's confirmed or completed bookings",
     }),
     ApiBearerAuth(JWT_BEARER_AUTH),
     ApiBody({ required: true, type: UpdateMeetingLinkDto }),
@@ -836,12 +837,13 @@ export function UpdateMeetingLinkDoc(): MethodDecorator {
     }),
     ApiConflictResponse({
       description:
-        'The booking is not confirmed (pending, canceled, completed or expired), or a concurrent transition modified the booking status',
+        'The booking is not confirmed or completed (pending, canceled or expired), or a concurrent transition modified the booking status',
       schema: {
         example: {
-          code: 'BOOKING_NOT_CONFIRMED',
+          code: 'BOOKING_NOT_CONFIRMED_OR_COMPLETED',
           error: 'Conflict',
-          message: 'Only a confirmed booking can be updated meeting link; this booking is PENDING',
+          message:
+            'Only a confirmed or completed booking can have its meeting link updated; this booking is PENDING',
           statusCode: 409,
         },
         type: 'object',
@@ -853,11 +855,12 @@ export function UpdateMeetingLinkDoc(): MethodDecorator {
 export function GetBookingClassDetailDoc(): MethodDecorator {
   return applyDecorators(
     ApiExtraModels(BookingClassDetailDto),
-    ApiOperation({ summary: 'Get class details for a confirmed booking' }),
+    ApiOperation({ summary: 'Get class details for a booking participant' }),
     ApiBearerAuth(JWT_BEARER_AUTH),
     ApiOkResponse({
       description:
-        'The booking class details including schedule, meeting URL, attendance, and participant profiles',
+        'Schedule, subject, attendance and participant profiles for every booking state. ' +
+        'meetingUrl is null when missing or outside CONFIRMED/COMPLETED.',
       schema: {
         example: {
           attendance: null,
@@ -890,6 +893,7 @@ export function GetBookingClassDetailDoc(): MethodDecorator {
           },
           startAt: '2026-10-09T09:00:00.000Z',
           status: 'CONFIRMED',
+          subject: { id: '11dafbfa-89bc-4e09-a89a-873c419140bd', name: 'Mathematics' },
         },
         allOf: [{ $ref: getSchemaPath(BookingClassDetailDto) }],
         type: 'object',
@@ -940,18 +944,6 @@ export function GetBookingClassDetailDoc(): MethodDecorator {
           error: 'Not Found',
           message: 'Booking not found',
           statusCode: 404,
-        },
-        type: 'object',
-      },
-    }),
-    ApiConflictResponse({
-      description: 'The booking is not confirmed',
-      schema: {
-        example: {
-          code: 'BOOKING_NOT_CONFIRMED',
-          error: 'Conflict',
-          message: 'Only a confirmed booking can be updated meeting link; this booking is PENDING',
-          statusCode: 409,
         },
         type: 'object',
       },

@@ -139,11 +139,11 @@ const bookingNotPending = (status: BookingStatus): ConflictException =>
     statusCode: 409,
   });
 
-const bookingNotConfirmed = (status: BookingStatus): ConflictException =>
+const meetingLinkNotEditable = (status: BookingStatus): ConflictException =>
   new ConflictException({
-    code: 'BOOKING_NOT_CONFIRMED',
+    code: 'BOOKING_NOT_CONFIRMED_OR_COMPLETED',
     error: 'Conflict',
-    message: `Only a confirmed booking can be updated meeting link; this booking is ${status}`,
+    message: `Only a confirmed or completed booking can have its meeting link updated; this booking is ${status}`,
     statusCode: 409,
   });
 
@@ -995,7 +995,6 @@ export class BookingsService {
     }
   }
 
-  //Meeting
   async updateMeetingLink(input: BookingMeetingLinkInput): Promise<BookingMeetingLinkDto> {
     if (!isValidMeetingUrl(input.meetingUrl)) throw invalidURLException();
     const booking = await this.prisma.booking.findFirst({
@@ -1003,7 +1002,9 @@ export class BookingsService {
       where: { id: input.bookingId },
     });
     if (!booking) throw bookingNotFound();
-    if (booking.status !== BookingStatus.CONFIRMED) throw bookingNotConfirmed(booking.status);
+    if (!MEETING_LINK_STATUSES.includes(booking.status)) {
+      throw meetingLinkNotEditable(booking.status);
+    }
 
     try {
       return await this.prisma.$transaction(async (tx) => {
@@ -1011,7 +1012,7 @@ export class BookingsService {
           data: { meetingUrl: input.meetingUrl },
           where: {
             id: input.bookingId,
-            status: BookingStatus.CONFIRMED,
+            status: { in: MEETING_LINK_STATUSES },
           },
         });
 
@@ -1045,23 +1046,49 @@ export class BookingsService {
   async getBookingClassDetail(bookingId: string): Promise<BookingClassDetailDto> {
     const booking = await this.prisma.booking.findFirst({
       where: { id: bookingId },
-      include: { slot: true, tutorProfile: true },
+      select: {
+        id: true,
+        status: true,
+        meetingUrl: true,
+        attendance: true,
+        studentUserId: true,
+        tutorProfileId: true,
+        slot: { select: { startAtUtc: true, endAtUtc: true } },
+        listing: { select: { subject: { select: { id: true, name: true } } } },
+        tutorProfile: {
+          select: {
+            firstName: true,
+            lastName: true,
+            nickname: true,
+            displayName: true,
+            bio: true,
+            experienceYears: true,
+          },
+        },
+      },
     });
     if (!booking) throw bookingNotFound();
-    if (booking.status !== BookingStatus.CONFIRMED) throw bookingNotConfirmed(booking.status);
-    let studentProfile;
-    if (booking?.studentUserId) {
-      studentProfile = await this.prisma.studentProfile.findFirst({
-        where: { userId: booking.studentUserId },
-      });
-    }
+    const studentProfile = await this.prisma.studentProfile.findFirst({
+      where: { userId: booking.studentUserId },
+      select: {
+        firstName: true,
+        lastName: true,
+        nickname: true,
+        school: true,
+        gradeLevel: true,
+        phone: true,
+      },
+    });
     if (!studentProfile) throw new BadRequestException();
     const response = new BookingClassDetailDto();
     response.bookingId = booking.id;
     response.status = booking.status;
     response.startAt = booking.slot.startAtUtc.toISOString();
     response.endAt = booking.slot.endAtUtc.toISOString();
-    response.meetingUrl = booking.meetingUrl;
+    response.subject = { id: booking.listing.subject.id, name: booking.listing.subject.name };
+    response.meetingUrl = MEETING_LINK_STATUSES.includes(booking.status)
+      ? booking.meetingUrl
+      : null;
     response.attendance = booking.attendance;
     response.participants = {
       tutor: {
@@ -1077,7 +1104,14 @@ export class BookingsService {
       },
       student: {
         id: booking.studentUserId,
-        detail: studentProfile,
+        detail: {
+          firstName: studentProfile.firstName,
+          lastName: studentProfile.lastName,
+          nickname: studentProfile.nickname,
+          school: studentProfile.school,
+          gradeLevel: studentProfile.gradeLevel,
+          phone: studentProfile.phone,
+        },
       },
     };
     return response;
@@ -1354,6 +1388,7 @@ function deriveBookingAmounts(
 }
 
 const HTTPS_MEETING_URL_PATTERN = /^https:\/\/[^\s/?#]+([/?#].*)?$/i;
+const MEETING_LINK_STATUSES: BookingStatus[] = [BookingStatus.CONFIRMED, BookingStatus.COMPLETED];
 
 function isValidMeetingUrl(urlString: string): boolean {
   if (typeof urlString !== 'string' || urlString !== urlString.trim()) {

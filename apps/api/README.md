@@ -517,6 +517,48 @@ rows that way; see "Tutor ranking verification (S2-T15)" below for that evidence
 eligibility (which tutors and listings are visible at all) is S2-T10/S2-T12's own contract. The
 ranking selector and translated result-card labels belong to S2-T14.
 
+## Meeting links and class details (S2-T32)
+
+`PUT /api/v1/bookings/tutor/:bookingId/meeting-link` accepts `{ meetingUrl }` from the booking's
+owning tutor only. The URL must be an absolute HTTPS URL; HTTP, FTP, JavaScript, malformed URLs,
+missing values and unknown body fields return 400. A successful update returns
+`200 { bookingId, meetingUrl, updatedAt }`. Both `CONFIRMED` and `COMPLETED` bookings allow edits;
+`PENDING`, `CANCELED` and `EXPIRED` return 409 `BOOKING_NOT_CONFIRMED_OR_COMPLETED`. The transaction
+updates only the URL and the automatic audit timestamp, with an eligibility condition on the write.
+A concurrent transition to an ineligible state returns 409 `BOOKING_TRANSITION_CONFLICT` without
+writing the URL. Existing authentication, tutor-role and booking-ownership guards apply: no valid
+session returns 401, a wrong role/owner returns 403 and a missing booking returns 404.
+
+`GET /api/v1/bookings/:bookingId/class-details` is available only to the student or tutor participant.
+It returns `200 { bookingId, status, startAt, endAt, subject, meetingUrl, attendance, participants }`
+for every booking state. `subject` is `{ id, name }` from the booking's teaching listing.
+`meetingUrl` contains the stored URL only for `CONFIRMED`/`COMPLETED`; it is explicitly `null` for
+`PENDING`/`CANCELED`/`EXPIRED`, even when a URL remains stored. No link set is also a valid `null`
+state. Completed classes retain access to their saved link and attendance. Reads never change the
+booking. Student details contain only `firstName`, `lastName`, `nickname`, `school`, `gradeLevel`
+and `phone`; database profile IDs/timestamps are not serialized inside `detail`.
+
+Both routes validate the UUID and use the shared `{ statusCode, error, message, code }` error
+envelope. The GET returns 401 without a valid session, 403 for nonparticipants (including admins)
+and 404 for a missing booking. An absent student profile retains the existing 400 validation
+response. Timestamps are UTC ISO 8601; clients convert them to `Asia/Bangkok` for display. No schema
+migration or new environment setting is required.
+
+Verification commands from the repository root:
+
+```bash
+pnpm --filter @hktutor/api test --runInBand
+pnpm --filter @hktutor/api test:e2e --runInBand --runTestsByPath test/bookings-class-details.e2e-spec.ts
+pnpm --filter @hktutor/api lint
+pnpm --filter @hktutor/api build
+```
+
+The focused HTTP suite runs the real controller, service, role/ownership guards, validation and
+error filter against isolated Prisma/session/token-verifier fixtures. It covers all booking states
+for both participants, subject and UTC timestamps, nullable/hidden links, rejection without data
+leakage, input validation, persisted-value reads, concurrent cancellation and rollback after a
+post-write failure. It does not certify PostgreSQL locking or rollback against a live database.
+
 ## Mock payment API (S2-T04)
 
 `POST /api/v1/bookings/me/:bookingId/mock-payment` records the demo payment for one booking. It is
