@@ -42,6 +42,7 @@
     "db:verify:message-pagination": "ts-node -r tsconfig-paths/register scripts/verify-message-pagination.ts",
     "db:verify:tutor-ranking": "ts-node -r tsconfig-paths/register scripts/verify-tutor-ranking.ts",
     "db:verify:notification-events": "ts-node -r tsconfig-paths/register scripts/verify-notification-events.ts",
+    "db:verify:notification-access": "ts-node -r tsconfig-paths/register scripts/verify-notification-access.ts",
     "db:verify:meeting-links": "ts-node -r tsconfig-paths/register scripts/verify-meeting-link-access.ts"
   },
   "dependencies": {

@@ -852,6 +852,21 @@ before creating its synthetic fixtures, removes only its own records and perform
 or seed itself. Discard the disposable database after success or failure. It uses actual services
 and PostgreSQL, without an HTTP server, Supabase Storage or external email.
 
+S2-T31 QA adds an HTTP-level counterpart. It serves the real booking and notification controllers,
+guards, services and signed JWT sessions against the same kind of disposable database, then checks
+what each user can see in their own inbox: retried and concurrent double bookings, repeated or
+competing tutor decisions and cancellations, replayed event writes, no self/outsider notifications,
+and that other users, a borrowed cursor, revoked sessions and admins cannot list or mark another
+inbox. Run it with the same safety rules and opt-in:
+
+```bash
+HKTUTOR_ALLOW_DISPOSABLE_DB_VERIFY=1 \
+  DATABASE_URL='postgresql://postgres:disposable-local-only@127.0.0.1:55439/hktutor_notification_access_test' \
+  pnpm db:verify:notification-access
+```
+
+Evidence and findings are recorded in `tests/s2-t31-qa.md`.
+
 `node --test tests/notification-schema.test.mjs` checks the committed contract without a database.
 For PostgreSQL constraint, concurrent retry, cursor and transaction rollback evidence, prepare
 a newly created disposable local PostgreSQL database with all migrations and no seed, then run:
