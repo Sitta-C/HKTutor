@@ -699,6 +699,27 @@ Ended classes are reached by moving a booked slot into the past, because booking
 for future slots. The runner follows the same safety rules as the other disposable verifiers and
 removes its own fixtures. Evidence and findings are in `tests/s2-t37-qa.md`.
 
+## Sprint 2 cross-role integration (S2-T38)
+
+`pnpm db:verify:sprint2-flow` boots the real `AppModule` against a disposable PostgreSQL database
+and walks one tutor, one student and one admin through the whole Sprint 2 product over HTTP:
+registration with email verification, qualification upload and admin approval, verified-only
+publishing and discovery, chat with read receipts, booking, confirmation, mock payment, meeting
+link and attendance. It then replays the cancellation, reschedule and verification-loss paths and
+checks the notifications each party receives. Only Resend and the Supabase Storage client are
+replaced, at their outermost boundary:
+
+```bash
+HKTUTOR_ALLOW_DISPOSABLE_DB_VERIFY=1 \
+  DATABASE_URL='postgresql://postgres:disposable-local-only@127.0.0.1:55441/hktutor_integration_test' \
+  pnpm db:verify:sprint2-flow
+```
+
+The runner pins JWT, Resend and Supabase settings to test-only values before `AppModule` loads,
+so a local `.env` is never used, and accepts only a loopback `hktutor_*_test` database. It uses
+random fixtures and leaves them in place (qualification audit rows are append-only), so discard the
+database afterwards. Evidence is in `tests/s2-t38-qa.md`.
+
 ## Private availability range queries
 
 `GET /api/v1/tutors/me/availability` accepts optional UTC `from` and `to` bounds. By default it
