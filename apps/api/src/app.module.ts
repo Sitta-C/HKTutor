@@ -12,6 +12,7 @@ import { AvatarsModule } from '@modules/avatars/avatars.module';
 import { BookingsModule } from '@modules/bookings/bookings.module';
 import { ConversationsModule } from '@modules/conversations/conversations.module';
 import { HealthModule } from '@modules/health/health.module';
+import { NotificationsModule } from '@modules/notifications/notifications.module';
 import { ProfilesModule } from '@modules/profiles/profiles.module';
 import { QualificationDocumentsModule } from '@modules/qualification-documents/qualification-documents.module';
 import { RescheduleRequestsModule } from '@modules/reschedule-requests/reschedule-requests.module';
@@ -32,6 +33,7 @@ import { TutorsModule } from '@modules/tutors/tutors.module';
     BookingsModule,
     ConversationsModule,
     HealthModule,
+    NotificationsModule,
     AuthModule,
     AvatarsModule,
     ProfilesModule,
