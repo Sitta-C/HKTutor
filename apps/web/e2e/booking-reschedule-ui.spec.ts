@@ -848,7 +848,7 @@ test('closing and reopening a failed request preserves its error, refresh and ac
   expect(ui.writes).toHaveLength(1);
 });
 
-test('student payment stays ahead of the optional reschedule form and disclosure preserves its draft', async ({
+test('student payment precedes reschedule and cancellation, and disclosure preserves its draft', async ({
   page,
 }) => {
   const ui = await setup(page, 'STUDENT', { open: false });
@@ -858,9 +858,12 @@ test('student payment stays ahead of the optional reschedule form and disclosure
   expect(
     await payment.evaluate((element) => {
       const reschedule = document.querySelector('section[aria-label="Reschedule class"]');
+      const cancellation = document.querySelector('section[aria-label="Cancel class"]');
       return (
         reschedule !== null &&
-        Boolean(element.compareDocumentPosition(reschedule) & Node.DOCUMENT_POSITION_FOLLOWING)
+        cancellation !== null &&
+        Boolean(element.compareDocumentPosition(reschedule) & Node.DOCUMENT_POSITION_FOLLOWING) &&
+        Boolean(reschedule.compareDocumentPosition(cancellation) & Node.DOCUMENT_POSITION_FOLLOWING)
       );
     }),
   ).toBe(true);

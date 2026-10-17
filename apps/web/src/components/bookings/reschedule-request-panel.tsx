@@ -36,7 +36,7 @@ import type {
   RescheduleRequestStatus,
   RescheduleTargetSlot,
 } from '@/lib/api/types';
-import type { FormEvent } from 'react';
+import type { FormEvent, ReactNode } from 'react';
 
 async function loadRescheduleState(
   bookingId: string,
@@ -66,6 +66,8 @@ export function RescheduleRequestPanel({
   outcome,
   onOutcome,
   onPendingChange,
+  leadingAction,
+  className,
 }: {
   booking: RescheduleBooking;
   tutorId: string;
@@ -77,6 +79,8 @@ export function RescheduleRequestPanel({
   outcome: RescheduleRequestStatus | null;
   onOutcome: (status: RescheduleRequestStatus | null) => void;
   onPendingChange?: (pending: boolean) => void;
+  leadingAction?: ReactNode;
+  className?: string | undefined;
 }) {
   const { user } = useAuth();
   const { language, copy: appCopy } = useLanguage();
@@ -275,7 +279,7 @@ export function RescheduleRequestPanel({
     <section
       aria-label={copy.title}
       aria-busy={loading || pending}
-      className="min-w-0 space-y-3 border-t border-dashed border-paper-edge px-4 py-3"
+      className={`min-w-0 space-y-3 ${className ?? 'border-t border-dashed border-paper-edge px-4 py-3'}`}
       onKeyDown={(event) => {
         if (event.key === 'Escape' && expanded && !pending) {
           event.preventDefault();
@@ -286,6 +290,7 @@ export function RescheduleRequestPanel({
     >
       <h3 className="sr-only">{copy.title}</h3>
       <div className="flex flex-wrap items-center gap-2">
+        {leadingAction}
         {!loading && (
           <p role="status" className={isPending || outcome ? 'text-sm font-semibold' : 'sr-only'}>
             {request ? (
