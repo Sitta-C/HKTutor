@@ -125,6 +125,7 @@ describe('classroom API client', () => {
       subject: { id: 'math', name: 'Mathematics' },
       meetingUrl: 'https://example.test/meeting',
       attendance: null,
+      attendanceMarkedAt: null,
       participants: {
         tutor: { id: 'tutor', detail: { displayName: 'Teacher Pim' } },
         student: {

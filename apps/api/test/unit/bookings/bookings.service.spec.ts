@@ -2188,6 +2188,7 @@ describe('BookingsService', () => {
 
       mockPrismaService.booking.findFirst.mockResolvedValue({
         attendance: null,
+        attendanceMarkedAt: null,
         id: bookingId,
         meetingUrl: null,
         slot: { endAtUtc, startAtUtc },
@@ -2219,6 +2220,7 @@ describe('BookingsService', () => {
 
       expect(result).toEqual({
         attendance: null,
+        attendanceMarkedAt: null,
         bookingId,
         endAt: endAtUtc.toISOString(),
         subject: { id: '11dafbfa-89bc-4e09-a89a-873c419140bd', name: 'Mathematics' },
@@ -2273,6 +2275,7 @@ describe('BookingsService', () => {
 
         mockPrismaService.booking.findFirst.mockResolvedValue({
           attendance: AttendanceStatus.ATTENDED,
+          attendanceMarkedAt: null,
           id: bookingId,
           meetingUrl,
           slot: { endAtUtc, startAtUtc },
@@ -2304,6 +2307,7 @@ describe('BookingsService', () => {
 
         expect(result).toEqual({
           attendance: AttendanceStatus.ATTENDED,
+          attendanceMarkedAt: null,
           bookingId,
           endAt: endAtUtc.toISOString(),
           subject: { id: '11dafbfa-89bc-4e09-a89a-873c419140bd', name: 'Mathematics' },

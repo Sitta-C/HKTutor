@@ -34,6 +34,7 @@ async function setup(
     subject: { id: 'math', name: 'Mathematics' },
     meetingUrl: options.meetingUrl === undefined ? OLD_URL : options.meetingUrl,
     attendance: null,
+    attendanceMarkedAt: null,
     participants: {
       tutor: { id: 'tutor-preview', detail: { displayName: 'Teacher Pim' } },
       student: {
@@ -228,6 +229,7 @@ async function setup(
         throw new Error('Invalid attendance payload');
       }
       state.details.attendance = body.attendance;
+      state.details.attendanceMarkedAt = '2026-10-17T10:00:00.000Z';
       state.details.status = 'COMPLETED';
       return route.fulfill({
         json: {

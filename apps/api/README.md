@@ -532,11 +532,13 @@ writing the URL. Existing authentication, tutor-role and booking-ownership guard
 session returns 401, a wrong role/owner returns 403 and a missing booking returns 404.
 
 `GET /api/v1/bookings/:bookingId/class-details` is available only to the student or tutor participant.
-It returns `200 { bookingId, status, startAt, endAt, subject, meetingUrl, attendance, participants }`
+It returns `200 { bookingId, status, startAt, endAt, subject, meetingUrl, attendance, attendanceMarkedAt, participants }`
 for every booking state. `subject` is `{ id, name }` from the booking's teaching listing.
 `meetingUrl` contains the stored URL only for `CONFIRMED`/`COMPLETED`; it is explicitly `null` for
 `PENDING`/`CANCELED`/`EXPIRED`, even when a URL remains stored. No link set is also a valid `null`
-state. Completed classes retain access to their saved link and attendance. Reads never change the
+state. Completed classes retain access to their saved link and attendance. `attendanceMarkedAt`
+is the original UTC ISO 8601 recording time, or `null` when no timestamp was recorded; clients
+read the saved receipt through this GET without replaying an attendance PUT. Reads never change the
 booking. Student details contain only `firstName`, `lastName`, `nickname`, `school`, `gradeLevel`
 and `phone`; database profile IDs/timestamps are not serialized inside `detail`.
 

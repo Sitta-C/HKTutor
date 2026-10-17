@@ -538,6 +538,15 @@ export class BookingClassDetailDto {
   @ApiProperty({ enum: AttendanceStatus, example: AttendanceStatus.ATTENDED, nullable: true })
   attendance!: AttendanceStatus | null;
 
+  @ApiProperty({
+    type: String,
+    format: 'date-time',
+    nullable: true,
+    description: 'Original UTC attendance recording time, or null when not recorded.',
+    example: '2026-10-09T10:04:31.001Z',
+  })
+  attendanceMarkedAt!: string | null;
+
   @ApiProperty({ type: BookingClassParticipantsDto })
   participants!: BookingClassParticipantsDto;
 }

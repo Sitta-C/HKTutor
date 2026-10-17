@@ -50,6 +50,7 @@ interface BookingFixture {
   tutorProfileId: string;
   meetingUrl: string | null;
   attendance: AttendanceStatus | null;
+  attendanceMarkedAt: Date | null;
   updatedAt: Date;
   slot: { startAtUtc: Date; endAtUtc: Date };
   listing: { subject: typeof SUBJECT };
@@ -107,6 +108,7 @@ describe('Meeting links and participant class details (S2-T32)', () => {
       tutorProfileId: TUTOR_ID,
       meetingUrl: MEETING_URL,
       attendance: null,
+      attendanceMarkedAt: null,
       updatedAt: new Date('2026-10-16T09:00:00.000Z'),
       slot: {
         startAtUtc: new Date('2026-10-16T18:00:00.000Z'),
@@ -165,6 +167,7 @@ describe('Meeting links and participant class details (S2-T32)', () => {
         if (!booking) throw new Error('Missing fixture');
         booking.status = status;
         booking.attendance = status === BookingStatus.COMPLETED ? AttendanceStatus.ATTENDED : null;
+        booking.attendanceMarkedAt = status === BookingStatus.COMPLETED ? UPDATED_AT : null;
         const saved = structuredClone(booking);
         const response = await readClass().expect(200);
         expect(response.body).toEqual({
@@ -174,6 +177,7 @@ describe('Meeting links and participant class details (S2-T32)', () => {
           endAt: '2026-10-16T19:00:00.000Z',
           subject: SUBJECT,
           attendance: saved.attendance,
+          attendanceMarkedAt: saved.attendanceMarkedAt?.toISOString() ?? null,
           meetingUrl:
             status === BookingStatus.CONFIRMED || status === BookingStatus.COMPLETED
               ? MEETING_URL
@@ -197,6 +201,27 @@ describe('Meeting links and participant class details (S2-T32)', () => {
           phone: true,
         },
       });
+    },
+  );
+
+  it.each([AttendanceStatus.ATTENDED, AttendanceStatus.ABSENT])(
+    'reads the original %s timestamp repeatedly without writing attendance',
+    async (attendance) => {
+      if (!booking) throw new Error('Missing fixture');
+      booking.status = BookingStatus.COMPLETED;
+      booking.attendance = attendance;
+      booking.attendanceMarkedAt = UPDATED_AT;
+      const saved = structuredClone(booking);
+      for (let read = 0; read < 2; read += 1) {
+        const response = await readClass().expect(200);
+        expect(response.body).toMatchObject({
+          attendance,
+          attendanceMarkedAt: UPDATED_AT.toISOString(),
+        });
+      }
+      expect(booking).toEqual(saved);
+      expect(transaction).not.toHaveBeenCalled();
+      expect(updateMany).not.toHaveBeenCalled();
     },
   );
 

@@ -20,6 +20,7 @@ async function setup(
     attendance?: AttendanceStatus | null;
     owner?: boolean;
     endAt?: string;
+    writeFailure?: number;
   } = {},
 ) {
   const role = options.role ?? 'TUTOR';
@@ -32,6 +33,7 @@ async function setup(
     subject: { id: 'math', name: 'Mathematics' },
     meetingUrl: 'https://meet.example.test/attendance',
     attendance: options.attendance ?? null,
+    attendanceMarkedAt: options.attendance ? ORIGINAL_RECEIPT : null,
     participants: {
       tutor: {
         id: options.owner === false ? 'other-tutor' : 'tutor-preview',
@@ -45,11 +47,10 @@ async function setup(
   };
   const state = {
     details,
-    savedAt: options.attendance ? ORIGINAL_RECEIPT : (null as string | null),
     serverNow: new Date(NOW).getTime(),
     reads: 0,
     readFailure: 0,
-    failure: 0,
+    failure: options.writeFailure ?? 0,
     failureCode: '',
     mutations: 0,
     puts: [] as unknown[],
@@ -154,7 +155,7 @@ async function setup(
     }
     if (path === `/bookings/${BOOKING_ID}/class-details`) {
       state.reads += 1;
-      // Match the real GET: attendanceMarkedAt is deliberately absent.
+      // Match the participant GET, including the original saved attendance timestamp.
       return route.fulfill({
         status: state.readFailure || 200,
         json: state.readFailure ? { message: 'Unavailable' } : details,
@@ -176,7 +177,7 @@ async function setup(
       if (state.competingAttendance) {
         details.attendance = state.competingAttendance;
         details.status = 'COMPLETED';
-        state.savedAt = ORIGINAL_RECEIPT;
+        state.details.attendanceMarkedAt = ORIGINAL_RECEIPT;
         state.competingAttendance = null;
       }
       if (
@@ -198,7 +199,7 @@ async function setup(
       if (!replay) {
         details.attendance = body.attendance;
         details.status = 'COMPLETED';
-        state.savedAt = NOW;
+        state.details.attendanceMarkedAt = NOW;
         state.mutations += 1;
       }
       state.replayFlags.push(replay);
@@ -209,7 +210,7 @@ async function setup(
         json: {
           bookingId: BOOKING_ID,
           attendance: details.attendance,
-          attendanceMarkedAt: state.savedAt,
+          attendanceMarkedAt: state.details.attendanceMarkedAt,
           status: details.status,
           idempotentReplay: replay,
         },
@@ -298,7 +299,7 @@ for (const language of ['en', 'th'] as const) {
       await page.reload();
       await expect(summary.locator('time')).toHaveAttribute('datetime', NOW);
       await expect(summary.locator('time')).toContainText('17:00');
-      expect(state.replayFlags).toEqual([false, true]);
+      expect(state.replayFlags).toEqual([false]);
       expect(state.mutations).toBe(1);
       await page.screenshot({
         path: testInfo.outputPath(`attendance-${attendance}-${language}.png`),
@@ -310,6 +311,24 @@ for (const language of ['en', 'th'] as const) {
       expect(state.unexpected).toEqual([]);
     });
   }
+}
+
+for (const attendance of ['ATTENDED', 'ABSENT'] as const) {
+  test(`opening and reloading saved ${attendance} only reads its timestamp`, async ({ page }) => {
+    const { state, panel, text } = await setup(page, {
+      status: 'COMPLETED',
+      attendance,
+      writeFailure: 503,
+    });
+    const summary = panel.getByRole('region', { name: text.attendanceTitle });
+    await expect(summary.locator('time')).toHaveAttribute('datetime', ORIGINAL_RECEIPT);
+    await expect(summary).toContainText(attendance === 'ATTENDED' ? text.attended : text.absent);
+    await expect(panel.getByRole('alert')).toHaveCount(0);
+    await page.reload();
+    await expect(summary.locator('time')).toHaveAttribute('datetime', ORIGINAL_RECEIPT);
+    expect(state.puts).toEqual([]);
+    expect(state.mutations).toBe(0);
+  });
 }
 
 for (const [options, reason] of [
@@ -413,7 +432,7 @@ test('different-value race shows 409, locks stale choices, and refreshes the per
   await expect(summary).toContainText(text.attended);
   await expect(summary.locator('time')).toHaveAttribute('datetime', ORIGINAL_RECEIPT);
   expect(state.mutations).toBe(0);
-  expect(state.puts).toEqual([{ attendance: 'ABSENT' }, { attendance: 'ATTENDED' }]);
+  expect(state.puts).toEqual([{ attendance: 'ABSENT' }]);
 });
 
 for (const status of [400, 403, 404, 409, 500]) {
@@ -507,7 +526,7 @@ test('lost attendance response is reconciled after refresh without another first
   await expect(
     panel.getByRole('region', { name: text.attendanceTitle }).locator('time'),
   ).toHaveAttribute('datetime', NOW);
-  expect(state.replayFlags).toEqual([false, true]);
+  expect(state.replayFlags).toEqual([false]);
   expect(state.mutations).toBe(1);
 });
 
@@ -528,21 +547,20 @@ test('failed status refresh after save hides the stale form and recovers the sav
   expect(state.mutations).toBe(1);
 });
 
-test('receipt failure shows known saved attendance without inventing a timestamp', async ({
+test('a saved value without a timestamp remains readable without replaying a write', async ({
   page,
 }) => {
   const { state, panel, text } = await setup(page);
   state.details.attendance = 'ABSENT';
   state.details.status = 'COMPLETED';
-  state.savedAt = ORIGINAL_RECEIPT;
-  state.failure = 500;
+  state.details.attendanceMarkedAt = null;
+  state.failure = 503;
   await panel.getByRole('button', { name: text.refresh }).click();
-  await expect(panel.getByRole('alert')).toHaveText(text.attendanceReceiptFailed);
   const summary = panel.getByRole('region', { name: text.attendanceTitle });
   await expect(summary).toContainText(text.absent);
   await expect(summary.locator('time')).toHaveCount(0);
-  state.failure = 0;
-  await panel.getByRole('button', { name: text.refresh }).click();
-  await expect(summary.locator('time')).toHaveAttribute('datetime', ORIGINAL_RECEIPT);
+  await expect(panel.getByRole('alert')).toHaveCount(0);
+  await expect(panel.getByRole('button', { name: text.refresh })).toBeEnabled();
+  expect(state.puts).toEqual([]);
   expect(state.mutations).toBe(0);
 });

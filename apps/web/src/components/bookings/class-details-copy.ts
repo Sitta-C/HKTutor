@@ -46,8 +46,6 @@ export const classDetailsCopy = {
     attendanceFailed:
       'Could not save attendance. Try again after loading the latest class details.',
     attendanceRecover: 'Load the latest class details before recording attendance again.',
-    attendanceReceiptFailed:
-      'Could not verify the saved attendance time. Load the latest class details.',
   },
   th: {
     title: 'รายละเอียดห้องเรียน',
@@ -94,7 +92,5 @@ export const classDetailsCopy = {
     attendanceConflict: 'มีการบันทึกการเข้าเรียนเป็นค่าอื่นแล้ว กรุณาโหลดรายละเอียดคลาสล่าสุด',
     attendanceFailed: 'บันทึกการเข้าเรียนไม่สำเร็จ กรุณาลองอีกครั้งหลังจากโหลดรายละเอียดคลาสล่าสุด',
     attendanceRecover: 'กรุณาโหลดรายละเอียดคลาสล่าสุดก่อนบันทึกการเข้าเรียนอีกครั้ง',
-    attendanceReceiptFailed:
-      'ยืนยันเวลาที่บันทึกการเข้าเรียนไม่สำเร็จ กรุณาโหลดรายละเอียดคลาสล่าสุด',
   },
 };

@@ -646,8 +646,9 @@ guidance with one eligibility explanation and disable both selection and recordi
 Eligibility updates while the page stays open, including when the class ends between a details
 read and its effect. Pending attendance locks the choices, recording, meeting-link editing and
 refresh. Rejected or uncertain writes require refreshed details before another attempt. Successful
-records display the server's saved value and original timestamp in Bangkok time; a failed receipt
-read retains the known value without inventing a timestamp. Booking cards link to details and do
+records display the saved value and original timestamp from the participant GET in Bangkok time.
+Opening or reloading a completed class never replays an attendance PUT; a missing timestamp is
+left undisplayed. Booking cards link to details and do
 not submit attendance directly.
 
 `attendance-ui.spec.ts` covers both values and languages, keyboard selection and separate submission,

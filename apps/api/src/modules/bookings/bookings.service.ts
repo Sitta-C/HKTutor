@@ -1051,6 +1051,7 @@ export class BookingsService {
         status: true,
         meetingUrl: true,
         attendance: true,
+        attendanceMarkedAt: true,
         studentUserId: true,
         tutorProfileId: true,
         slot: { select: { startAtUtc: true, endAtUtc: true } },
@@ -1090,6 +1091,7 @@ export class BookingsService {
       ? booking.meetingUrl
       : null;
     response.attendance = booking.attendance;
+    response.attendanceMarkedAt = booking.attendanceMarkedAt?.toISOString() ?? null;
     response.participants = {
       tutor: {
         id: booking.tutorProfileId,
