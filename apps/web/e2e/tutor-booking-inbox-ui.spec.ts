@@ -322,6 +322,44 @@ test('paging after a decision skips no request when the pending set shrinks', as
   await expect(page.getByRole('article')).toHaveCount(10);
 });
 
+test('tutor records attendance from an ended class in the inbox', async ({ page }) => {
+  const endedBooking = pendingBooking({
+    id: maliBookingId,
+    nickname: 'Mali',
+    startHourUtc: 3,
+  });
+  endedBooking.status = 'CONFIRMED';
+  endedBooking.slot = {
+    ...endedBooking.slot,
+    startAtUtc: '2020-09-20T03:00:00.000Z',
+    endAtUtc: '2020-09-20T04:00:00.000Z',
+  };
+  const attendanceWrites: unknown[] = [];
+
+  await openMockInbox(page, [endedBooking], undefined, async (route, item) => {
+    attendanceWrites.push(route.request().postDataJSON());
+    item.status = 'COMPLETED';
+    await json(route, {
+      bookingId: item.id,
+      attendance: 'ATTENDED',
+      attendanceMarkedAt: '2026-10-17T10:00:00.000Z',
+      idempotentReplay: false,
+      status: 'COMPLETED',
+    });
+  });
+
+  await page.getByRole('button', { name: 'All', exact: true }).click();
+  const row = page.getByRole('article', { name: 'Mali' });
+  await expect(row.getByRole('button', { name: 'Attended' })).toBeEnabled();
+  await expect(row.getByRole('button', { name: 'Absent' })).toBeEnabled();
+  await row.getByRole('button', { name: 'Attended' }).click();
+
+  await expect(page.getByText('Attendance saved.', { exact: true })).toBeVisible();
+  await expect(row).toContainText('COMPLETED');
+  await expect(row).toContainText('Recorded');
+  expect(attendanceWrites).toEqual([{ attendance: 'ATTENDED' }]);
+});
+
 type InboxBooking = ReturnType<typeof pendingBooking>;
 type DecisionAction = 'confirm' | 'reject';
 
@@ -623,6 +661,7 @@ async function openMockInbox(
   page: Page,
   bookings: InboxBooking[],
   decide?: (route: Route, item: InboxBooking, action: DecisionAction) => Promise<void>,
+  attend?: (route: Route, item: InboxBooking) => Promise<void>,
 ): Promise<void> {
   await page.route('**/api/v1/**', async (route) => {
     const request = route.request();
@@ -650,6 +689,11 @@ async function openMockInbox(
         for (const action of ['confirm', 'reject'] as const) {
           if (path === `/bookings/tutor/${item.id}/${action}`) return decide(route, item, action);
         }
+      }
+    }
+    if (request.method() === 'PUT' && attend) {
+      for (const item of bookings) {
+        if (path === `/bookings/tutor/${item.id}/attendance`) return attend(route, item);
       }
     }
     return unhandled(route, request.method(), path);
