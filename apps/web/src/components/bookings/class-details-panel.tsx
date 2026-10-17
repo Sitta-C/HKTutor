@@ -2,15 +2,21 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+import { AttendanceForm } from '@/components/bookings/attendance-form';
 import { classDetailsCopy } from '@/components/bookings/class-details-copy';
-import { hasClassroomAccess, isSafeMeetingUrl } from '@/components/bookings/class-details-model';
+import {
+  attendanceEligibility,
+  hasClassroomAccess,
+  isSafeMeetingUrl,
+} from '@/components/bookings/class-details-model';
 import { MeetingLinkEditor } from '@/components/bookings/meeting-link-editor';
+import { SavedAttendanceSummary } from '@/components/bookings/saved-attendance-summary';
 import { tutorBookingInboxCopy } from '@/components/bookings/tutor-booking-inbox-copy';
 import { getStudentLabel } from '@/components/bookings/tutor-booking-inbox-model';
 import { DashboardIcon } from '@/components/dashboard/dashboard-icon';
 import { NotebookActionContent, notebookActionClass } from '@/components/ui/notebook-action';
 import { NotebookLoadingRegion } from '@/components/ui/notebook-loading';
-import { getClassDetails } from '@/lib/api/bookings';
+import { getClassDetails, updateAttendance } from '@/lib/api/bookings';
 import { ApiError } from '@/lib/api/error';
 import { useAuth } from '@/lib/auth-context';
 import { formatBangkokShortDate, formatBangkokTime } from '@/lib/date-time';
@@ -18,7 +24,11 @@ import { useLanguage } from '@/lib/i18n';
 
 import styles from './class-details.module.css';
 
-import type { BookingClassDetails, BookingStatus } from '@/lib/api/types';
+import type {
+  BookingClassDetails,
+  BookingStatus,
+  SavedAttendanceSummary as AttendanceSummary,
+} from '@/lib/api/types';
 import type { RefObject } from 'react';
 
 export function ClassDetailsPanel({
@@ -40,7 +50,7 @@ export function ClassDetailsPanel({
   // Remount for a different booking, session, or server-confirmed status. Old reads cannot reveal links.
   return (
     <ClassDetailsContent
-      key={`${user?.id}:${bookingId}:${status}`}
+      key={`${user?.id}:${user?.role}:${bookingId}:${status}`}
       bookingId={bookingId}
       status={status}
       variant={variant}
@@ -76,6 +86,11 @@ function ClassDetailsContent({
   const [loading, setLoading] = useState(true);
   const [uncertain, setUncertain] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [savedAttendance, setSavedAttendance] = useState<AttendanceSummary | null>(null);
+  const [attendanceBusy, setAttendanceBusy] = useState(false);
+  const [attendanceBlocked, setAttendanceBlocked] = useState(false);
+  const [attendanceReceiptFailed, setAttendanceReceiptFailed] = useState(false);
+  const [now, setNow] = useState(Date.now);
   const active = useRef(false);
   const sequence = useRef(0);
   const refreshButton = useRef<HTMLButtonElement>(null);
@@ -88,26 +103,89 @@ function ClassDetailsContent({
       }
     }
   }, [loading, restoreRefreshFocusRef]);
-  const load = useCallback((): Promise<void> => {
-    const request = ++sequence.current;
-    return getClassDetails(bookingId)
-      .then((result) => {
-        if (active.current && request === sequence.current) {
-          setDetails(result);
-          setUncertain(false);
-        }
-      })
-      .catch((caught: unknown) => {
-        if (active.current && request === sequence.current) {
-          setError(caught);
-        }
-      })
-      .finally(() => {
-        if (active.current && request === sequence.current) {
-          setLoading(false);
-        }
-      });
-  }, [bookingId]);
+  const load = useCallback(
+    (receipt?: AttendanceSummary): Promise<void> => {
+      const request = ++sequence.current;
+      return getClassDetails(bookingId)
+        .then(async (result) => {
+          if (active.current && request === sequence.current) {
+            const loadedAt = Date.now();
+            setDetails(result);
+            setUncertain(false);
+            setAttendanceBlocked(false);
+            setAttendanceReceiptFailed(false);
+            setSavedAttendance(null);
+            setNow(loadedAt);
+            if (
+              isTutor &&
+              result.status === 'COMPLETED' &&
+              attendanceEligibility({
+                status: result.status,
+                endAt: result.endAt,
+                attendance: result.attendance,
+                isOwner: result.participants.tutor.id === user?.id,
+                now: loadedAt,
+              }) === 'saved' &&
+              result.attendance !== null
+            ) {
+              if (
+                receipt?.bookingId === result.bookingId &&
+                receipt.attendance === result.attendance &&
+                receipt.status === result.status
+              ) {
+                setSavedAttendance(receipt);
+                return;
+              }
+              try {
+                // GET omits attendanceMarkedAt. The existing same-value PUT returns the
+                // original receipt without changing a completed class's saved attendance.
+                const saved = await updateAttendance(result.bookingId, result.attendance);
+                if (active.current && request === sequence.current) {
+                  setSavedAttendance(saved);
+                }
+              } catch {
+                if (active.current && request === sequence.current) {
+                  setAttendanceReceiptFailed(true);
+                  setAttendanceBlocked(true);
+                }
+              }
+            }
+          }
+        })
+        .catch((caught: unknown) => {
+          if (active.current && request === sequence.current) {
+            setError(caught);
+          }
+        })
+        .finally(() => {
+          if (active.current && request === sequence.current) {
+            setLoading(false);
+          }
+        });
+    },
+    [bookingId, isTutor, user?.id],
+  );
+
+  useEffect(() => {
+    if (
+      !details ||
+      !isTutor ||
+      details.participants.tutor.id !== user?.id ||
+      details.status !== 'CONFIRMED' ||
+      details.attendance !== null
+    ) {
+      return;
+    }
+    const remaining = new Date(details.endAt).getTime() - Date.now();
+    if (!Number.isFinite(remaining) || remaining < 0) {
+      return;
+    }
+    const timer = window.setTimeout(
+      () => setNow(Date.now()),
+      Math.min(remaining + 1, 2_147_483_647),
+    );
+    return () => window.clearTimeout(timer);
+  }, [details, isTutor, now, user?.id]);
 
   async function refresh(): Promise<void> {
     setLoading(true);
@@ -139,6 +217,55 @@ function ClassDetailsContent({
     accessible && !uncertain && details.meetingUrl && isSafeMeetingUrl(details.meetingUrl)
       ? details.meetingUrl
       : null;
+  const attendanceState =
+    details && isTutor
+      ? attendanceEligibility({
+          status: details.status,
+          endAt: details.endAt,
+          isOwner: details.participants.tutor.id === user?.id,
+          attendance: details.attendance,
+          now,
+        })
+      : null;
+  const attendanceMessage =
+    attendanceState === 'owner'
+      ? text.attendanceOwner
+      : attendanceState === 'pending'
+        ? text.attendancePending
+        : attendanceState === 'future'
+          ? text.attendanceFuture
+          : attendanceState === 'unavailable'
+            ? text.attendanceUnavailable
+            : attendanceState === 'saved'
+              ? text.attendanceReplay
+              : null;
+  async function handleAttendanceSaved(summary: AttendanceSummary): Promise<void> {
+    if (!active.current) {
+      return;
+    }
+    setSavedAttendance(summary);
+    setDetails((current) =>
+      current
+        ? {
+            ...current,
+            attendance: summary.attendance,
+            status: summary.status,
+          }
+        : current,
+    );
+    // The detail read verifies the persisted value; the parent refresh updates its
+    // booking-status snapshot after the first attendance transition.
+    try {
+      await load(summary);
+      if (active.current) {
+        onRefresh?.();
+      }
+    } finally {
+      if (active.current) {
+        setAttendanceBusy(false);
+      }
+    }
+  }
 
   return (
     <section
@@ -199,8 +326,10 @@ function ClassDetailsContent({
               </div>
             </>
           )}
-          <div
+          <fieldset
             className={`${styles.workspace} ${!uncertain && isTutor && accessible ? styles.withEditor : ''}`}
+            aria-label={text.entry}
+            disabled={attendanceBusy}
           >
             <div className={styles.entry}>
               {!compact && <h3>{text.entry}</h3>}
@@ -245,7 +374,34 @@ function ClassDetailsContent({
                 }}
               />
             )}
-          </div>
+          </fieldset>
+          {isTutor && (
+            <div className={styles.attendanceArea}>
+              {attendanceState === 'saved' && details.attendance !== null ? (
+                <>
+                  <SavedAttendanceSummary
+                    attendance={{
+                      attendance: details.attendance,
+                      attendanceMarkedAt: savedAttendance?.attendanceMarkedAt ?? null,
+                    }}
+                    language={language}
+                  />
+                  {attendanceReceiptFailed && <p role="alert">{text.attendanceReceiptFailed}</p>}
+                </>
+              ) : (
+                <AttendanceForm
+                  bookingId={bookingId}
+                  onSaved={handleAttendanceSaved}
+                  onBusyChange={setAttendanceBusy}
+                  onUncertain={() => setAttendanceBlocked(true)}
+                  disabled={saving || refreshDisabled}
+                  disabledMessage={
+                    attendanceBlocked ? text.attendanceRecover : (attendanceMessage ?? undefined)
+                  }
+                />
+              )}
+            </div>
+          )}
         </>
       ) : (
         <p>{text.hidden}</p>
@@ -255,7 +411,7 @@ function ClassDetailsContent({
           ref={refreshButton}
           type="button"
           className={styles.refresh}
-          disabled={loading || saving || refreshDisabled}
+          disabled={loading || saving || attendanceBusy || refreshDisabled}
           onClick={() => {
             if (onRefresh) {
               onRefresh();

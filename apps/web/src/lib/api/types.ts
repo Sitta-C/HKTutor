@@ -350,6 +350,16 @@ export interface BookingClassDetails {
   };
 }
 
+export type AttendanceStatus = 'ATTENDED' | 'ABSENT';
+
+export interface SavedAttendanceSummary {
+  bookingId: string;
+  attendance: AttendanceStatus;
+  attendanceMarkedAt: string;
+  idempotentReplay: boolean;
+  status: BookingStatus;
+}
+
 export interface BookingMeetingLink {
   bookingId: string;
   meetingUrl: string | null;

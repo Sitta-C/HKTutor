@@ -1,0 +1,472 @@
+import { expect, test } from '@playwright/test';
+
+import { classDetailsCopy } from '@/components/bookings/class-details-copy';
+
+import type { AttendanceStatus, BookingClassDetails, BookingStatus } from '@/lib/api/types';
+import type { Page } from '@playwright/test';
+
+const BOOKING_ID = 'attendance-preview';
+const PATH = `/dashboard/bookings/${BOOKING_ID}`;
+const NOW = '2026-10-17T10:00:00.000Z';
+const ORIGINAL_RECEIPT = '2026-10-17T09:30:00.000Z';
+
+// API fixtures only: no live account, booking, or database attendance is modified.
+async function setup(
+  page: Page,
+  options: {
+    language?: 'en' | 'th';
+    role?: 'STUDENT' | 'TUTOR';
+    status?: BookingStatus;
+    attendance?: AttendanceStatus | null;
+    owner?: boolean;
+    endAt?: string;
+  } = {},
+) {
+  const role = options.role ?? 'TUTOR';
+  const text = classDetailsCopy[options.language ?? 'en'];
+  const details: BookingClassDetails = {
+    bookingId: BOOKING_ID,
+    status: options.status ?? 'CONFIRMED',
+    startAt: '2026-10-17T08:00:00.000Z',
+    endAt: options.endAt ?? '2026-10-17T09:00:00.000Z',
+    subject: { id: 'math', name: 'Mathematics' },
+    meetingUrl: 'https://meet.example.test/attendance',
+    attendance: options.attendance ?? null,
+    participants: {
+      tutor: {
+        id: options.owner === false ? 'other-tutor' : 'tutor-preview',
+        detail: { displayName: 'Teacher Pim' },
+      },
+      student: {
+        id: 'student-preview',
+        detail: { firstName: 'Mint', lastName: 'Preview', nickname: 'Mint' },
+      },
+    },
+  };
+  const state = {
+    details,
+    savedAt: options.attendance ? ORIGINAL_RECEIPT : (null as string | null),
+    serverNow: new Date(NOW).getTime(),
+    reads: 0,
+    readFailure: 0,
+    failure: 0,
+    failureCode: '',
+    mutations: 0,
+    puts: [] as unknown[],
+    replayFlags: [] as boolean[],
+    gate: undefined as Promise<void> | undefined,
+    meetingGate: undefined as Promise<void> | undefined,
+    meetingWrites: 0,
+    loseResponse: false,
+    competingAttendance: null as AttendanceStatus | null,
+    unexpected: [] as string[],
+  };
+  await page.clock.install({ time: new Date(NOW) });
+  await page.addInitScript(
+    (language) => localStorage.setItem('hktutor-language', language),
+    options.language ?? 'en',
+  );
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page
+    .context()
+    .addCookies([{ name: 'hktutor_refresh', value: 'preview', url: 'http://localhost:3000' }]);
+  await page.route('**/api/v1/**', async (route) => {
+    const request = route.request();
+    const path = new URL(request.url()).pathname.replace('/api/v1', '');
+    if (path === '/notifications' && request.method() === 'GET') {
+      return route.fulfill({ json: { items: [], nextCursor: null, unreadCount: 0 } });
+    }
+    if (path === '/auth/refresh') {
+      return route.fulfill({
+        json: {
+          accessToken: 'preview',
+          user: {
+            id: `${role.toLowerCase()}-preview`,
+            role,
+            email: 'preview@example.test',
+            displayName: 'Preview',
+          },
+        },
+      });
+    }
+    if (path === '/profiles/me') {
+      return route.fulfill({
+        json: {
+          role,
+          consentCurrent: true,
+          policyVersion: '2026-01',
+          profileComplete: true,
+          profile: {
+            firstName: 'Pim',
+            lastName: 'Preview',
+            nickname: 'Pim',
+            displayName: 'Teacher Pim',
+            bio: 'Tutor',
+            experienceYears: 5,
+            verificationStatus: 'VERIFIED',
+            school: 'Demo',
+            gradeLevel: 'Grade 10',
+            phone: '0812345678',
+          },
+        },
+      });
+    }
+    if (path === '/profiles/me/avatar') {
+      return route.fulfill({ json: { avatar: null } });
+    }
+    if (path === '/bookings/me') {
+      return route.fulfill({ json: { items: [], total: 0 } });
+    }
+    if (path === `/bookings/me/${BOOKING_ID}`) {
+      return route.fulfill({
+        json: {
+          id: BOOKING_ID,
+          status: details.status,
+          tutor: {
+            tutorId: 'tutor-preview',
+            displayName: 'Teacher Pim',
+            verificationStatus: 'VERIFIED',
+          },
+          listing: {
+            id: 'course',
+            subjectId: 'math',
+            subjectName: 'Mathematics',
+            gradeLevelId: 'grade',
+            gradeLevelName: 'Grade 10',
+            pricePerHour: '500.00',
+            description: 'Math',
+          },
+          slot: { id: 'slot', startAtUtc: details.startAt, endAtUtc: details.endAt },
+          subtotalAmount: '500.00',
+          discountAmount: '0.00',
+          netAmount: '500.00',
+          currency: 'THB',
+          paymentStatus: 'PAID',
+          paidAt: NOW,
+          mockReference: 'PREVIEW',
+          createdAt: NOW,
+          updatedAt: NOW,
+        },
+      });
+    }
+    if (path.endsWith('/reschedule-requests/current')) {
+      return route.fulfill({ json: { request: null, targetSlot: null, allowedActions: [] } });
+    }
+    if (path === `/bookings/${BOOKING_ID}/class-details`) {
+      state.reads += 1;
+      // Match the real GET: attendanceMarkedAt is deliberately absent.
+      return route.fulfill({
+        status: state.readFailure || 200,
+        json: state.readFailure ? { message: 'Unavailable' } : details,
+      });
+    }
+    if (path === `/bookings/tutor/${BOOKING_ID}/attendance` && request.method() === 'PUT') {
+      const body: unknown = request.postDataJSON();
+      state.puts.push(body);
+      await state.gate;
+      if (state.failure) {
+        return route.fulfill({
+          status: state.failure,
+          json: { message: 'Rejected', code: state.failureCode },
+        });
+      }
+      if (role !== 'TUTOR' || details.participants.tutor.id !== 'tutor-preview') {
+        return route.fulfill({ status: 403, json: { message: 'Forbidden' } });
+      }
+      if (state.competingAttendance) {
+        details.attendance = state.competingAttendance;
+        details.status = 'COMPLETED';
+        state.savedAt = ORIGINAL_RECEIPT;
+        state.competingAttendance = null;
+      }
+      if (
+        !body ||
+        typeof body !== 'object' ||
+        !('attendance' in body) ||
+        (body.attendance !== 'ATTENDED' && body.attendance !== 'ABSENT')
+      ) {
+        return route.fulfill({ status: 400, json: { message: 'Invalid attendance' } });
+      }
+      if (
+        !['CONFIRMED', 'COMPLETED'].includes(details.status) ||
+        new Date(details.endAt).getTime() > state.serverNow ||
+        (details.attendance !== null && details.attendance !== body.attendance)
+      ) {
+        return route.fulfill({ status: 409, json: { message: 'State conflict' } });
+      }
+      const replay = details.status === 'COMPLETED';
+      if (!replay) {
+        details.attendance = body.attendance;
+        details.status = 'COMPLETED';
+        state.savedAt = NOW;
+        state.mutations += 1;
+      }
+      state.replayFlags.push(replay);
+      if (state.loseResponse) {
+        return route.abort('failed');
+      }
+      return route.fulfill({
+        json: {
+          bookingId: BOOKING_ID,
+          attendance: details.attendance,
+          attendanceMarkedAt: state.savedAt,
+          status: details.status,
+          idempotentReplay: replay,
+        },
+      });
+    }
+    if (path === `/bookings/tutor/${BOOKING_ID}/meeting-link`) {
+      state.meetingWrites += 1;
+      await state.meetingGate;
+      return route.fulfill({
+        json: { bookingId: BOOKING_ID, meetingUrl: details.meetingUrl, updatedAt: NOW },
+      });
+    }
+    state.unexpected.push(`${request.method()} ${path}`);
+    return route.fulfill({ status: 404, json: { message: 'Unexpected preview request' } });
+  });
+  await page.goto(PATH);
+  const panel = page.getByRole('region', { name: text.title });
+  await expect(panel).toBeVisible();
+  await expect(panel.getByText(text.loading, { exact: true })).toHaveCount(0);
+  return { state, text, panel };
+}
+
+for (const language of ['en', 'th'] as const) {
+  for (const attendance of ['ATTENDED', 'ABSENT'] as const) {
+    test(`${language} ${attendance}: saves once, refreshes status, and retains the persisted time after reload`, async ({
+      page,
+    }, testInfo) => {
+      if (testInfo.project.name === 'mobile-chromium') {
+        await page.setViewportSize({ width: 320, height: 800 });
+      }
+      const { state, panel, text } = await setup(page, { language });
+      const reads = state.reads;
+      await panel
+        .getByRole('button', {
+          name: attendance === 'ATTENDED' ? text.attended : text.absent,
+          exact: true,
+        })
+        .click();
+      const summary = panel.getByRole('region', { name: text.attendanceTitle });
+      await expect(summary).toContainText(attendance === 'ATTENDED' ? text.attended : text.absent);
+      await expect(summary.locator('time')).toHaveAttribute('datetime', NOW);
+      await expect(summary.locator('time')).toContainText('17:00');
+      await expect(panel).toContainText(text.completed);
+      await expect(panel.getByRole('button', { name: text.refresh })).toBeEnabled();
+      expect(state.reads).toBeGreaterThan(reads);
+      expect(state.puts).toEqual([{ attendance }]);
+      expect(state.mutations).toBe(1);
+      await page.reload();
+      await expect(summary.locator('time')).toHaveAttribute('datetime', NOW);
+      await expect(summary.locator('time')).toContainText('17:00');
+      expect(state.replayFlags).toEqual([false, true]);
+      expect(state.mutations).toBe(1);
+      await page.screenshot({
+        path: testInfo.outputPath(`attendance-${attendance}-${language}.png`),
+        fullPage: true,
+      });
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+        true,
+      );
+      expect(state.unexpected).toEqual([]);
+    });
+  }
+}
+
+for (const [options, reason] of [
+  [{ status: 'PENDING' }, 'attendancePending'],
+  [{ status: 'CANCELED' }, 'attendanceUnavailable'],
+  [{ status: 'EXPIRED' }, 'attendanceUnavailable'],
+  [{ status: 'COMPLETED' }, 'attendanceUnavailable'],
+  [{ endAt: '2026-10-17T11:00:00.000Z' }, 'attendanceFuture'],
+  [{ owner: false }, 'attendanceOwner'],
+] as const) {
+  test(`disables attendance for ${JSON.stringify(options)}`, async ({ page }) => {
+    const { state, panel, text } = await setup(page, options);
+    await expect(panel.getByRole('button', { name: text.attended, exact: true })).toBeDisabled();
+    await expect(panel.getByRole('button', { name: text.absent, exact: true })).toBeDisabled();
+    await expect(panel).toContainText(text[reason]);
+    expect(state.puts).toEqual([]);
+  });
+}
+
+test('student cannot record attendance or request a saved receipt', async ({ page }) => {
+  const { state, panel, text } = await setup(page, {
+    role: 'STUDENT',
+    status: 'COMPLETED',
+    attendance: 'ATTENDED',
+  });
+  await expect(panel.getByRole('button', { name: text.attended, exact: true })).toHaveCount(0);
+  await expect(panel.getByRole('button', { name: text.absent, exact: true })).toHaveCount(0);
+  expect(state.puts).toEqual([]);
+});
+
+test('an open future class becomes eligible when its end time passes', async ({ page }) => {
+  const { state, panel, text } = await setup(page, { endAt: '2026-10-17T10:01:00.000Z' });
+  await expect(panel.getByRole('button', { name: text.attended, exact: true })).toBeDisabled();
+  state.serverNow += 120_000;
+  await page.clock.fastForward(120_000);
+  await expect(panel.getByRole('button', { name: text.attended, exact: true })).toBeEnabled();
+  await panel.getByRole('button', { name: text.attended, exact: true }).click();
+  await expect(
+    panel.getByRole('region', { name: text.attendanceTitle }).locator('time'),
+  ).toBeVisible();
+});
+
+test('same-value race is a success and preserves the original UTC receipt in Bangkok time', async ({
+  page,
+}) => {
+  const { state, panel, text } = await setup(page);
+  state.competingAttendance = 'ATTENDED';
+  await panel.getByRole('button', { name: text.attended, exact: true }).click();
+  await expect(page.getByText(text.attendanceReplay, { exact: true })).toBeVisible();
+  const time = panel.getByRole('region', { name: text.attendanceTitle }).locator('time');
+  await expect(time).toHaveAttribute('datetime', ORIGINAL_RECEIPT);
+  await expect(time).toContainText('17 Oct 2026, 16:30');
+  expect(state.mutations).toBe(0);
+  expect(state.replayFlags).toEqual([true]);
+});
+
+test('different-value race shows 409, locks stale choices, and refreshes the persisted value', async ({
+  page,
+}) => {
+  const { state, panel, text } = await setup(page);
+  state.competingAttendance = 'ATTENDED';
+  await panel.getByRole('button', { name: text.absent, exact: true }).click();
+  await expect(panel.getByRole('alert')).toHaveText(text.attendanceConflict);
+  await expect(panel.getByRole('button', { name: text.attended, exact: true })).toBeDisabled();
+  await expect(panel.getByRole('button', { name: text.absent, exact: true })).toBeDisabled();
+  await panel.getByRole('button', { name: text.refresh }).click();
+  const summary = panel.getByRole('region', { name: text.attendanceTitle });
+  await expect(summary).toContainText(text.attended);
+  await expect(summary.locator('time')).toHaveAttribute('datetime', ORIGINAL_RECEIPT);
+  expect(state.mutations).toBe(0);
+  expect(state.puts).toEqual([{ attendance: 'ABSENT' }, { attendance: 'ATTENDED' }]);
+});
+
+for (const status of [400, 403, 404, 409, 500]) {
+  test(`attendance ${status} does not show an optimistic result and requires a fresh read`, async ({
+    page,
+  }) => {
+    const { state, panel, text } = await setup(page);
+    state.failure = status;
+    await panel.getByRole('button', { name: text.absent, exact: true }).click();
+    await expect(panel.getByRole('alert')).toHaveText(
+      status === 403
+        ? text.attendanceOwner
+        : status === 404
+          ? text.notFound
+          : status === 409
+            ? text.attendanceConflict
+            : text.attendanceFailed,
+    );
+    await expect(panel.getByRole('button', { name: text.absent, exact: true })).toBeDisabled();
+    expect(state.details.attendance).toBeNull();
+    expect(state.mutations).toBe(0);
+    state.failure = 0;
+    await panel.getByRole('button', { name: text.refresh }).click();
+    await expect(panel.getByRole('button', { name: text.absent, exact: true })).toBeEnabled();
+  });
+}
+
+for (const [code, message] of [
+  ['CLASS_NOT_ENDED', 'attendanceFuture'],
+  ['BOOKING_NOT_CONFIRMED_OR_COMPLETED', 'attendanceUnavailable'],
+] as const) {
+  test(`server ${code} explains the stale eligibility and locks the form`, async ({ page }) => {
+    const { state, panel, text } = await setup(page);
+    state.failure = 409;
+    state.failureCode = code;
+    await panel.getByRole('button', { name: text.attended, exact: true }).click();
+    await expect(panel.getByRole('alert')).toHaveText(text[message]);
+    await expect(panel.getByRole('button', { name: text.attended, exact: true })).toBeDisabled();
+    await expect(panel.getByRole('button', { name: text.absent, exact: true })).toBeDisabled();
+    expect(state.mutations).toBe(0);
+  });
+}
+
+test('pending attendance locks both choices, meeting-link saving and refresh', async ({ page }) => {
+  const { state, panel, text } = await setup(page);
+  const gate = Promise.withResolvers<void>();
+  state.gate = gate.promise;
+  await panel.getByRole('button', { name: text.absent, exact: true }).click();
+  await expect(
+    panel.getByRole('button', { name: text.attendanceSaving, exact: true }),
+  ).toBeDisabled();
+  await expect(panel.getByRole('button', { name: text.absent, exact: true })).toBeDisabled();
+  await expect(panel.getByRole('button', { name: text.save, exact: true })).toBeDisabled();
+  await expect(panel.getByRole('button', { name: text.refresh })).toBeDisabled();
+  expect(state.puts).toHaveLength(1);
+  expect(state.mutations).toBe(0);
+  gate.resolve();
+  await expect(
+    panel.getByRole('region', { name: text.attendanceTitle }).locator('time'),
+  ).toBeVisible();
+  await expect(panel.getByRole('button', { name: text.refresh })).toBeEnabled();
+});
+
+test('meeting-link save locks attendance until its refresh completes', async ({ page }) => {
+  const { state, panel, text } = await setup(page);
+  const gate = Promise.withResolvers<void>();
+  state.meetingGate = gate.promise;
+  await panel.getByRole('button', { name: text.save, exact: true }).click();
+  await expect(panel.getByRole('button', { name: text.attended, exact: true })).toBeDisabled();
+  await expect(panel.getByRole('button', { name: text.absent, exact: true })).toBeDisabled();
+  gate.resolve();
+  await expect(panel.getByRole('button', { name: text.attended, exact: true })).toBeEnabled();
+  expect(state.puts).toEqual([]);
+});
+
+test('lost attendance response is reconciled after refresh without another first write', async ({
+  page,
+}) => {
+  const { state, panel, text } = await setup(page);
+  state.loseResponse = true;
+  await panel.getByRole('button', { name: text.attended, exact: true }).click();
+  await expect(panel.getByRole('alert')).toHaveText(text.attendanceFailed);
+  await expect(panel.getByRole('button', { name: text.attended, exact: true })).toBeDisabled();
+  expect(state.mutations).toBe(1);
+  state.loseResponse = false;
+  await panel.getByRole('button', { name: text.refresh }).click();
+  await expect(
+    panel.getByRole('region', { name: text.attendanceTitle }).locator('time'),
+  ).toHaveAttribute('datetime', NOW);
+  expect(state.replayFlags).toEqual([false, true]);
+  expect(state.mutations).toBe(1);
+});
+
+test('failed status refresh after save hides the stale form and recovers the saved summary', async ({
+  page,
+}) => {
+  const { state, panel, text } = await setup(page);
+  state.readFailure = 500;
+  await panel.getByRole('button', { name: text.attended, exact: true }).click();
+  await expect(panel.getByRole('alert')).toHaveText(text.failed);
+  await expect(panel.getByRole('button', { name: text.absent, exact: true })).toHaveCount(0);
+  state.readFailure = 0;
+  await panel.getByRole('button', { name: text.refresh }).click();
+  await expect(
+    panel.getByRole('region', { name: text.attendanceTitle }).locator('time'),
+  ).toHaveAttribute('datetime', NOW);
+  expect(state.mutations).toBe(1);
+});
+
+test('receipt failure shows known saved attendance without inventing a timestamp', async ({
+  page,
+}) => {
+  const { state, panel, text } = await setup(page);
+  state.details.attendance = 'ABSENT';
+  state.details.status = 'COMPLETED';
+  state.savedAt = ORIGINAL_RECEIPT;
+  state.failure = 500;
+  await panel.getByRole('button', { name: text.refresh }).click();
+  await expect(panel.getByRole('alert')).toHaveText(text.attendanceReceiptFailed);
+  const summary = panel.getByRole('region', { name: text.attendanceTitle });
+  await expect(summary).toContainText(text.absent);
+  await expect(summary.locator('time')).toHaveCount(0);
+  state.failure = 0;
+  await panel.getByRole('button', { name: text.refresh }).click();
+  await expect(summary.locator('time')).toHaveAttribute('datetime', ORIGINAL_RECEIPT);
+  expect(state.mutations).toBe(0);
+});
