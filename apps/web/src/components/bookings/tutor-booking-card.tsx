@@ -17,7 +17,11 @@ import {
 } from '@/components/bookings/tutor-booking-inbox-model';
 import { DashboardIcon } from '@/components/dashboard/dashboard-icon';
 import { StatusBadge } from '@/components/ui/notebook';
-import { NotebookAction } from '@/components/ui/notebook-action';
+import {
+  NotebookAction,
+  NotebookActionContent,
+  notebookActionClass,
+} from '@/components/ui/notebook-action';
 import { useAuth } from '@/lib/auth-context';
 
 import styles from './tutor-booking-inbox.module.css';
@@ -171,8 +175,11 @@ export function TutorBookingCard({
 
       <div className="col-span-full min-w-0">
         {hasClassroomAccess(booking.status) && (
-          <Link href={`/dashboard/bookings/${encodeURIComponent(booking.id)}`}>
-            {classDetailsCopy[language].title}
+          <Link
+            href={`/dashboard/bookings/${encodeURIComponent(booking.id)}`}
+            className={notebookActionClass({ tone: 'secondary', size: 'compact' })}
+          >
+            <NotebookActionContent>{classDetailsCopy[language].title}</NotebookActionContent>
           </Link>
         )}
         <BookingCancellation
