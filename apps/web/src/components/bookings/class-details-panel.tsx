@@ -19,15 +19,22 @@ import { useLanguage } from '@/lib/i18n';
 import styles from './class-details.module.css';
 
 import type { BookingClassDetails, BookingStatus } from '@/lib/api/types';
+import type { RefObject } from 'react';
 
 export function ClassDetailsPanel({
   bookingId,
   status,
   variant = 'full',
+  onRefresh,
+  refreshDisabled = false,
+  restoreRefreshFocusRef,
 }: {
   bookingId: string;
   status?: BookingStatus;
   variant?: 'full' | 'compact';
+  onRefresh?: () => void;
+  refreshDisabled?: boolean;
+  restoreRefreshFocusRef?: RefObject<boolean>;
 }) {
   const { user } = useAuth();
   // Remount for a different booking, session, or server-confirmed status. Old reads cannot reveal links.
@@ -37,6 +44,9 @@ export function ClassDetailsPanel({
       bookingId={bookingId}
       status={status}
       variant={variant}
+      onRefresh={onRefresh}
+      refreshDisabled={refreshDisabled}
+      restoreRefreshFocusRef={restoreRefreshFocusRef}
     />
   );
 }
@@ -45,10 +55,16 @@ function ClassDetailsContent({
   bookingId,
   status,
   variant,
+  onRefresh,
+  refreshDisabled,
+  restoreRefreshFocusRef,
 }: {
   bookingId: string;
   status: BookingStatus | undefined;
   variant: 'full' | 'compact';
+  onRefresh: (() => void) | undefined;
+  refreshDisabled: boolean;
+  restoreRefreshFocusRef: RefObject<boolean> | undefined;
 }) {
   const { language } = useLanguage();
   const { user } = useAuth();
@@ -62,6 +78,16 @@ function ClassDetailsContent({
   const [saving, setSaving] = useState(false);
   const active = useRef(false);
   const sequence = useRef(0);
+  const refreshButton = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (!loading && restoreRefreshFocusRef?.current) {
+      restoreRefreshFocusRef.current = false;
+      if (document.activeElement === document.body) {
+        refreshButton.current?.focus();
+      }
+    }
+  }, [loading, restoreRefreshFocusRef]);
   const load = useCallback((): Promise<void> => {
     const request = ++sequence.current;
     return getClassDetails(bookingId)
@@ -226,10 +252,17 @@ function ClassDetailsContent({
       )}
       <footer className={styles.footer}>
         <button
+          ref={refreshButton}
           type="button"
           className={styles.refresh}
-          disabled={loading || saving}
-          onClick={() => void refresh()}
+          disabled={loading || saving || refreshDisabled}
+          onClick={() => {
+            if (onRefresh) {
+              onRefresh();
+              return;
+            }
+            void refresh();
+          }}
         >
           {text.refresh}
         </button>

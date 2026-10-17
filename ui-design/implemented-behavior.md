@@ -613,6 +613,22 @@ still determine which decisions are available. Generic editable validation error
 without a refresh. These paths are covered by `reschedule.test.ts` and `booking-reschedule-ui.spec.ts`;
 the browser suite intercepts APIs and does not verify database transactions.
 
+## Classroom details refresh (S2-T33)
+
+The student's Load latest class details action reloads the shared booking snapshot before loading
+classroom details again. The status, Bangkok schedule, payment/cancellation eligibility and meeting
+link therefore use the refreshed booking. Newly confirmed classes expose their saved link; changed
+times replace the existing summary. Failed booking reads remove the private summary and link.
+The action waits while cancellation, rescheduling or payment submission is pending. Refresh also
+invalidates older payment callbacks, and the existing booking/status remount guards prevent late
+classroom responses from restoring a link after cancellation. Tutors retain their panel-only refresh.
+Keyboard focus returns to the student's refresh action after reloading unless the user moved focus.
+
+`classroom-details-ui.spec.ts` covers confirmation and schedule refresh in both languages, denied and
+missing booking reads, delayed responses after cancellation, and pending payment submission across
+desktop, tablet and mobile. Run `pnpm --filter @hktutor/web test:e2e classroom-details-ui.spec.ts
+--workers=2`; these tests intercept APIs and do not verify live persistence.
+
 ## Password recovery
 
 The login's small recovery link opens `/forgot-password`, using the existing auth shell and notebook

@@ -44,6 +44,7 @@ export default function StudentBookingDetailPage({ bookingId }: { bookingId: str
   const [cancellationStale, setCancellationStale] = useState(false);
   const [rescheduleOutcome, setRescheduleOutcome] = useState<RescheduleRequestStatus | null>(null);
   const latestBookingRevision = useRef(0);
+  const restoreClassroomRefreshFocusRef = useRef(false);
   const isCurrentBookingLoaded = loadedBookingId === bookingId;
   const loading = isLoading || !isCurrentBookingLoaded;
 
@@ -114,6 +115,17 @@ export default function StudentBookingDetailPage({ bookingId }: { bookingId: str
               bookingId={booking.id}
               status={booking.status}
               variant="compact"
+              refreshDisabled={rescheduleBusy || cancellationBusy || paymentBusy}
+              restoreRefreshFocusRef={restoreClassroomRefreshFocusRef}
+              onRefresh={() => {
+                // Refresh the shared snapshot before remounting classroom reads. Older payment
+                // callbacks must not replace the newly loaded status or schedule.
+                latestBookingRevision.current += 1;
+                setBookingRevision(latestBookingRevision.current);
+                restoreClassroomRefreshFocusRef.current = true;
+                setIsLoading(true);
+                setReloadKey((value) => value + 1);
+              }}
             />
             <BookingCancellation
               key={booking.id}

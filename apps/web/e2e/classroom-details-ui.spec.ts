@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test';
 
 import { classDetailsCopy } from '@/components/bookings/class-details-copy';
+import { studentBookingsCopy } from '@/components/bookings/student-bookings-copy';
 import { tutorBookingInboxCopy } from '@/components/bookings/tutor-booking-inbox-copy';
 
 import type { BookingClassDetails, BookingStatus } from '@/lib/api/types';
@@ -19,6 +20,7 @@ async function setup(
     language?: 'th' | 'en';
     status?: BookingStatus;
     meetingUrl?: string | null;
+    paymentStatus?: 'PAID' | 'UNPAID';
     studentNickname?: string;
     gate?: Promise<void>;
   } = {},
@@ -47,6 +49,9 @@ async function setup(
   const state = {
     details,
     reads: 0,
+    bookingReads: 0,
+    bookingReadFailure: 0,
+    readGate: Promise.resolve(),
     writes: [] as unknown[],
     readFailure: 0,
     saveFailure: 0,
@@ -122,6 +127,13 @@ async function setup(
       return route.fulfill({ json: { items: [], total: 0 } });
     }
     if (path === `/bookings/me/${BOOKING_ID}`) {
+      state.bookingReads += 1;
+      if (state.bookingReadFailure) {
+        return route.fulfill({
+          status: state.bookingReadFailure,
+          json: { message: 'Unavailable' },
+        });
+      }
       return route.fulfill({
         json: {
           id: BOOKING_ID,
@@ -141,7 +153,7 @@ async function setup(
           discountAmount: '0.00',
           netAmount: '500.00',
           currency: 'THB',
-          paymentStatus: 'PAID',
+          paymentStatus: options.paymentStatus ?? 'PAID',
           paidAt: '2026-10-17T08:00:00.000Z',
           mockReference: 'PREVIEW',
           createdAt: '2026-10-17T08:00:00.000Z',
@@ -155,17 +167,16 @@ async function setup(
     if (path === `/bookings/${BOOKING_ID}/class-details`) {
       state.reads += 1;
       const status = state.readFailure || 200;
+      const details = {
+        ...state.details,
+        meetingUrl: ['CONFIRMED', 'COMPLETED'].includes(state.details.status)
+          ? state.details.meetingUrl
+          : null,
+      };
+      await state.readGate;
       return route.fulfill({
         status,
-        json:
-          status === 200
-            ? {
-                ...state.details,
-                meetingUrl: ['CONFIRMED', 'COMPLETED'].includes(state.details.status)
-                  ? state.details.meetingUrl
-                  : null,
-              }
-            : { message: 'Unavailable' },
+        json: status === 200 ? details : { message: 'Unavailable' },
       });
     }
     if (path === `/bookings/tutor/${BOOKING_ID}/meeting-link` && request.method() === 'PUT') {
@@ -205,6 +216,44 @@ async function setup(
 
 for (const language of ['th', 'en'] as const) {
   const text = classDetailsCopy[language];
+  test(`${language}: student classroom refresh loads a newly confirmed booking`, async ({
+    page,
+  }) => {
+    const state = await setup(page, { language, role: 'STUDENT', status: 'PENDING' });
+    await page.goto(PATH);
+    const panel = page.getByRole('region', { name: text.title });
+    await expect(panel).toContainText(text.hidden);
+    state.details.status = 'CONFIRMED';
+    const bookingReads = state.bookingReads;
+    const refresh = panel.getByRole('button', { name: text.refresh });
+    await refresh.focus();
+    await refresh.press('Enter');
+    await expect(panel.getByRole('link', { name: text.join })).toHaveAttribute('href', OLD_URL);
+    await expect(page.getByText(studentBookingsCopy[language].confirmedNotice)).toBeVisible();
+    await expect(refresh).toBeFocused();
+    expect(state.bookingReads).toBeGreaterThan(bookingReads);
+    expect(state.writes).toHaveLength(0);
+    expect(state.unexpected).toEqual([]);
+  });
+
+  test(`${language}: student classroom refresh updates the booking schedule`, async ({ page }) => {
+    const state = await setup(page, { language, role: 'STUDENT' });
+    await page.goto(PATH);
+    const panel = page.getByRole('region', { name: text.title });
+    const times = page.locator('[data-booking-summary] time');
+    await expect(panel.getByRole('link')).toHaveAttribute('href', OLD_URL);
+    state.details.startAt = '2026-10-20T10:00:00.000Z';
+    state.details.endAt = '2026-10-20T11:00:00.000Z';
+    await panel.getByRole('button', { name: text.refresh }).click();
+    await expect(times.nth(0)).toHaveAttribute('datetime', state.details.startAt);
+    await expect(times.nth(1)).toHaveAttribute('datetime', state.details.endAt);
+    await expect(times.nth(0)).toHaveText('17:00');
+    await expect(times.nth(1)).toHaveText('18:00');
+    await expect(panel.getByRole('link')).toHaveAttribute('href', OLD_URL);
+    expect(state.writes).toHaveLength(0);
+    expect(state.unexpected).toEqual([]);
+  });
+
   test(`${language}: tutor validates, saves once, and reloads the persisted link`, async ({
     page,
   }) => {
@@ -266,6 +315,85 @@ for (const language of ['th', 'en'] as const) {
     expect(state.unexpected).toEqual([]);
   });
 }
+
+for (const failure of [403, 404]) {
+  test(`student classroom refresh discards private details after booking read ${failure}`, async ({
+    page,
+  }) => {
+    const state = await setup(page, { role: 'STUDENT' });
+    await page.goto(PATH);
+    const panel = page.getByRole('region', { name: classDetailsCopy.en.title });
+    await expect(panel.getByRole('link')).toHaveAttribute('href', OLD_URL);
+    state.bookingReadFailure = failure;
+    await panel.getByRole('button', { name: classDetailsCopy.en.refresh }).click();
+    await expect(page.getByRole('main').getByRole('alert')).toBeVisible();
+    await expect(panel).toHaveCount(0);
+    await expect(page.locator('[data-booking-summary]')).toHaveCount(0);
+    await expect(page.getByRole('link', { name: classDetailsCopy.en.join })).toHaveCount(0);
+    expect(state.writes).toHaveLength(0);
+    expect(state.unexpected).toEqual([]);
+  });
+}
+
+test('a late classroom read cannot restore links after a newer cancellation', async ({ page }) => {
+  const state = await setup(page, { role: 'STUDENT' });
+  await page.goto(PATH);
+  const panel = page.getByRole('region', { name: classDetailsCopy.en.title });
+  await expect(panel.getByRole('link')).toHaveAttribute('href', OLD_URL);
+  let release = () => {};
+  state.readGate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const reads = state.reads;
+  await panel.getByRole('button', { name: classDetailsCopy.en.refresh }).click();
+  await expect.poll(() => state.reads).toBeGreaterThan(reads);
+  state.details.status = 'CANCELED';
+  state.readGate = Promise.resolve();
+  await page.getByRole('button', { name: 'Load latest status', exact: true }).click();
+  await expect(panel).toContainText(classDetailsCopy.en.hidden);
+  const lateResponse = page.waitForResponse((response) =>
+    response.url().endsWith(`/bookings/${BOOKING_ID}/class-details`),
+  );
+  release();
+  await lateResponse;
+  await expect(panel.getByRole('link')).toHaveCount(0);
+  await expect(panel).toContainText(classDetailsCopy.en.hidden);
+  expect(state.writes).toHaveLength(0);
+  expect(state.unexpected).toEqual([]);
+});
+
+test('student classroom refresh waits for a pending payment submission', async ({ page }) => {
+  const state = await setup(page, { role: 'STUDENT', paymentStatus: 'UNPAID' });
+  let release = () => {};
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await page.route(`**/bookings/me/${BOOKING_ID}/mock-payment`, async (route) => {
+    await gate;
+    return route.fulfill({
+      json: {
+        bookingId: BOOKING_ID,
+        paymentStatus: 'PAID',
+        amount: '500.00',
+        reference: 'CLASSROOM-REFRESH',
+        paidAt: '2026-10-17T09:00:00.000Z',
+      },
+    });
+  });
+  await page.goto(PATH);
+  const refresh = page.getByRole('button', { name: classDetailsCopy.en.refresh });
+  await expect(refresh).toBeEnabled();
+  await page.getByLabel('Demo reference', { exact: true }).fill('CLASSROOM-REFRESH');
+  await page.getByRole('button', { name: 'Record mock payment', exact: true }).click();
+  await expect(refresh).toBeDisabled();
+  release();
+  await expect(page.getByRole('region', { name: 'Mock payment' })).toContainText(
+    'CLASSROOM-REFRESH',
+  );
+  await expect(refresh).toBeEnabled();
+  expect(state.writes).toHaveLength(0);
+  expect(state.unexpected).toEqual([]);
+});
 
 for (const role of ['STUDENT', 'TUTOR'] as const) {
   for (const status of ['PENDING', 'CANCELED', 'EXPIRED'] as const) {
