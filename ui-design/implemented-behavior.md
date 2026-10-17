@@ -605,6 +605,12 @@ can review, approve or reject. Current/requested times include Bangkok dates and
 the selected target keeps its role-colored treatment after focus moves. Student payment details
 remain ahead of the optional form. Approval restores focus after replacing the panel.
 
+For confirmed bookings without a pending request, the collapsed header shows a bilingual deadline
+passed notice once fewer than 24 hours remain, including past lessons. Its quiet action opens the
+rescheduling conditions instead of inviting a new request. The notice updates while the page stays
+open; exactly 24 hours remains eligible. Pending requests retain their view/review controls so
+participants can still reject or withdraw after the cutoff.
+
 Approval requires a future target as well as an eligible original booking. The UI checks target
 expiry while the page is open and again before submission; rejection and withdrawal remain
 available after expiry. A server `400 RESCHEDULE_TARGET_PAST` response shows a bilingual explanation

@@ -1,5 +1,7 @@
 import { expect, test } from '@playwright/test';
 
+import { rescheduleCopy } from '@/components/bookings/reschedule-copy';
+
 import type {
   BookingDetail,
   CurrentRescheduleRequestResponse,
@@ -35,6 +37,7 @@ async function setup(
     open?: boolean;
     inboxCount?: number;
     targetSlot?: RescheduleTargetSlot;
+    slot?: typeof original;
   } = {},
 ) {
   const requestedTarget = options.targetSlot ?? target;
@@ -53,13 +56,15 @@ async function setup(
       pricePerHour: '500.00',
       description: '',
     },
-    slot: options.cutoff
-      ? {
-          ...original,
-          startAtUtc: new Date(Date.now() + 3600_000).toISOString(),
-          endAtUtc: new Date(Date.now() + 7200_000).toISOString(),
-        }
-      : original,
+    slot:
+      options.slot ??
+      (options.cutoff
+        ? {
+            ...original,
+            startAtUtc: new Date(Date.now() + 3600_000).toISOString(),
+            endAtUtc: new Date(Date.now() + 7200_000).toISOString(),
+          }
+        : original),
     subtotalAmount: '500.00',
     discountAmount: '0.00',
     netAmount: '500.00',
@@ -611,11 +616,72 @@ test('cutoff suppresses create and approve while retaining reject/withdraw', asy
 
 test('a booking inside cutoff without a request offers no creation', async ({ page }) => {
   const ui = await setup(page, 'STUDENT', { cutoff: true });
-  await expect(ui.panel.getByRole('status')).toHaveText('No reschedule request.');
+  await expect(ui.panel.getByRole('status')).toHaveText(rescheduleCopy.en.cutoffPassed);
   await expect(ui.panel).toContainText('at least 24 hours');
   await expect(ui.panel.getByRole('radio')).toHaveCount(0);
   expect(ui.getSlotReads()).toBe(0);
 });
+
+for (const role of ['STUDENT', 'TUTOR'] as const) {
+  for (const language of ['th', 'en'] as const) {
+    for (const past of [false, true]) {
+      test(`${role} ${language} explains ${past ? 'past' : 'within-24h'} classes before opening reschedule details`, async ({
+        page,
+      }, testInfo) => {
+        await page.setViewportSize({ width: 320, height: 900 });
+        await page.clock.setFixedTime(new Date('2026-10-17T03:00:00Z'));
+        const ui = await setup(page, role, {
+          language,
+          cutoff: true,
+          open: false,
+          slot: {
+            ...original,
+            startAtUtc: past ? '2026-10-16T03:00:00Z' : '2026-10-17T04:00:00Z',
+            endAtUtc: past ? '2026-10-16T04:00:00Z' : '2026-10-17T05:00:00Z',
+          },
+        });
+        const copy = rescheduleCopy[language];
+        await expect(ui.panel.getByRole('status')).toHaveText(copy.cutoffPassed);
+        await expect(ui.panel.getByRole('status')).toBeVisible();
+        await expect(ui.panel.getByRole('button', { name: copy.open, exact: true })).toHaveCount(0);
+        const details = ui.panel.getByRole('button', { name: copy.conditions, exact: true });
+        await expect(details).toBeEnabled();
+        await ui.panel
+          .locator('..')
+          .screenshot({ path: testInfo.outputPath('cutoff-actions.png') });
+        await details.click();
+        await expect(ui.panel).toContainText(copy.cutoff);
+        await expect(ui.panel.getByRole('radio')).toHaveCount(0);
+        await expect(ui.panel.getByRole('button', { name: copy.CREATE, exact: true })).toHaveCount(
+          0,
+        );
+        await page.keyboard.press('Escape');
+        await expect(details).toBeFocused();
+        expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+          true,
+        );
+        expect(ui.getSlotReads()).toBe(0);
+        expect(ui.writes).toHaveLength(0);
+      });
+    }
+  }
+
+  test(`${role} updates the collapsed reschedule action when the 24-hour deadline passes`, async ({
+    page,
+  }) => {
+    await page.clock.install({ time: new Date('2099-10-16T02:59:59Z') });
+    await page.clock.pauseAt(new Date('2099-10-16T03:00:00Z'));
+    const ui = await setup(page, role, { open: false });
+    await expect(
+      ui.panel.getByRole('button', { name: rescheduleCopy.en.open, exact: true }),
+    ).toBeEnabled();
+    await page.clock.runFor(1001);
+    await expect(ui.panel.getByRole('status')).toHaveText(rescheduleCopy.en.cutoffPassed);
+    await ui.panel.getByRole('button', { name: rescheduleCopy.en.conditions, exact: true }).click();
+    await expect(ui.panel.getByRole('radio')).toHaveCount(0);
+    expect(ui.writes).toHaveLength(0);
+  });
+}
 
 test('server cutoff validation overrides a previously eligible form', async ({ page }) => {
   const ui = await setup(page, 'STUDENT', {
@@ -848,7 +914,7 @@ test('closing and reopening a failed request preserves its error, refresh and ac
   expect(ui.writes).toHaveLength(1);
 });
 
-test('student payment stays ahead of the optional reschedule form and disclosure preserves its draft', async ({
+test('student payment precedes reschedule and cancellation, and disclosure preserves its draft', async ({
   page,
 }) => {
   const ui = await setup(page, 'STUDENT', { open: false });
@@ -858,9 +924,12 @@ test('student payment stays ahead of the optional reschedule form and disclosure
   expect(
     await payment.evaluate((element) => {
       const reschedule = document.querySelector('section[aria-label="Reschedule class"]');
+      const cancellation = document.querySelector('section[aria-label="Cancel class"]');
       return (
         reschedule !== null &&
-        Boolean(element.compareDocumentPosition(reschedule) & Node.DOCUMENT_POSITION_FOLLOWING)
+        cancellation !== null &&
+        Boolean(element.compareDocumentPosition(reschedule) & Node.DOCUMENT_POSITION_FOLLOWING) &&
+        Boolean(reschedule.compareDocumentPosition(cancellation) & Node.DOCUMENT_POSITION_FOLLOWING)
       );
     }),
   ).toBe(true);

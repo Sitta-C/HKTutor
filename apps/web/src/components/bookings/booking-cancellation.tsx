@@ -13,6 +13,8 @@ import { useNotebookToast } from '@/components/ui/notebook-toast';
 import { cancelBooking } from '@/lib/api/bookings';
 import { useLanguage } from '@/lib/i18n';
 
+import styles from './booking-cancellation.module.css';
+
 import type { CancellationBooking } from '@/components/bookings/booking-cancellation-model';
 import type { CancelBookingResult } from '@/lib/api/types';
 import type { FormEvent } from 'react';
@@ -20,6 +22,7 @@ import type { FormEvent } from 'react';
 export function BookingCancellation({
   booking,
   disabled = false,
+  compact = false,
   onCanceled,
   onRefresh,
   onRequiresRefresh,
@@ -27,6 +30,7 @@ export function BookingCancellation({
 }: {
   booking: CancellationBooking;
   disabled?: boolean;
+  compact?: boolean;
   onCanceled: (result: CancelBookingResult) => void;
   onRefresh: () => void;
   onRequiresRefresh?: () => void;
@@ -103,18 +107,27 @@ export function BookingCancellation({
     }
   };
 
-  return (
-    <section
-      className="min-w-0 space-y-3 border-t border-dashed border-paper-edge p-4"
-      aria-label={copy.action}
-    >
+  const eligibilityNotice = (
+    <>
       <p id={`${id}-eligibility`} className="text-sm text-notebook-muted">
         {copy[eligibility]}
       </p>
       {eligibility === 'eligible' && <p className="text-sm text-notebook-muted">{copy.policy}</p>}
+    </>
+  );
+
+  return (
+    <section
+      className={
+        compact ? styles.compact : 'min-w-0 space-y-3 border-t border-dashed border-paper-edge p-4'
+      }
+      aria-label={copy.action}
+    >
+      {compact ? <div className="min-w-0 space-y-1">{eligibilityNotice}</div> : eligibilityNotice}
       <NotebookAction
         ref={trigger}
-        tone="danger"
+        tone={compact ? 'quiet' : 'danger'}
+        className={compact ? styles.cancel : undefined}
         size="compact"
         disabled={disabled || pending || eligibility !== 'eligible' || failure?.requiresRefresh}
         aria-describedby={`${id}-eligibility`}
@@ -137,6 +150,7 @@ export function BookingCancellation({
         <NotebookAction
           tone="secondary"
           size="compact"
+          className={compact ? styles.refresh : undefined}
           disabled={pending}
           onClick={() => {
             close();

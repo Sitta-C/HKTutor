@@ -127,28 +127,6 @@ export default function StudentBookingDetailPage({ bookingId }: { bookingId: str
                 setReloadKey((value) => value + 1);
               }}
             />
-            <BookingCancellation
-              key={booking.id}
-              booking={booking}
-              disabled={rescheduleBusy || rescheduleStale}
-              onBusyChange={setCancellationBusy}
-              onRequiresRefresh={() => setCancellationStale(true)}
-              onCanceled={(result) => {
-                // Invalidate callbacks captured by payment reads before this server-confirmed write.
-                // The ref changes synchronously, including before React commits the new state.
-                latestBookingRevision.current += 1;
-                setBookingRevision(latestBookingRevision.current);
-                setBooking((current) =>
-                  current?.id === result.bookingId
-                    ? { ...current, status: result.status }
-                    : current,
-                );
-              }}
-              onRefresh={() => {
-                setIsLoading(true);
-                setReloadKey((value) => value + 1);
-              }}
-            />
             <div className={styles.detailFooter}>
               <p className={styles.notice} data-status={booking.status}>
                 {booking.status === 'PENDING'
@@ -188,42 +166,68 @@ export default function StudentBookingDetailPage({ bookingId }: { bookingId: str
                 />
               </div>
             </div>
-            <RescheduleRequestPanel
-              key={`${booking.id}:${booking.slot.id}:${booking.status}`}
-              booking={booking}
-              tutorId={booking.tutor.tutorId}
-              disabled={cancellationBusy || cancellationStale || paymentBusy}
-              onBusyChange={(busy) => {
-                setRescheduleBusy(busy);
-                if (busy) {
+            <div className={styles.detailActions}>
+              <RescheduleRequestPanel
+                key={`${booking.id}:${booking.slot.id}:${booking.status}`}
+                booking={booking}
+                className="border-0 p-0"
+                tutorId={booking.tutor.tutorId}
+                disabled={cancellationBusy || cancellationStale || paymentBusy}
+                onBusyChange={(busy) => {
+                  setRescheduleBusy(busy);
+                  if (busy) {
+                    latestBookingRevision.current += 1;
+                    setBookingRevision(latestBookingRevision.current);
+                  }
+                }}
+                onRequiresRefresh={() => setRescheduleStale(true)}
+                outcome={rescheduleOutcome}
+                onOutcome={setRescheduleOutcome}
+                onApproved={(result) => {
                   latestBookingRevision.current += 1;
                   setBookingRevision(latestBookingRevision.current);
-                }
-              }}
-              onRequiresRefresh={() => setRescheduleStale(true)}
-              outcome={rescheduleOutcome}
-              onOutcome={setRescheduleOutcome}
-              onApproved={(result) => {
-                latestBookingRevision.current += 1;
-                setBookingRevision(latestBookingRevision.current);
-                setBooking((current) =>
-                  current?.id === result.booking.id
-                    ? {
-                        ...current,
-                        slot: result.newSlot,
-                        status: result.booking.status,
-                        netAmount: result.booking.netAmount,
-                        subtotalAmount: result.booking.subtotalAmount,
-                        updatedAt: result.booking.updatedAt,
-                      }
-                    : current,
-                );
-              }}
-              onRefresh={() => {
-                setIsLoading(true);
-                setReloadKey((value) => value + 1);
-              }}
-            />
+                  setBooking((current) =>
+                    current?.id === result.booking.id
+                      ? {
+                          ...current,
+                          slot: result.newSlot,
+                          status: result.booking.status,
+                          netAmount: result.booking.netAmount,
+                          subtotalAmount: result.booking.subtotalAmount,
+                          updatedAt: result.booking.updatedAt,
+                        }
+                      : current,
+                  );
+                }}
+                onRefresh={() => {
+                  setIsLoading(true);
+                  setReloadKey((value) => value + 1);
+                }}
+              />
+              <BookingCancellation
+                key={booking.id}
+                booking={booking}
+                compact
+                disabled={rescheduleBusy || rescheduleStale}
+                onBusyChange={setCancellationBusy}
+                onRequiresRefresh={() => setCancellationStale(true)}
+                onCanceled={(result) => {
+                  // Invalidate callbacks captured by payment reads before this server-confirmed write.
+                  // The ref changes synchronously, including before React commits the new state.
+                  latestBookingRevision.current += 1;
+                  setBookingRevision(latestBookingRevision.current);
+                  setBooking((current) =>
+                    current?.id === result.bookingId
+                      ? { ...current, status: result.status }
+                      : current,
+                  );
+                }}
+                onRefresh={() => {
+                  setIsLoading(true);
+                  setReloadKey((value) => value + 1);
+                }}
+              />
+            </div>
           </>
         )}
       </PaperCard>

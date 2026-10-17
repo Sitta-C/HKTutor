@@ -173,28 +173,23 @@ export function TutorBookingCard({
         </p>
       )}
 
-      <div className="col-span-full min-w-0">
-        {hasClassroomAccess(booking.status) && (
-          <Link
-            href={`/dashboard/bookings/${encodeURIComponent(booking.id)}`}
-            className={notebookActionClass({ tone: 'secondary', size: 'compact' })}
-          >
-            <NotebookActionContent>{classDetailsCopy[language].title}</NotebookActionContent>
-          </Link>
-        )}
-        <BookingCancellation
-          booking={booking}
-          disabled={isSubmitting || isStale || rescheduleBusy || rescheduleStale}
-          onBusyChange={setCancellationBusy}
-          onCanceled={onCanceled}
-          onRefresh={onRefresh}
-          onRequiresRefresh={() => setCancellationRequiresRefresh(true)}
-        />
+      <div className={styles.bookingActions}>
         {user && (
           <RescheduleRequestPanel
             key={`${booking.id}:${booking.slot.id}:${booking.status}`}
             booking={booking}
             tutorId={user.id}
+            className={styles.reschedule}
+            leadingAction={
+              hasClassroomAccess(booking.status) && (
+                <Link
+                  href={`/dashboard/bookings/${encodeURIComponent(booking.id)}`}
+                  className={notebookActionClass({ tone: 'secondary', size: 'compact' })}
+                >
+                  <NotebookActionContent>{classDetailsCopy[language].title}</NotebookActionContent>
+                </Link>
+              )
+            }
             disabled={isSubmitting || isStale || cancellationBusy || cancellationRequiresRefresh}
             onBusyChange={setRescheduleBusy}
             onRequiresRefresh={() => setRescheduleStale(true)}
@@ -205,6 +200,15 @@ export function TutorBookingCard({
             onRefresh={onRefresh}
           />
         )}
+        <BookingCancellation
+          booking={booking}
+          compact
+          disabled={isSubmitting || isStale || rescheduleBusy || rescheduleStale}
+          onBusyChange={setCancellationBusy}
+          onCanceled={onCanceled}
+          onRefresh={onRefresh}
+          onRequiresRefresh={() => setCancellationRequiresRefresh(true)}
+        />
       </div>
       <span className="sr-only">{copy.bangkokTime}</span>
     </article>

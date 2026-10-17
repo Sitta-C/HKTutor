@@ -160,6 +160,7 @@
 .compact {
   --class-accent: var(--color-student-deep);
   padding-block: 20px;
+  padding-inline: 26px;
   border-block: 1px dashed var(--color-paper-edge);
 }
 .compact h2 {
@@ -178,6 +179,11 @@
   margin-block: 12px;
   color: var(--color-tutor-deep);
   text-decoration: underline;
+}
+@container (max-width: 600px) {
+  .compact {
+    padding-inline: 18px;
+  }
 }
 @media (max-width: 600px) {
   .paper {
