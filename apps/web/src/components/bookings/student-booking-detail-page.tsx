@@ -12,6 +12,7 @@ import {
 } from '@/components/bookings/booking-docket';
 import { bookingRequestCopy } from '@/components/bookings/booking-request-copy';
 import { getBookingErrorMessage } from '@/components/bookings/booking-ui';
+import { ClassDetailsPanel } from '@/components/bookings/class-details-panel';
 import { MockPaymentPanel } from '@/components/bookings/mock-payment-panel';
 import { RescheduleRequestPanel } from '@/components/bookings/reschedule-request-panel';
 import { studentBookingsCopy } from '@/components/bookings/student-bookings-copy';
@@ -107,6 +108,11 @@ export default function StudentBookingDetailPage({ bookingId }: { bookingId: str
               requestText={requestText}
               presentation="detail"
               timeLabel={booking.status === 'PENDING' ? requestText.time : text.lessonTime}
+            />
+            <ClassDetailsPanel
+              key={`${booking.id}:${booking.slot.id}`}
+              bookingId={booking.id}
+              status={booking.status}
             />
             <BookingCancellation
               key={booking.id}

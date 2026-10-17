@@ -1,4 +1,12 @@
-import StudentBookingDetailPage from '@/components/bookings/student-booking-detail-page';
+import BookingDetailPage from '@/components/bookings/booking-detail-page';
+
+import type { Metadata } from 'next';
+
+export const metadata: Metadata = {
+  title: 'Booking details',
+  description: 'Private booking and classroom details for HKTutor participants.',
+  robots: { index: false, follow: false },
+};
 
 export default async function BookingDetailRoute({
   params,
@@ -7,5 +15,5 @@ export default async function BookingDetailRoute({
 }) {
   const { bookingId } = await params;
 
-  return <StudentBookingDetailPage bookingId={bookingId} />;
+  return <BookingDetailPage bookingId={bookingId} />;
 }

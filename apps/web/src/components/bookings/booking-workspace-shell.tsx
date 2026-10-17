@@ -11,8 +11,7 @@ import { useProfileSession } from '@/lib/use-profile-session';
 import type { ReactNode } from 'react';
 
 /**
- * Students own the whole booking workspace; a tutor only uses the inbox on the index route, so a
- * tutor who opens a student-owned booking screen is sent back to the inbox instead of a 403 view.
+ * Both participants can open classroom details; creation and confirmation remain student-only.
  */
 const BOOKINGS_INBOX_PATH = '/dashboard/bookings';
 
@@ -26,7 +25,9 @@ export default function BookingWorkspaceShell({ children }: { children: ReactNod
   const router = useRouter();
   const role = user?.role;
   const isInboxRoute = pathname === BOOKINGS_INBOX_PATH;
-  const tutorOnStudentRoute = role === 'TUTOR' && !isInboxRoute;
+  const isClassDetailsRoute =
+    /^\/dashboard\/bookings\/[^/]+$/.test(pathname) && pathname !== `${BOOKINGS_INBOX_PATH}/new`;
+  const tutorOnStudentRoute = role === 'TUTOR' && !isInboxRoute && !isClassDetailsRoute;
   const roleAllowed = role === 'STUDENT' || role === 'TUTOR';
 
   useEffect(() => {

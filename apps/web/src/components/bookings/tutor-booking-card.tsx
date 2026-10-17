@@ -1,11 +1,14 @@
 'use client';
 
+import Link from 'next/link';
 import { useState } from 'react';
 
 import { BookingCancellation } from '@/components/bookings/booking-cancellation';
 import { formatBookingDocketSlot } from '@/components/bookings/booking-docket-model';
 import { bookingRequestCopy } from '@/components/bookings/booking-request-copy';
 import { BookingStatusBadge, formatMoney } from '@/components/bookings/booking-ui';
+import { classDetailsCopy } from '@/components/bookings/class-details-copy';
+import { hasClassroomAccess } from '@/components/bookings/class-details-model';
 import { rescheduleCopy } from '@/components/bookings/reschedule-copy';
 import { RescheduleRequestPanel } from '@/components/bookings/reschedule-request-panel';
 import {
@@ -167,6 +170,11 @@ export function TutorBookingCard({
       )}
 
       <div className="col-span-full min-w-0">
+        {hasClassroomAccess(booking.status) && (
+          <Link href={`/dashboard/bookings/${encodeURIComponent(booking.id)}`}>
+            {classDetailsCopy[language].title}
+          </Link>
+        )}
         <BookingCancellation
           booking={booking}
           disabled={isSubmitting || isStale || rescheduleBusy || rescheduleStale}
