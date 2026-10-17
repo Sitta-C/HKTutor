@@ -15,33 +15,46 @@ visible to participants after completion.
 The S2-T32 HTTP suite covers these rules with isolated persistence and notes that PostgreSQL
 behaviour needs separate evidence. This task adds
 `apps/api/scripts/verify-meeting-link-access.ts` (`pnpm db:verify:meeting-links`), which serves the
-real `BookingsController`, `RescheduleRequestsController` and `NotificationsController` with real
+real `BookingsController`, both reschedule controllers (`BookingRescheduleRequestsController` and
+`RescheduleRequestsController`) and `NotificationsController` with real
 guards, signed JWTs backed by real `AuthSession` rows, real services and PostgreSQL.
 
-| Acceptance                        | Evidence (all via HTTP)                                                                                                                                                                                                                                                                                                                           |
-| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Missing link                      | A confirmed booking with no link returns 200 to both participants with `meetingUrl: null`, a parseable `startAt` and the listing subject                                                                                                                                                                                                          |
-| URL scheme and shape              | 34 inputs return 400 with the stored row unchanged: `javascript:` (mixed case, leading space, `javascript://`), `data:`, `vbscript:`, `file:`, `http:`/`HTTP:`, `ftp:`, `ws:`, scheme-relative, bare host, `https:/`, `https:`, `https://`, edge whitespace, CR/LF injection, U+2028, the inputs fixed below, `''`, `null`, a number and an array |
-| Owner write, participant read     | The owning tutor saves and replaces an `https://` link (case-insensitive scheme accepted); student and tutor both read the saved value                                                                                                                                                                                                            |
-| Unauthorized write                | The booking's own student, another student, another tutor and an admin get 403 on PUT, with no link in the body; anonymous PUT/GET are 401; unknown booking is 404; the row is unchanged                                                                                                                                                          |
-| Unauthorized read                 | Another student, another tutor and an admin get 403 on class details with no link in the body, for both confirmed and completed classes                                                                                                                                                                                                           |
-| Booking state                     | Pending: PUT 409, nothing stored. Canceled: the link is retained in the database but class details return `null` to both participants and PUT is 409. Expired (legacy row carrying a link): hidden and PUT 409. Completed: link remains visible to both participants                                                                              |
-| No link leakage on other surfaces | For canceled, expired and race bookings, nine participant reads (class details ×2, `/bookings/me`, `/bookings/me/:id`, `/bookings/tutor`, current reschedule request ×2, both inboxes) never contain the URL; confirmed links also never appear on list/inbox responses or any outsider read                                                      |
-| Save racing a cancellation        | Five concurrent PUT-versus-cancel rounds: cancel always 200, PUT 200 or 409, never 5xx; the stored link matches the PUT outcome and is never visible afterwards                                                                                                                                                                                   |
-| Verifier refuses unsafe databases | `apps/api/test/unit/bookings/meeting-link-verifier.spec.ts`                                                                                                                                                                                                                                                                                       |
+| Acceptance                        | Evidence (all via HTTP)                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Missing link                      | A confirmed booking with no link returns 200 to both participants with `meetingUrl: null`, a parseable `startAt` and the listing subject                                                                                                                                                                                                                                                                                                                     |
+| URL scheme and shape              | 34 inputs return 400 with the stored row unchanged: `javascript:` (mixed case, leading space, `javascript://`), `data:`, `vbscript:`, `file:`, `http:`/`HTTP:`, `ftp:`, `ws:`, scheme-relative, bare host, `https:/`, `https:`, `https://`, edge whitespace, CR/LF injection, U+2028, the inputs fixed below, `''`, `null`, a number and an array                                                                                                            |
+| Owner write, participant read     | The owning tutor saves and replaces an `https://` link (case-insensitive scheme accepted); student and tutor both read the saved value                                                                                                                                                                                                                                                                                                                       |
+| Unauthorized write                | The booking's own student, another student, another tutor and an admin get 403 on PUT, with no link in the body; anonymous PUT/GET are 401; unknown booking is 404; the row is unchanged                                                                                                                                                                                                                                                                     |
+| Unauthorized read                 | Another student, another tutor and an admin get 403 on class details with no link in the body, for both confirmed and completed classes                                                                                                                                                                                                                                                                                                                      |
+| Booking state                     | Pending: PUT 409, nothing stored. Canceled: the link is retained in the database but class details return `null` to both participants and PUT is 409. Expired (legacy row carrying a link): hidden and PUT 409. Completed: link remains visible to both participants                                                                                                                                                                                         |
+| No link leakage on other surfaces | For canceled, expired and race bookings, nine participant reads (class details ×2, `/bookings/me`, `/bookings/me/:id`, `/bookings/tutor`, current reschedule request ×2, both inboxes) must each return 200 **and** not contain the URL; confirmed links also never appear on list/inbox responses. Outsider reads must return their contract status (lists and inboxes 200, foreign `/bookings/me/:id` 404, foreign current reschedule 403) without the URL |
+| Save racing a cancellation        | Five concurrent PUT-versus-cancel rounds: cancel always 200, PUT 200 or 409, never 5xx; the stored link matches the PUT outcome and is never visible afterwards                                                                                                                                                                                                                                                                                              |
+| Verifier refuses unsafe databases | `apps/api/test/unit/bookings/meeting-link-verifier.spec.ts`                                                                                                                                                                                                                                                                                                                                                                                                  |
 
 ### The verifier detects regressions
 
 Each mutation was applied to a scratch copy of the source, the verifier run, and the source
-restored. All five were caught:
+restored. All seven were caught:
 
-| Mutation                                             | Result |
-| ---------------------------------------------------- | ------ |
-| Validator from `main` before this task's fix         | Failed |
-| Class details return the stored link in every status | Failed |
-| Validator accepts `http:`                            | Failed |
-| `@RequireOwnership` removed from the PUT route       | Failed |
-| Status gate removed from the write                   | Failed |
+| Mutation                                                  | Result |
+| --------------------------------------------------------- | ------ |
+| Validator from `main` before this task's fix              | Failed |
+| Class details return the stored link in every status      | Failed |
+| Validator accepts `http:`                                 | Failed |
+| `@RequireOwnership` removed from the PUT route            | Failed |
+| Status gate removed from the write                        | Failed |
+| Current-reschedule read returns the booking's stored link | Failed |
+| Booking-scoped reschedule controller not mounted          | Failed |
+
+## Review correction (wakesup1, PR #123)
+
+The first revision registered only `RescheduleRequestsController`, but
+`GET /bookings/:bookingId/reschedule-requests/current` belongs to
+`BookingRescheduleRequestsController`. Both current-reschedule reads therefore hit a route-level
+404, and because the leak check accepted any status below 500, those reads counted as passing.
+The verifier now mounts both controllers and asserts each read's expected status before
+inspecting the body. A mutation that makes `getCurrent` return the stored link, and one that
+unmounts the booking-scoped controller, both fail the verifier (last two mutation rows).
 
 ## Defects found and fixed
 
@@ -84,7 +97,7 @@ pre-fix code; the positive cases pass before and after.
 
 | Check                                                                | Result                                                           |
 | -------------------------------------------------------------------- | ---------------------------------------------------------------- |
-| `pnpm db:verify:meeting-links` (disposable DB, opt-in), with the fix | 10/10 checks passed on each of 5 runs, no flakes                 |
+| `pnpm db:verify:meeting-links` (disposable DB, opt-in), with the fix | 10/10 checks passed on each of 4 runs after the review fix       |
 | Same verifier against `main`'s validator                             | Fails on the NUL input (500), as expected                        |
 | `pnpm --filter @hktutor/api test` (full unit suite)                  | 64 suites / 1,232 tests passed                                   |
 | `jest --config ./test/jest-e2e.json --runInBand bookings`            | 6 suites / 186 tests passed, including 3 new class-details cases |

@@ -27,7 +27,10 @@ import { BookingsService } from '@modules/bookings/bookings.service';
 import { NotificationEventsService } from '@modules/notifications/notification-events.service';
 import { NotificationsController } from '@modules/notifications/notifications.controller';
 import { NotificationsService } from '@modules/notifications/notifications.service';
-import { RescheduleRequestsController } from '@modules/reschedule-requests/reschedule-requests.controller';
+import {
+  BookingRescheduleRequestsController,
+  RescheduleRequestsController,
+} from '@modules/reschedule-requests/reschedule-requests.controller';
 import { RescheduleRequestsService } from '@modules/reschedule-requests/reschedule-requests.service';
 
 import type { INestApplication } from '@nestjs/common';
@@ -152,7 +155,14 @@ async function verify(): Promise<void> {
     );
 
     const moduleRef = await Test.createTestingModule({
-      controllers: [BookingsController, NotificationsController, RescheduleRequestsController],
+      // Both reschedule controllers are needed: the booking-scoped one owns
+      // GET /bookings/:bookingId/reschedule-requests/current.
+      controllers: [
+        BookingsController,
+        BookingRescheduleRequestsController,
+        NotificationsController,
+        RescheduleRequestsController,
+      ],
       providers: [
         BookingsService,
         NotificationEventsService,
@@ -288,28 +298,56 @@ async function verify(): Promise<void> {
         select: { meetingUrl: true, status: true, updatedAt: true },
       });
     }
-    /** Every authenticated read a participant can make about a booking. */
-    async function participantReads(bookingId: string): Promise<request.Response[]> {
+    /** One read plus the status its documented contract promises for that caller. */
+    interface ExpectedRead {
+      label: string;
+      expected: number;
+      response: request.Response;
+    }
+    async function expectRead(
+      label: string,
+      expected: number,
+      userId: string,
+      path: string,
+    ): Promise<ExpectedRead> {
+      return { label, expected, response: await call(userId, 'get', path) };
+    }
+    /** Every authenticated read a participant can make about a booking; all must succeed. */
+    async function participantReads(bookingId: string): Promise<ExpectedRead[]> {
+      const current = `/bookings/${bookingId}/reschedule-requests/current`;
       return Promise.all([
-        readClass(ids.student, bookingId),
-        readClass(ids.tutor, bookingId),
-        call(ids.student, 'get', '/bookings/me'),
-        call(ids.student, 'get', `/bookings/me/${bookingId}`),
-        call(ids.tutor, 'get', '/bookings/tutor'),
-        call(ids.student, 'get', `/bookings/${bookingId}/reschedule-requests/current`),
-        call(ids.tutor, 'get', `/bookings/${bookingId}/reschedule-requests/current`),
-        call(ids.student, 'get', '/notifications'),
-        call(ids.tutor, 'get', '/notifications'),
+        expectRead(
+          'student class details',
+          200,
+          ids.student,
+          `/bookings/${bookingId}/class-details`,
+        ),
+        expectRead('tutor class details', 200, ids.tutor, `/bookings/${bookingId}/class-details`),
+        expectRead('student booking list', 200, ids.student, '/bookings/me'),
+        expectRead('student booking detail', 200, ids.student, `/bookings/me/${bookingId}`),
+        expectRead('tutor booking list', 200, ids.tutor, '/bookings/tutor'),
+        expectRead('student current reschedule', 200, ids.student, current),
+        expectRead('tutor current reschedule', 200, ids.tutor, current),
+        expectRead('student inbox', 200, ids.student, '/notifications'),
+        expectRead('tutor inbox', 200, ids.tutor, '/notifications'),
       ]);
     }
-    function assertNoLink(responses: request.Response[], url: string, where: string): void {
-      responses.forEach((response, index) => {
-        assert.ok(response.status < 500, `${where} read #${index}: ${response.status}`);
+    /**
+     * Checks the status before the body, so an unmounted or failing route cannot pass as
+     * "no leak" by returning an error page that happens not to contain the URL.
+     */
+    function assertNoLink(reads: ExpectedRead[], url: string, where: string): void {
+      for (const { label, expected, response } of reads) {
+        assert.equal(
+          response.status,
+          expected,
+          `${where}: ${label} returned ${response.status}, expected ${expected}`,
+        );
         assert.ok(
           !JSON.stringify(response.body).includes(url),
-          `${where} read #${index} leaked the meeting link`,
+          `${where}: ${label} leaked the meeting link`,
         );
-      });
+      }
     }
 
     // 1. Missing link: confirmed booking with no URL still renders class details for both sides.
@@ -452,22 +490,22 @@ async function verify(): Promise<void> {
     pass('five save-versus-cancel races end canceled with no 5xx and no visible link');
 
     // 7. Confirmed links never appear on list/notification surfaces or to outsiders.
+    const confirmedCurrent = `/bookings/${confirmedId}/reschedule-requests/current`;
     const outsiderReads = await Promise.all([
-      call(ids.otherStudent, 'get', '/bookings/me'),
-      call(ids.otherTutor, 'get', '/bookings/tutor'),
-      call(ids.otherStudent, 'get', `/bookings/me/${confirmedId}`),
-      call(ids.otherTutor, 'get', `/bookings/${confirmedId}/reschedule-requests/current`),
-      call(ids.otherStudent, 'get', '/notifications'),
-      call(ids.admin, 'get', '/notifications'),
+      expectRead('outsider student list', 200, ids.otherStudent, '/bookings/me'),
+      expectRead('outsider tutor list', 200, ids.otherTutor, '/bookings/tutor'),
+      // The student detail route answers a foreign booking as missing (no foreignOwner body).
+      expectRead('outsider student detail', 404, ids.otherStudent, `/bookings/me/${confirmedId}`),
+      expectRead('outsider student reschedule', 403, ids.otherStudent, confirmedCurrent),
+      expectRead('outsider tutor reschedule', 403, ids.otherTutor, confirmedCurrent),
+      expectRead('outsider student inbox', 200, ids.otherStudent, '/notifications'),
+      expectRead('admin inbox', 200, ids.admin, '/notifications'),
     ]);
     assertNoLink(outsiderReads, link, 'outsider');
-    const lists = await Promise.all([
-      call(ids.student, 'get', '/bookings/me'),
-      call(ids.tutor, 'get', '/bookings/tutor'),
-      call(ids.student, 'get', '/notifications'),
-      call(ids.tutor, 'get', '/notifications'),
-    ]);
-    assertNoLink(lists, link, 'list');
+    const lists = (await participantReads(confirmedId)).filter(
+      (read) => !read.label.endsWith('class details'),
+    );
+    assertNoLink(lists, link, 'confirmed');
     pass(
       'the link only appears on the class-details read, never on lists, inboxes or to outsiders',
     );
