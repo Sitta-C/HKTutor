@@ -168,7 +168,9 @@ function ClassDetailsContent({
           ? text.attendanceFuture
           : attendanceState === 'unavailable'
             ? text.attendanceUnavailable
-            : null;
+            : attendanceState === 'saved'
+              ? text.attendanceReplay
+              : null;
   async function handleAttendanceSaved(summary: AttendanceSummary): Promise<void> {
     if (!active.current) return;
     setSavedAttendance(summary);
@@ -293,6 +295,7 @@ function ClassDetailsContent({
               />
             )}
           </div>
+          {/*Attendance section*/}
           {isTutor && (
             <div className={styles.attendanceArea}>
               {savedAttendance ? (
