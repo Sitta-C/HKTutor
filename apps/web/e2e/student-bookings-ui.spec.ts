@@ -147,6 +147,22 @@ async function mockBookings(
         json: options.detailStatus ? { message: 'Preview error' } : detail,
       });
     }
+    if (path.endsWith('/class-details')) {
+      return route.fulfill({
+        json: {
+          bookingId: detail.id,
+          status: detail.status,
+          startAt: detail.slot.startAtUtc,
+          endAt: detail.slot.endAtUtc,
+          subject: { id: detail.listing.subjectId, name: detail.listing.subjectName },
+          meetingUrl: null,
+          attendance: null,
+          participants: {
+            tutor: { id: detail.tutor.tutorId, detail: { displayName: detail.tutor.displayName } },
+          },
+        },
+      });
+    }
     unexpected.push(`${request.method()} ${path}`);
     return route.fulfill({ status: 404, json: { message: 'Unexpected preview request' } });
   });

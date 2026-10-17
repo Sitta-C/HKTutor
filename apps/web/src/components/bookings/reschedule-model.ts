@@ -15,6 +15,8 @@ export interface RescheduleBooking {
   slot: BookingQuoteSlot;
 }
 
+export const RESCHEDULE_CUTOFF_MS = 86_400_000;
+
 export function filterTargetSlots(
   slots: RescheduleTargetSlot[],
   tutorId: string,
@@ -45,7 +47,8 @@ export function getRescheduleActions(
   now: number,
 ): RescheduleAction[] {
   const eligible =
-    booking.status === 'CONFIRMED' && Date.parse(booking.slot.startAtUtc) - now >= 86_400_000;
+    booking.status === 'CONFIRMED' &&
+    Date.parse(booking.slot.startAtUtc) - now >= RESCHEDULE_CUTOFF_MS;
   const pending = current.request?.status === 'PENDING';
   const requester = current.request?.requestedById === userId;
   const hasFutureTarget =

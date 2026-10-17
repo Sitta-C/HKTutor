@@ -2,6 +2,8 @@ export const rescheduleCopy = {
   en: {
     title: 'Reschedule class',
     open: 'Reschedule',
+    cutoffPassed: 'Rescheduling deadline passed',
+    conditions: 'View rescheduling conditions',
     view: 'View reschedule request',
     review: 'Review reschedule request',
     close: 'Hide reschedule details',
@@ -50,6 +52,8 @@ export const rescheduleCopy = {
   th: {
     title: 'เลื่อนเวลาคลาส',
     open: 'ขอเลื่อนเวลา',
+    cutoffPassed: 'พ้นกำหนดขอเลื่อนเวลา',
+    conditions: 'ดูเงื่อนไขเลื่อนเวลา',
     view: 'ดูคำขอเลื่อนเวลา',
     review: 'พิจารณาคำขอเลื่อนเวลา',
     close: 'ซ่อนรายละเอียดเลื่อนเวลา',

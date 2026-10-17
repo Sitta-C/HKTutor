@@ -1,0 +1,32 @@
+.compact {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px 16px;
+  min-width: 0;
+}
+
+.compact .cancel {
+  --action-ink: var(--color-red-800);
+  --action-wash: color-mix(in srgb, var(--color-red-800) 5%, var(--color-paper));
+}
+
+.compact > [role='alert'] {
+  grid-column: 1 / -1;
+}
+
+.refresh {
+  grid-column: 1 / -1;
+  justify-self: start;
+}
+
+@container (max-width: 460px) {
+  .compact {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 4px;
+  }
+
+  .cancel {
+    justify-self: start;
+  }
+}

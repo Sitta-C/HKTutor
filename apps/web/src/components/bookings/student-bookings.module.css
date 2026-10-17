@@ -235,6 +235,19 @@
   padding: 22px 26px;
   border-top: 1px dashed var(--color-paper-edge);
 }
+.detailActions {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  padding: 18px 26px;
+  border-top: 1px dashed var(--color-paper-edge);
+}
+
+@container (max-width: 600px) {
+  .detailActions {
+    padding-inline: 18px;
+  }
+}
 .notice {
   margin-bottom: 18px;
   padding: 10px 13px;

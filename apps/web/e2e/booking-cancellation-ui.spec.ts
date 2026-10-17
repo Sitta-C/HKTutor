@@ -111,6 +111,25 @@ async function setup(
     if (path === '/bookings/me/cancel-preview') {
       return route.fulfill({ json: { ...booking, status } });
     }
+    if (path === '/bookings/cancel-preview/class-details') {
+      return route.fulfill({
+        json: {
+          bookingId: booking.id,
+          status,
+          startAt: booking.slot.startAtUtc,
+          endAt: booking.slot.endAtUtc,
+          subject: { id: booking.listing.subjectId, name: booking.listing.subjectName },
+          meetingUrl: null,
+          attendance: null,
+          participants: {
+            tutor: {
+              id: booking.tutor.tutorId,
+              detail: { displayName: booking.tutor.displayName },
+            },
+          },
+        },
+      });
+    }
     if (path === '/bookings/me' || path === '/bookings/tutor') {
       const filter = url.searchParams.get('status');
       const items = !filter || filter === status ? [{ ...booking, status }] : [];
@@ -187,12 +206,12 @@ test('a stale payment refresh cannot overwrite successful cancellation', async (
   const dialog = page.getByRole('dialog');
   await dialog.getByLabel('Reason for cancellation').fill('Schedule conflict');
   await dialog.getByRole('button', { name: 'Confirm cancellation', exact: true }).click();
-  const notice = page.locator('section[aria-label="Cancel class"] > p').first();
-  await expect(notice).toHaveText('This class has already been canceled.');
+  const action = page.getByRole('button', { name: 'Cancel class', exact: true });
+  await expect(action).toHaveAccessibleDescription('This class has already been canceled.');
 
   release();
   await expect(refresh).toBeEnabled();
-  await expect(notice).toHaveText('This class has already been canceled.');
+  await expect(action).toHaveAccessibleDescription('This class has already been canceled.');
   await expect(page.getByRole('button', { name: 'Cancel class', exact: true })).toBeDisabled();
   await expect(page.getByRole('button', { name: 'Record mock payment', exact: true })).toHaveCount(
     0,
@@ -212,7 +231,7 @@ test('a stale payment refresh cannot overwrite successful cancellation', async (
   );
   await refresh.click();
   await expect(page.locator('main')).toContainText('Updated Mathematics');
-  await expect(notice).toHaveText('This class has already been canceled.');
+  await expect(action).toHaveAccessibleDescription('This class has already been canceled.');
 });
 
 test('Thai cancellation remains usable at 320px', async ({ page }, testInfo) => {
@@ -305,9 +324,7 @@ for (const role of ['STUDENT', 'TUTOR'] as const) {
     await expect(dialog).not.toBeVisible();
     expect(requests).toEqual([{ reason: 'Schedule conflict' }]);
     if (role === 'STUDENT') {
-      await expect(page.locator('section[aria-label="Cancel class"] > p').first()).toHaveText(
-        'This class has already been canceled.',
-      );
+      await expect(action).toHaveAccessibleDescription('This class has already been canceled.');
       await expect(action).toBeDisabled();
     } else {
       await expect(page.getByRole('article')).toHaveCount(0);

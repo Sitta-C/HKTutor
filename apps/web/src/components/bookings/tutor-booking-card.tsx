@@ -1,11 +1,14 @@
 'use client';
 
+import Link from 'next/link';
 import { useState } from 'react';
 
 import { BookingCancellation } from '@/components/bookings/booking-cancellation';
 import { formatBookingDocketSlot } from '@/components/bookings/booking-docket-model';
 import { bookingRequestCopy } from '@/components/bookings/booking-request-copy';
 import { BookingStatusBadge, formatMoney } from '@/components/bookings/booking-ui';
+import { classDetailsCopy } from '@/components/bookings/class-details-copy';
+import { hasClassroomAccess } from '@/components/bookings/class-details-model';
 import { rescheduleCopy } from '@/components/bookings/reschedule-copy';
 import { RescheduleRequestPanel } from '@/components/bookings/reschedule-request-panel';
 import {
@@ -14,7 +17,11 @@ import {
 } from '@/components/bookings/tutor-booking-inbox-model';
 import { DashboardIcon } from '@/components/dashboard/dashboard-icon';
 import { StatusBadge } from '@/components/ui/notebook';
-import { NotebookAction } from '@/components/ui/notebook-action';
+import {
+  NotebookAction,
+  NotebookActionContent,
+  notebookActionClass,
+} from '@/components/ui/notebook-action';
 import { useAuth } from '@/lib/auth-context';
 
 import styles from './tutor-booking-inbox.module.css';
@@ -166,20 +173,23 @@ export function TutorBookingCard({
         </p>
       )}
 
-      <div className="col-span-full min-w-0">
-        <BookingCancellation
-          booking={booking}
-          disabled={isSubmitting || isStale || rescheduleBusy || rescheduleStale}
-          onBusyChange={setCancellationBusy}
-          onCanceled={onCanceled}
-          onRefresh={onRefresh}
-          onRequiresRefresh={() => setCancellationRequiresRefresh(true)}
-        />
+      <div className={styles.bookingActions}>
         {user && (
           <RescheduleRequestPanel
             key={`${booking.id}:${booking.slot.id}:${booking.status}`}
             booking={booking}
             tutorId={user.id}
+            className={styles.reschedule}
+            leadingAction={
+              hasClassroomAccess(booking.status) && (
+                <Link
+                  href={`/dashboard/bookings/${encodeURIComponent(booking.id)}`}
+                  className={notebookActionClass({ tone: 'secondary', size: 'compact' })}
+                >
+                  <NotebookActionContent>{classDetailsCopy[language].title}</NotebookActionContent>
+                </Link>
+              )
+            }
             disabled={isSubmitting || isStale || cancellationBusy || cancellationRequiresRefresh}
             onBusyChange={setRescheduleBusy}
             onRequiresRefresh={() => setRescheduleStale(true)}
@@ -190,6 +200,15 @@ export function TutorBookingCard({
             onRefresh={onRefresh}
           />
         )}
+        <BookingCancellation
+          booking={booking}
+          compact
+          disabled={isSubmitting || isStale || rescheduleBusy || rescheduleStale}
+          onBusyChange={setCancellationBusy}
+          onCanceled={onCanceled}
+          onRefresh={onRefresh}
+          onRequiresRefresh={() => setCancellationRequiresRefresh(true)}
+        />
       </div>
       <span className="sr-only">{copy.bangkokTime}</span>
     </article>

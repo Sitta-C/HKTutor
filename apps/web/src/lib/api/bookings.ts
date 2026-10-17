@@ -3,7 +3,9 @@
 import { authenticatedFetch } from '@/lib/api/client';
 
 import type {
+  BookingClassDetails,
   BookingDetail,
+  BookingMeetingLink,
   BookingQuote,
   BookingResponse,
   CancelBookingResult,
@@ -61,6 +63,22 @@ export function getMyBookings(queryInput: MyBookingsQuery = {}): Promise<MyBooki
 
 export function getMyBooking(bookingId: string): Promise<BookingDetail> {
   return authenticatedFetch<BookingDetail>(`/bookings/me/${encodeURIComponent(bookingId)}`);
+}
+
+export function getClassDetails(bookingId: string): Promise<BookingClassDetails> {
+  return authenticatedFetch<BookingClassDetails>(
+    `/bookings/${encodeURIComponent(bookingId)}/class-details`,
+  );
+}
+
+export function updateMeetingLink(
+  bookingId: string,
+  meetingUrl: string,
+): Promise<BookingMeetingLink> {
+  return authenticatedFetch<BookingMeetingLink>(
+    `/bookings/tutor/${encodeURIComponent(bookingId)}/meeting-link`,
+    { method: 'PUT', body: JSON.stringify({ meetingUrl }) },
+  );
 }
 
 export function cancelBooking(bookingId: string, reason: string): Promise<CancelBookingResult> {

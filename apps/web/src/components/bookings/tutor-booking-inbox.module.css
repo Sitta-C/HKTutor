@@ -84,6 +84,18 @@
 .row:last-child {
   border-bottom: 0;
 }
+.bookingActions {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  padding-top: 12px;
+  border-top: 1px dashed var(--color-paper-edge);
+}
+
+.reschedule {
+  min-width: 0;
+}
 .row::before {
   position: absolute;
   top: 26px;
