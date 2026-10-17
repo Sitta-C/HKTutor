@@ -2,13 +2,13 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+import { AttendanceForm } from '@/components/bookings/attendance-form';
 import { classDetailsCopy } from '@/components/bookings/class-details-copy';
 import {
   attendanceEligibility,
   hasClassroomAccess,
   isSafeMeetingUrl,
 } from '@/components/bookings/class-details-model';
-import { AttendanceForm } from '@/components/bookings/attendance-form';
 import { MeetingLinkEditor } from '@/components/bookings/meeting-link-editor';
 import { SavedAttendanceSummary } from '@/components/bookings/saved-attendance-summary';
 import { tutorBookingInboxCopy } from '@/components/bookings/tutor-booking-inbox-copy';

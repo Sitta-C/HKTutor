@@ -3,8 +3,8 @@
 import Link from 'next/link';
 import { useState } from 'react';
 
-import { BookingCancellation } from '@/components/bookings/booking-cancellation';
 import { AttendanceForm } from '@/components/bookings/attendance-form';
+import { BookingCancellation } from '@/components/bookings/booking-cancellation';
 import { formatBookingDocketSlot } from '@/components/bookings/booking-docket-model';
 import { bookingRequestCopy } from '@/components/bookings/booking-request-copy';
 import { BookingStatusBadge, formatMoney } from '@/components/bookings/booking-ui';
