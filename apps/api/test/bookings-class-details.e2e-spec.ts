@@ -264,6 +264,9 @@ describe('Meeting links and participant class details (S2-T32)', () => {
     { meetingUrl: 'https:/example.com' },
     { meetingUrl: 'https://' },
     { meetingUrl: ' https://example.com ' },
+    { meetingUrl: 'https://example.com/a\u0000b' },
+    { meetingUrl: 'https://example.com/a b' },
+    { meetingUrl: 'https://meet.example.com@evil.example/x' },
     { meetingUrl: UPDATED_URL, tutorUserId: TUTOR_ID },
   ])('rejects invalid input %p without mutation', async (body) => {
     const saved = structuredClone(booking);
