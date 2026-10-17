@@ -177,6 +177,9 @@ importers:
       tailwindcss:
         specifier: ^4.3.3
         version: 4.3.3
+      validator:
+        specifier: 13.15.35
+        version: 13.15.35
     devDependencies:
       '@hktutor/eslint-config':
         specifier: workspace:*
@@ -196,6 +199,9 @@ importers:
       '@types/react-dom':
         specifier: ^19
         version: 19.2.4(@types/react@19.2.18)
+      '@types/validator':
+        specifier: 13.15.10
+        version: 13.15.10
       babel-plugin-react-compiler:
         specifier: 1.0.0
         version: 1.0.0
