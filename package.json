@@ -32,7 +32,8 @@
     "db:verify:tutor-verification": "pnpm --filter @hktutor/api db:verify:tutor-verification",
     "db:verify:message-pagination": "pnpm --filter @hktutor/api db:verify:message-pagination",
     "db:verify:tutor-ranking": "pnpm --filter @hktutor/api db:verify:tutor-ranking",
-    "db:verify:notification-events": "pnpm --filter @hktutor/api db:verify:notification-events"
+    "db:verify:notification-events": "pnpm --filter @hktutor/api db:verify:notification-events",
+    "db:verify:notification-access": "pnpm --filter @hktutor/api db:verify:notification-access"
   },
   "devDependencies": {
     "@hktutor/eslint-config": "workspace:*",
