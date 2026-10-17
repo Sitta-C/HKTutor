@@ -439,7 +439,8 @@ export class MockPaymentResponseDto {
 
 export class UpdateMeetingLinkDto {
   @ApiProperty({
-    description: 'The online meeting URL for the class (must be an https URL).',
+    description:
+      'The online meeting URL for the class: an https URL without embedded credentials, whitespace or control characters.',
     example: 'https://meet.google.com/abc-defg-hij',
   })
   @IsString()
