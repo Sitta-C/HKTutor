@@ -583,3 +583,34 @@ export interface EmailRequestResponse {
   message: string;
   emailFlow: EmailFlow;
 }
+
+export interface InboxNotification {
+  id: string;
+  eventType: string;
+  title: string;
+  bookingId: string | null;
+  readAt: string | null;
+  createdAt: string;
+}
+
+export interface NotificationPage {
+  items: InboxNotification[];
+  nextCursor: string | null;
+  unreadCount: number;
+}
+
+export interface NotificationsQuery {
+  cursor?: string;
+  limit?: number;
+  unreadOnly?: boolean;
+}
+
+export interface NotificationReadReceipt {
+  id: string;
+  readAt: string;
+}
+
+export interface NotificationsReadAllResult {
+  updatedCount: number;
+  readAt: string | null;
+}
