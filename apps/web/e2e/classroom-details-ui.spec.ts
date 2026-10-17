@@ -560,13 +560,16 @@ test('tutor can mark an ended class attended and sees the persisted Bangkok time
   state.details.endAt = '2020-10-17T09:00:00.000Z';
   await page.goto(PATH);
   const panel = page.getByRole('region', { name: classDetailsCopy.en.title });
-  await expect(panel.getByRole('button', { name: classDetailsCopy.en.attended })).toBeEnabled();
-  await expect(panel.getByRole('button', { name: classDetailsCopy.en.absent })).toBeEnabled();
-  await panel.getByRole('button', { name: classDetailsCopy.en.attended }).click();
+  await expect(panel.getByRole('radio', { name: classDetailsCopy.en.attended })).toBeEnabled();
+  await expect(panel.getByRole('radio', { name: classDetailsCopy.en.absent })).toBeEnabled();
+  await panel.getByRole('radio', { name: classDetailsCopy.en.attended }).check();
+  await panel
+    .getByRole('button', { name: classDetailsCopy.en.recordAttendance, exact: true })
+    .click();
   await expect(page.getByText(classDetailsCopy.en.attendanceSaved, { exact: true })).toBeVisible();
   await expect(panel).toContainText(classDetailsCopy.en.attended);
   await expect(panel).toContainText('17:00');
-  await expect(panel.getByRole('button', { name: classDetailsCopy.en.absent })).toHaveCount(0);
+  await expect(panel.getByRole('radio', { name: classDetailsCopy.en.absent })).toHaveCount(0);
   expect(state.attendanceWrites).toEqual([{ attendance: 'ATTENDED' }]);
   expect(state.details.status).toBe('COMPLETED');
 });
@@ -580,10 +583,13 @@ test('tutor cannot optimistically change attendance when the server reports a co
   state.attendanceFailure = 409;
   await page.goto(PATH);
   const panel = page.getByRole('region', { name: classDetailsCopy.en.title });
-  await panel.getByRole('button', { name: classDetailsCopy.en.absent }).click();
+  await panel.getByRole('radio', { name: classDetailsCopy.en.absent }).check();
+  await panel
+    .getByRole('button', { name: classDetailsCopy.en.recordAttendance, exact: true })
+    .click();
   await expect(panel.getByRole('alert')).toHaveText(classDetailsCopy.en.attendanceConflict);
-  await expect(panel.getByRole('button', { name: classDetailsCopy.en.attended })).toBeDisabled();
-  await expect(panel.getByRole('button', { name: classDetailsCopy.en.absent })).toBeDisabled();
+  await expect(panel.getByRole('radio', { name: classDetailsCopy.en.attended })).toBeDisabled();
+  await expect(panel.getByRole('radio', { name: classDetailsCopy.en.absent })).toBeDisabled();
   expect(state.details.attendance).toBeNull();
   expect(state.details.status).toBe('CONFIRMED');
   expect(state.attendanceWrites).toEqual([{ attendance: 'ABSENT' }]);
@@ -596,8 +602,8 @@ test('tutor sees disabled attendance choices and an explanation before an eligib
   await page.goto(PATH);
   const panel = page.getByRole('region', { name: classDetailsCopy.en.title });
   await expect(panel).toContainText(classDetailsCopy.en.attendancePending);
-  await expect(panel.getByRole('button', { name: classDetailsCopy.en.attended })).toBeDisabled();
-  await expect(panel.getByRole('button', { name: classDetailsCopy.en.absent })).toBeDisabled();
+  await expect(panel.getByRole('radio', { name: classDetailsCopy.en.attended })).toBeDisabled();
+  await expect(panel.getByRole('radio', { name: classDetailsCopy.en.absent })).toBeDisabled();
 });
 
 test('tutor reads and updates completed meeting links using the existing API', async ({ page }) => {

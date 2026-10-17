@@ -32,6 +32,7 @@ export function AttendanceForm({
   const text = classDetailsCopy[language];
   const toast = useNotebookToast();
   const [pending, setPending] = useState(false);
+  const [selection, setSelection] = useState<AttendanceStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
   const gate = useRef(false);
   const active = useRef(false);
@@ -43,8 +44,8 @@ export function AttendanceForm({
     };
   }, []);
 
-  async function save(attendance: AttendanceStatus): Promise<void> {
-    if (gate.current || disabled || disabledMessage) {
+  async function save(): Promise<void> {
+    if (gate.current || disabled || disabledMessage || selection === null) {
       return;
     }
     gate.current = true;
@@ -52,7 +53,7 @@ export function AttendanceForm({
     onBusyChange?.(true);
     setError(null);
     try {
-      const summary = await updateAttendance(bookingId, attendance);
+      const summary = await updateAttendance(bookingId, selection);
       if (!active.current) {
         return;
       }
@@ -100,26 +101,44 @@ export function AttendanceForm({
       aria-busy={pending}
     >
       <h3 id="attendance-title">{text.attendanceTitle}</h3>
-      <p className={styles.note}>{text.attendanceHelp}</p>
+      <p className={styles.note} id="attendance-help">
+        {disabledMessage ?? text.attendanceHelp}
+      </p>
       {error && <p role="alert">{error}</p>}
-      {disabledMessage && <p className={styles.note}>{disabledMessage}</p>}
+      <fieldset
+        className={styles.attendanceChoices}
+        disabled={pending || disabled || Boolean(disabledMessage)}
+        aria-describedby="attendance-help"
+      >
+        <legend className={styles.caption}>{text.attendanceChoice}</legend>
+        {(['ATTENDED', 'ABSENT'] as const).map((value) => (
+          <label className={styles.attendanceChoice} key={value}>
+            <input
+              type="radio"
+              name={`attendance-${bookingId}`}
+              value={value}
+              checked={selection === value}
+              onChange={() => setSelection(value)}
+            />
+            {value === 'ATTENDED' ? text.attended : text.absent}
+          </label>
+        ))}
+      </fieldset>
+      {!disabledMessage && (
+        <p className={styles.note} id="attendance-finality">
+          {text.attendanceFinality}
+        </p>
+      )}
       <div className={styles.attendanceActions}>
         <NotebookAction
           type="button"
           size="compact"
-          disabled={pending || disabled || Boolean(disabledMessage)}
-          onClick={() => void save('ATTENDED')}
+          tone={selection === 'ABSENT' ? 'danger' : 'primary'}
+          disabled={pending || disabled || Boolean(disabledMessage) || selection === null}
+          aria-describedby={disabledMessage ? 'attendance-help' : 'attendance-finality'}
+          onClick={() => void save()}
         >
-          {pending ? text.attendanceSaving : text.attended}
-        </NotebookAction>
-        <NotebookAction
-          type="button"
-          size="compact"
-          tone="danger"
-          disabled={pending || disabled || Boolean(disabledMessage)}
-          onClick={() => void save('ABSENT')}
-        >
-          {text.absent}
+          {pending ? text.attendanceSaving : text.recordAttendance}
         </NotebookAction>
       </div>
     </section>

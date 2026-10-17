@@ -145,6 +145,20 @@
   gap: 10px;
   margin-top: 14px;
 }
+.attendanceChoices {
+  margin: 14px 0 0;
+  padding: 0;
+  border: 0;
+}
+.attendanceChoice {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 20px 8px 0;
+}
+.attendanceChoice input {
+  accent-color: var(--class-accent);
+}
 .attendanceSummary {
   padding: 14px 16px;
   border: 1px solid var(--color-paper-edge);

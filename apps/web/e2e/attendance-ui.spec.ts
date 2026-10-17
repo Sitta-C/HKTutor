@@ -233,6 +233,42 @@ async function setup(
 }
 
 for (const language of ['en', 'th'] as const) {
+  test(`${language}: choosing attendance requires a separate deliberate submission`, async ({
+    page,
+  }) => {
+    const { state, panel, text } = await setup(page, { language });
+    const attended = panel.getByRole('radio', { name: text.attended, exact: true });
+    const absent = panel.getByRole('radio', { name: text.absent, exact: true });
+    const record = panel.getByRole('button', { name: text.recordAttendance, exact: true });
+    await expect(attended).not.toBeChecked();
+    await expect(absent).not.toBeChecked();
+    await expect(record).toBeDisabled();
+    await expect(panel.getByText(text.attendanceFinality, { exact: true })).toBeVisible();
+
+    await absent.check();
+    await attended.focus();
+    await attended.press('Space');
+    await expect(attended).toBeChecked();
+    await expect(absent).not.toBeChecked();
+    await attended.press('ArrowRight');
+    await expect(absent).toBeChecked();
+    expect(state.puts).toEqual([]);
+    expect(state.details.status).toBe('CONFIRMED');
+    expect(state.details.attendance).toBeNull();
+
+    await absent.press('Tab');
+    await expect(record).toBeFocused();
+    await record.press('Enter');
+    await expect(
+      panel.getByRole('region', { name: text.attendanceTitle }).locator('time'),
+    ).toHaveAttribute('datetime', NOW);
+    await expect(panel.getByRole('region', { name: text.attendanceTitle })).toContainText(
+      text.absent,
+    );
+    expect(state.puts).toEqual([{ attendance: 'ABSENT' }]);
+    expect(state.mutations).toBe(1);
+  });
+
   for (const attendance of ['ATTENDED', 'ABSENT'] as const) {
     test(`${language} ${attendance}: saves once, refreshes status, and retains the persisted time after reload`, async ({
       page,
@@ -243,11 +279,13 @@ for (const language of ['en', 'th'] as const) {
       const { state, panel, text } = await setup(page, { language });
       const reads = state.reads;
       await panel
-        .getByRole('button', {
+        .getByRole('radio', {
           name: attendance === 'ATTENDED' ? text.attended : text.absent,
           exact: true,
         })
-        .click();
+        .check();
+      expect(state.puts).toEqual([]);
+      await panel.getByRole('button', { name: text.recordAttendance, exact: true }).click();
       const summary = panel.getByRole('region', { name: text.attendanceTitle });
       await expect(summary).toContainText(attendance === 'ATTENDED' ? text.attended : text.absent);
       await expect(summary.locator('time')).toHaveAttribute('datetime', NOW);
@@ -284,9 +322,11 @@ for (const [options, reason] of [
 ] as const) {
   test(`disables attendance for ${JSON.stringify(options)}`, async ({ page }) => {
     const { state, panel, text } = await setup(page, options);
-    await expect(panel.getByRole('button', { name: text.attended, exact: true })).toBeDisabled();
-    await expect(panel.getByRole('button', { name: text.absent, exact: true })).toBeDisabled();
+    await expect(panel.getByRole('radio', { name: text.attended, exact: true })).toBeDisabled();
+    await expect(panel.getByRole('radio', { name: text.absent, exact: true })).toBeDisabled();
     await expect(panel).toContainText(text[reason]);
+    await expect(panel.getByText(text.attendanceHelp, { exact: true })).toHaveCount(0);
+    await expect(panel.getByRole('button', { name: text.recordAttendance })).toBeDisabled();
     expect(state.puts).toEqual([]);
   });
 }
@@ -297,18 +337,19 @@ test('student cannot record attendance or request a saved receipt', async ({ pag
     status: 'COMPLETED',
     attendance: 'ATTENDED',
   });
-  await expect(panel.getByRole('button', { name: text.attended, exact: true })).toHaveCount(0);
-  await expect(panel.getByRole('button', { name: text.absent, exact: true })).toHaveCount(0);
+  await expect(panel.getByRole('radio', { name: text.attended, exact: true })).toHaveCount(0);
+  await expect(panel.getByRole('radio', { name: text.absent, exact: true })).toHaveCount(0);
   expect(state.puts).toEqual([]);
 });
 
 test('an open future class becomes eligible when its end time passes', async ({ page }) => {
   const { state, panel, text } = await setup(page, { endAt: '2026-10-17T10:01:00.000Z' });
-  await expect(panel.getByRole('button', { name: text.attended, exact: true })).toBeDisabled();
+  await expect(panel.getByRole('radio', { name: text.attended, exact: true })).toBeDisabled();
   state.serverNow += 120_000;
   await page.clock.fastForward(120_000);
-  await expect(panel.getByRole('button', { name: text.attended, exact: true })).toBeEnabled();
-  await panel.getByRole('button', { name: text.attended, exact: true }).click();
+  await expect(panel.getByRole('radio', { name: text.attended, exact: true })).toBeEnabled();
+  await panel.getByRole('radio', { name: text.attended, exact: true }).check();
+  await panel.getByRole('button', { name: text.recordAttendance, exact: true }).click();
   await expect(
     panel.getByRole('region', { name: text.attendanceTitle }).locator('time'),
   ).toBeVisible();
@@ -332,8 +373,8 @@ test('attendance becomes eligible when a fresh read finishes around the class en
     millisecondsUntilEnd = delay;
     await panel.getByRole('button', { name: text.refresh }).click();
     await expect(panel.getByText(text.loading, { exact: true })).toHaveCount(0);
-    await expect(panel.getByRole('button', { name: text.attended, exact: true })).toBeEnabled();
-    await expect(panel.getByRole('button', { name: text.absent, exact: true })).toBeEnabled();
+    await expect(panel.getByRole('radio', { name: text.attended, exact: true })).toBeEnabled();
+    await expect(panel.getByRole('radio', { name: text.absent, exact: true })).toBeEnabled();
     await expect(panel.getByText(text.attendanceFuture, { exact: true })).toHaveCount(0);
   }
 
@@ -347,7 +388,8 @@ test('same-value race is a success and preserves the original UTC receipt in Ban
 }) => {
   const { state, panel, text } = await setup(page);
   state.competingAttendance = 'ATTENDED';
-  await panel.getByRole('button', { name: text.attended, exact: true }).click();
+  await panel.getByRole('radio', { name: text.attended, exact: true }).check();
+  await panel.getByRole('button', { name: text.recordAttendance, exact: true }).click();
   await expect(page.getByText(text.attendanceReplay, { exact: true })).toBeVisible();
   const time = panel.getByRole('region', { name: text.attendanceTitle }).locator('time');
   await expect(time).toHaveAttribute('datetime', ORIGINAL_RECEIPT);
@@ -361,10 +403,11 @@ test('different-value race shows 409, locks stale choices, and refreshes the per
 }) => {
   const { state, panel, text } = await setup(page);
   state.competingAttendance = 'ATTENDED';
-  await panel.getByRole('button', { name: text.absent, exact: true }).click();
+  await panel.getByRole('radio', { name: text.absent, exact: true }).check();
+  await panel.getByRole('button', { name: text.recordAttendance, exact: true }).click();
   await expect(panel.getByRole('alert')).toHaveText(text.attendanceConflict);
-  await expect(panel.getByRole('button', { name: text.attended, exact: true })).toBeDisabled();
-  await expect(panel.getByRole('button', { name: text.absent, exact: true })).toBeDisabled();
+  await expect(panel.getByRole('radio', { name: text.attended, exact: true })).toBeDisabled();
+  await expect(panel.getByRole('radio', { name: text.absent, exact: true })).toBeDisabled();
   await panel.getByRole('button', { name: text.refresh }).click();
   const summary = panel.getByRole('region', { name: text.attendanceTitle });
   await expect(summary).toContainText(text.attended);
@@ -379,7 +422,8 @@ for (const status of [400, 403, 404, 409, 500]) {
   }) => {
     const { state, panel, text } = await setup(page);
     state.failure = status;
-    await panel.getByRole('button', { name: text.absent, exact: true }).click();
+    await panel.getByRole('radio', { name: text.absent, exact: true }).check();
+    await panel.getByRole('button', { name: text.recordAttendance, exact: true }).click();
     await expect(panel.getByRole('alert')).toHaveText(
       status === 403
         ? text.attendanceOwner
@@ -389,12 +433,12 @@ for (const status of [400, 403, 404, 409, 500]) {
             ? text.attendanceConflict
             : text.attendanceFailed,
     );
-    await expect(panel.getByRole('button', { name: text.absent, exact: true })).toBeDisabled();
+    await expect(panel.getByRole('radio', { name: text.absent, exact: true })).toBeDisabled();
     expect(state.details.attendance).toBeNull();
     expect(state.mutations).toBe(0);
     state.failure = 0;
     await panel.getByRole('button', { name: text.refresh }).click();
-    await expect(panel.getByRole('button', { name: text.absent, exact: true })).toBeEnabled();
+    await expect(panel.getByRole('radio', { name: text.absent, exact: true })).toBeEnabled();
   });
 }
 
@@ -406,10 +450,11 @@ for (const [code, message] of [
     const { state, panel, text } = await setup(page);
     state.failure = 409;
     state.failureCode = code;
-    await panel.getByRole('button', { name: text.attended, exact: true }).click();
+    await panel.getByRole('radio', { name: text.attended, exact: true }).check();
+    await panel.getByRole('button', { name: text.recordAttendance, exact: true }).click();
     await expect(panel.getByRole('alert')).toHaveText(text[message]);
-    await expect(panel.getByRole('button', { name: text.attended, exact: true })).toBeDisabled();
-    await expect(panel.getByRole('button', { name: text.absent, exact: true })).toBeDisabled();
+    await expect(panel.getByRole('radio', { name: text.attended, exact: true })).toBeDisabled();
+    await expect(panel.getByRole('radio', { name: text.absent, exact: true })).toBeDisabled();
     expect(state.mutations).toBe(0);
   });
 }
@@ -418,11 +463,12 @@ test('pending attendance locks both choices, meeting-link saving and refresh', a
   const { state, panel, text } = await setup(page);
   const gate = Promise.withResolvers<void>();
   state.gate = gate.promise;
-  await panel.getByRole('button', { name: text.absent, exact: true }).click();
+  await panel.getByRole('radio', { name: text.absent, exact: true }).check();
+  await panel.getByRole('button', { name: text.recordAttendance, exact: true }).click();
   await expect(
     panel.getByRole('button', { name: text.attendanceSaving, exact: true }),
   ).toBeDisabled();
-  await expect(panel.getByRole('button', { name: text.absent, exact: true })).toBeDisabled();
+  await expect(panel.getByRole('radio', { name: text.absent, exact: true })).toBeDisabled();
   await expect(panel.getByRole('button', { name: text.save, exact: true })).toBeDisabled();
   await expect(panel.getByRole('button', { name: text.refresh })).toBeDisabled();
   expect(state.puts).toHaveLength(1);
@@ -439,10 +485,10 @@ test('meeting-link save locks attendance until its refresh completes', async ({ 
   const gate = Promise.withResolvers<void>();
   state.meetingGate = gate.promise;
   await panel.getByRole('button', { name: text.save, exact: true }).click();
-  await expect(panel.getByRole('button', { name: text.attended, exact: true })).toBeDisabled();
-  await expect(panel.getByRole('button', { name: text.absent, exact: true })).toBeDisabled();
+  await expect(panel.getByRole('radio', { name: text.attended, exact: true })).toBeDisabled();
+  await expect(panel.getByRole('radio', { name: text.absent, exact: true })).toBeDisabled();
   gate.resolve();
-  await expect(panel.getByRole('button', { name: text.attended, exact: true })).toBeEnabled();
+  await expect(panel.getByRole('radio', { name: text.attended, exact: true })).toBeEnabled();
   expect(state.puts).toEqual([]);
 });
 
@@ -451,9 +497,10 @@ test('lost attendance response is reconciled after refresh without another first
 }) => {
   const { state, panel, text } = await setup(page);
   state.loseResponse = true;
-  await panel.getByRole('button', { name: text.attended, exact: true }).click();
+  await panel.getByRole('radio', { name: text.attended, exact: true }).check();
+  await panel.getByRole('button', { name: text.recordAttendance, exact: true }).click();
   await expect(panel.getByRole('alert')).toHaveText(text.attendanceFailed);
-  await expect(panel.getByRole('button', { name: text.attended, exact: true })).toBeDisabled();
+  await expect(panel.getByRole('radio', { name: text.attended, exact: true })).toBeDisabled();
   expect(state.mutations).toBe(1);
   state.loseResponse = false;
   await panel.getByRole('button', { name: text.refresh }).click();
@@ -469,9 +516,10 @@ test('failed status refresh after save hides the stale form and recovers the sav
 }) => {
   const { state, panel, text } = await setup(page);
   state.readFailure = 500;
-  await panel.getByRole('button', { name: text.attended, exact: true }).click();
+  await panel.getByRole('radio', { name: text.attended, exact: true }).check();
+  await panel.getByRole('button', { name: text.recordAttendance, exact: true }).click();
   await expect(panel.getByRole('alert')).toHaveText(text.failed);
-  await expect(panel.getByRole('button', { name: text.absent, exact: true })).toHaveCount(0);
+  await expect(panel.getByRole('radio', { name: text.absent, exact: true })).toHaveCount(0);
   state.readFailure = 0;
   await panel.getByRole('button', { name: text.refresh }).click();
   await expect(

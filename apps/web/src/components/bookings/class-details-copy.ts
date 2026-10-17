@@ -27,6 +27,10 @@ export const classDetailsCopy = {
     notFound: 'Classroom not found.',
     attendanceTitle: 'Attendance',
     attendanceHelp: 'Record the student’s attendance after the class has ended.',
+    attendanceChoice: 'Attendance result',
+    recordAttendance: 'Record attendance',
+    attendanceFinality:
+      'Check your selection before recording. Saved attendance cannot be changed.',
     attended: 'Attended',
     absent: 'Absent',
     attendanceSaving: 'Saving attendance…',
@@ -73,6 +77,10 @@ export const classDetailsCopy = {
     notFound: 'ไม่พบห้องเรียนนี้',
     attendanceTitle: 'การเข้าเรียน',
     attendanceHelp: 'บันทึกการเข้าเรียนของนักเรียนหลังจากคลาสสิ้นสุดแล้ว',
+    attendanceChoice: 'ผลการเข้าเรียน',
+    recordAttendance: 'บันทึกการเข้าเรียน',
+    attendanceFinality:
+      'ตรวจสอบผลที่เลือกก่อนบันทึก ข้อมูลการเข้าเรียนที่บันทึกแล้วไม่สามารถแก้ไขได้',
     attended: 'เข้าเรียน',
     absent: 'ขาดเรียน',
     attendanceSaving: 'กำลังบันทึกการเข้าเรียน…',

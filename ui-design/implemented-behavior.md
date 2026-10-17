@@ -635,6 +635,26 @@ missing booking reads, delayed responses after cancellation, and pending payment
 desktop, tablet and mobile. Run `pnpm --filter @hktutor/web test:e2e classroom-details-ui.spec.ts
 --workers=2`; these tests intercept APIs and do not verify live persistence.
 
+## Tutor attendance (S2-T36)
+
+Tutors record attendance from classroom details after their confirmed class ends. Native Attended
+and Absent radio choices start unselected; choosing or changing a value sends no request. A separate
+Record attendance action submits the selected value, with a warning that saved attendance cannot
+be changed. Only the final absence action uses the danger tone. Ineligible states replace generic
+guidance with one eligibility explanation and disable both selection and recording.
+
+Eligibility updates while the page stays open, including when the class ends between a details
+read and its effect. Pending attendance locks the choices, recording, meeting-link editing and
+refresh. Rejected or uncertain writes require refreshed details before another attempt. Successful
+records display the server's saved value and original timestamp in Bangkok time; a failed receipt
+read retains the known value without inventing a timestamp. Booking cards link to details and do
+not submit attendance directly.
+
+`attendance-ui.spec.ts` covers both values and languages, keyboard selection and separate submission,
+deadline transitions, saved-state reload, races and recovery across desktop, tablet and mobile.
+Run `pnpm --filter @hktutor/web test:e2e attendance-ui.spec.ts --workers=2`; browser tests intercept
+APIs and do not verify live database persistence.
+
 ## Password recovery
 
 The login's small recovery link opens `/forgot-password`, using the existing auth shell and notebook
