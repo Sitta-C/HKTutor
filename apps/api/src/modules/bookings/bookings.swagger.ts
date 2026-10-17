@@ -50,7 +50,11 @@ export function BookingsControllerDoc(): ClassDecorator {
 export function CreateBookingDoc(): MethodDecorator {
   return applyDecorators(
     ApiExtraModels(CreateBookingDto, BookingResponseDto),
-    ApiOperation({ summary: 'Create booking' }),
+    ApiOperation({
+      summary: 'Create booking',
+      description:
+        'STUDENT with a completed profile only. The listing must be published by a VERIFIED tutor and the slot must be a future slot of that tutor with no pending or confirmed booking. Amounts are derived on the server. The booking starts PENDING, reserves the slot atomically, and notifies the tutor (BOOKING_CREATED).',
+    }),
     ApiBearerAuth(JWT_BEARER_AUTH),
     ApiCreatedResponse({
       description: 'The slot was reserved for the student in a single transaction',
@@ -139,7 +143,11 @@ export function CreateBookingDoc(): MethodDecorator {
 export function GetBookingQuoteDoc(): MethodDecorator {
   return applyDecorators(
     ApiExtraModels(GetBookingQuoteQueryDto, BookingQuoteResponseDto),
-    ApiOperation({ summary: 'Get an authoritative booking quote' }),
+    ApiOperation({
+      summary: 'Get an authoritative booking quote',
+      description:
+        'Runs the same student, listing, tutor and slot checks as booking creation and returns the server-derived amounts without reserving anything.',
+    }),
     ApiBearerAuth(JWT_BEARER_AUTH),
     ApiQuery({
       example: 'a22c4b4d-4f8e-4de6-9b3d-faae7db5eb6d',
@@ -254,7 +262,11 @@ export function GetBookingQuoteDoc(): MethodDecorator {
 export function GetMyBookingsDoc(): MethodDecorator {
   return applyDecorators(
     ApiExtraModels(GetMyBookingsQueryDto, MyBookingsResponseDto),
-    ApiOperation({ summary: "List the authenticated student's bookings" }),
+    ApiOperation({
+      summary: "List the authenticated student's bookings",
+      description:
+        'Only bookings owned by the signed-in student, optionally filtered by status and paginated. Each item carries its status and payment state.',
+    }),
     ApiBearerAuth(JWT_BEARER_AUTH),
     ApiQuery({
       enum: BookingStatus,
@@ -357,7 +369,11 @@ export function GetMyBookingsDoc(): MethodDecorator {
 export function GetMyBookingDoc(): MethodDecorator {
   return applyDecorators(
     ApiExtraModels(BookingDetailResponseDto),
-    ApiOperation({ summary: "Get one of the authenticated student's bookings by ID" }),
+    ApiOperation({
+      summary: "Get one of the authenticated student's bookings by ID",
+      description:
+        'Owner-only read. A booking that belongs to another student is answered as missing (404) so its existence is not disclosed.',
+    }),
     ApiBearerAuth(JWT_BEARER_AUTH),
     ApiOkResponse({
       description:
@@ -451,7 +467,11 @@ export function GetMyBookingDoc(): MethodDecorator {
 export function GetTutorBookingsDoc(): MethodDecorator {
   return applyDecorators(
     ApiExtraModels(GetTutorBookingsQueryDto, TutorBookingsResponseDto),
-    ApiOperation({ summary: "List the authenticated tutor's assigned bookings" }),
+    ApiOperation({
+      summary: "List the authenticated tutor's assigned bookings",
+      description:
+        'Only bookings for the signed-in tutor, optionally filtered by status and start time and paginated.',
+    }),
     ApiBearerAuth(JWT_BEARER_AUTH),
     ApiQuery({
       enum: BookingStatus,
@@ -619,7 +639,11 @@ function tutorBookingActionErrorResponses(): MethodDecorator[] {
 export function ConfirmTutorBookingDoc(): MethodDecorator {
   return applyDecorators(
     ApiExtraModels(ConfirmBookingDto, TutorBookingActionResponseDto),
-    ApiOperation({ summary: "Confirm one of the authenticated tutor's pending bookings" }),
+    ApiOperation({
+      summary: "Confirm one of the authenticated tutor's pending bookings",
+      description:
+        'PENDING moves to CONFIRMED and the student is notified (BOOKING_CONFIRMED). CONFIRMED is not terminal: it later becomes COMPLETED when attendance is recorded, CANCELED by a participant cancellation, or moves slot through an approved reschedule. Any non-pending booking returns 409.',
+    }),
     ApiBearerAuth(JWT_BEARER_AUTH),
     ApiBody({ required: false, type: ConfirmBookingDto }),
     ApiOkResponse({
@@ -643,7 +667,11 @@ export function ConfirmTutorBookingDoc(): MethodDecorator {
 export function RejectTutorBookingDoc(): MethodDecorator {
   return applyDecorators(
     ApiExtraModels(RejectBookingDto, TutorBookingActionResponseDto),
-    ApiOperation({ summary: "Reject one of the authenticated tutor's pending bookings" }),
+    ApiOperation({
+      summary: "Reject one of the authenticated tutor's pending bookings",
+      description:
+        'PENDING moves to CANCELED, which releases the slot, and the student is notified (BOOKING_REJECTED). Any non-pending booking returns 409.',
+    }),
     ApiBearerAuth(JWT_BEARER_AUTH),
     ApiBody({ required: false, type: RejectBookingDto }),
     ApiOkResponse({
@@ -741,6 +769,8 @@ export function CreateMockPaymentDoc(): MethodDecorator {
     ApiExtraModels(CreateMockPaymentDto, MockPaymentResponseDto),
     ApiOperation({
       summary: "Record the demo payment for one of the authenticated student's confirmed bookings",
+      description:
+        'Demonstration only: no card or bank data is accepted. Only a CONFIRMED and UNPAID booking can be paid; amount must equal the stored net amount and reference must be unique. A PENDING booking returns 400; other states, an already-paid booking and a reused reference return 409.',
     }),
     ApiBearerAuth(JWT_BEARER_AUTH),
     ApiBody({ required: true, type: CreateMockPaymentDto }),
@@ -770,6 +800,8 @@ export function UpdateMeetingLinkDoc(): MethodDecorator {
     ApiOperation({
       summary:
         "Update the meeting link for one of the authenticated tutor's confirmed or completed bookings",
+      description:
+        'Owning tutor only. The link must be an https:// URL without credentials, whitespace or control characters. Pending, canceled and expired bookings return 409.',
     }),
     ApiBearerAuth(JWT_BEARER_AUTH),
     ApiBody({ required: true, type: UpdateMeetingLinkDto }),
@@ -855,7 +887,11 @@ export function UpdateMeetingLinkDoc(): MethodDecorator {
 export function GetBookingClassDetailDoc(): MethodDecorator {
   return applyDecorators(
     ApiExtraModels(BookingClassDetailDto),
-    ApiOperation({ summary: 'Get class details for a booking participant' }),
+    ApiOperation({
+      summary: 'Get class details for a booking participant',
+      description:
+        "The booking's student or tutor only. The meeting link is returned only for CONFIRMED and COMPLETED bookings; for other states it is null even if one is stored.",
+    }),
     ApiBearerAuth(JWT_BEARER_AUTH),
     ApiOkResponse({
       description:
@@ -955,7 +991,11 @@ export function GetBookingClassDetailDoc(): MethodDecorator {
 export function CancelBookingDoc(): MethodDecorator {
   return applyDecorators(
     ApiExtraModels(CancelBookingDto, CanceledBookingDto),
-    ApiOperation({ summary: 'Cancel a booking' }),
+    ApiOperation({
+      summary: 'Cancel a booking',
+      description:
+        'Either participant may cancel a PENDING or CONFIRMED, UNPAID booking at least 24 hours (inclusive) before the class starts, with a non-blank reason. The slot is released and the other participant is notified (BOOKING_CANCELED).',
+    }),
     ApiBearerAuth(JWT_BEARER_AUTH),
     ApiBody({ required: true, type: CancelBookingDto }),
     ApiOkResponse({

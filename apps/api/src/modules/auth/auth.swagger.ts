@@ -180,7 +180,11 @@ export function RegisterAuthDoc(): MethodDecorator {
 
 export function VerifyEmailAuthDoc(): MethodDecorator {
   return applyDecorators(
-    ApiOperation({ summary: 'Verify an email address and start a session' }),
+    ApiOperation({
+      summary: 'Verify an email address and start a session',
+      description:
+        'Consumes a single-use email verification token (only its SHA-256 hash is stored), sets emailVerifiedAt, returns a short-lived access token and sets the rotating HttpOnly refresh cookie. Invalid, expired or already-used tokens return 400 and create no session.',
+    }),
     ApiBody({
       schema: {
         example: { token: 'random-verification-token-from-email' },
@@ -276,7 +280,11 @@ export function EmailFlowAuthDoc(): MethodDecorator {
 
 export function LoginAuthDoc(): MethodDecorator {
   return applyDecorators(
-    ApiOperation({ summary: 'Sign in with email and password' }),
+    ApiOperation({
+      summary: 'Sign in with email and password',
+      description:
+        'Argon2id password check for an active account with a verified email. Returns a short-lived access token and sets the rotating HttpOnly refresh cookie; the access token stays in browser memory only.',
+    }),
     ApiBody({
       schema: {
         example: { email: 'admin@example.com', password: 'admin12345' },
@@ -305,7 +313,11 @@ export function LoginAuthDoc(): MethodDecorator {
 
 export function RefreshAuthDoc(): MethodDecorator {
   return applyDecorators(
-    ApiOperation({ summary: 'Rotate the refresh session and issue a new access token' }),
+    ApiOperation({
+      summary: 'Rotate the refresh session and issue a new access token',
+      description:
+        'Uses the HttpOnly refresh cookie only. Each refresh rotates the session; presenting an already-rotated token is treated as reuse and revokes the session.',
+    }),
     ApiCookieAuth(REFRESH_COOKIE_AUTH),
     ApiOkResponse({
       description: 'Session rotated; access token returned and refresh cookie replaced',
@@ -322,7 +334,11 @@ export function RefreshAuthDoc(): MethodDecorator {
 
 export function LogoutAuthDoc(): MethodDecorator {
   return applyDecorators(
-    ApiOperation({ summary: 'Revoke the current refresh session' }),
+    ApiOperation({
+      summary: 'Revoke the current refresh session',
+      description:
+        'Idempotent: revokes the session behind the refresh cookie when one is present and always clears the cookie. Later protected requests with that session return 401.',
+    }),
     ApiCookieAuth(REFRESH_COOKIE_AUTH),
     ApiNoContentResponse({
       description: 'Session revoked when present and refresh cookie cleared',
@@ -338,9 +354,17 @@ export function LogoutAuthDoc(): MethodDecorator {
 
 export function AcceptPrivacyNoticeAuthDoc(): MethodDecorator {
   return applyDecorators(
-    ApiOperation({ summary: 'Accept the current privacy notice' }),
+    ApiOperation({
+      summary: 'Accept the current privacy notice',
+      description:
+        'Records consentAcceptedAt and the policy version for the signed-in user. consent must be true and policyVersion must be a supported version.',
+    }),
     ApiBearerAuth(JWT_BEARER_AUTH),
     ApiOkResponse({ description: 'Current consent version recorded for the signed-in user' }),
+    ApiBadRequestResponse({
+      description: 'consent is false or not a boolean, or policyVersion is not a supported version',
+      schema: errorSchema,
+    }),
     ApiUnauthorizedResponse({
       description: 'Access token or its backing session is missing, invalid, expired, or revoked',
       schema: errorSchema,
@@ -350,7 +374,11 @@ export function AcceptPrivacyNoticeAuthDoc(): MethodDecorator {
 
 export function GetCurrentUserAuthDoc(): MethodDecorator {
   return applyDecorators(
-    ApiOperation({ summary: 'Return the user authenticated by the access token' }),
+    ApiOperation({
+      summary: 'Return the user authenticated by the access token',
+      description:
+        'Returns the id, email and role derived from the access token and its active session; never from client-supplied IDs.',
+    }),
     ApiBearerAuth(JWT_BEARER_AUTH),
     ApiOkResponse({ description: 'Current authenticated user', schema: publicUserSchema }),
     ApiUnauthorizedResponse({
