@@ -34,7 +34,7 @@ import type {
   TutorBookingDecisionError,
   TutorInboxFilter,
 } from '@/components/bookings/tutor-booking-inbox-model';
-import type { SavedAttendanceSummary, TutorBookingView } from '@/lib/api/types';
+import type { TutorBookingView } from '@/lib/api/types';
 
 interface DecisionTarget {
   booking: TutorBookingView;
@@ -177,21 +177,6 @@ export default function TutorBookingInbox() {
       ? copy.countUnavailable
       : formatInboxCount(total, filterLabel(filter), copy);
 
-  const handleAttendanceSaved = (result: SavedAttendanceSummary) => {
-    setItems((current) =>
-      current.map((item) =>
-        item.id === result.bookingId ? { ...item, status: result.status } : item,
-      ),
-    );
-    const sync = planInboxSyncAfterDecision({ filter, page, status: result.status, total });
-    setTotal(sync.total);
-    if (sync.needsReload) {
-      prepareLoad();
-      setPage(sync.page);
-      setReloadKey((value) => value + 1);
-    }
-  };
-
   return (
     <div className={styles.page}>
       <div className={styles.heading}>
@@ -299,7 +284,6 @@ export default function TutorBookingInbox() {
                         ),
                       );
                     }}
-                    onAttendanceSaved={handleAttendanceSaved}
                   />
                 ))}
               </div>
