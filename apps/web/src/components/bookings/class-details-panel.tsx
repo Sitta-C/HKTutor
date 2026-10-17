@@ -176,13 +176,15 @@ function ClassDetailsContent({
     ) {
       return;
     }
-    const remaining = new Date(details.endAt).getTime() - Date.now();
-    if (!Number.isFinite(remaining) || remaining < 0) {
+    const endAt = new Date(details.endAt).getTime();
+    if (!Number.isFinite(endAt) || endAt <= now) {
       return;
     }
+    // Catch up if the deadline passed after the read's clock snapshot but before this effect.
+    const remaining = endAt - Date.now();
     const timer = window.setTimeout(
       () => setNow(Date.now()),
-      Math.min(remaining + 1, 2_147_483_647),
+      Math.min(Math.max(remaining + 1, 0), 2_147_483_647),
     );
     return () => window.clearTimeout(timer);
   }, [details, isTutor, now, user?.id]);

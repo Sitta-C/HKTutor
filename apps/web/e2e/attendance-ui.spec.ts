@@ -314,6 +314,34 @@ test('an open future class becomes eligible when its end time passes', async ({ 
   ).toBeVisible();
 });
 
+test('attendance becomes eligible when a fresh read finishes around the class end', async ({
+  page,
+}) => {
+  const { state, panel, text } = await setup(page, { endAt: '2026-10-17T11:00:00.000Z' });
+  const initialReads = state.reads;
+  let millisecondsUntilEnd = 1;
+  await page.route(`**/api/v1/bookings/${BOOKING_ID}/class-details`, async (route) => {
+    state.reads += 1;
+    const currentTime = await page.evaluate(() => Date.now());
+    state.details.endAt = new Date(currentTime + millisecondsUntilEnd).toISOString();
+    await route.fulfill({ json: state.details });
+  });
+
+  // Exercise reads just before the deadline, including a deadline crossed during rendering.
+  for (const delay of [1, 3, 5, 8, 12, 20, 30, 50]) {
+    millisecondsUntilEnd = delay;
+    await panel.getByRole('button', { name: text.refresh }).click();
+    await expect(panel.getByText(text.loading, { exact: true })).toHaveCount(0);
+    await expect(panel.getByRole('button', { name: text.attended, exact: true })).toBeEnabled();
+    await expect(panel.getByRole('button', { name: text.absent, exact: true })).toBeEnabled();
+    await expect(panel.getByText(text.attendanceFuture, { exact: true })).toHaveCount(0);
+  }
+
+  expect(state.reads).toBe(initialReads + 8);
+  expect(state.puts).toEqual([]);
+  expect(state.unexpected).toEqual([]);
+});
+
 test('same-value race is a success and preserves the original UTC receipt in Bangkok time', async ({
   page,
 }) => {
