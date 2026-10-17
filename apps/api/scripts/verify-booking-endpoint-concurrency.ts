@@ -145,6 +145,7 @@ async function createAuthenticatedStudent(
 async function cleanup(prisma: PrismaService): Promise<void> {
   await dropRejectRollbackProbe(prisma);
   await dropPaymentRollbackProbe(prisma);
+  await prisma.notification.deleteMany({ where: { booking: { slotId: { in: slotIds } } } });
   await prisma.booking.deleteMany({ where: { slotId: { in: slotIds } } });
   await prisma.availabilitySlot.deleteMany({ where: { id: { in: slotIds } } });
   await prisma.studentProfile.deleteMany({ where: { userId: { in: studentIds } } });

@@ -40,6 +40,7 @@ import {
   TutorBookingActionResponseDto,
   TutorBookingsResponseDto,
 } from '@modules/bookings/bookings.dto';
+import { NotificationEventsService } from '@modules/notifications/notification-events.service';
 import {
   isPublicTutorVerificationStatus,
   publicTutorWhere,
@@ -349,7 +350,10 @@ type BookingValidationIntent = 'create' | 'quote';
 export class BookingsService {
   private readonly logger = new Logger(BookingsService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notificationEvents: NotificationEventsService,
+  ) {}
 
   async create(input: CreateBookingInput): Promise<BookingResponseDto> {
     if (!input.studentUserId) {
@@ -387,6 +391,16 @@ export class BookingsService {
             subtotalAmount: amounts.subtotalAmount,
             tutorProfileId: slot.tutorProfileId,
           },
+        });
+
+        await this.notificationEvents.write(tx, {
+          actorUserId: input.studentUserId,
+          booking: {
+            id: booking.id,
+            studentUserId: input.studentUserId,
+            tutorProfileId: slot.tutorProfileId,
+          },
+          eventType: 'BOOKING_CREATED',
         });
 
         return {
@@ -913,7 +927,7 @@ export class BookingsService {
     data: Prisma.BookingUncheckedUpdateManyInput,
   ): Promise<TutorBookingActionResponseDto> {
     const booking = await this.prisma.booking.findUnique({
-      select: { status: true, tutorProfileId: true },
+      select: { status: true, studentUserId: true, tutorProfileId: true },
       where: { id: input.bookingId },
     });
 
@@ -953,6 +967,13 @@ export class BookingsService {
             slotId: updated.slotId,
             status: { in: [BookingStatus.PENDING, BookingStatus.CONFIRMED] },
           },
+        });
+
+        await this.notificationEvents.write(tx, {
+          actorUserId: input.tutorUserId,
+          booking: { ...booking, id: updated.id },
+          eventType:
+            updated.status === BookingStatus.CONFIRMED ? 'BOOKING_CONFIRMED' : 'BOOKING_REJECTED',
         });
 
         return {
@@ -1124,6 +1145,12 @@ export class BookingsService {
         const updated = await tx.booking.findUniqueOrThrow({
           select: { canceledAt: true, id: true, status: true },
           where: { id: input.bookingId },
+        });
+
+        await this.notificationEvents.write(tx, {
+          actorUserId: input.userId,
+          booking,
+          eventType: 'BOOKING_CANCELED',
         });
 
         return {

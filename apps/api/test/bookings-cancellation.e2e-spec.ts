@@ -11,6 +11,7 @@ import { ResourceOwnershipGuard } from '@modules/auth/ownership.guard';
 import { RolesGuard } from '@modules/auth/roles.guard';
 import { BookingsController } from '@modules/bookings/bookings.controller';
 import { BookingsService } from '@modules/bookings/bookings.service';
+import { NotificationEventsService } from '@modules/notifications/notification-events.service';
 
 import type { INestApplication } from '@nestjs/common';
 import type { App } from 'supertest/types';
@@ -55,6 +56,7 @@ describe('Booking cancellation (S2-T24 e2e)', () => {
     const moduleFixture = await Test.createTestingModule({
       controllers: [BookingsController],
       providers: [
+        { provide: NotificationEventsService, useValue: { write: jest.fn() } },
         BookingsService,
         JwtAuthGuard,
         ResourceOwnershipGuard,

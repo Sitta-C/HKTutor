@@ -15,6 +15,7 @@ import {
 } from '@generated/prisma/enums';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import { CURRENT_PRIVACY_POLICY_VERSION } from '@modules/auth/auth.constants';
+import { NotificationEventsService } from '@modules/notifications/notification-events.service';
 import {
   DEFAULT_RESCHEDULE_REASON,
   RescheduleRequestsService,
@@ -110,7 +111,11 @@ describe('RescheduleRequestsService', () => {
     );
 
     const moduleRef = await Test.createTestingModule({
-      providers: [RescheduleRequestsService, { provide: PrismaService, useValue: mockPrisma }],
+      providers: [
+        { provide: NotificationEventsService, useValue: { write: jest.fn() } },
+        RescheduleRequestsService,
+        { provide: PrismaService, useValue: mockPrisma },
+      ],
     }).compile();
 
     service = moduleRef.get<RescheduleRequestsService>(RescheduleRequestsService);
@@ -843,6 +848,7 @@ describe('RescheduleRequestsService', () => {
     });
 
     const mockPendingRequestForReject = () => ({
+      bookingId: BOOKING_ID,
       booking: { studentUserId: STUDENT_ID, tutorProfileId: TUTOR_ID },
       id: REQUEST_ID,
       requestedById: STUDENT_ID,
@@ -902,6 +908,7 @@ describe('RescheduleRequestsService', () => {
     });
 
     const mockPendingRequestForWithdraw = () => ({
+      bookingId: BOOKING_ID,
       booking: { studentUserId: STUDENT_ID, tutorProfileId: TUTOR_ID },
       id: REQUEST_ID,
       requestedById: STUDENT_ID,

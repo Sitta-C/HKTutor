@@ -21,6 +21,7 @@ import { ResourceOwnershipGuard } from '@modules/auth/ownership.guard';
 import { RolesGuard } from '@modules/auth/roles.guard';
 import { BookingsController } from '@modules/bookings/bookings.controller';
 import { BookingsService } from '@modules/bookings/bookings.service';
+import { NotificationEventsService } from '@modules/notifications/notification-events.service';
 import {
   BookingRescheduleRequestsController,
   RescheduleRequestsController,
@@ -180,6 +181,7 @@ async function main(): Promise<void> {
         RescheduleRequestsController,
       ],
       providers: [
+        NotificationEventsService,
         BookingsService,
         RescheduleRequestsService,
         JwtAuthGuard,
@@ -500,6 +502,7 @@ async function main(): Promise<void> {
     cancelGate?.resume.release();
     try {
       await prisma.rescheduleRequest.deleteMany({ where: { bookingId: { in: created.bookings } } });
+      await prisma.notification.deleteMany({ where: { bookingId: { in: created.bookings } } });
       await prisma.booking.deleteMany({ where: { id: { in: created.bookings } } });
       await prisma.availabilitySlot.deleteMany({ where: { id: { in: created.slots } } });
       await prisma.teachingListing.deleteMany({ where: { id: listingId } });

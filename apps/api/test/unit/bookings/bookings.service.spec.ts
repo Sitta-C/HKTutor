@@ -19,6 +19,7 @@ import {
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import { BookingSlotStatus } from '@modules/bookings/bookings.dto';
 import { BookingsService } from '@modules/bookings/bookings.service';
+import { NotificationEventsService } from '@modules/notifications/notification-events.service';
 
 import type { BookingResponseDto } from '@modules/bookings/bookings.dto';
 import type { CreateBookingInput } from '@modules/bookings/bookings.service';
@@ -108,6 +109,7 @@ describe('BookingsService', () => {
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
+        { provide: NotificationEventsService, useValue: { write: jest.fn() } },
         BookingsService,
         {
           provide: PrismaService,

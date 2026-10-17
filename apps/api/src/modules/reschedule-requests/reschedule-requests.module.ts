@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 
 import { DatabaseModule } from '@infrastructure/database/database.module';
+import { NotificationsModule } from '@modules/notifications/notifications.module';
 import {
   BookingRescheduleRequestsController,
   RescheduleRequestsController,
@@ -10,7 +11,7 @@ import { RescheduleRequestsService } from '@modules/reschedule-requests/reschedu
 @Module({
   controllers: [BookingRescheduleRequestsController, RescheduleRequestsController],
   exports: [RescheduleRequestsService],
-  imports: [DatabaseModule],
+  imports: [DatabaseModule, NotificationsModule],
   providers: [RescheduleRequestsService],
 })
 export class RescheduleRequestsModule {}

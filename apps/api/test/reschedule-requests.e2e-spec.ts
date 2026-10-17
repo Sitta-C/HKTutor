@@ -15,6 +15,7 @@ import { JwtAuthGuard } from '@modules/auth/auth.guard';
 import { JwtTokenService } from '@modules/auth/jwt.service';
 import { ResourceOwnershipGuard } from '@modules/auth/ownership.guard';
 import { RolesGuard } from '@modules/auth/roles.guard';
+import { NotificationEventsService } from '@modules/notifications/notification-events.service';
 import {
   BookingRescheduleRequestsController,
   RescheduleRequestsController,
@@ -116,6 +117,7 @@ describe('Reschedule API regressions (HTTP with isolated persistence)', () => {
     const moduleFixture = await Test.createTestingModule({
       controllers: [BookingRescheduleRequestsController, RescheduleRequestsController],
       providers: [
+        { provide: NotificationEventsService, useValue: { write: jest.fn() } },
         RescheduleRequestsService,
         JwtAuthGuard,
         RolesGuard,
