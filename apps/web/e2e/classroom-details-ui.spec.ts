@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test';
 
 import { classDetailsCopy } from '@/components/bookings/class-details-copy';
+import { tutorBookingInboxCopy } from '@/components/bookings/tutor-booking-inbox-copy';
 
 import type { BookingClassDetails, BookingStatus } from '@/lib/api/types';
 import type { Page } from '@playwright/test';
@@ -18,6 +19,7 @@ async function setup(
     language?: 'th' | 'en';
     status?: BookingStatus;
     meetingUrl?: string | null;
+    studentNickname?: string;
     gate?: Promise<void>;
   } = {},
 ) {
@@ -34,7 +36,11 @@ async function setup(
       tutor: { id: 'tutor-preview', detail: { displayName: 'Teacher Pim' } },
       student: {
         id: 'student-preview',
-        detail: { firstName: 'Mint', lastName: 'Preview', nickname: 'Mint' },
+        detail: {
+          firstName: 'Mint',
+          lastName: 'Preview',
+          nickname: options.studentNickname ?? 'Mint',
+        },
       },
     },
   };
@@ -214,6 +220,7 @@ for (const language of ['th', 'en'] as const) {
     const panel = page.getByRole('region', { name: text.title });
     await expect(panel.getByText(text.missing)).toBeVisible();
     await expect(panel).toContainText('Teacher Pim');
+    await expect(panel.getByRole('heading', { name: 'Mint', exact: true })).toBeVisible();
     await expect(panel).toContainText('Mathematics');
     await expect(panel).toContainText('00:30');
     await expect(panel).toContainText('01:30');
@@ -268,9 +275,10 @@ for (const role of ['STUDENT', 'TUTOR'] as const) {
       const panel = page.getByRole('region', { name: 'Classroom details' });
       await expect(panel).toContainText(classDetailsCopy.en.hidden);
       await expect(panel.getByRole('link')).toHaveCount(0);
-      await expect(panel).toContainText('Mathematics');
-      await expect(panel).toContainText('Teacher Pim');
-      await expect(panel).toContainText('00:30');
+      const summary = role === 'TUTOR' ? panel : page.locator('[data-booking-summary]');
+      await expect(summary).toContainText('Mathematics');
+      await expect(summary).toContainText('Teacher Pim');
+      await expect(summary).toContainText('00:30');
       await expect(panel.getByLabel(classDetailsCopy.en.label, { exact: true })).toHaveCount(0);
       expect(state.reads).toBeGreaterThan(0);
       expect(state.writes).toHaveLength(0);
@@ -444,3 +452,84 @@ test('Thai editor fits a 320px screen with a long meeting URL', async ({ page },
   );
   await page.screenshot({ path: testInfo.outputPath('classroom-320.png'), fullPage: true });
 });
+
+for (const language of ['th', 'en'] as const) {
+  const text = classDetailsCopy[language];
+  test(`${language}: tutor uses the nickname fallback without displaying legal names`, async ({
+    page,
+  }) => {
+    const state = await setup(page, { language, studentNickname: '  ' });
+    state.details.participants.student.detail.firstName = 'LegalFirst';
+    state.details.participants.student.detail.lastName = 'LegalLast';
+    await page.goto(PATH);
+    const panel = page.getByRole('region', { name: text.title });
+    await expect(
+      panel.getByRole('heading', { name: tutorBookingInboxCopy[language].unknownStudent }),
+    ).toBeVisible();
+    await expect(panel).not.toContainText('LegalFirst');
+    await expect(panel).not.toContainText('LegalLast');
+    await expect(panel.getByLabel(text.label, { exact: true })).toBeVisible();
+  });
+
+  for (const role of ['STUDENT', 'TUTOR'] as const) {
+    test(`${language}: ${role} classroom layout and text refresh work across screen sizes`, async ({
+      page,
+    }, testInfo) => {
+      const state = await setup(page, { language, role, studentNickname: '  Mint  ' });
+      state.details.participants.student.detail.firstName = 'LegalFirst';
+      state.details.participants.student.detail.lastName = 'LegalLast';
+      await page.goto(PATH);
+      const panel = page.getByRole('region', { name: text.title });
+      const join = panel.getByRole('link', { name: text.join });
+      const refresh = panel.getByRole('button', { name: text.refresh });
+      await expect(join).toHaveAttribute('href', OLD_URL);
+      await expect(join).toHaveAttribute('target', '_blank');
+      await expect(join).toHaveAttribute('rel', 'noopener noreferrer');
+      await expect(refresh).toHaveAttribute('type', 'button');
+      await expect(refresh).not.toHaveAttribute('href');
+      await expect(refresh).toHaveCSS('text-decoration-line', 'underline');
+      await expect(refresh).toHaveCSS('border-top-width', '0px');
+      await expect(refresh).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
+      await expect(refresh).toHaveCSS('box-shadow', 'none');
+      await expect(refresh).toHaveCSS('font-weight', '400');
+      for (const width of [320, 768, 1440]) {
+        await page.setViewportSize({ width, height: 1000 });
+        await expect(join).toBeVisible();
+        if (role === 'TUTOR') {
+          await expect(panel.getByRole('heading', { name: 'Mint', exact: true })).toBeVisible();
+          await expect(panel).toContainText('Mathematics');
+          await expect(panel).toContainText('Teacher Pim');
+          await expect(panel.locator('time')).toHaveCount(2);
+          await expect(panel.getByLabel(text.label, { exact: true })).toBeVisible();
+          await expect(panel).not.toContainText('LegalFirst');
+          await expect(panel).not.toContainText('LegalLast');
+        } else {
+          await expect(panel.locator('time')).toHaveCount(0);
+          await expect(panel).not.toContainText('Mathematics');
+          await expect(panel).not.toContainText('Teacher Pim');
+          const summary = page.locator('[data-booking-summary]');
+          await expect(summary).toContainText('Mathematics');
+          await expect(summary).toContainText('Teacher Pim');
+          await expect(summary.locator('time')).toHaveCount(2);
+          await expect(panel.getByLabel(text.label, { exact: true })).toHaveCount(0);
+        }
+        expect(
+          await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+        ).toBe(true);
+        await panel.screenshot({
+          path: testInfo.outputPath(`classroom-${role}-${language}-${width}.png`),
+        });
+      }
+      await refresh.focus();
+      await expect(refresh).toBeFocused();
+      await expect(refresh).toHaveCSS('outline-style', 'solid');
+      const readsBeforeRefresh = state.reads;
+      await refresh.press('Enter');
+      await expect.poll(() => state.reads).toBeGreaterThan(readsBeforeRefresh);
+      await expect(refresh).toBeEnabled();
+      await expect(page).toHaveURL((url) => url.pathname === PATH);
+      expect(state.writes).toHaveLength(0);
+      expect(state.unexpected).toEqual([]);
+    });
+  }
+}
