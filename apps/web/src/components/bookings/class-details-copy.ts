@@ -36,12 +36,14 @@ export const classDetailsCopy = {
     attendanceFuture: 'Attendance can be recorded after the class ends.',
     attendancePending: 'Confirm this booking before attendance can be recorded.',
     attendanceUnavailable: 'Attendance is unavailable for this booking status.',
-    attendanceCompleted: 'Attendance has already been recorded for this class.',
     attendanceOwner: 'Only the tutor who owns this class can record attendance.',
     attendanceConflict:
       'Attendance was already recorded differently. Load the latest class details.',
     attendanceFailed:
       'Could not save attendance. Try again after loading the latest class details.',
+    attendanceRecover: 'Load the latest class details before recording attendance again.',
+    attendanceReceiptFailed:
+      'Could not verify the saved attendance time. Load the latest class details.',
   },
   th: {
     title: 'รายละเอียดห้องเรียน',
@@ -80,9 +82,11 @@ export const classDetailsCopy = {
     attendanceFuture: 'สามารถบันทึกการเข้าเรียนได้หลังจากคลาสสิ้นสุดแล้ว',
     attendancePending: 'ยืนยันการจองนี้ก่อนจึงจะบันทึกการเข้าเรียนได้',
     attendanceUnavailable: 'ไม่สามารถบันทึกการเข้าเรียนสำหรับสถานะการจองนี้ได้',
-    attendanceCompleted: 'คลาสนี้มีการบันทึกการเข้าเรียนแล้ว',
     attendanceOwner: 'เฉพาะติวเตอร์เจ้าของคลาสนี้เท่านั้นที่บันทึกการเข้าเรียนได้',
     attendanceConflict: 'มีการบันทึกการเข้าเรียนเป็นค่าอื่นแล้ว กรุณาโหลดรายละเอียดคลาสล่าสุด',
     attendanceFailed: 'บันทึกการเข้าเรียนไม่สำเร็จ กรุณาลองอีกครั้งหลังจากโหลดรายละเอียดคลาสล่าสุด',
+    attendanceRecover: 'กรุณาโหลดรายละเอียดคลาสล่าสุดก่อนบันทึกการเข้าเรียนอีกครั้ง',
+    attendanceReceiptFailed:
+      'ยืนยันเวลาที่บันทึกการเข้าเรียนไม่สำเร็จ กรุณาโหลดรายละเอียดคลาสล่าสุด',
   },
 };

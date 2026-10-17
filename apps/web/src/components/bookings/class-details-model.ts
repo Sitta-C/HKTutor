@@ -19,11 +19,28 @@ export function attendanceEligibility({
   attendance: 'ATTENDED' | 'ABSENT' | null;
   now?: number;
 }): 'eligible' | 'owner' | 'pending' | 'unavailable' | 'future' | 'saved' {
-  if (!isOwner) return 'owner';
-  if (attendance !== null) return 'saved';
-  if (status === 'PENDING') return 'pending';
-  if (status !== 'CONFIRMED') return 'unavailable';
-  if (new Date(endAt).getTime() > now) return 'future';
+  if (!isOwner) {
+    return 'owner';
+  }
+  if (status === 'PENDING') {
+    return 'pending';
+  }
+  if (status !== 'CONFIRMED' && status !== 'COMPLETED') {
+    return 'unavailable';
+  }
+  const end = new Date(endAt).getTime();
+  if (!Number.isFinite(end)) {
+    return 'unavailable';
+  }
+  if (end > now) {
+    return 'future';
+  }
+  if (attendance !== null) {
+    return status === 'COMPLETED' ? 'saved' : 'unavailable';
+  }
+  if (status === 'COMPLETED') {
+    return 'unavailable';
+  }
   return 'eligible';
 }
 

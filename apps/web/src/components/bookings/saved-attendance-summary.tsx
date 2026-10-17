@@ -10,7 +10,7 @@ export function SavedAttendanceSummary({
   attendance,
   language,
 }: {
-  attendance: SavedAttendance;
+  attendance: Pick<SavedAttendance, 'attendance'> & { attendanceMarkedAt: string | null };
   language: Language;
 }) {
   const text = classDetailsCopy[language];
@@ -19,12 +19,14 @@ export function SavedAttendanceSummary({
     <section className={styles.attendanceSummary} aria-label={text.attendanceTitle}>
       <p className={styles.attendanceLabel}>{text.attendanceTitle}</p>
       <p className={styles.attendanceValue}>{value}</p>
-      <p className={styles.attendanceTimestamp}>
-        {text.attendanceRecorded}:{' '}
-        <time dateTime={attendance.attendanceMarkedAt}>
-          {formatBangkokDateTime(attendance.attendanceMarkedAt, language)}
-        </time>
-      </p>
+      {attendance.attendanceMarkedAt && (
+        <p className={styles.attendanceTimestamp}>
+          {text.attendanceRecorded}:{' '}
+          <time dateTime={attendance.attendanceMarkedAt}>
+            {formatBangkokDateTime(attendance.attendanceMarkedAt, language)}
+          </time>
+        </p>
+      )}
     </section>
   );
 }

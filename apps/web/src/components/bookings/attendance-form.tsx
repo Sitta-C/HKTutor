@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import { classDetailsCopy } from '@/components/bookings/class-details-copy';
 import { NotebookAction } from '@/components/ui/notebook-action';
@@ -16,13 +16,17 @@ import type { AttendanceStatus, SavedAttendanceSummary } from '@/lib/api/types';
 export function AttendanceForm({
   bookingId,
   onSaved,
-  disabledMessage,
   onBusyChange,
+  onUncertain,
+  disabled = false,
+  disabledMessage,
 }: {
   bookingId: string;
   onSaved: (summary: SavedAttendanceSummary) => Promise<void>;
-  disabledMessage?: string;
   onBusyChange?: (busy: boolean) => void;
+  onUncertain?: (error: unknown) => void;
+  disabled?: boolean;
+  disabledMessage?: string | undefined;
 }) {
   const { language } = useLanguage();
   const text = classDetailsCopy[language];
@@ -30,30 +34,62 @@ export function AttendanceForm({
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const gate = useRef(false);
+  const active = useRef(false);
+
+  useEffect(() => {
+    active.current = true;
+    return () => {
+      active.current = false;
+    };
+  }, []);
 
   async function save(attendance: AttendanceStatus): Promise<void> {
-    if (gate.current) return;
+    if (gate.current || disabled || disabledMessage) {
+      return;
+    }
     gate.current = true;
     setPending(true);
     onBusyChange?.(true);
     setError(null);
     try {
       const summary = await updateAttendance(bookingId, attendance);
+      if (!active.current) {
+        return;
+      }
       toast.success(summary.idempotentReplay ? text.attendanceReplay : text.attendanceSaved);
       await onSaved(summary);
     } catch (caught: unknown) {
+      if (!active.current) {
+        return;
+      }
+      const code =
+        caught instanceof ApiError &&
+        caught.details !== null &&
+        typeof caught.details === 'object' &&
+        'code' in caught.details
+          ? caught.details.code
+          : undefined;
       const message =
         caught instanceof ApiError && caught.status === 409
-          ? text.attendanceConflict
+          ? code === 'CLASS_NOT_ENDED'
+            ? text.attendanceFuture
+            : code === 'BOOKING_NOT_CONFIRMED_OR_COMPLETED'
+              ? text.attendanceUnavailable
+              : text.attendanceConflict
           : caught instanceof ApiError && caught.status === 403
             ? text.attendanceOwner
-            : text.attendanceFailed;
+            : caught instanceof ApiError && caught.status === 404
+              ? text.notFound
+              : text.attendanceFailed;
       setError(message);
       toast.error(message);
+      onUncertain?.(caught);
     } finally {
       gate.current = false;
-      setPending(false);
-      onBusyChange?.(false);
+      if (active.current) {
+        onBusyChange?.(false);
+        setPending(false);
+      }
     }
   }
 
@@ -71,7 +107,7 @@ export function AttendanceForm({
         <NotebookAction
           type="button"
           size="compact"
-          disabled={pending || Boolean(disabledMessage)}
+          disabled={pending || disabled || Boolean(disabledMessage)}
           onClick={() => void save('ATTENDED')}
         >
           {pending ? text.attendanceSaving : text.attended}
@@ -80,7 +116,7 @@ export function AttendanceForm({
           type="button"
           size="compact"
           tone="danger"
-          disabled={pending || Boolean(disabledMessage)}
+          disabled={pending || disabled || Boolean(disabledMessage)}
           onClick={() => void save('ABSENT')}
         >
           {text.absent}
