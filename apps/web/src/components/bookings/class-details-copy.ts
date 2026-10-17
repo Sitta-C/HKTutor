@@ -2,7 +2,9 @@ export const classDetailsCopy = {
   en: {
     title: 'Classroom details',
     tutor: 'Tutor',
+    student: 'Student',
     subject: 'Subject',
+    entry: 'Classroom access',
     start: 'Start',
     end: 'End',
     timezone: 'Asia/Bangkok (UTC+7)',
@@ -27,7 +29,9 @@ export const classDetailsCopy = {
   th: {
     title: 'รายละเอียดห้องเรียน',
     tutor: 'ติวเตอร์',
+    student: 'นักเรียน',
     subject: 'วิชา',
+    entry: 'เข้าห้องเรียน',
     start: 'เริ่ม',
     end: 'สิ้นสุด',
     timezone: 'Asia/Bangkok (UTC+7)',

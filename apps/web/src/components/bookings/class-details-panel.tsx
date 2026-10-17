@@ -5,12 +5,15 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { classDetailsCopy } from '@/components/bookings/class-details-copy';
 import { hasClassroomAccess, isSafeMeetingUrl } from '@/components/bookings/class-details-model';
 import { MeetingLinkEditor } from '@/components/bookings/meeting-link-editor';
-import { NotebookAction } from '@/components/ui/notebook-action';
+import { tutorBookingInboxCopy } from '@/components/bookings/tutor-booking-inbox-copy';
+import { getStudentLabel } from '@/components/bookings/tutor-booking-inbox-model';
+import { DashboardIcon } from '@/components/dashboard/dashboard-icon';
+import { NotebookActionContent, notebookActionClass } from '@/components/ui/notebook-action';
 import { NotebookLoadingRegion } from '@/components/ui/notebook-loading';
 import { getClassDetails } from '@/lib/api/bookings';
 import { ApiError } from '@/lib/api/error';
 import { useAuth } from '@/lib/auth-context';
-import { formatBangkokDateTime } from '@/lib/date-time';
+import { formatBangkokShortDate, formatBangkokTime } from '@/lib/date-time';
 import { useLanguage } from '@/lib/i18n';
 
 import styles from './class-details.module.css';
@@ -20,9 +23,11 @@ import type { BookingClassDetails, BookingStatus } from '@/lib/api/types';
 export function ClassDetailsPanel({
   bookingId,
   status,
+  variant = 'full',
 }: {
   bookingId: string;
   status?: BookingStatus;
+  variant?: 'full' | 'compact';
 }) {
   const { user } = useAuth();
   // Remount for a different booking, session, or server-confirmed status. Old reads cannot reveal links.
@@ -31,6 +36,7 @@ export function ClassDetailsPanel({
       key={`${user?.id}:${bookingId}:${status}`}
       bookingId={bookingId}
       status={status}
+      variant={variant}
     />
   );
 }
@@ -38,13 +44,17 @@ export function ClassDetailsPanel({
 function ClassDetailsContent({
   bookingId,
   status,
+  variant,
 }: {
   bookingId: string;
   status: BookingStatus | undefined;
+  variant: 'full' | 'compact';
 }) {
   const { language } = useLanguage();
   const { user } = useAuth();
   const text = classDetailsCopy[language];
+  const isTutor = user?.role === 'TUTOR';
+  const compact = variant === 'compact';
   const [details, setDetails] = useState<BookingClassDetails | null>(null);
   const [error, setError] = useState<unknown>(null);
   const [loading, setLoading] = useState(true);
@@ -105,7 +115,11 @@ function ClassDetailsContent({
       : null;
 
   return (
-    <section className={styles.panel} aria-label={text.title} aria-busy={loading}>
+    <section
+      className={`${styles.panel} ${compact ? styles.compact : ''}`}
+      aria-label={text.title}
+      aria-busy={loading}
+    >
       <h2>{text.title}</h2>
       {loading ? (
         <NotebookLoadingRegion label={text.loading} />
@@ -113,72 +127,113 @@ function ClassDetailsContent({
         <p role="alert">{errorMessage}</p>
       ) : details ? (
         <>
-          <dl className={styles.details}>
-            <div>
-              <dt>{text.tutor}</dt>
-              <dd>{details.participants.tutor.detail.displayName}</dd>
-            </div>
-            <div>
-              <dt>{text.subject}</dt>
-              <dd>{details.subject.name}</dd>
-            </div>
-            <div>
-              <dt>{text.start}</dt>
-              <dd>
-                <time dateTime={details.startAt}>
-                  {formatBangkokDateTime(details.startAt, language)}
-                </time>
-              </dd>
-            </div>
-            <div>
-              <dt>{text.end}</dt>
-              <dd>
-                <time dateTime={details.endAt}>
-                  {formatBangkokDateTime(details.endAt, language)}
-                </time>
-              </dd>
-            </div>
-          </dl>
-          <p className={styles.note}>{text.timezone}</p>
-          {!accessible ? (
-            <p>{text.hidden}</p>
-          ) : uncertain ? (
-            <p role="alert">{text.uncertain}</p>
-          ) : link ? (
-            <a className={styles.join} href={link} target="_blank" rel="noopener noreferrer">
-              {text.join}
-            </a>
-          ) : (
-            <p>{details.meetingUrl ? text.invalid : text.missing}</p>
+          {!compact && (
+            <>
+              <header className={styles.classHeader}>
+                <p className={styles.subjectTab}>
+                  <span className="sr-only">{text.subject}: </span>
+                  {details.subject.name}
+                </p>
+                <div className={styles.identity}>
+                  {isTutor && (
+                    <div>
+                      <p className={styles.caption}>{text.student}</p>
+                      <h3 className={styles.studentName}>
+                        {getStudentLabel(
+                          { student: { nickname: details.participants.student.detail.nickname } },
+                          tutorBookingInboxCopy[language],
+                        )}
+                      </h3>
+                    </div>
+                  )}
+                  <div className={styles.tutorIdentity}>
+                    <p className={styles.caption}>{text.tutor}</p>
+                    <p>{details.participants.tutor.detail.displayName}</p>
+                  </div>
+                </div>
+              </header>
+              <div className={styles.timeBand}>
+                <dl className={styles.schedule}>
+                  {[
+                    { label: text.start, value: details.startAt },
+                    { label: text.end, value: details.endAt },
+                  ].map(({ label, value }) => (
+                    <div key={label}>
+                      <dt>{label}</dt>
+                      <dd>
+                        <time dateTime={value}>
+                          <strong>{formatBangkokTime(value, language)}</strong>
+                          <span>{formatBangkokShortDate(value, language)}</span>
+                        </time>
+                      </dd>
+                    </div>
+                  ))}
+                </dl>
+                <p className={styles.timezone}>{text.timezone}</p>
+              </div>
+            </>
           )}
-          {details.status === 'COMPLETED' && <p className={styles.note}>{text.completed}</p>}
-          {!uncertain && user?.role === 'TUTOR' && accessible && (
-            <MeetingLinkEditor
-              bookingId={bookingId}
-              meetingUrl={details.meetingUrl}
-              onSaved={refresh}
-              onBusyChange={setSaving}
-              onUncertain={(caught) => {
-                setUncertain(true);
-                if (caught instanceof ApiError) {
-                  setDetails(null);
-                  setError(caught);
-                }
-              }}
-            />
-          )}
+          <div
+            className={`${styles.workspace} ${!uncertain && isTutor && accessible ? styles.withEditor : ''}`}
+          >
+            <div className={styles.entry}>
+              {!compact && <h3>{text.entry}</h3>}
+              {!accessible ? (
+                <p className={styles.note}>{text.hidden}</p>
+              ) : uncertain ? (
+                <p className={styles.note} role="alert">
+                  {text.uncertain}
+                </p>
+              ) : link ? (
+                <a
+                  className={notebookActionClass({
+                    role: isTutor ? 'tutor' : 'student',
+                    tone: 'primary',
+                    size: 'compact',
+                  })}
+                  href={link}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <NotebookActionContent icon={<DashboardIcon name="arrow-right" />}>
+                    {text.join}
+                  </NotebookActionContent>
+                </a>
+              ) : (
+                <p className={styles.note}>{details.meetingUrl ? text.invalid : text.missing}</p>
+              )}
+              {details.status === 'COMPLETED' && <p className={styles.note}>{text.completed}</p>}
+            </div>
+            {!uncertain && isTutor && accessible && (
+              <MeetingLinkEditor
+                bookingId={bookingId}
+                meetingUrl={details.meetingUrl}
+                onSaved={refresh}
+                onBusyChange={setSaving}
+                onUncertain={(caught) => {
+                  setUncertain(true);
+                  if (caught instanceof ApiError) {
+                    setDetails(null);
+                    setError(caught);
+                  }
+                }}
+              />
+            )}
+          </div>
         </>
       ) : (
         <p>{text.hidden}</p>
       )}
-      <NotebookAction
-        tone="quiet"
-        size="compact"
-        disabled={loading || saving}
-        onClick={() => void refresh()}
-      >
-        {text.refresh}
-      </NotebookAction>
+      <footer className={styles.footer}>
+        <button
+          type="button"
+          className={styles.refresh}
+          disabled={loading || saving}
+          onClick={() => void refresh()}
+        >
+          {text.refresh}
+        </button>
+      </footer>
     </section>
   );
 }

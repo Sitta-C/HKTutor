@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 
 import { classDetailsCopy } from '@/components/bookings/class-details-copy';
 import { isSafeMeetingUrl } from '@/components/bookings/class-details-model';
+import { NotebookField, notebookInputClass } from '@/components/ui/notebook';
 import { NotebookAction } from '@/components/ui/notebook-action';
 import { useNotebookToast } from '@/components/ui/notebook-toast';
 import { updateMeetingLink } from '@/lib/api/bookings';
@@ -50,6 +51,7 @@ export function MeetingLinkEditor({
 
   return (
     <form
+      className={styles.editor}
       noValidate
       onSubmit={async (event) => {
         event.preventDefault();
@@ -108,32 +110,33 @@ export function MeetingLinkEditor({
       }}
       aria-busy={pending}
     >
-      <label htmlFor="class-meeting-url">{text.label}</label>
-      <input
-        ref={input}
-        id="class-meeting-url"
-        type="url"
-        value={value}
-        disabled={pending}
-        aria-invalid={Boolean(error)}
-        aria-describedby={`class-meeting-help${error ? ' class-meeting-error' : ''}`}
-        onChange={(event) => {
-          setValue(event.target.value);
-          setSuccess(false);
-        }}
-      />
-      <p id="class-meeting-help" className={styles.note}>
-        {text.help}
-      </p>
-      {error && (
-        <p id="class-meeting-error" role="alert">
-          {error}
-        </p>
-      )}
-      {success && <p role="status">{text.success}</p>}
-      <NotebookAction type="submit" disabled={pending} size="compact">
-        {pending ? text.saving : text.save}
-      </NotebookAction>
+      <NotebookField
+        htmlFor="class-meeting-url"
+        label={text.label}
+        hint={<span id="class-meeting-help">{text.help}</span>}
+        error={error ? <span id="class-meeting-error">{error}</span> : undefined}
+      >
+        <input
+          ref={input}
+          id="class-meeting-url"
+          type="url"
+          className={notebookInputClass({ error: Boolean(error) })}
+          value={value}
+          disabled={pending}
+          aria-invalid={Boolean(error)}
+          aria-describedby={error ? 'class-meeting-error' : 'class-meeting-help'}
+          onChange={(event) => {
+            setValue(event.target.value);
+            setSuccess(false);
+          }}
+        />
+      </NotebookField>
+      <div className={styles.editorActions}>
+        {success && <p role="status">{text.success}</p>}
+        <NotebookAction type="submit" disabled={pending} size="compact">
+          {pending ? text.saving : text.save}
+        </NotebookAction>
+      </div>
     </form>
   );
 }
