@@ -736,16 +736,16 @@ for joins. Read state is derived from `readAt`, without a separate status column
 
 RLS and revoked PUBLIC/Supabase `anon`/`authenticated` privileges keep the table behind the backend
 connection. S2-DB05 adds persistence; the S2-T28 event writer below implements recipient selection,
-no-self-notification checks and retry handling within domain transactions. S2-T29 owns authenticated,
-owner-only list/read endpoints; S2-T30 owns the UI. No endpoint or Swagger/wire contract changes
-are introduced here. The schema cannot determine the actor or authorize a caller on its own.
+no-self-notification checks and retry handling within domain transactions. The S2-T29 APIs below
+provide authenticated, owner-only list/read access; S2-T30 owns the UI. The schema cannot determine
+the actor or authorize a caller on its own.
 
 ### Notification events (S2-T28)
 
 `NotificationEventsService` is shared by booking and reschedule services. It writes only through
 the domain action's transaction client. There are no new endpoints, schema changes, background
-jobs or external deliveries in this task. Notification list/read APIs and UI remain S2-T29/T30;
-scheduled reminders remain Sprint 3.
+jobs or external deliveries in this task. Notification list/read APIs are described under S2-T29 below;
+the inbox UI remains S2-T30 and scheduled reminders remain Sprint 3.
 
 | Event type             | Event key                          | Recipient                                  |
 | ---------------------- | ---------------------------------- | ------------------------------------------ |
@@ -804,8 +804,54 @@ HKTUTOR_ALLOW_DISPOSABLE_DB_VERIFY=1 \
 The verifier requires both the opt-in and explicit loopback `hktutor_*_test`/`hktutor-*-test`
 target, refuses URL options/fragments, never loads `.env`, and creates/removes only its random
 fixtures. It does not migrate or seed, and is separate from `pnpm check`. This is database evidence;
-event production and HTTP authorization still require their later task tests. Apply this migration
+event production and HTTP authorization have separate task tests. Apply this migration
 before deploying any writer or reader that uses the new Prisma model.
+
+### Notification inbox APIs (S2-T29)
+
+All three endpoints require a valid Bearer access token and active session. The recipient always
+comes from `CurrentUser`, including for administrators; no role can request a different inbox.
+The existing S2-DB05 table and indexes are used without a schema migration. UI work remains T30.
+
+| Endpoint                                           | Request                                                                                     | Success                                  |
+| -------------------------------------------------- | ------------------------------------------------------------------------------------------- | ---------------------------------------- |
+| `GET /api/v1/notifications`                        | Optional `cursor`, `limit` (1–50, default 20), `unreadOnly` (`true`/`false`, default false) | `200 { items, nextCursor, unreadCount }` |
+| `PATCH /api/v1/notifications/:notificationId/read` | UUID path; no body/query fields                                                             | `200 { id, readAt }`                     |
+| `POST /api/v1/notifications/read-all`              | No body/query fields                                                                        | `200 { updatedCount, readAt }`           |
+
+Each list item contains exactly `id`, `eventType`, `title`, nullable `bookingId`, nullable `readAt`
+and `createdAt`. `bookingId` is link metadata; it does not grant access to the booking. Notification
+body, event key, recipient ID and related profile data are not returned. All times are UTC ISO 8601.
+The GET is read-only. `unreadCount` counts the entire caller inbox, independent of page or filter;
+the page and count use one repeatable-read snapshot.
+
+Items are newest first by immutable `(createdAt, id)`. Cursor timestamps must be canonical UTC
+with four-digit years 0001–9999; malformed or out-of-range boundaries fail before querying.
+Send the opaque `nextCursor` back to get the
+next page; it is null on the last page. Both sort fields participate in the exclusive boundary,
+including timestamp ties. A cursor remains usable if its row is later marked read or deleted;
+it is a boundary, not an authorization token. Every query retains the caller recipient filter.
+Newer inserts appear on a fresh first page rather than being inserted into an ongoing older-page
+walk. With `unreadOnly=true`, reading a row removes it from subsequent results.
+
+Mark-one uses a single database statement to set `readAt` only when it was null, preserving the
+original value on retries. It returns 403 for another recipient's existing ID, checking existence
+only without loading their content, and 404 for an absent ID. Invalid UUIDs return 400
+`INVALID_UUID`; invalid cursor/query or unexpected mutation inputs return 400 `VALIDATION_FAILED`.
+Missing/invalid sessions return 401 `UNAUTHENTICATED`. Errors use the shared
+`{ statusCode, error, message, code, details? }` envelope.
+
+Mark-all only updates the caller's unread rows visible to its statement. Existing receipts and
+other inboxes remain unchanged. Its `readAt` is the latest receipt written by that call, or null
+with `updatedCount: 0` for a no-op. Database time is clamped to each notification's `createdAt`
+to preserve the read-time constraint. Notification inserts after a bulk-read statement may remain
+unread. There is no notification backfill or external delivery.
+
+Focused checks: `pnpm --filter @hktutor/api test --runInBand test/unit/notifications` and
+`pnpm --filter @hktutor/api test:e2e --runInBand notifications`. These exercise cursor decoding,
+recipient scoping, the real HTTP guard/validation/service path and OpenAPI response schemas with
+mocked persistence. They do not certify real PostgreSQL query execution, transaction isolation or
+concurrent-read behavior.
 
 ## RescheduleRequest persistence (S2-DB04)
 
