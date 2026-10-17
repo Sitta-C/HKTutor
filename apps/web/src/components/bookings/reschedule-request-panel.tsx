@@ -6,6 +6,7 @@ import { formatBookingDocketSlot } from '@/components/bookings/booking-docket-mo
 import { formatDuration } from '@/components/bookings/booking-ui';
 import { rescheduleCopy } from '@/components/bookings/reschedule-copy';
 import {
+  RESCHEDULE_CUTOFF_MS,
   filterTargetSlots,
   getRescheduleActions,
   getRescheduleFailure,
@@ -149,6 +150,10 @@ export function RescheduleRequestPanel({
   const locked = disabled || loading || pending || failure?.requiresRefresh === true;
   const request = current?.request;
   const isPending = request?.status === 'PENDING';
+  const cutoffPassed =
+    !isPending &&
+    booking.status === 'CONFIRMED' &&
+    Date.parse(booking.slot.startAtUtc) - now < RESCHEDULE_CUTOFF_MS;
   const actionRole = user?.role === 'STUDENT' ? 'student' : 'tutor';
 
   useEffect(() => {
@@ -292,11 +297,21 @@ export function RescheduleRequestPanel({
       <div className="flex flex-wrap items-center gap-2">
         {leadingAction}
         {!loading && (
-          <p role="status" className={isPending || outcome ? 'text-sm font-semibold' : 'sr-only'}>
+          <p
+            role="status"
+            className={isPending || outcome || cutoffPassed ? 'text-sm font-semibold' : 'sr-only'}
+          >
             {request ? (
               <StatusBadge tone="warning">{copy[request.status]}</StatusBadge>
             ) : outcome ? (
-              copy[outcome]
+              <>
+                {copy[outcome]}
+                {cutoffPassed && (
+                  <span className="block text-notebook-muted">{copy.cutoffPassed}</span>
+                )}
+              </>
+            ) : cutoffPassed ? (
+              <span className="text-notebook-muted">{copy.cutoffPassed}</span>
             ) : current ? (
               copy.noRequest
             ) : null}
@@ -306,7 +321,7 @@ export function RescheduleRequestPanel({
           ref={triggerRef}
           role={actionRole}
           size="compact"
-          tone="secondary"
+          tone={cutoffPassed ? 'quiet' : 'secondary'}
           aria-expanded={expanded}
           aria-controls={`${id}-details`}
           disabled={pending || loading}
@@ -318,7 +333,9 @@ export function RescheduleRequestPanel({
               ? request.requestedById === user?.id
                 ? copy.view
                 : copy.review
-              : copy.open}
+              : cutoffPassed
+                ? copy.conditions
+                : copy.open}
         </NotebookAction>
       </div>
       {isPending && (
