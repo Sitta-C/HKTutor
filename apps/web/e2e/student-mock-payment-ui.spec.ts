@@ -96,6 +96,9 @@ async function mockPayments(
       });
     }
     if (path === '/profiles/me/avatar') return route.fulfill({ json: { avatar: null } });
+    if (path === '/bookings/mock-payment-booking/reschedule-requests/current') {
+      return route.fulfill({ json: { request: null, targetSlot: null, allowedActions: [] } });
+    }
     if (path === '/bookings/mock-payment-booking/class-details') {
       return route.fulfill({
         json: {
