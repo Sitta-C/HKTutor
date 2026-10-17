@@ -1920,6 +1920,7 @@ describe('BookingsService', () => {
       ['not-a-url'],
       ['http://example.com/meet'],
       ['ftp://example.com'],
+      ['javascript:alert(1)'],
       [''],
       ['https:meet.google.com/abc'],
       ['https:/meet.google.com/abc'],
@@ -1945,8 +1946,8 @@ describe('BookingsService', () => {
       ).rejects.toThrow(NotFoundException);
     });
 
-    it.each([BookingStatus.PENDING, BookingStatus.CANCELED, BookingStatus.COMPLETED])(
-      'rejects when booking is %s rather than CONFIRMED with 409',
+    it.each([BookingStatus.PENDING, BookingStatus.CANCELED, BookingStatus.EXPIRED])(
+      'rejects when booking is %s rather than CONFIRMED/COMPLETED with 409',
       async (status) => {
         const { bookingId } = createTestData();
         mockPrismaService.booking.findFirst.mockResolvedValue({ id: bookingId, status });
@@ -1960,33 +1961,39 @@ describe('BookingsService', () => {
       },
     );
 
-    it('updates meeting link atomically and returns response DTO for a confirmed booking', async () => {
-      const { bookingId } = createTestData();
-      const meetingUrl = 'https://meet.google.com/abc-defg-hij';
-      const updatedAt = new Date('2026-10-09T09:04:31.001Z');
+    it.each([BookingStatus.CONFIRMED, BookingStatus.COMPLETED])(
+      'updates meeting link atomically for %s',
+      async (status) => {
+        const { bookingId } = createTestData();
+        const meetingUrl = 'https://meet.google.com/abc-defg-hij';
+        const updatedAt = new Date('2026-10-09T09:04:31.001Z');
 
-      mockPrismaService.booking.findFirst.mockResolvedValue({
-        id: bookingId,
-        status: BookingStatus.CONFIRMED,
-      });
-      const { updateMany } = stubMeetingLinkTransaction({
-        bookingId,
-        meetingUrl,
-        updatedAt,
-      });
+        mockPrismaService.booking.findFirst.mockResolvedValue({
+          id: bookingId,
+          status,
+        });
+        const { updateMany } = stubMeetingLinkTransaction({
+          bookingId,
+          meetingUrl,
+          updatedAt,
+        });
 
-      const result = await service.updateMeetingLink({ bookingId, meetingUrl });
+        const result = await service.updateMeetingLink({ bookingId, meetingUrl });
 
-      expect(updateMany).toHaveBeenCalledWith({
-        data: { meetingUrl },
-        where: { id: bookingId, status: BookingStatus.CONFIRMED },
-      });
-      expect(result).toEqual({
-        bookingId,
-        meetingUrl,
-        updatedAt: updatedAt.toISOString(),
-      });
-    });
+        expect(updateMany).toHaveBeenCalledWith({
+          data: { meetingUrl },
+          where: {
+            id: bookingId,
+            status: { in: [BookingStatus.CONFIRMED, BookingStatus.COMPLETED] },
+          },
+        });
+        expect(result).toEqual({
+          bookingId,
+          meetingUrl,
+          updatedAt: updatedAt.toISOString(),
+        });
+      },
+    );
 
     it('throws ConflictException when a concurrent transition modifies status before update', async () => {
       const { bookingId } = createTestData();
@@ -2143,16 +2150,6 @@ describe('BookingsService', () => {
       await expect(service.getBookingClassDetail(bookingId)).rejects.toThrow(NotFoundException);
     });
 
-    it.each([BookingStatus.PENDING, BookingStatus.CANCELED, BookingStatus.COMPLETED])(
-      'rejects when booking is %s rather than CONFIRMED with 409',
-      async (status) => {
-        const { bookingId } = createTestData();
-        mockPrismaService.booking.findFirst.mockResolvedValue({ id: bookingId, status });
-
-        await expect(service.getBookingClassDetail(bookingId)).rejects.toThrow(ConflictException);
-      },
-    );
-
     it('returns class details with meetingUrl null when a confirmed booking has no meeting link', async () => {
       const { bookingId, studentUserId, tutorUserId } = createTestData();
       const startAtUtc = new Date('2026-10-09T09:00:00.000Z');
@@ -2163,6 +2160,7 @@ describe('BookingsService', () => {
         id: bookingId,
         meetingUrl: null,
         slot: { endAtUtc, startAtUtc },
+        listing: { subject: { id: '11dafbfa-89bc-4e09-a89a-873c419140bd', name: 'Mathematics' } },
         status: BookingStatus.CONFIRMED,
         studentUserId,
         tutorProfile: {
@@ -2192,6 +2190,7 @@ describe('BookingsService', () => {
         attendance: null,
         bookingId,
         endAt: endAtUtc.toISOString(),
+        subject: { id: '11dafbfa-89bc-4e09-a89a-873c419140bd', name: 'Mathematics' },
         meetingUrl: null,
         participants: {
           student: {
@@ -2233,68 +2232,75 @@ describe('BookingsService', () => {
       await expect(service.getBookingClassDetail(bookingId)).rejects.toThrow(BadRequestException);
     });
 
-    it('returns complete class details for a confirmed booking with meeting link', async () => {
-      const { bookingId, studentUserId, tutorUserId } = createTestData();
-      const startAtUtc = new Date('2026-10-09T09:00:00.000Z');
-      const endAtUtc = new Date('2026-10-09T10:00:00.000Z');
-      const meetingUrl = 'https://meet.google.com/abc-defg-hij';
+    it.each(Object.values(BookingStatus))(
+      'returns class details for %s and exposes the link only for confirmed/completed classes',
+      async (status) => {
+        const { bookingId, studentUserId, tutorUserId } = createTestData();
+        const startAtUtc = new Date('2026-10-09T09:00:00.000Z');
+        const endAtUtc = new Date('2026-10-09T10:00:00.000Z');
+        const meetingUrl = 'https://meet.google.com/abc-defg-hij';
 
-      mockPrismaService.booking.findFirst.mockResolvedValue({
-        attendance: AttendanceStatus.ATTENDED,
-        id: bookingId,
-        meetingUrl,
-        slot: { endAtUtc, startAtUtc },
-        status: BookingStatus.CONFIRMED,
-        studentUserId,
-        tutorProfile: {
-          bio: 'Mathematics tutor',
-          displayName: 'Kru Anan',
-          experienceYears: 5,
-          firstName: 'Anan',
-          lastName: 'Suksawat',
-          nickname: 'Nan',
-        },
-        tutorProfileId: tutorUserId,
-      });
-
-      const studentProfile = {
-        firstName: 'Suda',
-        gradeLevel: 'Grade 10',
-        lastName: 'Dee',
-        nickname: 'Da',
-        phone: '0812345678',
-        school: 'Demo School',
-      };
-      mockPrismaService.studentProfile.findFirst.mockResolvedValue(studentProfile);
-
-      const result = await service.getBookingClassDetail(bookingId);
-
-      expect(result).toEqual({
-        attendance: AttendanceStatus.ATTENDED,
-        bookingId,
-        endAt: endAtUtc.toISOString(),
-        meetingUrl,
-        participants: {
-          student: {
-            detail: studentProfile,
-            id: studentUserId,
+        mockPrismaService.booking.findFirst.mockResolvedValue({
+          attendance: AttendanceStatus.ATTENDED,
+          id: bookingId,
+          meetingUrl,
+          slot: { endAtUtc, startAtUtc },
+          listing: { subject: { id: '11dafbfa-89bc-4e09-a89a-873c419140bd', name: 'Mathematics' } },
+          status,
+          studentUserId,
+          tutorProfile: {
+            bio: 'Mathematics tutor',
+            displayName: 'Kru Anan',
+            experienceYears: 5,
+            firstName: 'Anan',
+            lastName: 'Suksawat',
+            nickname: 'Nan',
           },
-          tutor: {
-            detail: {
-              bio: 'Mathematics tutor',
-              displayName: 'Kru Anan',
-              experienceYears: 5,
-              firstName: 'Anan',
-              lastName: 'Suksawat',
-              nickname: 'Nan',
+          tutorProfileId: tutorUserId,
+        });
+
+        const studentProfile = {
+          firstName: 'Suda',
+          gradeLevel: 'Grade 10',
+          lastName: 'Dee',
+          nickname: 'Da',
+          phone: '0812345678',
+          school: 'Demo School',
+        };
+        mockPrismaService.studentProfile.findFirst.mockResolvedValue(studentProfile);
+
+        const result = await service.getBookingClassDetail(bookingId);
+
+        expect(result).toEqual({
+          attendance: AttendanceStatus.ATTENDED,
+          bookingId,
+          endAt: endAtUtc.toISOString(),
+          subject: { id: '11dafbfa-89bc-4e09-a89a-873c419140bd', name: 'Mathematics' },
+          meetingUrl: [BookingStatus.CONFIRMED, BookingStatus.COMPLETED].includes(status)
+            ? meetingUrl
+            : null,
+          participants: {
+            student: {
+              detail: studentProfile,
+              id: studentUserId,
             },
-            id: tutorUserId,
+            tutor: {
+              detail: {
+                bio: 'Mathematics tutor',
+                displayName: 'Kru Anan',
+                experienceYears: 5,
+                firstName: 'Anan',
+                lastName: 'Suksawat',
+                nickname: 'Nan',
+              },
+              id: tutorUserId,
+            },
           },
-        },
-        startAt: startAtUtc.toISOString(),
-        status: BookingStatus.CONFIRMED,
-      });
-    });
+          startAt: startAtUtc.toISOString(),
+          status,
+        });
+      },
+    );
   });
 
   describe('cancelBooking', () => {

@@ -451,7 +451,7 @@ export class BookingMeetingLinkDto {
   @ApiProperty({ example: '3c54a0d6-e3f3-4a38-bd55-3b4011ee31ae' })
   bookingId!: string;
 
-  @ApiProperty({ example: 'https://foo.com/abc1234' })
+  @ApiProperty({ type: String, example: 'https://foo.com/abc1234' })
   meetingUrl!: string | null;
 
   @ApiProperty({ example: '2026-10-09T09:04:31.001Z' })
@@ -502,20 +502,36 @@ export class BookingClassParticipantsDto {
   student!: BookingClassParticipantStudentDto;
 }
 
+export class BookingClassSubjectDto {
+  @ApiProperty({ example: '11dafbfa-89bc-4e09-a89a-873c419140bd' })
+  id!: string;
+
+  @ApiProperty({ example: 'Mathematics' })
+  name!: string;
+}
+
 export class BookingClassDetailDto {
   @ApiProperty({ example: '3c54a0d6-e3f3-4a38-bd55-3b4011ee31ae' })
   bookingId!: string;
 
-  @ApiProperty({ example: 'CONFIRMED' })
-  status!: string;
+  @ApiProperty({ enum: BookingStatus, example: BookingStatus.CONFIRMED })
+  status!: BookingStatus;
 
   @ApiProperty({ example: '2026-10-09T09:00:00.000Z' })
-  startAt?: string;
+  startAt!: string;
 
   @ApiProperty({ example: '2026-10-09T10:00:00.000Z' })
-  endAt?: string;
+  endAt!: string;
 
-  @ApiProperty({ example: 'https://foo.com/abc1234' })
+  @ApiProperty({ type: BookingClassSubjectDto })
+  subject!: BookingClassSubjectDto;
+
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    description: 'Null when no link is set or the booking is not CONFIRMED/COMPLETED.',
+    example: 'https://foo.com/abc1234',
+  })
   meetingUrl!: string | null;
 
   @ApiProperty({ enum: AttendanceStatus, example: AttendanceStatus.ATTENDED, nullable: true })
