@@ -120,6 +120,44 @@
   gap: 12px;
   margin-top: 14px;
 }
+.attendanceArea {
+  margin-top: 22px;
+  padding-top: 18px;
+  border-top: 1px dashed var(--color-paper-edge);
+}
+.attendanceForm,
+.attendanceSummary {
+  min-width: 0;
+}
+.attendanceForm h3,
+.attendanceLabel {
+  margin: 0;
+  color: var(--class-accent);
+  font-size: 14px;
+  font-weight: 700;
+}
+.attendanceActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 14px;
+}
+.attendanceSummary {
+  padding: 14px 16px;
+  border: 1px solid var(--color-paper-edge);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--color-sticky-blue) 14%, var(--color-paper));
+}
+.attendanceValue {
+  margin-top: 4px;
+  font-size: 18px;
+  font-weight: 700;
+}
+.attendanceTimestamp {
+  margin-top: 5px;
+  color: var(--color-notebook-muted);
+  font-size: 13px;
+}
 .footer {
   margin-top: 20px;
   padding-top: 8px;

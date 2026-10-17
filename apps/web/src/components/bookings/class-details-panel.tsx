@@ -3,8 +3,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { classDetailsCopy } from '@/components/bookings/class-details-copy';
-import { hasClassroomAccess, isSafeMeetingUrl } from '@/components/bookings/class-details-model';
+import {
+  attendanceEligibility,
+  hasClassroomAccess,
+  isSafeMeetingUrl,
+} from '@/components/bookings/class-details-model';
+import { AttendanceForm } from '@/components/bookings/attendance-form';
 import { MeetingLinkEditor } from '@/components/bookings/meeting-link-editor';
+import { SavedAttendanceSummary } from '@/components/bookings/saved-attendance-summary';
 import { tutorBookingInboxCopy } from '@/components/bookings/tutor-booking-inbox-copy';
 import { getStudentLabel } from '@/components/bookings/tutor-booking-inbox-model';
 import { DashboardIcon } from '@/components/dashboard/dashboard-icon';
@@ -18,7 +24,11 @@ import { useLanguage } from '@/lib/i18n';
 
 import styles from './class-details.module.css';
 
-import type { BookingClassDetails, BookingStatus } from '@/lib/api/types';
+import type {
+  BookingClassDetails,
+  BookingStatus,
+  SavedAttendanceSummary as AttendanceSummary,
+} from '@/lib/api/types';
 import type { RefObject } from 'react';
 
 export function ClassDetailsPanel({
@@ -76,6 +86,7 @@ function ClassDetailsContent({
   const [loading, setLoading] = useState(true);
   const [uncertain, setUncertain] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [savedAttendance, setSavedAttendance] = useState<AttendanceSummary | null>(null);
   const active = useRef(false);
   const sequence = useRef(0);
   const refreshButton = useRef<HTMLButtonElement>(null);
@@ -139,6 +150,42 @@ function ClassDetailsContent({
     accessible && !uncertain && details.meetingUrl && isSafeMeetingUrl(details.meetingUrl)
       ? details.meetingUrl
       : null;
+  const attendanceState =
+    details && isTutor
+      ? attendanceEligibility({
+          status: details.status,
+          endAt: details.endAt,
+          isOwner: details.participants.tutor.id === user?.id,
+          attendance: details.attendance,
+        })
+      : null;
+  const attendanceMessage =
+    attendanceState === 'owner'
+      ? text.attendanceOwner
+      : attendanceState === 'pending'
+        ? text.attendancePending
+        : attendanceState === 'future'
+          ? text.attendanceFuture
+          : attendanceState === 'unavailable'
+            ? text.attendanceUnavailable
+            : null;
+  async function handleAttendanceSaved(summary: AttendanceSummary): Promise<void> {
+    if (!active.current) return;
+    setSavedAttendance(summary);
+    setDetails((current) =>
+      current
+        ? {
+            ...current,
+            attendance: summary.attendance,
+            status: summary.status,
+          }
+        : current,
+    );
+    // The detail read verifies the persisted value; the parent refresh updates its
+    // booking-status snapshot after the first attendance transition.
+    await load();
+    onRefresh?.();
+  }
 
   return (
     <section
@@ -246,6 +293,21 @@ function ClassDetailsContent({
               />
             )}
           </div>
+          {isTutor && (
+            <div className={styles.attendanceArea}>
+              {savedAttendance ? (
+                <SavedAttendanceSummary attendance={savedAttendance} language={language} />
+              ) : attendanceState === 'eligible' ? (
+                <AttendanceForm bookingId={bookingId} onSaved={handleAttendanceSaved} />
+              ) : attendanceMessage ? (
+                <AttendanceForm
+                  bookingId={bookingId}
+                  onSaved={handleAttendanceSaved}
+                  disabledMessage={attendanceMessage}
+                />
+              ) : null}
+            </div>
+          )}
         </>
       ) : (
         <p>{text.hidden}</p>
