@@ -6,6 +6,44 @@ export function hasClassroomAccess(status: BookingStatus): boolean {
   return status === 'CONFIRMED' || status === 'COMPLETED';
 }
 
+export function attendanceEligibility({
+  status,
+  endAt,
+  isOwner,
+  attendance,
+  now = Date.now(),
+}: {
+  status: BookingStatus;
+  endAt: string;
+  isOwner: boolean;
+  attendance: 'ATTENDED' | 'ABSENT' | null;
+  now?: number;
+}): 'eligible' | 'owner' | 'pending' | 'unavailable' | 'future' | 'saved' {
+  if (!isOwner) {
+    return 'owner';
+  }
+  if (status === 'PENDING') {
+    return 'pending';
+  }
+  if (status !== 'CONFIRMED' && status !== 'COMPLETED') {
+    return 'unavailable';
+  }
+  const end = new Date(endAt).getTime();
+  if (!Number.isFinite(end)) {
+    return 'unavailable';
+  }
+  if (end > now) {
+    return 'future';
+  }
+  if (attendance !== null) {
+    return status === 'COMPLETED' ? 'saved' : 'unavailable';
+  }
+  if (status === 'COMPLETED') {
+    return 'unavailable';
+  }
+  return 'eligible';
+}
+
 export function isSafeMeetingUrl(value: string): boolean {
   if (
     !/^https:\/\//i.test(value) ||

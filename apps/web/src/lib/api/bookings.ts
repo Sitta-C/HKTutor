@@ -4,6 +4,7 @@ import { authenticatedFetch } from '@/lib/api/client';
 
 import type {
   BookingClassDetails,
+  AttendanceStatus,
   BookingDetail,
   BookingMeetingLink,
   BookingQuote,
@@ -19,6 +20,7 @@ import type {
   TutorBookingActionResult,
   TutorBookingsQuery,
   TutorBookingsResponse,
+  SavedAttendanceSummary,
 } from '@/lib/api/types';
 
 export interface BookingSubmitGate {
@@ -78,6 +80,16 @@ export function updateMeetingLink(
   return authenticatedFetch<BookingMeetingLink>(
     `/bookings/tutor/${encodeURIComponent(bookingId)}/meeting-link`,
     { method: 'PUT', body: JSON.stringify({ meetingUrl }) },
+  );
+}
+
+export function updateAttendance(
+  bookingId: string,
+  attendance: AttendanceStatus,
+): Promise<SavedAttendanceSummary> {
+  return authenticatedFetch<SavedAttendanceSummary>(
+    `/bookings/tutor/${encodeURIComponent(bookingId)}/attendance`,
+    { method: 'PUT', body: JSON.stringify({ attendance }) },
   );
 }
 

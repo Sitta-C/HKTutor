@@ -859,11 +859,12 @@ export function GetBookingClassDetailDoc(): MethodDecorator {
     ApiBearerAuth(JWT_BEARER_AUTH),
     ApiOkResponse({
       description:
-        'Schedule, subject, attendance and participant profiles for every booking state. ' +
+        'Schedule, subject, attendance with its original recording time, and participant profiles for every booking state. ' +
         'meetingUrl is null when missing or outside CONFIRMED/COMPLETED.',
       schema: {
         example: {
           attendance: null,
+          attendanceMarkedAt: null,
           bookingId: '3c54a0d6-e3f3-4a38-bd55-3b4011ee31ae',
           endAt: '2026-10-09T10:00:00.000Z',
           meetingUrl: 'https://meet.google.com/abc-defg-hij',

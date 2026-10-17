@@ -84,6 +84,9 @@ test('tutor confirms, rejects and recovers from missing and stale booking reques
   const removed = new Set<string>();
 
   await page.route('**/api/v1/**', async (route) => {
+    if (await fulfillInboxSupportingRead(route)) {
+      return;
+    }
     const request = route.request();
     const url = new URL(request.url());
     const path = url.pathname.replace('/api/v1', '');
@@ -215,7 +218,7 @@ test('tutor confirms, rejects and recovers from missing and stale booking reques
     ployRow.getByText('This booking no longer exists. Refresh the inbox.'),
   ).toBeVisible();
   await expect(ployRow.getByRole('button', { name: /Confirm the booking/ })).toHaveCount(0);
-  await expect(ployRow.getByRole('button', { name: 'Refresh' })).toBeVisible();
+  await expect(ployRow.getByRole('button', { name: 'Refresh', exact: true })).toBeVisible();
   // Nothing was persisted, so the locked row and the count both stay where they were.
   await expect(page.getByRole('article')).toHaveCount(2);
   await expect(page.getByText('2 bookings PENDING')).toBeVisible();
@@ -233,7 +236,7 @@ test('tutor confirms, rejects and recovers from missing and stale booking reques
   await expect(somchaiRow.getByRole('button', { name: /Confirm the booking/ })).toHaveCount(0);
   await expect(page.getByRole('dialog')).toHaveCount(0);
 
-  await somchaiRow.getByRole('button', { name: 'Refresh' }).click();
+  await somchaiRow.getByRole('button', { name: 'Refresh', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'No bookings in this view' })).toBeVisible();
   await expectAccessiblePageShell(page);
 
@@ -259,6 +262,9 @@ test('paging after a decision skips no request when the pending set shrinks', as
   const decided = new Set<string>();
 
   await page.route('**/api/v1/**', async (route) => {
+    if (await fulfillInboxSupportingRead(route)) {
+      return;
+    }
     const request = route.request();
     const url = new URL(request.url());
     const path = url.pathname.replace('/api/v1', '');
@@ -320,6 +326,33 @@ test('paging after a decision skips no request when the pending set shrinks', as
     .click();
   await expect(page.getByRole('article', { name: 'Student 12', exact: true })).toBeVisible();
   await expect(page.getByRole('article')).toHaveCount(10);
+});
+
+test('ended classes link to classroom details and do not record attendance on the card', async ({
+  page,
+}) => {
+  const endedBooking = pendingBooking({
+    id: maliBookingId,
+    nickname: 'Mali',
+    startHourUtc: 3,
+  });
+  endedBooking.status = 'CONFIRMED';
+  endedBooking.slot = {
+    ...endedBooking.slot,
+    startAtUtc: '2020-09-20T03:00:00.000Z',
+    endAtUtc: '2020-09-20T04:00:00.000Z',
+  };
+  await openMockInbox(page, [endedBooking]);
+
+  await page.getByRole('button', { name: 'All', exact: true }).click();
+  const row = page.getByRole('article', { name: 'Mali' });
+  await expect(row.getByRole('button', { name: 'Attended', exact: true })).toHaveCount(0);
+  await expect(row.getByRole('button', { name: 'Absent', exact: true })).toHaveCount(0);
+  await expect(row.getByRole('link', { name: 'Classroom details', exact: true })).toHaveAttribute(
+    'href',
+    `/dashboard/bookings/${maliBookingId}`,
+  );
+  await expect(row.getByText('CONFIRMED', { exact: true })).toBeVisible();
 });
 
 type InboxBooking = ReturnType<typeof pendingBooking>;
@@ -625,6 +658,9 @@ async function openMockInbox(
   decide?: (route: Route, item: InboxBooking, action: DecisionAction) => Promise<void>,
 ): Promise<void> {
   await page.route('**/api/v1/**', async (route) => {
+    if (await fulfillInboxSupportingRead(route)) {
+      return;
+    }
     const request = route.request();
     const url = new URL(request.url());
     const path = url.pathname.replace('/api/v1', '');
@@ -693,6 +729,28 @@ async function expectAccessiblePageShell(page: Page) {
       }),
     )
     .toBeLessThanOrEqual(1);
+}
+
+async function fulfillInboxSupportingRead(route: Route): Promise<boolean> {
+  const request = route.request();
+  if (request.method() !== 'GET') {
+    return false;
+  }
+  const path = new URL(request.url()).pathname.replace('/api/v1', '');
+  if (path === '/notifications') {
+    await json(route, { items: [], nextCursor: null, unreadCount: 0 });
+    return true;
+  }
+  if (path === '/profiles/me/avatar') {
+    await json(route, { avatar: null });
+    return true;
+  }
+  if (/^\/bookings\/[^/]+\/reschedule-requests\/current$/.test(path)) {
+    // These booking-inbox fixtures contain no pending reschedule requests.
+    await json(route, { request: null, targetSlot: null, allowedActions: [] });
+    return true;
+  }
+  return false;
 }
 
 function json(route: Route, body: unknown, status = 200) {

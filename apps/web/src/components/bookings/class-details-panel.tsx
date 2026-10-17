@@ -2,9 +2,15 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+import { AttendanceForm } from '@/components/bookings/attendance-form';
 import { classDetailsCopy } from '@/components/bookings/class-details-copy';
-import { hasClassroomAccess, isSafeMeetingUrl } from '@/components/bookings/class-details-model';
+import {
+  attendanceEligibility,
+  hasClassroomAccess,
+  isSafeMeetingUrl,
+} from '@/components/bookings/class-details-model';
 import { MeetingLinkEditor } from '@/components/bookings/meeting-link-editor';
+import { SavedAttendanceSummary } from '@/components/bookings/saved-attendance-summary';
 import { tutorBookingInboxCopy } from '@/components/bookings/tutor-booking-inbox-copy';
 import { getStudentLabel } from '@/components/bookings/tutor-booking-inbox-model';
 import { DashboardIcon } from '@/components/dashboard/dashboard-icon';
@@ -18,7 +24,11 @@ import { useLanguage } from '@/lib/i18n';
 
 import styles from './class-details.module.css';
 
-import type { BookingClassDetails, BookingStatus } from '@/lib/api/types';
+import type {
+  BookingClassDetails,
+  BookingStatus,
+  SavedAttendanceSummary as AttendanceSummary,
+} from '@/lib/api/types';
 import type { RefObject } from 'react';
 
 export function ClassDetailsPanel({
@@ -40,7 +50,7 @@ export function ClassDetailsPanel({
   // Remount for a different booking, session, or server-confirmed status. Old reads cannot reveal links.
   return (
     <ClassDetailsContent
-      key={`${user?.id}:${bookingId}:${status}`}
+      key={`${user?.id}:${user?.role}:${bookingId}:${status}`}
       bookingId={bookingId}
       status={status}
       variant={variant}
@@ -76,6 +86,9 @@ function ClassDetailsContent({
   const [loading, setLoading] = useState(true);
   const [uncertain, setUncertain] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [attendanceBusy, setAttendanceBusy] = useState(false);
+  const [attendanceBlocked, setAttendanceBlocked] = useState(false);
+  const [now, setNow] = useState(Date.now);
   const active = useRef(false);
   const sequence = useRef(0);
   const refreshButton = useRef<HTMLButtonElement>(null);
@@ -95,6 +108,8 @@ function ClassDetailsContent({
         if (active.current && request === sequence.current) {
           setDetails(result);
           setUncertain(false);
+          setAttendanceBlocked(false);
+          setNow(Date.now());
         }
       })
       .catch((caught: unknown) => {
@@ -108,6 +123,29 @@ function ClassDetailsContent({
         }
       });
   }, [bookingId]);
+
+  useEffect(() => {
+    if (
+      !details ||
+      !isTutor ||
+      details.participants.tutor.id !== user?.id ||
+      details.status !== 'CONFIRMED' ||
+      details.attendance !== null
+    ) {
+      return;
+    }
+    const endAt = new Date(details.endAt).getTime();
+    if (!Number.isFinite(endAt) || endAt <= now) {
+      return;
+    }
+    // Catch up if the deadline passed after the read's clock snapshot but before this effect.
+    const remaining = endAt - Date.now();
+    const timer = window.setTimeout(
+      () => setNow(Date.now()),
+      Math.min(Math.max(remaining + 1, 0), 2_147_483_647),
+    );
+    return () => window.clearTimeout(timer);
+  }, [details, isTutor, now, user?.id]);
 
   async function refresh(): Promise<void> {
     setLoading(true);
@@ -139,6 +177,55 @@ function ClassDetailsContent({
     accessible && !uncertain && details.meetingUrl && isSafeMeetingUrl(details.meetingUrl)
       ? details.meetingUrl
       : null;
+  const attendanceState =
+    details && isTutor
+      ? attendanceEligibility({
+          status: details.status,
+          endAt: details.endAt,
+          isOwner: details.participants.tutor.id === user?.id,
+          attendance: details.attendance,
+          now,
+        })
+      : null;
+  const attendanceMessage =
+    attendanceState === 'owner'
+      ? text.attendanceOwner
+      : attendanceState === 'pending'
+        ? text.attendancePending
+        : attendanceState === 'future'
+          ? text.attendanceFuture
+          : attendanceState === 'unavailable'
+            ? text.attendanceUnavailable
+            : attendanceState === 'saved'
+              ? text.attendanceReplay
+              : null;
+  async function handleAttendanceSaved(summary: AttendanceSummary): Promise<void> {
+    if (!active.current) {
+      return;
+    }
+    setDetails((current) =>
+      current
+        ? {
+            ...current,
+            attendance: summary.attendance,
+            attendanceMarkedAt: summary.attendanceMarkedAt,
+            status: summary.status,
+          }
+        : current,
+    );
+    // The detail read verifies the persisted value; the parent refresh updates its
+    // booking-status snapshot after the first attendance transition.
+    try {
+      await load();
+      if (active.current) {
+        onRefresh?.();
+      }
+    } finally {
+      if (active.current) {
+        setAttendanceBusy(false);
+      }
+    }
+  }
 
   return (
     <section
@@ -199,8 +286,10 @@ function ClassDetailsContent({
               </div>
             </>
           )}
-          <div
+          <fieldset
             className={`${styles.workspace} ${!uncertain && isTutor && accessible ? styles.withEditor : ''}`}
+            aria-label={text.entry}
+            disabled={attendanceBusy}
           >
             <div className={styles.entry}>
               {!compact && <h3>{text.entry}</h3>}
@@ -245,7 +334,31 @@ function ClassDetailsContent({
                 }}
               />
             )}
-          </div>
+          </fieldset>
+          {isTutor && (
+            <div className={styles.attendanceArea}>
+              {attendanceState === 'saved' && details.attendance !== null ? (
+                <SavedAttendanceSummary
+                  attendance={{
+                    attendance: details.attendance,
+                    attendanceMarkedAt: details.attendanceMarkedAt ?? null,
+                  }}
+                  language={language}
+                />
+              ) : (
+                <AttendanceForm
+                  bookingId={bookingId}
+                  onSaved={handleAttendanceSaved}
+                  onBusyChange={setAttendanceBusy}
+                  onUncertain={() => setAttendanceBlocked(true)}
+                  disabled={saving || refreshDisabled}
+                  disabledMessage={
+                    attendanceBlocked ? text.attendanceRecover : (attendanceMessage ?? undefined)
+                  }
+                />
+              )}
+            </div>
+          )}
         </>
       ) : (
         <p>{text.hidden}</p>
@@ -255,7 +368,7 @@ function ClassDetailsContent({
           ref={refreshButton}
           type="button"
           className={styles.refresh}
-          disabled={loading || saving || refreshDisabled}
+          disabled={loading || saving || attendanceBusy || refreshDisabled}
           onClick={() => {
             if (onRefresh) {
               onRefresh();

@@ -34,6 +34,7 @@ async function setup(
     subject: { id: 'math', name: 'Mathematics' },
     meetingUrl: options.meetingUrl === undefined ? OLD_URL : options.meetingUrl,
     attendance: null,
+    attendanceMarkedAt: null,
     participants: {
       tutor: { id: 'tutor-preview', detail: { displayName: 'Teacher Pim' } },
       student: {
@@ -55,6 +56,8 @@ async function setup(
     writes: [] as unknown[],
     readFailure: 0,
     saveFailure: 0,
+    attendanceFailure: 0,
+    attendanceWrites: [] as unknown[],
     loseResponse: false,
     unexpected: [] as string[],
   };
@@ -78,6 +81,9 @@ async function setup(
   await page.route('**/api/v1/**', async (route) => {
     const request = route.request();
     const path = new URL(request.url()).pathname.replace('/api/v1', '');
+    if (path === '/notifications' && request.method() === 'GET') {
+      return route.fulfill({ json: { items: [], nextCursor: null, unreadCount: 0 } });
+    }
     if (path === '/auth/refresh') {
       return route.fulfill({
         json: {
@@ -205,6 +211,33 @@ async function setup(
           bookingId: BOOKING_ID,
           meetingUrl: body.meetingUrl,
           updatedAt: '2026-10-17T09:00:00.000Z',
+        },
+      });
+    }
+    if (path === `/bookings/tutor/${BOOKING_ID}/attendance` && request.method() === 'PUT') {
+      const body: unknown = request.postDataJSON();
+      state.attendanceWrites.push(body);
+      if (state.attendanceFailure) {
+        return route.fulfill({ status: state.attendanceFailure, json: { message: 'Rejected' } });
+      }
+      if (
+        typeof body !== 'object' ||
+        body === null ||
+        !('attendance' in body) ||
+        (body.attendance !== 'ATTENDED' && body.attendance !== 'ABSENT')
+      ) {
+        throw new Error('Invalid attendance payload');
+      }
+      state.details.attendance = body.attendance;
+      state.details.attendanceMarkedAt = '2026-10-17T10:00:00.000Z';
+      state.details.status = 'COMPLETED';
+      return route.fulfill({
+        json: {
+          bookingId: BOOKING_ID,
+          attendance: body.attendance,
+          attendanceMarkedAt: '2026-10-17T10:00:00.000Z',
+          idempotentReplay: false,
+          status: 'COMPLETED',
         },
       });
     }
@@ -519,6 +552,60 @@ test('student sees a missing link in a confirmed class', async ({ page }) => {
   const panel = page.getByRole('region', { name: 'Classroom details' });
   await expect(panel).toContainText(classDetailsCopy.en.missing);
   await expect(panel.getByLabel('Meeting link', { exact: true })).toHaveCount(0);
+});
+
+test('tutor can mark an ended class attended and sees the persisted Bangkok timestamp', async ({
+  page,
+}) => {
+  const state = await setup(page);
+  state.details.startAt = '2020-10-17T08:00:00.000Z';
+  state.details.endAt = '2020-10-17T09:00:00.000Z';
+  await page.goto(PATH);
+  const panel = page.getByRole('region', { name: classDetailsCopy.en.title });
+  await expect(panel.getByRole('radio', { name: classDetailsCopy.en.attended })).toBeEnabled();
+  await expect(panel.getByRole('radio', { name: classDetailsCopy.en.absent })).toBeEnabled();
+  await panel.getByRole('radio', { name: classDetailsCopy.en.attended }).check();
+  await panel
+    .getByRole('button', { name: classDetailsCopy.en.recordAttendance, exact: true })
+    .click();
+  await expect(page.getByText(classDetailsCopy.en.attendanceSaved, { exact: true })).toBeVisible();
+  await expect(panel).toContainText(classDetailsCopy.en.attended);
+  await expect(panel).toContainText('17:00');
+  await expect(panel.getByRole('radio', { name: classDetailsCopy.en.absent })).toHaveCount(0);
+  expect(state.attendanceWrites).toEqual([{ attendance: 'ATTENDED' }]);
+  expect(state.details.status).toBe('COMPLETED');
+});
+
+test('tutor cannot optimistically change attendance when the server reports a conflict', async ({
+  page,
+}) => {
+  const state = await setup(page);
+  state.details.startAt = '2020-10-17T08:00:00.000Z';
+  state.details.endAt = '2020-10-17T09:00:00.000Z';
+  state.attendanceFailure = 409;
+  await page.goto(PATH);
+  const panel = page.getByRole('region', { name: classDetailsCopy.en.title });
+  await panel.getByRole('radio', { name: classDetailsCopy.en.absent }).check();
+  await panel
+    .getByRole('button', { name: classDetailsCopy.en.recordAttendance, exact: true })
+    .click();
+  await expect(panel.getByRole('alert')).toHaveText(classDetailsCopy.en.attendanceConflict);
+  await expect(panel.getByRole('radio', { name: classDetailsCopy.en.attended })).toBeDisabled();
+  await expect(panel.getByRole('radio', { name: classDetailsCopy.en.absent })).toBeDisabled();
+  expect(state.details.attendance).toBeNull();
+  expect(state.details.status).toBe('CONFIRMED');
+  expect(state.attendanceWrites).toEqual([{ attendance: 'ABSENT' }]);
+});
+
+test('tutor sees disabled attendance choices and an explanation before an eligible class ends', async ({
+  page,
+}) => {
+  await setup(page, { status: 'PENDING' });
+  await page.goto(PATH);
+  const panel = page.getByRole('region', { name: classDetailsCopy.en.title });
+  await expect(panel).toContainText(classDetailsCopy.en.attendancePending);
+  await expect(panel.getByRole('radio', { name: classDetailsCopy.en.attended })).toBeDisabled();
+  await expect(panel.getByRole('radio', { name: classDetailsCopy.en.absent })).toBeDisabled();
 });
 
 test('tutor reads and updates completed meeting links using the existing API', async ({ page }) => {

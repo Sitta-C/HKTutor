@@ -1,8 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { classDetailsCopy } from '@/components/bookings/class-details-copy';
-import { hasClassroomAccess, isSafeMeetingUrl } from '@/components/bookings/class-details-model';
-import { getClassDetails, updateMeetingLink } from '@/lib/api/bookings';
+import {
+  attendanceEligibility,
+  hasClassroomAccess,
+  isSafeMeetingUrl,
+} from '@/components/bookings/class-details-model';
+import { getClassDetails, updateAttendance, updateMeetingLink } from '@/lib/api/bookings';
 import { clearAccessToken } from '@/lib/api/client';
 
 import type { BookingClassDetails } from '@/lib/api/types';
@@ -61,6 +65,38 @@ describe('classroom access and link safety', () => {
       Object.keys(classDetailsCopy.en).sort(),
     );
   });
+
+  it.each([
+    ['CONFIRMED', '2026-10-17T09:00:00.000Z', true, null, 'eligible'],
+    ['CONFIRMED', '2026-10-17T11:00:00.000Z', true, null, 'future'],
+    ['PENDING', '2026-10-17T09:00:00.000Z', true, null, 'pending'],
+    ['CANCELED', '2026-10-17T09:00:00.000Z', true, null, 'unavailable'],
+    ['CONFIRMED', '2026-10-17T09:00:00.000Z', false, null, 'owner'],
+    ['COMPLETED', '2026-10-17T09:00:00.000Z', true, 'ATTENDED', 'saved'],
+    ['COMPLETED', '2026-10-17T09:00:00.000Z', true, 'ABSENT', 'saved'],
+    ['COMPLETED', '2026-10-17T09:00:00.000Z', true, null, 'unavailable'],
+    ['COMPLETED', '2026-10-17T11:00:00.000Z', true, 'ATTENDED', 'future'],
+    ['CONFIRMED', '2026-10-17T10:00:00.000Z', true, null, 'eligible'],
+    ['CONFIRMED', '2026-10-17T10:00:00.001Z', true, null, 'future'],
+    ['CONFIRMED', 'invalid', true, null, 'unavailable'],
+    ['EXPIRED', '2026-10-17T09:00:00.000Z', true, null, 'unavailable'],
+    ['CANCELED', '2026-10-17T09:00:00.000Z', true, 'ATTENDED', 'unavailable'],
+    ['CONFIRMED', '2026-10-17T09:00:00.000Z', true, 'ATTENDED', 'unavailable'],
+    ['COMPLETED', '2026-10-17T09:00:00.000Z', false, 'ATTENDED', 'owner'],
+  ] as const)(
+    'keeps attendance %s/%s in the correct UI state',
+    (status, endAt, isOwner, attendance, expected) => {
+      expect(
+        attendanceEligibility({
+          status,
+          endAt,
+          isOwner,
+          attendance,
+          now: new Date('2026-10-17T10:00:00.000Z').getTime(),
+        }),
+      ).toBe(expected);
+    },
+  );
 });
 
 describe('classroom API client', () => {
@@ -89,6 +125,7 @@ describe('classroom API client', () => {
       subject: { id: 'math', name: 'Mathematics' },
       meetingUrl: 'https://example.test/meeting',
       attendance: null,
+      attendanceMarkedAt: null,
       participants: {
         tutor: { id: 'tutor', detail: { displayName: 'Teacher Pim' } },
         student: {
@@ -116,6 +153,49 @@ describe('classroom API client', () => {
         credentials: 'include',
       }),
     );
+  });
+  it('sends attendance to the tutor PUT endpoint and preserves its saved timestamp', async () => {
+    const saved = {
+      bookingId: 'booking/id',
+      attendance: 'ATTENDED' as const,
+      attendanceMarkedAt: '2026-10-17T10:00:00.000Z',
+      idempotentReplay: false,
+      status: 'COMPLETED' as const,
+    };
+    fetchMock.mockResolvedValueOnce(response(saved));
+    await expect(updateAttendance('booking/id', 'ATTENDED')).resolves.toEqual(saved);
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/v1/bookings/tutor/booking%2Fid/attendance',
+      expect.objectContaining({
+        method: 'PUT',
+        body: JSON.stringify({ attendance: 'ATTENDED' }),
+        credentials: 'include',
+      }),
+    );
+  });
+  it.each([400, 403, 404, 409, 500])(
+    'preserves an attendance %s response without retrying the write',
+    async (status) => {
+      fetchMock.mockResolvedValueOnce(response({ message: 'Rejected' }, status));
+      await expect(updateAttendance('booking/id', 'ABSENT')).rejects.toMatchObject({ status });
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    },
+  );
+  it('preserves the server receipt when the same attendance is replayed', async () => {
+    const receipt = {
+      bookingId: 'booking/id',
+      attendance: 'ABSENT' as const,
+      attendanceMarkedAt: '2026-10-16T18:30:00.000Z',
+      idempotentReplay: true,
+      status: 'COMPLETED' as const,
+    };
+    fetchMock.mockResolvedValueOnce(response(receipt));
+    expect(await updateAttendance('booking/id', 'ABSENT')).toEqual(receipt);
+  });
+  it('does not retry attendance when a successful write may have lost its response', async () => {
+    fetchMock.mockRejectedValueOnce(new TypeError('Network failure'));
+    await expect(updateAttendance('booking/id', 'ATTENDED')).rejects.toThrow('Network failure');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
   it.each([400, 403, 404, 409, 500])(
     'preserves a %s save failure without an automatic retry',

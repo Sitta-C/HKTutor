@@ -344,10 +344,21 @@ export interface BookingClassDetails {
   subject: { id: string; name: string };
   meetingUrl: string | null;
   attendance: 'ATTENDED' | 'ABSENT' | null;
+  attendanceMarkedAt: string | null;
   participants: {
     tutor: { id: string; detail: { displayName: string } };
     student: { id: string; detail: { firstName: string; lastName: string; nickname: string } };
   };
+}
+
+export type AttendanceStatus = 'ATTENDED' | 'ABSENT';
+
+export interface SavedAttendanceSummary {
+  bookingId: string;
+  attendance: AttendanceStatus;
+  attendanceMarkedAt: string;
+  idempotentReplay: boolean;
+  status: BookingStatus;
 }
 
 export interface BookingMeetingLink {
