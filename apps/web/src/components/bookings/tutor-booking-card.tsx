@@ -4,11 +4,15 @@ import Link from 'next/link';
 import { useState } from 'react';
 
 import { BookingCancellation } from '@/components/bookings/booking-cancellation';
+import { AttendanceForm } from '@/components/bookings/attendance-form';
 import { formatBookingDocketSlot } from '@/components/bookings/booking-docket-model';
 import { bookingRequestCopy } from '@/components/bookings/booking-request-copy';
 import { BookingStatusBadge, formatMoney } from '@/components/bookings/booking-ui';
 import { classDetailsCopy } from '@/components/bookings/class-details-copy';
-import { hasClassroomAccess } from '@/components/bookings/class-details-model';
+import {
+  attendanceEligibility,
+  hasClassroomAccess,
+} from '@/components/bookings/class-details-model';
 import { rescheduleCopy } from '@/components/bookings/reschedule-copy';
 import { RescheduleRequestPanel } from '@/components/bookings/reschedule-request-panel';
 import {
@@ -36,6 +40,7 @@ import type {
   ApproveRescheduleResponse,
   CancelBookingResult,
   RescheduleRequestStatus,
+  SavedAttendanceSummary,
   TutorBookingView,
 } from '@/lib/api/types';
 import type { Language } from '@/lib/i18n';
@@ -53,6 +58,7 @@ export interface TutorBookingCardProps {
   onRefresh: () => void;
   onCanceled: (result: CancelBookingResult) => void;
   onRescheduled: (result: ApproveRescheduleResponse) => void;
+  onAttendanceSaved: (result: SavedAttendanceSummary) => void;
 }
 
 export function TutorBookingCard({
@@ -66,6 +72,7 @@ export function TutorBookingCard({
   onRefresh,
   onCanceled,
   onRescheduled,
+  onAttendanceSaved,
 }: TutorBookingCardProps) {
   const { user } = useAuth();
   const [cancellationRequiresRefresh, setCancellationRequiresRefresh] = useState(false);
@@ -74,6 +81,7 @@ export function TutorBookingCard({
   const [rescheduleStale, setRescheduleStale] = useState(false);
   const [reschedulePending, setReschedulePending] = useState(false);
   const [rescheduleOutcome, setRescheduleOutcome] = useState<RescheduleRequestStatus | null>(null);
+  const [attendanceBusy, setAttendanceBusy] = useState(false);
   const studentLabel = getStudentLabel(booking, copy);
   const time = formatBookingDocketSlot(booking.slot, language);
   // Only the cross-day Start/End wording comes from the shared request copy.
@@ -84,6 +92,20 @@ export function TutorBookingCard({
   // A stale row is locked until the inbox reloads, so one failed decision cannot be retried blindly.
   const isStale = decisionError?.requiresRefresh === true;
   const canDecide = isPending && !isStale && !cancellationRequiresRefresh;
+  const attendanceState = attendanceEligibility({
+    status: booking.status,
+    endAt: booking.slot.endAtUtc,
+    isOwner: true,
+    attendance: null,
+  });
+  const attendanceMessage =
+    attendanceState === 'pending'
+      ? classDetailsCopy[language].attendancePending
+      : attendanceState === 'future'
+        ? classDetailsCopy[language].attendanceFuture
+        : booking.status === 'COMPLETED'
+          ? classDetailsCopy[language].attendanceCompleted
+          : classDetailsCopy[language].attendanceUnavailable;
 
   return (
     <article className={styles.row} aria-labelledby={titleId} aria-busy={isSubmitting}>
@@ -174,6 +196,14 @@ export function TutorBookingCard({
       )}
 
       <div className={styles.bookingActions}>
+        <AttendanceForm
+          bookingId={booking.id}
+          disabledMessage={attendanceState === 'eligible' ? '' : attendanceMessage}
+          onBusyChange={setAttendanceBusy}
+          onSaved={async (result) => {
+            onAttendanceSaved(result);
+          }}
+        />
         {user && (
           <RescheduleRequestPanel
             key={`${booking.id}:${booking.slot.id}:${booking.status}`}
@@ -190,7 +220,13 @@ export function TutorBookingCard({
                 </Link>
               )
             }
-            disabled={isSubmitting || isStale || cancellationBusy || cancellationRequiresRefresh}
+            disabled={
+              isSubmitting ||
+              isStale ||
+              attendanceBusy ||
+              cancellationBusy ||
+              cancellationRequiresRefresh
+            }
             onBusyChange={setRescheduleBusy}
             onRequiresRefresh={() => setRescheduleStale(true)}
             outcome={rescheduleOutcome}
@@ -203,7 +239,7 @@ export function TutorBookingCard({
         <BookingCancellation
           booking={booking}
           compact
-          disabled={isSubmitting || isStale || rescheduleBusy || rescheduleStale}
+          disabled={isSubmitting || isStale || attendanceBusy || rescheduleBusy || rescheduleStale}
           onBusyChange={setCancellationBusy}
           onCanceled={onCanceled}
           onRefresh={onRefresh}

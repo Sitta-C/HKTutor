@@ -17,10 +17,12 @@ export function AttendanceForm({
   bookingId,
   onSaved,
   disabledMessage,
+  onBusyChange,
 }: {
   bookingId: string;
   onSaved: (summary: SavedAttendanceSummary) => Promise<void>;
   disabledMessage?: string;
+  onBusyChange?: (busy: boolean) => void;
 }) {
   const { language } = useLanguage();
   const text = classDetailsCopy[language];
@@ -33,6 +35,7 @@ export function AttendanceForm({
     if (gate.current) return;
     gate.current = true;
     setPending(true);
+    onBusyChange?.(true);
     setError(null);
     try {
       const summary = await updateAttendance(bookingId, attendance);
@@ -50,6 +53,7 @@ export function AttendanceForm({
     } finally {
       gate.current = false;
       setPending(false);
+      onBusyChange?.(false);
     }
   }
 
@@ -75,7 +79,7 @@ export function AttendanceForm({
         <NotebookAction
           type="button"
           size="compact"
-          tone="secondary"
+          tone="danger"
           disabled={pending || Boolean(disabledMessage)}
           onClick={() => void save('ABSENT')}
         >
