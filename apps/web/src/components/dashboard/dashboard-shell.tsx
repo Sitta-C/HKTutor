@@ -502,9 +502,7 @@ export function DashboardShell({
               className="ml-auto flex min-w-0 items-center gap-2 text-sm sm:gap-3 [&>[data-dashboard-action]]:min-h-11 [&>[data-dashboard-action]]:rounded-lg [&>[data-dashboard-action]]:border [&>[data-dashboard-action]]:border-notebook-ink [&>[data-dashboard-action]]:bg-notebook-ink [&>[data-dashboard-action]]:px-3.5 [&>[data-dashboard-action]]:py-2 [&>[data-dashboard-action]]:font-bold [&>[data-dashboard-action]]:text-paper [&>[data-dashboard-action]]:shadow-[0_3px_0_#57534e] [&>[data-dashboard-action]]:transition [&>[data-dashboard-action]]:hover:-translate-y-0.5 [&>a:not([data-dashboard-action])]:font-bold [&>a:not([data-dashboard-action])]:text-notebook-ink [&>a:not([data-dashboard-action])]:underline [&>a:not([data-dashboard-action])]:decoration-margin-guide [&>a:not([data-dashboard-action])]:decoration-2 [&>a:not([data-dashboard-action])]:underline-offset-4 max-[560px]:[&>a:not([data-dashboard-action])]:hidden"
               aria-label={copy.dashboard.common.topNavigationLabel}
             >
-              {visualVariant === 'profile' && (
-                <DashboardNotificationMenu userRole={user.role} copy={copy.dashboard.header} />
-              )}
+              <DashboardNotificationMenu />
               <LanguageSwitch />
 
               {headerNavRight}
