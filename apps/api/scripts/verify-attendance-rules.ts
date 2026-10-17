@@ -393,22 +393,23 @@ async function verify(): Promise<void> {
     await prisma.$executeRaw`
       UPDATE "Booking" SET "status" = 'expired' WHERE "id" = ${expired.bookingId}::uuid
     `;
-    const ineligible: [string, string, BookingStatus][] = [
-      ['pending', pending.bookingId, BookingStatus.PENDING],
-      ['rejected', rejected.bookingId, BookingStatus.CANCELED],
-      ['canceled', canceled.bookingId, BookingStatus.CANCELED],
-      ['expired', expired.bookingId, BookingStatus.EXPIRED],
+    // US4-2 answers a still-pending booking with 400 (resolved in S2-T39); the others are 409.
+    const ineligible: [string, string, BookingStatus, number][] = [
+      ['pending', pending.bookingId, BookingStatus.PENDING, 400],
+      ['rejected', rejected.bookingId, BookingStatus.CANCELED, 409],
+      ['canceled', canceled.bookingId, BookingStatus.CANCELED, 409],
+      ['expired', expired.bookingId, BookingStatus.EXPIRED, 409],
     ];
-    for (const [label, bookingId, status] of ineligible) {
+    for (const [label, bookingId, status, expected] of ineligible) {
       const before = await snapshot(bookingId);
       assert.equal(before.status, status, label);
       for (const attendance of [AttendanceStatus.ATTENDED, AttendanceStatus.ABSENT]) {
         const response = await record(ids.tutor, bookingId, attendance);
-        expectCode(response, 409, 'BOOKING_NOT_CONFIRMED_OR_COMPLETED');
+        expectCode(response, expected, 'BOOKING_NOT_CONFIRMED_OR_COMPLETED');
       }
       assert.deepEqual(await snapshot(bookingId), before, `${label} booking changed`);
     }
-    pass('ended pending, rejected, canceled and expired bookings return 409 and are unchanged');
+    pass('ended pending (400), rejected, canceled and expired (409) bookings are unchanged');
 
     // 3. Invalid attendance values and malformed requests never reach the booking.
     const eligibleId = await endedBooking();

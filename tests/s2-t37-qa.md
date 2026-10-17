@@ -28,7 +28,7 @@ before and after the request, so even a no-op write would be detected.
 | ---------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Future class                       | A confirmed class in 2099 returns 409 `CLASS_NOT_ENDED` for both values; unchanged                                                                                                                                                                                                                                    |
 | In-progress class                  | A class that started 30 minutes ago and ends in 30 minutes returns 409 `CLASS_NOT_ENDED` for both values; unchanged                                                                                                                                                                                                   |
-| Pending class                      | An ended pending booking returns 409 `BOOKING_NOT_CONFIRMED_OR_COMPLETED` for both values; unchanged (see finding 1 on the 400 in the story)                                                                                                                                                                          |
+| Pending class                      | An ended pending booking returns 400 `BOOKING_NOT_CONFIRMED_OR_COMPLETED` for both values; unchanged (409 when first verified; aligned to US4-2 by S2-T39, see finding 1)                                                                                                                                             |
 | Canceled class                     | An ended booking rejected by the tutor, and one canceled by the student, both return 409 `BOOKING_NOT_CONFIRMED_OR_COMPLETED`; unchanged. A legacy `EXPIRED` row behaves the same                                                                                                                                     |
 | Invalid attendance                 | 17 bodies return 400 unchanged: lower-case `attended`/`absent`, the story's `late-ish`, `LATE`, `COMPLETED`, leading/trailing space, `''`, `null`, number, boolean, array, object, missing field, and extra `status`, `attendanceMarkedAt` or `tutorId` fields. A `text/plain` body and a non-UUID ID also return 400 |
 | Wrong tutor and other callers      | Another tutor gets 403 `BOOKING_NOT_OWNED`; the booking's own student, another student and an admin get 403; anonymous, a malformed bearer token and the owner's revoked session get 401; an unknown booking ID gets 404. All unchanged, and the owner's write still succeeds afterwards                              |
@@ -67,14 +67,14 @@ restored. All eight were caught:
 
 None. Every rule in the S2-T35 contract held against PostgreSQL, including under contention.
 
-## Findings for S2-T39 (not changed here)
+## Findings for S2-T39
 
-1. **Pending booking returns 409, the story says 400.** US4-2's invalid criterion reads "Given
+1. **Pending booking returned 409, the story says 400.** US4-2's invalid criterion reads "Given
    b-501 is still 'pending'. When attendance is submitted. Then the API returns 400." The API,
-   its Swagger, the S2-T35 README and the S2-T36 UI all treat it as a state conflict (409
-   `BOOKING_NOT_CONFIRMED_OR_COMPLETED`), which matches the repository rule that 400 is for
-   invalid input and 409 for state conflicts. The request itself is valid; the booking's state is
-   what is wrong. Recommendation: amend the story to 409.
+   Swagger, the S2-T35 README and the S2-T36 UI treated it as a 409 state conflict.
+   **Resolved in S2-T39** (`tests/s2-t39-qa.md`, R4): following the S2-T06 precedent for US12-5,
+   a still-pending booking now returns 400 with the same `BOOKING_NOT_CONFIRMED_OR_COMPLETED`
+   code; canceled and expired bookings stay 409. The verifier above was updated to expect 400.
 2. **An unpaid class can be completed, and can then never be paid.** Attendance does not require
    `paymentStatus=PAID`, and mock payment only accepts `CONFIRMED`. A tutor who records attendance
    first leaves the booking `COMPLETED`/`UNPAID` permanently. US7-1 revenue counts only paid

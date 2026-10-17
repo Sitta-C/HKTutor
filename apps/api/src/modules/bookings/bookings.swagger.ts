@@ -1043,7 +1043,7 @@ export function UpdateAttendanceDoc(): MethodDecorator {
       summary:
         "Update the attendance for one of the authenticated tutor's confirmed or completed bookings",
       description:
-        'Record ATTENDED or ABSENT when the class end time is at or before now. The first write completes the booking atomically. A same-value replay returns the saved timestamp without writing; a different value returns 409.',
+        'Record ATTENDED or ABSENT when the class end time is at or before now. The first write completes the booking atomically, whichever value is recorded. A same-value replay returns the saved timestamp without writing; a different value returns 409. A still-pending booking returns 400; canceled and expired bookings return 409.',
     }),
     ApiBearerAuth(JWT_BEARER_AUTH),
     ApiBody({ required: true, type: UpdateAttendanceDto }),
@@ -1063,7 +1063,8 @@ export function UpdateAttendanceDoc(): MethodDecorator {
       },
     }),
     ApiBadRequestResponse({
-      description: 'The booking ID is not a valid UUID or the attendance status failed validation',
+      description:
+        'The booking ID is not a valid UUID, the attendance status failed validation, or the booking is still PENDING (BOOKING_NOT_CONFIRMED_OR_COMPLETED)',
       schema: {
         example: {
           code: 'VALIDATION_FAILED',
@@ -1113,7 +1114,7 @@ export function UpdateAttendanceDoc(): MethodDecorator {
     }),
     ApiConflictResponse({
       description:
-        'The booking is neither confirmed nor a completed replay, the class has not ended, attendance was recorded with a different value (ATTENDANCE_ALREADY_RECORDED), or a concurrent transition changed its eligibility',
+        'The booking is canceled or expired, the class has not ended, attendance was recorded with a different value (ATTENDANCE_ALREADY_RECORDED), or a concurrent transition changed its eligibility',
       schema: {
         example: {
           code: 'CLASS_NOT_ENDED',
