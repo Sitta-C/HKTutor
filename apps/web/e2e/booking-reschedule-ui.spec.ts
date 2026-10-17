@@ -146,6 +146,25 @@ async function setup(
     if (path === '/bookings/me/reschedule-preview') {
       return route.fulfill({ json: booking });
     }
+    if (path === '/bookings/reschedule-preview/class-details') {
+      return route.fulfill({
+        json: {
+          bookingId: booking.id,
+          status: booking.status,
+          startAt: booking.slot.startAtUtc,
+          endAt: booking.slot.endAtUtc,
+          subject: { id: booking.listing.subjectId, name: booking.listing.subjectName },
+          meetingUrl: null,
+          attendance: null,
+          participants: {
+            tutor: {
+              id: booking.tutor.tutorId,
+              detail: { displayName: booking.tutor.displayName },
+            },
+          },
+        },
+      });
+    }
     if (path === '/bookings/me' || path === '/bookings/tutor') {
       const filter = url.searchParams.get('status');
       const ordinary = Array.from({ length: (options.inboxCount ?? 1) - 1 }, (_, index) => ({

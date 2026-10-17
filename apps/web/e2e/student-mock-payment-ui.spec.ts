@@ -96,6 +96,28 @@ async function mockPayments(
       });
     }
     if (path === '/profiles/me/avatar') return route.fulfill({ json: { avatar: null } });
+    if (path === '/bookings/mock-payment-booking/class-details') {
+      return route.fulfill({
+        json: {
+          bookingId: state.booking.id,
+          status: state.booking.status,
+          startAt: state.booking.slot.startAtUtc,
+          endAt: state.booking.slot.endAtUtc,
+          subject: {
+            id: state.booking.listing.subjectId,
+            name: state.booking.listing.subjectName,
+          },
+          meetingUrl: null,
+          attendance: null,
+          participants: {
+            tutor: {
+              id: state.booking.tutor.tutorId,
+              detail: { displayName: state.booking.tutor.displayName },
+            },
+          },
+        },
+      });
+    }
     if (path === '/bookings/me')
       return route.fulfill({ json: { items: [state.booking], total: 1 } });
     if (path === '/bookings/me/mock-payment-booking' && request.method() === 'GET') {
