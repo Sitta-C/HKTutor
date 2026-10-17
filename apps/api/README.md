@@ -681,6 +681,24 @@ The HTTP suite exercises real validation, authentication, role/ownership guards 
 with isolated persistence, including post-write failure rollback. These tests do not certify
 PostgreSQL concurrency against a live database.
 
+S2-T37 QA adds that live-database evidence over HTTP. The runner serves the real booking and both
+reschedule controllers, guards, services and signed JWT sessions against a new disposable
+PostgreSQL database with all migrations applied. It checks future, in-progress, pending, rejected,
+canceled and expired classes, 19 invalid bodies and IDs, every wrong caller, same-value replays,
+different-value conflicts, concurrent identical and conflicting submissions, attendance racing a
+mock payment, eligibility after an approved reschedule, and a stale reschedule approval after
+completion. Every refused request must leave the booking row unchanged, including `updatedAt`:
+
+```bash
+HKTUTOR_ALLOW_DISPOSABLE_DB_VERIFY=1 \
+  DATABASE_URL='postgresql://postgres:disposable-local-only@127.0.0.1:55441/hktutor_attendance_test' \
+  pnpm db:verify:attendance
+```
+
+Ended classes are reached by moving a booked slot into the past, because bookings can only be made
+for future slots. The runner follows the same safety rules as the other disposable verifiers and
+removes its own fixtures. Evidence and findings are in `tests/s2-t37-qa.md`.
+
 ## Private availability range queries
 
 `GET /api/v1/tutors/me/availability` accepts optional UTC `from` and `to` bounds. By default it
