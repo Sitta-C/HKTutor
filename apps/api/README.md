@@ -521,7 +521,9 @@ ranking selector and translated result-card labels belong to S2-T14.
 
 `PUT /api/v1/bookings/tutor/:bookingId/meeting-link` accepts `{ meetingUrl }` from the booking's
 owning tutor only. The URL must be an absolute HTTPS URL; HTTP, FTP, JavaScript, malformed URLs,
-missing values and unknown body fields return 400. A successful update returns
+embedded `user:password@` credentials, whitespace, control characters (including NUL), bidirectional
+override characters, missing values and unknown body fields return 400 `INVALID_URL` or a validation
+error. A successful update returns
 `200 { bookingId, meetingUrl, updatedAt }`. Both `CONFIRMED` and `COMPLETED` bookings allow edits;
 `PENDING`, `CANCELED` and `EXPIRED` return 409 `BOOKING_NOT_CONFIRMED_OR_COMPLETED`. The transaction
 updates only the URL and the automatic audit timestamp, with an eligibility condition on the write.
@@ -558,6 +560,23 @@ error filter against isolated Prisma/session/token-verifier fixtures. It covers 
 for both participants, subject and UTC timestamps, nullable/hidden links, rejection without data
 leakage, input validation, persisted-value reads, concurrent cancellation and rollback after a
 post-write failure. It does not certify PostgreSQL locking or rollback against a live database.
+
+S2-T34 QA adds that live-database evidence over HTTP. The runner serves the real booking,
+reschedule and notification controllers, guards, services and signed JWT sessions against a new
+disposable PostgreSQL database with all migrations applied, and checks URL scheme/shape rejection,
+the missing-link state, owner-only writes, participant-only reads, every booking state, five
+save-versus-cancel races, and that a stored link never appears on list, reschedule or notification
+responses or to outsiders:
+
+```bash
+HKTUTOR_ALLOW_DISPOSABLE_DB_VERIFY=1 \
+  DATABASE_URL='postgresql://postgres:disposable-local-only@127.0.0.1:55441/hktutor_meeting_link_test' \
+  pnpm db:verify:meeting-links
+```
+
+It follows the same safety rules as the other disposable verifiers (explicit opt-in, loopback
+`hktutor_*_test` target, no URL options, never loads `.env`, migrates or seeds, removes its own
+fixtures). Evidence and findings are in `tests/s2-t34-qa.md`.
 
 ## Mock payment API (S2-T04)
 
