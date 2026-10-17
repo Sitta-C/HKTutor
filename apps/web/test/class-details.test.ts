@@ -18,8 +18,16 @@ describe('classroom access and link safety', () => {
     'https://meet.google.com/abc-defg-hij',
     'https://zoom.us/j/123?pwd=abc',
     'HTTPS://example.test',
+    'https://teams.microsoft.com/l/meetup-join/room?context=%7B%7D',
+    'https://meet.example.test:8443/join?token=a%2Fb#room',
+    'https://ตัวอย่าง.ไทย/ห้องเรียน',
+    'https://192.0.2.1/meeting',
+    'https://[2001:db8::1]/meeting',
   ])('accepts %s', (url) => {
     expect(isSafeMeetingUrl(url)).toBe(true);
+  });
+  it('accepts long meeting links without adding a URL length limit', () => {
+    expect(isSafeMeetingUrl(`https://example.test/${'a'.repeat(2500)}`)).toBe(true);
   });
   it.each([
     '',
@@ -30,6 +38,17 @@ describe('classroom access and link safety', () => {
     '//example.test',
     'https:example.test',
     'https://',
+    'https://...',
+    'https://./',
+    'https://example..com',
+    'https://.example.com',
+    'https://-example.com',
+    'https://example-.com',
+    'https://exam_ple.com',
+    `https://${'a'.repeat(64)}.test`,
+    'https:///example.test',
+    'https://example.test/a b',
+    'https://example.test:70000/room',
     'https://bad host.test',
     ' https://example.test ',
     'https://user:secret@example.test',

@@ -221,11 +221,13 @@ for (const language of ['th', 'en'] as const) {
     await expect(panel).toContainText(language === 'th' ? '2569' : '2026');
     await expect(panel.locator('time').first()).toContainText('19');
     const input = panel.getByLabel(text.label, { exact: true });
-    await input.fill('javascript:alert(1)');
-    await panel.getByRole('button', { name: text.save, exact: true }).click();
-    await expect(panel.getByRole('alert')).toHaveText(text.invalid);
-    await expect(input).toBeFocused();
-    expect(state.writes).toHaveLength(0);
+    for (const invalidUrl of ['javascript:alert(1)', 'https://...', 'https://example..com']) {
+      await input.fill(invalidUrl);
+      await panel.getByRole('button', { name: text.save, exact: true }).click();
+      await expect(panel.getByRole('alert')).toHaveText(text.invalid);
+      await expect(input).toBeFocused();
+      expect(state.writes).toHaveLength(0);
+    }
     await input.fill(`  ${NEW_URL}  `);
     await panel.getByRole('button', { name: text.save, exact: true }).click();
     await expect(panel.getByRole('button', { name: text.saving })).toBeDisabled();
@@ -365,13 +367,15 @@ for (const status of [403, 404, 409]) {
     await expect(panel.getByLabel('Meeting link', { exact: true })).toHaveCount(0);
   });
 }
-test('does not render an unsafe stored URL as a link', async ({ page }) => {
-  await setup(page, { meetingUrl: 'javascript:alert(1)' });
-  await page.goto(PATH);
-  const panel = page.getByRole('region', { name: 'Classroom details' });
-  await expect(panel).toContainText(classDetailsCopy.en.invalid);
-  await expect(panel.getByRole('link')).toHaveCount(0);
-});
+for (const meetingUrl of ['javascript:alert(1)', 'https://...']) {
+  test(`does not render unsafe stored URL ${meetingUrl} as a link`, async ({ page }) => {
+    await setup(page, { meetingUrl });
+    await page.goto(PATH);
+    const panel = page.getByRole('region', { name: 'Classroom details' });
+    await expect(panel).toContainText(classDetailsCopy.en.invalid);
+    await expect(panel.getByRole('link')).toHaveCount(0);
+  });
+}
 
 test('student sees a missing link in a confirmed class', async ({ page }) => {
   await setup(page, { role: 'STUDENT', meetingUrl: null });
