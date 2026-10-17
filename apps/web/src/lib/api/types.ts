@@ -336,6 +336,26 @@ export interface BookingDetail extends BookingView {
   updatedAt: string;
 }
 
+export interface BookingClassDetails {
+  bookingId: string;
+  status: BookingStatus;
+  startAt: string;
+  endAt: string;
+  subject: { id: string; name: string };
+  meetingUrl: string | null;
+  attendance: 'ATTENDED' | 'ABSENT' | null;
+  participants: {
+    tutor: { id: string; detail: { displayName: string } };
+    student: { id: string; detail: { firstName: string; lastName: string; nickname: string } };
+  };
+}
+
+export interface BookingMeetingLink {
+  bookingId: string;
+  meetingUrl: string | null;
+  updatedAt: string;
+}
+
 export interface CancelBookingResult {
   bookingId: string;
   status: BookingStatus;
