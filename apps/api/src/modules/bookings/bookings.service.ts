@@ -1388,18 +1388,24 @@ function deriveBookingAmounts(
 }
 
 const HTTPS_MEETING_URL_PATTERN = /^https:\/\/[^\s/?#]+([/?#].*)?$/i;
+/**
+ * Whitespace, control characters (PostgreSQL text cannot store NUL) and bidirectional overrides
+ * have no place in a link a participant will click; they only disguise where it goes.
+ */
+const UNSAFE_MEETING_URL_CHARACTERS = /[\s\p{Cc}‎‏‪-‮⁦-⁩]/u;
 const MEETING_LINK_STATUSES: BookingStatus[] = [BookingStatus.CONFIRMED, BookingStatus.COMPLETED];
 
 function isValidMeetingUrl(urlString: string): boolean {
   if (typeof urlString !== 'string' || urlString !== urlString.trim()) {
     return false;
   }
-  if (!HTTPS_MEETING_URL_PATTERN.test(urlString)) {
+  if (!HTTPS_MEETING_URL_PATTERN.test(urlString) || UNSAFE_MEETING_URL_CHARACTERS.test(urlString)) {
     return false;
   }
   try {
     const url = new URL(urlString);
-    return url.protocol === 'https:' && url.hostname.length > 0;
+    // Credentials let a link read as one host while opening another (https://meet.x@evil.y).
+    return url.protocol === 'https:' && url.hostname.length > 0 && !url.username && !url.password;
   } catch {
     return false;
   }
