@@ -43,7 +43,8 @@
     "db:verify:tutor-ranking": "ts-node -r tsconfig-paths/register scripts/verify-tutor-ranking.ts",
     "db:verify:notification-events": "ts-node -r tsconfig-paths/register scripts/verify-notification-events.ts",
     "db:verify:notification-access": "ts-node -r tsconfig-paths/register scripts/verify-notification-access.ts",
-    "db:verify:meeting-links": "ts-node -r tsconfig-paths/register scripts/verify-meeting-link-access.ts"
+    "db:verify:meeting-links": "ts-node -r tsconfig-paths/register scripts/verify-meeting-link-access.ts",
+    "db:verify:attendance": "ts-node -r tsconfig-paths/register scripts/verify-attendance-rules.ts"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",
