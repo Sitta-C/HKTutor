@@ -124,7 +124,11 @@ export function ProfilesControllerDoc(): ClassDecorator {
 
 export function GetMyProfileDoc(): MethodDecorator {
   return applyDecorators(
-    ApiOperation({ summary: 'Get the current student or tutor profile and onboarding status' }),
+    ApiOperation({
+      summary: 'Get the current student or tutor profile and onboarding status',
+      description:
+        'Owner-only private profile for the signed-in student or tutor, including profileComplete for onboarding redirects. Requires current privacy consent; admins have no private profile.',
+    }),
     ApiOkResponse({
       description: 'Role-specific private profile returned to its owner',
       type: MyProfileResponseDto,
@@ -144,7 +148,11 @@ export function GetMyProfileDoc(): MethodDecorator {
 
 export function SaveStudentProfileDoc(): MethodDecorator {
   return applyDecorators(
-    ApiOperation({ summary: 'Create or update the current student profile' }),
+    ApiOperation({
+      summary: 'Create or update the current student profile',
+      description:
+        "Upserts the signed-in student's profile; the owner always comes from the session. Fields are trimmed and length-checked, and current privacy consent is required.",
+    }),
     ApiBody({ type: SaveStudentProfileDto }),
     ApiOkResponse({ description: 'Student profile saved', type: SaveStudentProfileDto }),
     ApiBadRequestResponse({
@@ -161,7 +169,11 @@ export function SaveStudentProfileDoc(): MethodDecorator {
 
 export function SaveTutorProfileDoc(): MethodDecorator {
   return applyDecorators(
-    ApiOperation({ summary: 'Create or update the current tutor profile' }),
+    ApiOperation({
+      summary: 'Create or update the current tutor profile',
+      description:
+        "Upserts the signed-in tutor's profile; the owner always comes from the session. A new profile starts UNVERIFIED until an admin approves a qualification document.",
+    }),
     ApiBody({ type: SaveTutorProfileDto }),
     ApiOkResponse({
       description: 'Tutor profile saved; a new profile starts UNVERIFIED',

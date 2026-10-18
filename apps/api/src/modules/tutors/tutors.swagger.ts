@@ -261,7 +261,10 @@ export function GetPublicTutorDoc(): MethodDecorator {
 
 export function GetSubjectCatalogDoc(): MethodDecorator {
   return applyDecorators(
-    ApiOperation({ summary: 'Get active Subject catalog' }),
+    ApiOperation({
+      summary: 'Get active Subject catalog',
+      description: 'Public lookup used by listing and search forms; inactive subjects are omitted.',
+    }),
     ApiOkResponse({
       description: 'Active Subjects ordered deterministically',
       type: SubjectCatalogResponseDto,
@@ -275,7 +278,11 @@ export function GetSubjectCatalogDoc(): MethodDecorator {
 
 export function GetGradeLevelCatalogDoc(): MethodDecorator {
   return applyDecorators(
-    ApiOperation({ summary: 'Get active GradeLevel catalog' }),
+    ApiOperation({
+      summary: 'Get active GradeLevel catalog',
+      description:
+        'Public lookup used by listing and search forms; inactive grade levels are omitted.',
+    }),
     ApiOkResponse({
       description: 'Active GradeLevels ordered by sortOrder ascending',
       type: GradeLevelCatalogResponseDto,
@@ -289,7 +296,10 @@ export function GetGradeLevelCatalogDoc(): MethodDecorator {
 
 export function GetMyListingsDoc(): MethodDecorator {
   return applyDecorators(
-    ApiOperation({ summary: 'Get the current tutor’s non-deleted listings' }),
+    ApiOperation({
+      summary: 'Get the current tutor’s non-deleted listings',
+      description: 'Tutor-owned listings only, optionally filtered by publication status.',
+    }),
     ApiQuery({
       enum: ListingPublicationStatus,
       enumName: 'ListingPublicationStatus',
@@ -311,7 +321,10 @@ export function GetMyListingsDoc(): MethodDecorator {
 
 export function GetMyListingDoc(): MethodDecorator {
   return applyDecorators(
-    ApiOperation({ summary: 'Get one non-deleted listing owned by the current tutor' }),
+    ApiOperation({
+      summary: 'Get one non-deleted listing owned by the current tutor',
+      description: "Owner-only read. Another tutor's listing is answered as missing (404).",
+    }),
     listingIdParam(),
     ApiOkResponse({ description: 'Tutor-owned listing', type: ListingResponseDto }),
     ApiBadRequestResponse({
@@ -329,7 +342,11 @@ export function GetMyListingDoc(): MethodDecorator {
 
 export function PostListingDoc(): MethodDecorator {
   return applyDecorators(
-    ApiOperation({ summary: 'Create a draft listing for the current tutor' }),
+    ApiOperation({
+      summary: 'Create a draft listing for the current tutor',
+      description:
+        'Creates a DRAFT listing for a canonical subject and grade level. pricePerHour must be positive with at most two decimals and the description 20 to 1,000 characters. Publishing is a separate step that requires a VERIFIED tutor.',
+    }),
     ApiBody({ type: ListingPostRequestDto }),
     ApiCreatedResponse({ description: 'Draft listing created', type: ListingResponseDto }),
     ApiBadRequestResponse({
@@ -343,7 +360,11 @@ export function PostListingDoc(): MethodDecorator {
 
 export function PatchListingDoc(): MethodDecorator {
   return applyDecorators(
-    ApiOperation({ summary: 'Update a non-deleted listing owned by the current tutor' }),
+    ApiOperation({
+      summary: 'Update a non-deleted listing owned by the current tutor',
+      description:
+        "Partial update with the same validation as creation. Another tutor's listing is answered as missing (404).",
+    }),
     listingIdParam(),
     ApiBody({
       description: 'At least one editable listing field is required',
@@ -366,7 +387,11 @@ export function PatchListingDoc(): MethodDecorator {
 
 export function PublishListingDoc(): MethodDecorator {
   return applyDecorators(
-    ApiOperation({ summary: 'Publish a non-deleted listing owned by the current tutor' }),
+    ApiOperation({
+      summary: 'Publish a non-deleted listing owned by the current tutor',
+      description:
+        'Only an active, non-deleted VERIFIED tutor may publish. The check is repeated on every request, so a tutor whose verification is withdrawn cannot publish again.',
+    }),
     listingIdParam(),
     ApiOkResponse({ description: 'Listing published', type: ListingResponseDto }),
     ApiBadRequestResponse({
@@ -384,7 +409,11 @@ export function PublishListingDoc(): MethodDecorator {
 
 export function UpdateListingStatusDoc(): MethodDecorator {
   return applyDecorators(
-    ApiOperation({ summary: 'Change the publication status of a tutor-owned listing' }),
+    ApiOperation({
+      summary: 'Change the publication status of a tutor-owned listing',
+      description:
+        'Moves a listing between draft, published and archived. Moving to published applies the same VERIFIED-tutor rule as the publish endpoint.',
+    }),
     listingIdParam(),
     ApiBody({ type: ListingStatusRequestDto }),
     ApiOkResponse({ description: 'Listing status updated', type: ListingResponseDto }),
@@ -406,7 +435,11 @@ export function UpdateListingStatusDoc(): MethodDecorator {
 
 export function GetMyAvailabilityDoc(): MethodDecorator {
   return applyDecorators(
-    ApiOperation({ summary: 'Get the current tutor’s availability slots' }),
+    ApiOperation({
+      summary: 'Get the current tutor’s availability slots',
+      description:
+        'Tutor-owned, non-deleted slots in UTC with their derived state; a slot is reserved while it has a pending or confirmed booking. The optional range filters by start time, or by overlap with rangeMode=overlap.',
+    }),
     ...availabilityRangeQueries(),
     ApiQuery({
       name: 'rangeMode',
@@ -430,7 +463,11 @@ export function GetMyAvailabilityDoc(): MethodDecorator {
 
 export function PostAvailabilityDoc(): MethodDecorator {
   return applyDecorators(
-    ApiOperation({ summary: 'Create a future availability slot for the current tutor' }),
+    ApiOperation({
+      summary: 'Create a future availability slot for the current tutor',
+      description:
+        'UTC timestamps; the slot must be in the future, end after it starts and not overlap another slot of the same tutor. Adjacent slots are allowed.',
+    }),
     ApiBody({ type: AvailabilityPostRequestDto }),
     ApiCreatedResponse({
       description: 'Availability slot created',
@@ -451,7 +488,11 @@ export function PostAvailabilityDoc(): MethodDecorator {
 
 export function DeleteAvailabilityDoc(): MethodDecorator {
   return applyDecorators(
-    ApiOperation({ summary: 'Soft-delete a free availability slot owned by the current tutor' }),
+    ApiOperation({
+      summary: 'Soft-delete a free availability slot owned by the current tutor',
+      description:
+        'Only a slot without a pending or confirmed booking can be deleted; deletion is soft, so booking history keeps its slot.',
+    }),
     ApiParam({
       description: 'Tutor-owned availability slot ID',
       format: 'uuid',
@@ -478,7 +519,11 @@ export function DeleteAvailabilityDoc(): MethodDecorator {
 
 export function GetTutorAvailabilityDoc(): MethodDecorator {
   return applyDecorators(
-    ApiOperation({ summary: 'Get a published tutor’s future open availability slots' }),
+    ApiOperation({
+      summary: 'Get a published tutor’s future open availability slots',
+      description:
+        'Public. Only future slots with no pending or confirmed booking, for a tutor visible under the discovery rules.',
+    }),
     ApiParam({
       description: 'Verified tutor ID',
       format: 'uuid',

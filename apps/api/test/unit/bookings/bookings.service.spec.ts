@@ -3280,9 +3280,13 @@ describe('BookingsService', () => {
       });
     });
 
-    it.each([BookingStatus.PENDING, BookingStatus.CANCELED, BookingStatus.EXPIRED])(
-      'rejects with 409 when booking status is %s',
-      async (status) => {
+    it.each([
+      [BookingStatus.PENDING, 400, 'Bad Request'],
+      [BookingStatus.CANCELED, 409, 'Conflict'],
+      [BookingStatus.EXPIRED, 409, 'Conflict'],
+    ] as const)(
+      'rejects booking status %s with %i (US4-2: pending is a missing precondition)',
+      async (status, statusCode, error) => {
         const { bookingId, tutorUserId } = createTestData();
         stubAttendanceTransaction({
           booking: {
@@ -3302,9 +3306,9 @@ describe('BookingsService', () => {
         ).rejects.toMatchObject({
           response: {
             code: 'BOOKING_NOT_CONFIRMED_OR_COMPLETED',
-            error: 'Conflict',
+            error,
             message: `Only a confirmed or completed booking can be updated attendance; this booking is ${status}`,
-            statusCode: 409,
+            statusCode,
           },
         });
       },

@@ -661,8 +661,10 @@ attendance record and atomically saves attendance, `attendanceMarkedAt` and `COM
 The 200 response is `{bookingId,attendance,attendanceMarkedAt,status:"COMPLETED",idempotentReplay}`
 with a UTC ISO 8601 timestamp. `idempotentReplay` is false for the first write; a same-value retry
 returns the original record and timestamp with true and performs no second write. A different-value
-retry returns 409 `ATTENDANCE_ALREADY_RECORDED`. Pending/canceled/expired bookings, future classes
-and completed bookings without a saved record return 409 without mutation.
+retry returns 409 `ATTENDANCE_ALREADY_RECORDED`. A still-pending booking returns 400
+`BOOKING_NOT_CONFIRMED_OR_COMPLETED` (Product Backlog US4-2, aligned in S2-T39 with the US12-5
+payment rule); canceled/expired bookings, future classes and completed bookings without a saved
+record return 409. None of these rejections mutate the booking.
 
 The conditional database update requires `CONFIRMED`, null attendance fields and an ended slot.
 When another recording wins, the losing request reads the saved record in the same transaction:

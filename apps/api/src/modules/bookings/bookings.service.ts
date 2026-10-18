@@ -147,13 +147,23 @@ const meetingLinkNotEditable = (status: BookingStatus): ConflictException =>
     statusCode: 409,
   });
 
-const bookingNotConfirmedOrCompleted = (status: BookingStatus): ConflictException =>
-  new ConflictException({
+/**
+ * Product Backlog US4-2 answers a still-pending booking with 400, matching US12-5 for payments: a
+ * booking that has not reached CONFIRMED yet is a missing precondition. Canceled and expired
+ * bookings can never be recorded, so they remain 409 state conflicts.
+ */
+const bookingNotConfirmedOrCompleted = (
+  status: BookingStatus,
+): BadRequestException | ConflictException => {
+  const isPending = status === BookingStatus.PENDING;
+  const response = {
     code: 'BOOKING_NOT_CONFIRMED_OR_COMPLETED',
-    error: 'Conflict',
+    error: isPending ? 'Bad Request' : 'Conflict',
     message: `Only a confirmed or completed booking can be updated attendance; this booking is ${status}`,
-    statusCode: 409,
-  });
+    statusCode: isPending ? 400 : 409,
+  };
+  return isPending ? new BadRequestException(response) : new ConflictException(response);
+};
 
 const attendanceAlreadyRecorded = (status: AttendanceStatus): ConflictException =>
   new ConflictException({

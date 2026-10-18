@@ -346,7 +346,11 @@ export function ApproveRescheduleRequestDoc(): MethodDecorator {
 export function RejectRescheduleRequestDoc(): MethodDecorator {
   return applyDecorators(
     ApiExtraModels(RejectRescheduleRequestDto, RejectRescheduleResponseDto),
-    ApiOperation({ summary: 'Reject a pending reschedule request' }),
+    ApiOperation({
+      summary: 'Reject a pending reschedule request',
+      description:
+        'Only the participant who did not create the request may reject it. The booking keeps its slot and the target slot is untouched (a pending request never holds it). The requester is notified.',
+    }),
     ApiBearerAuth(JWT_BEARER_AUTH),
     ApiParam({
       description: 'The reschedule request UUID',
@@ -432,7 +436,11 @@ export function RejectRescheduleRequestDoc(): MethodDecorator {
 export function WithdrawRescheduleRequestDoc(): MethodDecorator {
   return applyDecorators(
     ApiExtraModels(WithdrawRescheduleResponseDto),
-    ApiOperation({ summary: 'Withdraw a pending reschedule request' }),
+    ApiOperation({
+      summary: 'Withdraw a pending reschedule request',
+      description:
+        'Only the participant who created the request may withdraw it. The booking and both slots are unchanged.',
+    }),
     ApiBearerAuth(JWT_BEARER_AUTH),
     ApiParam({
       description: 'The reschedule request UUID',

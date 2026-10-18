@@ -213,17 +213,23 @@ describe('Tutor attendance API (e2e, isolated persistence)', () => {
     expect(booking).toEqual(saved);
   });
 
-  it.each([BookingStatus.PENDING, BookingStatus.CANCELED, BookingStatus.EXPIRED])(
-    'rejects state %s without mutation',
-    async (status) => {
+  it.each([
+    [BookingStatus.PENDING, 400],
+    [BookingStatus.CANCELED, 409],
+    [BookingStatus.EXPIRED, 409],
+  ] as const)(
+    'rejects state %s with %i and no mutation (US4-2: pending is 400)',
+    async (status, statusCode) => {
       if (booking) {
         booking.status = status;
       }
       const saved = structuredClone(booking);
-      const response = await attendanceRequest().send({ attendance: 'ATTENDED' }).expect(409);
+      const response = await attendanceRequest()
+        .send({ attendance: 'ATTENDED' })
+        .expect(statusCode);
       expect(response.body).toMatchObject({
         code: 'BOOKING_NOT_CONFIRMED_OR_COMPLETED',
-        statusCode: 409,
+        statusCode,
       });
       expect(updateMany).not.toHaveBeenCalled();
       expect(booking).toEqual(saved);

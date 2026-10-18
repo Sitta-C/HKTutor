@@ -70,18 +70,22 @@ export function AttendanceForm({
         'code' in caught.details
           ? caught.details.code
           : undefined;
-      const message =
-        caught instanceof ApiError && caught.status === 409
-          ? code === 'CLASS_NOT_ENDED'
-            ? text.attendanceFuture
-            : code === 'BOOKING_NOT_CONFIRMED_OR_COMPLETED'
-              ? text.attendanceUnavailable
-              : text.attendanceConflict
-          : caught instanceof ApiError && caught.status === 403
-            ? text.attendanceOwner
-            : caught instanceof ApiError && caught.status === 404
-              ? text.notFound
-              : text.attendanceFailed;
+      // A still-pending booking is 400 (US4-2); every other eligibility change is 409.
+      const stateRejected =
+        caught instanceof ApiError &&
+        (caught.status === 409 ||
+          (caught.status === 400 && code === 'BOOKING_NOT_CONFIRMED_OR_COMPLETED'));
+      const message = stateRejected
+        ? code === 'CLASS_NOT_ENDED'
+          ? text.attendanceFuture
+          : code === 'BOOKING_NOT_CONFIRMED_OR_COMPLETED'
+            ? text.attendanceUnavailable
+            : text.attendanceConflict
+        : caught instanceof ApiError && caught.status === 403
+          ? text.attendanceOwner
+          : caught instanceof ApiError && caught.status === 404
+            ? text.notFound
+            : text.attendanceFailed;
       setError(message);
       toast.error(message);
       onUncertain?.(caught);

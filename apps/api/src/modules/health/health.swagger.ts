@@ -12,7 +12,11 @@ export function HealthControllerDoc(): ClassDecorator {
 
 export function GetHealthDoc(): MethodDecorator {
   return applyDecorators(
-    ApiOperation({ summary: 'Check database connectivity' }),
+    ApiOperation({
+      summary: 'Check database connectivity',
+      description:
+        'Unauthenticated health probe, also used by the Docker Compose healthcheck. Runs SELECT 1 through Prisma and never exposes connection details.',
+    }),
     ApiOkResponse({
       description: 'The database connection is healthy',
       schema: {

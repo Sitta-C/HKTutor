@@ -165,7 +165,11 @@ export function UploadQualificationDoc(): MethodDecorator {
     }),
     ApiCreatedResponse({ type: QualificationUploadResponseDto }),
     ...errors(true, true),
-    ApiServiceUnavailableResponse({ type: QualificationErrorDto }),
+    ApiServiceUnavailableResponse({
+      type: QualificationErrorDto,
+      description:
+        'Private storage rejected the upload, or its metadata could not be saved; a cleanup intent removes any orphaned object',
+    }),
   );
 }
 
@@ -194,7 +198,11 @@ export function QualificationQueueDoc(): MethodDecorator {
 
 export function QualificationDetailDoc(): MethodDecorator {
   return applyDecorators(
-    ApiOperation({ summary: 'Get admin qualification review details' }),
+    ApiOperation({
+      summary: 'Get admin qualification review details',
+      description:
+        'ADMIN only. Returns document metadata, review state and the tutor summary; never includes objectPath or a signed URL.',
+    }),
     ApiOkResponse({ type: QualificationDetailResponseDto }),
     ...errors(true, false),
   );
@@ -225,7 +233,10 @@ export function ReviewQualificationDoc(): MethodDecorator {
     }),
     ApiOkResponse({ type: QualificationReviewResponseDto }),
     ...errors(true, true),
-    ApiServiceUnavailableResponse({ type: QualificationErrorDto }),
+    ApiServiceUnavailableResponse({
+      type: QualificationErrorDto,
+      description: 'The review could not be saved; nothing was changed',
+    }),
   );
 }
 
@@ -236,12 +247,23 @@ function errors(missing: boolean, conflict: boolean): MethodDecorator[] {
       description:
         'Invalid input, cursor or UUID; upload empty/unsupported/oversized; rejected review without a bounded reason; missing current tutor privacy consent',
     }),
-    ApiUnauthorizedResponse({ type: QualificationErrorDto }),
+    ApiUnauthorizedResponse({
+      type: QualificationErrorDto,
+      description:
+        'The access token or its backing session is missing, invalid, expired, or revoked',
+    }),
     ApiForbiddenResponse({
       type: QualificationErrorDto,
       description: 'Wrong role or another tutor’s document',
     }),
-    ...(missing ? [ApiNotFoundResponse({ type: QualificationErrorDto })] : []),
+    ...(missing
+      ? [
+          ApiNotFoundResponse({
+            type: QualificationErrorDto,
+            description: 'No active document (or, for uploads, no tutor profile) with this ID',
+          }),
+        ]
+      : []),
     ...(conflict
       ? [
           ApiConflictResponse({

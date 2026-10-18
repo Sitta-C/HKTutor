@@ -243,7 +243,11 @@ export function GetMessagesDoc(): MethodDecorator {
 export function SendMessageDoc(): MethodDecorator {
   return applyDecorators(
     ApiExtraModels(SendMessageDto, MessageResponseDto),
-    ApiOperation({ summary: 'Send a message in a conversation' }),
+    ApiOperation({
+      summary: 'Send a message in a conversation',
+      description:
+        'STUDENT or TUTOR participants only. Text is trimmed and must be 1 to 2,000 characters. A missing conversation returns 404; a non-participant or admin returns 403.',
+    }),
     ApiBearerAuth(JWT_BEARER_AUTH),
     ApiCreatedResponse({
       description: 'The message was stored',

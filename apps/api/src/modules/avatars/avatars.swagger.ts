@@ -58,7 +58,11 @@ function AvatarErrors(): MethodDecorator {
 
 export function GetMyAvatarDoc(): MethodDecorator {
   return applyDecorators(
-    ApiOperation({ summary: 'Get a short-lived URL for the current user avatar' }),
+    ApiOperation({
+      summary: 'Get a short-lived URL for the current user avatar',
+      description:
+        "Owner-only. Returns a short-lived URL for the signed-in student's or tutor's avatar, or null when none is stored. Requires current privacy consent.",
+    }),
     ApiOkResponse({ type: AvatarReadResponseDto }),
     AvatarErrors(),
   );
@@ -90,7 +94,11 @@ export function UploadAvatarDoc(): MethodDecorator {
 
 export function DeleteAvatarDoc(): MethodDecorator {
   return applyDecorators(
-    ApiOperation({ summary: 'Remove the current avatar; repeated deletion succeeds' }),
+    ApiOperation({
+      summary: 'Remove the current avatar; repeated deletion succeeds',
+      description:
+        'Owner-only and idempotent: removes the stored avatar object and its metadata; deleting again when nothing is stored still succeeds.',
+    }),
     ApiOkResponse({ type: AvatarMutationResponseDto }),
     AvatarErrors(),
   );
@@ -99,7 +107,11 @@ export function DeleteAvatarDoc(): MethodDecorator {
 export function GetPublicTutorAvatarDoc(): MethodDecorator {
   return applyDecorators(
     ApiTags('avatars'),
-    ApiOperation({ summary: 'Get an avatar URL for a publicly visible verified tutor' }),
+    ApiOperation({
+      summary: 'Get an avatar URL for a publicly visible verified tutor',
+      description:
+        'Public. Only tutors visible under the discovery rules (active, verified) have an avatar URL; any other tutor is answered as missing.',
+    }),
     ApiOkResponse({ type: AvatarReadResponseDto }),
     ApiBadRequestResponse({ description: 'Invalid tutor UUID' }),
     ApiNotFoundResponse({ description: 'Tutor missing or excluded by public visibility rules' }),

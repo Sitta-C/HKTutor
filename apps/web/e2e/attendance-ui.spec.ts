@@ -461,13 +461,17 @@ for (const status of [400, 403, 404, 409, 500]) {
   });
 }
 
-for (const [code, message] of [
-  ['CLASS_NOT_ENDED', 'attendanceFuture'],
-  ['BOOKING_NOT_CONFIRMED_OR_COMPLETED', 'attendanceUnavailable'],
+for (const [status, code, message] of [
+  [409, 'CLASS_NOT_ENDED', 'attendanceFuture'],
+  [409, 'BOOKING_NOT_CONFIRMED_OR_COMPLETED', 'attendanceUnavailable'],
+  // US4-2: a booking that is still pending answers 400 with the same code.
+  [400, 'BOOKING_NOT_CONFIRMED_OR_COMPLETED', 'attendanceUnavailable'],
 ] as const) {
-  test(`server ${code} explains the stale eligibility and locks the form`, async ({ page }) => {
+  test(`server ${status} ${code} explains the stale eligibility and locks the form`, async ({
+    page,
+  }) => {
     const { state, panel, text } = await setup(page);
-    state.failure = 409;
+    state.failure = status;
     state.failureCode = code;
     await panel.getByRole('radio', { name: text.attended, exact: true }).check();
     await panel.getByRole('button', { name: text.recordAttendance, exact: true }).click();
