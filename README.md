@@ -161,8 +161,9 @@ Copy `.env.example` to the ignored `.env` and replace every bracketed placeholde
 - `WEB_ORIGIN` — exact browser origin allowed by API CORS
 - `COOKIE_SECURE=true` — required for an HTTPS deployment
 - `API_INTERNAL_URL` — server-only NestJS origin used by the Next.js development rewrite
-- `SEED_ADMIN_EMAIL`, `SEED_ADMIN_PASSWORD`, `SEED_TUTOR_EMAIL`, and `SEED_TUTOR_PASSWORD` — local
-  verified demo accounts; passwords must be at least 10 characters
+- `SEED_ADMIN_EMAIL`, `SEED_ADMIN_PASSWORD`, `SEED_TUTOR_EMAIL`, `SEED_TUTOR_PASSWORD`,
+  `SEED_STUDENT_EMAIL`, and `SEED_STUDENT_PASSWORD` — local verified demo accounts; the three emails
+  must differ and passwords must be at least 10 characters
 
 Generate secrets locally, for example:
 
@@ -193,8 +194,16 @@ pnpm db:migrate:deploy
 pnpm db:seed
 ```
 
-The seed hashes the configured passwords and marks the provisioned admin and tutor accounts as
-verified. Public registration can create only student or tutor accounts, never administrators.
+The seed hashes the configured passwords and marks the provisioned admin, tutor and student
+accounts as verified. Public registration can create only student or tutor accounts, never
+administrators. It is idempotent: re-running it repairs the same rows by fixed IDs.
+
+For Sprint 2 the seed also prepares the demo states that cannot be produced live: three open slots
+for the tutor at 17:00 Bangkok time on days +8, +9 and +10 (for the booking, reschedule and
+cancellation steps), and yesterday's 17:00 class, confirmed and mock-paid with a meeting link, so
+attendance can be recorded during the demo. Re-seeding resets that class to "attendance not
+recorded" and never moves an open slot that a live booking now holds. The only payment data is the
+fixed `DEMO-SEED-ENDED-CLASS` reference; no card or bank data exists anywhere.
 
 To exercise database constraints against a disposable local PostgreSQL database only:
 
@@ -225,14 +234,93 @@ set. Compose publishes Next.js on port 3000; the app forwards same-origin `/api/
 private NestJS service. Terminate HTTPS at an upstream VM proxy and set `COOKIE_SECURE=true` for a
 deployed demo.
 
+## Sprint 2 demo runbook
+
+Rehearsed from a clean environment on 2026-10-18 (S2-T40); the record, timings and findings are in
+[`tests/s2-t40-qa.md`](tests/s2-t40-qa.md). Use three separate browser profiles (or one normal and
+two private windows) so the student, tutor and admin stay signed in side by side.
+
+### 1. Prepare a clean environment
+
+1. Complete `.env` as described under [Environment](#environment), including the three `SEED_*`
+   accounts. Keep the real `.env` out of screen shares; nothing in the demo needs a secret on screen.
+2. Use a disposable or demo database only. **Its time zone must be UTC.** Supabase already is. A
+   local PostgreSQL installed on a Mac in Thailand usually defaults to `Asia/Bangkok`, and then
+   timestamps the database writes itself (notifications, read receipts) are read back seven hours
+   off. Check and fix it once:
+
+   ```bash
+   psql -d hktutor_demo -c 'SHOW timezone'
+   psql -d hktutor_demo -c "DO \$\$ BEGIN EXECUTE format('ALTER DATABASE %I SET timezone TO %L', current_database(), 'UTC'); END \$\$;"
+   ```
+
+   Use your local database name in place of `hktutor_demo`, then restart `pnpm dev` so the API
+   opens new connections.
+
+3. Migrate, seed and start:
+
+   ```bash
+   pnpm install
+   pnpm db:generate
+   pnpm db:migrate:deploy
+   pnpm db:seed
+   pnpm dev
+   ```
+
+4. Preflight: `http://localhost:3000/api/v1/health` returns `{"database":"connected"}` and
+   `http://localhost:3000/api/v1/docs` opens.
+
+### 2. Demo script
+
+Times are Bangkok time. "Day +8" means eight days after the seed ran.
+
+| #   | Role    | Do                                                                                                 | Expect                                                                   |
+| --- | ------- | -------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| 1   | Student | Sign in with `SEED_STUDENT_EMAIL`; accept the privacy notice shown on first sign-in                | Student dashboard "Welcome back, Nan"                                    |
+| 2   | Student | **Find a tutor** → Mathematics → open **Anan**                                                     | Only verified tutors are listed; Anan shows the **Verified tutor** badge |
+| 3   | Student | **Ask the tutor** and send a question                                                              | Message appears in the conversation                                      |
+| 4   | Student | Back on Anan's profile, pick the **day +8, 17:00** time → **Send lesson request**                  | Request is pending                                                       |
+| 5   | Tutor   | Sign in with `SEED_TUTOR_EMAIL`; open the bell                                                     | "New booking request"                                                    |
+| 6   | Tutor   | **Messages** → reply to Nan                                                                        | Nan's question now shows as read on her side                             |
+| 7   | Tutor   | **Booking requests** → **Confirm** → **Yes, confirm booking**                                      | Booking confirmed; Nan is notified                                       |
+| 8   | Tutor   | Open that booking → enter an `https://` meeting link → **Save meeting link**                       | Link saved                                                               |
+| 9   | Tutor   | Open **yesterday's 17:00** class (seeded) → **Attended** → **Record attendance**                   | Saved with its time; the class becomes Completed                         |
+| 10  | Student | Bell → "Booking confirmed"; open the booking → demo reference `DEMO-…` → **Record mock payment**   | Paid; the meeting link is visible in Classroom details                   |
+| 11  | Student | **Reschedule** → choose **day +9** → send                                                          | Request pending; tutor sees **Review reschedule request**                |
+| 12  | Tutor   | **Review reschedule request** → **Approve**                                                        | Booking moves to day +9; day +8 is open again; Nan is notified           |
+| 13  | Student | Book **day +10**; tutor confirms it; student **Cancel class** with a reason                        | Canceled; day +10 is open again; tutor gets "Booking canceled"           |
+| 14  | Tutor   | **My profile** → Tutor certificates → Certificate → choose a PDF → **Submit document**             | Document pending review                                                  |
+| 15  | Admin   | Sign in with `SEED_ADMIN_EMAIL` → verification queue → open the document → **Approve** with a note | Document approved; the tutor stays verified                              |
+
+Point out while presenting: payments are demonstration-only (no card or bank fields); a paid class
+cannot be canceled; attendance cannot change once recorded; and the API contract is browsable at
+`/api/v1/docs`. Automated evidence for every step, including the failure paths, is listed in
+[`tests/s2-t39-qa.md`](tests/s2-t39-qa.md#2-sprint-2-qa-traceability).
+
+### 3. Reset between rehearsals
+
+Run `pnpm db:seed` again: it resets yesterday's class and frees open slots that no live booking
+holds. Bookings made during a rehearsal are not deleted, so a fully clean run needs a fresh
+database (drop, migrate, seed). Never point these commands at a database whose data must be kept.
+
+### 4. If something goes wrong
+
+| Symptom                                        | Cause and fix                                                                               |
+| ---------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| Times in notifications or chat are 7 hours off | Database time zone is not UTC; see step 1.2                                                 |
+| Health check shows `disconnected`              | `DATABASE_URL` or network; the API never prints the URL                                     |
+| Seeded sign-in fails                           | `pnpm db:seed` was not run after changing the `SEED_*` values                               |
+| No open slots on Anan's profile                | The seed has not run since the slots were used; re-seed or create availability as the tutor |
+| Document upload fails                          | Supabase Storage settings or private buckets; see the API README                            |
+
 ## Demo scope
 
 The local authentication implementation covers registration, verification-link resend, email
-verification, login, refresh rotation, logout, current-user lookup, and route protection. Email change, multi-factor authentication, and session-management UI are intentionally out of scope
-for this small demo. Password recovery is available through `/forgot-password` and `/reset-password`.
+verification, login, refresh rotation, logout, current-user lookup, and route protection. Email
+change, multi-factor authentication, and session-management UI are intentionally out of scope for
+this small demo. Password recovery is available through `/forgot-password` and `/reset-password`.
 
-Domain models for tutor profiles, teaching listings, availability slots, and bookings already
-exist in Prisma. The tutor availability flow is connected to its production API; other domain web
-flows may still be incomplete. Check the current task tracker and API surface before implementing a
-design draft; task wording that refers to Clerk is stale because `main` now uses local JWT
-authentication.
+Sprint 2 adds tutor qualification review and verified-only publishing, ranked discovery, chat with
+read receipts, booking confirmation, mock payment, meeting links, attendance, cancellation,
+rescheduling and in-app notifications, all connected to their production APIs. Reviews, coupons,
+tutor comparison, reminders and real-time chat are Sprint 3 work.

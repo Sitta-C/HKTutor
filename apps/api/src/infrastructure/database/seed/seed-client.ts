@@ -9,6 +9,7 @@ export type SeedTransactionClient = Pick<
   | 'tutorProfile'
   | 'teachingListing'
   | 'availabilitySlot'
+  | 'booking'
 >;
 
 export interface SeedDatabaseClient {

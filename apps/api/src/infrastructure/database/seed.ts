@@ -2,6 +2,7 @@ import { seedAdministrator } from '@infrastructure/database/seed/admin.seed';
 import { seedBookingFixtures } from '@infrastructure/database/seed/booking-fixtures.seed';
 import { seedTutorSearchFixtures } from '@infrastructure/database/seed/search-fixtures.seed';
 import { readSeedEnvironment } from '@infrastructure/database/seed/seed-environment';
+import { seedSprint2Demo } from '@infrastructure/database/seed/sprint2-demo.seed';
 import { seedStudent } from '@infrastructure/database/seed/student.seed';
 import { seedTutorFoundation } from '@infrastructure/database/seed/tutor-foundation.seed';
 import { PasswordService } from '@modules/auth/password.service';
@@ -23,8 +24,9 @@ export async function runSeed(client: SeedDatabaseClient): Promise<void> {
     await seedAdministrator(transaction, config.adminEmail, adminPasswordHash);
     const foundation = await seedTutorFoundation(transaction, config.tutorEmail, tutorPasswordHash);
     await seedTutorSearchFixtures(transaction, foundation);
-    await seedStudent(transaction, config.studentEmail, studentPasswordHash);
+    const student = await seedStudent(transaction, config.studentEmail, studentPasswordHash);
     await seedBookingFixtures(transaction, foundation);
+    await seedSprint2Demo(transaction, foundation, student);
   });
 }
 
