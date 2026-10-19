@@ -86,8 +86,15 @@ test('renders the public Tutor search route and catalog-backed controls', async 
   assert.match(component, /key=\{result\.listingId\}/);
   assert.match(component, /pagination\.total/);
   assert.match(component, /pagination\.totalPages > 1/);
-  assert.match(component, /changePage\(pagination\.page - 1\)/);
-  assert.match(component, /changePage\(pagination\.page \+ 1\)/);
+  assert.match(
+    component,
+    /<NotebookPagination\s[^>]*page=\{pagination\.page\}[^>]*total=\{pagination\.total\}[^>]*pageSize=\{pagination\.pageSize\}[^>]*onPageChange=\{changePage\}/,
+  );
+  assert.match(
+    component,
+    /if \(page < 1 \|\| page > pagination\.totalPages \|\| page === pagination\.page\) return;/,
+  );
+  assert.match(component, /executeSearch\(\{ \.\.\.activeQuery, page \}\)/);
 });
 
 test('keeps no-match, validation, network-error, and stale-result states separate', async () => {
@@ -116,6 +123,9 @@ test('keeps the search callback stable when the language changes', async () => {
   assert.match(executeSearch, /setHasSearchError\(true\)/);
   assert.doesNotMatch(executeSearch, /text\.searchError/);
   assert.match(executeSearch, /\}, \[\]\);$/);
-  assert.match(component, /message=\{text\.searchError\}/);
+  assert.match(component, /status === 'error' && hasSearchError/);
+  assert.match(component, /role="alert">\s*<div[^>]*>[\s\S]*?<p>\{text\.searchError\}<\/p>/);
+  assert.match(component, /onClick=\{\(\) => void retrySearch\(\)\}/);
+  assert.match(component, /await executeSearch\(activeQuery\)/);
   assert.doesNotMatch(component, /error\.message/);
 });

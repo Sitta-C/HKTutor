@@ -222,6 +222,13 @@ CI booking verification starts the full API against disposable PostgreSQL. Its w
 test-only Storage configuration (`storage.example.test`, a dummy secret key, and distinct dummy
 bucket names) to satisfy startup validation; the booking probe does not call live Storage. Keep
 real Supabase credentials out of this job.
+The job overrides both `OMISE_SECRET_KEY` and `OMISE_WEBHOOK_SECRET` with empty strings so
+the copied `.env.example` placeholders do not fail startup validation. Payments stay disabled
+throughout the workspace checks and booking probe; payment tests use their own mocked configuration.
+The booking probe checks that the retired mock-payment endpoint returns 410 to its owner without
+changing booking or payment-attempt state. CI then runs `db:verify:payments` against the same
+disposable PostgreSQL service with a fake Omise adapter to verify the current payment races,
+callback replay, recovery and rollback without contacting Omise.
 
 ## Student and tutor avatars
 

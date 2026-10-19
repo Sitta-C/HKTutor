@@ -173,6 +173,7 @@ test('translates the consent line in both languages', async () => {
 
 test('blocks registration submission until the notice is accepted', async () => {
   const register = await read(registerComponentPath);
+  const consentGuard = register.match(/if \(!acceptedPolicy\) \{([\s\S]*?)\n {4}\}/);
 
   assert.match(register, /import PrivacyConsent from '@\/components\/privacy-consent';/);
   assert.match(register, /const \[acceptedPolicy, setAcceptedPolicy\] = useState\(false\);/);
@@ -180,16 +181,18 @@ test('blocks registration submission until the notice is accepted', async () => 
     register,
     /const \[consentError, setConsentError\] = useState<string \| null>\(null\);/,
   );
-  assert.match(
-    register,
-    /if \(!acceptedPolicy\) \{\s*setConsentError\(copy\.register\.policyRequired\);\s*return;\s*\}/,
-  );
+  assert.ok(consentGuard, 'registration must guard unaccepted privacy consent');
+  assert.match(consentGuard[1], /setConsentError\(copy\.register\.policyRequired\)/);
+  assert.match(consentGuard[1], /\breturn;/);
+  assert.doesNotMatch(consentGuard[1], /\bregister\(/);
+  assert.ok(register.indexOf(consentGuard[0]) < register.indexOf('await register('));
   assert.match(register, /<PrivacyConsent/);
   assert.match(register, /error=\{consentError\}/);
   assert.match(register, /buildOnboardingConsent\(acceptedPolicy\)/);
   assert.doesNotMatch(register, /void consent/);
   assert.match(register, /await register\(/);
-  assert.match(register, /router\.push\(`\/register\/verify\?email=/);
+  assert.match(register, /router\.push\('\/register\/verify'\)/);
+  assert.doesNotMatch(register, /\/register\/verify\?email=/);
   assert.doesNotMatch(
     register,
     /copy\.register\.policy\}/,

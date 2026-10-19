@@ -17,6 +17,10 @@ jobs:
   check:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    env:
+      # Payments are optional; override the copied template placeholders for this job.
+      OMISE_SECRET_KEY: ''
+      OMISE_WEBHOOK_SECRET: ''
     services:
       postgres:
         image: postgres:17-alpine
@@ -76,3 +80,5 @@ jobs:
           pnpm db:migrate:deploy
           pnpm db:seed
           pnpm db:verify:bookings
+          # The payment verifier requires the default public schema with no URL parameters.
+          DATABASE_URL="${DATABASE_URL%\?schema=public}" pnpm db:verify:payments

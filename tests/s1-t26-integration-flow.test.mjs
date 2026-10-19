@@ -32,6 +32,8 @@ test('gates every private flow route and connects both dashboards to live bookin
     profileSession,
     tutorDashboard,
     studentDashboard,
+    dashboardShell,
+    studentBookingCount,
     bookingApi,
   ] = await Promise.all([
     read('apps/web/src/components/availability/manage-tutor-availability.tsx'),
@@ -40,6 +42,8 @@ test('gates every private flow route and connects both dashboards to live bookin
     read('apps/web/src/lib/use-profile-session.ts'),
     read('apps/web/src/components/dashboard/tutor-dashboard.tsx'),
     read('apps/web/src/components/dashboard/student-dashboard.tsx'),
+    read('apps/web/src/components/dashboard/dashboard-shell.tsx'),
+    read('apps/web/src/lib/student-booking-count.ts'),
     read('apps/web/src/lib/api/bookings.ts'),
   ]);
 
@@ -54,10 +58,15 @@ test('gates every private flow route and connects both dashboards to live bookin
   assert.match(tutorDashboard, /getTutorAvailability/);
   assert.match(tutorDashboard, /getTutorListings\(\)/);
   assert.match(studentDashboard, /getMyBookings\(\{ pageSize: 100 \}\)/);
+  assert.match(dashboardShell, /const bookingCount = useStudentBookingCount\(/);
+  assert.match(dashboardShell, /user\.role === 'STUDENT' && item\.id === 'bookings'/);
   assert.match(
-    studentDashboard,
-    /bookings: isLoading \|\| loadError \? '—' : String\(bookings\.length\)/,
+    dashboardShell,
+    /bookingCount\.total === null\s*\? '—'\s*: String\(bookingCount\.total\)/,
   );
+  assert.match(studentBookingCount, /getMyBookings\(\{ page: 1, pageSize: 1 \}\)/);
+  assert.match(studentBookingCount, /total: response\.total/);
+  assert.doesNotMatch(studentDashboard, /navBadges=/);
   assert.match(bookingApi, /authenticatedFetch<TutorBookingsResponse>\(`\/bookings\/tutor/);
 });
 
@@ -151,7 +160,7 @@ test('makes the public booking action role-aware', async () => {
 
   assert.match(
     detail,
-    /disabled=\{!selectedListing \|\| Boolean\(user && user\.role !== 'STUDENT'\)\}/,
+    /disabled=\{\s*!selectedListing\s*\|\|\s*Boolean\(user && user\.role !== 'STUDENT'\)\s*\}/,
   );
   assert.match(detail, /router\.push\(user \? bookingPath : withReturnTo\('\/', bookingPath\)\)/);
   assert.match(detail, /text\.studentOnly/);
