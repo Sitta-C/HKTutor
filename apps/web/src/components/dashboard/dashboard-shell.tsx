@@ -357,7 +357,9 @@ export function DashboardShell({
                 <>
                   <span className="flex min-w-0 items-center gap-2.5">
                     {icon}
-                    {!isSidebarCollapsed && <span className="truncate">{item.label}</span>}
+                    {!isSidebarCollapsed && (
+                      <span className="truncate text-sm font-semibold">{item.label}</span>
+                    )}
                   </span>
                   {!isSidebarCollapsed && badge !== undefined && (
                     <span
