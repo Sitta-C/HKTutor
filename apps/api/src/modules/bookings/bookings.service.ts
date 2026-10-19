@@ -28,13 +28,11 @@ import {
   ClassAttendanceResponseDto,
   ConfirmBookingDto,
   CreateBookingDto,
-  CreateMockPaymentDto,
   DEFAULT_BOOKINGS_PAGE,
   DEFAULT_BOOKINGS_PAGE_SIZE,
   GetBookingQuoteQueryDto,
   GetMyBookingsQueryDto,
   GetTutorBookingsQueryDto,
-  MockPaymentResponseDto,
   MyBookingsResponseDto,
   RejectBookingDto,
   TutorBookingActionResponseDto,
@@ -62,10 +60,6 @@ export interface TutorBookingActionInput {
 }
 export type ConfirmTutorBookingInput = TutorBookingActionInput & ConfirmBookingDto;
 export type RejectTutorBookingInput = TutorBookingActionInput & RejectBookingDto;
-export type CreateMockPaymentInput = CreateMockPaymentDto & {
-  bookingId: string;
-  studentUserId: string;
-};
 export interface BookingMeetingLinkInput {
   bookingId: string;
   meetingUrl: string;
@@ -181,14 +175,6 @@ const bookingTransitionConflict = (): ConflictException =>
     statusCode: 409,
   });
 
-const studentBookingNotOwned = (): ForbiddenException =>
-  new ForbiddenException({
-    code: STUDENT_BOOKING_OWNERSHIP_ERRORS.foreignOwner.code,
-    error: 'Forbidden',
-    message: STUDENT_BOOKING_OWNERSHIP_ERRORS.foreignOwner.message,
-    statusCode: 403,
-  });
-
 const bookingNotParticipant = (): ForbiddenException =>
   new ForbiddenException({
     code: CANCEL_BOOKING_OWNERSHIP_ERRORS.foreignOwner.code,
@@ -197,49 +183,12 @@ const bookingNotParticipant = (): ForbiddenException =>
     statusCode: 403,
   });
 
-const bookingNotPayable = (status: BookingStatus): BadRequestException | ConflictException => {
-  const isPending = status === BookingStatus.PENDING;
-  const response = {
-    code: 'BOOKING_NOT_PAYABLE',
-    error: isPending ? 'Bad Request' : 'Conflict',
-    message: `Only a confirmed booking can be paid; this booking is ${status}`,
-    statusCode: isPending ? 400 : 409,
-  };
-  return isPending ? new BadRequestException(response) : new ConflictException(response);
-};
-
 const bookingAlreadyPaid = (): ConflictException =>
   new ConflictException({
     code: 'BOOKING_ALREADY_PAID',
     error: 'Conflict',
     message: 'This booking is already paid',
     statusCode: 409,
-  });
-
-const mockReferenceTaken = (): ConflictException =>
-  new ConflictException({
-    code: 'MOCK_REFERENCE_TAKEN',
-    error: 'Conflict',
-    message: 'This payment reference is already recorded for another booking',
-    statusCode: 409,
-  });
-
-const bookingPaymentConflict = (): ConflictException =>
-  new ConflictException({
-    code: 'BOOKING_PAYMENT_CONFLICT',
-    error: 'Conflict',
-    message: 'The booking payment was already recorded by another request',
-    statusCode: 409,
-  });
-
-/** The declared amount only detects a stale client, so a mismatch is rejected as invalid input. */
-const paymentAmountMismatch = (expected: Prisma.Decimal): BadRequestException =>
-  new BadRequestException({
-    code: 'BOOKING_PAYMENT_AMOUNT_MISMATCH',
-    details: { expectedAmount: expected.toFixed(2) },
-    error: 'Bad Request',
-    message: 'amount does not match the amount recorded for this booking',
-    statusCode: 400,
   });
 
 const invalidURLException = (): BadRequestException =>
@@ -624,6 +573,8 @@ export class BookingsService {
             },
           },
           mockReference: true,
+          paymentReference: true,
+          paymentPending: true,
           netAmount: true,
           paidAt: true,
           paymentStatus: true,
@@ -655,6 +606,8 @@ export class BookingsService {
           subjectName: booking.listing.subject.name,
         },
         mockReference: booking.mockReference,
+        paymentReference: booking.paymentReference,
+        paymentPending: booking.paymentPending,
         netAmount: booking.netAmount.toFixed(2),
         paidAt: booking.paidAt?.toISOString() ?? null,
         paymentStatus: booking.paymentStatus,
@@ -691,6 +644,8 @@ export class BookingsService {
           },
         },
         mockReference: true,
+        paymentReference: true,
+        paymentPending: true,
         netAmount: true,
         paidAt: true,
         paymentStatus: true,
@@ -722,6 +677,8 @@ export class BookingsService {
         subjectName: booking.listing.subject.name,
       },
       mockReference: booking.mockReference,
+      paymentReference: booking.paymentReference,
+      paymentPending: booking.paymentPending,
       netAmount: booking.netAmount.toFixed(2),
       paidAt: booking.paidAt?.toISOString() ?? null,
       paymentStatus: booking.paymentStatus,
@@ -839,91 +796,6 @@ export class BookingsService {
       cancellationReason: reason && reason.length > 0 ? reason : DEFAULT_REJECTION_REASON,
       status: BookingStatus.CANCELED,
     });
-  }
-
-  /**
-   * Records the demo payment for one CONFIRMED and UNPAID booking owned by the acting student. The
-   * stored netAmount is authoritative: `amount` only declares what the client believed was due.
-   */
-  async createMockPayment(input: CreateMockPaymentInput): Promise<MockPaymentResponseDto> {
-    const booking = await this.prisma.booking.findUnique({
-      select: { netAmount: true, paymentStatus: true, status: true, studentUserId: true },
-      where: { id: input.bookingId },
-    });
-
-    if (!booking) {
-      throw bookingNotFound();
-    }
-    if (booking.studentUserId !== input.studentUserId) {
-      throw studentBookingNotOwned();
-    }
-    if (booking.status !== BookingStatus.CONFIRMED) {
-      throw bookingNotPayable(booking.status);
-    }
-    if (booking.paymentStatus === PaymentStatus.PAID) {
-      throw bookingAlreadyPaid();
-    }
-    if (!booking.netAmount.equals(new Prisma.Decimal(input.amount))) {
-      throw paymentAmountMismatch(booking.netAmount);
-    }
-
-    const paidAtUtc = new Date();
-
-    try {
-      return await this.prisma.$transaction(async (tx) => {
-        // The UNPAID filter decides the winner when two payments race: the loser updates zero rows,
-        // so no request can record a second payment or observe a half-applied one.
-        const payment = await tx.booking.updateMany({
-          data: {
-            mockReference: input.reference,
-            paidAt: paidAtUtc,
-            paymentStatus: PaymentStatus.PAID,
-          },
-          where: {
-            id: input.bookingId,
-            paymentStatus: PaymentStatus.UNPAID,
-            status: BookingStatus.CONFIRMED,
-            studentUserId: input.studentUserId,
-          },
-        });
-
-        if (payment.count !== 1) {
-          throw bookingPaymentConflict();
-        }
-
-        const paid = await tx.booking.findUniqueOrThrow({
-          select: {
-            id: true,
-            mockReference: true,
-            netAmount: true,
-            paidAt: true,
-            paymentStatus: true,
-          },
-          where: { id: input.bookingId },
-        });
-
-        return {
-          amount: paid.netAmount.toFixed(2),
-          bookingId: paid.id,
-          paidAt: (paid.paidAt ?? paidAtUtc).toISOString(),
-          paymentStatus: paid.paymentStatus,
-          reference: paid.mockReference ?? input.reference,
-        };
-      });
-    } catch (error) {
-      if (isDuplicateMockReference(error)) {
-        this.logger.warn(`Rejecting mock payment for ${input.bookingId}: reference already used`);
-        throw mockReferenceTaken();
-      }
-      if (isDatabaseConflict(error)) {
-        this.logger.warn(
-          `Rejecting mock payment for ${input.bookingId}: database reported a conflict`,
-        );
-        throw bookingPaymentConflict();
-      }
-
-      throw error;
-    }
   }
 
   /**
@@ -1143,6 +1015,7 @@ export class BookingsService {
           select: {
             id: true,
             paymentStatus: true,
+            paymentPending: true,
             slot: { select: { startAtUtc: true } },
             slotId: true,
             status: true,
@@ -1157,6 +1030,13 @@ export class BookingsService {
           throw bookingNotParticipant();
         }
         if (booking.paymentStatus === PaymentStatus.PAID) throw bookingAlreadyPaid();
+        if (booking.paymentPending) {
+          throw new ConflictException({
+            code: 'PAYMENT_IN_PROGRESS',
+            message:
+              'Refresh payment status and wait for the payment to finish or expire before canceling',
+          });
+        }
         if (booking.status === BookingStatus.COMPLETED) throw bookingAlreadyCompleted();
         if (booking.status === BookingStatus.CANCELED) throw bookingAlreadyCanceled();
         if (booking.status === BookingStatus.EXPIRED) throw bookingAlreadyExpired();
@@ -1177,6 +1057,7 @@ export class BookingsService {
           where: {
             id: input.bookingId,
             paymentStatus: PaymentStatus.UNPAID,
+            paymentPending: false,
             // Approval can move the class after the cutoff check above. Invalidate a
             // cancellation based on the old slot instead of canceling the new class.
             slotId: booking.slotId,
@@ -1225,6 +1106,7 @@ export class BookingsService {
             attendance: true,
             attendanceMarkedAt: true,
             id: true,
+            paymentPending: true,
             slot: {
               select: {
                 endAtUtc: true,
@@ -1241,6 +1123,12 @@ export class BookingsService {
         }
         if (booking.tutorProfileId !== input.tutorId) {
           throw bookingNotOwned();
+        }
+        if (booking.paymentPending) {
+          throw new ConflictException({
+            code: 'PAYMENT_IN_PROGRESS',
+            message: 'Resolve the active payment before recording attendance',
+          });
         }
         if (
           booking.status !== BookingStatus.CONFIRMED &&
@@ -1268,6 +1156,7 @@ export class BookingsService {
             attendance: null,
             attendanceMarkedAt: null,
             id: input.bookingId,
+            paymentPending: false,
             slot: { endAtUtc: { lte: attendanceMarkedAtUtc } },
             status: BookingStatus.CONFIRMED,
             tutorProfileId: input.tutorId,
@@ -1331,17 +1220,6 @@ const CONFLICTING_PRISMA_CODES = new Set(['P2002', 'P2003', 'P2004']);
  * rather than a conflict, so it is deliberately absent and surfaces as a 500.
  */
 const CONFLICTING_SQL_STATES = new Set(['23503', '23505', '40001', '40P01']);
-
-/**
- * The payment update writes only mockReference, paidAt and paymentStatus. Booking's other unique
- * indexes cover the primary key and a partial index on slotId for PENDING/CONFIRMED rows, and this
- * update changes neither column nor the row's membership of that predicate, so the only unique
- * index it can violate is Booking_mockReference_key. Deciding it from the P2002 code alone keeps
- * this independent of how a Prisma release shapes the error metadata.
- */
-function isDuplicateMockReference(error: unknown): boolean {
-  return !!error && typeof error === 'object' && (error as { code?: unknown }).code === 'P2002';
-}
 
 function readProperty(value: unknown, key: string): unknown {
   return value !== null && typeof value === 'object'

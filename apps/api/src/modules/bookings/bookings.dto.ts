@@ -216,7 +216,7 @@ export class BookingViewDto {
   paymentStatus!: PaymentStatus;
 
   @ApiProperty({
-    description: 'When the mock payment was recorded. Null while the booking is unpaid.',
+    description: 'When payment was confirmed. Null while the booking is unpaid.',
     example: '2026-10-09T09:04:31.001Z',
     nullable: true,
     type: String,
@@ -230,6 +230,18 @@ export class BookingViewDto {
     type: String,
   })
   mockReference!: string | null;
+
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    description: 'Omise test charge ID; legacy mock references remain separate.',
+  })
+  paymentReference!: string | null;
+
+  @ApiProperty({
+    description: 'An active/uncertain PromptPay attempt blocks cancellation and duplicate charges.',
+  })
+  paymentPending!: boolean;
 
   @ApiProperty({ example: '2026-09-10T09:04:31.001Z' })
   createdAt!: string;

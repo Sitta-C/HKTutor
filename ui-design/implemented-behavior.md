@@ -678,3 +678,13 @@ verification flows offer reload and return-to-registration actions; changing a m
 address starts a new registration and does not change the original account. Recovery has an explicit
 start-new-request action. Resends submit the current flow ID; the signed HttpOnly cookie determines
 the email, and a changed flow from another tab cannot silently change the resend destination.
+
+## PromptPay Test Mode (2026-10-19)
+
+The student booking detail uses a PromptPay test QR panel in the existing payment column. The
+amount, charge reference, QR and payment status come from the API. The panel restores an active
+QR on reload, polls while pending, pauses in hidden tabs and offers manual status refresh. Test
+mode is labeled in Thai and English. Failed/expired attempts permit a new QR; uncertain results
+require status verification and never automatically retry charge creation. Active attempts block
+cancellation on the server and in the detail UI. Legacy mock receipts remain readable, while the
+old mock-payment endpoint is retired. No card fields, refunds, payouts or live payment are added.

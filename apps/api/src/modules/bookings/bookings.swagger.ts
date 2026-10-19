@@ -10,13 +10,14 @@ import {
   ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
+  ApiResponse,
   ApiQuery,
   ApiTags,
   ApiUnauthorizedResponse,
   getSchemaPath,
 } from '@nestjs/swagger';
 
-import { AttendanceStatus, BookingStatus, PaymentStatus } from '@generated/prisma/enums';
+import { AttendanceStatus, BookingStatus } from '@generated/prisma/enums';
 import { JWT_BEARER_AUTH } from '@modules/auth/auth.swagger';
 import {
   BookingClassDetailDto,
@@ -30,8 +31,6 @@ import {
   ClassAttendanceResponseDto,
   ConfirmBookingDto,
   CreateBookingDto,
-  CreateMockPaymentDto,
-  MockPaymentResponseDto,
   GetBookingQuoteQueryDto,
   GetMyBookingsQueryDto,
   GetTutorBookingsQueryDto,
@@ -692,105 +691,19 @@ export function RejectTutorBookingDoc(): MethodDecorator {
   );
 }
 
-function mockPaymentErrorResponses(): MethodDecorator[] {
-  return [
-    ApiBadRequestResponse({
-      description:
-        'bookingId is not a valid UUID, the body failed validation, or the declared amount does ' +
-        "not match the booking's stored amount; also returned for PENDING (BOOKING_NOT_PAYABLE)",
-      schema: {
-        example: {
-          code: 'BOOKING_PAYMENT_AMOUNT_MISMATCH',
-          details: { expectedAmount: '450.00' },
-          error: 'Bad Request',
-          message: 'amount does not match the amount recorded for this booking',
-          statusCode: 400,
-        },
-        type: 'object',
-      },
-    }),
-    ApiUnauthorizedResponse({
-      description:
-        'The access token or its backing session is missing, invalid, expired, or revoked',
-      schema: {
-        example: {
-          code: 'UNAUTHENTICATED',
-          error: 'Unauthorized',
-          message: 'Invalid or expired authentication token',
-          statusCode: 401,
-        },
-        type: 'object',
-      },
-    }),
-    ApiForbiddenResponse({
-      description:
-        'The authenticated user is not a student, or the booking belongs to another student',
-      schema: {
-        example: {
-          code: 'BOOKING_NOT_OWNED',
-          error: 'Forbidden',
-          message: 'This booking belongs to another student',
-          statusCode: 403,
-        },
-        type: 'object',
-      },
-    }),
-    ApiNotFoundResponse({
-      description: 'No booking exists with this ID',
-      schema: {
-        example: {
-          code: 'BOOKING_NOT_FOUND',
-          error: 'Not Found',
-          message: 'Booking not found',
-          statusCode: 404,
-        },
-        type: 'object',
-      },
-    }),
-    ApiConflictResponse({
-      description:
-        'The booking is canceled, completed or expired, is already paid, the reference belongs to another ' +
-        'booking, or a concurrent payment won the transition',
-      schema: {
-        example: {
-          code: 'BOOKING_ALREADY_PAID',
-          error: 'Conflict',
-          message: 'This booking is already paid',
-          statusCode: 409,
-        },
-        type: 'object',
-      },
-    }),
-  ];
-}
-
 export function CreateMockPaymentDoc(): MethodDecorator {
   return applyDecorators(
-    ApiExtraModels(CreateMockPaymentDto, MockPaymentResponseDto),
     ApiOperation({
-      summary: "Record the demo payment for one of the authenticated student's confirmed bookings",
-      description:
-        'Demonstration only: no card or bank data is accepted. Only a CONFIRMED and UNPAID booking can be paid; amount must equal the stored net amount and reference must be unique. A PENDING booking returns 400; other states, an already-paid booking and a reused reference return 409.',
+      summary: 'Retired mock payment endpoint',
+      deprecated: true,
+      description: 'No payment is recorded. Use POST /bookings/me/:bookingId/payments/promptpay.',
     }),
     ApiBearerAuth(JWT_BEARER_AUTH),
-    ApiBody({ required: true, type: CreateMockPaymentDto }),
-    ApiOkResponse({
-      description:
-        "The confirmed, unpaid booking became paid in one conditional update, storing the server's " +
-        'amount, the paid timestamp and the globally unique demo reference',
-      schema: {
-        example: {
-          amount: '450.00',
-          bookingId: '3c54a0d6-e3f3-4a38-bd55-3b4011ee31ae',
-          paidAt: '2026-10-09T09:04:31.001Z',
-          paymentStatus: PaymentStatus.PAID,
-          reference: 'DEMO-7F3A91',
-        },
-        allOf: [{ $ref: getSchemaPath(MockPaymentResponseDto) }],
-        type: 'object',
-      },
-    }),
-    ...mockPaymentErrorResponses(),
+    ApiResponse({ status: 410, description: 'Mock payment endpoint retired' }),
+    ApiUnauthorizedResponse({ description: 'Authentication required' }),
+    ApiForbiddenResponse({ description: 'Wrong role or booking owner' }),
+    ApiBadRequestResponse({ description: 'Invalid booking UUID' }),
+    ApiNotFoundResponse({ description: 'Booking not found' }),
   );
 }
 
@@ -994,7 +907,7 @@ export function CancelBookingDoc(): MethodDecorator {
     ApiOperation({
       summary: 'Cancel a booking',
       description:
-        'Either participant may cancel a PENDING or CONFIRMED, UNPAID booking at least 24 hours (inclusive) before the class starts, with a non-blank reason. The slot is released and the other participant is notified (BOOKING_CANCELED).',
+        'Either participant may cancel a PENDING or CONFIRMED, UNPAID booking with no active PromptPay attempt at least 24 hours (inclusive) before the class starts, with a non-blank reason. The slot is released and the other participant is notified (BOOKING_CANCELED).',
     }),
     ApiBearerAuth(JWT_BEARER_AUTH),
     ApiBody({ required: true, type: CancelBookingDto }),
@@ -1083,6 +996,7 @@ export function UpdateAttendanceDoc(): MethodDecorator {
       summary:
         "Update the attendance for one of the authenticated tutor's confirmed or completed bookings",
       description:
+        'An active PromptPay attempt returns 409 PAYMENT_IN_PROGRESS. ' +
         'Record ATTENDED or ABSENT when the class end time is at or before now. The first write completes the booking atomically, whichever value is recorded. A same-value replay returns the saved timestamp without writing; a different value returns 409. A still-pending booking returns 400; canceled and expired bookings return 409.',
     }),
     ApiBearerAuth(JWT_BEARER_AUTH),

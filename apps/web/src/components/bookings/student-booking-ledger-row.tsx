@@ -4,7 +4,7 @@ import { BookingDocketStatus } from '@/components/bookings/booking-docket';
 import { formatBookingDocketSlot } from '@/components/bookings/booking-docket-model';
 import { bookingRequestCopy } from '@/components/bookings/booking-request-copy';
 import { formatMoney } from '@/components/bookings/booking-ui';
-import { PaymentStatusBadge } from '@/components/bookings/mock-payment-panel';
+import { PaymentStatusBadge } from '@/components/bookings/promptpay-payment-panel';
 import { studentBookingsCopy } from '@/components/bookings/student-bookings-copy';
 import { DashboardIcon } from '@/components/dashboard/dashboard-icon';
 

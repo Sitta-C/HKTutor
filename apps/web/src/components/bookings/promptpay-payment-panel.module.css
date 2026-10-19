@@ -7,6 +7,13 @@
     color-mix(in srgb, var(--color-notebook-line) 25%, transparent) 32px
   );
 }
+.qr {
+  display: block;
+  width: min(100%, 240px);
+  height: auto;
+  margin: 16px auto;
+  background: white;
+}
 .heading {
   display: flex;
   flex-wrap: wrap;
