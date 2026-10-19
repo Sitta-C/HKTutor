@@ -242,6 +242,7 @@ export const translations = {
         privacyNotificationBody: 'Check what information is public or private on your profile.',
       },
       nav: {
+        findTutors: 'Find tutors',
         myProfile: 'My profile',
         myBookings: 'My bookings',
         bookingRequests: 'Booking requests',
@@ -306,7 +307,7 @@ export const translations = {
         doneBadge: 'DONE',
         pendingBadge: 'PENDING',
         quickActions: 'Quick actions',
-        findTutorAction: 'Find a tutor',
+        findTutorAction: 'Find your tutors',
         myBookingsAction: 'My bookings',
         accountAction: 'Account',
         waitingOnTutor: 'Waiting on tutor',
@@ -758,6 +759,7 @@ export const translations = {
         privacyNotificationBody: 'ดูว่าข้อมูลใดบนโปรไฟล์เป็นข้อมูลสาธารณะหรือส่วนตัว',
       },
       nav: {
+        findTutors: 'ค้นหาติวเตอร์',
         myProfile: 'โปรไฟล์ของฉัน',
         myBookings: 'การจองของฉัน',
         bookingRequests: 'คำขอจอง',
@@ -820,7 +822,7 @@ export const translations = {
         doneBadge: 'เสร็จสิ้น',
         pendingBadge: 'รอดำเนินการ',
         quickActions: 'เมนูลัด',
-        findTutorAction: 'ค้นหาติวเตอร์',
+        findTutorAction: 'ค้นหาติวเตอร์ของคุณ',
         myBookingsAction: 'การจองของฉัน',
         accountAction: 'บัญชี',
         waitingOnTutor: 'กำลังรอติวเตอร์',

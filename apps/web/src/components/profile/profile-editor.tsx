@@ -441,7 +441,7 @@ export default function ProfileEditor({ mode }: ProfileEditorProps) {
                 <p className="mt-3 text-xs leading-5 text-notebook-muted">
                   {text.listingNote}{' '}
                   <Link
-                    href="/dashboard#listings"
+                    href="/dashboard/listings"
                     className="font-bold text-notebook-ink underline decoration-margin-guide decoration-2 underline-offset-4"
                   >
                     {text.myListings}

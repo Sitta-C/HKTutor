@@ -127,6 +127,11 @@ time from a confirmed appointment. The existing selection stays unchanged: earli
 after dashboard mount among PENDING and CONFIRMED bookings. A compact strip beneath it shows upcoming,
 all pending, and completed counts from loaded records, explicitly scoped to at most 100 bookings;
 pending and upcoming can overlap. It does not provide learning analytics or lifetime statistics.
+
+The student sidebar includes **Find tutors** / **ค้นหาติวเตอร์** immediately after Dashboard, with
+the shared magnifying-glass icon and a link to `/tutors`. It stays active on tutor search and detail
+routes and remains accessible by its label when the sidebar is collapsed.
+
 The overview has no My bookings action. One deep-mint **Find a tutor** paper ticket sits to the right
 of the dashboard greeting as the page's primary booking entry point. Below 640px, it stacks beneath
 the greeting, aligned left. Its upright bilingual label and dashed arrow stub lead to `/tutors`,
