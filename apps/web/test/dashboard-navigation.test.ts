@@ -29,11 +29,16 @@ describe('dashboard role navigation', () => {
     expect(isDashboardNavActive('support', '/dashboard')).toBe(false);
     expect(isDashboardNavActive('messages', '/dashboard/messages')).toBe(true);
     expect(isDashboardNavActive('messages', '/dashboard/messages-extra')).toBe(false);
+    expect(isDashboardNavActive('tutors', '/tutors')).toBe(true);
+    expect(isDashboardNavActive('tutors', '/tutors/tutor-1')).toBe(true);
+    expect(isDashboardNavActive('tutors', '/tutors-extra')).toBe(false);
+    expect(isDashboardNavActive('tutors', '/dashboard')).toBe(false);
   });
 
   it('only exposes implemented navigation destinations', () => {
     expect(getDashboardNavItems('STUDENT', translations.en).map((item) => item.id)).toEqual([
       'dashboard',
+      'tutors',
       'profile',
       'bookings',
       'messages',
