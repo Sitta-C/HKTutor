@@ -45,7 +45,6 @@ if (!/^hktutor[-_]/.test(databaseName)) {
 }
 
 const ids = {
-  paymentDuplicateSlot: '96000000-0000-4000-8000-000000000004',
   paymentSlot: '96000000-0000-4000-8000-000000000003',
   raceSlot: '96000000-0000-4000-8000-000000000001',
   rejectRollbackSlot: '96000000-0000-4000-8000-000000000002',
@@ -64,12 +63,9 @@ const studentIds = [
   ids.studentRejectRollback,
   ids.studentRollback,
 ];
-const slotIds = [ids.paymentDuplicateSlot, ids.paymentSlot, ids.raceSlot, ids.rejectRollbackSlot];
+const slotIds = [ids.paymentSlot, ids.raceSlot, ids.rejectRollbackSlot];
 /** The probe trigger only fires for a cancellation carrying this reason. */
 const ROLLBACK_PROBE_REASON = 'ROLLBACK_PROBE';
-/** The payment probe trigger only fires for the reference it injects. */
-const PAYMENT_PROBE_REFERENCE = 'DEMO-ROLLBACK-PROBE';
-const PAYMENT_REFERENCE = 'DEMO-VERIFY-PAID';
 const TUTOR_ACTION_SESSION_PREFIX = 'booking-tutor-action-';
 
 /**
@@ -144,7 +140,6 @@ async function createAuthenticatedStudent(
 
 async function cleanup(prisma: PrismaService): Promise<void> {
   await dropRejectRollbackProbe(prisma);
-  await dropPaymentRollbackProbe(prisma);
   await prisma.notification.deleteMany({ where: { booking: { slotId: { in: slotIds } } } });
   await prisma.booking.deleteMany({ where: { slotId: { in: slotIds } } });
   await prisma.availabilitySlot.deleteMany({ where: { id: { in: slotIds } } });
@@ -487,37 +482,8 @@ async function runFailedRequestCheck(
   process.stdout.write('PASS a failed HTTP booking request leaves no Booking row behind\n');
 }
 
-async function installPaymentRollbackProbe(prisma: PrismaService): Promise<void> {
-  await prisma.$executeRawUnsafe(`
-    CREATE OR REPLACE FUNCTION "probe_payment_rollback"() RETURNS TRIGGER AS $$
-    BEGIN
-      RAISE EXCEPTION 'injected failure after the payment write' USING ERRCODE = '23514';
-    END;
-    $$ LANGUAGE plpgsql;
-  `);
-  await prisma.$executeRawUnsafe(`
-    CREATE TRIGGER "probe_payment_rollback_trg"
-    AFTER UPDATE ON "Booking"
-    FOR EACH ROW
-    WHEN (NEW."paymentStatus" = 'paid' AND NEW."mockReference" = '${PAYMENT_PROBE_REFERENCE}')
-    EXECUTE FUNCTION "probe_payment_rollback"();
-  `);
-}
-
-async function dropPaymentRollbackProbe(prisma: PrismaService): Promise<void> {
-  await prisma.$executeRawUnsafe(
-    'DROP TRIGGER IF EXISTS "probe_payment_rollback_trg" ON "Booking";',
-  );
-  await prisma.$executeRawUnsafe('DROP FUNCTION IF EXISTS "probe_payment_rollback"();');
-}
-
-/**
- * S2-T04 requires evidence that a mock payment which fails *after* writing cannot leave the booking
- * half-paid. A temporary AFTER UPDATE trigger raises once the row has already become PAID inside the
- * transaction, so only a real rollback can restore the unpaid state. The same booking then proves a
- * duplicate reference is reported as its own conflict rather than a generic one.
- */
-async function runMockPaymentChecks(
+/** The retired payment route must keep enforcing access and never alter payment state. */
+async function runRetiredMockPaymentChecks(
   prisma: PrismaService,
   jwtTokens: JwtTokenService,
   httpServer: App,
@@ -528,223 +494,106 @@ async function runMockPaymentChecks(
     prisma,
     jwtTokens,
     ids.studentPayment,
-    'mock-payment@hktutor.invalid',
-    'Rollback Payment',
+    'retired-payment@hktutor.invalid',
+    'Retired Payment Student',
   );
   const otherStudentToken = await createAuthenticatedStudent(
     prisma,
     jwtTokens,
     ids.studentPaymentOther,
-    'mock-payment-other@hktutor.invalid',
+    'retired-payment-other@hktutor.invalid',
     'Other Payment Student',
   );
-
-  // Compare both fixture bookings so a duplicate reference cannot damage the original receipt.
-  const paymentSnapshot = () =>
-    prisma.booking.findMany({
-      orderBy: { id: 'asc' },
-      where: { slotId: { in: [ids.paymentSlot, ids.paymentDuplicateSlot] } },
-    });
-
-  async function assertRejectedPayment(input: {
-    bookingId: string;
-    token?: string;
-    body: { amount: string; reference: string };
-    status: number;
-    code: string;
-    label: string;
-  }): Promise<void> {
-    const before = await paymentSnapshot();
-    assert.ok(before.some((booking) => booking.id === input.bookingId));
-    const response = await request(httpServer)
-      .post(`/${API_GLOBAL_PREFIX}/bookings/me/${input.bookingId}/mock-payment`)
-      .set('Authorization', `Bearer ${input.token ?? studentToken}`)
-      .send(input.body);
-    assert.equal(response.status, input.status, input.label);
-    assert.equal((response.body as { code?: string }).code, input.code, input.label);
-    assert.deepEqual(await paymentSnapshot(), before, `${input.label}: no persisted changes`);
-    process.stdout.write(`PASS [real PostgreSQL] ${input.label}; booking snapshots unchanged\n`);
-  }
-
   const startAtUtc = new Date(Date.now() + 6 * 60 * 60 * 1000);
-  const endAtUtc = new Date(startAtUtc.getTime() + 60 * 60 * 1000);
-  await prisma.availabilitySlot.upsert({
-    where: { id: ids.paymentSlot },
-    create: {
+  await prisma.availabilitySlot.create({
+    data: {
       id: ids.paymentSlot,
       tutorProfileId: listing.tutorProfileId,
       startAtUtc,
-      endAtUtc,
+      endAtUtc: new Date(startAtUtc.getTime() + 60 * 60 * 1000),
     },
-    update: { deletedAt: null, startAtUtc, endAtUtc },
   });
-
   const created = await request(httpServer)
     .post(`/${API_GLOBAL_PREFIX}/bookings`)
     .set('Authorization', `Bearer ${studentToken}`)
     .send({ listingId: listing.id, slotId: ids.paymentSlot });
-  assert.equal(created.status, 201, 'the payment probe needs its own booking');
-  const createdBody = created.body as { id?: string; netAmount?: string };
-  const bookingId = createdBody.id;
-  const netAmount = createdBody.netAmount;
+  assert.equal(created.status, 201, 'the retired payment probe needs its own booking');
+  const bookingId = (created.body as { id?: string }).id;
   assert.ok(bookingId, 'the booking response must carry an id');
-  assert.ok(netAmount, 'the booking response must carry its net amount');
 
-  await assertRejectedPayment({
-    bookingId,
-    body: { amount: netAmount, reference: 'DEMO-PENDING' },
-    status: 400,
-    code: 'BOOKING_NOT_PAYABLE',
-    label: 'pending booking cannot be paid (400, matching US12-5)',
+  const snapshot = async () => ({
+    booking: await prisma.booking.findUniqueOrThrow({ where: { id: bookingId } }),
+    attempts: await prisma.paymentAttempt.findMany({
+      where: { bookingId },
+      orderBy: { id: 'asc' },
+    }),
   });
+  async function assertRejected(input: {
+    token?: string;
+    targetId?: string;
+    status: number;
+    label: string;
+  }): Promise<void> {
+    const before = await snapshot();
+    const paymentRequest = request(httpServer).post(
+      `/${API_GLOBAL_PREFIX}/bookings/me/${input.targetId ?? bookingId}/mock-payment`,
+    );
+    if (input.token) {
+      paymentRequest.set('Authorization', `Bearer ${input.token}`);
+    }
+    const response = await paymentRequest.send({ amount: '450.00', reference: 'DEMO-RETIRED' });
+    assert.equal(response.status, input.status, input.label);
+    assert.deepEqual(await snapshot(), before, `${input.label}: no persisted changes`);
+    process.stdout.write(`PASS [real PostgreSQL] ${input.label}; payment state unchanged\n`);
+  }
 
+  await assertRejected({ status: 401, label: 'retired payment still requires authentication' });
+  await assertRejected({
+    token: tutorToken,
+    status: 403,
+    label: 'retired payment still requires the student role',
+  });
+  await assertRejected({
+    token: otherStudentToken,
+    status: 403,
+    label: 'retired payment still rejects another student',
+  });
+  await assertRejected({
+    token: studentToken,
+    targetId: '97000000-0000-4000-8000-000000000099',
+    status: 404,
+    label: 'retired payment reports a missing booking',
+  });
+  await assertRejected({
+    token: studentToken,
+    status: 410,
+    label: 'retired payment returns Gone for a pending booking',
+  });
   const confirmed = await request(httpServer)
     .post(`/${API_GLOBAL_PREFIX}/bookings/tutor/${bookingId}/confirm`)
     .set('Authorization', `Bearer ${tutorToken}`)
     .send({});
-  assert.equal(confirmed.status, 200, 'only a confirmed booking can be paid');
-
-  await assertRejectedPayment({
-    bookingId,
-    body: { amount: '0.01', reference: 'DEMO-MISMATCH' },
-    status: 400,
-    code: 'BOOKING_PAYMENT_AMOUNT_MISMATCH',
-    label: 'amount mismatch returns 400',
-  });
-  await assertRejectedPayment({
-    bookingId,
-    token: otherStudentToken,
-    body: { amount: netAmount, reference: 'DEMO-WRONG-OWNER' },
-    status: 403,
-    code: 'BOOKING_NOT_OWNED',
-    label: 'another student cannot pay the booking',
-  });
-  for (const reference of ['', '   ']) {
-    await assertRejectedPayment({
-      bookingId,
-      body: { amount: netAmount, reference },
-      status: 400,
-      code: 'VALIDATION_FAILED',
-      label: reference === '' ? 'empty reference returns 400' : 'whitespace reference returns 400',
-    });
-  }
-
-  await installPaymentRollbackProbe(prisma);
-  try {
-    const failed = await request(httpServer)
-      .post(`/${API_GLOBAL_PREFIX}/bookings/me/${bookingId}/mock-payment`)
-      .set('Authorization', `Bearer ${studentToken}`)
-      .send({ amount: netAmount, reference: PAYMENT_PROBE_REFERENCE });
-
-    // The injected fault is infrastructure rather than a business conflict, so Prisma reports no
-    // known conflict code and the API answers 500. What matters is that nothing was persisted.
-    assert.equal(failed.status, 500, 'a failed payment must not look like a success');
-    assert.ok(
-      !JSON.stringify(failed.body).includes('injected failure'),
-      'the failure response must not leak the database error text',
-    );
-
-    const booking = await prisma.booking.findUniqueOrThrow({
-      select: { mockReference: true, paidAt: true, paymentStatus: true, status: true },
-      where: { id: bookingId },
-    });
-    assert.equal(booking.paymentStatus, PaymentStatus.UNPAID, 'the payment must roll back');
-    assert.equal(booking.paidAt, null, 'paidAt must not survive the rollback');
-    assert.equal(booking.mockReference, null, 'mockReference must not survive the rollback');
-    assert.equal(
-      booking.status,
-      BookingStatus.CONFIRMED,
-      'a failed payment must not disturb the booking status',
-    );
-  } finally {
-    await dropPaymentRollbackProbe(prisma);
-  }
-
-  process.stdout.write(
-    'PASS a mock payment that fails after writing rolls back: 500 with no partial write, booking stays CONFIRMED and UNPAID\n',
-  );
-
-  const paid = await request(httpServer)
-    .post(`/${API_GLOBAL_PREFIX}/bookings/me/${bookingId}/mock-payment`)
-    .set('Authorization', `Bearer ${studentToken}`)
-    .send({ amount: netAmount, reference: PAYMENT_REFERENCE });
-  assert.equal(paid.status, 200, 'the retried payment must succeed after the rollback');
-  const storedPayment = await prisma.booking.findUniqueOrThrow({ where: { id: bookingId } });
-  assert.equal(storedPayment.paymentStatus, PaymentStatus.PAID);
-  assert.ok(storedPayment.paidAt, 'successful payment must store paidAt');
-  assert.deepEqual(paid.body, {
-    amount: storedPayment.netAmount.toFixed(2),
-    bookingId,
-    paidAt: storedPayment.paidAt.toISOString(),
-    paymentStatus: 'PAID',
-    reference: PAYMENT_REFERENCE,
-  });
-  assert.equal(storedPayment.mockReference, PAYMENT_REFERENCE);
-
-  await assertRejectedPayment({
-    bookingId,
-    body: { amount: netAmount, reference: `${PAYMENT_REFERENCE}-2` },
-    status: 409,
-    code: 'BOOKING_ALREADY_PAID',
-    label: 'paid booking cannot be paid again or have its receipt overwritten',
+  assert.equal(confirmed.status, 200);
+  await assertRejected({
+    token: studentToken,
+    status: 410,
+    label: 'retired payment cannot pay a confirmed booking',
   });
 
-  process.stdout.write(
-    'PASS a confirmed booking is paid exactly once and reports PAID with paidAt\n',
-  );
-
-  // A second booking reusing the stored reference proves the unique index surfaces as its own code.
-  const secondSlotStart = new Date(Date.now() + 8 * 60 * 60 * 1000);
-  await prisma.availabilitySlot.upsert({
-    where: { id: ids.paymentDuplicateSlot },
-    create: {
-      id: ids.paymentDuplicateSlot,
-      tutorProfileId: listing.tutorProfileId,
-      startAtUtc: secondSlotStart,
-      endAtUtc: new Date(secondSlotStart.getTime() + 60 * 60 * 1000),
-    },
-    update: {
-      deletedAt: null,
-      startAtUtc: secondSlotStart,
-      endAtUtc: new Date(secondSlotStart.getTime() + 60 * 60 * 1000),
+  // Historical mock receipts remain readable but cannot be overwritten through the retired route.
+  await prisma.booking.update({
+    where: { id: bookingId },
+    data: {
+      paymentStatus: PaymentStatus.PAID,
+      paidAt: new Date(),
+      mockReference: 'DEMO-VERIFY-LEGACY-PAID',
     },
   });
-
-  const secondBooking = await request(httpServer)
-    .post(`/${API_GLOBAL_PREFIX}/bookings`)
-    .set('Authorization', `Bearer ${studentToken}`)
-    .send({ listingId: listing.id, slotId: ids.paymentDuplicateSlot });
-  assert.equal(secondBooking.status, 201, 'the duplicate-reference check needs a second booking');
-  const secondId = (secondBooking.body as { id?: string }).id;
-  assert.ok(secondId, 'the second booking response must carry an id');
-
-  const secondConfirmed = await request(httpServer)
-    .post(`/${API_GLOBAL_PREFIX}/bookings/tutor/${secondId}/confirm`)
-    .set('Authorization', `Bearer ${tutorToken}`)
-    .send({});
-  assert.equal(secondConfirmed.status, 200, 'the second booking has to be confirmed first');
-
-  const secondAmount = (secondBooking.body as { netAmount?: string }).netAmount;
-  assert.ok(secondAmount, 'the second booking must supply its own authoritative amount');
-  await assertRejectedPayment({
-    bookingId: secondId,
-    body: { amount: secondAmount, reference: PAYMENT_REFERENCE },
-    status: 409,
-    code: 'MOCK_REFERENCE_TAKEN',
-    label: 'duplicate reference preserves both the unpaid booking and original paid receipt',
+  await assertRejected({
+    token: studentToken,
+    status: 410,
+    label: 'retired payment preserves a legacy paid receipt',
   });
-
-  const untouched = await prisma.booking.findUniqueOrThrow({
-    select: { mockReference: true, paidAt: true, paymentStatus: true },
-    where: { id: secondId },
-  });
-  assert.equal(untouched.paymentStatus, PaymentStatus.UNPAID, 'the rejected booking stays unpaid');
-  assert.equal(untouched.paidAt, null, 'the rejected booking keeps a null paidAt');
-  assert.equal(untouched.mockReference, null, 'the rejected booking keeps a null reference');
-
-  process.stdout.write(
-    'PASS a reused payment reference answers 409 MOCK_REFERENCE_TAKEN and persists nothing\n',
-  );
 }
 
 async function main(): Promise<void> {
@@ -764,7 +613,7 @@ async function main(): Promise<void> {
     await runConcurrencyCheck(prisma, jwtTokens, httpServer);
     const tutorToken = await runTutorActionRaceCheck(prisma, jwtTokens, httpServer);
     await runRejectRollbackCheck(prisma, jwtTokens, httpServer, tutorToken);
-    await runMockPaymentChecks(prisma, jwtTokens, httpServer, tutorToken);
+    await runRetiredMockPaymentChecks(prisma, jwtTokens, httpServer, tutorToken);
     await runFailedRequestCheck(prisma, jwtTokens, httpServer);
   } finally {
     await cleanup(prisma).catch(() => undefined);

@@ -80,3 +80,5 @@ jobs:
           pnpm db:migrate:deploy
           pnpm db:seed
           pnpm db:verify:bookings
+          # The payment verifier requires the default public schema with no URL parameters.
+          DATABASE_URL="${DATABASE_URL%\?schema=public}" pnpm db:verify:payments
