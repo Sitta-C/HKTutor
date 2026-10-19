@@ -20,7 +20,6 @@ import type {
   BookingResponseDto,
   CanceledBookingDto,
   ClassAttendanceResponseDto,
-  MockPaymentResponseDto,
   MyBookingsResponseDto,
   TutorBookingActionResponseDto,
   TutorBookingsResponseDto,
@@ -250,30 +249,12 @@ describe('BookingsController', () => {
     },
   );
 
-  it('derives the paying student from the authenticated user', async () => {
-    const createMockPayment = jest.fn();
-    const bookingsService = { createMockPayment } as unknown as BookingsService;
-    const controller = new BookingsController(bookingsService);
-    const user: AuthenticatedUser = {
-      email: 'student@example.com',
-      id: '6bb01222-1fce-4bc3-a69d-3d90db2fdf57',
-      role: Role.STUDENT,
-      sessionId: 'session-1',
-    };
-    const bookingId = '3c54a0d6-e3f3-4a38-bd55-3b4011ee31ae';
-    const paid = {} as MockPaymentResponseDto;
-    createMockPayment.mockResolvedValue(paid);
-
-    await expect(
-      controller.createMockPayment(bookingId, { amount: '450.00', reference: 'DEMO-7F3A91' }, user),
-    ).resolves.toBe(paid);
-
-    expect(createMockPayment).toHaveBeenCalledWith({
-      amount: '450.00',
-      bookingId,
-      reference: 'DEMO-7F3A91',
-      studentUserId: user.id,
-    });
+  it('rejects the retired mock endpoint without recording payment', async () => {
+    const module = await Test.createTestingModule({ controllers: [BookingsController] })
+      .useMocker(() => ({}))
+      .compile();
+    const controller = module.get(BookingsController);
+    expect(() => controller.createMockPayment()).toThrow('Mock payment is retired');
   });
 
   it('restricts the mock payment to the owning student and separates 403 from 404', () => {
@@ -736,70 +717,13 @@ describe('BookingsController OpenAPI contract', () => {
     ]);
     expect(schema?.properties?.['slotStatus']).toMatchObject({ enum: ['AVAILABLE', 'RESERVED'] });
   });
-  it('publishes the mock-payment contract', () => {
+  it('documents the retired mock payment route as Gone without an accepted body', () => {
     const operation =
       document.paths[`/${API_GLOBAL_PREFIX}/bookings/me/{bookingId}/mock-payment`]?.post;
-
-    expect(operation?.summary).toBe(
-      "Record the demo payment for one of the authenticated student's confirmed bookings",
-    );
-    expect(operation?.responses['200']).toMatchObject({
-      content: {
-        'application/json': {
-          schema: {
-            allOf: [{ $ref: '#/components/schemas/MockPaymentResponseDto' }],
-            example: {
-              amount: '450.00',
-              bookingId: '3c54a0d6-e3f3-4a38-bd55-3b4011ee31ae',
-              paidAt: '2026-10-09T09:04:31.001Z',
-              paymentStatus: 'PAID',
-              reference: 'DEMO-7F3A91',
-            },
-          },
-        },
-      },
-    });
-    for (const status of ['400', '401', '403', '404', '409']) {
-      expect(operation?.responses[status]).toBeDefined();
-    }
-    expect(operation?.security).toEqual([{ [JWT_BEARER_AUTH]: [] }]);
-  });
-
-  // Both 400 and 409 always exist on this operation, so the loop above cannot notice the amount
-  // mismatch drifting between them. Product Backlog US12-5 puts it on 400, and it is the only 400
-  // here that carries `details`, so pin both examples until the backlog says otherwise.
-  it('publishes the amount mismatch as a bad request, as the backlog requires', () => {
-    const operation =
-      document.paths[`/${API_GLOBAL_PREFIX}/bookings/me/{bookingId}/mock-payment`]?.post;
-
-    expect(operation?.responses['400']).toMatchObject({
-      content: {
-        'application/json': {
-          schema: {
-            example: {
-              code: 'BOOKING_PAYMENT_AMOUNT_MISMATCH',
-              details: { expectedAmount: '450.00' },
-              statusCode: 400,
-            },
-          },
-        },
-      },
-    });
-    expect(operation?.responses['409']).toMatchObject({
-      content: {
-        'application/json': {
-          schema: { example: { code: 'BOOKING_ALREADY_PAID', statusCode: 409 } },
-        },
-      },
-    });
-  });
-
-  it('accepts only an amount and a reference, never payment instrument fields', () => {
-    const schema = document.components?.schemas?.['CreateMockPaymentDto'] as
-      { properties?: Record<string, unknown>; required?: string[] } | undefined;
-
-    expect(Object.keys(schema?.properties ?? {}).sort()).toEqual(['amount', 'reference']);
-    expect(schema?.required?.sort()).toEqual(['amount', 'reference']);
+    expect(operation?.deprecated).toBe(true);
+    expect(operation?.responses['410']).toBeDefined();
+    expect(operation?.responses['200']).toBeUndefined();
+    expect(operation?.requestBody).toBeUndefined();
   });
 
   it('publishes the update-meeting-link contract', () => {

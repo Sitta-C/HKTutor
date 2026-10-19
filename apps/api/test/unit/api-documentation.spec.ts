@@ -75,7 +75,7 @@ describe('API documentation contract (S2-T39)', () => {
     expect(operations.length).toBeGreaterThanOrEqual(66);
   });
 
-  it('gives every operation a summary, a description, a tag and a success response', () => {
+  it('documents success for active routes and Gone for retired routes', () => {
     expect(
       violations((operation) => {
         if (!operation.summary?.trim()) {
@@ -86,6 +86,9 @@ describe('API documentation contract (S2-T39)', () => {
         }
         if (!operation.tags?.length) {
           return 'missing tag';
+        }
+        if (operation.deprecated && responds(operation, '410')) {
+          return null;
         }
         return Object.keys(operation.responses).some((status) => status.startsWith('2'))
           ? null

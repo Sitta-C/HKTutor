@@ -36,7 +36,8 @@
     "db:verify:notification-access": "pnpm --filter @hktutor/api db:verify:notification-access",
     "db:verify:meeting-links": "pnpm --filter @hktutor/api db:verify:meeting-links",
     "db:verify:attendance": "pnpm --filter @hktutor/api db:verify:attendance",
-    "db:verify:sprint2-flow": "pnpm --filter @hktutor/api db:verify:sprint2-flow"
+    "db:verify:sprint2-flow": "pnpm --filter @hktutor/api db:verify:sprint2-flow",
+    "db:verify:payments": "pnpm --filter @hktutor/api db:verify:payments"
   },
   "devDependencies": {
     "@hktutor/eslint-config": "workspace:*",

@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { BookingCancellation } from '@/components/bookings/booking-cancellation';
 import {
@@ -13,7 +13,7 @@ import {
 import { bookingRequestCopy } from '@/components/bookings/booking-request-copy';
 import { getBookingErrorMessage } from '@/components/bookings/booking-ui';
 import { ClassDetailsPanel } from '@/components/bookings/class-details-panel';
-import { MockPaymentPanel } from '@/components/bookings/mock-payment-panel';
+import { PromptPayPaymentPanel } from '@/components/bookings/promptpay-payment-panel';
 import { RescheduleRequestPanel } from '@/components/bookings/reschedule-request-panel';
 import { studentBookingsCopy } from '@/components/bookings/student-bookings-copy';
 import { DashboardIcon } from '@/components/dashboard/dashboard-icon';
@@ -75,6 +75,15 @@ export default function StudentBookingDetailPage({ bookingId }: { bookingId: str
       active = false;
     };
   }, [bookingId, reloadKey]);
+
+  const handlePaymentBookingChange = useCallback(
+    (nextBooking: BookingDetail): void => {
+      if (bookingRevision === latestBookingRevision.current) {
+        setBooking(nextBooking);
+      }
+    },
+    [bookingRevision],
+  );
 
   return (
     <div className={styles.page}>
@@ -151,18 +160,14 @@ export default function StudentBookingDetailPage({ bookingId }: { bookingId: str
                   </div>
                 </div>
 
-                <MockPaymentPanel
+                <PromptPayPaymentPanel
                   key={`${booking.id}:${booking.slot.id}`}
                   booking={booking}
-                  disabled={rescheduleBusy || rescheduleStale || cancellationStale}
+                  disabled={
+                    rescheduleBusy || rescheduleStale || cancellationBusy || cancellationStale
+                  }
                   onSubmittingChange={setPaymentBusy}
-                  onBookingChange={(nextBooking) => {
-                    // An in-flight refresh keeps the callback from the render that started it.
-                    if (bookingRevision !== latestBookingRevision.current) {
-                      return;
-                    }
-                    setBooking(nextBooking);
-                  }}
+                  onBookingChange={handlePaymentBookingChange}
                 />
               </div>
             </div>
@@ -208,7 +213,12 @@ export default function StudentBookingDetailPage({ bookingId }: { bookingId: str
                 key={booking.id}
                 booking={booking}
                 compact
-                disabled={rescheduleBusy || rescheduleStale}
+                disabled={
+                  rescheduleBusy ||
+                  rescheduleStale ||
+                  paymentBusy ||
+                  booking.paymentPending === true
+                }
                 onBusyChange={setCancellationBusy}
                 onRequiresRefresh={() => setCancellationStale(true)}
                 onCanceled={(result) => {

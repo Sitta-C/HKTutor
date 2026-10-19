@@ -389,21 +389,17 @@ student/tutor button review and three-direction preview.
   column; other actions wrap labels inside narrow containers. No API, payload, permissions,
   data, pricing, scheduling or publication-rule changes belong to this update.
 
-## Student mock payment — Payment Slip (S2-T05)
+## Student PromptPay test payment — Payment Slip
 
-The student booking detail extends Margin Index with **Payment Slip**: retain the existing course,
-time band and persisted amount breakdown, then place the mint Ink Tickets payment form beside the
-amounts across a dashed seam. Stack below 600px. Keep the demonstration notice in the form and
-receipt, and show a separate paid/unpaid tag in student booking rows. Booking status remains distinct.
-
-Use the PR #98 student read fields and S2-T04 POST. Show the stored amount without an editable price;
-accept a trimmed demo reference and show the recorded reference and Bangkok payment time after
-success. Pending and other non-payable bookings show their localized explanation. Keep bilingual
-inline errors, NotebookToast feedback, focus restoration, disabled sending states and a synchronous
-submission gate. Uncertain results and amount/state/ownership conflicts require a successful explicit
-refresh before another POST; failed refreshes preserve the lock and reference. Keep all state in
-memory and show paid only from an actual API response. No card, bank or real-gateway fields belong
-to this flow.
+The student booking detail retains the Payment Slip layout beside the persisted amount breakdown,
+across a dashed seam that stacks below 600px. Use the existing mint ticket action and separate
+paid/unpaid tag. The panel now creates/resumes an Omise PromptPay test QR rather than accepting a
+demo reference. Keep the test-mode notice, Thai/English copy, Bangkok receipt/expiry times and
+keyboard-operable actions. Display QR and captured status only from API responses. Reconcile on
+reload and poll while active, pausing in hidden tabs. Failed/expired attempts permit a new QR;
+uncertain results require a successful status read before another creation. Active/uncertain
+payments block cancellation. Existing mock-paid receipts remain readable; the old mock endpoint
+returns 410. No card fields, live payments or refunds are part of this flow.
 
 ## Profile photo editor
 

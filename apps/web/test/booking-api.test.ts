@@ -5,7 +5,8 @@ import {
   confirmTutorBooking,
   createBooking,
   createBookingOnce,
-  createMockPayment,
+  createPromptPayPayment,
+  getCurrentPayment,
   getBookingQuote,
   getMyBooking,
   getMyBookings,
@@ -21,7 +22,7 @@ function jsonResponse(body: unknown, status = 200): Response {
   });
 }
 
-describe('student mock-payment client', () => {
+describe('student PromptPay client', () => {
   const fetchMock = vi.fn<typeof fetch>();
 
   beforeEach(() => {
@@ -35,48 +36,43 @@ describe('student mock-payment client', () => {
     vi.restoreAllMocks();
   });
 
-  it('posts the exact amount string and reference to the encoded student booking path', async () => {
-    const paid = {
-      bookingId: 'booking id/1',
-      paymentStatus: 'PAID',
-      amount: '730.00',
-      reference: 'เดโม-001',
-      paidAt: '2026-10-14T12:52:00.000Z',
-    };
-    fetchMock.mockResolvedValueOnce(jsonResponse(paid));
-
-    await expect(
-      createMockPayment('booking id/1', { amount: '730.00', reference: 'เดโม-001' }),
-    ).resolves.toEqual(paid);
-
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+  it('creates a payment using the encoded booking ID without sending a client amount', async () => {
+    const result = { bookingId: 'booking id/1', paymentStatus: 'UNPAID', paymentPending: true };
+    fetchMock.mockResolvedValueOnce(jsonResponse(result));
+    await expect(createPromptPayPayment('booking id/1')).resolves.toEqual(result);
     expect(fetchMock).toHaveBeenCalledWith(
-      '/api/v1/bookings/me/booking%20id%2F1/mock-payment',
-      expect.objectContaining({
-        method: 'POST',
-        credentials: 'include',
-        body: JSON.stringify({ amount: '730.00', reference: 'เดโม-001' }),
-      }),
+      '/api/v1/bookings/me/booking%20id%2F1/payments/promptpay',
+      expect.objectContaining({ method: 'POST', credentials: 'include' }),
+    );
+    expect(fetchMock.mock.calls[0]?.[1]?.body).toBeUndefined();
+  });
+
+  it('reads current status without caching and propagates cancellation', async () => {
+    const controller = new AbortController();
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({ bookingId: 'booking/1', paymentStatus: 'UNPAID' }),
+    );
+    await getCurrentPayment('booking/1', controller.signal);
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/v1/bookings/me/booking%2F1/payments/current',
+      expect.objectContaining({ cache: 'no-store', signal: controller.signal }),
     );
   });
 
   it.each([
-    [400, 'BOOKING_PAYMENT_AMOUNT_MISMATCH'],
-    [400, 'BOOKING_NOT_PAYABLE'],
-    [409, 'BOOKING_NOT_PAYABLE'],
+    [409, 'PAYMENT_STATE_CONFLICT'],
     [403, 'BOOKING_NOT_OWNED'],
     [404, 'BOOKING_NOT_FOUND'],
-    [409, 'BOOKING_ALREADY_PAID'],
-    [409, 'MOCK_REFERENCE_TAKEN'],
-    [409, 'BOOKING_PAYMENT_CONFLICT'],
+    [503, 'SERVICE_UNAVAILABLE'],
   ])(
     'preserves the %s %s error body for recovery without retrying the POST',
     async (status, code) => {
       fetchMock.mockResolvedValueOnce(jsonResponse({ code, message: 'rejected' }, status));
 
-      await expect(
-        createMockPayment('booking-1', { amount: '730.00', reference: 'DEMO-1' }),
-      ).rejects.toMatchObject({ status, details: { code } });
+      await expect(createPromptPayPayment('booking-1')).rejects.toMatchObject({
+        status,
+        details: { code },
+      });
       expect(fetchMock).toHaveBeenCalledTimes(1);
     },
   );
@@ -84,9 +80,7 @@ describe('student mock-payment client', () => {
   it('does not automatically retry an uncertain network failure', async () => {
     fetchMock.mockRejectedValueOnce(new TypeError('Network error'));
 
-    await expect(
-      createMockPayment('booking-1', { amount: '730.00', reference: 'DEMO-1' }),
-    ).rejects.toThrow('Network error');
+    await expect(createPromptPayPayment('booking-1')).rejects.toThrow('Network error');
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });

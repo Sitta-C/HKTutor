@@ -12,8 +12,7 @@ import type {
   CancelBookingResult,
   ConfirmTutorBookingPayload,
   CreateBookingPayload,
-  MockPaymentPayload,
-  MockPaymentResult,
+  PromptPayPayment,
   MyBookingsQuery,
   MyBookingsResponse,
   RejectTutorBookingPayload,
@@ -100,19 +99,6 @@ export function cancelBooking(bookingId: string, reason: string): Promise<Cancel
   );
 }
 
-export function createMockPayment(
-  bookingId: string,
-  payload: MockPaymentPayload,
-): Promise<MockPaymentResult> {
-  return authenticatedFetch<MockPaymentResult>(
-    `/bookings/me/${encodeURIComponent(bookingId)}/mock-payment`,
-    {
-      method: 'POST',
-      body: JSON.stringify(payload),
-    },
-  );
-}
-
 export function getTutorBookings(
   queryInput: TutorBookingsQuery = {},
 ): Promise<TutorBookingsResponse> {
@@ -160,4 +146,21 @@ function postTutorBookingAction(
 
 function toIsoString(value: string | Date): string {
   return value instanceof Date ? value.toISOString() : value;
+}
+
+export function createPromptPayPayment(bookingId: string): Promise<PromptPayPayment> {
+  return authenticatedFetch<PromptPayPayment>(
+    `/bookings/me/${encodeURIComponent(bookingId)}/payments/promptpay`,
+    { method: 'POST' },
+  );
+}
+
+export function getCurrentPayment(
+  bookingId: string,
+  signal?: AbortSignal,
+): Promise<PromptPayPayment> {
+  return authenticatedFetch<PromptPayPayment>(
+    `/bookings/me/${encodeURIComponent(bookingId)}/payments/current`,
+    { cache: 'no-store', ...(signal ? { signal } : {}) },
+  );
 }

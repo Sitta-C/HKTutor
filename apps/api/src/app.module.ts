@@ -4,6 +4,7 @@ import { ThrottlerModule } from '@nestjs/throttler';
 
 import { validateAuthEnvironment } from '@config/auth.config';
 import { validateDatabaseEnvironment } from '@config/database.config';
+import { validatePaymentsEnvironment } from '@config/payments.config';
 import { validateStorageEnvironment } from '@config/storage.config';
 import { DatabaseModule } from '@infrastructure/database/database.module';
 import { StorageModule } from '@infrastructure/storage/storage.module';
@@ -13,6 +14,7 @@ import { BookingsModule } from '@modules/bookings/bookings.module';
 import { ConversationsModule } from '@modules/conversations/conversations.module';
 import { HealthModule } from '@modules/health/health.module';
 import { NotificationsModule } from '@modules/notifications/notifications.module';
+import { PaymentsModule } from '@modules/payments/payments.module';
 import { ProfilesModule } from '@modules/profiles/profiles.module';
 import { QualificationDocumentsModule } from '@modules/qualification-documents/qualification-documents.module';
 import { RescheduleRequestsModule } from '@modules/reschedule-requests/reschedule-requests.module';
@@ -25,7 +27,9 @@ import { TutorsModule } from '@modules/tutors/tutors.module';
       envFilePath: ['../../.env', '.env'],
       isGlobal: true,
       validate: (config) =>
-        validateStorageEnvironment(validateAuthEnvironment(validateDatabaseEnvironment(config))),
+        validatePaymentsEnvironment(
+          validateStorageEnvironment(validateAuthEnvironment(validateDatabaseEnvironment(config))),
+        ),
     }),
     ThrottlerModule.forRoot([{ limit: 100, ttl: 60_000 }]),
     DatabaseModule,
@@ -34,6 +38,7 @@ import { TutorsModule } from '@modules/tutors/tutors.module';
     ConversationsModule,
     HealthModule,
     NotificationsModule,
+    PaymentsModule,
     AuthModule,
     AvatarsModule,
     ProfilesModule,

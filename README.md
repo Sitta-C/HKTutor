@@ -55,12 +55,12 @@ works the booking inbox and confirms or rejects one pending request at a time. A
 rendered only from the status the API returns, and a 403, 404, or 409 answer locks that row behind a
 refresh so the inbox never shows an optimistic status the server did not persist.
 
-Students see paid/unpaid status on booking rows and can record a mock payment from a confirmed,
-unpaid booking's detail page. The form sends the stored net amount and a unique demo reference,
-then displays only the payment returned by the API. Reloads read the persisted status, reference,
-and Bangkok-time payment timestamp. A stale amount, state conflict or uncertain network result
-requires a successful status refresh before another submission. This is a demonstration flow;
-no card/bank fields or real payment gateway are included.
+Students see paid/unpaid status on booking rows. Confirmed, unpaid bookings support Omise
+PromptPay **Test Mode**: create or resume a QR, receive a signed webhook, and reconcile status
+through the API. No real money is collected. An active or uncertain attempt blocks duplicate
+charges and cancellation until Omise confirms a terminal result. The previous mock-payment
+endpoint returns `410 Gone`; existing mock-paid demo bookings remain readable. See the
+[PromptPay setup and recovery runbook](apps/api/README.md#promptpay-test-payments).
 
 See [frontend direction](ui-design/frontend-direction.md) for the Notebook Focus patterns and
 [implemented frontend behavior](ui-design/implemented-behavior.md) for interaction, loading,
@@ -202,8 +202,8 @@ For Sprint 2 the seed also prepares the demo states that cannot be produced live
 for the tutor at 17:00 Bangkok time on days +8, +9 and +10 (for the booking, reschedule and
 cancellation steps), and yesterday's 17:00 class, confirmed and mock-paid with a meeting link, so
 attendance can be recorded during the demo. Re-seeding resets that class to "attendance not
-recorded" and never moves an open slot that a live booking now holds. The only payment data is the
-fixed `DEMO-SEED-ENDED-CLASS` reference; no card or bank data exists anywhere.
+recorded" and never moves an open slot that a live booking now holds. The seeded class retains the legacy `DEMO-SEED-ENDED-CLASS` reference. New PromptPay attempts
+store test charge IDs and QR URLs, never card or bank credentials.
 
 To exercise database constraints against a disposable local PostgreSQL database only:
 
@@ -274,25 +274,25 @@ two private windows) so the student, tutor and admin stay signed in side by side
 
 Times are Bangkok time. "Day +8" means eight days after the seed ran.
 
-| #   | Role    | Do                                                                                                 | Expect                                                                   |
-| --- | ------- | -------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
-| 1   | Student | Sign in with `SEED_STUDENT_EMAIL`; accept the privacy notice shown on first sign-in                | Student dashboard "Welcome back, Nan"                                    |
-| 2   | Student | **Find a tutor** → Mathematics → open **Anan**                                                     | Only verified tutors are listed; Anan shows the **Verified tutor** badge |
-| 3   | Student | **Ask the tutor** and send a question                                                              | Message appears in the conversation                                      |
-| 4   | Student | Back on Anan's profile, pick the **day +8, 17:00** time → **Send lesson request**                  | Request is pending                                                       |
-| 5   | Tutor   | Sign in with `SEED_TUTOR_EMAIL`; open the bell                                                     | "New booking request"                                                    |
-| 6   | Tutor   | **Messages** → reply to Nan                                                                        | Nan's question now shows as read on her side                             |
-| 7   | Tutor   | **Booking requests** → **Confirm** → **Yes, confirm booking**                                      | Booking confirmed; Nan is notified                                       |
-| 8   | Tutor   | Open that booking → enter an `https://` meeting link → **Save meeting link**                       | Link saved                                                               |
-| 9   | Tutor   | Open **yesterday's 17:00** class (seeded) → **Attended** → **Record attendance**                   | Saved with its time; the class becomes Completed                         |
-| 10  | Student | Bell → "Booking confirmed"; open the booking → demo reference `DEMO-…` → **Record mock payment**   | Paid; the meeting link is visible in Classroom details                   |
-| 11  | Student | **Reschedule** → choose **day +9** → send                                                          | Request pending; tutor sees **Review reschedule request**                |
-| 12  | Tutor   | **Review reschedule request** → **Approve**                                                        | Booking moves to day +9; day +8 is open again; Nan is notified           |
-| 13  | Student | Book **day +10**; tutor confirms it; student **Cancel class** with a reason                        | Canceled; day +10 is open again; tutor gets "Booking canceled"           |
-| 14  | Tutor   | **My profile** → Tutor certificates → Certificate → choose a PDF → **Submit document**             | Document pending review                                                  |
-| 15  | Admin   | Sign in with `SEED_ADMIN_EMAIL` → verification queue → open the document → **Approve** with a note | Document approved; the tutor stays verified                              |
+| #   | Role    | Do                                                                                                                     | Expect                                                                   |
+| --- | ------- | ---------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| 1   | Student | Sign in with `SEED_STUDENT_EMAIL`; accept the privacy notice shown on first sign-in                                    | Student dashboard "Welcome back, Nan"                                    |
+| 2   | Student | **Find a tutor** → Mathematics → open **Anan**                                                                         | Only verified tutors are listed; Anan shows the **Verified tutor** badge |
+| 3   | Student | **Ask the tutor** and send a question                                                                                  | Message appears in the conversation                                      |
+| 4   | Student | Back on Anan's profile, pick the **day +8, 17:00** time → **Send lesson request**                                      | Request is pending                                                       |
+| 5   | Tutor   | Sign in with `SEED_TUTOR_EMAIL`; open the bell                                                                         | "New booking request"                                                    |
+| 6   | Tutor   | **Messages** → reply to Nan                                                                                            | Nan's question now shows as read on her side                             |
+| 7   | Tutor   | **Booking requests** → **Confirm** → **Yes, confirm booking**                                                          | Booking confirmed; Nan is notified                                       |
+| 8   | Tutor   | Open that booking → enter an `https://` meeting link → **Save meeting link**                                           | Link saved                                                               |
+| 9   | Tutor   | Open **yesterday's 17:00** class (seeded) → **Attended** → **Record attendance**                                       | Saved with its time; the class becomes Completed                         |
+| 10  | Student | Bell → "Booking confirmed"; open the booking → **Create test QR** → mark the charge Successful in Omise Test Dashboard | Paid; the meeting link is visible in Classroom details                   |
+| 11  | Student | **Reschedule** → choose **day +9** → send                                                                              | Request pending; tutor sees **Review reschedule request**                |
+| 12  | Tutor   | **Review reschedule request** → **Approve**                                                                            | Booking moves to day +9; day +8 is open again; Nan is notified           |
+| 13  | Student | Book **day +10**; tutor confirms it; student **Cancel class** with a reason                                            | Canceled; day +10 is open again; tutor gets "Booking canceled"           |
+| 14  | Tutor   | **My profile** → Tutor certificates → Certificate → choose a PDF → **Submit document**                                 | Document pending review                                                  |
+| 15  | Admin   | Sign in with `SEED_ADMIN_EMAIL` → verification queue → open the document → **Approve** with a note                     | Document approved; the tutor stays verified                              |
 
-Point out while presenting: payments are demonstration-only (no card or bank fields); a paid class
+Point out while presenting: payments use Omise PromptPay Test Mode (no real money); a paid class
 cannot be canceled; attendance cannot change once recorded; and the API contract is browsable at
 `/api/v1/docs`. Automated evidence for every step, including the failure paths, is listed in
 [`tests/s2-t39-qa.md`](tests/s2-t39-qa.md#2-sprint-2-qa-traceability).

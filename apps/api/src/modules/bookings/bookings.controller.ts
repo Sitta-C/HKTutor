@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Get,
+  GoneException,
   HttpCode,
   HttpStatus,
   Param,
@@ -30,11 +31,9 @@ import {
   ClassAttendanceResponseDto,
   ConfirmBookingDto,
   CreateBookingDto,
-  CreateMockPaymentDto,
   GetBookingQuoteQueryDto,
   GetMyBookingsQueryDto,
   GetTutorBookingsQueryDto,
-  MockPaymentResponseDto,
   MyBookingsResponseDto,
   RejectBookingDto,
   TutorBookingActionResponseDto,
@@ -166,16 +165,8 @@ export class BookingsController {
   @CreateMockPaymentDoc()
   @Roles(Role.STUDENT)
   @RequireOwnership(STUDENT_BOOKING_PAYMENT_OWNERSHIP)
-  async createMockPayment(
-    @Param('bookingId', UuidParamPipe) bookingId: string,
-    @Body() dto: CreateMockPaymentDto,
-    @CurrentUser() user: AuthenticatedUser,
-  ): Promise<MockPaymentResponseDto> {
-    return this.bookingsService.createMockPayment({
-      ...dto,
-      bookingId,
-      studentUserId: user.id,
-    });
+  createMockPayment(): never {
+    throw new GoneException('Mock payment is retired. Use the PromptPay test payment endpoint.');
   }
 
   @Get('tutor')

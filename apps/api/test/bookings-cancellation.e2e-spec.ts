@@ -127,6 +127,8 @@ describe('Booking cancellation (S2-T24 e2e)', () => {
         where: {
           id: BOOKING_ID,
           paymentStatus: PaymentStatus.UNPAID,
+          paymentPending: false,
+          slotId: undefined,
           status: { in: [BookingStatus.PENDING, BookingStatus.CONFIRMED] },
         },
       });

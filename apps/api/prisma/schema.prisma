@@ -45,6 +45,14 @@ enum PaymentStatus {
   PAID   @map("paid")
 }
 
+enum PaymentAttemptStatus {
+  CREATING
+  PENDING
+  SUCCESSFUL
+  FAILED
+  EXPIRED
+}
+
 enum AttendanceStatus {
   ATTENDED @map("attended")
   ABSENT   @map("absent")
@@ -306,6 +314,8 @@ model Booking {
   currency           String              @default("THB") @db.Char(3)
   paymentStatus      PaymentStatus       @default(UNPAID)
   mockReference      String?             @unique
+  paymentReference   String?             @unique
+  paymentPending     Boolean             @default(false)
   paidAt             DateTime?           @db.Timestamptz(3)
   meetingUrl         String?
   attendance         AttendanceStatus?
@@ -323,9 +333,28 @@ model Booking {
   slot               AvailabilitySlot    @relation(fields: [slotId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   rescheduleRequests RescheduleRequest[]
   notifications      Notification[]
+  paymentAttempts    PaymentAttempt[]
 
   @@index([studentUserId, status, createdAt], map: "Booking_studentUserId_status_createdAt_idx")
   @@index([tutorProfileId, status, createdAt], map: "Booking_tutorProfileId_status_createdAt_idx")
+}
+
+model PaymentAttempt {
+  id          String               @id @default(uuid()) @db.Uuid
+  bookingId   String               @db.Uuid
+  amount      Decimal              @db.Decimal(10, 2)
+  currency    String               @db.Char(3)
+  status      PaymentAttemptStatus  @default(CREATING)
+  chargeId    String?              @unique
+  qrCodeUrl   String?
+  expiresAt   DateTime?            @db.Timestamptz(3)
+  paidAt      DateTime?            @db.Timestamptz(3)
+  failureCode String?
+  createdAt   DateTime             @default(now()) @db.Timestamptz(3)
+  updatedAt   DateTime             @updatedAt @db.Timestamptz(3)
+  booking     Booking              @relation(fields: [bookingId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@index([bookingId, createdAt])
 }
 
 /// A pending request does not reserve its target. One pending request per booking is migration-managed.

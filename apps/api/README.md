@@ -580,74 +580,126 @@ It follows the same safety rules as the other disposable verifiers (explicit opt
 `hktutor_*_test` target, no URL options, never loads `.env`, migrates or seeds, removes its own
 fixtures). Evidence and findings are in `tests/s2-t34-qa.md`.
 
-## Mock payment API (S2-T04)
+## PromptPay test payments
 
-`POST /api/v1/bookings/me/:bookingId/mock-payment` records the demo payment for one booking. It is
-a demonstration flow only: the body carries `amount` and `reference` and nothing else, and the
-global validation pipe rejects any card, bank or other unknown field.
+This integration supports **Omise PromptPay Test Mode only**. Public-key browser SDKs and card
+entry are not used. The API creates the source and charge together with its test secret key.
+Live keys and live-mode charge/event responses are rejected.
 
-Access is `JwtAuthGuard`, then `RolesGuard(STUDENT)`, then `ResourceOwnershipGuard`. The route
-declares its own ownership bodies so a booking owned by another student answers 403
-`BOOKING_NOT_OWNED` rather than the ownership-safe 404 used elsewhere.
+### Setup
 
-`amount` is a fixed two-decimal string and is compared with the booking's stored `netAmount` only to
-detect a stale client; the server amount is the one recorded, and the comparison is a `Decimal`
-comparison rather than string equality. `reference` is trimmed, single-line, at most 64 characters
-and globally unique across bookings. It accepts text in any language, Thai included; only control
-and format characters are rejected, because no card asks the field to be ASCII and the rest of the
-API keeps user-supplied text Unicode-aware.
+1. Set these server-only values in the repository-root ignored `.env`:
 
-Only a `CONFIRMED` and `UNPAID` booking can be paid. One transaction writes `paymentStatus=PAID`,
-`paidAt` and `mockReference` through a conditional update whose `where` still requires
-`paymentStatus=UNPAID`, so two concurrent payments cannot both succeed and a losing request reads
-nothing back. Outcomes:
+   ```dotenv
+   OMISE_SECRET_KEY="skey_test_REPLACE_ME"
+   OMISE_WEBHOOK_SECRET="[BASE64_WEBHOOK_SECRET_FROM_OMISE]"
+   ```
 
-| Status | Code                                | Cause                                                        |
-| ------ | ----------------------------------- | ------------------------------------------------------------ |
-| 200    | —                                   | Payment recorded; returns the stored amount and UTC `paidAt` |
-| 400    | `BOOKING_PAYMENT_AMOUNT_MISMATCH`   | Declared amount differs from the stored `netAmount`          |
-| 400    | `BOOKING_NOT_PAYABLE`               | Booking is still pending                                     |
-| 400    | `VALIDATION_FAILED`, `INVALID_UUID` | Blank or oversized reference, loose amount, unknown field    |
-| 403    | `BOOKING_NOT_OWNED`                 | Booking belongs to another student                           |
-| 404    | `BOOKING_NOT_FOUND`                 | No booking with this ID                                      |
-| 409    | `BOOKING_NOT_PAYABLE`               | Booking is canceled, completed or expired                    |
-| 409    | `BOOKING_ALREADY_PAID`              | Booking is already paid                                      |
-| 409    | `MOCK_REFERENCE_TAKEN`              | Reference already recorded for another booking               |
-| 409    | `BOOKING_PAYMENT_CONFLICT`          | A concurrent payment won the transition                      |
+   Obtain the test API secret under Omise Dashboard → Keys. Obtain the Base64 signing secret
+   under Test Mode → Webhooks. It is a different credential; do not invent a random replacement.
+   Both values may be absent to run the rest of the application with payments disabled (503).
+   Partial configuration, placeholders, live keys and invalid signing secrets fail startup.
+   `PAYMENT_PROVIDER` may be omitted or set to `omise`; other providers are rejected.
+   This implementation has one provider and one method.
 
-No state-changing error leaves a partial write: every rejection happens before the transaction or
-inside it, where the transaction rolls back. `db:verify:bookings` proves this against PostgreSQL with
-a temporary `AFTER UPDATE` trigger that fails once the row is already PAID; the booking must come back
-CONFIRMED and UNPAID with a null `paidAt` and `mockReference`. The same check pays the booking once
-and then reuses its reference on a second booking to prove the unique index surfaces as
-`MOCK_REFERENCE_TAKEN`.
+2. Review and apply the additive `20261019120000_add_promptpay_payments` migration through the
+   normal deployment workflow, then generate Prisma Client and restart the API. Do not rewrite the
+   shared Sprint 2 migration. The new migration preserves legacy mock references and permits a
+   gateway charge reference instead. This repository task does not apply migrations to `.env`'s DB.
+3. Run the API and expose its webhook through a public HTTPS origin. For local development a
+   tunnel may forward to port 3001; `https://localhost:3001` is not reachable by Omise.
+4. Set the Test Dashboard webhook endpoint to
+   `https://<public-origin>/api/v1/payments/omise/webhook`. A frontend/gateway origin must forward
+   `/api/v1` to NestJS without modifying the request body. Update the Dashboard if the tunnel URL
+   changes. The API needs outbound HTTPS access to `api.omise.co`.
+5. Confirm that PromptPay is available on the test account. The API reports a definitive provider
+   rejection if the channel/account configuration is unavailable; this is not a successful payment.
 
-Two decisions worth stating, because the cards differ or the order is observable:
+### HTTP contract
 
-- **Amount mismatch answers 400, and the cards disagree about it.** Product Backlog US12-5 and the
-  parent S2-T04 card say "Return 400 for amount mismatch/invalid reference"; the endpoint contract
-  card lists the mismatch under 409. The acceptance criteria win, so the endpoint answers 400. Note
-  the inconsistency this leaves inside this file: `assertBookableSlot` reports an already-started
-  slot as 409 because a client acting on a stale view is a state conflict, which is the same shape
-  of failure as a stale amount. That is a conflict between the cards rather than a defect in either
-  code path, and moving the mismatch to 409 needs the backlog changed first. The body carries
-  `BOOKING_PAYMENT_AMOUNT_MISMATCH` and `details.expectedAmount`, so a client can react to the
-  specific cause whichever status the backlog settles on.
-- **State is checked before the amount.** Paying a booking that is still PENDING answers 400
-  `BOOKING_NOT_PAYABLE` even when the amount is also wrong, because an unconfirmed booking cannot be
-  paid at any amount. This follows the US12-5 pending-booking acceptance criterion. Other
-  non-payable states (CANCELED, COMPLETED, EXPIRED) retain 409. Clients must handle
-  `BOOKING_NOT_PAYABLE` by refreshing booking state before retrying, even when its HTTP status is 400.
+| Method | Path                                                | Behavior                                                                                      |
+| ------ | --------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| POST   | `/api/v1/bookings/me/:bookingId/payments/promptpay` | Empty body; create or resume one test attempt. Returns 200 with the persisted status/QR.      |
+| GET    | `/api/v1/bookings/me/:bookingId/payments/current`   | Reconcile an active attempt with Omise and return current status. Never creates a charge.     |
+| POST   | `/api/v1/payments/omise/webhook`                    | Signed test events; no user JWT. Verify signature and retrieve the charge before applying it. |
+| POST   | `/api/v1/bookings/me/:bookingId/mock-payment`       | Retired: 410 for an authenticated student owner. Never writes payment state.                  |
 
-The student reads carry the recorded payment so a client never has to replay the POST to learn it:
-`GET /api/v1/bookings/me` and `GET /api/v1/bookings/me/:bookingId` both return `paymentStatus`,
-`paidAt` and `mockReference`. `paidAt` and `mockReference` are present and `null` while the booking
-is unpaid, so a client branches on the value rather than on the key being absent. The tutor list
-deliberately omits them: no card asks a tutor to see a student's payment reference, and the reads
-select only the columns they return.
+Student endpoints require JWT, STUDENT role and booking ownership, in that order. They return
+401 unauthenticated, 403 wrong role/owner, 404 missing booking, 400 invalid UUID/nonempty create
+body, 409 non-payable state/unsupported amount/mismatched charge, and 503 unavailable or uncertain
+provider result. Responses use `Cache-Control: no-store`.
 
-The field is `mockReference` here, matching the column, while the POST response calls the same value
-`reference`; the POST answers about one payment, where the shorter name is unambiguous.
+The response contains `bookingId`, `paymentStatus` (UNPAID/PAID), `paymentPending`, `paidAt`,
+`reference`, and nullable `attempt`. An attempt contains `id`, `status`, fixed-decimal `amount`,
+`currency`, nullable `chargeId`, `qrCodeUrl`, `expiresAt`, and `failureCode`. Its states are
+CREATING, PENDING, SUCCESSFUL, FAILED and EXPIRED. QR URLs are exposed only while PENDING.
+Booking reads also expose `paymentPending` and `paymentReference`; `mockReference` remains for
+historical demo receipts. New successful payments use `paymentReference` and leave `mockReference`
+null. All timestamps are UTC; the UI displays Bangkok time.
+
+### Consistency and recovery
+
+- The server takes the amount/currency from the booking, uses Decimal to convert to integer satang,
+  and enforces the documented PromptPay THB 20–150,000 range. QR expiry is requested at 15 minutes.
+- A conditional booking update claims payment inside a transaction. PostgreSQL partial unique
+  indexes enforce one active and one successful attempt per booking. Duplicate requests reuse the
+  active attempt or return the paid receipt. A paid booking cannot create another charge.
+- Claiming payment and canceling contend on the same booking row. Cancellation requires
+  `paymentPending=false`; no booking can be canceled while an active or uncertain QR exists.
+  FAILED/EXPIRED provider results release the claim atomically. Expiry is verified with Omise,
+  never inferred solely from a browser countdown. A 409 `PAYMENT_IN_PROGRESS` requires a status read.
+- Network calls happen outside transactions. A timeout/5xx/malformed response after POST leaves
+  CREATING locked, since Omise may already have created the charge. The API never automatically
+  retries a charge POST. After 15 seconds, a status read can recover by `metadata.attemptId` from
+  charge history (up to 500 charges since the attempt); `charge.create` events can also recover it.
+  A missing result never clears this lock or permits a new charge. If recovery stays CREATING,
+  an operator must inspect Omise test charges/Events using the attempt ID and replay/reconcile the
+  matching charge. Do not manually reset `paymentPending` merely because the UI timed out. If the
+  process stopped before POST, verify absence with the provider before any reviewed DB repair.
+- Webhooks use HMAC-SHA256 over `<timestamp>.<raw-body>` with the Base64-decoded Dashboard secret.
+  Requests require `Omise-Signature` and `Omise-Signature-Timestamp`, a five-minute timestamp
+  window, and a constant-time match. Multiple comma-separated signatures support key rotation.
+  Never put an API key in the webhook URL. A missing/invalid signature returns 401 before any
+  provider or persistence operation.
+- A verified webhook independently retrieves the charge and checks test mode, PromptPay method,
+  charge ID, attempt/booking metadata, amount, currency, and captured successful status. Updates
+  lock the booking row, and terminal attempts cannot be downgraded by duplicate/older events.
+  State idempotency makes event replay safe without storing raw webhook payloads or secrets.
+- The web UI reads the current attempt on reload, polls every five seconds while active, pauses
+  polling in hidden tabs, and stops at terminal results/unmount. Manual status refresh also
+  reconciles a missed webhook. Errors block another create until a successful status read.
+  Background reconciliation requires a caller; this implementation does not add a scheduled job.
+- The existing classroom-link access rules and paid-booking cancellation prohibition remain.
+  Attendance recording is also blocked while a payment is active so a class cannot become
+  completed before the pending charge is reconciled.
+  Refunds, payouts and live payments are outside this feature. PromptPay refunds are not available
+  through Omise's API; do not promise a refund flow from this integration.
+
+### Demo and validation
+
+Create a confirmed unpaid booking, open its detail, select **Create test QR**, and find the charge
+in Omise **Test Mode**. Use **Actions → Successful / Failed** to simulate its result; do not use a
+banking app or transfer real money. Verify the receipt after reload. FAILED/EXPIRED allows a new
+attempt. Test with an HTTPS webhook endpoint for callback delivery; manual refresh independently
+retrieves the result if no webhook arrives.
+
+Automated gateway, domain and HTTP tests use test doubles and do not certify the account's
+configuration or actual callback delivery. Run `pnpm --filter @hktutor/api test`, the payment HTTP
+suite, and `pnpm --filter @hktutor/web exec playwright test student-promptpay-payment-ui.spec.ts`.
+For database verification, apply migrations to a disposable local database, then run:
+
+```bash
+HKTUTOR_ALLOW_DISPOSABLE_DB_VERIFY=1 DATABASE_URL="postgresql://postgres@127.0.0.1:5432/hktutor_payment_test" pnpm db:verify:payments
+```
+
+The verifier rejects non-loopback hosts and names without the `hktutor-`/`hktutor_` prefix.
+It creates/removes its own fixtures and briefly installs a rollback-probe trigger; never run it
+against shared data. It covers concurrent claims, duplicate callbacks, timeout recovery, retry,
+payment/cancellation races, and transaction rollback.
+
+References: [PromptPay](https://docs.omise.co/promptpay),
+[webhook signature and event verification](https://docs.omise.co/api-webhooks),
+[charge API and metadata](https://docs.omise.co/charges-api).
 
 ## Class attendance API (S2-T35)
 

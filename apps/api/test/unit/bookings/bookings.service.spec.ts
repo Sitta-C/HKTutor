@@ -2339,6 +2339,29 @@ describe('BookingsService', () => {
   });
 
   describe('cancelBooking', () => {
+    it('rejects cancellation while a PromptPay attempt is active without changing the booking', async () => {
+      const { bookingId, studentUserId, tutorUserId } = createTestData();
+      const updateMany = jest.fn();
+      mockPrismaService.$transaction.mockImplementation((run: TransactionCallback) =>
+        run({
+          booking: {
+            findUnique: jest.fn().mockResolvedValue({
+              id: bookingId,
+              studentUserId,
+              tutorProfileId: tutorUserId,
+              status: BookingStatus.CONFIRMED,
+              paymentStatus: PaymentStatus.UNPAID,
+              paymentPending: true,
+            }),
+            updateMany,
+          },
+        }),
+      );
+      await expect(
+        service.cancelBooking({ bookingId, userId: studentUserId, reason: 'Cancel' }),
+      ).rejects.toMatchObject({ response: { code: 'PAYMENT_IN_PROGRESS' } });
+      expect(updateMany).not.toHaveBeenCalled();
+    });
     const stubCancelTransaction = (options: {
       booking: unknown;
       canceledBooking?: unknown;
@@ -2401,6 +2424,7 @@ describe('BookingsService', () => {
         select: {
           id: true,
           paymentStatus: true,
+          paymentPending: true,
           slot: { select: { startAtUtc: true } },
           slotId: true,
           status: true,
@@ -2415,6 +2439,7 @@ describe('BookingsService', () => {
           where: {
             id: bookingId,
             paymentStatus: PaymentStatus.UNPAID,
+            paymentPending: false,
             slotId,
             status: { in: [BookingStatus.PENDING, BookingStatus.CONFIRMED] },
           },
@@ -2484,6 +2509,7 @@ describe('BookingsService', () => {
           where: {
             id: bookingId,
             paymentStatus: PaymentStatus.UNPAID,
+            paymentPending: false,
             slotId,
             status: { in: [BookingStatus.PENDING, BookingStatus.CONFIRMED] },
           },
@@ -2898,6 +2924,31 @@ describe('BookingsService', () => {
   });
 
   describe('updateAttendance', () => {
+    it('rejects completion while a PromptPay attempt is active', async () => {
+      const { bookingId, tutorUserId } = createTestData();
+      const updateMany = jest.fn();
+      mockPrismaService.$transaction.mockImplementation((run: TransactionCallback) =>
+        run({
+          booking: {
+            findUnique: jest.fn().mockResolvedValue({
+              id: bookingId,
+              tutorProfileId: tutorUserId,
+              status: BookingStatus.CONFIRMED,
+              paymentPending: true,
+            }),
+            updateMany,
+          },
+        }),
+      );
+      await expect(
+        service.updateAttendance({
+          bookingId,
+          tutorId: tutorUserId,
+          attendance: AttendanceStatus.ATTENDED,
+        }),
+      ).rejects.toMatchObject({ response: { code: 'PAYMENT_IN_PROGRESS' } });
+      expect(updateMany).not.toHaveBeenCalled();
+    });
     const now = new Date('2026-10-14T12:00:00.000Z');
     const pastSlot = { endAtUtc: new Date('2026-10-14T11:00:00.000Z') };
 
@@ -2978,6 +3029,7 @@ describe('BookingsService', () => {
             attendance: true,
             attendanceMarkedAt: true,
             id: true,
+            paymentPending: true,
             slot: {
               select: {
                 endAtUtc: true,
@@ -2994,6 +3046,7 @@ describe('BookingsService', () => {
               attendance: null,
               attendanceMarkedAt: null,
               id: bookingId,
+              paymentPending: false,
               slot: { endAtUtc: { lte: now } },
               status: BookingStatus.CONFIRMED,
               tutorProfileId: tutorUserId,

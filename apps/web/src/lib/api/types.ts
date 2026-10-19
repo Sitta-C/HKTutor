@@ -303,17 +303,22 @@ export interface BookingResponse {
 
 export type PaymentStatus = 'UNPAID' | 'PAID';
 
-export interface MockPaymentPayload {
-  amount: string;
-  reference: string;
-}
-
-export interface MockPaymentResult {
+export interface PromptPayPayment {
   bookingId: string;
-  paymentStatus: 'PAID';
-  amount: string;
-  reference: string;
-  paidAt: string;
+  paymentStatus: PaymentStatus;
+  paymentPending: boolean;
+  paidAt: string | null;
+  reference: string | null;
+  attempt: {
+    id: string;
+    status: 'CREATING' | 'PENDING' | 'SUCCESSFUL' | 'FAILED' | 'EXPIRED';
+    amount: string;
+    currency: string;
+    chargeId: string | null;
+    qrCodeUrl: string | null;
+    expiresAt: string | null;
+    failureCode: string | null;
+  } | null;
 }
 
 export interface BookingView {
@@ -329,6 +334,8 @@ export interface BookingView {
   paymentStatus: PaymentStatus;
   paidAt: string | null;
   mockReference: string | null;
+  paymentReference?: string | null;
+  paymentPending?: boolean;
   createdAt: string;
 }
 
