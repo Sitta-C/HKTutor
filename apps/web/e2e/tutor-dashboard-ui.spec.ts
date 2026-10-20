@@ -44,6 +44,8 @@ function booking(
   return {
     id,
     status,
+    paymentStatus: 'UNPAID',
+    paymentPending: false,
     student: { nickname: name },
     listing: {
       id: 'listing-math',

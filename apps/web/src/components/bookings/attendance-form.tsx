@@ -76,11 +76,13 @@ export function AttendanceForm({
         (caught.status === 409 ||
           (caught.status === 400 && code === 'BOOKING_NOT_CONFIRMED_OR_COMPLETED'));
       const message = stateRejected
-        ? code === 'CLASS_NOT_ENDED'
-          ? text.attendanceFuture
-          : code === 'BOOKING_NOT_CONFIRMED_OR_COMPLETED'
-            ? text.attendanceUnavailable
-            : text.attendanceConflict
+        ? code === 'BOOKING_NOT_PAID'
+          ? text.paymentRequired
+          : code === 'CLASS_NOT_ENDED'
+            ? text.attendanceFuture
+            : code === 'BOOKING_NOT_CONFIRMED_OR_COMPLETED'
+              ? text.attendanceUnavailable
+              : text.attendanceConflict
         : caught instanceof ApiError && caught.status === 403
           ? text.attendanceOwner
           : caught instanceof ApiError && caught.status === 404

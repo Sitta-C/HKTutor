@@ -13,11 +13,27 @@ import type { BookingClassDetails } from '@/lib/api/types';
 
 describe('classroom access and link safety', () => {
   it.each(['CONFIRMED', 'COMPLETED'] as const)('shows meeting links for %s classes', (status) => {
-    expect(hasClassroomAccess(status)).toBe(true);
+    expect(hasClassroomAccess(status, 'PAID')).toBe(true);
   });
   it.each(['PENDING', 'CANCELED', 'EXPIRED'] as const)('hides links for %s', (status) => {
-    expect(hasClassroomAccess(status)).toBe(false);
+    expect(hasClassroomAccess(status, 'PAID')).toBe(false);
   });
+  it.each(['CONFIRMED', 'COMPLETED'] as const)(
+    'blocks unpaid %s classroom access and attendance',
+    (status) => {
+      expect(hasClassroomAccess(status, 'UNPAID')).toBe(false);
+      expect(
+        attendanceEligibility({
+          status,
+          paymentStatus: 'UNPAID',
+          endAt: '2026-10-17T09:00:00.000Z',
+          isOwner: true,
+          attendance: null,
+          now: Date.parse('2026-10-17T10:00:00.000Z'),
+        }),
+      ).toBe('unpaid');
+    },
+  );
   it.each([
     'https://meet.google.com/abc-defg-hij',
     'https://zoom.us/j/123?pwd=abc',
@@ -89,6 +105,7 @@ describe('classroom access and link safety', () => {
       expect(
         attendanceEligibility({
           status,
+          paymentStatus: 'PAID',
           endAt,
           isOwner,
           attendance,
@@ -120,6 +137,7 @@ describe('classroom API client', () => {
     const details: BookingClassDetails = {
       bookingId: 'booking/id',
       status: 'COMPLETED',
+      paymentStatus: 'PAID',
       startAt: '2026-10-18T17:30:00.000Z',
       endAt: '2026-10-18T18:30:00.000Z',
       subject: { id: 'math', name: 'Mathematics' },

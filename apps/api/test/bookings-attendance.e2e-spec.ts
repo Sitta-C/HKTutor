@@ -2,7 +2,13 @@ import { Test } from '@nestjs/testing';
 import request from 'supertest';
 
 import { configureApplication } from '@app/app.setup';
-import { AccountStatus, AttendanceStatus, BookingStatus, Role } from '@generated/prisma/enums';
+import {
+  AccountStatus,
+  AttendanceStatus,
+  BookingStatus,
+  PaymentStatus,
+  Role,
+} from '@generated/prisma/enums';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import { JwtAuthGuard } from '@modules/auth/auth.guard';
 import { JwtTokenService } from '@modules/auth/jwt.service';
@@ -28,6 +34,8 @@ interface BookingFixture {
   id: string;
   slot: { endAtUtc: Date };
   status: BookingStatus;
+  paymentStatus: PaymentStatus;
+  paymentPending: boolean;
   studentUserId: string;
   tutorProfileId: string;
 }
@@ -77,6 +85,8 @@ describe('Tutor attendance API (e2e, isolated persistence)', () => {
       id: BOOKING_ID,
       slot: { endAtUtc: new Date('2026-01-01T10:00:00.000Z') },
       status: BookingStatus.CONFIRMED,
+      paymentStatus: PaymentStatus.PAID,
+      paymentPending: false,
       studentUserId: STUDENT_ID,
       tutorProfileId: TUTOR_ID,
     };
@@ -84,7 +94,13 @@ describe('Tutor attendance API (e2e, isolated persistence)', () => {
     findUnique.mockImplementation(() => Promise.resolve(structuredClone(booking)));
     findUniqueOrThrow.mockImplementation(() => Promise.resolve(structuredClone(booking)));
     updateMany.mockImplementation((args: Prisma.BookingUpdateManyArgs) => {
-      if (!booking || booking.status !== BookingStatus.CONFIRMED || booking.attendance !== null) {
+      if (
+        !booking ||
+        booking.status !== BookingStatus.CONFIRMED ||
+        booking.attendance !== null ||
+        booking.paymentStatus !== PaymentStatus.PAID ||
+        booking.paymentPending
+      ) {
         return Promise.resolve({ count: 0 });
       }
       const { attendance, attendanceMarkedAt, status } = args.data;
@@ -119,6 +135,19 @@ describe('Tutor attendance API (e2e, isolated persistence)', () => {
       },
     );
   });
+
+  it.each([AttendanceStatus.ATTENDED, AttendanceStatus.ABSENT])(
+    'rejects unpaid %s without persisting attendance or completion',
+    async (attendance) => {
+      if (!booking) throw new Error('Missing fixture');
+      booking.paymentStatus = PaymentStatus.UNPAID;
+      const saved = structuredClone(booking);
+      const response = await attendanceRequest().send({ attendance }).expect(409);
+      expect(response.body).toMatchObject({ code: 'BOOKING_NOT_PAID' });
+      expect(booking).toEqual(saved);
+      expect(updateMany).not.toHaveBeenCalled();
+    },
+  );
 
   it.each([AttendanceStatus.ATTENDED, AttendanceStatus.ABSENT])(
     'saves %s once and returns the original record on replay',

@@ -524,6 +524,13 @@ rows that way; see "Tutor ranking verification (S2-T15)" below for that evidence
 eligibility (which tutors and listings are visible at all) is S2-T10/S2-T12's own contract. The
 ranking selector and translated result-card labels belong to S2-T14.
 
+`GET /api/v1/bookings/tutor` includes `paymentStatus` (UNPAID/PAID) and `paymentPending` on
+all rows. Results are ordered by lesson start (`slot.startAtUtc`) ascending before pagination,
+with `createdAt` descending then `id` descending as deterministic tie-breakers. This applies to
+every status filter, including ALL. The tutor inbox displays a separate bilingual payment badge and disables cancellation
+for paid bookings or active payment attempts. Booking confirmation alone does not unlock classroom
+links or attendance; payment must complete first.
+
 ## Meeting links and class details (S2-T32)
 
 `PUT /api/v1/bookings/tutor/:bookingId/meeting-link` accepts `{ meetingUrl }` from the booking's
@@ -531,7 +538,8 @@ owning tutor only. The URL must be an absolute HTTPS URL; HTTP, FTP, JavaScript,
 embedded `user:password@` credentials, whitespace, control characters (including NUL), bidirectional
 override characters, missing values and unknown body fields return 400 `INVALID_URL` or a validation
 error. A successful update returns
-`200 { bookingId, meetingUrl, updatedAt }`. Both `CONFIRMED` and `COMPLETED` bookings allow edits;
+`200 { bookingId, meetingUrl, updatedAt }`. Both `CONFIRMED` and `COMPLETED` bookings allow edits only when `paymentStatus=PAID`;
+unpaid edits return 409 `BOOKING_NOT_PAID`;
 `PENDING`, `CANCELED` and `EXPIRED` return 409 `BOOKING_NOT_CONFIRMED_OR_COMPLETED`. The transaction
 updates only the URL and the automatic audit timestamp, with an eligibility condition on the write.
 A concurrent transition to an ineligible state returns 409 `BOOKING_TRANSITION_CONFLICT` without
@@ -539,11 +547,13 @@ writing the URL. Existing authentication, tutor-role and booking-ownership guard
 session returns 401, a wrong role/owner returns 403 and a missing booking returns 404.
 
 `GET /api/v1/bookings/:bookingId/class-details` is available only to the student or tutor participant.
-It returns `200 { bookingId, status, startAt, endAt, subject, meetingUrl, attendance, attendanceMarkedAt, participants }`
+It returns `200 { bookingId, status, paymentStatus, startAt, endAt, subject, meetingUrl, attendance, attendanceMarkedAt, participants }`
 for every booking state. `subject` is `{ id, name }` from the booking's teaching listing.
 `meetingUrl` contains the stored URL only for `CONFIRMED`/`COMPLETED`; it is explicitly `null` for
 `PENDING`/`CANCELED`/`EXPIRED`, even when a URL remains stored. No link set is also a valid `null`
-state. Completed classes retain access to their saved link and attendance. `attendanceMarkedAt`
+state. Only paid confirmed/completed classes expose their saved meeting link, for both participants.
+Unpaid classes, including historical completed classes, return `meetingUrl: null`.
+Completed classes retain their saved attendance. `attendanceMarkedAt`
 is the original UTC ISO 8601 recording time, or `null` when no timestamp was recorded; clients
 read the saved receipt through this GET without replaying an attendance PUT. Reads never change the
 booking. Student details contain only `firstName`, `lastName`, `nickname`, `school`, `gradeLevel`
@@ -676,7 +686,8 @@ null. All timestamps are UTC; the UI displays Bangkok time.
   polling in hidden tabs, and stops at terminal results/unmount. Manual status refresh also
   reconciles a missed webhook. Errors block another create until a successful status read.
   Background reconciliation requires a caller; this implementation does not add a scheduled job.
-- The existing classroom-link access rules and paid-booking cancellation prohibition remain.
+- Classroom links require PAID payment status and CONFIRMED/COMPLETED booking status;
+  the paid-booking cancellation prohibition remains.
   Attendance recording is also blocked while a payment is active so a class cannot become
   completed before the pending charge is reconciled.
   Refunds, payouts and live payments are outside this feature. PromptPay refunds are not available
@@ -715,7 +726,7 @@ References: [PromptPay](https://docs.omise.co/promptpay),
 required. Unknown body fields and invalid UUIDs/attendance values return 400; missing/invalid
 authentication returns 401, another role/tutor returns 403, and a missing booking returns 404.
 
-The class end time must be at or before now. A first write requires a `CONFIRMED` booking with no
+The class end time must be at or before now. A first write requires a `PAID`, `CONFIRMED` booking with no
 attendance record and atomically saves attendance, `attendanceMarkedAt` and `COMPLETED` status.
 The 200 response is `{bookingId,attendance,attendanceMarkedAt,status:"COMPLETED",idempotentReplay}`
 with a UTC ISO 8601 timestamp. `idempotentReplay` is false for the first write; a same-value retry
@@ -725,7 +736,9 @@ retry returns 409 `ATTENDANCE_ALREADY_RECORDED`. A still-pending booking returns
 payment rule); canceled/expired bookings, future classes and completed bookings without a saved
 record return 409. None of these rejections mutate the booking.
 
-The conditional database update requires `CONFIRMED`, null attendance fields and an ended slot.
+Unpaid attendance writes return 409 `BOOKING_NOT_PAID`, including replays against historical unpaid
+completed bookings. Active payments still return 409 `PAYMENT_IN_PROGRESS`.
+The conditional database update requires `PAID`, `CONFIRMED`, null attendance fields and an ended slot.
 When another recording wins, the losing request reads the saved record in the same transaction:
 the same value is a replay, a different value is a conflict. Persistence failures roll back the
 whole transaction. No schema migration or new configuration is needed.
