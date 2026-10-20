@@ -95,6 +95,7 @@ describe('Student booking reads expose the payment state (e2e)', () => {
     expect(bookingFindMany.mock.calls).toMatchObject([
       [
         {
+          orderBy: [{ slot: { startAtUtc: 'asc' } }, { createdAt: 'desc' }, { id: 'desc' }],
           where: { tutorProfileId: TUTOR_PROFILE_ID },
           select: { paymentStatus: true, paymentPending: true },
         },

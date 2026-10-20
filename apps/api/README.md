@@ -525,7 +525,9 @@ eligibility (which tutors and listings are visible at all) is S2-T10/S2-T12's ow
 ranking selector and translated result-card labels belong to S2-T14.
 
 `GET /api/v1/bookings/tutor` includes `paymentStatus` (UNPAID/PAID) and `paymentPending` on
-all rows. The tutor inbox displays a separate bilingual payment badge and disables cancellation
+all rows. Results are ordered by lesson start (`slot.startAtUtc`) ascending before pagination,
+with `createdAt` descending then `id` descending as deterministic tie-breakers. This applies to
+every status filter, including ALL. The tutor inbox displays a separate bilingual payment badge and disables cancellation
 for paid bookings or active payment attempts. Booking confirmation alone does not unlock classroom
 links or attendance; payment must complete first.
 

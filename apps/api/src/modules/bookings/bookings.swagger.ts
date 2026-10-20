@@ -469,7 +469,7 @@ export function GetTutorBookingsDoc(): MethodDecorator {
     ApiOperation({
       summary: "List the authenticated tutor's assigned bookings",
       description:
-        'Only bookings for the signed-in tutor, optionally filtered by status and start time and paginated.',
+        'Only bookings for the signed-in tutor, optionally filtered by status and start time. Ordered by lesson start ascending before pagination; ties use creation time descending, then ID descending.',
     }),
     ApiBearerAuth(JWT_BEARER_AUTH),
     ApiQuery({

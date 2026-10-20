@@ -1640,7 +1640,7 @@ describe('BookingsService', () => {
       );
     });
 
-    it('applies validated page and pageSize values while keeping the filtered total', async () => {
+    it('orders by lesson start before pagination, with deterministic ties and the filtered total', async () => {
       const { tutorUserId } = createTestData();
       mockPrismaService.booking.findMany.mockResolvedValue([]);
       mockPrismaService.booking.count.mockResolvedValue(41);
@@ -1649,6 +1649,7 @@ describe('BookingsService', () => {
 
       expect(mockPrismaService.booking.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
+          orderBy: [{ slot: { startAtUtc: 'asc' } }, { createdAt: 'desc' }, { id: 'desc' }],
           skip: 15,
           take: 15,
           where: { tutorProfileId: tutorUserId },

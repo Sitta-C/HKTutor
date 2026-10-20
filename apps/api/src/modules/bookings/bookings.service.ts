@@ -734,7 +734,7 @@ export class BookingsService {
     const pagination = bookingPagination(input);
     const [bookings, total] = await Promise.all([
       this.prisma.booking.findMany({
-        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        orderBy: [{ slot: { startAtUtc: 'asc' } }, { createdAt: 'desc' }, { id: 'desc' }],
         select: {
           createdAt: true,
           currency: true,
