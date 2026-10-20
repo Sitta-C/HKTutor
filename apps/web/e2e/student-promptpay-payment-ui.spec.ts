@@ -79,6 +79,9 @@ async function mockPayments(
   await page.route('**/api/v1/**', async (route) => {
     const request = route.request();
     const path = new URL(request.url()).pathname.replace('/api/v1', '');
+    if (path.endsWith('/conversations/unread-count')) {
+      return route.fulfill({ json: { unreadCount: 0 } });
+    }
     if (path === '/auth/refresh') {
       return route.fulfill({
         json: {

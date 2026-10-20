@@ -32,7 +32,9 @@ private student/tutor messaging, and the informational `/about-me` page. Messagi
 `/dashboard/messages` supports asking a tutor before booking, inbox pagination, latest-first opening,
 incremental older-history loading, text sending and server-backed sent/read receipts. The open chat
 checks for updates every four seconds, pauses while the tab is hidden and stops when closed;
-manual Refresh remains available. Availability supports overnight and multi-day ranges with
+manual Refresh remains available. Student and tutor sidebar Messages badges show the global
+unread incoming-message count, refresh every 15 seconds while visible, and refresh immediately
+after successful read acknowledgements. Availability supports overnight and multi-day ranges with
 Bangkok-time presentation and UTC timestamps on the wire. Day and week views use the private
 availability overlap filter to include carry-over slots without loading past history. Reserved slots
 remain protected.

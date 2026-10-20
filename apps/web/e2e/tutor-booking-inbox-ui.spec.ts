@@ -90,6 +90,9 @@ test('tutor confirms, rejects and recovers from missing and stale booking reques
     const request = route.request();
     const url = new URL(request.url());
     const path = url.pathname.replace('/api/v1', '');
+    if (path.endsWith('/conversations/unread-count')) {
+      return route.fulfill({ json: { unreadCount: 0 } });
+    }
 
     if (request.method() === 'POST' && path === '/auth/refresh') {
       return json(route, { accessToken: 'e2e-access-token', expiresIn: 900, user: tutorUser });
@@ -268,6 +271,9 @@ test('paging after a decision skips no request when the pending set shrinks', as
     const request = route.request();
     const url = new URL(request.url());
     const path = url.pathname.replace('/api/v1', '');
+    if (path.endsWith('/conversations/unread-count')) {
+      return route.fulfill({ json: { unreadCount: 0 } });
+    }
 
     if (request.method() === 'POST' && path === '/auth/refresh') {
       return json(route, { accessToken: 'e2e-access-token', expiresIn: 900, user: tutorUser });
@@ -664,6 +670,9 @@ async function openMockInbox(
     const request = route.request();
     const url = new URL(request.url());
     const path = url.pathname.replace('/api/v1', '');
+    if (path.endsWith('/conversations/unread-count')) {
+      return route.fulfill({ json: { unreadCount: 0 } });
+    }
     if (request.method() === 'POST' && path === '/auth/refresh') {
       return json(route, { accessToken: 'e2e-access-token', expiresIn: 900, user: tutorUser });
     }

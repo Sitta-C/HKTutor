@@ -67,6 +67,9 @@ async function mockDetail(
   await page.route('**/api/v1/**', async (route) => {
     const url = new URL(route.request().url());
     const path = url.pathname.replace('/api/v1', '');
+    if (path.endsWith('/conversations/unread-count')) {
+      return route.fulfill({ json: { unreadCount: 0 } });
+    }
     if (path === '/auth/refresh') {
       return route.fulfill(
         options.role

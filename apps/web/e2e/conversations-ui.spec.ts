@@ -86,6 +86,10 @@ async function mockInbox(
     at?: number;
   }[] = [];
   const unexpected: string[] = [];
+  let unreadOverride: number | null = null;
+  let unreadFailure = false;
+  let unreadRequests = 0;
+  let unreadGate: Promise<void> | undefined;
   let sendGate: Promise<void> | undefined;
   let listGate: Promise<void> | undefined;
   let sendFailure = false;
@@ -110,6 +114,17 @@ async function mockInbox(
     const url = new URL(request.url());
     const path = url.pathname.replace('/api/v1', '');
     const method = request.method();
+    if (path === '/conversations/unread-count') {
+      unreadRequests += 1;
+      const unreadCount =
+        unreadOverride ??
+        (options.empty ? 0 : items.reduce((total, item) => total + item.unreadCount, 0));
+      await unreadGate;
+      return route.fulfill({
+        status: unreadFailure ? 503 : 200,
+        json: unreadFailure ? { message: 'Unavailable' } : { unreadCount },
+      });
+    }
     if (path === '/auth/refresh') {
       return route.fulfill({
         status: options.guest ? 401 : 200,
@@ -147,6 +162,9 @@ async function mockInbox(
         },
       });
     }
+    if (path === '/notifications') {
+      return route.fulfill({ json: { items: [], unreadCount: 0, nextCursor: null } });
+    }
     if (path === '/profiles/me/avatar') {
       return route.fulfill({ json: { avatar: null } });
     }
@@ -154,7 +172,7 @@ async function mockInbox(
       return route.fulfill({ json: { items: [], total: 0 } });
     }
     if (path === '/conversations' && method === 'GET') {
-      calls.push({ method, path, body: null, after: null });
+      calls.push({ method, path, body: null, after: url.searchParams.get('cursor') });
       const result = {
         items: options.empty
           ? []
@@ -315,6 +333,16 @@ async function mockInbox(
   return {
     calls,
     unexpected,
+    unreadRequests: () => unreadRequests,
+    unreadTotal: (total: number | null) => {
+      unreadOverride = total;
+    },
+    failUnread: (fail: boolean) => {
+      unreadFailure = fail;
+    },
+    gateUnread: (gate: Promise<void> | undefined) => {
+      unreadGate = gate;
+    },
     gateHistory: (gate: Promise<void> | undefined) => {
       historyGate = gate;
     },
@@ -1134,3 +1162,134 @@ for (const language of ['th', 'en'] as const) {
     await expect(input).toHaveValue('');
   });
 }
+
+const unreadNavBadge = (page: Page) => page.locator('[data-unread-message-count]');
+
+async function openMessageSidebar(page: Page): Promise<void> {
+  if ((page.viewportSize()?.width ?? 1440) < 1024) {
+    await page.getByRole('button', { name: /Open sidebar|เปิดแถบข้าง/, exact: true }).click();
+  }
+}
+
+for (const role of ['STUDENT', 'TUTOR'] as const) {
+  for (const language of ['en', 'th'] as const) {
+    test(`${role} ${language}: sidebar shows the server total beyond loaded inbox pages`, async ({
+      page,
+    }, testInfo) => {
+      const fixture = await mockInbox(page, { role, language });
+      fixture.unreadTotal(137);
+      await page.goto('/dashboard/messages');
+      await openMessageSidebar(page);
+      await expect(unreadNavBadge(page)).toHaveText('137');
+      await expect(unreadNavBadge(page)).toHaveAttribute(
+        'aria-label',
+        language === 'en' ? 'Unread messages: 137' : 'ข้อความที่ยังไม่อ่าน: 137',
+      );
+      expect(
+        fixture.calls.filter((call) => call.path === '/conversations' && call.after !== null),
+      ).toEqual([]);
+      await noOverflow(page);
+      await page.screenshot({
+        path: testInfo.outputPath(`sidebar-unread-${role}-${language}.png`),
+        fullPage: true,
+      });
+      expect(fixture.unexpected).toEqual([]);
+    });
+  }
+
+  test(`${role}: sidebar count changes only after successful read acknowledgement`, async ({
+    page,
+  }) => {
+    const fixture = await mockInbox(page, { role, messageCount: 4 });
+    fixture.readStatus(500);
+    await page.goto('/dashboard/messages');
+    await expect(unreadNavBadge(page)).toHaveText('2');
+    await page.getByRole('button', { name: /Teacher Praew 0|Mint 0/ }).click();
+    await expect(
+      page.getByText('Could not update read status. We will try again while this chat is open.'),
+    ).toBeVisible();
+    await expect(unreadNavBadge(page)).toHaveText('2');
+    fixture.readStatus(200);
+    await page.getByRole('button', { name: 'Refresh messages', exact: true }).click();
+    await expect(unreadNavBadge(page)).toHaveCount(0);
+    await expect(page.locator('#dashboard-sidebar a[href="/dashboard/messages"]')).toHaveAttribute(
+      'aria-label',
+      'Messages, Unread messages: 0',
+    );
+    expect(fixture.unexpected).toEqual([]);
+  });
+}
+
+test('sidebar unread polling pauses in hidden tabs and recovers from errors without inventing zero', async ({
+  page,
+}) => {
+  await pauseChatClock(page);
+  const fixture = await mockInbox(page);
+  fixture.unreadTotal(137);
+  await page.goto('/dashboard/messages');
+  await openMessageSidebar(page);
+  await expect(unreadNavBadge(page)).toHaveText('137');
+  fixture.failUnread(true);
+  await page.clock.runFor(15_100);
+  await expect(unreadNavBadge(page)).toHaveText('—');
+  await page.evaluate(() => {
+    Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'hidden' });
+    document.dispatchEvent(new Event('visibilitychange'));
+  });
+  const requests = fixture.unreadRequests();
+  await page.clock.runFor(45_000);
+  expect(fixture.unreadRequests()).toBe(requests);
+  fixture.failUnread(false);
+  fixture.unreadTotal(5);
+  await page.evaluate(() => {
+    Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' });
+    document.dispatchEvent(new Event('visibilitychange'));
+  });
+  await expect(unreadNavBadge(page)).toHaveText('5');
+  fixture.unreadTotal(0);
+  await page.clock.runFor(15_100);
+  await expect(unreadNavBadge(page)).toHaveCount(0);
+});
+
+test('a late unread response cannot restore the count after a newer refresh', async ({ page }) => {
+  const fixture = await mockInbox(page);
+  fixture.unreadTotal(137);
+  await page.goto('/dashboard/messages');
+  await openMessageSidebar(page);
+  await expect(unreadNavBadge(page)).toHaveText('137');
+  let release = () => {};
+  fixture.gateUnread(
+    new Promise<void>((resolve) => {
+      release = resolve;
+    }),
+  );
+  const before = fixture.unreadRequests();
+  await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+  await expect.poll(() => fixture.unreadRequests()).toBeGreaterThan(before);
+  fixture.unreadTotal(0);
+  fixture.gateUnread(undefined);
+  await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+  await expect(unreadNavBadge(page)).toHaveCount(0);
+  release();
+  await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => resolve())));
+  await expect(unreadNavBadge(page)).toHaveCount(0);
+});
+
+test('collapsed desktop sidebar retains an accessible unread badge', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 900 });
+  const fixture = await mockInbox(page);
+  fixture.unreadTotal(137);
+  await page.goto('/dashboard/messages');
+  await expect(unreadNavBadge(page)).toHaveText('137');
+  await page
+    .locator('#dashboard-sidebar')
+    .getByRole('button', { name: 'Close sidebar', exact: true })
+    .click();
+  await expect(unreadNavBadge(page)).toBeVisible();
+  await expect(unreadNavBadge(page)).toHaveText('99+');
+  await expect(page.locator('#dashboard-sidebar a[href="/dashboard/messages"]')).toHaveAttribute(
+    'aria-label',
+    'Messages, Unread messages: 137',
+  );
+  await noOverflow(page);
+});

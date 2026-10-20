@@ -467,6 +467,10 @@ export interface ConversationSummary {
   unreadCount: number;
 }
 
+export interface UnreadMessageCountResponse {
+  unreadCount: number;
+}
+
 export interface ConversationListResponse {
   items: ConversationSummary[];
   nextCursor: string | null;

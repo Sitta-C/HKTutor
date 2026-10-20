@@ -293,3 +293,12 @@ export class MyConversationsResponseDto {
   })
   nextCursor!: string | null;
 }
+
+export class UnreadMessageCountResponseDto {
+  @ApiProperty({
+    description: "Unread incoming messages across all of the caller's conversations",
+    example: 3,
+    minimum: 0,
+  })
+  unreadCount!: number;
+}

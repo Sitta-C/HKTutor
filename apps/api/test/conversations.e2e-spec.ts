@@ -1,3 +1,4 @@
+import { UnauthorizedException } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
 
@@ -57,6 +58,7 @@ describe('Conversation APIs (e2e)', () => {
   const studentProfileFindFirst = jest.fn();
   const conversationFindUnique = jest.fn();
   const conversationCreate = jest.fn();
+  const messageCount = jest.fn();
   const messageCreate = jest.fn();
   const messageFindFirst = jest.fn();
   const messageFindMany = jest.fn();
@@ -77,6 +79,7 @@ describe('Conversation APIs (e2e)', () => {
             authSession: { findUnique: authSessionFindUnique },
             conversation: { create: conversationCreate, findUnique: conversationFindUnique },
             message: {
+              count: messageCount,
               create: messageCreate,
               findFirst: messageFindFirst,
               findMany: messageFindMany,
@@ -99,6 +102,65 @@ describe('Conversation APIs (e2e)', () => {
   });
 
   afterEach(() => jest.resetAllMocks());
+
+  describe('GET /api/v1/conversations/unread-count', () => {
+    it.each([Role.STUDENT, Role.TUTOR])(
+      'returns a private global count to %s from session identity',
+      async (role) => {
+        authenticateAs(role);
+        messageCount.mockResolvedValue(137);
+        const response = await request(app.getHttpServer())
+          .get(`/api/v1/conversations/unread-count?userId=${OTHER_STUDENT_ID}`)
+          .set('Authorization', 'Bearer signed-token')
+          .expect(200);
+        expect(response.body).toEqual({ unreadCount: 137 });
+        expect(response.headers['cache-control']).toBe('no-store');
+        expect(messageCount).toHaveBeenCalledWith({
+          where: {
+            conversation:
+              role === Role.STUDENT ? { studentUserId: STUDENT_ID } : { tutorUserId: TUTOR_ID },
+            readAt: null,
+            senderUserId: { not: USER_IDS[role] },
+          },
+        });
+        expect(messageFindMany).not.toHaveBeenCalled();
+        expect(messageCreate).not.toHaveBeenCalled();
+        expectNoConversationContent(response.body);
+      },
+    );
+
+    it('returns zero when the caller has no unread incoming messages', async () => {
+      authenticateAs(Role.STUDENT);
+      messageCount.mockResolvedValue(0);
+      const response = await request(app.getHttpServer())
+        .get('/api/v1/conversations/unread-count')
+        .set('Authorization', 'Bearer signed-token')
+        .expect(200);
+      expect(response.body).toEqual({ unreadCount: 0 });
+    });
+
+    it('requires a valid session before counting', async () => {
+      await request(app.getHttpServer()).get('/api/v1/conversations/unread-count').expect(401);
+      verifyAccessToken.mockImplementation(() => {
+        throw new UnauthorizedException('Invalid JWT');
+      });
+      await request(app.getHttpServer())
+        .get('/api/v1/conversations/unread-count')
+        .set('Authorization', 'Bearer invalid-token')
+        .expect(401);
+      expect(messageCount).not.toHaveBeenCalled();
+    });
+
+    it('rejects admin callers without accessing messages', async () => {
+      authenticateAs(Role.ADMIN);
+      const response = await request(app.getHttpServer())
+        .get('/api/v1/conversations/unread-count')
+        .set('Authorization', 'Bearer signed-token')
+        .expect(403);
+      expect(messageCount).not.toHaveBeenCalled();
+      expectNoConversationContent(response.body);
+    });
+  });
 
   describe('POST /api/v1/conversations (API-01)', () => {
     it('returns 401 without an access token', async () => {

@@ -5,6 +5,7 @@ import {
   CONVERSATION_HISTORY_MAX_PAGES,
   CONVERSATION_HISTORY_TIMEOUT_MS,
   getConversations,
+  getUnreadMessageCount,
   loadConversationMessages,
   loadOlderConversationMessages,
   markConversationRead,
@@ -12,6 +13,7 @@ import {
   sendConversationMessage,
 } from '@/lib/api/conversations';
 import { ApiError, ConversationHistoryLoadError } from '@/lib/api/error';
+import { UNREAD_MESSAGES_CHANGED_EVENT } from '@/lib/conversation-events';
 
 function response(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -31,6 +33,36 @@ describe('participant-only conversation client', () => {
     vi.useRealTimers();
     clearAccessToken();
     vi.unstubAllGlobals();
+  });
+
+  it('reads the global unread count without inbox pagination or browser caching', async () => {
+    fetchMock.mockResolvedValueOnce(response({ unreadCount: 137 }));
+    const signal = new AbortController().signal;
+    await expect(getUnreadMessageCount(signal)).resolves.toEqual({ unreadCount: 137 });
+    expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/v1/conversations/unread-count');
+    expect(fetchMock.mock.calls[0]?.[1]).toMatchObject({
+      signal,
+      cache: 'no-store',
+      credentials: 'include',
+    });
+  });
+
+  it('refreshes the badge only after a persisted read changes unread state', async () => {
+    const browser = new EventTarget();
+    vi.stubGlobal('window', browser);
+    const changed = vi.fn();
+    browser.addEventListener(UNREAD_MESSAGES_CHANGED_EVENT, changed);
+    fetchMock.mockResolvedValueOnce(response({ updatedCount: 2, readAt: '2026-10-20T00:00:00Z' }));
+    await markConversationRead('pair', 'received', new AbortController().signal);
+    expect(changed).toHaveBeenCalledOnce();
+    fetchMock.mockResolvedValueOnce(response({ updatedCount: 0, readAt: null }));
+    await markConversationRead('pair', 'received', new AbortController().signal);
+    expect(changed).toHaveBeenCalledOnce();
+    fetchMock.mockResolvedValueOnce(response({ message: 'Unavailable' }, 500));
+    await expect(
+      markConversationRead('pair', 'received', new AbortController().signal),
+    ).rejects.toThrow();
+    expect(changed).toHaveBeenCalledOnce();
   });
 
   it('opens by canonical tutor identity and preserves the existing authentication flow', async () => {
