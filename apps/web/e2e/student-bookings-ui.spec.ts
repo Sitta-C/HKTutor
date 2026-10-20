@@ -152,6 +152,7 @@ async function mockBookings(
         json: {
           bookingId: detail.id,
           status: detail.status,
+          paymentStatus: detail.paymentStatus,
           startAt: detail.slot.startAtUtc,
           endAt: detail.slot.endAtUtc,
           subject: { id: detail.listing.subjectId, name: detail.listing.subjectName },

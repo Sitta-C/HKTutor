@@ -183,6 +183,12 @@ const bookingNotParticipant = (): ForbiddenException =>
     statusCode: 403,
   });
 
+const bookingNotPaid = (): ConflictException =>
+  new ConflictException({
+    code: 'BOOKING_NOT_PAID',
+    message: 'Payment is required before accessing the classroom or recording attendance',
+  });
+
 const bookingAlreadyPaid = (): ConflictException =>
   new ConflictException({
     code: 'BOOKING_ALREADY_PAID',
@@ -249,6 +255,7 @@ const classNotEnded = (): ConflictException =>
 
 const attendanceRecordSelect = {
   attendance: true,
+  paymentStatus: true,
   attendanceMarkedAt: true,
   id: true,
   status: true,
@@ -261,6 +268,9 @@ function attendanceResponse(
   requestedAttendance: AttendanceStatus,
   idempotentReplay: boolean,
 ): ClassAttendanceResponseDto {
+  if (booking.paymentStatus !== PaymentStatus.PAID) {
+    throw bookingNotPaid();
+  }
   if (
     booking.status !== BookingStatus.COMPLETED ||
     booking.attendance === null ||
@@ -740,6 +750,8 @@ export class BookingsService {
             },
           },
           netAmount: true,
+          paymentStatus: true,
+          paymentPending: true,
           slot: { select: { endAtUtc: true, id: true, startAtUtc: true } },
           status: true,
           student: { select: { studentProfile: { select: { nickname: true } } } },
@@ -768,6 +780,8 @@ export class BookingsService {
           subjectName: booking.listing.subject.name,
         },
         netAmount: booking.netAmount.toFixed(2),
+        paymentStatus: booking.paymentStatus,
+        paymentPending: booking.paymentPending,
         slot: {
           endAtUtc: booking.slot.endAtUtc.toISOString(),
           id: booking.slot.id,
@@ -880,12 +894,16 @@ export class BookingsService {
   async updateMeetingLink(input: BookingMeetingLinkInput): Promise<BookingMeetingLinkDto> {
     if (!isValidMeetingUrl(input.meetingUrl)) throw invalidURLException();
     const booking = await this.prisma.booking.findFirst({
-      select: { id: true, status: true },
+      select: { id: true, status: true, paymentStatus: true },
       where: { id: input.bookingId },
     });
     if (!booking) throw bookingNotFound();
     if (!MEETING_LINK_STATUSES.includes(booking.status)) {
       throw meetingLinkNotEditable(booking.status);
+    }
+
+    if (booking.paymentStatus !== PaymentStatus.PAID) {
+      throw bookingNotPaid();
     }
 
     try {
@@ -894,6 +912,7 @@ export class BookingsService {
           data: { meetingUrl: input.meetingUrl },
           where: {
             id: input.bookingId,
+            paymentStatus: PaymentStatus.PAID,
             status: { in: MEETING_LINK_STATUSES },
           },
         });
@@ -931,6 +950,7 @@ export class BookingsService {
       select: {
         id: true,
         status: true,
+        paymentStatus: true,
         meetingUrl: true,
         attendance: true,
         attendanceMarkedAt: true,
@@ -966,12 +986,14 @@ export class BookingsService {
     const response = new BookingClassDetailDto();
     response.bookingId = booking.id;
     response.status = booking.status;
+    response.paymentStatus = booking.paymentStatus;
     response.startAt = booking.slot.startAtUtc.toISOString();
     response.endAt = booking.slot.endAtUtc.toISOString();
     response.subject = { id: booking.listing.subject.id, name: booking.listing.subject.name };
-    response.meetingUrl = MEETING_LINK_STATUSES.includes(booking.status)
-      ? booking.meetingUrl
-      : null;
+    response.meetingUrl =
+      booking.paymentStatus === PaymentStatus.PAID && MEETING_LINK_STATUSES.includes(booking.status)
+        ? booking.meetingUrl
+        : null;
     response.attendance = booking.attendance;
     response.attendanceMarkedAt = booking.attendanceMarkedAt?.toISOString() ?? null;
     response.participants = {
@@ -1107,6 +1129,7 @@ export class BookingsService {
             attendanceMarkedAt: true,
             id: true,
             paymentPending: true,
+            paymentStatus: true,
             slot: {
               select: {
                 endAtUtc: true,
@@ -1136,6 +1159,9 @@ export class BookingsService {
         ) {
           throw bookingNotConfirmedOrCompleted(booking.status);
         }
+        if (booking.paymentStatus !== PaymentStatus.PAID) {
+          throw bookingNotPaid();
+        }
         const attendanceMarkedAtUtc = new Date();
         if (!booking.slot.endAtUtc || booking.slot.endAtUtc > attendanceMarkedAtUtc) {
           throw classNotEnded();
@@ -1157,6 +1183,7 @@ export class BookingsService {
             attendanceMarkedAt: null,
             id: input.bookingId,
             paymentPending: false,
+            paymentStatus: PaymentStatus.PAID,
             slot: { endAtUtc: { lte: attendanceMarkedAtUtc } },
             status: BookingStatus.CONFIRMED,
             tutorProfileId: input.tutorId,

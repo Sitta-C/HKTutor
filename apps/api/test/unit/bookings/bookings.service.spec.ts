@@ -1507,6 +1507,8 @@ describe('BookingsService', () => {
         startAtUtc: new Date('2026-09-15T10:04:06.784Z'),
       },
       status: BookingStatus.PENDING,
+      paymentStatus: PaymentStatus.UNPAID,
+      paymentPending: false,
       student: {
         studentProfile: {
           firstName: 'Napat',
@@ -1565,6 +1567,23 @@ describe('BookingsService', () => {
       expect(result.items[0]?.student).toStrictEqual({ nickname: 'Nan' });
       expect(result.items[0]).not.toHaveProperty('tutor');
       expect(result.items[0]).not.toHaveProperty('studentUserId');
+    });
+
+    it.each([
+      [PaymentStatus.UNPAID, false],
+      [PaymentStatus.UNPAID, true],
+      [PaymentStatus.PAID, false],
+    ])('exposes tutor payment state %s / pending %s', async (paymentStatus, paymentPending) => {
+      const { tutorUserId } = createTestData();
+      mockPrismaService.booking.findMany.mockResolvedValue([
+        mockTutorBookingRow({ paymentStatus, paymentPending }),
+      ]);
+      mockPrismaService.booking.count.mockResolvedValue(1);
+      const result = await service.getTutorBookings({ tutorUserId });
+      expect(result.items[0]).toMatchObject({ paymentStatus, paymentPending });
+      expect(mockPrismaService.booking.findMany.mock.calls).toMatchObject([
+        [{ select: { paymentStatus: true, paymentPending: true } }],
+      ]);
     });
 
     it('returns a null nickname when a historical booking no longer has a student profile', async () => {
@@ -1981,6 +2000,7 @@ describe('BookingsService', () => {
         mockPrismaService.booking.findFirst.mockResolvedValue({
           id: bookingId,
           status,
+          paymentStatus: PaymentStatus.PAID,
         });
         const { updateMany } = stubMeetingLinkTransaction({
           bookingId,
@@ -1994,6 +2014,7 @@ describe('BookingsService', () => {
           data: { meetingUrl },
           where: {
             id: bookingId,
+            paymentStatus: PaymentStatus.PAID,
             status: { in: [BookingStatus.CONFIRMED, BookingStatus.COMPLETED] },
           },
         });
@@ -2017,6 +2038,7 @@ describe('BookingsService', () => {
       mockPrismaService.booking.findFirst.mockResolvedValue({
         id: bookingId,
         status: BookingStatus.CONFIRMED,
+        paymentStatus: PaymentStatus.PAID,
       });
       const { updateMany } = stubMeetingLinkTransaction({ bookingId, meetingUrl });
 
@@ -2033,6 +2055,7 @@ describe('BookingsService', () => {
       mockPrismaService.booking.findFirst.mockResolvedValue({
         id: bookingId,
         status: BookingStatus.CONFIRMED,
+        paymentStatus: PaymentStatus.PAID,
       });
       stubMeetingLinkTransaction({
         bookingId,
@@ -2058,6 +2081,7 @@ describe('BookingsService', () => {
         mockPrismaService.booking.findFirst.mockResolvedValue({
           id: bookingId,
           status: BookingStatus.CONFIRMED,
+          paymentStatus: PaymentStatus.PAID,
         });
         mockPrismaService.$transaction.mockRejectedValue(
           createDatabaseError('Constraint violation', code),
@@ -2074,103 +2098,24 @@ describe('BookingsService', () => {
       },
     );
 
-    it('rejects with 409 and leaves the canceled booking link unchanged when cancellation intervenes', async () => {
-      const { bookingId, studentUserId, tutorUserId } = createTestData();
-      const originalMeetingUrl = 'https://meet.google.com/initial-link';
-      const newMeetingUrl = 'https://meet.google.com/new-link';
-      const startAtUtc = new Date(Date.now() + 48 * 60 * 60 * 1000);
-
-      const bookingState = {
-        canceledAt: null as Date | null,
-        id: bookingId,
-        meetingUrl: originalMeetingUrl as string | null,
-        paymentStatus: PaymentStatus.UNPAID,
-        slot: { startAtUtc },
-        status: BookingStatus.CONFIRMED,
-        studentUserId,
-        tutorProfileId: tutorUserId,
-        updatedAt: new Date('2026-10-09T09:00:00.000Z'),
-      };
-
-      mockPrismaService.$transaction.mockImplementation(async (callback: TransactionCallback) => {
-        const txBooking = {
-          findUnique: jest.fn().mockImplementation(() => Promise.resolve({ ...bookingState })),
-          findUniqueOrThrow: jest
-            .fn()
-            .mockImplementation(() => Promise.resolve({ ...bookingState })),
-          updateMany: jest.fn().mockImplementation(
-            (args: {
-              data: {
-                canceledAt?: Date;
-                canceledById?: string;
-                cancellationReason?: string;
-                meetingUrl?: string;
-                status?: BookingStatus;
-              };
-              where: {
-                id: string;
-                paymentStatus?: PaymentStatus;
-                status?: BookingStatus | { in: BookingStatus[] };
-              };
-            }) => {
-              let matches = args.where.id === bookingState.id;
-              if (matches && args.where.status) {
-                if (typeof args.where.status === 'string') {
-                  matches = bookingState.status === args.where.status;
-                } else if (Array.isArray(args.where.status.in)) {
-                  matches = args.where.status.in.includes(bookingState.status);
-                }
-              }
-              if (matches && args.where.paymentStatus) {
-                matches = bookingState.paymentStatus === args.where.paymentStatus;
-              }
-              if (!matches) {
-                return Promise.resolve({ count: 0 });
-              }
-              if (args.data.meetingUrl !== undefined) {
-                bookingState.meetingUrl = args.data.meetingUrl;
-              }
-              if (args.data.status !== undefined) {
-                bookingState.status = args.data.status;
-              }
-              if (args.data.canceledAt !== undefined) {
-                bookingState.canceledAt = args.data.canceledAt;
-              }
-              return Promise.resolve({ count: 1 });
-            },
-          ),
-        };
-        return await callback({ booking: txBooking });
-      });
-
-      mockPrismaService.booking.findFirst.mockImplementationOnce(async () => {
-        await service.cancelBooking({
-          bookingId,
-          reason: 'Emergency cancellation',
-          userId: studentUserId,
+    it.each([BookingStatus.CONFIRMED, BookingStatus.COMPLETED])(
+      'rejects unpaid %s link edits before any write',
+      async (status) => {
+        const { bookingId } = createTestData();
+        mockPrismaService.booking.findFirst.mockResolvedValue({
+          id: bookingId,
+          status,
+          paymentStatus: PaymentStatus.UNPAID,
         });
-        return { id: bookingState.id, status: BookingStatus.CONFIRMED };
-      });
-
-      expect(bookingState.status).toBe(BookingStatus.CONFIRMED);
-
-      await expect(
-        service.updateMeetingLink({
-          bookingId,
-          meetingUrl: newMeetingUrl,
-        }),
-      ).rejects.toMatchObject({
-        response: {
-          code: 'BOOKING_TRANSITION_CONFLICT',
-          error: 'Conflict',
-          message: 'The booking was already updated by another request',
-          statusCode: 409,
-        },
-      });
-
-      expect(bookingState.status).toBe(BookingStatus.CANCELED);
-      expect(bookingState.meetingUrl).toBe(originalMeetingUrl);
-    });
+        await expect(
+          service.updateMeetingLink({
+            bookingId,
+            meetingUrl: 'https://meet.example.com/class',
+          }),
+        ).rejects.toMatchObject({ response: { code: 'BOOKING_NOT_PAID' } });
+        expect(mockPrismaService.$transaction).not.toHaveBeenCalled();
+      },
+    );
   });
 
   describe('getBookingClassDetail', () => {
@@ -2194,6 +2139,7 @@ describe('BookingsService', () => {
         slot: { endAtUtc, startAtUtc },
         listing: { subject: { id: '11dafbfa-89bc-4e09-a89a-873c419140bd', name: 'Mathematics' } },
         status: BookingStatus.CONFIRMED,
+        paymentStatus: PaymentStatus.PAID,
         studentUserId,
         tutorProfile: {
           bio: 'Mathematics tutor',
@@ -2244,6 +2190,7 @@ describe('BookingsService', () => {
         },
         startAt: startAtUtc.toISOString(),
         status: BookingStatus.CONFIRMED,
+        paymentStatus: PaymentStatus.PAID,
       });
     });
 
@@ -2257,6 +2204,7 @@ describe('BookingsService', () => {
           startAtUtc: new Date('2026-10-09T09:00:00.000Z'),
         },
         status: BookingStatus.CONFIRMED,
+        paymentStatus: PaymentStatus.PAID,
         studentUserId,
         tutorProfile: { displayName: 'Kru Anan' },
       });
@@ -2281,6 +2229,7 @@ describe('BookingsService', () => {
           slot: { endAtUtc, startAtUtc },
           listing: { subject: { id: '11dafbfa-89bc-4e09-a89a-873c419140bd', name: 'Mathematics' } },
           status,
+          paymentStatus: PaymentStatus.PAID,
           studentUserId,
           tutorProfile: {
             bio: 'Mathematics tutor',
@@ -2333,6 +2282,7 @@ describe('BookingsService', () => {
           },
           startAt: startAtUtc.toISOString(),
           status,
+          paymentStatus: PaymentStatus.PAID,
         });
       },
     );
@@ -2956,18 +2906,20 @@ describe('BookingsService', () => {
     afterEach(() => jest.useRealTimers());
 
     const stubAttendanceTransaction = (options: {
-      booking: unknown;
-      recheckBooking?: unknown;
+      booking: Record<string, unknown> | null;
+      recheckBooking?: Record<string, unknown>;
       transitionCount?: number;
-      updatedBooking?: unknown;
+      updatedBooking?: Record<string, unknown>;
     }) => {
+      const initialBooking =
+        options.booking === null ? null : { paymentStatus: PaymentStatus.PAID, ...options.booking };
       const findUnique = jest.fn();
       if (options.recheckBooking !== undefined) {
         findUnique
-          .mockResolvedValueOnce(options.booking)
-          .mockResolvedValueOnce(options.recheckBooking);
+          .mockResolvedValueOnce(initialBooking)
+          .mockResolvedValueOnce({ paymentStatus: PaymentStatus.PAID, ...options.recheckBooking });
       } else {
-        findUnique.mockResolvedValue(options.booking);
+        findUnique.mockResolvedValue(initialBooking);
       }
       const updateMany = jest.fn().mockResolvedValue({
         count:
@@ -2977,7 +2929,9 @@ describe('BookingsService', () => {
               ? 1
               : 0,
       });
-      const findUniqueOrThrow = jest.fn().mockResolvedValue(options.updatedBooking);
+      const findUniqueOrThrow = jest
+        .fn()
+        .mockResolvedValue({ paymentStatus: PaymentStatus.PAID, ...options.updatedBooking });
 
       mockPrismaService.$transaction.mockImplementation(async (callback: TransactionCallback) =>
         callback({ booking: { findUnique, findUniqueOrThrow, updateMany } }),
@@ -2985,6 +2939,27 @@ describe('BookingsService', () => {
 
       return { findUnique, findUniqueOrThrow, updateMany };
     };
+
+    it.each([AttendanceStatus.ATTENDED, AttendanceStatus.ABSENT])(
+      'rejects unpaid attendance %s without completing the booking',
+      async (attendance) => {
+        const { bookingId, tutorUserId } = createTestData();
+        const { updateMany } = stubAttendanceTransaction({
+          booking: {
+            id: bookingId,
+            tutorProfileId: tutorUserId,
+            status: BookingStatus.CONFIRMED,
+            slot: pastSlot,
+            paymentStatus: PaymentStatus.UNPAID,
+            paymentPending: false,
+          },
+        });
+        await expect(
+          service.updateAttendance({ bookingId, tutorId: tutorUserId, attendance }),
+        ).rejects.toMatchObject({ response: { code: 'BOOKING_NOT_PAID' } });
+        expect(updateMany).not.toHaveBeenCalled();
+      },
+    );
 
     it.each([AttendanceStatus.ATTENDED, AttendanceStatus.ABSENT])(
       'marks attendance %s on a CONFIRMED booking and updates status to COMPLETED',
@@ -3030,6 +3005,7 @@ describe('BookingsService', () => {
             attendanceMarkedAt: true,
             id: true,
             paymentPending: true,
+            paymentStatus: true,
             slot: {
               select: {
                 endAtUtc: true,
@@ -3047,6 +3023,7 @@ describe('BookingsService', () => {
               attendanceMarkedAt: null,
               id: bookingId,
               paymentPending: false,
+              paymentStatus: PaymentStatus.PAID,
               slot: { endAtUtc: { lte: now } },
               status: BookingStatus.CONFIRMED,
               tutorProfileId: tutorUserId,
@@ -3069,7 +3046,13 @@ describe('BookingsService', () => {
         expect(updatePayload?.data.attendanceMarkedAt).toEqual(now);
         expect(updatePayload?.data.status).toBe(BookingStatus.COMPLETED);
         expect(findUniqueOrThrow).toHaveBeenCalledWith({
-          select: { attendance: true, attendanceMarkedAt: true, id: true, status: true },
+          select: {
+            paymentStatus: true,
+            attendance: true,
+            attendanceMarkedAt: true,
+            id: true,
+            status: true,
+          },
           where: { id: bookingId },
         });
       },

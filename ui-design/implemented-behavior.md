@@ -594,7 +594,8 @@ small screens, and actions wrap.
 The UI explains the inclusive 24-hour cutoff, terminal booking states and unpaid requirement in
 Thai and English. Student bookings with a known PAID status show the paid-ineligible message and
 disable cancellation, including immediately after a successful mock payment. The tutor read model
-does not include payment status, and the cancellation endpoint always checks eligibility again.
+includes `paymentStatus` and `paymentPending`, displays a paid/unpaid badge and disables
+cancellation while paid or payment is active. The endpoint always checks eligibility again.
 No status is changed optimistically. A successful server response updates
 student details and refreshes the tutor's filtered inbox. Student details invalidate payment-panel
 callbacks captured before a successful cancellation, so a delayed older refresh cannot overwrite
@@ -693,3 +694,12 @@ mode is labeled in Thai and English. Failed/expired attempts permit a new QR; un
 require status verification and never automatically retry charge creation. Active attempts block
 cancellation on the server and in the detail UI. Legacy mock receipts remain readable, while the
 old mock-payment endpoint is retired. No card fields, refunds, payouts or live payment are added.
+
+### Payment required for classroom access and completion (2026-10-20)
+
+Both participants see a paid/unpaid badge in classroom details. Meeting links and the tutor's link
+editor require PAID and CONFIRMED/COMPLETED; unpaid classes show a bilingual payment-required
+explanation instead, including historical COMPLETED/UNPAID records. Attendance choices and saving
+are disabled until paid, and the API independently rejects unpaid writes without mutation. Payment
+status changes remount the student's classroom read so stale unpaid/paid responses cannot expose
+a link. Tutors also see payment status on each inbox row.

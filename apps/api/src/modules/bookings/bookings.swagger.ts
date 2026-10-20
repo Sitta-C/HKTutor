@@ -497,6 +497,8 @@ export function GetTutorBookingsDoc(): MethodDecorator {
         example: {
           items: [
             {
+              paymentStatus: 'UNPAID',
+              paymentPending: false,
               createdAt: '2026-09-10T09:04:31.001Z',
               currency: 'THB',
               discountAmount: '0.00',
@@ -714,7 +716,7 @@ export function UpdateMeetingLinkDoc(): MethodDecorator {
       summary:
         "Update the meeting link for one of the authenticated tutor's confirmed or completed bookings",
       description:
-        'Owning tutor only. The link must be an https:// URL without credentials, whitespace or control characters. Pending, canceled and expired bookings return 409.',
+        'Owning tutor only. Payment must be PAID (otherwise 409 BOOKING_NOT_PAID). The link must be an https:// URL without credentials, whitespace or control characters. Pending, canceled and expired bookings return 409.',
     }),
     ApiBearerAuth(JWT_BEARER_AUTH),
     ApiBody({ required: true, type: UpdateMeetingLinkDto }),
@@ -782,7 +784,7 @@ export function UpdateMeetingLinkDoc(): MethodDecorator {
     }),
     ApiConflictResponse({
       description:
-        'The booking is not confirmed or completed (pending, canceled or expired), or a concurrent transition modified the booking status',
+        'The booking is unpaid (BOOKING_NOT_PAID), not confirmed or completed (pending, canceled or expired), or a concurrent transition modified eligibility',
       schema: {
         example: {
           code: 'BOOKING_NOT_CONFIRMED_OR_COMPLETED',
@@ -803,19 +805,20 @@ export function GetBookingClassDetailDoc(): MethodDecorator {
     ApiOperation({
       summary: 'Get class details for a booking participant',
       description:
-        "The booking's student or tutor only. The meeting link is returned only for CONFIRMED and COMPLETED bookings; for other states it is null even if one is stored.",
+        "The booking's student or tutor only. The meeting link is returned only for PAID bookings that are CONFIRMED or COMPLETED; unpaid and other booking states return null even if a link is stored.",
     }),
     ApiBearerAuth(JWT_BEARER_AUTH),
     ApiOkResponse({
       description:
         'Schedule, subject, attendance with its original recording time, and participant profiles for every booking state. ' +
-        'meetingUrl is null when missing or outside CONFIRMED/COMPLETED.',
+        'paymentStatus is included; meetingUrl is null when unpaid, missing or outside CONFIRMED/COMPLETED.',
       schema: {
         example: {
           attendance: null,
           attendanceMarkedAt: null,
           bookingId: '3c54a0d6-e3f3-4a38-bd55-3b4011ee31ae',
           endAt: '2026-10-09T10:00:00.000Z',
+          paymentStatus: 'PAID',
           meetingUrl: 'https://meet.google.com/abc-defg-hij',
           participants: {
             student: {
@@ -996,7 +999,7 @@ export function UpdateAttendanceDoc(): MethodDecorator {
       summary:
         "Update the attendance for one of the authenticated tutor's confirmed or completed bookings",
       description:
-        'An active PromptPay attempt returns 409 PAYMENT_IN_PROGRESS. ' +
+        'An active PromptPay attempt returns 409 PAYMENT_IN_PROGRESS. Unpaid bookings return 409 BOOKING_NOT_PAID. ' +
         'Record ATTENDED or ABSENT when the class end time is at or before now. The first write completes the booking atomically, whichever value is recorded. A same-value replay returns the saved timestamp without writing; a different value returns 409. A still-pending booking returns 400; canceled and expired bookings return 409.',
     }),
     ApiBearerAuth(JWT_BEARER_AUTH),
@@ -1068,7 +1071,7 @@ export function UpdateAttendanceDoc(): MethodDecorator {
     }),
     ApiConflictResponse({
       description:
-        'The booking is canceled or expired, the class has not ended, attendance was recorded with a different value (ATTENDANCE_ALREADY_RECORDED), or a concurrent transition changed its eligibility',
+        'The booking is unpaid (BOOKING_NOT_PAID), canceled or expired, the class has not ended, attendance was recorded with a different value (ATTENDANCE_ALREADY_RECORDED), or a concurrent transition changed its eligibility',
       schema: {
         example: {
           code: 'CLASS_NOT_ENDED',

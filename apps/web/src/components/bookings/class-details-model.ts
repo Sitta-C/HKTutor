@@ -1,9 +1,9 @@
 import isURL from 'validator/lib/isURL';
 
-import type { BookingStatus } from '@/lib/api/types';
+import type { BookingStatus, PaymentStatus } from '@/lib/api/types';
 
-export function hasClassroomAccess(status: BookingStatus): boolean {
-  return status === 'CONFIRMED' || status === 'COMPLETED';
+export function hasClassroomAccess(status: BookingStatus, paymentStatus: PaymentStatus): boolean {
+  return paymentStatus === 'PAID' && (status === 'CONFIRMED' || status === 'COMPLETED');
 }
 
 export function attendanceEligibility({
@@ -11,14 +11,16 @@ export function attendanceEligibility({
   endAt,
   isOwner,
   attendance,
+  paymentStatus,
   now = Date.now(),
 }: {
   status: BookingStatus;
+  paymentStatus: PaymentStatus;
   endAt: string;
   isOwner: boolean;
   attendance: 'ATTENDED' | 'ABSENT' | null;
   now?: number;
-}): 'eligible' | 'owner' | 'pending' | 'unavailable' | 'future' | 'saved' {
+}): 'eligible' | 'owner' | 'unpaid' | 'pending' | 'unavailable' | 'future' | 'saved' {
   if (!isOwner) {
     return 'owner';
   }
@@ -27,6 +29,9 @@ export function attendanceEligibility({
   }
   if (status !== 'CONFIRMED' && status !== 'COMPLETED') {
     return 'unavailable';
+  }
+  if (paymentStatus !== 'PAID') {
+    return 'unpaid';
   }
   const end = new Date(endAt).getTime();
   if (!Number.isFinite(end)) {

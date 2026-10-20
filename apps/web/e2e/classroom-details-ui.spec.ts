@@ -29,6 +29,7 @@ async function setup(
   const details: BookingClassDetails = {
     bookingId: BOOKING_ID,
     status: options.status ?? 'CONFIRMED',
+    paymentStatus: options.paymentStatus ?? 'PAID',
     startAt: '2026-10-18T17:30:00.000Z',
     endAt: '2026-10-18T18:30:00.000Z',
     subject: { id: 'math', name: 'Mathematics' },
@@ -131,6 +132,18 @@ async function setup(
     }
     if (path === '/bookings/me') {
       return route.fulfill({ json: { items: [], total: 0 } });
+    }
+    if (path === `/bookings/me/${BOOKING_ID}/payments/current`) {
+      return route.fulfill({
+        json: {
+          bookingId: BOOKING_ID,
+          paymentStatus: state.details.paymentStatus,
+          paymentPending: false,
+          paidAt: null,
+          reference: null,
+          attempt: null,
+        },
+      });
     }
     if (path === `/bookings/me/${BOOKING_ID}`) {
       state.bookingReads += 1;
@@ -382,7 +395,7 @@ test('a late classroom read cannot restore links after a newer cancellation', as
   await expect.poll(() => state.reads).toBeGreaterThan(reads);
   state.details.status = 'CANCELED';
   state.readGate = Promise.resolve();
-  await page.getByRole('button', { name: 'Load latest status', exact: true }).click();
+  await page.getByRole('button', { name: 'Check payment status', exact: true }).click();
   await expect(panel).toContainText(classDetailsCopy.en.hidden);
   const lateResponse = page.waitForResponse((response) =>
     response.url().endsWith(`/bookings/${BOOKING_ID}/class-details`),
@@ -395,38 +408,27 @@ test('a late classroom read cannot restore links after a newer cancellation', as
   expect(state.unexpected).toEqual([]);
 });
 
-test('student classroom refresh waits for a pending payment submission', async ({ page }) => {
-  const state = await setup(page, { role: 'STUDENT', paymentStatus: 'UNPAID' });
-  let release = () => {};
-  const gate = new Promise<void>((resolve) => {
-    release = resolve;
-  });
-  await page.route(`**/bookings/me/${BOOKING_ID}/mock-payment`, async (route) => {
-    await gate;
-    return route.fulfill({
-      json: {
-        bookingId: BOOKING_ID,
-        paymentStatus: 'PAID',
-        amount: '500.00',
-        reference: 'CLASSROOM-REFRESH',
-        paidAt: '2026-10-17T09:00:00.000Z',
-      },
+for (const role of ['STUDENT', 'TUTOR'] as const) {
+  for (const status of ['CONFIRMED', 'COMPLETED'] as const) {
+    test(`${role}: unpaid ${status} hides even a stale stored URL and blocks completion`, async ({
+      page,
+    }) => {
+      const state = await setup(page, { role, status, paymentStatus: 'UNPAID' });
+      await page.goto(PATH);
+      const panel = page.getByRole('region', { name: classDetailsCopy.en.title });
+      await expect(panel).toContainText(classDetailsCopy.en.paymentRequired);
+      await expect(panel.getByRole('link')).toHaveCount(0);
+      await expect(panel.getByLabel(classDetailsCopy.en.label, { exact: true })).toHaveCount(0);
+      if (role === 'TUTOR') {
+        await expect(
+          panel.getByRole('button', { name: classDetailsCopy.en.recordAttendance }),
+        ).toBeDisabled();
+      }
+      expect(state.writes).toEqual([]);
+      expect(state.attendanceWrites).toEqual([]);
     });
-  });
-  await page.goto(PATH);
-  const refresh = page.getByRole('button', { name: classDetailsCopy.en.refresh });
-  await expect(refresh).toBeEnabled();
-  await page.getByLabel('Demo reference', { exact: true }).fill('CLASSROOM-REFRESH');
-  await page.getByRole('button', { name: 'Record mock payment', exact: true }).click();
-  await expect(refresh).toBeDisabled();
-  release();
-  await expect(page.getByRole('region', { name: 'Mock payment' })).toContainText(
-    'CLASSROOM-REFRESH',
-  );
-  await expect(refresh).toBeEnabled();
-  expect(state.writes).toHaveLength(0);
-  expect(state.unexpected).toEqual([]);
-});
+  }
+}
 
 for (const role of ['STUDENT', 'TUTOR'] as const) {
   for (const status of ['PENDING', 'CANCELED', 'EXPIRED'] as const) {

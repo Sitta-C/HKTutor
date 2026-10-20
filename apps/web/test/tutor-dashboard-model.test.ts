@@ -25,6 +25,8 @@ function booking(
   return {
     id,
     status,
+    paymentStatus: 'UNPAID',
+    paymentPending: false,
     student: { nickname: id },
     listing: {
       id: 'listing',
