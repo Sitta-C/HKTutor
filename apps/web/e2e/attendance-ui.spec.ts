@@ -17,6 +17,7 @@ async function setup(
     language?: 'en' | 'th';
     role?: 'STUDENT' | 'TUTOR';
     status?: BookingStatus;
+    paymentStatus?: 'PAID' | 'UNPAID';
     attendance?: AttendanceStatus | null;
     owner?: boolean;
     endAt?: string;
@@ -28,6 +29,7 @@ async function setup(
   const details: BookingClassDetails = {
     bookingId: BOOKING_ID,
     status: options.status ?? 'CONFIRMED',
+    paymentStatus: options.paymentStatus ?? 'PAID',
     startAt: '2026-10-17T08:00:00.000Z',
     endAt: options.endAt ?? '2026-10-17T09:00:00.000Z',
     subject: { id: 'math', name: 'Mathematics' },
@@ -120,6 +122,18 @@ async function setup(
     }
     if (path === '/bookings/me') {
       return route.fulfill({ json: { items: [], total: 0 } });
+    }
+    if (path === `/bookings/me/${BOOKING_ID}/payments/current`) {
+      return route.fulfill({
+        json: {
+          bookingId: BOOKING_ID,
+          paymentStatus: state.details.paymentStatus,
+          paymentPending: false,
+          paidAt: null,
+          reference: null,
+          attempt: null,
+        },
+      });
     }
     if (path === `/bookings/me/${BOOKING_ID}`) {
       return route.fulfill({
@@ -336,6 +350,7 @@ for (const attendance of ['ATTENDED', 'ABSENT'] as const) {
 
 for (const [options, reason] of [
   [{ status: 'PENDING' }, 'attendancePending'],
+  [{ paymentStatus: 'UNPAID' }, 'paymentRequired'],
   [{ status: 'CANCELED' }, 'attendanceUnavailable'],
   [{ status: 'EXPIRED' }, 'attendanceUnavailable'],
   [{ status: 'COMPLETED' }, 'attendanceUnavailable'],
@@ -467,6 +482,7 @@ for (const status of [400, 403, 404, 409, 500]) {
 for (const [status, code, message] of [
   [409, 'CLASS_NOT_ENDED', 'attendanceFuture'],
   [409, 'BOOKING_NOT_CONFIRMED_OR_COMPLETED', 'attendanceUnavailable'],
+  [409, 'BOOKING_NOT_PAID', 'paymentRequired'],
   // US4-2: a booking that is still pending answers 400 with the same code.
   [400, 'BOOKING_NOT_CONFIRMED_OR_COMPLETED', 'attendanceUnavailable'],
 ] as const) {

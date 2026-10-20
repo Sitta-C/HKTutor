@@ -10,6 +10,7 @@ import {
   isSafeMeetingUrl,
 } from '@/components/bookings/class-details-model';
 import { MeetingLinkEditor } from '@/components/bookings/meeting-link-editor';
+import { PaymentStatusBadge } from '@/components/bookings/promptpay-payment-panel';
 import { SavedAttendanceSummary } from '@/components/bookings/saved-attendance-summary';
 import { tutorBookingInboxCopy } from '@/components/bookings/tutor-booking-inbox-copy';
 import { getStudentLabel } from '@/components/bookings/tutor-booking-inbox-model';
@@ -27,6 +28,7 @@ import styles from './class-details.module.css';
 import type {
   BookingClassDetails,
   BookingStatus,
+  PaymentStatus,
   SavedAttendanceSummary as AttendanceSummary,
 } from '@/lib/api/types';
 import type { RefObject } from 'react';
@@ -34,6 +36,7 @@ import type { RefObject } from 'react';
 export function ClassDetailsPanel({
   bookingId,
   status,
+  paymentStatus,
   variant = 'full',
   onRefresh,
   refreshDisabled = false,
@@ -41,6 +44,7 @@ export function ClassDetailsPanel({
 }: {
   bookingId: string;
   status?: BookingStatus;
+  paymentStatus?: PaymentStatus;
   variant?: 'full' | 'compact';
   onRefresh?: () => void;
   refreshDisabled?: boolean;
@@ -50,9 +54,10 @@ export function ClassDetailsPanel({
   // Remount for a different booking, session, or server-confirmed status. Old reads cannot reveal links.
   return (
     <ClassDetailsContent
-      key={`${user?.id}:${user?.role}:${bookingId}:${status}`}
+      key={`${user?.id}:${user?.role}:${bookingId}:${status}:${paymentStatus}`}
       bookingId={bookingId}
       status={status}
+      paymentStatus={paymentStatus}
       variant={variant}
       onRefresh={onRefresh}
       refreshDisabled={refreshDisabled}
@@ -64,6 +69,7 @@ export function ClassDetailsPanel({
 function ClassDetailsContent({
   bookingId,
   status,
+  paymentStatus,
   variant,
   onRefresh,
   refreshDisabled,
@@ -71,6 +77,7 @@ function ClassDetailsContent({
 }: {
   bookingId: string;
   status: BookingStatus | undefined;
+  paymentStatus: PaymentStatus | undefined;
   variant: 'full' | 'compact';
   onRefresh: (() => void) | undefined;
   refreshDisabled: boolean;
@@ -171,8 +178,9 @@ function ClassDetailsContent({
           : text.failed;
   const accessible =
     details &&
-    hasClassroomAccess(details.status) &&
-    (status === undefined || hasClassroomAccess(status));
+    hasClassroomAccess(details.status, details.paymentStatus) &&
+    (status === undefined || hasClassroomAccess(status, details.paymentStatus)) &&
+    paymentStatus !== 'UNPAID';
   const link =
     accessible && !uncertain && details.meetingUrl && isSafeMeetingUrl(details.meetingUrl)
       ? details.meetingUrl
@@ -181,6 +189,7 @@ function ClassDetailsContent({
     details && isTutor
       ? attendanceEligibility({
           status: details.status,
+          paymentStatus: details.paymentStatus,
           endAt: details.endAt,
           isOwner: details.participants.tutor.id === user?.id,
           attendance: details.attendance,
@@ -190,15 +199,17 @@ function ClassDetailsContent({
   const attendanceMessage =
     attendanceState === 'owner'
       ? text.attendanceOwner
-      : attendanceState === 'pending'
-        ? text.attendancePending
-        : attendanceState === 'future'
-          ? text.attendanceFuture
-          : attendanceState === 'unavailable'
-            ? text.attendanceUnavailable
-            : attendanceState === 'saved'
-              ? text.attendanceReplay
-              : null;
+      : attendanceState === 'unpaid'
+        ? text.paymentRequired
+        : attendanceState === 'pending'
+          ? text.attendancePending
+          : attendanceState === 'future'
+            ? text.attendanceFuture
+            : attendanceState === 'unavailable'
+              ? text.attendanceUnavailable
+              : attendanceState === 'saved'
+                ? text.attendanceReplay
+                : null;
   async function handleAttendanceSaved(summary: AttendanceSummary): Promise<void> {
     if (!active.current) {
       return;
@@ -286,6 +297,10 @@ function ClassDetailsContent({
               </div>
             </>
           )}
+          <p>
+            <span className="sr-only">{text.paymentStatus}: </span>
+            <PaymentStatusBadge status={details.paymentStatus} />
+          </p>
           <fieldset
             className={`${styles.workspace} ${!uncertain && isTutor && accessible ? styles.withEditor : ''}`}
             aria-label={text.entry}
@@ -294,7 +309,9 @@ function ClassDetailsContent({
             <div className={styles.entry}>
               {!compact && <h3>{text.entry}</h3>}
               {!accessible ? (
-                <p className={styles.note}>{text.hidden}</p>
+                <p className={styles.note}>
+                  {details.paymentStatus !== 'PAID' ? text.paymentRequired : text.hidden}
+                </p>
               ) : uncertain ? (
                 <p className={styles.note} role="alert">
                   {text.uncertain}
@@ -317,7 +334,9 @@ function ClassDetailsContent({
               ) : (
                 <p className={styles.note}>{details.meetingUrl ? text.invalid : text.missing}</p>
               )}
-              {details.status === 'COMPLETED' && <p className={styles.note}>{text.completed}</p>}
+              {accessible && details.status === 'COMPLETED' && (
+                <p className={styles.note}>{text.completed}</p>
+              )}
             </div>
             {!uncertain && isTutor && accessible && (
               <MeetingLinkEditor

@@ -59,6 +59,8 @@ function pendingBooking({
   return {
     id,
     status: 'PENDING',
+    paymentStatus: 'UNPAID',
+    paymentPending: false,
     student: { nickname },
     listing: bookingListing,
     slot: {
@@ -657,6 +659,39 @@ test.describe('decision API response edges', () => {
     await page.screenshot({ path: testInfo.outputPath('inbox-states.png'), fullPage: true });
   });
 });
+
+for (const language of ['en', 'th'] as const) {
+  test(`${language}: tutor sees paid and unpaid badges independently of confirmed status`, async ({
+    page,
+  }) => {
+    await page.addInitScript(() => localStorage.setItem('hktutor-language', 'en'));
+    const bookings = requestedBookings.slice(0, 2).map((item, index) => ({
+      ...pendingBooking(item),
+      status: 'CONFIRMED',
+      paymentStatus: index === 0 ? 'PAID' : 'UNPAID',
+    }));
+    await openMockInbox(page, bookings);
+    await page.getByRole('button', { name: 'CONFIRMED', exact: true }).click();
+    if (language === 'th') {
+      await page.getByRole('button', { name: 'Switch language to Thai' }).click();
+    }
+    const paid = page.getByRole('article', { name: 'Mali' });
+    const unpaid = page.getByRole('article', { name: 'Nida' });
+    await expect(
+      paid.getByText(language === 'en' ? 'Paid' : 'ชำระแล้ว', { exact: true }),
+    ).toBeVisible();
+    await expect(
+      unpaid.getByText(language === 'en' ? 'Unpaid' : 'ยังไม่ชำระ', { exact: true }),
+    ).toBeVisible();
+    await expect(
+      paid.getByRole('link', {
+        name: language === 'en' ? 'Classroom details' : 'รายละเอียดห้องเรียน',
+        exact: true,
+      }),
+    ).toBeVisible();
+    await expectAccessiblePageShell(page);
+  });
+}
 
 async function openMockInbox(
   page: Page,

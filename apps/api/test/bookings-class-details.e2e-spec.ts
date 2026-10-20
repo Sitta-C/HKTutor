@@ -2,7 +2,13 @@ import { Test } from '@nestjs/testing';
 import request from 'supertest';
 
 import { configureApplication } from '@app/app.setup';
-import { AccountStatus, AttendanceStatus, BookingStatus, Role } from '@generated/prisma/enums';
+import {
+  AccountStatus,
+  AttendanceStatus,
+  BookingStatus,
+  PaymentStatus,
+  Role,
+} from '@generated/prisma/enums';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import { JwtAuthGuard } from '@modules/auth/auth.guard';
 import { JwtTokenService } from '@modules/auth/jwt.service';
@@ -46,6 +52,7 @@ const TUTOR_DETAIL = {
 interface BookingFixture {
   id: string;
   status: BookingStatus;
+  paymentStatus: PaymentStatus;
   studentUserId: string;
   tutorProfileId: string;
   meetingUrl: string | null;
@@ -107,6 +114,7 @@ describe('Meeting links and participant class details (S2-T32)', () => {
       studentUserId: STUDENT_ID,
       tutorProfileId: TUTOR_ID,
       meetingUrl: MEETING_URL,
+      paymentStatus: PaymentStatus.PAID,
       attendance: null,
       attendanceMarkedAt: null,
       updatedAt: new Date('2026-10-16T09:00:00.000Z'),
@@ -130,6 +138,7 @@ describe('Meeting links and participant class details (S2-T32)', () => {
     });
     updateMany.mockImplementation((args: Prisma.BookingUpdateManyArgs) => {
       if (!booking) return Promise.resolve({ count: 0 });
+      if (args.where?.paymentStatus !== booking.paymentStatus) return Promise.resolve({ count: 0 });
       const allowed = args.where?.status;
       if (
         typeof allowed !== 'object' ||
@@ -173,6 +182,7 @@ describe('Meeting links and participant class details (S2-T32)', () => {
         expect(response.body).toEqual({
           bookingId: BOOKING_ID,
           status,
+          paymentStatus: PaymentStatus.PAID,
           startAt: '2026-10-16T18:00:00.000Z',
           endAt: '2026-10-16T19:00:00.000Z',
           subject: SUBJECT,
@@ -201,6 +211,38 @@ describe('Meeting links and participant class details (S2-T32)', () => {
           phone: true,
         },
       });
+    },
+  );
+
+  it.each([Role.STUDENT, Role.TUTOR])(
+    'never exposes a stored link to unpaid %s participants, including historical completed classes',
+    async (role) => {
+      authenticateAs(role, role === Role.STUDENT ? STUDENT_ID : TUTOR_ID);
+      for (const status of Object.values(BookingStatus)) {
+        if (!booking) throw new Error('Missing fixture');
+        booking.status = status;
+        booking.paymentStatus = PaymentStatus.UNPAID;
+        const saved = structuredClone(booking);
+        const response = await readClass().expect(200);
+        expect(response.body).toMatchObject({ paymentStatus: 'UNPAID', meetingUrl: null });
+        expect(JSON.stringify(response.body)).not.toContain(MEETING_URL);
+        expect(booking).toEqual(saved);
+      }
+      expect(updateMany).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each([BookingStatus.CONFIRMED, BookingStatus.COMPLETED])(
+    'blocks an unpaid %s tutor link edit without revealing or changing the URL',
+    async (status) => {
+      if (!booking) throw new Error('Missing fixture');
+      booking.status = status;
+      booking.paymentStatus = PaymentStatus.UNPAID;
+      const saved = structuredClone(booking);
+      const response = await editLink().send({ meetingUrl: UPDATED_URL }).expect(409);
+      expect(response.body).toMatchObject({ code: 'BOOKING_NOT_PAID' });
+      expect(booking).toEqual(saved);
+      expect(updateMany).not.toHaveBeenCalled();
     },
   );
 
@@ -253,6 +295,7 @@ describe('Meeting links and participant class details (S2-T32)', () => {
         data: { meetingUrl: UPDATED_URL },
         where: {
           id: BOOKING_ID,
+          paymentStatus: PaymentStatus.PAID,
           status: { in: [BookingStatus.CONFIRMED, BookingStatus.COMPLETED] },
         },
       });

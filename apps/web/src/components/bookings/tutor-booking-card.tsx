@@ -8,7 +8,7 @@ import { formatBookingDocketSlot } from '@/components/bookings/booking-docket-mo
 import { bookingRequestCopy } from '@/components/bookings/booking-request-copy';
 import { BookingStatusBadge, formatMoney } from '@/components/bookings/booking-ui';
 import { classDetailsCopy } from '@/components/bookings/class-details-copy';
-import { hasClassroomAccess } from '@/components/bookings/class-details-model';
+import { PaymentStatusBadge } from '@/components/bookings/promptpay-payment-panel';
 import { rescheduleCopy } from '@/components/bookings/reschedule-copy';
 import { RescheduleRequestPanel } from '@/components/bookings/reschedule-request-panel';
 import {
@@ -125,6 +125,7 @@ export function TutorBookingCard({
 
       <div className={styles.rowStub}>
         <BookingStatusBadge status={booking.status} text={statusText} />
+        <PaymentStatusBadge status={booking.paymentStatus} />
         <p className={styles.amount}>
           <span className="sr-only">{copy.amount}: </span>
           {formatMoney(booking.netAmount, booking.currency)}
@@ -181,7 +182,7 @@ export function TutorBookingCard({
             tutorId={user.id}
             className={styles.reschedule}
             leadingAction={
-              hasClassroomAccess(booking.status) && (
+              (booking.status === 'CONFIRMED' || booking.status === 'COMPLETED') && (
                 <Link
                   href={`/dashboard/bookings/${encodeURIComponent(booking.id)}`}
                   className={notebookActionClass({ tone: 'secondary', size: 'compact' })}
@@ -203,7 +204,9 @@ export function TutorBookingCard({
         <BookingCancellation
           booking={booking}
           compact
-          disabled={isSubmitting || isStale || rescheduleBusy || rescheduleStale}
+          disabled={
+            isSubmitting || isStale || rescheduleBusy || rescheduleStale || booking.paymentPending
+          }
           onBusyChange={setCancellationBusy}
           onCanceled={onCanceled}
           onRefresh={onRefresh}

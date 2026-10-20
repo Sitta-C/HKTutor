@@ -123,6 +123,7 @@ export default function StudentBookingDetailPage({ bookingId }: { bookingId: str
               key={`${booking.id}:${booking.slot.id}`}
               bookingId={booking.id}
               status={booking.status}
+              paymentStatus={booking.paymentStatus}
               variant="compact"
               refreshDisabled={rescheduleBusy || cancellationBusy || paymentBusy}
               restoreRefreshFocusRef={restoreClassroomRefreshFocusRef}

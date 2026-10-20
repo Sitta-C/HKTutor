@@ -57,7 +57,8 @@ works the booking inbox and confirms or rejects one pending request at a time. A
 rendered only from the status the API returns, and a 403, 404, or 409 answer locks that row behind a
 refresh so the inbox never shows an optimistic status the server did not persist.
 
-Students see paid/unpaid status on booking rows. Confirmed, unpaid bookings support Omise
+Students and tutors see paid/unpaid status on booking rows. Classroom links and attendance
+recording require payment first, even when a booking is confirmed or already completed. Confirmed, unpaid bookings support Omise
 PromptPay **Test Mode**: create or resume a QR, receive a signed webhook, and reconcile status
 through the API. No real money is collected. An active or uncertain attempt blocks duplicate
 charges and cancellation until Omise confirms a terminal result. The previous mock-payment

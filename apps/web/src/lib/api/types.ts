@@ -346,6 +346,7 @@ export interface BookingDetail extends BookingView {
 export interface BookingClassDetails {
   bookingId: string;
   status: BookingStatus;
+  paymentStatus: PaymentStatus;
   startAt: string;
   endAt: string;
   subject: { id: string; name: string };
@@ -396,6 +397,8 @@ export interface MyBookingsQuery {
 export interface TutorBookingView {
   id: string;
   status: BookingStatus;
+  paymentStatus: PaymentStatus;
+  paymentPending: boolean;
   student: { nickname: string | null };
   listing: BookingQuoteListing;
   slot: BookingQuoteSlot;

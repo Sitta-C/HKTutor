@@ -289,6 +289,12 @@ export class TutorBookingViewDto {
   @ApiProperty({ example: 'PENDING' })
   status!: string;
 
+  @ApiProperty({ enum: PaymentStatus, example: PaymentStatus.UNPAID })
+  paymentStatus!: PaymentStatus;
+
+  @ApiProperty({ example: false })
+  paymentPending!: boolean;
+
   @ApiProperty({ type: BookingQuoteListingDto })
   listing!: BookingQuoteListingDto;
 
@@ -530,6 +536,9 @@ export class BookingClassDetailDto {
   @ApiProperty({ enum: BookingStatus, example: BookingStatus.CONFIRMED })
   status!: BookingStatus;
 
+  @ApiProperty({ enum: PaymentStatus, example: PaymentStatus.UNPAID })
+  paymentStatus!: PaymentStatus;
+
   @ApiProperty({ example: '2026-10-09T09:00:00.000Z' })
   startAt!: string;
 
@@ -542,7 +551,8 @@ export class BookingClassDetailDto {
   @ApiProperty({
     type: String,
     nullable: true,
-    description: 'Null when no link is set or the booking is not CONFIRMED/COMPLETED.',
+    description:
+      'Null unless payment is PAID and the booking is CONFIRMED/COMPLETED with a saved link.',
     example: 'https://foo.com/abc1234',
   })
   meetingUrl!: string | null;

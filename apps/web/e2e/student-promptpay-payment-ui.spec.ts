@@ -1,5 +1,7 @@
 import { expect, test } from '@playwright/test';
 
+import { classDetailsCopy } from '@/components/bookings/class-details-copy';
+
 import type { BookingDetail, BookingStatus, PromptPayPayment } from '@/lib/api/types';
 import type { Page } from '@playwright/test';
 
@@ -124,13 +126,15 @@ async function mockPayments(
         json: {
           bookingId: state.booking.id,
           status: state.booking.status,
+          paymentStatus: state.booking.paymentStatus,
           startAt: state.booking.slot.startAtUtc,
           endAt: state.booking.slot.endAtUtc,
           subject: {
             id: state.booking.listing.subjectId,
             name: state.booking.listing.subjectName,
           },
-          meetingUrl: null,
+          meetingUrl:
+            state.booking.paymentStatus === 'PAID' ? 'https://meet.example.test/paid-class' : null,
           attendance: null,
           participants: {
             tutor: {
@@ -190,6 +194,9 @@ for (const language of ['th', 'en'] as const) {
   }) => {
     const state = await mockPayments(page, { language });
     await page.goto(DETAIL_PATH);
+    const classroom = page.getByRole('region', { name: classDetailsCopy[language].title });
+    await expect(classroom).toContainText(classDetailsCopy[language].paymentRequired);
+    await expect(classroom.getByRole('link')).toHaveCount(0);
     const panel = page.getByRole('region', {
       name: language === 'th' ? 'ชำระด้วย PromptPay' : 'Pay with PromptPay',
     });
@@ -245,6 +252,9 @@ for (const language of ['th', 'en'] as const) {
       timeout: 12000,
     });
     await expect(page.getByRole('img', { name: /PromptPay QR|QR PromptPay/ })).toHaveCount(0);
+    await expect(
+      classroom.getByRole('link', { name: classDetailsCopy[language].join }),
+    ).toHaveAttribute('href', 'https://meet.example.test/paid-class');
     await page.reload();
     await expect(page.getByText('chrg_test_example1', { exact: true })).toBeVisible();
     expect(state.posts).toBe(1);

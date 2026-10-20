@@ -72,8 +72,39 @@ describe('Student booking reads expose the payment state (e2e)', () => {
 
   afterEach(() => jest.resetAllMocks());
 
+  it.each([
+    [PaymentStatus.UNPAID, false],
+    [PaymentStatus.UNPAID, true],
+    [PaymentStatus.PAID, false],
+  ])('returns %s / pending %s on tutor rows', async (paymentStatus, paymentPending) => {
+    authenticateAs(Role.TUTOR);
+    bookingFindMany.mockResolvedValue([
+      {
+        ...paidRow(),
+        paymentStatus,
+        paymentPending,
+        student: { studentProfile: { nickname: 'Mint' } },
+      },
+    ]);
+    bookingCount.mockResolvedValue(1);
+    const response = await request(app.getHttpServer())
+      .get('/api/v1/bookings/tutor')
+      .set('Authorization', 'Bearer signed-token')
+      .expect(200);
+    expect(response.body).toMatchObject({ items: [{ paymentStatus, paymentPending }] });
+    expect(bookingFindMany.mock.calls).toMatchObject([
+      [
+        {
+          orderBy: [{ slot: { startAtUtc: 'asc' } }, { createdAt: 'desc' }, { id: 'desc' }],
+          where: { tutorProfileId: TUTOR_PROFILE_ID },
+          select: { paymentStatus: true, paymentPending: true },
+        },
+      ],
+    ]);
+  });
+
   it('returns the recorded payment on the list', async () => {
-    authenticateAsStudent();
+    authenticateAs();
     bookingFindMany.mockResolvedValue([paidRow()]);
     bookingCount.mockResolvedValue(1);
 
@@ -95,7 +126,7 @@ describe('Student booking reads expose the payment state (e2e)', () => {
   // S2-T05 branches on these being present and null rather than absent, so the unpaid case is
   // asserted on the serialized body instead of the service return value.
   it('keeps the payment fields present and null while the booking is unpaid', async () => {
-    authenticateAsStudent();
+    authenticateAs();
     bookingFindMany.mockResolvedValue([
       { ...paidRow(), mockReference: null, paidAt: null, paymentStatus: PaymentStatus.UNPAID },
     ]);
@@ -116,7 +147,7 @@ describe('Student booking reads expose the payment state (e2e)', () => {
   });
 
   it('returns the recorded payment on the detail read', async () => {
-    authenticateAsStudent();
+    authenticateAs();
     bookingFindUnique.mockResolvedValue({
       studentUserId: STUDENT_ID,
       tutorProfileId: TUTOR_PROFILE_ID,
@@ -167,8 +198,9 @@ describe('Student booking reads expose the payment state (e2e)', () => {
     };
   }
 
-  function authenticateAsStudent(): void {
-    verifyAccessToken.mockReturnValue({ sid: 'session-id', sub: STUDENT_ID });
+  function authenticateAs(role: Role = Role.STUDENT): void {
+    const userId = role === Role.TUTOR ? TUTOR_PROFILE_ID : STUDENT_ID;
+    verifyAccessToken.mockReturnValue({ sid: 'session-id', sub: userId });
     authSessionFindUnique.mockResolvedValue({
       expiresAt: new Date(Date.now() + 60_000),
       id: 'session-id',
@@ -178,10 +210,10 @@ describe('Student booking reads expose the payment state (e2e)', () => {
         deletedAt: null,
         email: 'student@example.com',
         emailVerifiedAt: new Date(),
-        id: STUDENT_ID,
-        role: Role.STUDENT,
+        id: userId,
+        role,
       },
-      userId: STUDENT_ID,
+      userId,
     });
   }
 });

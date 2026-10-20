@@ -27,6 +27,8 @@ function booking(overrides: Partial<TutorBookingView> = {}): TutorBookingView {
   return {
     id: 'booking-1',
     status: 'PENDING',
+    paymentStatus: 'UNPAID',
+    paymentPending: false,
     student: { nickname: 'Mali' },
     listing: {
       id: 'listing-1',

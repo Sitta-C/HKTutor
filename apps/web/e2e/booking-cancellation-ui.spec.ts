@@ -119,6 +119,7 @@ async function setup(
         json: {
           bookingId: booking.id,
           status,
+          paymentStatus: booking.paymentStatus,
           startAt: booking.slot.startAtUtc,
           endAt: booking.slot.endAtUtc,
           subject: { id: booking.listing.subjectId, name: booking.listing.subjectName },
