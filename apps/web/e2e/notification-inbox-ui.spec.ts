@@ -59,6 +59,9 @@ async function setup(
     const request = route.request();
     const url = new URL(request.url());
     const path = url.pathname.replace('/api/v1', '');
+    if (path.endsWith('/conversations/unread-count')) {
+      return route.fulfill({ json: { unreadCount: 0 } });
+    }
     if (path === '/auth/refresh') {
       return route.fulfill({
         json: {

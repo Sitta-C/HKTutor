@@ -29,6 +29,7 @@ import {
   OpenConversationResponseDto,
   OtherParticipantDto,
   SendMessageDto,
+  UnreadMessageCountResponseDto,
 } from '@modules/conversations/conversations.dto';
 import { publicTutorWhere } from '@modules/tutors/public-tutor-access';
 
@@ -131,6 +132,26 @@ export class ConversationsService {
       if (!winner) throw error;
       return { conversation: toOpenConversationResponse(winner), created: false };
     }
+  }
+
+  async getUnreadMessageCount(input: {
+    role: Role;
+    userId: string;
+  }): Promise<UnreadMessageCountResponseDto> {
+    if (input.role !== Role.STUDENT && input.role !== Role.TUTOR) {
+      throw new ForbiddenException('Only students and tutors have conversations.');
+    }
+    const unreadCount = await this.prisma.message.count({
+      where: {
+        conversation:
+          input.role === Role.STUDENT
+            ? { studentUserId: input.userId }
+            : { tutorUserId: input.userId },
+        readAt: null,
+        senderUserId: { not: input.userId },
+      },
+    });
+    return { unreadCount };
   }
 
   async getMyConversations(input: GetMyConversationsInput): Promise<MyConversationsResponseDto> {

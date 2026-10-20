@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Get,
+  Header,
   HttpCode,
   HttpStatus,
   Param,
@@ -28,12 +29,14 @@ import {
   MyConversationsResponseDto,
   OpenConversationResponseDto,
   SendMessageDto,
+  UnreadMessageCountResponseDto,
 } from '@modules/conversations/conversations.dto';
 import { ConversationsService } from '@modules/conversations/conversations.service';
 import {
   ConversationsControllerDoc,
   GetMessagesDoc,
   GetMyConversationsDoc,
+  GetUnreadMessageCountDoc,
   MarkMessagesReadDoc,
   OpenConversationDoc,
   SendMessageDoc,
@@ -80,6 +83,16 @@ export class ConversationsController {
       role: user.role,
       userId: user.id,
     });
+  }
+
+  @Get('unread-count')
+  @Header('Cache-Control', 'no-store')
+  @GetUnreadMessageCountDoc()
+  @Roles(Role.STUDENT, Role.TUTOR)
+  getUnreadMessageCount(
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<UnreadMessageCountResponseDto> {
+    return this.conversationsService.getUnreadMessageCount({ role: user.role, userId: user.id });
   }
 
   @Get(':conversationId/messages')

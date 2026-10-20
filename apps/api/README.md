@@ -109,6 +109,21 @@ non-participant senders, and de-duplicates retries by sender and `clientMessageI
 indexes support both ID and UTC `sentAt` ordering; API handlers must still perform participant
 authorization and map expected uniqueness conflicts to the appropriate HTTP response.
 
+### Unread message total
+
+`GET /api/v1/conversations/unread-count` requires JWT authentication and STUDENT/TUTOR role. It
+returns `{ unreadCount }` with `Cache-Control: no-store`, counting messages across all conversations
+belonging to the authenticated caller where `readAt` is null and `senderUserId` differs from the
+caller. This total is independent of inbox pagination. The caller's identity and role come only
+from the session; the route accepts no alternate owner. Guests/invalid sessions receive 401 and
+admins receive 403. This GET does not modify read state or return message content.
+
+Student and tutor sidebar badges use this total. Visible tabs refresh every 15 seconds, on focus
+and route changes, and immediately after a successful read acknowledgement changes unread state.
+Hidden tabs abort active reads and pause polling. Failures show an unavailable count rather than
+zero; the next refresh can recover. Empty totals hide the badge. Collapsed desktop navigation shows
+up to `99+` visually while retaining the full accessible count. No schema migration is required.
+
 ### Conversation history and read receipts (S2-T20)
 
 `GET /api/v1/conversations/:conversationId/messages` keeps its original oldest-first forward

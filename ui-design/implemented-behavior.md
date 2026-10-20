@@ -534,7 +534,12 @@ reading position acknowledges received messages through the latest received boun
 recipient-only idempotent API never marks the caller's own messages. Failures keep drafts/history
 and show retry feedback without inventing a read receipt. Inbox refreshes after received activity
 and successful acknowledgements; unread counts remain server values and GET itself never marks read.
-No global unread total is derived from partially loaded inbox pages.
+The student/tutor sidebar uses the dedicated authenticated `/conversations/unread-count` total,
+independent of partially loaded inbox pages. Its role-colored badge updates every 15 seconds while
+visible and after successful read acknowledgements, pauses/aborts when hidden, and refreshes on
+focus/navigation. Zero hides the badge; initial/error counts display —. Desktop collapsed navigation
+retains a compact badge capped at 99+ with the full count in its accessible label. Counts remain
+scoped to the current user and late responses cannot overwrite newer reads.
 
 Browser verification uses intercepted APIs (including 35-message backward pagination, four-second
 updates, sent/read states, deduplication, close/hidden-tab cleanup, stalled requests, draft retention,

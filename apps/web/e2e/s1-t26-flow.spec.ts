@@ -72,6 +72,9 @@ test('guest slot selection returns through login and onboarding to booking confi
     const request = route.request();
     const url = new URL(request.url());
     const path = url.pathname.replace('/api/v1', '');
+    if (path.endsWith('/conversations/unread-count')) {
+      return route.fulfill({ json: { unreadCount: 0 } });
+    }
 
     if (request.method() === 'POST' && path === '/auth/refresh') {
       if (!authenticated) return unauthorized(route);

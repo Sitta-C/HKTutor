@@ -26,6 +26,7 @@ import {
   MyConversationsResponseDto,
   OpenConversationResponseDto,
   SendMessageDto,
+  UnreadMessageCountResponseDto,
 } from '@modules/conversations/conversations.dto';
 
 const CONVERSATION_ID_EXAMPLE = '6f1c2b8e-3d4a-4f5b-9c7d-2e8a1b0c9d3f';
@@ -188,6 +189,21 @@ export function GetMyConversationsDoc(): MethodDecorator {
         statusCode: 403,
       }),
     }),
+  );
+}
+
+export function GetUnreadMessageCountDoc(): MethodDecorator {
+  return applyDecorators(
+    ApiExtraModels(UnreadMessageCountResponseDto),
+    ApiOperation({
+      summary: 'Count my unread incoming messages',
+      description:
+        'Counts unread messages sent by the other participant across all conversations belonging to the authenticated student or tutor. Independent of inbox pagination. This read never marks messages read.',
+    }),
+    ApiBearerAuth(JWT_BEARER_AUTH),
+    ApiOkResponse({ type: UnreadMessageCountResponseDto }),
+    apiUnauthorizedResponse(),
+    ApiForbiddenResponse({ description: 'The caller is not a student or tutor' }),
   );
 }
 

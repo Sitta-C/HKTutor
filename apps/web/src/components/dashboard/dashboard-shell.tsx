@@ -22,6 +22,7 @@ import {
 import { formatBangkokYear } from '@/lib/date-time';
 import { useLanguage } from '@/lib/i18n';
 import { useStudentBookingCount } from '@/lib/student-booking-count';
+import { useUnreadMessageCount } from '@/lib/use-unread-message-count';
 
 import type { AuthUser } from '@/lib/api/types';
 import type { DashboardViewType } from '@/lib/dashboard-navigation';
@@ -82,7 +83,7 @@ const roleStyles = {
 >;
 
 const navItemClass =
-  'flex min-h-11 w-full items-center justify-between gap-2 rounded-xl border border-paper-edge/70 bg-paper/55 px-2.5 py-2 text-left text-sm font-semibold text-notebook-ink no-underline shadow-[0_2px_0_rgba(120,113,108,0.08)] transition hover:translate-x-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-notebook-ink/25';
+  'relative flex min-h-11 w-full items-center justify-between gap-2 rounded-xl border border-paper-edge/70 bg-paper/55 px-2.5 py-2 text-left text-sm font-semibold text-notebook-ink no-underline shadow-[0_2px_0_rgba(120,113,108,0.08)] transition hover:translate-x-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-notebook-ink/25';
 
 function classes(...values: Array<string | false | null | undefined>): string {
   return values.filter(Boolean).join(' ');
@@ -111,6 +112,18 @@ export function DashboardShell({
       : null,
     pathname,
   );
+  const unreadMessageCount = useUnreadMessageCount(
+    authenticatedUser?.id === user.id &&
+      (authenticatedUser.role === 'STUDENT' || authenticatedUser.role === 'TUTOR') &&
+      pathname !== '/onboarding/profile'
+      ? authenticatedUser.id
+      : null,
+    pathname,
+  );
+  const unreadMessageLabel =
+    unreadMessageCount === null
+      ? copy.dashboard.common.unreadMessagesUnavailable
+      : copy.dashboard.common.unreadMessagesCount.replace('{count}', String(unreadMessageCount));
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isMobileSidebar, setIsMobileSidebar] = useState(false);
   const [privacyNoticeOpen, setPrivacyNoticeOpen] = useState(false);
@@ -337,11 +350,17 @@ export function DashboardShell({
           >
             {navItems.map((item) => {
               const badge =
-                user.role === 'STUDENT' && item.id === 'bookings'
-                  ? bookingCount.total === null
+                item.id === 'messages'
+                  ? unreadMessageCount === null
                     ? '—'
-                    : String(bookingCount.total)
-                  : (navBadges?.[item.id] ?? item.badge);
+                    : unreadMessageCount > 0
+                      ? String(unreadMessageCount)
+                      : undefined
+                  : user.role === 'STUDENT' && item.id === 'bookings'
+                    ? bookingCount.total === null
+                      ? '—'
+                      : String(bookingCount.total)
+                    : (navBadges?.[item.id] ?? item.badge);
               const icon = (
                 <span
                   className={classes(
@@ -361,17 +380,29 @@ export function DashboardShell({
                       <span className="truncate text-sm font-semibold">{item.label}</span>
                     )}
                   </span>
-                  {!isSidebarCollapsed && badge !== undefined && (
+                  {badge !== undefined && (!isSidebarCollapsed || item.id === 'messages') && (
                     <span
-                      aria-live={item.id === 'bookings' ? 'polite' : undefined}
+                      aria-live={
+                        item.id === 'bookings' || item.id === 'messages' ? 'polite' : undefined
+                      }
+                      aria-label={item.id === 'messages' ? unreadMessageLabel : undefined}
+                      data-unread-message-count={item.id === 'messages' ? '' : undefined}
                       aria-busy={item.id === 'bookings' && bookingCount.refreshing}
                       data-booking-nav-count={item.id === 'bookings' ? '' : undefined}
                       className={classes(
-                        'rounded-full px-2 py-0.5 text-xs font-extrabold',
+                        'rounded-full py-0.5 text-xs font-extrabold',
+                        isSidebarCollapsed && item.id === 'messages'
+                          ? 'absolute right-0 top-0 px-1'
+                          : 'px-2',
                         theme.badge,
                       )}
                     >
-                      {badge}
+                      {isSidebarCollapsed &&
+                      item.id === 'messages' &&
+                      unreadMessageCount !== null &&
+                      unreadMessageCount > 99
+                        ? '99+'
+                        : badge}
                     </span>
                   )}
                 </>
@@ -410,7 +441,12 @@ export function DashboardShell({
                     isSidebarCollapsed && isActive && 'shadow-none',
                   )}
                   aria-current={isActive ? 'page' : undefined}
-                  title={item.label}
+                  aria-label={
+                    item.id === 'messages' ? `${item.label}, ${unreadMessageLabel}` : undefined
+                  }
+                  title={
+                    item.id === 'messages' ? `${item.label}, ${unreadMessageLabel}` : item.label
+                  }
                   onClick={() => {
                     if (isMobileSidebar) closeMobileSidebar();
                   }}

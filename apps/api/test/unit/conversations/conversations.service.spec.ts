@@ -85,7 +85,7 @@ describe('ConversationsService', () => {
   const mockPrismaService = {
     $queryRaw: jest.fn(),
     conversation: { create: jest.fn(), findUnique: jest.fn() },
-    message: { create: jest.fn(), findFirst: jest.fn(), findMany: jest.fn() },
+    message: { count: jest.fn(), create: jest.fn(), findFirst: jest.fn(), findMany: jest.fn() },
     studentProfile: { findFirst: jest.fn() },
     tutorProfile: { findFirst: jest.fn() },
     user: { findUnique: jest.fn() },
@@ -105,6 +105,40 @@ describe('ConversationsService', () => {
     }).compile();
 
     service = module.get<ConversationsService>(ConversationsService);
+  });
+
+  describe('getUnreadMessageCount', () => {
+    it.each([
+      [Role.STUDENT, STUDENT_ID, 'studentUserId'],
+      [Role.TUTOR, TUTOR_ID, 'tutorUserId'],
+    ])(
+      'counts only incoming unread messages for %s across all conversations',
+      async (role, userId, field) => {
+        mockPrismaService.message.count.mockResolvedValue(137);
+        await expect(service.getUnreadMessageCount({ role, userId })).resolves.toEqual({
+          unreadCount: 137,
+        });
+        expect(mockPrismaService.message.count).toHaveBeenCalledWith({
+          where: { conversation: { [field]: userId }, readAt: null, senderUserId: { not: userId } },
+        });
+        expect(mockPrismaService.message.findMany).not.toHaveBeenCalled();
+        expect(mockPrismaService.$queryRaw).not.toHaveBeenCalled();
+      },
+    );
+
+    it('returns an actual zero rather than a page-derived count', async () => {
+      mockPrismaService.message.count.mockResolvedValue(0);
+      await expect(
+        service.getUnreadMessageCount({ role: Role.STUDENT, userId: STUDENT_ID }),
+      ).resolves.toEqual({ unreadCount: 0 });
+    });
+
+    it('denies admins before accessing message data', async () => {
+      await expect(
+        service.getUnreadMessageCount({ role: Role.ADMIN, userId: ADMIN_ID }),
+      ).rejects.toThrow(ForbiddenException);
+      expect(mockPrismaService.message.count).not.toHaveBeenCalled();
+    });
   });
 
   describe('openConversation', () => {

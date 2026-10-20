@@ -2,17 +2,23 @@
 
 import { authenticatedFetch } from '@/lib/api/client';
 import { ConversationHistoryLoadError } from '@/lib/api/error';
+import { notifyUnreadMessagesChanged } from '@/lib/conversation-events';
 
 import type {
   ConversationListResponse,
   ConversationMessage,
   ConversationMessagesResponse,
   OpenConversationResponse,
+  UnreadMessageCountResponse,
 } from '@/lib/api/types';
 
 export const CONVERSATION_HISTORY_MAX_PAGES = 200;
 export const CONVERSATION_HISTORY_TIMEOUT_MS = 60_000;
 export const CONVERSATION_POLL_INTERVAL_MS = 4_000;
+
+export function getUnreadMessageCount(signal: AbortSignal): Promise<UnreadMessageCountResponse> {
+  return authenticatedFetch('/conversations/unread-count', { signal, cache: 'no-store' });
+}
 
 export function getConversations(
   cursor?: string,
@@ -167,18 +173,25 @@ export function loadOlderConversationMessages(
   });
 }
 
-export function markConversationRead(
+export async function markConversationRead(
   conversationId: string,
   upToMessageId: string,
   signal: AbortSignal,
 ): Promise<{ updatedCount: number; readAt: string | null }> {
-  return withHistoryDeadline(signal, (boundedSignal) =>
-    authenticatedFetch(`/conversations/${encodeURIComponent(conversationId)}/read`, {
-      method: 'POST',
-      body: JSON.stringify({ upToMessageId }),
-      signal: boundedSignal,
-    }),
+  const receipt = await withHistoryDeadline(signal, (boundedSignal) =>
+    authenticatedFetch<{ updatedCount: number; readAt: string | null }>(
+      `/conversations/${encodeURIComponent(conversationId)}/read`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ upToMessageId }),
+        signal: boundedSignal,
+      },
+    ),
   );
+  if (receipt.updatedCount > 0) {
+    notifyUnreadMessagesChanged();
+  }
+  return receipt;
 }
 
 async function withHistoryDeadline<T>(

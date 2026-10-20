@@ -74,6 +74,9 @@ test('tutor validates, uploads, sees pending status and retries denied preview',
   await page.route('**/api/v1/**', async (route) => {
     const request = route.request();
     const path = new URL(request.url()).pathname;
+    if (path.endsWith('/conversations/unread-count')) {
+      return route.fulfill({ json: { unreadCount: 0 } });
+    }
     if (path === '/api/v1/auth/refresh') {
       return json(route, { accessToken: 'ui-test-token', user: tutor });
     }
@@ -265,6 +268,9 @@ test('refresh documents requests the latest list and shows completion', async ({
   });
   await page.route('**/api/v1/**', async (route) => {
     const path = new URL(route.request().url()).pathname;
+    if (path.endsWith('/conversations/unread-count')) {
+      return route.fulfill({ json: { unreadCount: 0 } });
+    }
     if (path === '/api/v1/auth/refresh') {
       return json(route, { accessToken: 'ui-test-token', user: tutor });
     }
@@ -332,6 +338,9 @@ test('a late initial list response cannot erase a document shown after upload', 
   await page.route('**/api/v1/**', async (route) => {
     const request = route.request();
     const path = new URL(request.url()).pathname;
+    if (path.endsWith('/conversations/unread-count')) {
+      return route.fulfill({ json: { unreadCount: 0 } });
+    }
     if (path === '/api/v1/auth/refresh') {
       return json(route, { accessToken: 'ui-test-token', user: tutor });
     }
@@ -402,6 +411,9 @@ test('an ambiguous upload response reloads the committed document before another
   await page.route('**/api/v1/**', (route) => {
     const request = route.request();
     const path = new URL(request.url()).pathname;
+    if (path.endsWith('/conversations/unread-count')) {
+      return route.fulfill({ json: { unreadCount: 0 } });
+    }
     if (path === '/api/v1/auth/refresh') {
       return json(route, { accessToken: 'ui-test-token', user: tutor });
     }
@@ -460,6 +472,9 @@ test('a failed profile refresh does not hide a confirmed upload', async ({ page 
   await page.route('**/api/v1/**', (route) => {
     const request = route.request();
     const path = new URL(request.url()).pathname;
+    if (path.endsWith('/conversations/unread-count')) {
+      return route.fulfill({ json: { unreadCount: 0 } });
+    }
     if (path === '/api/v1/auth/refresh') {
       return json(route, { accessToken: 'ui-test-token', user: tutor });
     }
@@ -524,6 +539,9 @@ test('upload conflict refreshes the list without showing a new successful submis
   await page.route('**/api/v1/**', (route) => {
     const request = route.request();
     const path = new URL(request.url()).pathname;
+    if (path.endsWith('/conversations/unread-count')) {
+      return route.fulfill({ json: { unreadCount: 0 } });
+    }
     if (path === '/api/v1/auth/refresh') {
       return json(route, { accessToken: 'ui-test-token', user: tutor });
     }
@@ -912,6 +930,9 @@ test('review failure leaves the pending decision unchanged', async ({ page }) =>
   await page.route('**/api/v1/**', (route) => {
     const request = route.request();
     const path = new URL(request.url()).pathname;
+    if (path.endsWith('/conversations/unread-count')) {
+      return route.fulfill({ json: { unreadCount: 0 } });
+    }
     if (path === '/api/v1/auth/refresh') {
       return json(route, { accessToken: 'ui-test-token', user: admin });
     }
@@ -976,6 +997,9 @@ test('ambiguous review failure reloads a decision already saved by the server', 
   await page.route('**/api/v1/**', (route) => {
     const request = route.request();
     const path = new URL(request.url()).pathname;
+    if (path.endsWith('/conversations/unread-count')) {
+      return route.fulfill({ json: { unreadCount: 0 } });
+    }
     if (path === '/api/v1/auth/refresh') {
       return json(route, { accessToken: 'ui-test-token', user: admin });
     }
@@ -1049,6 +1073,9 @@ test('review conflict reloads server state and removes the pending form', async 
   await page.route('**/api/v1/**', (route) => {
     const request = route.request();
     const path = new URL(request.url()).pathname;
+    if (path.endsWith('/conversations/unread-count')) {
+      return route.fulfill({ json: { unreadCount: 0 } });
+    }
     if (path === '/api/v1/auth/refresh') {
       return json(route, { accessToken: 'ui-test-token', user: admin });
     }
