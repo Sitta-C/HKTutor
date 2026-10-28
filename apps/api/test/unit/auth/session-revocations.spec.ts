@@ -1,8 +1,9 @@
+import { UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Test } from '@nestjs/testing';
 
 import { AuthConfigService } from '@config/auth.config';
-import { Role } from '@generated/prisma/client';
+import { AccountStatus, Role } from '@generated/prisma/client';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import { EmailService } from '@infrastructure/email/email.service';
 import { AuthService } from '@modules/auth/auth.service';
@@ -91,6 +92,46 @@ describe('committed auth revocations notify socket cleanup', () => {
     await expect(
       service.resetPassword({ token: 'synthetic-reset', password: 'synthetic-password' }),
     ).rejects.toThrow();
+    expect(revoke).not.toHaveBeenCalled();
+  });
+
+  const reusedRefreshSession = () => ({
+    id: 'session',
+    userId: 'user',
+    revokedAt: null,
+    expiresAt: new Date(Date.now() + 60_000),
+    refreshTokenHash: '0'.repeat(64),
+    user: {
+      id: 'user',
+      email: 'synthetic@example.invalid',
+      role: Role.STUDENT,
+      deletedAt: null,
+      accountStatus: AccountStatus.ACTIVE,
+      emailVerifiedAt: new Date(),
+    },
+  });
+
+  it('notifies the exact session only after refresh-token reuse revocation persists', async () => {
+    db.authSession.findUnique.mockResolvedValue(reusedRefreshSession());
+    db.authSession.update.mockImplementation(() => {
+      expect(revoke).not.toHaveBeenCalled();
+      return Promise.resolve({});
+    });
+    await expect(
+      service.refresh(tokens.signRefreshToken('user', 'session', Role.STUDENT)),
+    ).rejects.toThrow(UnauthorizedException);
+    expect(db.authSession.update).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 'session' } }),
+    );
+    expect(revoke).toHaveBeenCalledWith({ userId: 'user', sessionId: 'session' });
+  });
+
+  it('does not announce a refresh-token reuse revocation that failed to persist', async () => {
+    db.authSession.findUnique.mockResolvedValue(reusedRefreshSession());
+    db.authSession.update.mockRejectedValue(new Error('Synthetic persistence failure'));
+    await expect(
+      service.refresh(tokens.signRefreshToken('user', 'session', Role.STUDENT)),
+    ).rejects.toThrow('Synthetic persistence failure');
     expect(revoke).not.toHaveBeenCalled();
   });
 
