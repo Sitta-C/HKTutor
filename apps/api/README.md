@@ -140,12 +140,14 @@ authorized joins/leaves are safe and no participant list is returned. Failures a
 `{ ok: false, error: { code, message } }` with `VALIDATION_FAILED`, `UNAUTHENTICATED`, `FORBIDDEN`
 or `NOT_FOUND`. Additional protection limits return `RATE_LIMITED`; unexpected failures return
 generic `INTERNAL_ERROR` without persistence details. WS errors do not include HTTP status codes.
+A failed session, role, account or consent check also disconnects the socket; a `FORBIDDEN` or
+`NOT_FOUND` conversation fails only that event and keeps existing memberships.
 
 Limits are 8 KiB per transport payload, 4,096 characters per access token, five connected sockets
 per user, ten conversation rooms per socket, 30 join/leave attempts per ten seconds per socket,
-and 30 namespace handshake attempts per ten seconds per transport peer address. The development
-proxy shares its loopback peer address, so that handshake limit is shared there. Handshake rate
-tracking is bounded to 1,024 peer addresses. A socket exceeding its event rate is disconnected.
+and 30 namespace handshake attempts per ten seconds per verified user. Handshakes are counted after
+JWT/session verification, so users behind one proxy address do not share a limit and invalid
+credentials do not consume anyone's. A socket exceeding its event rate is disconnected.
 
 Sockets disconnect at the earlier JWT/session expiry and lose all memberships on disconnect.
 Committed logout, refresh-reuse revocation and password reset notify socket cleanup in this API
@@ -162,7 +164,8 @@ Keep the existing web/API ports (3000/3001). Start the API with `WEB_ORIGIN=http
 (PowerShell: `$env:WEB_ORIGIN='http://localhost:3002'` before `pnpm dev`). In a second terminal run
 `pnpm dev:socket-proxy`, then open **http://localhost:3002**. The proxy routes `/api/v1/*` to the
 API, everything else to the web server, and tunnels `/api/v1/socket.io/` Upgrade requests to the
-API without rewriting the URI. It supports HTTP long-polling and WebSocket. Optional
+API without rewriting the URI. Other Upgrade requests, such as Next.js hot reload, are tunneled to
+the web server. It supports HTTP long-polling and WebSocket. Optional
 `CHAT_PROXY_PORT`, `WEB_INTERNAL_URL` and `API_INTERNAL_URL` change those upstreams/port; the
 API's `WEB_ORIGIN` must still match the browser origin exactly. This proxy is for local development.
 
@@ -187,29 +190,7 @@ pnpm --filter @hktutor/api lint
 pnpm --filter @hktutor/api build
 ```
 
-Verification on 2026-10-28 used Node.js 24.20.0 (repository pin: 24.19.0) and pnpm 11.19.0:
-
-- `pnpm --filter @hktutor/api test --runInBand`: 73 suites / 1,332 cases passed, including
-  27 new verifier/revocation/gateway unit cases.
-- The exact three-file `test:e2e` command above: 3 suites / 108 cases passed, including
-  49 socket cases and 59 REST chat/auth regression cases. This includes two participants, multiple
-  tabs/sessions, expiry/logout, changed account/role/consent, in-flight logout, serialized join/leave,
-  receiving-room isolation and both transports through the same-origin development proxy.
-- `pnpm --filter @hktutor/api lint` and `pnpm --filter @hktutor/api build`: passed, including
-  generated Prisma Client and script typechecking; no database migration/seed was run.
-- `pnpm exec eslint scripts/chat-proxy.mjs tests/docker-compose.test.mjs --max-warnings=0`: passed.
-- `node --test tests/docker-compose.test.mjs`: 6 cases passed, including the merged chat overlay.
-- `git diff --check` and touched-file formatting: passed. The exact PowerShell formatting command
-  from the repository root was:
-
-```powershell
-$taskChangedPaths = @((git diff --name-only), (git ls-files --others --exclude-standard)) | ForEach-Object { $_ } | Where-Object { $_ }
-pnpm exec prettier --check --ignore-unknown @taskChangedPaths
-```
-
-The Docker Desktop Linux daemon was unavailable, so Nginx/container execution and a deployed
-TLS ingress were not verified. Compose configuration parsing and the real Node development
-proxy were verified independently. Persistence remains mocked in these socket/HTTP checks.
+The Compose test only parses the chat overlay; it does not run Nginx or a container.
 
 ### Unread message total
 
