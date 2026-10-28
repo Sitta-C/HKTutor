@@ -117,9 +117,9 @@ export class ConversationsGateway
             });
         }
       }
-      for (const [address, window] of this.handshakes) {
+      for (const [userId, window] of this.handshakes) {
         if (Date.now() - window.start >= CHAT_RATE_WINDOW_MS) {
-          this.handshakes.delete(address);
+          this.handshakes.delete(userId);
         }
       }
     }, 5_000);
@@ -189,17 +189,6 @@ export class ConversationsGateway
   }
 
   private async authenticateConnection(socket: ChatSocket): Promise<void> {
-    const now = Date.now();
-    const address = socket.handshake.address;
-    const window = this.handshakes.get(address);
-    if (!window || now - window.start >= CHAT_RATE_WINDOW_MS) {
-      if (this.handshakes.size >= 1_024) {
-        throw new HttpException('Chat rate limit exceeded', 429);
-      }
-      this.handshakes.set(address, { start: now, count: 1 });
-    } else if (++window.count > CHAT_RATE_LIMIT) {
-      throw new HttpException('Chat rate limit exceeded', 429);
-    }
     const auth: unknown = socket.handshake.auth;
     if (
       typeof auth !== 'object' ||
@@ -214,6 +203,14 @@ export class ConversationsGateway
       throw new UnauthorizedException('Invalid authentication');
     }
     const access = await verifyAccessSession(auth.accessToken, this.jwtTokens, this.prisma, true);
+    const now = Date.now();
+    // Counted per verified user: every browser behind a proxy shares one peer address.
+    const window = this.handshakes.get(access.user.id);
+    if (!window || now - window.start >= CHAT_RATE_WINDOW_MS) {
+      this.handshakes.set(access.user.id, { start: now, count: 1 });
+    } else if (++window.count > CHAT_RATE_LIMIT) {
+      throw new HttpException('Chat rate limit exceeded', 429);
+    }
     if (access.expiresAt <= Date.now() || socket.conn.readyState !== 'open') {
       throw new UnauthorizedException('Invalid authentication');
     }
@@ -313,8 +310,10 @@ export class ConversationsGateway
     connection.pending++;
     // Serialize room mutations so a slow join cannot undo a later leave.
     const operation = connection.operations.then(async (): Promise<ConversationRoomAck> => {
+      let sessionVerified = false;
       try {
         await this.authorize(connection);
+        sessionVerified = true;
         const { conversationId } = parseConversationRoom(payload);
         await this.conversations.assertParticipant(conversationId, connection.access.user.id);
         if (!this.isCurrent(connection)) {
@@ -336,10 +335,13 @@ export class ConversationsGateway
         return { ok: true, conversationId };
       } catch (error) {
         const result = socketError(error);
+        // A failed session/account check ends the socket; a denied conversation fails only this event.
+        const conversationDenied = sessionVerified && result.code === 'FORBIDDEN';
         if (
-          result.code === 'UNAUTHENTICATED' ||
-          result.code === 'FORBIDDEN' ||
-          result.code === 'INTERNAL_ERROR'
+          !conversationDenied &&
+          (result.code === 'UNAUTHENTICATED' ||
+            result.code === 'FORBIDDEN' ||
+            result.code === 'INTERNAL_ERROR')
         ) {
           this.disconnect(connection, true);
         }

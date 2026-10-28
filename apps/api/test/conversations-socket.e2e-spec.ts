@@ -1,7 +1,8 @@
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
-import { createServer } from 'node:http';
+import { createServer, request as httpRequest } from 'node:http';
 import path from 'node:path';
+import { Duplex } from 'node:stream';
 
 import { ConfigService } from '@nestjs/config';
 import { Test } from '@nestjs/testing';
@@ -449,19 +450,28 @@ describe('S3-T01 real Socket.IO transport, JWT and room authorization (mocked pe
     );
   });
 
-  it('blocks a foreign conversation and a participant removed after joining', async () => {
+  it('denies a foreign conversation without dropping the socket and blocks a removed participant', async () => {
     const socket = client({ accessToken: access() });
     await connect(socket);
-    expect(await event(socket, 'conversation_join', { conversationId: FOREIGN })).toMatchObject({
-      ok: false,
-      error: { code: 'FORBIDDEN' },
-    });
-    const fresh = client({ accessToken: access() });
-    await connect(fresh);
-    await event(fresh, 'conversation_join');
+    await event(socket, 'conversation_join');
+    for (const name of ['conversation_join', 'conversation_leave'] as const) {
+      expect(await event(socket, name, { conversationId: FOREIGN })).toEqual({
+        ok: false,
+        error: { code: 'FORBIDDEN', message: 'Conversation access denied' },
+      });
+    }
+    expect(socket.connected).toBe(true);
+    expect(serverSocket(socket).rooms).toEqual(
+      new Set([socket.id, conversationRecipientRoom(CONVERSATION, STUDENT)]),
+    );
+    const delivered = once(socket, 'test_probe');
+    await gateway.forAuthorizedRecipient(CONVERSATION, STUDENT, (server) =>
+      server.emit('test_probe', 'synthetic'),
+    );
+    await expect(delivered).resolves.toEqual(['synthetic']);
     db.conversation.findUnique.mockResolvedValue({ studentUserId: OTHER, tutorUserId: TUTOR });
     const dispatch = jest.fn();
-    const disconnected = once(fresh, 'disconnect');
+    const disconnected = once(socket, 'disconnect');
     await gateway.forAuthorizedRecipient(CONVERSATION, STUDENT, dispatch);
     await disconnected;
     expect(dispatch).not.toHaveBeenCalled();
@@ -642,8 +652,49 @@ describe('S3-T01 real Socket.IO transport, JWT and room authorization (mocked pe
     });
   });
 
+  // Every client here shares the loopback peer address, as browsers do behind a proxy.
+  it('limits handshakes per verified user rather than per shared peer address', async () => {
+    const socket = client({ accessToken: access() });
+    for (let attempt = 0; attempt < CHAT_RATE_LIMIT; attempt++) {
+      await connect(socket);
+      const closed = once(serverSocket(socket), 'disconnect');
+      socket.disconnect();
+      await closed;
+    }
+    const failed = once(socket, 'connect_error');
+    socket.connect();
+    const errors: unknown[] = await failed;
+    expect(errors[0]).toMatchObject({ data: { code: 'RATE_LIMITED' } });
+    const tutor = client({ accessToken: access(TUTOR, Role.TUTOR) });
+    await connect(tutor);
+    expect(serverSocket(tutor).rooms).toEqual(new Set([tutor.id]));
+  });
+
+  it('does not count unauthenticated handshakes against signed-in users', async () => {
+    for (let attempt = 0; attempt <= CHAT_RATE_LIMIT; attempt++) {
+      const anonymous = client({ accessToken: 'synthetic-invalid-token' });
+      const failed = once(anonymous, 'connect_error');
+      anonymous.connect();
+      const errors: unknown[] = await failed;
+      expect(errors[0]).toMatchObject({ data: { code: 'UNAUTHENTICATED' } });
+    }
+    const socket = client({ accessToken: access() });
+    await connect(socket);
+    expect(serverSocket(socket).rooms).toEqual(new Set([socket.id]));
+  });
+
   it('works through the same-origin proxy for polling and WebSocket Upgrade', async () => {
     const web = createServer((_request, response) => response.end('synthetic web'));
+    const webUpgrades: string[] = [];
+    const webTunnels = new Set<Duplex>();
+    web.on('upgrade', (request, socket) => {
+      webUpgrades.push(request.url ?? '');
+      webTunnels.add(socket);
+      socket.write(
+        'HTTP/1.1 101 Switching Protocols\r\nConnection: Upgrade\r\nUpgrade: websocket\r\n\r\n',
+      );
+      socket.pipe(socket);
+    });
     web.listen(0, '127.0.0.1');
     await once(web, 'listening');
     const address = web.address();
@@ -673,6 +724,23 @@ describe('S3-T01 real Socket.IO transport, JWT and room authorization (mocked pe
       const proxyUrl = `http://127.0.0.1:${port}`;
       process.env['WEB_ORIGIN'] = proxyUrl;
       expect(await (await fetch(proxyUrl)).text()).toBe('synthetic web');
+      const hmr = httpRequest(`${proxyUrl}/_next/webpack-hmr`, {
+        headers: { Connection: 'Upgrade', Upgrade: 'websocket' },
+      });
+      hmr.end();
+      const upgraded: unknown[] = await Promise.race([
+        once(hmr, 'upgrade'),
+        once(hmr, 'response').then(() => {
+          throw new Error('The proxy answered the hot-reload Upgrade instead of tunneling it');
+        }),
+      ]);
+      const tunnel = upgraded[1];
+      if (!(tunnel instanceof Duplex)) throw new Error('Missing web upgrade tunnel');
+      tunnel.write('synthetic hmr');
+      const echoed: unknown[] = await once(tunnel, 'data');
+      expect(String(echoed[0])).toBe('synthetic hmr');
+      expect(webUpgrades).toEqual(['/_next/webpack-hmr']);
+      tunnel.destroy();
       const token = access();
       const polling = client({ accessToken: token }, proxyUrl, 'polling', proxyUrl);
       const websocket = client({ accessToken: token }, proxyUrl, 'websocket', proxyUrl);
@@ -694,6 +762,7 @@ describe('S3-T01 real Socket.IO transport, JWT and room authorization (mocked pe
       await closed;
     } finally {
       child.kill();
+      for (const socket of webTunnels) socket.destroy();
       web.closeAllConnections();
       await new Promise<void>((resolve) => web.close(() => resolve()));
     }

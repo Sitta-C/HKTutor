@@ -38,11 +38,9 @@ export function createChatProxy({ apiTarget, webTarget }) {
   const tunnels = new Set();
   server.on('upgrade', (request, socket, head) => {
     const pathname = new URL(request.url, 'http://localhost').pathname;
-    if (pathname !== SOCKET_PATH && pathname !== `${SOCKET_PATH}/`) {
-      socket.end('HTTP/1.1 404 Not Found\r\nConnection: close\r\n\r\n');
-      return;
-    }
-    const upstream = requestUpstream(request, api);
+    // Other upgrades, such as Next.js hot reload, belong to the web server.
+    const target = pathname === SOCKET_PATH || pathname === `${SOCKET_PATH}/` ? api : web;
+    const upstream = requestUpstream(request, target);
     upstream.on('upgrade', (response, peer, upstreamHead) => {
       const headers = response.rawHeaders.reduce((lines, value, index, all) => {
         if (index % 2 === 0) {
