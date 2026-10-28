@@ -109,6 +109,108 @@ non-participant senders, and de-duplicates retries by sender and `clientMessageI
 indexes support both ID and UTC `sentAt` ordering; API handlers must still perform participant
 authorization and map expected uniqueness conflicts to the appropriate HTTP response.
 
+### Chat socket connection and rooms (S3-T01)
+
+Socket.IO uses namespace `/chat` and transport path `/api/v1/socket.io`. The HTTP global prefix
+does not automatically prefix a gateway. Connect to the browser's origin with
+`io('/chat', { path: '/api/v1/socket.io', auth: { accessToken } })`; obtain the access token from
+the existing in-memory auth flow. Do not put credentials in query strings or browser storage.
+The standard Socket.IO `connect` event exposes `socket.id`; this is not an HTTP JSON endpoint.
+There is no automatic conversation membership.
+
+The gateway and `JwtAuthGuard` share `verifyAccessSession`. Signature, issuer, audience, access
+token type, expiry and active session checks stay common; the REST guard retains its previous
+status codes and consent/role behavior. Chat additionally requires the latest STUDENT/TUTOR role,
+an active, verified, non-deleted account and acceptance of the current privacy policy.
+`connect_error.data.code` is `UNAUTHENTICATED` for missing/invalid/expired/revoked credentials and
+`FORBIDDEN` for chat-ineligible accounts or consent. A supplied Origin must equal `WEB_ORIGIN`
+(default `http://localhost:3000`), including WebSocket Upgrade. Non-browser clients without an
+Origin still require the same JWT/session checks. The handshake accepts only `auth.accessToken`.
+
+| Event                | Payload                        | Success acknowledgement        |
+| -------------------- | ------------------------------ | ------------------------------ |
+| `conversation_join`  | `{ conversationId: '<uuid>' }` | `{ ok: true, conversationId }` |
+| `conversation_leave` | `{ conversationId: '<uuid>' }` | `{ ok: true, conversationId }` |
+
+Both events require exactly one valid UUID; extra `roomName`, `userId`, `role` or other fields
+fail. Every join and leave rechecks the session, current role/account/consent and existing
+`ConversationsService.assertParticipant` authorization. UUID case is normalized. The only room
+joined is the server-derived `conversation:<conversationId>:user:<authenticatedUserId>`; repeated
+authorized joins/leaves are safe and no participant list is returned. Failures acknowledge
+`{ ok: false, error: { code, message } }` with `VALIDATION_FAILED`, `UNAUTHENTICATED`, `FORBIDDEN`
+or `NOT_FOUND`. Additional protection limits return `RATE_LIMITED`; unexpected failures return
+generic `INTERNAL_ERROR` without persistence details. WS errors do not include HTTP status codes.
+
+Limits are 8 KiB per transport payload, 4,096 characters per access token, five connected sockets
+per user, ten conversation rooms per socket, 30 join/leave attempts per ten seconds per socket,
+and 30 namespace handshake attempts per ten seconds per transport peer address. The development
+proxy shares its loopback peer address, so that handshake limit is shared there. Handshake rate
+tracking is bounded to 1,024 peer addresses. A socket exceeding its event rate is disconnected.
+
+Sockets disconnect at the earlier JWT/session expiry and lose all memberships on disconnect.
+Committed logout, refresh-reuse revocation and password reset notify socket cleanup in this API
+process. Idle sockets recheck persistence every five seconds for changes from another process.
+`forAuthorizedRecipient` revalidates session/account/consent and conversation membership for each
+receiving tab immediately before protected dispatch; callers must use this boundary rather than
+broadcast directly to cached rooms. A revoked recipient cannot receive through that boundary even
+before the idle sweep. No Redis, message store, message/read event emission, UI subscription or
+automatic reconnect/rejoin is added here; those remain S3-T02/T03/T04.
+
+#### Same-origin development and deployment proxy
+
+Keep the existing web/API ports (3000/3001). Start the API with `WEB_ORIGIN=http://localhost:3002`
+(PowerShell: `$env:WEB_ORIGIN='http://localhost:3002'` before `pnpm dev`). In a second terminal run
+`pnpm dev:socket-proxy`, then open **http://localhost:3002**. The proxy routes `/api/v1/*` to the
+API, everything else to the web server, and tunnels `/api/v1/socket.io/` Upgrade requests to the
+API without rewriting the URI. It supports HTTP long-polling and WebSocket. Optional
+`CHAT_PROXY_PORT`, `WEB_INTERNAL_URL` and `API_INTERNAL_URL` change those upstreams/port; the
+API's `WEB_ORIGIN` must still match the browser origin exactly. This proxy is for local development.
+
+`deploy/nginx-chat.conf` supplies a production reverse-proxy configuration behind the existing TLS
+ingress. The optional `compose.chat.yaml` overlay makes it the published entrypoint and removes
+the web service's direct port: `docker compose -f compose.yaml -f compose.chat.yaml up --build`
+(Compose 2.24+). It uses the existing `api:3001` and `web:3000` services; no migration/seed is run.
+Set API `WEB_ORIGIN` to the
+public HTTPS origin, and preserve the complete `/api/v1/socket.io/` URI, HTTP/1.1 Upgrade and
+Connection headers, Origin, and a read timeout longer than the Socket.IO heartbeat. Route polling
+and Upgrade to the same API process; multiple replicas require a deployment decision beyond T01.
+The existing Next.js REST rewrite alone is not the WebSocket proxy contract. No deployment is
+performed by this change; the target ingress must be checked with polling and Upgrade after rollout.
+
+Focused checks use real signed JWTs, Nest/Socket.IO servers, clients and loopback proxy, with only
+persistence mocked. They do not certify PostgreSQL execution or the production ingress:
+
+```bash
+pnpm --filter @hktutor/api test --runInBand test/unit/auth test/unit/conversations
+pnpm --filter @hktutor/api test:e2e --runInBand --runTestsByPath test/conversations-socket.e2e-spec.ts test/conversations.e2e-spec.ts test/auth-controller.e2e-spec.ts
+pnpm --filter @hktutor/api lint
+pnpm --filter @hktutor/api build
+```
+
+Verification on 2026-10-28 used Node.js 24.20.0 (repository pin: 24.19.0) and pnpm 11.19.0:
+
+- `pnpm --filter @hktutor/api test --runInBand`: 73 suites / 1,332 cases passed, including
+  27 new verifier/revocation/gateway unit cases.
+- The exact three-file `test:e2e` command above: 3 suites / 108 cases passed, including
+  49 socket cases and 59 REST chat/auth regression cases. This includes two participants, multiple
+  tabs/sessions, expiry/logout, changed account/role/consent, in-flight logout, serialized join/leave,
+  receiving-room isolation and both transports through the same-origin development proxy.
+- `pnpm --filter @hktutor/api lint` and `pnpm --filter @hktutor/api build`: passed, including
+  generated Prisma Client and script typechecking; no database migration/seed was run.
+- `pnpm exec eslint scripts/chat-proxy.mjs tests/docker-compose.test.mjs --max-warnings=0`: passed.
+- `node --test tests/docker-compose.test.mjs`: 6 cases passed, including the merged chat overlay.
+- `git diff --check` and touched-file formatting: passed. The exact PowerShell formatting command
+  from the repository root was:
+
+```powershell
+$taskChangedPaths = @((git diff --name-only), (git ls-files --others --exclude-standard)) | ForEach-Object { $_ } | Where-Object { $_ }
+pnpm exec prettier --check --ignore-unknown @taskChangedPaths
+```
+
+The Docker Desktop Linux daemon was unavailable, so Nginx/container execution and a deployed
+TLS ingress were not verified. Compose configuration parsing and the real Node development
+proxy were verified independently. Persistence remains mocked in these socket/HTTP checks.
+
 ### Unread message total
 
 `GET /api/v1/conversations/unread-count` requires JWT authentication and STUDENT/TUTOR role. It
