@@ -1,0 +1,17 @@
+# Optional S3-T01 same-origin entrypoint. Requires Docker Compose 2.24+ for !reset.
+# docker compose -f compose.yaml -f compose.chat.yaml up --build
+services:
+  web:
+    ports: !reset []
+
+  chat-proxy:
+    image: nginx:stable-alpine
+    ports:
+      - '${WEB_PORT:-3000}:80'
+    volumes:
+      - ./deploy/nginx-chat.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      api:
+        condition: service_healthy
+      web:
+        condition: service_healthy
