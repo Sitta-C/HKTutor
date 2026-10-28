@@ -330,10 +330,10 @@ export class ConversationsService {
   }
 
   /** Throws 404 for a missing conversation and 403 for anyone outside it. */
-  private async assertParticipant(
+  async assertParticipant(
     conversationId: string,
     userId: string,
-    forbiddenMessage: string,
+    forbiddenMessage = 'Conversation access denied',
   ): Promise<void> {
     const conversation = await this.prisma.conversation.findUnique({
       where: { id: conversationId },
