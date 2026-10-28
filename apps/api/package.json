@@ -72,7 +72,7 @@
     "resend": "^6.26.0",
     "rxjs": "^7.8.1",
     "sharp": "0.35.3",
-    "socket.io": "4.8.4"
+    "socket.io": "4.8.3"
   },
   "devDependencies": {
     "@hktutor/eslint-config": "workspace:*",
