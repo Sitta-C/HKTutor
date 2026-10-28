@@ -1,7 +1,8 @@
 import { CanActivate, ExecutionContext, Injectable, UnauthorizedException } from '@nestjs/common';
 
-import { AccountStatus, Role } from '@generated/prisma/client';
+import { Role } from '@generated/prisma/client';
 import { PrismaService } from '@infrastructure/database/prisma.service';
+import { verifyAccessSession } from '@modules/auth/access-session';
 import { JwtTokenService } from '@modules/auth/jwt.service';
 
 import type { Request as ExpressRequest } from 'express';
@@ -32,35 +33,7 @@ export class JwtAuthGuard implements CanActivate {
       throw new UnauthorizedException('Missing authentication token');
     }
 
-    const payload = this.jwtTokens.verifyAccessToken(token);
-    if (!payload) {
-      throw new UnauthorizedException('Invalid or expired authentication token');
-    }
-
-    const session = await this.prisma.authSession.findUnique({
-      where: { id: payload.sid },
-      include: { user: true },
-    });
-    const now = new Date();
-
-    if (
-      !session ||
-      session.userId !== payload.sub ||
-      session.revokedAt ||
-      session.expiresAt <= now ||
-      session.user.deletedAt ||
-      session.user.accountStatus !== AccountStatus.ACTIVE ||
-      !session.user.emailVerifiedAt
-    ) {
-      throw new UnauthorizedException('Invalid or expired authentication token');
-    }
-
-    request.auth = {
-      id: session.user.id,
-      email: session.user.email,
-      role: session.user.role,
-      sessionId: session.id,
-    };
+    request.auth = (await verifyAccessSession(token, this.jwtTokens, this.prisma)).user;
 
     return true;
   }
