@@ -10,6 +10,7 @@ import { JwtTokenService } from '@modules/auth/jwt.service';
 import { ResourceOwnershipGuard } from '@modules/auth/ownership.guard';
 import { PasswordService } from '@modules/auth/password.service';
 import { RolesGuard } from '@modules/auth/roles.guard';
+import { SessionRevocations } from '@modules/auth/session-revocations';
 
 @Global()
 @Module({
@@ -24,7 +25,8 @@ import { RolesGuard } from '@modules/auth/roles.guard';
     PasswordService,
     ResourceOwnershipGuard,
     RolesGuard,
+    SessionRevocations,
   ],
-  exports: [JwtAuthGuard, JwtTokenService, ResourceOwnershipGuard, RolesGuard],
+  exports: [JwtAuthGuard, JwtTokenService, ResourceOwnershipGuard, RolesGuard, SessionRevocations],
 })
 export class AuthModule {}
