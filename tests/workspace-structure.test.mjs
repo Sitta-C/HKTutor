@@ -95,31 +95,49 @@ test('organizes API features and infrastructure behind explicit aliases', async 
   }
 });
 
-test('keeps unrelated infrastructure out while allowing Prisma and Supabase only in the API', async () => {
+test('keeps unrelated infrastructure out while allowing Prisma, Supabase and Socket.IO only in the API', async () => {
   const root = await readJson('package.json');
   const web = await readJson('apps/web/package.json');
   const api = await readJson('apps/api/package.json');
-  const forbidden = /redis|bullmq|bee-queue|amqplib|socket\.io|docker/i;
-  for (const manifest of [root, web, api]) {
-    const names = Object.keys({
+  const packageNames = (manifest) =>
+    Object.keys({
       ...manifest.dependencies,
       ...manifest.devDependencies,
     });
+  const forbidden = /redis|bullmq|bee-queue|amqplib|docker/i;
+  const socketIo = /socket\.io/i;
+  for (const manifest of [root, web, api]) {
     assert.equal(
-      names.some((name) => forbidden.test(name)),
+      packageNames(manifest).some((name) => forbidden.test(name)),
+      false,
+    );
+  }
+  for (const manifest of [root, web]) {
+    assert.equal(
+      packageNames(manifest).some((name) => socketIo.test(name)),
       false,
     );
   }
 
+  // S3-T01 approves exactly this Socket.IO stack in the API; adapters and other realtime
+  // packages still need their own decision.
+  assert.ok(api.dependencies['@nestjs/websockets'], 'the chat gateway requires Nest WebSockets');
+  assert.ok(api.dependencies['@nestjs/platform-socket.io'], 'the chat gateway uses Socket.IO');
+  assert.ok(api.dependencies['socket.io'], 'the chat gateway requires the Socket.IO server');
+  assert.ok(api.devDependencies['socket.io-client'], 'socket tests use a real Socket.IO client');
+  assert.equal(api.dependencies['socket.io-client'], undefined, 'the client is test-only');
+  assert.deepEqual(
+    packageNames(api)
+      .filter((name) => socketIo.test(name))
+      .sort(),
+    ['@nestjs/platform-socket.io', 'socket.io', 'socket.io-client'],
+  );
+
   assert.ok(api.dependencies['@supabase/supabase-js'], 'API Storage requires the Supabase SDK');
   const apiOnlyPackage = /^(?:@prisma\/|prisma$|@supabase\/supabase-js$)/;
   for (const manifest of [root, web]) {
-    const names = Object.keys({
-      ...manifest.dependencies,
-      ...manifest.devDependencies,
-    });
     assert.equal(
-      names.some((name) => apiOnlyPackage.test(name)),
+      packageNames(manifest).some((name) => apiOnlyPackage.test(name)),
       false,
     );
   }
