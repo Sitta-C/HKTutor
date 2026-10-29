@@ -4,8 +4,8 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import test from 'node:test';
 
-const composeConfig = () =>
-  spawnSync('docker', ['compose', 'config', '--format', 'json'], {
+const composeConfig = (files = []) =>
+  spawnSync('docker', ['compose', ...files, 'config', '--format', 'json'], {
     cwd: process.cwd(),
     encoding: 'utf8',
     env: {
@@ -68,6 +68,22 @@ test('publishes the same-origin web entrypoint and keeps the API service private
   assert.deepEqual(config.services.api.volumes ?? [], []);
   assert.deepEqual(config.services.web.volumes ?? [], []);
   assert.deepEqual(config.volumes ?? {}, {});
+});
+
+test('the optional chat proxy publishes one entrypoint and keeps both upstreams private', () => {
+  const result = composeConfig(['-f', 'compose.yaml', '-f', 'compose.chat.yaml']);
+  assert.equal(result.status, 0, `${result.stdout}${result.stderr}`);
+  const config = JSON.parse(result.stdout);
+  assert.deepEqual(publishedPorts(config.services.web), []);
+  assert.deepEqual(publishedPorts(config.services.api), []);
+  assert.deepEqual(publishedPorts(config.services['chat-proxy']), ['3000:80/tcp']);
+  assert.equal(config.services['chat-proxy'].depends_on.api.condition, 'service_healthy');
+  assert.equal(config.services['chat-proxy'].depends_on.web.condition, 'service_healthy');
+  const mount = config.services['chat-proxy'].volumes.find(
+    (volume) => volume.target === '/etc/nginx/nginx.conf',
+  );
+  assert.ok(mount?.read_only, 'the proxy configuration must be mounted read-only');
+  assert.equal(path.basename(mount.source), 'nginx-chat.conf');
 });
 
 test('the API image generates Prisma Client without copying environment files', async () => {

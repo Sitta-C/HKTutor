@@ -22,6 +22,7 @@ test('documents the required server-only and intentionally public environment va
   assert.deepEqual(Object.keys(template).sort(), [
     'API_INTERNAL_URL',
     'APP_URL',
+    'CHAT_PROXY_PORT',
     'COOKIE_DOMAIN',
     'COOKIE_SAME_SITE',
     'COOKIE_SECURE',
@@ -49,6 +50,7 @@ test('documents the required server-only and intentionally public environment va
     'SUPABASE_DOCUMENT_BUCKET',
     'SUPABASE_SECRET_KEY',
     'SUPABASE_URL',
+    'WEB_INTERNAL_URL',
     'WEB_ORIGIN',
   ]);
   assert.equal(
@@ -70,6 +72,9 @@ test('documents the required server-only and intentionally public environment va
   assert.equal(template.RESEND_API_KEY, '[RESEND_API_KEY]');
   assert.equal(template.PASSWORD_RESET_TTL_MINUTES, '30');
   assert.equal(template.API_INTERNAL_URL, 'http://localhost:3001');
+  // Optional S3-T01 development socket proxy (pnpm dev:socket-proxy).
+  assert.equal(template.CHAT_PROXY_PORT, '3002');
+  assert.equal(template.WEB_INTERNAL_URL, 'http://127.0.0.1:3000');
   const nextPublicKeys = Object.keys(template)
     .filter((name) => name.startsWith('NEXT_PUBLIC_'))
     .sort();

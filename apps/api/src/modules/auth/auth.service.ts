@@ -5,6 +5,7 @@ import {
   ForbiddenException,
   Injectable,
   Logger,
+  Optional,
   UnauthorizedException,
 } from '@nestjs/common';
 
@@ -14,6 +15,7 @@ import { PrismaService } from '@infrastructure/database/prisma.service';
 import { EmailService } from '@infrastructure/email/email.service';
 import { JwtTokenService } from '@modules/auth/jwt.service';
 import { PasswordService } from '@modules/auth/password.service';
+import { SessionRevocations } from '@modules/auth/session-revocations';
 
 import type { Prisma } from '@generated/prisma/client';
 import type {
@@ -60,6 +62,7 @@ export class AuthService {
     private readonly jwtTokens: JwtTokenService,
     private readonly email: EmailService,
     private readonly config: AuthConfigService,
+    @Optional() private readonly revocations?: SessionRevocations,
   ) {}
 
   async register(dto: RegisterDto): Promise<{ message: string }> {
@@ -329,6 +332,7 @@ export class AuthService {
         data: { revokedAt: now },
       });
     });
+    this.revocations?.revoke({ userId: record.userId });
     return { message: 'Password reset successfully. Sign in with your new password.' };
   }
 
@@ -407,6 +411,7 @@ export class AuthService {
         where: { id: session.id },
         data: { revokedAt: now },
       });
+      this.revocations?.revoke({ userId: session.userId, sessionId: session.id });
       throw new UnauthorizedException('Invalid or expired refresh token');
     }
 
@@ -423,6 +428,7 @@ export class AuthService {
       where: { id: payload.sid, userId: payload.sub, revokedAt: null },
       data: { revokedAt: new Date() },
     });
+    this.revocations?.revoke({ userId: payload.sub, sessionId: payload.sid });
   }
 
   private async createSession(
