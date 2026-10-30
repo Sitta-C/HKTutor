@@ -1173,6 +1173,82 @@ recipient scoping, the real HTTP guard/validation/service path and OpenAPI respo
 mocked persistence. They do not certify real PostgreSQL query execution, transaction isolation or
 concurrent-read behavior.
 
+### Class and payment reminders (S3-T05)
+
+`reminder-policy.ts` in the notifications module defines when class and payment reminders are due,
+who receives them and their event keys. It is pure: no database, scheduler or Nest dependency.
+The [S3-T06](https://trello.com/c/Az3hWEVx) job runs it and writes the rows; S3-T07 shows them in
+the inbox. This task adds no endpoint, schema change, job or package.
+
+The rules follow the [S3-T05 card](https://trello.com/c/TpOuncwb) and the product decision recorded
+there on 2026-10-26, the approved interpretation of
+[US3-2](https://docs.google.com/spreadsheets/d/17RMTjXa26ho7blv-TK5pbJFbHxVHJEBRPKCXk9x5AE0/edit#gid=443082416&range=A25:L25).
+Where the sheet wording differs, the card applies: each run uses one captured UTC clock, and a
+class first seen less than 24 hours ahead gets one catch-up 24H reminder. Asia/Bangkok is a fixed
+UTC+7 with no daylight saving, so "computed in Bangkok time" gives the same result; Bangkok is used
+only for display and examples. The backlog sheet is not edited by this task.
+
+With `delta = startAtUtc - nowUtc` (the slot start and the job's clock):
+
+| `delta`                 | Band  |
+| ----------------------- | ----- |
+| More than 24h           | None  |
+| More than 1h, up to 24h | `24H` |
+| More than 0, up to 1h   | `1H`  |
+| 0 or less (started)     | None  |
+
+Exactly 24h selects 24H and exactly 1h selects only 1H. A run never selects both bands: a job that
+first sees a class 2h ahead sends the 24H reminder now and the 1H reminder later, and one that
+first sees it 30 minutes ahead sends only 1H. For a class at 2026-11-10 18:00 Asia/Bangkok
+(`2026-11-10T11:00:00.000Z`):
+
+| Job run (UTC)              | Job run (Asia/Bangkok)  | Band           |
+| -------------------------- | ----------------------- | -------------- |
+| `2026-11-09T10:59:59.999Z` | 2026-11-09 17:59:59.999 | None           |
+| `2026-11-09T11:00:00.000Z` | 2026-11-09 18:00:00.000 | `24H`          |
+| `2026-11-10T09:00:00.000Z` | 2026-11-10 16:00:00.000 | `24H` catch-up |
+| `2026-11-10T09:59:59.999Z` | 2026-11-10 16:59:59.999 | `24H`          |
+| `2026-11-10T10:00:00.000Z` | 2026-11-10 17:00:00.000 | `1H`           |
+| `2026-11-10T10:59:59.999Z` | 2026-11-10 17:59:59.999 | `1H`           |
+| `2026-11-10T11:00:00.000Z` | 2026-11-10 18:00:00.000 | None           |
+
+Calendar days do not matter: a class at 2026-11-11 00:00 Bangkok gets its 24H reminder from
+2026-11-10 00:00 Bangkok and its 1H reminder from 23:00.
+
+| Booking                                       | Student                                            | Tutor                   |
+| --------------------------------------------- | -------------------------------------------------- | ----------------------- |
+| `CONFIRMED`, `UNPAID`                         | `CLASS_REMINDER_<band>`, `PAYMENT_REMINDER_<band>` | `CLASS_REMINDER_<band>` |
+| `CONFIRMED`, `PAID`                           | `CLASS_REMINDER_<band>`                            | `CLASS_REMINDER_<band>` |
+| `PENDING`, `COMPLETED`, `CANCELED`, `EXPIRED` | None                                               | None                    |
+
+Payment only suppresses payment reminders, never class reminders. A booking with a PromptPay charge
+in progress is still `UNPAID` and keeps its payment reminder; a reminder never creates a charge.
+A recipient whose account is not `ACTIVE` or has `deletedAt` set is skipped, and the other
+participant is still notified.
+
+```text
+reminder:<bookingId>:<slotId>:<startAtUtcISO>:<24H|1H>:<CLASS|PAYMENT>
+```
+
+The key has no recipient: the existing unique `(userId, eventKey)` index keeps the student's and
+tutor's rows apart and makes repeated ticks, retries and concurrent workers write each reminder
+once. The slot ID and start time make a rescheduled booking a new occurrence with fresh keys; the
+old occurrence's keys are never reused. The `reminder:` prefix cannot collide with S2-T28 keys
+(`<EVENT_TYPE>:<id>`). `eventType` is already free text, so the four reminder types need no
+migration.
+
+Left to S3-T06: selecting `CONFIRMED` bookings whose slot starts within 24 hours, locking and
+re-reading booking, payment, slot and recipient state before inserting so payment, cancellation
+and rescheduling cannot race a stale scan, reminder titles/bodies, and the scheduler itself.
+Invalid dates make the policy throw rather than pick a band.
+
+Focused check: `pnpm --filter @hktutor/api test test/unit/notifications/reminder-policy`. The spec
+holds the acceptance truth table: 24h ± 1 ms, the 2h catch-up, 1h ± 1 ms, a delayed 30-minute run,
+start ± 1 ms, Bangkok midnight, paid and unpaid, every excluded status, inactive recipients and a
+rescheduled slot. Each case's Bangkok time is checked against the `Asia/Bangkok` zone, and a
+minute-by-minute sweep confirms the band changes exactly at 24h, 1h and the start. It does not
+exercise PostgreSQL or the job; those belong to S3-T06 and S3-T08.
+
 ## RescheduleRequest persistence (S2-DB04)
 
 The forward migration `20261014120000_add_reschedule_request` implements the
