@@ -4,6 +4,7 @@ import { createServer, request as httpRequest } from 'node:http';
 import path from 'node:path';
 import { Duplex } from 'node:stream';
 
+import { Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Test } from '@nestjs/testing';
 import { Fetch, NodeWebSocket } from 'engine.io-client';
@@ -16,10 +17,14 @@ import { AccountStatus, Role } from '@generated/prisma/client';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import { EmailService } from '@infrastructure/email/email.service';
 import { CURRENT_PRIVACY_POLICY_VERSION } from '@modules/auth/auth.constants';
+import { JwtAuthGuard } from '@modules/auth/auth.guard';
 import { AuthService } from '@modules/auth/auth.service';
 import { JwtTokenService } from '@modules/auth/jwt.service';
 import { PasswordService } from '@modules/auth/password.service';
+import { RolesGuard } from '@modules/auth/roles.guard';
 import { SessionRevocations } from '@modules/auth/session-revocations';
+import { ConversationEvents } from '@modules/conversations/conversation-events';
+import { ConversationsController } from '@modules/conversations/conversations.controller';
 import { ConversationsGateway } from '@modules/conversations/conversations.gateway';
 import { ConversationsService } from '@modules/conversations/conversations.service';
 import {
@@ -30,7 +35,10 @@ import {
   conversationRecipientRoom,
 } from '@modules/conversations/conversations.socket-contract';
 
-import type { ChatSocket } from '@modules/conversations/conversations.socket-contract';
+import type {
+  ChatSocket,
+  MessageCreatedPayload,
+} from '@modules/conversations/conversations.socket-contract';
 import type { INestApplication } from '@nestjs/common';
 import type { ChildProcess } from 'node:child_process';
 import type { Socket } from 'socket.io-client';
@@ -42,6 +50,14 @@ const CONVERSATION = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const MISSING = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
 const FOREIGN = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
 const SESSION = '44444444-4444-4444-8444-444444444444';
+const PROBE: MessageCreatedPayload = {
+  messageId: '66666666-6666-4666-8666-666666666666',
+  conversationId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+  senderId: '11111111-1111-4111-8111-111111111111',
+  text: 'synthetic',
+  sentAt: '2026-11-10T11:00:00.000Z',
+  readAt: null,
+};
 const ORIGIN = 'http://localhost:3000';
 const SECRET = 's3-t01-synthetic-access-secret-at-least-32-characters';
 const config = new AuthConfigService(
@@ -80,8 +96,10 @@ describe('S3-T01 real Socket.IO transport, JWT and room authorization (mocked pe
   let sessions: Map<string, ReturnType<typeof activeSession>>;
   const clients: Socket[] = [];
   const db = {
+    $queryRaw: jest.fn(),
     authSession: { findUnique: jest.fn(), updateMany: jest.fn() },
     conversation: { findUnique: jest.fn() },
+    message: { create: jest.fn() },
   };
 
   beforeEach(async () => {
@@ -106,9 +124,13 @@ describe('S3-T01 real Socket.IO transport, JWT and room authorization (mocked pe
       ),
     );
     const module = await Test.createTestingModule({
+      controllers: [ConversationsController],
       providers: [
+        ConversationEvents,
         ConversationsGateway,
         ConversationsService,
+        JwtAuthGuard,
+        RolesGuard,
         JwtTokenService,
         SessionRevocations,
         AuthService,
@@ -304,13 +326,13 @@ describe('S3-T01 real Socket.IO transport, JWT and room authorization (mocked pe
     expect(serverSocket(tutor).rooms).toEqual(
       new Set([tutor.id, conversationRecipientRoom(CONVERSATION, TUTOR)]),
     );
-    const delivered = once(tutor, 'test_probe');
+    const delivered = once(tutor, 'message_created');
     const senderEcho = jest.fn();
-    student.on('test_probe', senderEcho);
+    student.on('message_created', senderEcho);
     await gateway.forAuthorizedRecipient(CONVERSATION, TUTOR, (socket) =>
-      socket.emit('test_probe', 'synthetic'),
+      socket.emit('message_created', PROBE),
     );
-    await expect(delivered).resolves.toEqual(['synthetic']);
+    await expect(delivered).resolves.toEqual([PROBE]);
     for (let attempt = 0; attempt < 2; attempt++) {
       expect(await event(student, 'conversation_leave')).toEqual({
         ok: true,
@@ -464,11 +486,11 @@ describe('S3-T01 real Socket.IO transport, JWT and room authorization (mocked pe
     expect(serverSocket(socket).rooms).toEqual(
       new Set([socket.id, conversationRecipientRoom(CONVERSATION, STUDENT)]),
     );
-    const delivered = once(socket, 'test_probe');
+    const delivered = once(socket, 'message_created');
     await gateway.forAuthorizedRecipient(CONVERSATION, STUDENT, (server) =>
-      server.emit('test_probe', 'synthetic'),
+      server.emit('message_created', PROBE),
     );
-    await expect(delivered).resolves.toEqual(['synthetic']);
+    await expect(delivered).resolves.toEqual([PROBE]);
     db.conversation.findUnique.mockResolvedValue({ studentUserId: OTHER, tutorUserId: TUTOR });
     const dispatch = jest.fn();
     const disconnected = once(socket, 'disconnect');
@@ -766,5 +788,167 @@ describe('S3-T01 real Socket.IO transport, JWT and room authorization (mocked pe
       web.closeAllConnections();
       await new Promise<void>((resolve) => web.close(() => resolve()));
     }
+  });
+
+  describe('S3-T02 events from committed REST writes', () => {
+    const MESSAGE_ID = '77777777-7777-4777-8777-777777777777';
+    const TEXT = 'Do you teach quadratic equations?';
+    const SENT_AT = new Date('2026-11-10T11:00:00.000Z');
+    const READ_AT = new Date('2026-11-10T11:05:00.000Z');
+    const storedMessage = (senderUserId = STUDENT) => ({
+      id: MESSAGE_ID,
+      conversationId: CONVERSATION,
+      senderUserId,
+      sentAt: SENT_AT,
+      text: TEXT,
+      readAt: null,
+    });
+
+    async function post(path: string, token: string, body: unknown) {
+      const response = await fetch(`${url}/api/v1/conversations/${CONVERSATION}/${path}`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const json: unknown = await response.json();
+      return { status: response.status, body: json };
+    }
+
+    async function joined(token: string): Promise<Socket> {
+      const socket = client({ accessToken: token });
+      await connect(socket);
+      await event(socket, 'conversation_join');
+      return socket;
+    }
+
+    function recorder(socket: Socket): unknown[] {
+      const received: unknown[] = [];
+      socket.on('message_created', (payload: unknown) =>
+        received.push(['message_created', payload]),
+      );
+      socket.on('messages_read', (payload: unknown) => received.push(['messages_read', payload]));
+      return received;
+    }
+
+    // One acknowledged round trip per socket, so anything already sent to it has arrived.
+    async function settle(sockets: Socket[]): Promise<void> {
+      await Promise.all(
+        sockets.map((socket) => event(socket, 'conversation_leave', { conversationId: MISSING })),
+      );
+    }
+
+    it('sends a REST message only to the other participant, exactly as REST returned it', async () => {
+      const studentToken = access();
+      const [studentTab, otherStudentTab, tutor] = await Promise.all([
+        joined(studentToken),
+        joined(studentToken),
+        joined(access(TUTOR, Role.TUTOR)),
+      ]);
+      const outsider = client({ accessToken: access(OTHER) });
+      await connect(outsider);
+      await event(outsider, 'conversation_join', { conversationId: FOREIGN });
+      const bystanders = [studentTab, otherStudentTab, outsider];
+      const seen = bystanders.map(recorder);
+      db.message.create.mockResolvedValue(storedMessage());
+      const delivered = once(tutor, 'message_created');
+
+      const response = await post('messages', studentToken, { text: TEXT });
+
+      expect(response).toEqual({
+        status: 201,
+        body: {
+          messageId: MESSAGE_ID,
+          conversationId: CONVERSATION,
+          senderId: STUDENT,
+          text: TEXT,
+          sentAt: SENT_AT.toISOString(),
+          readAt: null,
+        },
+      });
+      await expect(delivered).resolves.toEqual([response.body]);
+      await settle(bystanders);
+      expect(seen).toEqual([[], [], []]);
+    });
+
+    it('sends the changed IDs to the original sender and nothing for a repeat read', async () => {
+      const tutorToken = access(TUTOR, Role.TUTOR);
+      const [student, tutorTab, otherTutorTab] = await Promise.all([
+        joined(access()),
+        joined(tutorToken),
+        joined(tutorToken),
+      ]);
+      const studentSeen = recorder(student);
+      const tutorSeen = [tutorTab, otherTutorTab].map(recorder);
+      db.$queryRaw
+        .mockResolvedValueOnce([{ messageIds: [MESSAGE_ID], readAt: READ_AT, updatedCount: 1 }])
+        .mockResolvedValueOnce([{ messageIds: null, readAt: null, updatedCount: 0 }]);
+      const delivered = once(student, 'messages_read');
+
+      await expect(post('read', tutorToken, {})).resolves.toEqual({
+        status: 200,
+        body: { updatedCount: 1, readAt: READ_AT.toISOString() },
+      });
+      await expect(delivered).resolves.toEqual([
+        {
+          conversationId: CONVERSATION,
+          messageIds: [MESSAGE_ID],
+          readByUserId: TUTOR,
+          readAt: READ_AT.toISOString(),
+        },
+      ]);
+      await expect(post('read', tutorToken, {})).resolves.toEqual({
+        status: 200,
+        body: { updatedCount: 0, readAt: null },
+      });
+      await settle([student, tutorTab, otherTutorTab]);
+      expect(studentSeen).toHaveLength(1);
+      expect(tutorSeen).toEqual([[], []]);
+    });
+
+    it('sends nothing when the message cannot be stored', async () => {
+      const failure = jest.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
+      const tutor = await joined(access(TUTOR, Role.TUTOR));
+      const seen = recorder(tutor);
+      db.message.create.mockRejectedValue(new Error('Synthetic persistence failure'));
+
+      const response = await post('messages', access(), { text: TEXT });
+
+      expect(response.status).toBe(500);
+      await settle([tutor]);
+      expect(seen).toEqual([]);
+      failure.mockRestore();
+    });
+
+    it('still returns the stored message when socket delivery fails', async () => {
+      const warn = jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+      jest
+        .spyOn(gateway, 'forAuthorizedRecipient')
+        .mockRejectedValue(new Error('Synthetic delivery failure'));
+      db.message.create.mockResolvedValue(storedMessage());
+
+      const response = await post('messages', access(), { text: TEXT });
+
+      expect(response.status).toBe(201);
+      expect(response.body).toMatchObject({ messageId: MESSAGE_ID });
+      await new Promise((resolve) => setImmediate(resolve));
+      expect(warn).toHaveBeenCalledWith('Chat message_created delivery failed (Error)');
+      jest.restoreAllMocks();
+    });
+
+    it('does not deliver to a recipient whose session was revoked after joining', async () => {
+      const tutor = await joined(access(TUTOR, Role.TUTOR));
+      const seen = recorder(tutor);
+      const gone = once(tutor, 'disconnect');
+      const session = sessions.get(`${SESSION}-${TUTOR}`);
+      if (!session) throw new Error('Missing fixture');
+      session.revokedAt = new Date();
+      db.message.create.mockResolvedValue(storedMessage());
+
+      const response = await post('messages', access(), { text: TEXT });
+
+      expect(response.status).toBe(201);
+      await gone;
+      expect(seen).toEqual([]);
+    });
   });
 });

@@ -8,6 +8,7 @@ import { PrismaService } from '@infrastructure/database/prisma.service';
 import { JwtAuthGuard } from '@modules/auth/auth.guard';
 import { JwtTokenService } from '@modules/auth/jwt.service';
 import { RolesGuard } from '@modules/auth/roles.guard';
+import { ConversationEvents } from '@modules/conversations/conversation-events';
 import { ConversationsController } from '@modules/conversations/conversations.controller';
 import { ConversationsService } from '@modules/conversations/conversations.service';
 
@@ -68,6 +69,7 @@ describe('Conversation APIs (e2e)', () => {
     const moduleFixture = await Test.createTestingModule({
       controllers: [ConversationsController],
       providers: [
+        ConversationEvents,
         ConversationsService,
         JwtAuthGuard,
         RolesGuard,
