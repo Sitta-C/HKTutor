@@ -3,6 +3,7 @@ import { BadRequestException } from '@nestjs/common';
 import { isUuid } from '@common/pipes/uuid-param.pipe';
 
 import type { AccessSession } from '@modules/auth/access-session';
+import type { MessageResponseDto } from '@modules/conversations/conversations.dto';
 import type { Namespace, Socket } from 'socket.io';
 
 export const CHAT_NAMESPACE = '/chat';
@@ -11,6 +12,8 @@ export const CHAT_MAX_ROOMS = 10;
 export const CHAT_MAX_CONNECTIONS_PER_USER = 5;
 export const CHAT_RATE_LIMIT = 30;
 export const CHAT_RATE_WINDOW_MS = 10_000;
+// Larger reads are split into several messages_read events; REST history reconciles the rest.
+export const MESSAGES_READ_MAX_IDS = 100;
 
 export interface ConversationRoomDto {
   conversationId: string;
@@ -43,8 +46,22 @@ export interface ChatClientEvents {
   ) => void;
 }
 
-// No domain events are emitted by T01. T02 will add its committed-write event contracts here.
-export type ChatServerEvents = Record<string, (...args: unknown[]) => void>;
+/** S3-T02: exactly the persisted message that POST /conversations/:id/messages returns. */
+export type MessageCreatedPayload = MessageResponseDto;
+
+/** S3-T02: only the messages this POST /conversations/:id/read call changed. */
+export interface MessagesReadPayload {
+  conversationId: string;
+  messageIds: string[];
+  readByUserId: string;
+  readAt: string;
+}
+
+// Both events are sent only after a committed REST write, and only to the other participant.
+export interface ChatServerEvents {
+  message_created: (payload: MessageCreatedPayload) => void;
+  messages_read: (payload: MessagesReadPayload) => void;
+}
 export type ChatSocket = Socket<
   ChatClientEvents,
   ChatServerEvents,

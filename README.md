@@ -46,6 +46,10 @@ Unicode code points. The API returns `201` when a student or tutor participant s
 The server derives the sender from the authenticated session; rejected responses never include
 conversation content or participant details.
 
+Sending messages and marking them read require acceptance of the current privacy policy. Missing
+or outdated consent returns `403 FORBIDDEN` before writing or publishing chat events. Successful
+responses from both POST endpoints use `Cache-Control: no-store`.
+
 The tutor dashboard shows the next confirmed lesson, today's availability, pending requests, and
 monthly teaching analytics. It uses existing read-only API filters to load pending requests, future
 confirmed lessons, and the selected analytics month separately. Monthly loading/errors stay within

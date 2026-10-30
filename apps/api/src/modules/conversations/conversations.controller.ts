@@ -14,7 +14,7 @@ import {
 
 import { UuidParamPipe } from '@common/pipes/uuid-param.pipe';
 import { Role } from '@generated/prisma/client';
-import { CurrentUser } from '@modules/auth/auth.decorator';
+import { CurrentUser, RequireCurrentConsent } from '@modules/auth/auth.decorator';
 import { JwtAuthGuard } from '@modules/auth/auth.guard';
 import { Roles } from '@modules/auth/roles.decorator';
 import { RolesGuard } from '@modules/auth/roles.guard';
@@ -112,6 +112,8 @@ export class ConversationsController {
   }
 
   @Post(':conversationId/messages')
+  @RequireCurrentConsent()
+  @Header('Cache-Control', 'no-store')
   @HttpCode(HttpStatus.CREATED)
   @SendMessageDoc()
   @Roles(Role.STUDENT, Role.TUTOR)
@@ -128,6 +130,8 @@ export class ConversationsController {
   }
 
   @Post(':conversationId/read')
+  @RequireCurrentConsent()
+  @Header('Cache-Control', 'no-store')
   @HttpCode(HttpStatus.OK)
   @MarkMessagesReadDoc()
   @Roles(Role.STUDENT, Role.TUTOR)

@@ -1,13 +1,15 @@
-import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Logger, NotFoundException } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 
 import { AccountStatus, Role } from '@generated/prisma/enums';
 import { PrismaService } from '@infrastructure/database/prisma.service';
+import { ConversationEvents } from '@modules/conversations/conversation-events';
 import { encodeConversationCursor } from '@modules/conversations/conversations.cursor';
 import { ConversationsService } from '@modules/conversations/conversations.service';
 import { publicTutorWhere } from '@modules/tutors/public-tutor-access';
 
 import type { Prisma } from '@generated/prisma/client';
+import type { ConversationEvent } from '@modules/conversations/conversation-events';
 import type { TestingModule } from '@nestjs/testing';
 
 const STUDENT_ID = '6bb01222-1fce-4bc3-a69d-3d90db2fdf57';
@@ -81,6 +83,8 @@ const storedMessage = (overrides: Record<string, unknown> = {}) => ({
 
 describe('ConversationsService', () => {
   let service: ConversationsService;
+  let events: ConversationEvents;
+  let published: ConversationEvent[];
 
   const mockPrismaService = {
     $queryRaw: jest.fn(),
@@ -96,6 +100,7 @@ describe('ConversationsService', () => {
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
+        ConversationEvents,
         ConversationsService,
         {
           provide: PrismaService,
@@ -105,6 +110,9 @@ describe('ConversationsService', () => {
     }).compile();
 
     service = module.get<ConversationsService>(ConversationsService);
+    events = module.get(ConversationEvents);
+    published = [];
+    events.subscribe((event) => published.push(event));
   });
 
   describe('getUnreadMessageCount', () => {
@@ -534,6 +542,69 @@ describe('ConversationsService', () => {
         >
       )[call]?.[0].data;
 
+    describe('message_created (S3-T02)', () => {
+      const send = (senderUserId = STUDENT_ID) =>
+        service.sendMessage({ conversationId: CONVERSATION_ID, senderUserId, text: US2_1_MESSAGE });
+
+      beforeEach(() => {
+        mockPrismaService.conversation.findUnique.mockResolvedValue(participants);
+      });
+
+      it('publishes the stored message to the other participant after the create', async () => {
+        const order: string[] = [];
+        mockPrismaService.message.create.mockImplementation(() => {
+          order.push('stored');
+          return Promise.resolve(storedMessage());
+        });
+        events.subscribe(() => order.push('published'));
+
+        const response = await send();
+
+        expect(order).toEqual(['stored', 'published']);
+        expect(published).toEqual([
+          { type: 'message_created', recipientUserId: TUTOR_ID, payload: response },
+        ]);
+      });
+
+      it("sends a tutor's message to the student", async () => {
+        mockPrismaService.message.create.mockResolvedValue(
+          storedMessage({ senderUserId: TUTOR_ID }),
+        );
+
+        await send(TUTOR_ID);
+
+        expect(published.map((event) => event.recipientUserId)).toEqual([STUDENT_ID]);
+      });
+
+      it('publishes nothing when the message cannot be stored', async () => {
+        mockPrismaService.message.create.mockRejectedValue(createDatabaseError('P2003'));
+
+        await expect(send()).rejects.toThrow('Database error P2003');
+        expect(published).toEqual([]);
+      });
+
+      it('publishes nothing for a nonparticipant or a missing conversation', async () => {
+        await expect(send(OTHER_STUDENT_ID)).rejects.toThrow(ForbiddenException);
+        mockPrismaService.conversation.findUnique.mockResolvedValue(null);
+        await expect(send()).rejects.toThrow(NotFoundException);
+        expect(mockPrismaService.message.create).not.toHaveBeenCalled();
+        expect(published).toEqual([]);
+      });
+
+      it('still returns the stored message when delivery throws', async () => {
+        const warn = jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+        mockPrismaService.message.create.mockResolvedValue(storedMessage());
+        events.subscribe(() => {
+          throw new Error('Synthetic delivery failure');
+        });
+
+        await expect(send()).resolves.toMatchObject({ messageId: MESSAGE_ID });
+        expect(published).toHaveLength(1);
+        expect(warn).toHaveBeenCalledWith('Chat message_created hand-off failed (Error)');
+        warn.mockRestore();
+      });
+    });
+
     it('stores the US2-1 message from the student and returns the API-02 fields', async () => {
       mockPrismaService.conversation.findUnique.mockResolvedValue(participants);
       mockPrismaService.message.create.mockResolvedValue(storedMessage());
@@ -857,6 +928,89 @@ describe('ConversationsService', () => {
 
     beforeEach(() => {
       mockPrismaService.conversation.findUnique.mockResolvedValue(participants);
+    });
+
+    describe('messages_read (S3-T02)', () => {
+      const SECOND_MESSAGE_ID = 'c8f5d2b3-6a7e-4f9c-8b1d-4e3a2f5c6b70';
+      const receipt = (messageIds: string[], readByUserId = TUTOR_ID) => ({
+        conversationId: CONVERSATION_ID,
+        messageIds,
+        readByUserId,
+        readAt: READ_AT.toISOString(),
+      });
+
+      it('publishes exactly the changed message IDs to the sender of those messages', async () => {
+        mockPrismaService.$queryRaw.mockResolvedValue([
+          { messageIds: [MESSAGE_ID, SECOND_MESSAGE_ID], readAt: READ_AT, updatedCount: 2 },
+        ]);
+
+        await expect(markRead()).resolves.toEqual({
+          readAt: READ_AT.toISOString(),
+          updatedCount: 2,
+        });
+        expect(published).toEqual([
+          {
+            type: 'messages_read',
+            recipientUserId: STUDENT_ID,
+            payload: receipt([MESSAGE_ID, SECOND_MESSAGE_ID]),
+          },
+        ]);
+        expect(readQuery()?.text).toContain('RETURNING "id", "sentAt", "readAt"');
+        expect(readQuery()?.text).toContain('array_agg("id"::text ORDER BY "sentAt", "id")');
+      });
+
+      it("sends a student's read receipt to the tutor", async () => {
+        mockPrismaService.$queryRaw.mockResolvedValue([
+          { messageIds: [MESSAGE_ID], readAt: READ_AT, updatedCount: 1 },
+        ]);
+
+        await markRead({ userId: STUDENT_ID });
+
+        expect(published).toEqual([
+          {
+            type: 'messages_read',
+            recipientUserId: TUTOR_ID,
+            payload: receipt([MESSAGE_ID], STUDENT_ID),
+          },
+        ]);
+      });
+
+      it('publishes nothing when the read changes no rows', async () => {
+        mockPrismaService.$queryRaw.mockResolvedValue([
+          { messageIds: null, readAt: null, updatedCount: 0 },
+        ]);
+
+        await expect(markRead()).resolves.toEqual({ readAt: null, updatedCount: 0 });
+        expect(published).toEqual([]);
+      });
+
+      it('splits a large read into events of at most 100 IDs, in order', async () => {
+        const messageIds = Array.from(
+          { length: 250 },
+          (_, index) => `00000000-0000-4000-8000-${String(index).padStart(12, '0')}`,
+        );
+        mockPrismaService.$queryRaw.mockResolvedValue([
+          { messageIds, readAt: READ_AT, updatedCount: 250 },
+        ]);
+
+        await expect(markRead()).resolves.toEqual({
+          readAt: READ_AT.toISOString(),
+          updatedCount: 250,
+        });
+        const batches = published.flatMap((event) =>
+          event.type === 'messages_read' ? [event.payload.messageIds] : [],
+        );
+        expect(batches.map((batch) => batch.length)).toEqual([100, 100, 50]);
+        expect(batches.flat()).toEqual(messageIds);
+        expect(published.every(({ recipientUserId }) => recipientUserId === STUDENT_ID)).toBe(true);
+      });
+
+      it('publishes nothing when the update fails', async () => {
+        mockPrismaService.$queryRaw.mockRejectedValue(createDatabaseError('40001'));
+
+        await expect(markRead()).rejects.toThrow('Database error 40001');
+        expect(published).toEqual([]);
+      });
     });
 
     it("marks only the other participant's unread messages, with the database clock", async () => {

@@ -119,9 +119,10 @@ The standard Socket.IO `connect` event exposes `socket.id`; this is not an HTTP 
 There is no automatic conversation membership.
 
 The gateway and `JwtAuthGuard` share `verifyAccessSession`. Signature, issuer, audience, access
-token type, expiry and active session checks stay common; the REST guard retains its previous
-status codes and consent/role behavior. Chat additionally requires the latest STUDENT/TUTOR role,
-an active, verified, non-deleted account and acceptance of the current privacy policy.
+token type, expiry and active session checks stay common. REST routes opt into current consent
+with `@RequireCurrentConsent()`; the S3-T02 send/read writes below require it. Chat requires the
+latest STUDENT/TUTOR role, an active, verified, non-deleted account and acceptance of the current
+privacy policy.
 `connect_error.data.code` is `UNAUTHENTICATED` for missing/invalid/expired/revoked credentials and
 `FORBIDDEN` for chat-ineligible accounts or consent. A supplied Origin must equal `WEB_ORIGIN`
 (default `http://localhost:3000`), including WebSocket Upgrade. Non-browser clients without an
@@ -155,8 +156,8 @@ process. Idle sockets recheck persistence every five seconds for changes from an
 `forAuthorizedRecipient` revalidates session/account/consent and conversation membership for each
 receiving tab immediately before protected dispatch; callers must use this boundary rather than
 broadcast directly to cached rooms. A revoked recipient cannot receive through that boundary even
-before the idle sweep. No Redis, message store, message/read event emission, UI subscription or
-automatic reconnect/rejoin is added here; those remain S3-T02/T03/T04.
+before the idle sweep. No Redis, message store, UI subscription or automatic reconnect/rejoin is
+added here. Message and read events are described under S3-T02 below; the UI remains S3-T03/T04.
 
 #### Same-origin development and deployment proxy
 
@@ -191,6 +192,45 @@ pnpm --filter @hktutor/api build
 ```
 
 The Compose test only parses the chat overlay; it does not run Nginx or a container.
+
+### Chat message and read events (S3-T02)
+
+REST remains the only write path; there is no socket command to send or read messages, and the
+REST request and response JSON fields are unchanged. After `POST /api/v1/conversations/:conversationId/messages`
+or `POST /api/v1/conversations/:conversationId/read` has saved its change, `ConversationsService`
+publishes an in-process `ConversationEvents` event. `ConversationsGateway` delivers it through
+`forAuthorizedRecipient` to the other participant's joined tabs only.
+
+Both POST routes require a valid access session, STUDENT/TUTOR role, conversation participation
+and current privacy consent. Missing `consentAcceptedAt` or a missing/outdated `policyVersion`
+returns `403 FORBIDDEN` before conversation access, persistence or event publication. Invalid,
+expired or revoked authentication still returns `401 UNAUTHENTICATED`. Consent is checked from
+the same database-backed session lookup as authentication; other REST routes keep their existing
+consent policy. Successful send/read responses, including a zero-row read, use
+`Cache-Control: no-store`.
+
+| Event             | Sent when                              | Recipient                    | Payload                                                                                 |
+| ----------------- | -------------------------------------- | ---------------------------- | --------------------------------------------------------------------------------------- |
+| `message_created` | `POST …/messages` stored a message     | The other participant        | Exactly the `201` body: `{ messageId, conversationId, senderId, text, sentAt, readAt }` |
+| `messages_read`   | `POST …/read` changed at least one row | The sender of those messages | `{ conversationId, messageIds, readByUserId, readAt }`                                  |
+
+`messageIds` lists only the rows that call changed, oldest first by `(sentAt, id)`, returned by the
+same `UPDATE` statement; `readAt` equals the REST response's `readAt`. More than 100 changed IDs are
+split into several events of at most 100 IDs. A repeat read that changes nothing
+(`updatedCount: 0`) sends no event.
+
+Each user has their own receiving room, so neither the sender nor the reader gets an echo, including
+on their other tabs. A failed write publishes nothing. Delivery runs in the background after the
+write and never changes the REST result; a failure is logged as
+`Chat <event> delivery failed (<ErrorClass>)` without message text or user IDs. Delivery is best
+effort: a disconnected tab, an API restart or a second API process can miss an event, so clients
+deduplicate by `messageId` and reconcile through `GET …/messages` after reconnecting (S3-T03).
+
+The S3-T01 focused checks above also cover these events. Unit tests prove publish-after-save
+ordering, recipients, batching and failure handling; the socket e2e suite runs the real REST
+controller and guards with real Socket.IO clients and mocked persistence. The changed read-receipt
+statement runs against PostgreSQL in `pnpm db:verify:message-pagination` (S2-T21) on a disposable
+database.
 
 ### Unread message total
 

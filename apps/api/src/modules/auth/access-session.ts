@@ -12,12 +12,13 @@ export interface AccessSession {
   expiresAt: number;
 }
 
-/** Shared verification; chat adds eligibility/consent without changing REST's existing policy. */
+/** Shared verification; REST routes opt into consent, while chat always requires it. */
 export async function verifyAccessSession(
   token: string,
   jwtTokens: JwtTokenService,
   prisma: PrismaService,
   chat = false,
+  requireCurrentConsent = false,
 ): Promise<AccessSession> {
   const payload = jwtTokens.verifyAccessToken(token);
   if (!payload) {
@@ -47,12 +48,13 @@ export async function verifyAccessSession(
     throw new UnauthorizedException('Invalid or expired authentication token');
   }
   if (
-    chat &&
-    ((account.role !== Role.STUDENT && account.role !== Role.TUTOR) ||
-      !account.consentAcceptedAt ||
-      account.policyVersion !== CURRENT_PRIVACY_POLICY_VERSION)
+    (chat && account.role !== Role.STUDENT && account.role !== Role.TUTOR) ||
+    ((chat || requireCurrentConsent) &&
+      (!account.consentAcceptedAt || account.policyVersion !== CURRENT_PRIVACY_POLICY_VERSION))
   ) {
-    throw new ForbiddenException('Chat access denied');
+    throw new ForbiddenException(
+      chat ? 'Chat access denied' : 'Accept the current privacy notice to continue.',
+    );
   }
   return {
     user: { id: account.id, email: account.email, role: account.role, sessionId: payload.sid },

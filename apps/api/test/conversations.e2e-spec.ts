@@ -5,9 +5,11 @@ import request from 'supertest';
 import { configureApplication } from '@app/app.setup';
 import { AccountStatus, Role } from '@generated/prisma/client';
 import { PrismaService } from '@infrastructure/database/prisma.service';
+import { CURRENT_PRIVACY_POLICY_VERSION } from '@modules/auth/auth.constants';
 import { JwtAuthGuard } from '@modules/auth/auth.guard';
 import { JwtTokenService } from '@modules/auth/jwt.service';
 import { RolesGuard } from '@modules/auth/roles.guard';
+import { ConversationEvents } from '@modules/conversations/conversation-events';
 import { ConversationsController } from '@modules/conversations/conversations.controller';
 import { ConversationsService } from '@modules/conversations/conversations.service';
 
@@ -63,11 +65,13 @@ describe('Conversation APIs (e2e)', () => {
   const messageFindFirst = jest.fn();
   const messageFindMany = jest.fn();
   const queryRaw = jest.fn();
+  const published = jest.fn();
 
   beforeAll(async () => {
     const moduleFixture = await Test.createTestingModule({
       controllers: [ConversationsController],
       providers: [
+        ConversationEvents,
         ConversationsService,
         JwtAuthGuard,
         RolesGuard,
@@ -92,6 +96,7 @@ describe('Conversation APIs (e2e)', () => {
       ],
     }).compile();
 
+    moduleFixture.get(ConversationEvents).subscribe(published);
     app = moduleFixture.createNestApplication();
     configureApplication(app);
     await app.init();
@@ -102,6 +107,89 @@ describe('Conversation APIs (e2e)', () => {
   });
 
   afterEach(() => jest.resetAllMocks());
+
+  describe.each([
+    ['messages', { text: 'Hello' }],
+    ['read', {}],
+  ])('current consent for POST /conversations/:conversationId/%s', (path, body) => {
+    it.each([Role.STUDENT, Role.TUTOR])(
+      'allows %s after accepting current consent with the same access token',
+      async (role) => {
+        authenticateAs(role, { consentAcceptedAt: SENT_AT, policyVersion: 'obsolete-policy' });
+        await post(`/conversations/${CONVERSATION_ID}/${path}`).send(body).expect(403);
+
+        authenticateAs(role);
+        conversationFindUnique.mockResolvedValue(participants);
+        messageCreate.mockResolvedValue({
+          conversationId: CONVERSATION_ID,
+          id: MESSAGE_ID,
+          readAt: null,
+          senderUserId: USER_IDS[role],
+          sentAt: SENT_AT,
+          text: 'Hello',
+        });
+        queryRaw.mockResolvedValue([{ readAt: null, updatedCount: 0 }]);
+
+        await post(`/conversations/${CONVERSATION_ID}/${path}`)
+          .send(body)
+          .expect(path === 'messages' ? 201 : 200)
+          .expect('Cache-Control', 'no-store');
+        expect(authSessionFindUnique).toHaveBeenCalledTimes(2);
+      },
+    );
+
+    it.each(
+      [Role.STUDENT, Role.TUTOR].flatMap((role) =>
+        [
+          { consentAcceptedAt: null, policyVersion: CURRENT_PRIVACY_POLICY_VERSION },
+          { consentAcceptedAt: SENT_AT, policyVersion: null },
+          { consentAcceptedAt: SENT_AT, policyVersion: 'obsolete-policy' },
+        ].map((consent) => ({ role, ...consent })),
+      ),
+    )('rejects $role with incomplete or outdated consent %#', async ({ role, ...consent }) => {
+      authenticateAs(role, consent);
+
+      const response = await post(`/conversations/${CONVERSATION_ID}/${path}`)
+        .send(body)
+        .expect(403);
+
+      expect(response.body).toMatchObject({
+        code: 'FORBIDDEN',
+        message: 'Accept the current privacy notice to continue.',
+      });
+      expect(conversationFindUnique).not.toHaveBeenCalled();
+      expect(messageCreate).not.toHaveBeenCalled();
+      expect(queryRaw).not.toHaveBeenCalled();
+      expect(published).not.toHaveBeenCalled();
+      expectNoConversationContent(response.body);
+    });
+
+    it.each(['invalid', 'revoked', 'expired'])(
+      'authenticates a %s credential before checking consent',
+      async (state) => {
+        authenticateAs(Role.STUDENT, { consentAcceptedAt: null, policyVersion: null });
+        if (state === 'invalid') {
+          verifyAccessToken.mockReturnValue(null);
+        } else {
+          authSessionFindUnique.mockResolvedValue({
+            expiresAt: state === 'expired' ? new Date(0) : new Date(Date.now() + 60_000),
+            revokedAt: state === 'revoked' ? SENT_AT : null,
+            userId: STUDENT_ID,
+          });
+        }
+
+        const response = await post(`/conversations/${CONVERSATION_ID}/${path}`)
+          .send(body)
+          .expect(401);
+
+        expect(response.body).toMatchObject({ code: 'UNAUTHENTICATED' });
+        expect(conversationFindUnique).not.toHaveBeenCalled();
+        expect(messageCreate).not.toHaveBeenCalled();
+        expect(queryRaw).not.toHaveBeenCalled();
+        expect(published).not.toHaveBeenCalled();
+      },
+    );
+  });
 
   describe('GET /api/v1/conversations/unread-count', () => {
     it.each([Role.STUDENT, Role.TUTOR])(
@@ -292,6 +380,7 @@ describe('Conversation APIs (e2e)', () => {
 
       const response = await post(messagesPath).send({ text }).expect(201);
 
+      expect(response.headers['cache-control']).toBe('no-store');
       expect(response.body).toEqual({
         conversationId: CONVERSATION_ID,
         messageId: MESSAGE_ID,
@@ -542,6 +631,8 @@ describe('Conversation APIs (e2e)', () => {
       const first = await post(readPath).send({}).expect(200);
       const repeat = await post(readPath).send({}).expect(200);
 
+      expect(first.headers['cache-control']).toBe('no-store');
+      expect(repeat.headers['cache-control']).toBe('no-store');
       expect(first.body).toEqual({ readAt: READ_AT.toISOString(), updatedCount: 3 });
       expect(repeat.body).toEqual({ readAt: null, updatedCount: 0 });
     });
@@ -666,7 +757,13 @@ describe('Conversation APIs (e2e)', () => {
     studentProfileFindFirst.mockResolvedValue({ userId: STUDENT_ID });
   }
 
-  function authenticateAs(role: Role): void {
+  function authenticateAs(
+    role: Role,
+    consent: { consentAcceptedAt: Date | null; policyVersion: string | null } = {
+      consentAcceptedAt: SENT_AT,
+      policyVersion: CURRENT_PRIVACY_POLICY_VERSION,
+    },
+  ): void {
     const id = USER_IDS[role];
     verifyAccessToken.mockReturnValue({ sid: 'session-id', sub: id });
     authSessionFindUnique.mockResolvedValue({
@@ -678,6 +775,7 @@ describe('Conversation APIs (e2e)', () => {
         deletedAt: null,
         email: `${role.toLowerCase()}@example.com`,
         emailVerifiedAt: new Date(),
+        ...consent,
         id,
         role,
       },

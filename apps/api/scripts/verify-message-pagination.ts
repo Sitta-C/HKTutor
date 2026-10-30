@@ -9,6 +9,7 @@ import 'reflect-metadata';
 
 import { AccountStatus, Role, TutorVerificationStatus } from '@generated/prisma/client';
 import { PrismaService } from '@infrastructure/database/prisma.service';
+import { ConversationEvents } from '@modules/conversations/conversation-events';
 import { DEFAULT_MESSAGES_PAGE_SIZE } from '@modules/conversations/conversations.dto';
 import { ConversationsService } from '@modules/conversations/conversations.service';
 
@@ -59,7 +60,7 @@ assert.equal(parsed.search, '', 'Database URL options/schema overrides are not a
 assert.equal(parsed.hash, '', 'Database URL fragments are not allowed');
 
 const prisma = new PrismaService(new ConfigService({ DATABASE_URL: databaseUrl }));
-const conversations = new ConversationsService(prisma);
+const conversations = new ConversationsService(prisma, new ConversationEvents());
 
 const MESSAGE_COUNT = 35;
 // Deliberately the service's own default (conversations.dto.ts), so a caller who never specifies
