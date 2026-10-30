@@ -10,6 +10,7 @@ import {
 import { Prisma } from '@generated/prisma/client';
 import { AccountStatus, Role } from '@generated/prisma/enums';
 import { PrismaService } from '@infrastructure/database/prisma.service';
+import { ConversationEvents } from '@modules/conversations/conversation-events';
 import {
   decodeConversationCursor,
   encodeConversationCursor,
@@ -31,6 +32,7 @@ import {
   SendMessageDto,
   UnreadMessageCountResponseDto,
 } from '@modules/conversations/conversations.dto';
+import { MESSAGES_READ_MAX_IDS } from '@modules/conversations/conversations.socket-contract';
 import { publicTutorWhere } from '@modules/tutors/public-tutor-access';
 
 export type OpenConversationInput = CreateConversationDto & { role: Role; userId: string };
@@ -87,6 +89,7 @@ interface MessageCursor {
 }
 
 interface ReadReceiptRow {
+  messageIds: string[] | null;
   readAt: Date | null;
   updatedCount: number;
 }
@@ -108,7 +111,10 @@ interface ConversationListRow {
 
 @Injectable()
 export class ConversationsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly events: ConversationEvents,
+  ) {}
 
   async openConversation(input: OpenConversationInput): Promise<OpenConversationResult> {
     const pair = await this.resolvePair(input);
@@ -219,7 +225,7 @@ export class ConversationsService {
   }
 
   async sendMessage(input: SendMessageInput): Promise<MessageResponseDto> {
-    await this.assertParticipant(
+    const participants = await this.assertParticipant(
       input.conversationId,
       input.senderUserId,
       'Only participants can send messages in this conversation.',
@@ -235,7 +241,14 @@ export class ConversationsService {
       },
       select: messageSelect,
     });
-    return toMessageResponse(message);
+    const response = toMessageResponse(message);
+    // The create has committed; a failed rollback never reaches this line.
+    this.events.publish({
+      type: 'message_created',
+      recipientUserId: otherParticipant(participants, input.senderUserId),
+      payload: { ...response },
+    });
+    return response;
   }
 
   /** Read-only: every page is oldest first, with directional cursor traversal. */
@@ -295,7 +308,7 @@ export class ConversationsService {
 
   /** Marks the other participant's unread messages read, once; the caller's own are never touched. */
   async markMessagesRead(input: MarkMessagesReadInput): Promise<MarkMessagesReadResponseDto> {
-    await this.assertParticipant(
+    const participants = await this.assertParticipant(
       input.conversationId,
       input.userId,
       'Only participants can mark messages read in this conversation.',
@@ -319,14 +332,31 @@ export class ConversationsService {
           AND "senderUserId" <> ${input.userId}
           AND "readAt" IS NULL
           ${upTo === undefined ? Prisma.empty : Prisma.sql`AND ("sentAt", "id") <= (${upTo.sentAt}::timestamptz, ${upTo.id}::uuid)`}
-        RETURNING "readAt"
+        RETURNING "id", "sentAt", "readAt"
       )
-      SELECT count(*)::int AS "updatedCount", max("readAt") AS "readAt" FROM updated`);
+      SELECT count(*)::int AS "updatedCount", max("readAt") AS "readAt",
+        array_agg("id"::text ORDER BY "sentAt", "id") AS "messageIds"
+      FROM updated`);
 
-    return {
-      readAt: result?.readAt?.toISOString() ?? null,
-      updatedCount: result?.updatedCount ?? 0,
-    };
+    const readAt = result?.readAt?.toISOString() ?? null;
+    const messageIds = result?.messageIds ?? [];
+    // Only rows this statement changed; a repeat read that changes nothing publishes nothing.
+    if (readAt !== null) {
+      const recipientUserId = otherParticipant(participants, input.userId);
+      for (let start = 0; start < messageIds.length; start += MESSAGES_READ_MAX_IDS) {
+        this.events.publish({
+          type: 'messages_read',
+          recipientUserId,
+          payload: {
+            conversationId: input.conversationId,
+            messageIds: messageIds.slice(start, start + MESSAGES_READ_MAX_IDS),
+            readByUserId: input.userId,
+            readAt,
+          },
+        });
+      }
+    }
+    return { readAt, updatedCount: result?.updatedCount ?? 0 };
   }
 
   /** Throws 404 for a missing conversation and 403 for anyone outside it. */
@@ -334,7 +364,7 @@ export class ConversationsService {
     conversationId: string,
     userId: string,
     forbiddenMessage = 'Conversation access denied',
-  ): Promise<void> {
+  ): Promise<ConversationPair> {
     const conversation = await this.prisma.conversation.findUnique({
       where: { id: conversationId },
       select: { studentUserId: true, tutorUserId: true },
@@ -345,6 +375,7 @@ export class ConversationsService {
     if (userId !== conversation.studentUserId && userId !== conversation.tutorUserId) {
       throw new ForbiddenException(forbiddenMessage);
     }
+    return conversation;
   }
 
   private async findMessageInConversation(
@@ -547,4 +578,10 @@ function toMessageResponse(message: SelectedMessage): MessageResponseDto {
     sentAt: message.sentAt.toISOString(),
     text: message.text,
   };
+}
+
+function otherParticipant(conversation: ConversationPair, userId: string): string {
+  return userId === conversation.studentUserId
+    ? conversation.tutorUserId
+    : conversation.studentUserId;
 }

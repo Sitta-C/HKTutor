@@ -1,4 +1,4 @@
-import { HttpException, UnauthorizedException } from '@nestjs/common';
+import { HttpException, Logger, UnauthorizedException } from '@nestjs/common';
 import {
   ConnectedSocket,
   MessageBody,
@@ -11,6 +11,7 @@ import { PrismaService } from '@infrastructure/database/prisma.service';
 import { verifyAccessSession } from '@modules/auth/access-session';
 import { JwtTokenService } from '@modules/auth/jwt.service';
 import { SessionRevocations } from '@modules/auth/session-revocations';
+import { ConversationEvents } from '@modules/conversations/conversation-events';
 import { ConversationsService } from '@modules/conversations/conversations.service';
 import {
   CHAT_MAX_CONNECTIONS_PER_USER,
@@ -24,6 +25,7 @@ import {
 } from '@modules/conversations/conversations.socket-contract';
 
 import type { AccessSession } from '@modules/auth/access-session';
+import type { ConversationEvent } from '@modules/conversations/conversation-events';
 import type {
   ChatError,
   ChatNamespace,
@@ -72,9 +74,11 @@ export class ConversationsGateway
   @WebSocketServer()
   server!: ChatNamespace;
 
+  private readonly logger = new Logger(ConversationsGateway.name);
   private readonly connections = new Map<string, Connection>();
   private readonly handshakes = new Map<string, { start: number; count: number }>();
   private unsubscribe?: () => void;
+  private unsubscribeEvents?: () => void;
   private recheck?: ReturnType<typeof setInterval>;
 
   constructor(
@@ -82,9 +86,14 @@ export class ConversationsGateway
     private readonly prisma: PrismaService,
     private readonly conversations: ConversationsService,
     private readonly revocations: SessionRevocations,
+    private readonly events: ConversationEvents,
   ) {}
 
   afterInit(server: ChatNamespace): void {
+    // S3-T02: committed REST writes arrive here; delivery runs in the background.
+    this.unsubscribeEvents = this.events.subscribe((event) => {
+      void this.deliver(event);
+    });
     this.unsubscribe = this.revocations.subscribe(({ userId, sessionId }) => {
       for (const connection of this.connections.values()) {
         if (
@@ -143,6 +152,7 @@ export class ConversationsGateway
 
   onModuleDestroy(): void {
     this.unsubscribe?.();
+    this.unsubscribeEvents?.();
     clearInterval(this.recheck);
     for (const connection of this.connections.values()) {
       this.disconnect(connection);
@@ -185,6 +195,28 @@ export class ConversationsGateway
       } catch {
         this.disconnect(connection);
       }
+    }
+  }
+
+  /** Sends a committed write's event only to the other participant's authorized tabs. */
+  private async deliver(event: ConversationEvent): Promise<void> {
+    try {
+      await this.forAuthorizedRecipient(
+        event.payload.conversationId,
+        event.recipientUserId,
+        (socket) => {
+          if (event.type === 'message_created') {
+            socket.emit('message_created', event.payload);
+          } else {
+            socket.emit('messages_read', event.payload);
+          }
+        },
+      );
+    } catch (error) {
+      // The write is already committed; REST reconciliation recovers a missed event.
+      this.logger.warn(
+        `Chat ${event.type} delivery failed (${error instanceof Error ? error.name : 'unknown'})`,
+      );
     }
   }
 
