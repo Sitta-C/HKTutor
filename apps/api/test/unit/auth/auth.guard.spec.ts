@@ -1,4 +1,5 @@
 import { UnauthorizedException } from '@nestjs/common';
+import { Reflector } from '@nestjs/core';
 
 import { AccountStatus, Role } from '@generated/prisma/client';
 import { JwtAuthGuard } from '@modules/auth/auth.guard';
@@ -15,6 +16,7 @@ describe('JwtAuthGuard', () => {
   const guard = new JwtAuthGuard(
     { verifyAccessToken } as unknown as JwtTokenService,
     { authSession: { findUnique } } as unknown as PrismaService,
+    new Reflector(),
   );
 
   afterEach(() => jest.resetAllMocks());
@@ -129,6 +131,8 @@ function createContext(authorization?: string): ExecutionContext {
   const request = { headers } as ExpressRequest;
 
   return {
+    getHandler: () => createContext,
+    getClass: () => JwtAuthGuard,
     switchToHttp: () => ({ getRequest: () => request }),
   } as unknown as ExecutionContext;
 }

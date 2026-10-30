@@ -75,6 +75,19 @@ describe('shared access session verifier', () => {
   });
 
   it.each([
+    { consentAcceptedAt: null, policyVersion: CURRENT_PRIVACY_POLICY_VERSION },
+    { consentAcceptedAt: new Date(), policyVersion: null },
+    { consentAcceptedAt: new Date(), policyVersion: 'obsolete-policy' },
+  ])('requires current consent only when REST opts in %#', async (consent) => {
+    findUnique.mockResolvedValue({ ...fixture(), user: { ...fixture().user, ...consent } });
+
+    await expect(verifyAccessSession(token, tokens, prisma)).resolves.toBeDefined();
+    await expect(verifyAccessSession(token, tokens, prisma, false, true)).rejects.toThrow(
+      new ForbiddenException('Accept the current privacy notice to continue.'),
+    );
+  });
+
+  it.each([
     ['deletedAt', new Date()],
     ['accountStatus', AccountStatus.SUSPENDED],
     ['emailVerifiedAt', null],

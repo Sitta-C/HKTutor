@@ -262,11 +262,14 @@ export function SendMessageDoc(): MethodDecorator {
     ApiOperation({
       summary: 'Send a message in a conversation',
       description:
-        'STUDENT or TUTOR participants only. Text is trimmed and must be 1 to 2,000 characters. A missing conversation returns 404; a non-participant or admin returns 403.',
+        'STUDENT or TUTOR participants with current privacy consent only. Text is trimmed and must be 1 to 2,000 characters. A missing conversation returns 404; a non-participant, admin, or missing/outdated consent returns 403. Successful responses use Cache-Control: no-store.',
     }),
     ApiBearerAuth(JWT_BEARER_AUTH),
     ApiCreatedResponse({
       description: 'The message was stored',
+      headers: {
+        'Cache-Control': { schema: { type: 'string', example: 'no-store' } },
+      },
       schema: {
         allOf: [{ $ref: getSchemaPath(MessageResponseDto) }],
         example: messageExample,
@@ -285,7 +288,7 @@ export function SendMessageDoc(): MethodDecorator {
     }),
     apiUnauthorizedResponse(),
     ApiForbiddenResponse({
-      description: 'The caller is not a participant in the conversation',
+      description: 'The caller is not a participant or has not accepted the current privacy notice',
       schema: errorSchema({
         code: 'FORBIDDEN',
         error: 'Forbidden',
@@ -310,12 +313,15 @@ export function MarkMessagesReadDoc(): MethodDecorator {
     ApiExtraModels(MarkMessagesReadDto, MarkMessagesReadResponseDto),
     ApiOperation({
       description:
-        "Sets readAt on the other participant's unread messages, up to upToMessageId when it is given. The caller's own messages are never marked, and repeating the call changes nothing.",
+        "Requires current privacy consent; missing/outdated consent returns 403. Sets readAt on the other participant's unread messages, up to upToMessageId when it is given. The caller's own messages are never marked, and repeating the call changes nothing. Successful responses use Cache-Control: no-store.",
       summary: 'Mark received messages read',
     }),
     ApiBearerAuth(JWT_BEARER_AUTH),
     ApiOkResponse({
       description: 'How many messages this call marked read, and when',
+      headers: {
+        'Cache-Control': { schema: { type: 'string', example: 'no-store' } },
+      },
       schema: {
         allOf: [{ $ref: getSchemaPath(MarkMessagesReadResponseDto) }],
         example: { readAt: '2026-09-30T08:10:00.000Z', updatedCount: 3 },
@@ -334,7 +340,7 @@ export function MarkMessagesReadDoc(): MethodDecorator {
     }),
     apiUnauthorizedResponse(),
     ApiForbiddenResponse({
-      description: 'The caller is not a participant in the conversation',
+      description: 'The caller is not a participant or has not accepted the current privacy notice',
       schema: errorSchema({
         code: 'FORBIDDEN',
         error: 'Forbidden',

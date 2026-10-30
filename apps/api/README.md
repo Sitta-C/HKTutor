@@ -119,9 +119,10 @@ The standard Socket.IO `connect` event exposes `socket.id`; this is not an HTTP 
 There is no automatic conversation membership.
 
 The gateway and `JwtAuthGuard` share `verifyAccessSession`. Signature, issuer, audience, access
-token type, expiry and active session checks stay common; the REST guard retains its previous
-status codes and consent/role behavior. Chat additionally requires the latest STUDENT/TUTOR role,
-an active, verified, non-deleted account and acceptance of the current privacy policy.
+token type, expiry and active session checks stay common. REST routes opt into current consent
+with `@RequireCurrentConsent()`; the S3-T02 send/read writes below require it. Chat requires the
+latest STUDENT/TUTOR role, an active, verified, non-deleted account and acceptance of the current
+privacy policy.
 `connect_error.data.code` is `UNAUTHENTICATED` for missing/invalid/expired/revoked credentials and
 `FORBIDDEN` for chat-ineligible accounts or consent. A supplied Origin must equal `WEB_ORIGIN`
 (default `http://localhost:3000`), including WebSocket Upgrade. Non-browser clients without an
@@ -195,10 +196,18 @@ The Compose test only parses the chat overlay; it does not run Nginx or a contai
 ### Chat message and read events (S3-T02)
 
 REST remains the only write path; there is no socket command to send or read messages, and the
-REST request and response contracts are unchanged. After `POST /api/v1/conversations/:conversationId/messages`
+REST request and response JSON fields are unchanged. After `POST /api/v1/conversations/:conversationId/messages`
 or `POST /api/v1/conversations/:conversationId/read` has saved its change, `ConversationsService`
 publishes an in-process `ConversationEvents` event. `ConversationsGateway` delivers it through
 `forAuthorizedRecipient` to the other participant's joined tabs only.
+
+Both POST routes require a valid access session, STUDENT/TUTOR role, conversation participation
+and current privacy consent. Missing `consentAcceptedAt` or a missing/outdated `policyVersion`
+returns `403 FORBIDDEN` before conversation access, persistence or event publication. Invalid,
+expired or revoked authentication still returns `401 UNAUTHENTICATED`. Consent is checked from
+the same database-backed session lookup as authentication; other REST routes keep their existing
+consent policy. Successful send/read responses, including a zero-row read, use
+`Cache-Control: no-store`.
 
 | Event             | Sent when                              | Recipient                    | Payload                                                                                 |
 | ----------------- | -------------------------------------- | ---------------------------- | --------------------------------------------------------------------------------------- |
