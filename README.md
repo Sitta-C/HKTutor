@@ -34,7 +34,7 @@ incremental older-history loading, text sending and server-backed sent/read rece
 chats subscribe to authenticated Socket.IO events and reconcile through REST after joining or
 reconnecting. REST checks run every four seconds as a fallback, and every 30 seconds after a room
 join to catch missed events and sends from the user's other tabs. Hidden tabs and closed threads
-stop their socket, listeners and polling; manual Refresh remains available. Use the
+stop their socket, listeners and polling; failed loads retain a retry action. Use the
 [same-origin socket proxy](apps/api/README.md#same-origin-development-and-deployment-proxy) for
 WebSocket support. Student and tutor sidebar Messages badges show the global
 unread incoming-message count, refresh every 15 seconds while visible, and refresh immediately

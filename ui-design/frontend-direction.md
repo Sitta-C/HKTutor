@@ -568,7 +568,7 @@ Use the current `conversations` API and canonical tutor User ID. Do not add stud
   30-second reconciliation while joined to catch missed events and same-user sends from other tabs.
   Prevent overlapping history requests. Pause and abort reads when hidden; resume on visibility,
   and clean timers/listeners/requests on close, conversation switch and page/user unmount.
-  Keep the explicit Refresh action and cached drafts/history when a read fails. Forward catch-up
+  Keep retry actions for failed loads and preserve cached drafts/history. Forward catch-up
   stays bounded to 200 pages and one 60-second deadline; never silently treat partial updates as complete.
   Keep the GET cursor separate from send responses to preserve concurrent incoming messages.
   Refresh from the oldest loaded unread outgoing message (inclusively) when it precedes the GET
@@ -587,8 +587,8 @@ structure and refine it directly: compact functional page title and sans-serif *
 heading, aligned 72px pane headers, two-row contacts with time beside the name, preview/unread below,
 and participant-role avatar colors. Keep names accessible in full even when visually ellipsized.
 
-Use one visible refresh action in an open thread, refreshing both its history and the inbox. The
-index refresh remains available when choosing a conversation. The thread header shows participant
+Updates refresh history and inbox automatically; manual Refresh buttons are removed from both panes.
+Keep a Try again action only when loading fails. The thread header shows participant
 identity and role without an automatic-update/real-time label. The workspace measures the actual
 shell/header offset and viewport height (including visual-viewport resize), within 360–760px,
 rather than using fixed subtraction for each breakpoint.
@@ -602,6 +602,6 @@ floating above the composer, existing drafts/reading offsets and the Quiet Recei
 
 The follow-up positioning pass adds 16px clearance beneath the shell header so the Thai eyebrow
 does not touch its dashed edge. Keep Send to the right of the textarea on the same row, including
-320px screens. Refresh uses one continuous clockwise arrow in the shared icon system. Verify this
+320px screens. Verify this
 layout in Safari as well as Chromium; an already-open development tab may retain outdated CSS after
 hot updates, so compare a fresh load from origin before assessing the layout.

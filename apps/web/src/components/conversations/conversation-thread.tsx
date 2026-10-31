@@ -384,7 +384,7 @@ export function ConversationThread({
       scrollTop: transcript.current?.scrollTop ?? 0,
     });
   };
-  const refresh = () => {
+  const retry = () => {
     if (requestPending.current || sendingRef.current) {
       return;
     }
@@ -557,17 +557,6 @@ export function ConversationThread({
             <span>{user.role === 'STUDENT' ? text.tutor : text.student}</span>
           </p>
         </div>
-        <button
-          type="button"
-          className={`${styles.quiet} ${styles.threadRefresh}`}
-          aria-label={text.refreshThread}
-          title={loading ? text.refreshing : text.refreshThread}
-          onClick={refresh}
-          disabled={loading || sending}
-        >
-          <DashboardIcon name="refresh" />
-          <span>{loading ? text.refreshing : text.refresh}</span>
-        </button>
       </header>
       <div
         ref={transcript}
@@ -608,7 +597,7 @@ export function ConversationThread({
         {error !== null && (
           <div className={styles.error} role="alert">
             <p>{text[conversationErrorKey(error)]}</p>
-            <button type="button" className={styles.quiet} onClick={refresh} disabled={loading}>
+            <button type="button" className={styles.quiet} onClick={retry} disabled={loading}>
               {text.retry}
             </button>
           </div>

@@ -218,18 +218,6 @@
   border-radius: 6px;
   cursor: pointer;
 }
-.indexRefresh {
-  display: grid;
-  place-items: center;
-  width: 46px;
-  flex-shrink: 0;
-}
-.threadRefresh {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  flex-shrink: 0;
-}
 .quiet:hover:not(:disabled),
 .back:hover:not(:disabled) {
   background: var(--chat-wash);
@@ -469,11 +457,6 @@
   opacity: 0.6;
   cursor: default;
 }
-@container (min-width: 761px) {
-  .workspace[data-thread-open='true'] .indexRefresh {
-    visibility: hidden;
-  }
-}
 @container (max-width: 760px) {
   .workspace {
     display: block;
@@ -498,14 +481,6 @@
     gap: 6px;
   }
   .threadHeader .initial {
-    display: none;
-  }
-  .threadRefresh {
-    width: 46px;
-    justify-content: center;
-    padding: 8px;
-  }
-  .threadRefresh > span {
     display: none;
   }
   .transcript {

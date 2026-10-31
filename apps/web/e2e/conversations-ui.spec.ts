@@ -376,19 +376,19 @@ async function mockInbox(
     breakHistory: (broken: boolean) => {
       brokenHistory = broken;
     },
-    incoming: (text = 'New incoming while reading') => {
+    incoming: (text = 'New incoming while reading', conversationId = 'pair-0') => {
       messages = [
         ...messages,
         {
           messageId: 'incoming',
-          conversationId: 'pair-0',
+          conversationId,
           senderId: 'other',
           text,
           sentAt: '2026-10-08T04:30:00.000Z',
           readAt: null,
         },
       ];
-      const conversation = items.find((item) => item.conversationId === 'pair-0');
+      const conversation = items.find((item) => item.conversationId === conversationId);
       if (conversation) {
         conversation.unreadCount += 1;
       }
@@ -743,8 +743,6 @@ test('refetches server unread counts when a stale inbox request overlaps a read 
   await expect
     .poll(() => fixture.calls.filter((call) => call.path.endsWith('/read')).length)
     .toBe(1);
-  const refresh = page.getByRole('button', { name: 'Refresh messages', exact: true });
-  await expect(refresh).toBeEnabled();
   const listReads = () =>
     fixture.calls.filter((call) => call.path === '/conversations' && call.method === 'GET').length;
   const before = listReads();
@@ -754,12 +752,18 @@ test('refetches server unread counts when a stale inbox request overlaps a read 
       release = resolve;
     }),
   );
+  fixture.readStatus(503);
   fixture.incoming();
-  await refresh.click();
+  await page.clock.runFor(4000);
   await expect.poll(listReads).toBe(before + 1);
   await expect
     .poll(() => fixture.calls.filter((call) => call.path.endsWith('/read')).length)
     .toBe(2);
+  fixture.readStatus(200);
+  await page.clock.runFor(4000);
+  await expect
+    .poll(() => fixture.calls.filter((call) => call.path.endsWith('/read')).length)
+    .toBe(3);
   release();
   await expect.poll(listReads).toBe(before + 2);
   await page.getByRole('button', { name: 'Back to conversations' }).click();
@@ -838,7 +842,10 @@ test('keeps drafts, reading position and index position across conversations; wo
   });
 });
 
-test('preserves a reader while refreshing, then jumps only on request', async ({ page }) => {
+test('preserves a reader during automatic updates, then jumps only on request', async ({
+  page,
+}) => {
+  await pauseChatClock(page);
   const fixture = await mockInbox(page);
   await openFirst(page);
   const transcript = page.getByRole('region', { name: 'Conversation history', exact: true });
@@ -847,10 +854,7 @@ test('preserves a reader while refreshing, then jumps only on request', async ({
   });
   await expect(page.getByRole('button', { name: /Back to latest messages/ })).toBeVisible();
   fixture.incoming();
-  await page
-    .locator('section[aria-labelledby="conversation-name"]')
-    .getByRole('button', { name: 'Refresh messages', exact: true })
-    .click();
+  await page.clock.runFor(4000);
   await expect(page.getByRole('button', { name: /1 new messages/ })).toBeVisible();
   expect(await transcript.evaluate((element) => element.scrollTop)).toBe(180);
   await page.getByRole('button', { name: /1 new messages/ }).click();
@@ -862,6 +866,7 @@ test('preserves a reader while refreshing, then jumps only on request', async ({
 test('sends once, trims text, keeps the GET cursor and deduplicates the sent response', async ({
   page,
 }) => {
+  await pauseChatClock(page);
   const fixture = await mockInbox(page);
   await openFirst(page);
   let release = () => {};
@@ -882,10 +887,7 @@ test('sends once, trims text, keeps the GET cursor and deduplicates the sent res
       .getByRole('region', { name: 'Conversation history' })
       .getByText('Question\n😀', { exact: true }),
   ).toHaveCount(1);
-  await page
-    .locator('section[aria-labelledby="conversation-name"]')
-    .getByRole('button', { name: 'Refresh messages', exact: true })
-    .click();
+  await page.clock.runFor(4000);
   await expect(page.getByText('New incoming while reading')).toBeVisible();
   await expect(
     page
@@ -932,6 +934,7 @@ for (const role of ['STUDENT', 'TUTOR'] as const) {
   test(`${role} can open message links while HTML stays text and long links wrap`, async ({
     page,
   }) => {
+    await pauseChatClock(page);
     const language = role === 'STUDENT' ? 'th' : 'en';
     const fixture = await mockInbox(page, { role, language });
     await page.context().route('https://example.test/**', (route) =>
@@ -944,12 +947,7 @@ for (const role of ['STUDENT', 'TUTOR'] as const) {
     const incoming =
       'ดูเอกสาร (https://example.test/lesson_(math)?unit=1&level=2),\nwww.example.test/home. javascript:alert(1) <img src=x onerror=alert(1)>';
     fixture.incoming(incoming);
-    await page
-      .getByRole('button', {
-        name: language === 'th' ? 'รีเฟรชข้อความ' : 'Refresh messages',
-        exact: true,
-      })
-      .click();
+    await page.clock.runFor(4000);
     const transcript = page.getByRole('region', {
       name: language === 'th' ? 'ประวัติข้อความ' : 'Conversation history',
       exact: true,
@@ -1019,6 +1017,7 @@ for (const language of ['th', 'en'] as const) {
   test(`${language} stops malformed history, recovers and retains cached messages and drafts`, async ({
     page,
   }) => {
+    await pauseChatClock(page);
     const fixture = await mockInbox(page, { language, brokenHistory: true });
     await page.goto('/dashboard/messages');
     await page.getByRole('button', { name: /Teacher Praew 0/ }).click();
@@ -1048,12 +1047,7 @@ for (const language of ['th', 'en'] as const) {
       (call) => call.method === 'GET' && call.path.endsWith('/messages'),
     ).length;
     fixture.breakHistory(true);
-    await thread
-      .getByRole('button', {
-        name: language === 'th' ? 'รีเฟรชข้อความ' : 'Refresh messages',
-        exact: true,
-      })
-      .click();
+    await page.clock.runFor(4000);
     await expect(alert).toBeVisible();
     await expect(input).toHaveValue('Retain this draft during failed refresh');
     await expect(page.getByText('History 61:', { exact: false })).toHaveCount(1);
@@ -1190,9 +1184,10 @@ test('promotes a sent conversation immediately and restores visible contact focu
   expect(fixture.unexpected).toEqual([]);
 });
 
-test('refresh retains loaded inbox pages, an older selected contact and its draft', async ({
+test('automatic updates retain loaded inbox pages, an older selected contact and its draft', async ({
   page,
 }) => {
+  await pauseChatClock(page);
   const fixture = await mockInbox(page);
   await page.goto('/dashboard/messages');
   await page.getByRole('button', { name: 'More conversations' }).click();
@@ -1202,22 +1197,17 @@ test('refresh retains loaded inbox pages, an older selected contact and its draf
   await expect(composer).toBeEnabled();
   const listReads = fixture.calls.filter((call) => call.path === '/conversations').length;
   await composer.fill('Draft for the older contact');
-  const refresh = page.getByRole('button', { name: 'Refresh messages', exact: true });
-  await refresh.click();
+  fixture.incoming('New activity for the older contact', 'pair-24');
+  await page.clock.runFor(4000);
   await expect
     .poll(() => fixture.calls.filter((call) => call.path === '/conversations').length)
     .toBe(listReads + 2);
-  await expect(refresh).toBeEnabled();
   await expect(composer).toHaveValue('Draft for the older contact');
   await page.getByRole('button', { name: 'Back to conversations' }).click();
+  await page.clock.runFor(16);
   await expect(contact).toBeFocused();
   await expect(page.locator('[data-conversation-index-scroll] li button')).toHaveCount(25);
-  const refreshInbox = page.getByRole('button', { name: 'Refresh conversations', exact: true });
-  await refreshInbox.click();
-  await expect
-    .poll(() => fixture.calls.filter((call) => call.path === '/conversations').length)
-    .toBe(listReads + 4);
-  await expect(refreshInbox).toBeEnabled();
+  await expect(page.getByRole('button', { name: /Refresh|รีเฟรช/ })).toHaveCount(0);
   await contact.click();
   await expect(composer).toHaveValue('Draft for the older contact');
   expect(fixture.unexpected).toEqual([]);
@@ -1226,6 +1216,7 @@ test('refresh retains loaded inbox pages, an older selected contact and its draf
 test('a stale inbox refresh cannot discard an acknowledged send or its contact', async ({
   page,
 }) => {
+  await pauseChatClock(page);
   const fixture = await mockInbox(page);
   await page.goto('/dashboard/messages');
   await page.getByRole('button', { name: 'More conversations' }).click();
@@ -1239,7 +1230,8 @@ test('a stale inbox refresh cannot discard an acknowledged send or its contact',
       release = resolve;
     }),
   );
-  await page.getByRole('button', { name: 'Refresh messages', exact: true }).click();
+  fixture.incoming('Start an automatic inbox update', 'pair-24');
+  await page.clock.runFor(4000);
   await expect
     .poll(() => fixture.calls.filter((call) => call.path === '/conversations').length)
     .toBe(listReads + 1);
@@ -1251,9 +1243,7 @@ test('a stale inbox refresh cannot discard an acknowledged send or its contact',
     .poll(() => fixture.calls.filter((call) => call.path === '/conversations').length)
     .toBe(listReads + 2);
   await page.getByRole('button', { name: 'Back to conversations' }).click();
-  await expect(
-    page.getByRole('button', { name: 'Refresh conversations', exact: true }),
-  ).toBeEnabled();
+  await expect(page.getByRole('button', { name: /Refresh|รีเฟรช/ })).toHaveCount(0);
   const contacts = page.locator('[data-conversation-index-scroll] li button');
   await expect(contacts).toHaveCount(25);
   await expect(contacts.first()).toContainText('Teacher Praew 24');
@@ -1295,10 +1285,7 @@ for (const language of ['th', 'en'] as const) {
       name: language === 'th' ? 'ข้อความของคุณ' : 'Your message',
     });
     await expect(input).toBeEnabled();
-    await expect(
-      page.getByRole('button', { name: language === 'th' ? 'รีเฟรชข้อความ' : 'Refresh messages' }),
-    ).toBeVisible();
-    await expect(page.getByRole('button', { name: /Refresh|รีเฟรช/ })).toHaveCount(1);
+    await expect(page.getByRole('button', { name: /Refresh|รีเฟรช/ })).toHaveCount(0);
     await page.evaluate(() => document.fonts.ready.then(() => undefined));
     const form = page.locator('form');
     const send = form.getByRole('button', {
@@ -1404,6 +1391,7 @@ for (const role of ['STUDENT', 'TUTOR'] as const) {
   test(`${role}: sidebar count changes only after successful read acknowledgement`, async ({
     page,
   }) => {
+    await pauseChatClock(page);
     const fixture = await mockInbox(page, { role, messageCount: 4 });
     fixture.readStatus(500);
     await page.goto('/dashboard/messages');
@@ -1414,7 +1402,7 @@ for (const role of ['STUDENT', 'TUTOR'] as const) {
     ).toBeVisible();
     await expect(unreadNavBadge(page)).toHaveText('2');
     fixture.readStatus(200);
-    await page.getByRole('button', { name: 'Refresh messages', exact: true }).click();
+    await page.clock.runFor(4000);
     await expect(unreadNavBadge(page)).toHaveCount(0);
     await expect(page.locator('#dashboard-sidebar a[href="/dashboard/messages"]')).toHaveAttribute(
       'aria-label',

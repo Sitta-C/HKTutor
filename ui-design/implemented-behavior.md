@@ -516,7 +516,8 @@ Token rotation uses the existing memory-only auth flow and rejoins with the new 
 rejected refreshed credentials do not create an unlimited refresh loop. Hidden documents abort
 current reads and close sockets/timers; visibility resumes updates and rejoins. Closing/switching
 the thread or unmounting the authenticated page cleans timers, socket/token listeners and requests.
-The header shows identity and role, without a connection-status label. Manual Refresh remains.
+The header shows identity and role, without a connection-status label or Refresh button. Both
+panes update without a manual Refresh action; failed loads retain their Try again action.
 Catch-up follows forward pages of 50, bounded to 200 pages and one 60-second deadline including
 authentication awaits. Broken/cycling cursors and empty continuing pages fail explicitly. Deadlines
 settle stalled inner awaits, and failed refreshes preserve drafts/history and the last GET cursor.
@@ -559,8 +560,8 @@ These fixes use the existing HTTP contract and do not add client-send idempotenc
 
 The 2026-10-09 messaging refinement makes both pane headers 72px, uses compact page/index headings,
 and lays out contacts in two rows with localized last-message time/date and an accessible full date.
-Participant initials use their role color. With a thread open, the index refresh is hidden and the
-thread refresh checks both inbox and message history; closing it exposes index refresh again.
+Participant initials use their role color. History and inbox refresh automatically from received
+activity and read acknowledgements; both panes omit manual Refresh buttons.
 Short message histories sit above the composer and the stream width is capped at 52rem. Consecutive
 same-sender messages within three minutes and one Bangkok date use a smaller gap. The textarea grows
 from 48px to 112px, then scrolls internally, with Send beside it. Limit/count instructions show when
