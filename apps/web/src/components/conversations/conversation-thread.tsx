@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 
 import { conversationCopy } from '@/components/conversations/conversation-copy';
 import { DashboardIcon } from '@/components/dashboard/dashboard-icon';
@@ -14,6 +14,8 @@ import {
   markConversationRead,
   sendConversationMessage,
 } from '@/lib/api/conversations';
+import { ApiError } from '@/lib/api/error';
+import { notifyUnreadMessagesChanged } from '@/lib/conversation-events';
 import { splitMessageLinks } from '@/lib/conversation-links';
 import {
   canSendMessage,
@@ -24,10 +26,12 @@ import {
 } from '@/lib/conversation-model';
 import { formatBangkokShortDate, formatBangkokTime, getBangkokIsoDate } from '@/lib/date-time';
 import { useLanguage } from '@/lib/i18n';
+import { useConversationSocket } from '@/lib/use-conversation-socket';
 
 import styles from './margin-inbox.module.css';
 
 import type { AuthUser, ConversationMessage, ConversationSummary } from '@/lib/api/types';
+import type { ConversationSocketState } from '@/lib/conversation-realtime';
 
 export interface ThreadMemory {
   items: ConversationMessage[];
@@ -82,6 +86,9 @@ export function ConversationThread({
   const [loading, setLoading] = useState(!view.loaded);
   const [error, setError] = useState<unknown>(null);
   const [sendError, setSendError] = useState(false);
+  const [sendNeedsReconciliation, setSendNeedsReconciliation] = useState(false);
+  const uncertainSend = useRef(false);
+  const sendRevision = useRef(0);
   const [sending, setSending] = useState(false);
   const [loadingOlder, setLoadingOlder] = useState(false);
   const [olderError, setOlderError] = useState<unknown>(null);
@@ -95,7 +102,16 @@ export function ConversationThread({
   const restore = useRef(true);
   const requestPending = useRef(false);
   const requestAbort = useRef<AbortController | null>(null);
-  const requestRefresh = useRef<(() => void) | null>(null);
+  const requestRefresh = useRef<((manual?: boolean) => void) | null>(null);
+  const flushUpdates = useRef<(() => void) | null>(null);
+  const socketChanged = useRef<((state: ConversationSocketState) => void) | null>(null);
+  const currentSocketState = useRef<ConversationSocketState>('connecting');
+  const invalidateSocket = useCallback(() => requestRefresh.current?.(), []);
+  const changeSocket = useCallback((state: ConversationSocketState) => {
+    currentSocketState.current = state;
+    socketChanged.current?.(state);
+  }, []);
+  const socketState = useConversationSocket(id, invalidateSocket, changeSocket);
   const refreshInbox = useRef(onRefreshInbox);
   const prependPosition = useRef<{ height: number; top: number } | null>(null);
   const name =
@@ -124,6 +140,22 @@ export function ConversationThread({
     let current = true;
     let terminal = false;
     let timer: ReturnType<typeof setInterval> | null = null;
+    let joined = currentSocketState.current === 'connected';
+    let queued = false;
+    const poll = (reliable: boolean) => {
+      if (reliable || terminal || document.hidden || !current) {
+        if (timer !== null) {
+          clearInterval(timer);
+          timer = null;
+        }
+        return;
+      }
+      if (timer === null) {
+        timer = setInterval(() => {
+          void synchronize();
+        }, CONVERSATION_POLL_INTERVAL_MS);
+      }
+    };
     const synchronize = async (manual = false) => {
       if (
         !current ||
@@ -134,11 +166,13 @@ export function ConversationThread({
         return;
       }
       const controller = new AbortController();
+      const reconciliationRevision = sendRevision.current;
       requestAbort.current = controller;
       requestPending.current = true;
       if (manual || !memory.current.loaded) {
         setLoading(true);
       }
+      let retryNeeded = false;
       try {
         const cached = memory.current;
         const receiptCursor = conversationReceiptCursor(cached.items, cached.cursor, user.id);
@@ -178,6 +212,13 @@ export function ConversationThread({
         setView(next);
         setError(null);
         terminal = false;
+        if (uncertainSend.current && reconciliationRevision === sendRevision.current) {
+          uncertainSend.current = false;
+          setSendNeedsReconciliation(false);
+        }
+        if (added > 0) {
+          notifyUnreadMessagesChanged();
+        }
         let inboxChanged = added > 0;
         const latestReceived = items.findLast((message) => message.senderId !== user.id);
         if (
@@ -218,6 +259,7 @@ export function ConversationThread({
             setReadError(null);
             inboxChanged = true;
           } catch (caught: unknown) {
+            retryNeeded = true;
             if (current && !controller.signal.aborted) {
               setReadError(caught);
               if (['expired', 'forbidden', 'missing'].includes(conversationErrorKey(caught))) {
@@ -231,6 +273,7 @@ export function ConversationThread({
           refreshInbox.current();
         }
       } catch (caught: unknown) {
+        retryNeeded = true;
         if (current && !controller.signal.aborted) {
           setError(caught);
           terminal = ['expired', 'forbidden', 'missing', 'historyLimit'].includes(
@@ -241,24 +284,45 @@ export function ConversationThread({
         if (current) {
           setLoading(false);
           requestPending.current = false;
+          poll(joined && !retryNeeded);
+          if (queued && !document.hidden && !terminal && !sendingRef.current) {
+            queued = false;
+            void synchronize();
+          }
         }
       }
     };
-    requestRefresh.current = () => {
-      void synchronize(true);
+    requestRefresh.current = (manual = false) => {
+      if (!current || document.hidden || (!manual && terminal)) {
+        return;
+      }
+      if (requestPending.current || sendingRef.current) {
+        queued = true;
+        return;
+      }
+      queued = false;
+      void synchronize(manual);
+    };
+    flushUpdates.current = () => {
+      if (queued) {
+        requestRefresh.current?.();
+      }
+    };
+    socketChanged.current = (state) => {
+      joined = state === 'connected';
+      poll(joined);
     };
     const visibilityChanged = () => {
       if (timer !== null) {
         clearInterval(timer);
         timer = null;
       }
+      joined = currentSocketState.current === 'connected';
       if (document.hidden) {
         requestAbort.current?.abort();
       } else {
-        void synchronize();
-        timer = setInterval(() => {
-          void synchronize();
-        }, CONVERSATION_POLL_INTERVAL_MS);
+        requestRefresh.current?.();
+        poll(joined);
       }
     };
     visibilityChanged();
@@ -266,6 +330,8 @@ export function ConversationThread({
     return () => {
       current = false;
       requestRefresh.current = null;
+      flushUpdates.current = null;
+      socketChanged.current = null;
       requestAbort.current?.abort();
       requestPending.current = false;
       if (timer !== null) {
@@ -332,11 +398,11 @@ export function ConversationThread({
       scrollTop: transcript.current?.scrollTop ?? 0,
     });
   };
-  const refresh = () => {
+  const retry = () => {
     if (requestPending.current || sendingRef.current) {
       return;
     }
-    requestRefresh.current?.();
+    requestRefresh.current?.(true);
     onRefreshInbox();
   };
   const loadOlder = async () => {
@@ -375,6 +441,7 @@ export function ConversationThread({
       if (active.current) {
         requestPending.current = false;
         setLoadingOlder(false);
+        flushUpdates.current?.();
       }
     }
   };
@@ -382,7 +449,13 @@ export function ConversationThread({
     error !== null && ['expired', 'forbidden', 'missing'].includes(conversationErrorKey(error));
   const send = async () => {
     const draft = memory.current.draft;
-    if (sendingRef.current || inaccessible || !memory.current.loaded || !canSendMessage(draft)) {
+    if (
+      sendingRef.current ||
+      uncertainSend.current ||
+      inaccessible ||
+      !memory.current.loaded ||
+      !canSendMessage(draft)
+    ) {
       return;
     }
     sendingRef.current = true;
@@ -403,8 +476,13 @@ export function ConversationThread({
       onDraft(false);
       onSent(message);
       toast.success(text.sent);
-    } catch {
+    } catch (error) {
       if (active.current) {
+        if (!(error instanceof ApiError) || error.status >= 500 || error.status === 408) {
+          uncertainSend.current = true;
+          sendRevision.current += 1;
+          setSendNeedsReconciliation(true);
+        }
         setSendError(true);
         toast.error(text.sendFailed);
       }
@@ -413,6 +491,11 @@ export function ConversationThread({
       if (active.current) {
         setSending(false);
         onSending(false);
+        if (uncertainSend.current) {
+          requestRefresh.current?.();
+        } else {
+          flushUpdates.current?.();
+        }
       }
     }
   };
@@ -482,6 +565,9 @@ export function ConversationThread({
 
   return (
     <section className={styles.thread} aria-labelledby="conversation-name">
+      <span className="sr-only" role="status" aria-live="polite">
+        {text.connectionStates[socketState]}
+      </span>
       <header className={styles.threadHeader}>
         <button
           type="button"
@@ -501,22 +587,8 @@ export function ConversationThread({
           </h2>
           <p>
             <span>{user.role === 'STUDENT' ? text.tutor : text.student}</span>
-            <span className={styles.updateHint} title={text.automatic}>
-              {text.automatic}
-            </span>
           </p>
         </div>
-        <button
-          type="button"
-          className={`${styles.quiet} ${styles.threadRefresh}`}
-          aria-label={text.refreshThread}
-          title={loading ? text.refreshing : text.refreshThread}
-          onClick={refresh}
-          disabled={loading || sending}
-        >
-          <DashboardIcon name="refresh" />
-          <span>{loading ? text.refreshing : text.refresh}</span>
-        </button>
       </header>
       <div
         ref={transcript}
@@ -543,6 +615,9 @@ export function ConversationThread({
           // Only render when proximity changes, rather than on every scroll frame.
           if (previous.atLatest !== atLatest || previous.newCount !== next.newCount) {
             setView(next);
+            if (atLatest && !previous.atLatest) {
+              requestRefresh.current?.();
+            }
           }
         }}
       >
@@ -554,7 +629,7 @@ export function ConversationThread({
         {error !== null && (
           <div className={styles.error} role="alert">
             <p>{text[conversationErrorKey(error)]}</p>
-            <button type="button" className={styles.quiet} onClick={refresh} disabled={loading}>
+            <button type="button" className={styles.quiet} onClick={retry} disabled={loading}>
               {text.retry}
             </button>
           </div>
@@ -639,7 +714,13 @@ export function ConversationThread({
             role={user.role === 'STUDENT' ? 'student' : 'tutor'}
             icon={<DashboardIcon name="arrow-right" />}
             iconPosition="end"
-            disabled={!view.loaded || !canSendMessage(view.draft) || sending || inaccessible}
+            disabled={
+              !view.loaded ||
+              !canSendMessage(view.draft) ||
+              sending ||
+              sendNeedsReconciliation ||
+              inaccessible
+            }
           >
             {sending ? text.sending : text.sendLabel}
           </NotebookAction>
@@ -658,7 +739,7 @@ export function ConversationThread({
         </div>
         {sendError && (
           <p className={styles.sendError} role="alert">
-            {text.sendFailed}
+            {sendNeedsReconciliation ? text.sendChecking : text.sendFailed}
           </p>
         )}
         {readError !== null && !inaccessible && (

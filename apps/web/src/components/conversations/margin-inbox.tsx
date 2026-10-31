@@ -273,16 +273,6 @@ export function MarginInbox({ user, tutorId }: { user: AuthUser; tutorId: string
           <section className={styles.index} aria-labelledby="conversation-index-heading">
             <div className={styles.indexHeading}>
               <h2 id="conversation-index-heading">{text.inbox}</h2>
-              <button
-                type="button"
-                className={`${styles.quiet} ${styles.indexRefresh}`}
-                aria-label={text.refreshInbox}
-                title={text.refreshInbox}
-                disabled={loading || sending}
-                onClick={refreshInbox}
-              >
-                <DashboardIcon name="refresh" />
-              </button>
             </div>
             <div
               ref={list}

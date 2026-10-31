@@ -1,7 +1,11 @@
 import { expect, test } from '@playwright/test';
 
 import type { ConversationMessage, ConversationSummary } from '@/lib/api/types';
-import type { Page } from '@playwright/test';
+import type { Page, WebSocketRoute } from '@playwright/test';
+
+function pairId(index: number): string {
+  return `aaaaaaaa-aaaa-4aaa-8aaa-${String(index).padStart(12, '0')}`;
+}
 
 // Isolated browser fixtures: all API requests are intercepted; no private data or real sends.
 async function mockInbox(
@@ -16,12 +20,13 @@ async function mockInbox(
     shortHistory?: boolean;
     brokenHistory?: boolean;
     messageCount?: number;
+    realtime?: boolean;
   } = {},
 ) {
   const role = options.role ?? 'STUDENT';
   const owner = role === 'TUTOR' ? 'tutor' : 'student';
   const summary = (index: number): ConversationSummary => ({
-    conversationId: `pair-${index}`,
+    conversationId: pairId(index),
     createdAt: '2026-10-08T03:00:00.000Z',
     otherParticipant: {
       userId: `other-${index}`,
@@ -40,7 +45,7 @@ async function mockInbox(
     { length: options.messageCount ?? 62 },
     (_, index) => ({
       messageId: `m-${index}`,
-      conversationId: 'pair-0',
+      conversationId: pairId(0),
       senderId: index % 2 ? owner : 'other',
       text: `History ${index}: review concepts and plan the lesson.`,
       sentAt: new Date(Date.UTC(2026, 9, 8, 3, index)).toISOString(),
@@ -51,7 +56,7 @@ async function mockInbox(
     messages = [
       {
         messageId: 'short-1',
-        conversationId: 'pair-0',
+        conversationId: pairId(0),
         senderId: owner,
         text: 'สวัสดีครับ',
         sentAt: '2026-10-08T03:00:00.000Z',
@@ -59,7 +64,7 @@ async function mockInbox(
       },
       {
         messageId: 'short-2',
-        conversationId: 'pair-0',
+        conversationId: pairId(0),
         senderId: owner,
         text: 'อยากสอบถามเรื่องคอร์ส',
         sentAt: '2026-10-08T03:01:00.000Z',
@@ -67,7 +72,7 @@ async function mockInbox(
       },
       {
         messageId: 'short-3',
-        conversationId: 'pair-0',
+        conversationId: pairId(0),
         senderId: 'other',
         text: 'สอบถามได้เลยค่ะ',
         sentAt: '2026-10-08T03:02:00.000Z',
@@ -92,7 +97,7 @@ async function mockInbox(
   let unreadGate: Promise<void> | undefined;
   let sendGate: Promise<void> | undefined;
   let listGate: Promise<void> | undefined;
-  let sendFailure = false;
+  let sendFailure: 'before' | 'after' | null = null;
   let historyStatus = options.status ?? 200;
   let brokenHistory = options.brokenHistory ?? false;
   let readStatus = 200;
@@ -102,6 +107,9 @@ async function mockInbox(
     options.language ?? 'en',
   );
   await page.emulateMedia({ reducedMotion: 'reduce' });
+  if (!options.realtime) {
+    await page.routeWebSocket('**/api/v1/socket.io/**', (socket) => socket.close());
+  }
   if (!options.guest) {
     await page
       .context()
@@ -114,6 +122,9 @@ async function mockInbox(
     const url = new URL(request.url());
     const path = url.pathname.replace('/api/v1', '');
     const method = request.method();
+    if (path.startsWith('/socket.io')) {
+      return route.abort();
+    }
     if (path === '/conversations/unread-count') {
       unreadRequests += 1;
       const unreadCount =
@@ -192,7 +203,7 @@ async function mockInbox(
       return route.fulfill({
         status: 200,
         json: {
-          conversationId: 'pair-0',
+          conversationId: pairId(0),
           participants: [
             { userId: owner, role },
             { userId: 'other-0', role: 'TUTOR' },
@@ -201,7 +212,7 @@ async function mockInbox(
         },
       });
     }
-    if (/^\/conversations\/pair-\d+\/read$/.test(path)) {
+    if (/^\/conversations\/[0-9a-f-]{36}\/read$/.test(path)) {
       const payload = request.postDataJSON() as { upToMessageId: string };
       calls.push({ method, path, body: payload, after: null, at: Date.now() });
       if (readStatus !== 200) {
@@ -234,7 +245,7 @@ async function mockInbox(
       }
       return route.fulfill({ json: { updatedCount, readAt: updatedCount ? readAt : null } });
     }
-    if (/^\/conversations\/pair-\d+\/messages$/.test(path)) {
+    if (/^\/conversations\/[0-9a-f-]{36}\/messages$/.test(path)) {
       const after = url.searchParams.get('afterMessageId');
       const before = url.searchParams.get('beforeMessageId');
       const from = url.searchParams.get('fromMessageId');
@@ -251,7 +262,7 @@ async function mockInbox(
       });
       if (method === 'POST') {
         await sendGate;
-        if (sendFailure) {
+        if (sendFailure === 'before') {
           return route.abort('failed');
         }
         const payload = request.postDataJSON() as { text: string };
@@ -269,6 +280,9 @@ async function mockInbox(
         if (conversation) {
           items.splice(index, 1);
           items.unshift({ ...conversation, lastMessage: sent });
+        }
+        if (sendFailure === 'after') {
+          return route.abort('failed');
         }
         return route.fulfill({ status: 201, json: sent });
       }
@@ -354,8 +368,8 @@ async function mockInbox(
         message.senderId === owner ? { ...message, readAt: '2026-10-11T05:00:00.000Z' } : message,
       );
     },
-    failSending: () => {
-      sendFailure = true;
+    failSending: (committed = false) => {
+      sendFailure = committed ? 'after' : 'before';
     },
     gateSend: (gate: Promise<void>) => {
       sendGate = gate;
@@ -369,19 +383,19 @@ async function mockInbox(
     breakHistory: (broken: boolean) => {
       brokenHistory = broken;
     },
-    incoming: (text = 'New incoming while reading') => {
+    incoming: (text = 'New incoming while reading', conversationId = pairId(0)) => {
       messages = [
         ...messages,
         {
           messageId: 'incoming',
-          conversationId: 'pair-0',
+          conversationId,
           senderId: 'other',
           text,
           sentAt: '2026-10-08T04:30:00.000Z',
           readAt: null,
         },
       ];
-      const conversation = items.find((item) => item.conversationId === 'pair-0');
+      const conversation = items.find((item) => item.conversationId === conversationId);
       if (conversation) {
         conversation.unreadCount += 1;
       }
@@ -394,6 +408,208 @@ async function openFirst(page: Page) {
   await page.getByRole('button', { name: /Teacher Praew 0|Mint 0/ }).click();
   await expect(page.getByText('History 61:', { exact: false })).toBeVisible();
 }
+
+// Exercise the real browser Socket.IO client against deterministic Engine.IO frames.
+// Persisted data still comes exclusively from mockInbox's REST fixture.
+async function mockChatSocket(page: Page) {
+  let current: WebSocketRoute | null = null;
+  const joins: string[] = [];
+  const authentications: unknown[] = [];
+  let closes = 0;
+  await page.routeWebSocket('**/api/v1/socket.io/**', (socket) => {
+    current = socket;
+    socket.send(
+      `0${JSON.stringify({
+        sid: `engine-${joins.length}`,
+        upgrades: [],
+        pingInterval: 60000,
+        pingTimeout: 60000,
+        maxPayload: 8192,
+      })}`,
+    );
+    socket.onClose(() => {
+      closes += 1;
+    });
+    socket.onMessage((data) => {
+      if (typeof data !== 'string') {
+        return;
+      }
+      if (data.startsWith('40/chat,')) {
+        authentications.push(JSON.parse(data.slice('40/chat,'.length)));
+        socket.send('40/chat,{"sid":"chat-fixture"}');
+      }
+      const match = /^42\/chat,(\d+)(\[.*)$/.exec(data);
+      if (match?.[2]) {
+        const [event, payload] = JSON.parse(match[2]) as [string, { conversationId: string }];
+        if (event === 'conversation_join') {
+          joins.push(payload.conversationId);
+          socket.send(`43/chat,${match[1]}${JSON.stringify([{ ok: true, ...payload }])}`);
+        }
+      }
+    });
+  });
+  return {
+    joins,
+    authentications,
+    closes: () => closes,
+    emit: (event: string, payload: Record<string, unknown>) =>
+      current?.send(
+        `42/chat,${JSON.stringify([event, { ...(event === 'message_created' ? { messageId: '11111111-1111-4111-8111-111111111111', senderId: '22222222-2222-4222-8222-222222222222', text: 'Persisted event', sentAt: '2026-10-08T04:30:00.000Z', readAt: null } : { messageIds: ['11111111-1111-4111-8111-111111111111'], readByUserId: '22222222-2222-4222-8222-222222222222', readAt: '2026-10-08T05:00:00.000Z' }), ...payload }])}`,
+      ),
+    disconnect: () => current?.close(),
+  };
+}
+
+test('reconciles socket messages and receipts through REST without duplicate or fabricated messages', async ({
+  page,
+}, testInfo) => {
+  await pauseChatClock(page);
+  const fixture = await mockInbox(page, { shortHistory: true, realtime: true });
+  const socket = await mockChatSocket(page);
+  await page.goto('/dashboard/messages');
+  await page.getByRole('button', { name: /Teacher Praew 0/ }).click();
+  const transcript = page.getByRole('region', { name: 'Conversation history', exact: true });
+  await expect(page.getByRole('textbox', { name: 'Your message' })).toBeEnabled();
+  await expect.poll(() => socket.joins.length).toBe(1);
+  expect(socket.authentications).toEqual([{ accessToken: 'fixture-token' }]);
+  await expect(page.getByText(/Live updates|Updates every/)).toHaveCount(0);
+  fixture.incoming('Persisted incoming message');
+  socket.emit('message_created', { conversationId: 'another-pair', text: 'Wrong room' });
+  socket.emit('message_created', { conversationId: pairId(0), text: 'Untrusted pushed text' });
+  socket.emit('message_created', { conversationId: pairId(0), text: 'Untrusted pushed text' });
+  await expect(transcript.getByText('Persisted incoming message', { exact: true })).toHaveCount(1);
+  await expect(transcript.getByText('Untrusted pushed text', { exact: true })).toHaveCount(0);
+  await expect(transcript.getByText('Wrong room', { exact: true })).toHaveCount(0);
+  fixture.readOwn();
+  socket.emit('messages_read', { conversationId: pairId(0) });
+  await expect(transcript.locator('[data-message-id="short-1"]')).toContainText('Read');
+  await expect(transcript.locator('[data-message-id="short-2"]')).toContainText('Read');
+  await page.screenshot({ path: testInfo.outputPath('chat-realtime.png'), fullPage: true });
+  await page.getByRole('button', { name: 'Back to conversations' }).click();
+  const reads = fixture.calls.filter((call) => call.path.endsWith('/messages')).length;
+  await page.clock.runFor(35000);
+  expect(fixture.calls.filter((call) => call.path.endsWith('/messages'))).toHaveLength(reads);
+  await expect.poll(socket.closes).toBeGreaterThan(0);
+  expect(fixture.unexpected).toEqual([]);
+});
+
+test('rejoins after disconnect and recovers missed REST history without a new socket event', async ({
+  page,
+}) => {
+  await pauseChatClock(page);
+  const fixture = await mockInbox(page, { shortHistory: true, realtime: true });
+  const socket = await mockChatSocket(page);
+  await page.goto('/dashboard/messages');
+  await page.getByRole('button', { name: /Teacher Praew 0/ }).click();
+  await expect(page.getByRole('textbox', { name: 'Your message' })).toBeEnabled();
+  await expect.poll(() => socket.joins.length).toBe(1);
+  socket.disconnect();
+  fixture.incoming('Missed during disconnect');
+  await page.clock.runFor(2000);
+  await expect.poll(() => socket.joins.length).toBe(2);
+  await expect(page.getByText('Missed during disconnect', { exact: true })).toHaveCount(1);
+  expect(socket.joins).toEqual([pairId(0), pairId(0)]);
+  expect(fixture.unexpected).toEqual([]);
+});
+
+test('stops history polling while the room is healthy', async ({ page }) => {
+  await pauseChatClock(page);
+  const fixture = await mockInbox(page, { shortHistory: true, realtime: true });
+  const socket = await mockChatSocket(page);
+  await page.goto('/dashboard/messages');
+  await page.getByRole('button', { name: /Teacher Praew 0/ }).click();
+  await expect(page.getByRole('textbox', { name: 'Your message' })).toBeEnabled();
+  await expect.poll(() => socket.joins.length).toBe(1);
+  await expect
+    .poll(() => fixture.calls.filter((call) => call.path.endsWith('/read')).length)
+    .toBe(1);
+  await page.clock.runFor(100);
+  const reads = () =>
+    fixture.calls.filter((call) => call.method === 'GET' && call.path.endsWith('/messages')).length;
+  const initial = reads();
+  fixture.incoming('Missed event recovered by REST');
+  await page.clock.runFor(4000);
+  expect(reads()).toBe(initial);
+  await page.clock.runFor(30000);
+  expect(reads()).toBe(initial);
+  await expect(page.getByText('Missed event recovered by REST', { exact: true })).toHaveCount(0);
+  socket.emit('message_created', { conversationId: pairId(0) });
+  await expect(page.getByText('Missed event recovered by REST', { exact: true })).toHaveCount(1);
+  expect(fixture.unexpected).toEqual([]);
+});
+
+test('reconciles events received during a pending send without advancing past concurrent incoming messages', async ({
+  page,
+}) => {
+  await pauseChatClock(page);
+  const fixture = await mockInbox(page, { shortHistory: true, realtime: true });
+  const socket = await mockChatSocket(page);
+  await page.goto('/dashboard/messages');
+  await page.getByRole('button', { name: /Teacher Praew 0/ }).click();
+  const input = page.getByRole('textbox', { name: 'Your message' });
+  await expect(input).toBeEnabled();
+  await expect.poll(() => socket.joins.length).toBe(1);
+  let release = () => {};
+  fixture.gateSend(
+    new Promise<void>((resolve) => {
+      release = resolve;
+    }),
+  );
+  await input.fill('My pending send');
+  await page.getByRole('button', { name: 'Send', exact: true }).click();
+  await expect(input).toBeDisabled();
+  fixture.incoming('Concurrent incoming during send');
+  socket.emit('message_created', { conversationId: pairId(0) });
+  release();
+  const transcript = page.getByRole('region', { name: 'Conversation history', exact: true });
+  await expect(transcript.getByText('My pending send', { exact: true })).toHaveCount(1);
+  await expect(
+    transcript.getByText('Concurrent incoming during send', { exact: true }),
+  ).toHaveCount(1);
+  expect(
+    fixture.calls.filter((call) => call.method === 'POST' && call.path.endsWith('/messages')),
+  ).toHaveLength(1);
+  expect(fixture.unexpected).toEqual([]);
+});
+
+test('queues socket invalidations during older-history loading and pauses the socket while hidden', async ({
+  page,
+}) => {
+  await pauseChatClock(page);
+  const fixture = await mockInbox(page, { realtime: true });
+  const socket = await mockChatSocket(page);
+  await openFirst(page);
+  await expect.poll(() => socket.joins.length).toBe(1);
+  let release = () => {};
+  fixture.gateHistory(
+    new Promise<void>((resolve) => {
+      release = resolve;
+    }),
+  );
+  await page.getByRole('button', { name: 'Load earlier messages' }).click();
+  fixture.incoming('Arrived while loading older history');
+  socket.emit('message_created', { conversationId: pairId(0) });
+  release();
+  fixture.gateHistory(undefined);
+  await expect(page.getByText('Arrived while loading older history', { exact: true })).toHaveCount(
+    1,
+  );
+  const before = socket.closes();
+  await page.evaluate(() => {
+    Object.defineProperty(document, 'hidden', { configurable: true, value: true });
+    document.dispatchEvent(new Event('visibilitychange'));
+  });
+  await expect.poll(socket.closes).toBeGreaterThan(before);
+  const reads = fixture.calls.filter((call) => call.path.endsWith('/messages')).length;
+  await page.clock.runFor(35000);
+  expect(fixture.calls.filter((call) => call.path.endsWith('/messages'))).toHaveLength(reads);
+  await page.evaluate(() => {
+    Reflect.deleteProperty(document, 'hidden');
+    document.dispatchEvent(new Event('visibilitychange'));
+  });
+  await expect.poll(() => socket.joins.length).toBe(2);
+  expect(fixture.unexpected).toEqual([]);
+});
 
 async function noOverflow(page: Page) {
   expect(
@@ -539,8 +755,6 @@ test('refetches server unread counts when a stale inbox request overlaps a read 
   await expect
     .poll(() => fixture.calls.filter((call) => call.path.endsWith('/read')).length)
     .toBe(1);
-  const refresh = page.getByRole('button', { name: 'Refresh messages', exact: true });
-  await expect(refresh).toBeEnabled();
   const listReads = () =>
     fixture.calls.filter((call) => call.path === '/conversations' && call.method === 'GET').length;
   const before = listReads();
@@ -550,12 +764,18 @@ test('refetches server unread counts when a stale inbox request overlaps a read 
       release = resolve;
     }),
   );
+  fixture.readStatus(503);
   fixture.incoming();
-  await refresh.click();
+  await page.clock.runFor(4000);
   await expect.poll(listReads).toBe(before + 1);
   await expect
     .poll(() => fixture.calls.filter((call) => call.path.endsWith('/read')).length)
     .toBe(2);
+  fixture.readStatus(200);
+  await page.clock.runFor(4000);
+  await expect
+    .poll(() => fixture.calls.filter((call) => call.path.endsWith('/read')).length)
+    .toBe(3);
   release();
   await expect.poll(listReads).toBe(before + 2);
   await page.getByRole('button', { name: 'Back to conversations' }).click();
@@ -634,7 +854,10 @@ test('keeps drafts, reading position and index position across conversations; wo
   });
 });
 
-test('preserves a reader while refreshing, then jumps only on request', async ({ page }) => {
+test('preserves a reader during automatic updates, then jumps only on request', async ({
+  page,
+}) => {
+  await pauseChatClock(page);
   const fixture = await mockInbox(page);
   await openFirst(page);
   const transcript = page.getByRole('region', { name: 'Conversation history', exact: true });
@@ -643,10 +866,7 @@ test('preserves a reader while refreshing, then jumps only on request', async ({
   });
   await expect(page.getByRole('button', { name: /Back to latest messages/ })).toBeVisible();
   fixture.incoming();
-  await page
-    .locator('section[aria-labelledby="conversation-name"]')
-    .getByRole('button', { name: 'Refresh messages', exact: true })
-    .click();
+  await page.clock.runFor(4000);
   await expect(page.getByRole('button', { name: /1 new messages/ })).toBeVisible();
   expect(await transcript.evaluate((element) => element.scrollTop)).toBe(180);
   await page.getByRole('button', { name: /1 new messages/ }).click();
@@ -658,6 +878,7 @@ test('preserves a reader while refreshing, then jumps only on request', async ({
 test('sends once, trims text, keeps the GET cursor and deduplicates the sent response', async ({
   page,
 }) => {
+  await pauseChatClock(page);
   const fixture = await mockInbox(page);
   await openFirst(page);
   let release = () => {};
@@ -678,10 +899,7 @@ test('sends once, trims text, keeps the GET cursor and deduplicates the sent res
       .getByRole('region', { name: 'Conversation history' })
       .getByText('Question\n😀', { exact: true }),
   ).toHaveCount(1);
-  await page
-    .locator('section[aria-labelledby="conversation-name"]')
-    .getByRole('button', { name: 'Refresh messages', exact: true })
-    .click();
+  await page.clock.runFor(4000);
   await expect(page.getByText('New incoming while reading')).toBeVisible();
   await expect(
     page
@@ -697,6 +915,61 @@ test('sends once, trims text, keeps the GET cursor and deduplicates the sent res
     fixture.calls.filter((call) => call.method === 'GET' && call.path.endsWith('/messages')).at(-1)
       ?.from,
   ).toBe('m-43');
+});
+
+test('reconciles a committed send whose response was lost before allowing another send', async ({
+  page,
+}) => {
+  await pauseChatClock(page);
+  const fixture = await mockInbox(page, { shortHistory: true, realtime: true });
+  const socket = await mockChatSocket(page);
+  await page.goto('/dashboard/messages');
+  await page.getByRole('button', { name: /Teacher Praew 0/ }).click();
+  const input = page.getByRole('textbox', { name: 'Your message' });
+  const send = page.getByRole('button', { name: 'Send', exact: true });
+  await expect(input).toBeEnabled();
+  await expect.poll(() => socket.joins.length).toBe(1);
+  await page.clock.runFor(100);
+  const reads = () =>
+    fixture.calls.filter((call) => call.method === 'GET' && call.path.endsWith('/messages')).length;
+  const initial = reads();
+  let releaseStale = () => {};
+  fixture.gateHistory(
+    new Promise<void>((resolve) => {
+      releaseStale = resolve;
+    }),
+  );
+  socket.emit('message_created', { conversationId: pairId(0) });
+  await expect.poll(reads).toBe(initial + 1);
+  fixture.failSending(true);
+  await input.fill('Committed but response lost');
+  await send.click();
+  await expect(page.locator('form').getByRole('alert')).toContainText('Checking recent messages');
+  await expect(send).toBeDisabled();
+  let releaseNew = () => {};
+  fixture.gateHistory(
+    new Promise<void>((resolve) => {
+      releaseNew = resolve;
+    }),
+  );
+  releaseStale();
+  await expect.poll(reads).toBe(initial + 2);
+  await expect(send).toBeDisabled();
+  await page.locator('form').dispatchEvent('submit');
+  expect(
+    fixture.calls.filter((call) => call.method === 'POST' && call.path.endsWith('/messages')),
+  ).toHaveLength(1);
+  releaseNew();
+  fixture.gateHistory(undefined);
+  await expect(send).toBeEnabled();
+  await expect(page.locator('[data-message-id="sent"]')).toContainText(
+    'Committed but response lost',
+  );
+  await expect(input).toHaveValue('Committed but response lost');
+  await page.clock.runFor(5000);
+  expect(
+    fixture.calls.filter((call) => call.method === 'POST' && call.path.endsWith('/messages')),
+  ).toHaveLength(1);
 });
 
 test('keeps ambiguous-send drafts, rejects blank/over-limit input and treats message text as text', async ({
@@ -728,6 +1001,7 @@ for (const role of ['STUDENT', 'TUTOR'] as const) {
   test(`${role} can open message links while HTML stays text and long links wrap`, async ({
     page,
   }) => {
+    await pauseChatClock(page);
     const language = role === 'STUDENT' ? 'th' : 'en';
     const fixture = await mockInbox(page, { role, language });
     await page.context().route('https://example.test/**', (route) =>
@@ -740,12 +1014,7 @@ for (const role of ['STUDENT', 'TUTOR'] as const) {
     const incoming =
       'ดูเอกสาร (https://example.test/lesson_(math)?unit=1&level=2),\nwww.example.test/home. javascript:alert(1) <img src=x onerror=alert(1)>';
     fixture.incoming(incoming);
-    await page
-      .getByRole('button', {
-        name: language === 'th' ? 'รีเฟรชข้อความ' : 'Refresh messages',
-        exact: true,
-      })
-      .click();
+    await page.clock.runFor(4000);
     const transcript = page.getByRole('region', {
       name: language === 'th' ? 'ประวัติข้อความ' : 'Conversation history',
       exact: true,
@@ -815,6 +1084,7 @@ for (const language of ['th', 'en'] as const) {
   test(`${language} stops malformed history, recovers and retains cached messages and drafts`, async ({
     page,
   }) => {
+    await pauseChatClock(page);
     const fixture = await mockInbox(page, { language, brokenHistory: true });
     await page.goto('/dashboard/messages');
     await page.getByRole('button', { name: /Teacher Praew 0/ }).click();
@@ -844,12 +1114,7 @@ for (const language of ['th', 'en'] as const) {
       (call) => call.method === 'GET' && call.path.endsWith('/messages'),
     ).length;
     fixture.breakHistory(true);
-    await thread
-      .getByRole('button', {
-        name: language === 'th' ? 'รีเฟรชข้อความ' : 'Refresh messages',
-        exact: true,
-      })
-      .click();
+    await page.clock.runFor(4000);
     await expect(alert).toBeVisible();
     await expect(input).toHaveValue('Retain this draft during failed refresh');
     await expect(page.getByText('History 61:', { exact: false })).toHaveCount(1);
@@ -986,9 +1251,10 @@ test('promotes a sent conversation immediately and restores visible contact focu
   expect(fixture.unexpected).toEqual([]);
 });
 
-test('refresh retains loaded inbox pages, an older selected contact and its draft', async ({
+test('automatic updates retain loaded inbox pages, an older selected contact and its draft', async ({
   page,
 }) => {
+  await pauseChatClock(page);
   const fixture = await mockInbox(page);
   await page.goto('/dashboard/messages');
   await page.getByRole('button', { name: 'More conversations' }).click();
@@ -998,22 +1264,17 @@ test('refresh retains loaded inbox pages, an older selected contact and its draf
   await expect(composer).toBeEnabled();
   const listReads = fixture.calls.filter((call) => call.path === '/conversations').length;
   await composer.fill('Draft for the older contact');
-  const refresh = page.getByRole('button', { name: 'Refresh messages', exact: true });
-  await refresh.click();
+  fixture.incoming('New activity for the older contact', pairId(24));
+  await page.clock.runFor(4000);
   await expect
     .poll(() => fixture.calls.filter((call) => call.path === '/conversations').length)
     .toBe(listReads + 2);
-  await expect(refresh).toBeEnabled();
   await expect(composer).toHaveValue('Draft for the older contact');
   await page.getByRole('button', { name: 'Back to conversations' }).click();
+  await page.clock.runFor(16);
   await expect(contact).toBeFocused();
   await expect(page.locator('[data-conversation-index-scroll] li button')).toHaveCount(25);
-  const refreshInbox = page.getByRole('button', { name: 'Refresh conversations', exact: true });
-  await refreshInbox.click();
-  await expect
-    .poll(() => fixture.calls.filter((call) => call.path === '/conversations').length)
-    .toBe(listReads + 4);
-  await expect(refreshInbox).toBeEnabled();
+  await expect(page.getByRole('button', { name: /Refresh|รีเฟรช/ })).toHaveCount(0);
   await contact.click();
   await expect(composer).toHaveValue('Draft for the older contact');
   expect(fixture.unexpected).toEqual([]);
@@ -1022,6 +1283,7 @@ test('refresh retains loaded inbox pages, an older selected contact and its draf
 test('a stale inbox refresh cannot discard an acknowledged send or its contact', async ({
   page,
 }) => {
+  await pauseChatClock(page);
   const fixture = await mockInbox(page);
   await page.goto('/dashboard/messages');
   await page.getByRole('button', { name: 'More conversations' }).click();
@@ -1035,7 +1297,8 @@ test('a stale inbox refresh cannot discard an acknowledged send or its contact',
       release = resolve;
     }),
   );
-  await page.getByRole('button', { name: 'Refresh messages', exact: true }).click();
+  fixture.incoming('Start an automatic inbox update', pairId(24));
+  await page.clock.runFor(4000);
   await expect
     .poll(() => fixture.calls.filter((call) => call.path === '/conversations').length)
     .toBe(listReads + 1);
@@ -1047,9 +1310,7 @@ test('a stale inbox refresh cannot discard an acknowledged send or its contact',
     .poll(() => fixture.calls.filter((call) => call.path === '/conversations').length)
     .toBe(listReads + 2);
   await page.getByRole('button', { name: 'Back to conversations' }).click();
-  await expect(
-    page.getByRole('button', { name: 'Refresh conversations', exact: true }),
-  ).toBeEnabled();
+  await expect(page.getByRole('button', { name: /Refresh|รีเฟรช/ })).toHaveCount(0);
   const contacts = page.locator('[data-conversation-index-scroll] li button');
   await expect(contacts).toHaveCount(25);
   await expect(contacts.first()).toContainText('Teacher Praew 24');
@@ -1091,10 +1352,7 @@ for (const language of ['th', 'en'] as const) {
       name: language === 'th' ? 'ข้อความของคุณ' : 'Your message',
     });
     await expect(input).toBeEnabled();
-    await expect(
-      page.getByRole('button', { name: language === 'th' ? 'รีเฟรชข้อความ' : 'Refresh messages' }),
-    ).toBeVisible();
-    await expect(page.getByRole('button', { name: /Refresh|รีเฟรช/ })).toHaveCount(1);
+    await expect(page.getByRole('button', { name: /Refresh|รีเฟรช/ })).toHaveCount(0);
     await page.evaluate(() => document.fonts.ready.then(() => undefined));
     const form = page.locator('form');
     const send = form.getByRole('button', {
@@ -1200,6 +1458,7 @@ for (const role of ['STUDENT', 'TUTOR'] as const) {
   test(`${role}: sidebar count changes only after successful read acknowledgement`, async ({
     page,
   }) => {
+    await pauseChatClock(page);
     const fixture = await mockInbox(page, { role, messageCount: 4 });
     fixture.readStatus(500);
     await page.goto('/dashboard/messages');
@@ -1210,7 +1469,7 @@ for (const role of ['STUDENT', 'TUTOR'] as const) {
     ).toBeVisible();
     await expect(unreadNavBadge(page)).toHaveText('2');
     fixture.readStatus(200);
-    await page.getByRole('button', { name: 'Refresh messages', exact: true }).click();
+    await page.clock.runFor(4000);
     await expect(unreadNavBadge(page)).toHaveCount(0);
     await expect(page.locator('#dashboard-sidebar a[href="/dashboard/messages"]')).toHaveAttribute(
       'aria-label',

@@ -555,17 +555,22 @@ Use the current `conversations` API and canonical tutor User ID. Do not add stud
   unmounts or changes user. The draft is not durable across reloads or navigation away from Messages.
 - Use actual API data, accessible native controls, bilingual copy, real pending/error states and
   trimmed Unicode code-point limits (1–2,000). Guard duplicate submission while pending. On uncertain
-  send failures retain the draft and ask the user to refresh/check history before sending again;
-  the API has no client-send idempotency key, so never retry a failed send automatically.
+  send failures retain the draft. An uncertain POST blocks another send until a new REST catch-up
+  succeeds; an older in-flight GET cannot release this gate. The API has no client-send idempotency
+  key, so never retry a failed send automatically.
 - S2-T20 adds the user-selected **Quiet Receipts** (2026-10-11): a quiet centered Load earlier
   messages action above the transcript and Sent/Read text beside each outgoing timestamp, with
   one/two checks as supplementary cues. Keep the current paper, pane layout and Ink Tickets composer.
   History Tab remains unselected. Open with the latest 20 messages and prepend one older page per
   click, preserving the visible reading position and keeping the composer stationary.
-- Check for updates every four seconds while the conversation is open and the document is visible.
+- S3-T03 subscribes the visible open thread to chat events and rejoins after reconnect. Events
+  trigger REST reconciliation; REST remains authoritative for messages, receipts and GET cursors.
+  Use four-second polling before a successful room join or during connection/read failures.
+  Stop routine history polling while the socket is healthy. Reconcile again on every room join,
+  reconnect and visibility resume. Validate full T01/T02 event payloads before invalidation.
   Prevent overlapping history requests. Pause and abort reads when hidden; resume on visibility,
   and clean timers/listeners/requests on close, conversation switch and page/user unmount.
-  Keep the explicit Refresh action and cached drafts/history when a read fails. Forward catch-up
+  Keep retry actions for failed loads and preserve cached drafts/history. Forward catch-up
   stays bounded to 200 pages and one 60-second deadline; never silently treat partial updates as complete.
   Keep the GET cursor separate from send responses to preserve concurrent incoming messages.
   Refresh from the oldest loaded unread outgoing message (inclusively) when it precedes the GET
@@ -576,6 +581,8 @@ Use the current `conversations` API and canonical tutor User ID. Do not add stud
   retain history/drafts and retry while open. Refresh inbox values after new arrivals and successful
   acknowledgements; counts remain server values. GET history itself never marks messages read.
   Do not add a global unread total from partial inbox pages.
+- Connection states use a bilingual screen-reader-only live region. They do not add visible
+  connection labels or bring back the removed Refresh controls.
 
 ### Margin Inbox refinement (2026-10-09)
 
@@ -584,10 +591,11 @@ structure and refine it directly: compact functional page title and sans-serif *
 heading, aligned 72px pane headers, two-row contacts with time beside the name, preview/unread below,
 and participant-role avatar colors. Keep names accessible in full even when visually ellipsized.
 
-Use one visible refresh action in an open thread, refreshing both its history and the inbox. The
-index refresh remains available when choosing a conversation. Keep the automatic-update hint in the
-thread header. The workspace measures the actual shell/header offset and viewport height (including
-visual-viewport resize), within 360–760px, rather than using fixed subtraction for each breakpoint.
+Updates refresh history and inbox automatically; manual Refresh buttons are removed from both panes.
+Keep a Try again action only when loading fails. The thread header shows participant
+identity and role without an automatic-update/real-time label. The workspace measures the actual
+shell/header offset and viewport height (including visual-viewport resize), within 360–760px,
+rather than using fixed subtraction for each breakpoint.
 
 Limit the message stream to 52rem and bubbles to 34rem, bottom-align short histories, and tighten the
 gap for consecutive same-sender messages within three minutes on the same Bangkok date. Start the
@@ -598,6 +606,6 @@ floating above the composer, existing drafts/reading offsets and the Quiet Recei
 
 The follow-up positioning pass adds 16px clearance beneath the shell header so the Thai eyebrow
 does not touch its dashed edge. Keep Send to the right of the textarea on the same row, including
-320px screens. Refresh uses one continuous clockwise arrow in the shared icon system. Verify this
+320px screens. Verify this
 layout in Safari as well as Chromium; an already-open development tab may retain outdated CSS after
 hot updates, so compare a fresh load from origin before assessing the layout.

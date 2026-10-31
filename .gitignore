@@ -12,6 +12,7 @@ dist/
 coverage/
 playwright-report/
 test-results/
+test-results-chat-live/
 apps/api/src/generated/prisma/
 
 # Environment files

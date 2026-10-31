@@ -506,9 +506,22 @@ visible reading anchor. At the end of history the action becomes Beginning of co
 Failed older loads preserve fetched messages, drafts and both independent cursors, with inline
 recovery; initial failures leave the composer disabled with retry.
 
-The visible open thread checks every four seconds, without overlapping reads. Hidden documents
-abort current reads and pause the timer; visibility resumes updates. Closing/switching the thread
-or unmounting the authenticated page cleans timers, listeners and requests. Manual Refresh remains.
+The visible open thread subscribes to Socket.IO `message_created` and `messages_read` events for
+its authorized conversation. Every initial/reconnected room join reconciles missed history through
+REST; pushed payloads only invalidate history and never advance the GET cursor. Events arriving
+during a read, older-page load or send coalesce into a follow-up read, without overlapping history
+requests. REST polls every four seconds while unjoined or recovering a read failure; routine history
+polling stops while the socket is healthy. Every join/reconnect and visibility resume reconciles
+again. Full message/read payload validators enforce the fixed T01/T02 UUID, text, UTC timestamp
+and read-batch contracts before invalidation. The focused `useConversationSocket` hook owns the
+visible-thread subscription and its Strict Mode cleanup.
+Token rotation uses the existing memory-only auth flow and rejoins with the new credential;
+rejected refreshed credentials do not create an unlimited refresh loop. Hidden documents abort
+current reads and close sockets/timers; visibility resumes updates and rejoins. Closing/switching
+the thread or unmounting the authenticated page cleans timers, socket/token listeners and requests.
+The header shows identity and role, without a connection-status label or Refresh button. Both
+panes update without a manual Refresh action; failed loads retain their Try again action.
+Connection states are announced only in a bilingual screen-reader live region.
 Catch-up follows forward pages of 50, bounded to 200 pages and one 60-second deadline including
 authentication awaits. Broken/cycling cursors and empty continuing pages fail explicitly. Deadlines
 settle stalled inner awaits, and failed refreshes preserve drafts/history and the last GET cursor.
@@ -527,6 +540,9 @@ selection and guard repeated form submissions synchronously. Success clears the 
 the actual returned message plus NotebookToast. A failed/uncertain send retains the draft, shows
 inline and toast recovery and performs no automatic retry. The outgoing response never advances the
 GET cursor, preserving concurrent incoming messages for a later refresh, with ID deduplication.
+An uncertain POST immediately queues REST reconciliation and blocks further sends until that new
+catch-up succeeds. A revision guard prevents a GET begun before the uncertain result from releasing
+the gate. Draft text stays intact, including when the committed message is discovered by REST.
 
 Outgoing timestamps show quiet single/double checks and explicit Sent/Read labels. Read requires
 server `readAt`; a successful send initially remains Sent. Only a visible open thread at the latest
@@ -551,8 +567,8 @@ These fixes use the existing HTTP contract and do not add client-send idempotenc
 
 The 2026-10-09 messaging refinement makes both pane headers 72px, uses compact page/index headings,
 and lays out contacts in two rows with localized last-message time/date and an accessible full date.
-Participant initials use their role color. With a thread open, the index refresh is hidden and the
-thread refresh checks both inbox and message history; closing it exposes index refresh again.
+Participant initials use their role color. History and inbox refresh automatically from received
+activity and read acknowledgements; both panes omit manual Refresh buttons.
 Short message histories sit above the composer and the stream width is capped at 52rem. Consecutive
 same-sender messages within three minutes and one Bangkok date use a smaller gap. The textarea grows
 from 48px to 112px, then scrolls internally, with Send beside it. Limit/count instructions show when
