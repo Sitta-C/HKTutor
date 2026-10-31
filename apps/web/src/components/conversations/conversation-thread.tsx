@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 
 import { conversationCopy } from '@/components/conversations/conversation-copy';
 import { DashboardIcon } from '@/components/dashboard/dashboard-icon';
@@ -14,6 +14,8 @@ import {
   markConversationRead,
   sendConversationMessage,
 } from '@/lib/api/conversations';
+import { ApiError } from '@/lib/api/error';
+import { notifyUnreadMessagesChanged } from '@/lib/conversation-events';
 import { splitMessageLinks } from '@/lib/conversation-links';
 import {
   canSendMessage,
@@ -22,13 +24,14 @@ import {
   mergeMessages,
   messageLength,
 } from '@/lib/conversation-model';
-import { subscribeConversationRealtime } from '@/lib/conversation-realtime';
 import { formatBangkokShortDate, formatBangkokTime, getBangkokIsoDate } from '@/lib/date-time';
 import { useLanguage } from '@/lib/i18n';
+import { useConversationSocket } from '@/lib/use-conversation-socket';
 
 import styles from './margin-inbox.module.css';
 
 import type { AuthUser, ConversationMessage, ConversationSummary } from '@/lib/api/types';
+import type { ConversationSocketState } from '@/lib/conversation-realtime';
 
 export interface ThreadMemory {
   items: ConversationMessage[];
@@ -83,6 +86,9 @@ export function ConversationThread({
   const [loading, setLoading] = useState(!view.loaded);
   const [error, setError] = useState<unknown>(null);
   const [sendError, setSendError] = useState(false);
+  const [sendNeedsReconciliation, setSendNeedsReconciliation] = useState(false);
+  const uncertainSend = useRef(false);
+  const sendRevision = useRef(0);
   const [sending, setSending] = useState(false);
   const [loadingOlder, setLoadingOlder] = useState(false);
   const [olderError, setOlderError] = useState<unknown>(null);
@@ -98,6 +104,14 @@ export function ConversationThread({
   const requestAbort = useRef<AbortController | null>(null);
   const requestRefresh = useRef<((manual?: boolean) => void) | null>(null);
   const flushUpdates = useRef<(() => void) | null>(null);
+  const socketChanged = useRef<((state: ConversationSocketState) => void) | null>(null);
+  const currentSocketState = useRef<ConversationSocketState>('connecting');
+  const invalidateSocket = useCallback(() => requestRefresh.current?.(), []);
+  const changeSocket = useCallback((state: ConversationSocketState) => {
+    currentSocketState.current = state;
+    socketChanged.current?.(state);
+  }, []);
+  const socketState = useConversationSocket(id, invalidateSocket, changeSocket);
   const refreshInbox = useRef(onRefreshInbox);
   const prependPosition = useRef<{ height: number; top: number } | null>(null);
   const name =
@@ -126,23 +140,21 @@ export function ConversationThread({
     let current = true;
     let terminal = false;
     let timer: ReturnType<typeof setInterval> | null = null;
-    let stopRealtime: (() => void) | null = null;
-    let joined = false;
+    let joined = currentSocketState.current === 'connected';
     let queued = false;
-    let interval = 0;
     const poll = (reliable: boolean) => {
-      const nextInterval = reliable ? 30_000 : CONVERSATION_POLL_INTERVAL_MS;
-      if (document.hidden || !current || (timer !== null && interval === nextInterval)) {
+      if (reliable || terminal || document.hidden || !current) {
+        if (timer !== null) {
+          clearInterval(timer);
+          timer = null;
+        }
         return;
       }
-      if (timer !== null) {
-        clearInterval(timer);
+      if (timer === null) {
+        timer = setInterval(() => {
+          void synchronize();
+        }, CONVERSATION_POLL_INTERVAL_MS);
       }
-      interval = nextInterval;
-      // REST also catches best-effort events and sends from another tab of the same user.
-      timer = setInterval(() => {
-        void synchronize();
-      }, interval);
     };
     const synchronize = async (manual = false) => {
       if (
@@ -154,6 +166,7 @@ export function ConversationThread({
         return;
       }
       const controller = new AbortController();
+      const reconciliationRevision = sendRevision.current;
       requestAbort.current = controller;
       requestPending.current = true;
       if (manual || !memory.current.loaded) {
@@ -199,6 +212,13 @@ export function ConversationThread({
         setView(next);
         setError(null);
         terminal = false;
+        if (uncertainSend.current && reconciliationRevision === sendRevision.current) {
+          uncertainSend.current = false;
+          setSendNeedsReconciliation(false);
+        }
+        if (added > 0) {
+          notifyUnreadMessagesChanged();
+        }
         let inboxChanged = added > 0;
         const latestReceived = items.findLast((message) => message.senderId !== user.id);
         if (
@@ -288,27 +308,21 @@ export function ConversationThread({
         requestRefresh.current?.();
       }
     };
+    socketChanged.current = (state) => {
+      joined = state === 'connected';
+      poll(joined);
+    };
     const visibilityChanged = () => {
       if (timer !== null) {
         clearInterval(timer);
         timer = null;
       }
-      stopRealtime?.();
-      stopRealtime = null;
-      joined = false;
+      joined = currentSocketState.current === 'connected';
       if (document.hidden) {
         requestAbort.current?.abort();
       } else {
         requestRefresh.current?.();
-        poll(false);
-        stopRealtime = subscribeConversationRealtime(
-          id,
-          () => requestRefresh.current?.(),
-          (ready) => {
-            joined = ready;
-            poll(ready);
-          },
-        );
+        poll(joined);
       }
     };
     visibilityChanged();
@@ -317,7 +331,7 @@ export function ConversationThread({
       current = false;
       requestRefresh.current = null;
       flushUpdates.current = null;
-      stopRealtime?.();
+      socketChanged.current = null;
       requestAbort.current?.abort();
       requestPending.current = false;
       if (timer !== null) {
@@ -435,7 +449,13 @@ export function ConversationThread({
     error !== null && ['expired', 'forbidden', 'missing'].includes(conversationErrorKey(error));
   const send = async () => {
     const draft = memory.current.draft;
-    if (sendingRef.current || inaccessible || !memory.current.loaded || !canSendMessage(draft)) {
+    if (
+      sendingRef.current ||
+      uncertainSend.current ||
+      inaccessible ||
+      !memory.current.loaded ||
+      !canSendMessage(draft)
+    ) {
       return;
     }
     sendingRef.current = true;
@@ -456,8 +476,13 @@ export function ConversationThread({
       onDraft(false);
       onSent(message);
       toast.success(text.sent);
-    } catch {
+    } catch (error) {
       if (active.current) {
+        if (!(error instanceof ApiError) || error.status >= 500 || error.status === 408) {
+          uncertainSend.current = true;
+          sendRevision.current += 1;
+          setSendNeedsReconciliation(true);
+        }
         setSendError(true);
         toast.error(text.sendFailed);
       }
@@ -466,7 +491,11 @@ export function ConversationThread({
       if (active.current) {
         setSending(false);
         onSending(false);
-        flushUpdates.current?.();
+        if (uncertainSend.current) {
+          requestRefresh.current?.();
+        } else {
+          flushUpdates.current?.();
+        }
       }
     }
   };
@@ -536,6 +565,9 @@ export function ConversationThread({
 
   return (
     <section className={styles.thread} aria-labelledby="conversation-name">
+      <span className="sr-only" role="status" aria-live="polite">
+        {text.connectionStates[socketState]}
+      </span>
       <header className={styles.threadHeader}>
         <button
           type="button"
@@ -682,7 +714,13 @@ export function ConversationThread({
             role={user.role === 'STUDENT' ? 'student' : 'tutor'}
             icon={<DashboardIcon name="arrow-right" />}
             iconPosition="end"
-            disabled={!view.loaded || !canSendMessage(view.draft) || sending || inaccessible}
+            disabled={
+              !view.loaded ||
+              !canSendMessage(view.draft) ||
+              sending ||
+              sendNeedsReconciliation ||
+              inaccessible
+            }
           >
             {sending ? text.sending : text.sendLabel}
           </NotebookAction>
@@ -701,7 +739,7 @@ export function ConversationThread({
         </div>
         {sendError && (
           <p className={styles.sendError} role="alert">
-            {text.sendFailed}
+            {sendNeedsReconciliation ? text.sendChecking : text.sendFailed}
           </p>
         )}
         {readError !== null && !inaccessible && (

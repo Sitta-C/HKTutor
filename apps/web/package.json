@@ -8,6 +8,7 @@
     "start": "next start",
     "test": "vitest run",
     "test:e2e": "playwright test",
+    "test:e2e:chat-live": "playwright test --config playwright.chat-live.config.ts",
     "test:watch": "vitest",
     "lint": "eslint --max-warnings=0",
     "lint:fix": "eslint --fix --max-warnings=0"

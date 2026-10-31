@@ -21,6 +21,8 @@ vi.mock('@/lib/api/client', () => ({
   refreshAccessToken: auth.refresh,
 }));
 
+const CONVERSATION = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+
 type Reply = (error: Error | null, reply?: unknown) => void;
 
 class TestSocket {
@@ -59,7 +61,7 @@ class TestSocket {
     this.connected = true;
     this.active = true;
     this.deliver('connect');
-    this.joins.at(-1)?.ack(null, { ok: true, conversationId: 'pair' });
+    this.joins.at(-1)?.ack(null, { ok: true, conversationId: CONVERSATION });
   }
 }
 
@@ -77,7 +79,7 @@ describe('conversation socket lifecycle', () => {
     socket = new TestSocket();
     auth.io.mockReturnValue(socket);
     auth.refresh.mockResolvedValue();
-    stop = subscribeConversationRealtime('pair', invalidate, changed);
+    stop = subscribeConversationRealtime(CONVERSATION, invalidate, changed);
   });
   afterEach(() => {
     stop();
@@ -106,29 +108,46 @@ describe('conversation socket lifecycle', () => {
 
   it('rejoins after every reconnect and reconciles missed history only after a matching acknowledgement', () => {
     socket.joined();
-    expect(socket.joins[0]?.payload).toEqual({ conversationId: 'pair' });
+    expect(socket.joins[0]?.payload).toEqual({ conversationId: CONVERSATION });
     expect(invalidate).toHaveBeenCalledOnce();
     socket.connected = false;
     socket.deliver('disconnect', 'transport close');
-    expect(changed).toHaveBeenLastCalledWith(false);
+    expect(changed).toHaveBeenLastCalledWith('reconnecting');
     socket.joined();
     expect(socket.joins).toHaveLength(2);
     expect(invalidate).toHaveBeenCalledTimes(2);
-    expect(changed).toHaveBeenLastCalledWith(true);
+    expect(changed).toHaveBeenLastCalledWith('connected');
     expect(socket.handlers.get('message_created')?.size).toBe(1);
   });
 
   it('uses events only to invalidate this joined conversation, never another room or malformed payloads', () => {
-    socket.deliver('message_created', { conversationId: 'pair' });
+    socket.deliver('message_created', { conversationId: CONVERSATION });
     expect(invalidate).not.toHaveBeenCalled();
     socket.joined();
     invalidate.mockClear();
     for (const event of ['message_created', 'messages_read']) {
-      for (const payload of [null, [], 'pair', {}, { conversationId: 'another' }]) {
+      for (const payload of [null, [], CONVERSATION, {}, { conversationId: 'another' }]) {
         socket.deliver(event, payload);
       }
       expect(invalidate).not.toHaveBeenCalled();
-      socket.deliver(event, { conversationId: 'PAIR' });
+      socket.deliver(
+        event,
+        event === 'message_created'
+          ? {
+              messageId: '11111111-1111-4111-8111-111111111111',
+              conversationId: CONVERSATION.toUpperCase(),
+              senderId: '22222222-2222-4222-8222-222222222222',
+              text: 'Persisted',
+              sentAt: '2026-10-31T03:00:00.000Z',
+              readAt: null,
+            }
+          : {
+              conversationId: CONVERSATION.toUpperCase(),
+              messageIds: ['11111111-1111-4111-8111-111111111111'],
+              readByUserId: '22222222-2222-4222-8222-222222222222',
+              readAt: '2026-10-31T04:00:00.000Z',
+            },
+      );
       expect(invalidate).toHaveBeenCalledOnce();
       invalidate.mockClear();
     }
@@ -141,20 +160,30 @@ describe('conversation socket lifecycle', () => {
     socket.connected = false;
     socket.deliver('disconnect', 'transport close');
     socket.connected = true;
-    stale?.ack(null, { ok: true, conversationId: 'pair' });
+    stale?.ack(null, { ok: true, conversationId: CONVERSATION });
     expect(invalidate).not.toHaveBeenCalled();
-    expect(changed).not.toHaveBeenCalledWith(true);
+    expect(changed).not.toHaveBeenCalledWith('connected');
+  });
+  it('treats malformed acknowledgement errors as unavailable instead of throwing', async () => {
+    socket.connected = true;
+    socket.deliver('connect');
+    expect(() =>
+      socket.joins[0]?.ack(null, { ok: false, error: { code: { toString: null } } }),
+    ).not.toThrow();
+    await vi.advanceTimersByTimeAsync(4000);
+    expect(socket.joins).toHaveLength(2);
+    expect(changed).not.toHaveBeenCalledWith('connected');
   });
 
   it('retries a timed-out room join while REST fallback remains active', async () => {
     socket.connected = true;
     socket.deliver('connect');
     socket.joins[0]?.ack(new Error('timeout'));
-    expect(changed).toHaveBeenLastCalledWith(false);
+    expect(changed).toHaveBeenLastCalledWith('connecting');
     await vi.advanceTimersByTimeAsync(4000);
     expect(socket.joins).toHaveLength(2);
     socket.joins[1]?.ack(null, { ok: true, conversationId: 'wrong-room' });
-    expect(changed).not.toHaveBeenCalledWith(true);
+    expect(changed).not.toHaveBeenCalledWith('connected');
   });
 
   it.each(['FORBIDDEN', 'NOT_FOUND', 'VALIDATION_FAILED'])(
@@ -177,7 +206,7 @@ describe('conversation socket lifecycle', () => {
     await vi.waitFor(() => expect(auth.refresh).toHaveBeenCalledOnce());
     socket.deliver('connect_error', error);
     expect(auth.refresh).toHaveBeenCalledOnce();
-    expect(changed).toHaveBeenLastCalledWith(false);
+    expect(changed).toHaveBeenLastCalledWith('authExpired');
   });
 
   it('recovers server-initiated token expiry and reconnects when REST rotates the token', async () => {
@@ -189,11 +218,11 @@ describe('conversation socket lifecycle', () => {
     auth.listener?.(auth.token);
     expect(socket.connect).toHaveBeenCalled();
     socket.joined();
-    expect(changed).toHaveBeenLastCalledWith(true);
+    expect(changed).toHaveBeenLastCalledWith('connected');
     auth.token = null;
     auth.listener?.(null);
     expect(socket.connected).toBe(false);
-    expect(changed).toHaveBeenLastCalledWith(false);
+    expect(changed).toHaveBeenLastCalledWith('authExpired');
   });
 
   it('does not reconnect after close while authentication refresh is pending', async () => {
@@ -216,9 +245,11 @@ describe('conversation socket lifecycle', () => {
     socket.joined();
     stop();
     invalidate.mockClear();
-    socket.deliver('message_created', { conversationId: 'pair' });
+    socket.deliver('message_created', { conversationId: CONVERSATION });
     await vi.advanceTimersByTimeAsync(20000);
-    expect(socket.emit).toHaveBeenCalledWith('conversation_leave', { conversationId: 'pair' });
+    expect(socket.emit).toHaveBeenCalledWith('conversation_leave', {
+      conversationId: CONVERSATION,
+    });
     expect([...socket.handlers.values()].every((handlers) => handlers.size === 0)).toBe(true);
     expect(auth.listener).toBeNull();
     expect(invalidate).not.toHaveBeenCalled();

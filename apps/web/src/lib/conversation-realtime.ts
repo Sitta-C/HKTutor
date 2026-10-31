@@ -4,6 +4,8 @@ import { io } from 'socket.io-client';
 
 import { getAccessToken, onAccessTokenChanged, refreshAccessToken } from '@/lib/api/client';
 import { CONVERSATION_POLL_INTERVAL_MS } from '@/lib/api/conversations';
+import { ApiError } from '@/lib/api/error';
+import { isMessageCreatedEvent, isMessagesReadEvent } from '@/lib/conversation-socket-events';
 
 import type { Socket } from 'socket.io-client';
 
@@ -17,6 +19,16 @@ interface ClientEvents {
   conversation_leave: (payload: { conversationId: string }) => void;
 }
 
+export type ConversationSocketState =
+  | 'connecting'
+  | 'connected'
+  | 'reconnecting'
+  | 'fallback'
+  | 'authExpired'
+  | 'forbidden'
+  | 'missing'
+  | 'paused';
+
 function hasConversation(payload: unknown, conversationId: string): boolean {
   return (
     typeof payload === 'object' &&
@@ -27,15 +39,20 @@ function hasConversation(payload: unknown, conversationId: string): boolean {
   );
 }
 
-function errorCode(value: unknown): unknown {
-  return typeof value === 'object' && value !== null && 'code' in value ? value.code : null;
+function errorCode(value: unknown): string | null {
+  return typeof value === 'object' &&
+    value !== null &&
+    'code' in value &&
+    typeof value.code === 'string'
+    ? value.code
+    : null;
 }
 
 /** Events invalidate REST history; pushed data never replaces the authoritative GET cursor. */
 export function subscribeConversationRealtime(
   conversationId: string,
   invalidate: () => void,
-  connectionChanged: (joined: boolean) => void,
+  connectionChanged: (state: ConversationSocketState) => void,
 ): () => void {
   const socket: Socket<ServerEvents, ClientEvents> = io('/chat', {
     path: '/api/v1/socket.io',
@@ -54,6 +71,7 @@ export function subscribeConversationRealtime(
   let retry: ReturnType<typeof setTimeout> | null = null;
   let refreshing = false;
   let rejectedToken: string | null = null;
+  let hasJoined = false;
 
   const clearRetry = () => {
     if (retry !== null) {
@@ -61,12 +79,12 @@ export function subscribeConversationRealtime(
       retry = null;
     }
   };
-  const unavailable = () => {
+  const unavailable = (state: ConversationSocketState = 'fallback') => {
     joined = false;
     generation += 1;
     clearRetry();
     if (!closed) {
-      connectionChanged(false);
+      connectionChanged(state);
     }
   };
   const later = (action: () => void) => {
@@ -86,6 +104,7 @@ export function subscribeConversationRealtime(
     socket.disconnect();
     // A rejected refreshed credential must not create an unbounded refresh/reconnect loop.
     if (rejectedToken === token) {
+      unavailable('authExpired');
       return;
     }
     refreshing = true;
@@ -95,7 +114,8 @@ export function subscribeConversationRealtime(
       if (!closed && getAccessToken()) {
         socket.connect();
       }
-    } catch {
+    } catch (error) {
+      unavailable(error instanceof ApiError && error.status === 401 ? 'authExpired' : 'fallback');
       // REST polling retains its existing refresh/error behavior, including session expiry.
       // A later successful REST refresh notifies the token listener and reconnects the socket.
     } finally {
@@ -117,8 +137,9 @@ export function subscribeConversationRealtime(
         reply.ok === true
       ) {
         joined = true;
+        hasJoined = true;
         rejectedToken = null;
-        connectionChanged(true);
+        connectionChanged('connected');
         invalidate();
         return;
       }
@@ -128,8 +149,9 @@ export function subscribeConversationRealtime(
           : null;
       if (code === 'UNAUTHENTICATED') {
         void recoverAuthentication();
-      } else if (['FORBIDDEN', 'NOT_FOUND', 'VALIDATION_FAILED'].includes(String(code))) {
+      } else if (['FORBIDDEN', 'NOT_FOUND', 'VALIDATION_FAILED'].includes(code ?? '')) {
         socket.disconnect();
+        unavailable(code === 'NOT_FOUND' ? 'missing' : 'forbidden');
         invalidate();
       } else {
         later(join);
@@ -137,11 +159,11 @@ export function subscribeConversationRealtime(
     });
   };
   const connected = () => {
-    unavailable();
+    unavailable(hasJoined ? 'reconnecting' : 'connecting');
     join();
   };
   const disconnected = (reason: string) => {
-    unavailable();
+    unavailable(reason === 'io client disconnect' ? 'fallback' : 'reconnecting');
     if (reason === 'io server disconnect') {
       void recoverAuthentication();
     }
@@ -153,32 +175,56 @@ export function subscribeConversationRealtime(
       void recoverAuthentication();
     } else if (code === 'FORBIDDEN') {
       socket.disconnect();
+      unavailable('forbidden');
+      invalidate();
     } else if (!socket.active) {
       later(() => socket.connect());
     }
   };
-  const changed = (payload: unknown) => {
-    if (!closed && joined && hasConversation(payload, conversationId)) {
+  const messageCreated = (payload: unknown) => {
+    if (
+      !closed &&
+      joined &&
+      isMessageCreatedEvent(payload) &&
+      hasConversation(payload, conversationId)
+    ) {
+      invalidate();
+    }
+  };
+  const messagesRead = (payload: unknown) => {
+    if (
+      !closed &&
+      joined &&
+      isMessagesReadEvent(payload) &&
+      hasConversation(payload, conversationId)
+    ) {
       invalidate();
     }
   };
   socket.on('connect', connected);
   socket.on('disconnect', disconnected);
   socket.on('connect_error', failed);
-  socket.on('message_created', changed);
-  socket.on('messages_read', changed);
+  socket.on('message_created', messageCreated);
+  socket.on('messages_read', messagesRead);
   const stopWatchingToken = onAccessTokenChanged((token) => {
     unavailable();
     socket.disconnect();
+    unavailable(token ? 'connecting' : 'authExpired');
     if (!closed && token) {
       socket.connect();
     }
   });
   if (getAccessToken()) {
+    unavailable('connecting');
     socket.connect();
+  } else {
+    unavailable('authExpired');
   }
 
   return () => {
+    if (closed) {
+      return;
+    }
     closed = true;
     generation += 1;
     clearRetry();
@@ -186,8 +232,8 @@ export function subscribeConversationRealtime(
     socket.off('connect', connected);
     socket.off('disconnect', disconnected);
     socket.off('connect_error', failed);
-    socket.off('message_created', changed);
-    socket.off('messages_read', changed);
+    socket.off('message_created', messageCreated);
+    socket.off('messages_read', messagesRead);
     if (joined && socket.connected) {
       socket.emit('conversation_leave', { conversationId });
     }
