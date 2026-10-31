@@ -506,9 +506,17 @@ visible reading anchor. At the end of history the action becomes Beginning of co
 Failed older loads preserve fetched messages, drafts and both independent cursors, with inline
 recovery; initial failures leave the composer disabled with retry.
 
-The visible open thread checks every four seconds, without overlapping reads. Hidden documents
-abort current reads and pause the timer; visibility resumes updates. Closing/switching the thread
-or unmounting the authenticated page cleans timers, listeners and requests. Manual Refresh remains.
+The visible open thread subscribes to Socket.IO `message_created` and `messages_read` events for
+its authorized conversation. Every initial/reconnected room join reconciles missed history through
+REST; pushed payloads only invalidate history and never advance the GET cursor. Events arriving
+during a read, older-page load or send coalesce into a follow-up read, without overlapping history
+requests. REST polls every four seconds while unjoined or recovering a read failure, and every
+30 seconds while joined to catch best-effort delivery gaps and same-user sends from other tabs.
+Token rotation uses the existing memory-only auth flow and rejoins with the new credential;
+rejected refreshed credentials do not create an unlimited refresh loop. Hidden documents abort
+current reads and close sockets/timers; visibility resumes updates and rejoins. Closing/switching
+the thread or unmounting the authenticated page cleans timers, socket/token listeners and requests.
+The header shows identity and role, without a connection-status label. Manual Refresh remains.
 Catch-up follows forward pages of 50, bounded to 200 pages and one 60-second deadline including
 authentication awaits. Broken/cycling cursors and empty continuing pages fail explicitly. Deadlines
 settle stalled inner awaits, and failed refreshes preserve drafts/history and the last GET cursor.

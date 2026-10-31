@@ -30,9 +30,13 @@ The implemented web flow includes authentication and email verification, profile
 role-specific dashboards, tutor availability and course management, tutor discovery, student booking,
 private student/tutor messaging, and the informational `/about-me` page. Messaging at
 `/dashboard/messages` supports asking a tutor before booking, inbox pagination, latest-first opening,
-incremental older-history loading, text sending and server-backed sent/read receipts. The open chat
-checks for updates every four seconds, pauses while the tab is hidden and stops when closed;
-manual Refresh remains available. Student and tutor sidebar Messages badges show the global
+incremental older-history loading, text sending and server-backed sent/read receipts. Visible open
+chats subscribe to authenticated Socket.IO events and reconcile through REST after joining or
+reconnecting. REST checks run every four seconds as a fallback, and every 30 seconds after a room
+join to catch missed events and sends from the user's other tabs. Hidden tabs and closed threads
+stop their socket, listeners and polling; manual Refresh remains available. Use the
+[same-origin socket proxy](apps/api/README.md#same-origin-development-and-deployment-proxy) for
+WebSocket support. Student and tutor sidebar Messages badges show the global
 unread incoming-message count, refresh every 15 seconds while visible, and refresh immediately
 after successful read acknowledgements. Availability supports overnight and multi-day ranges with
 Bangkok-time presentation and UTC timestamps on the wire. Day and week views use the private

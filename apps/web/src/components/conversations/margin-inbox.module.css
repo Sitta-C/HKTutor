@@ -199,14 +199,6 @@
 .identity p > span:first-child {
   flex-shrink: 0;
 }
-.updateHint {
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-size: 0.6875rem;
-  padding-left: 10px;
-  border-left: 1px solid var(--color-paper-edge);
-}
 .back {
   display: grid;
   place-items: center;
@@ -505,13 +497,8 @@
     padding: 10px;
     gap: 6px;
   }
-  .threadHeader .initial,
-  .identity p > span:first-child {
+  .threadHeader .initial {
     display: none;
-  }
-  .updateHint {
-    padding-left: 0;
-    border-left: none;
   }
   .threadRefresh {
     width: 46px;

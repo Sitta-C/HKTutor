@@ -95,7 +95,7 @@ test('organizes API features and infrastructure behind explicit aliases', async 
   }
 });
 
-test('keeps unrelated infrastructure out while allowing Prisma, Supabase and Socket.IO only in the API', async () => {
+test('keeps infrastructure in the API and permits the S3-T03 web chat client', async () => {
   const root = await readJson('package.json');
   const web = await readJson('apps/web/package.json');
   const api = await readJson('apps/api/package.json');
@@ -112,12 +112,18 @@ test('keeps unrelated infrastructure out while allowing Prisma, Supabase and Soc
       false,
     );
   }
-  for (const manifest of [root, web]) {
-    assert.equal(
-      packageNames(manifest).some((name) => socketIo.test(name)),
-      false,
-    );
-  }
+  assert.equal(
+    packageNames(root).some((name) => socketIo.test(name)),
+    false,
+  );
+  assert.ok(
+    web.dependencies['socket.io-client'],
+    'S3-T03 subscribes to chat events in the web app',
+  );
+  assert.deepEqual(
+    packageNames(web).filter((name) => socketIo.test(name)),
+    ['socket.io-client'],
+  );
 
   // S3-T01 approves exactly this Socket.IO stack in the API; adapters and other realtime
   // packages still need their own decision.

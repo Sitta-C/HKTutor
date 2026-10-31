@@ -22,6 +22,7 @@ import {
   mergeMessages,
   messageLength,
 } from '@/lib/conversation-model';
+import { subscribeConversationRealtime } from '@/lib/conversation-realtime';
 import { formatBangkokShortDate, formatBangkokTime, getBangkokIsoDate } from '@/lib/date-time';
 import { useLanguage } from '@/lib/i18n';
 
@@ -95,7 +96,8 @@ export function ConversationThread({
   const restore = useRef(true);
   const requestPending = useRef(false);
   const requestAbort = useRef<AbortController | null>(null);
-  const requestRefresh = useRef<(() => void) | null>(null);
+  const requestRefresh = useRef<((manual?: boolean) => void) | null>(null);
+  const flushUpdates = useRef<(() => void) | null>(null);
   const refreshInbox = useRef(onRefreshInbox);
   const prependPosition = useRef<{ height: number; top: number } | null>(null);
   const name =
@@ -124,6 +126,24 @@ export function ConversationThread({
     let current = true;
     let terminal = false;
     let timer: ReturnType<typeof setInterval> | null = null;
+    let stopRealtime: (() => void) | null = null;
+    let joined = false;
+    let queued = false;
+    let interval = 0;
+    const poll = (reliable: boolean) => {
+      const nextInterval = reliable ? 30_000 : CONVERSATION_POLL_INTERVAL_MS;
+      if (document.hidden || !current || (timer !== null && interval === nextInterval)) {
+        return;
+      }
+      if (timer !== null) {
+        clearInterval(timer);
+      }
+      interval = nextInterval;
+      // REST also catches best-effort events and sends from another tab of the same user.
+      timer = setInterval(() => {
+        void synchronize();
+      }, interval);
+    };
     const synchronize = async (manual = false) => {
       if (
         !current ||
@@ -139,6 +159,7 @@ export function ConversationThread({
       if (manual || !memory.current.loaded) {
         setLoading(true);
       }
+      let retryNeeded = false;
       try {
         const cached = memory.current;
         const receiptCursor = conversationReceiptCursor(cached.items, cached.cursor, user.id);
@@ -218,6 +239,7 @@ export function ConversationThread({
             setReadError(null);
             inboxChanged = true;
           } catch (caught: unknown) {
+            retryNeeded = true;
             if (current && !controller.signal.aborted) {
               setReadError(caught);
               if (['expired', 'forbidden', 'missing'].includes(conversationErrorKey(caught))) {
@@ -231,6 +253,7 @@ export function ConversationThread({
           refreshInbox.current();
         }
       } catch (caught: unknown) {
+        retryNeeded = true;
         if (current && !controller.signal.aborted) {
           setError(caught);
           terminal = ['expired', 'forbidden', 'missing', 'historyLimit'].includes(
@@ -241,24 +264,51 @@ export function ConversationThread({
         if (current) {
           setLoading(false);
           requestPending.current = false;
+          poll(joined && !retryNeeded);
+          if (queued && !document.hidden && !terminal && !sendingRef.current) {
+            queued = false;
+            void synchronize();
+          }
         }
       }
     };
-    requestRefresh.current = () => {
-      void synchronize(true);
+    requestRefresh.current = (manual = false) => {
+      if (!current || document.hidden || (!manual && terminal)) {
+        return;
+      }
+      if (requestPending.current || sendingRef.current) {
+        queued = true;
+        return;
+      }
+      queued = false;
+      void synchronize(manual);
+    };
+    flushUpdates.current = () => {
+      if (queued) {
+        requestRefresh.current?.();
+      }
     };
     const visibilityChanged = () => {
       if (timer !== null) {
         clearInterval(timer);
         timer = null;
       }
+      stopRealtime?.();
+      stopRealtime = null;
+      joined = false;
       if (document.hidden) {
         requestAbort.current?.abort();
       } else {
-        void synchronize();
-        timer = setInterval(() => {
-          void synchronize();
-        }, CONVERSATION_POLL_INTERVAL_MS);
+        requestRefresh.current?.();
+        poll(false);
+        stopRealtime = subscribeConversationRealtime(
+          id,
+          () => requestRefresh.current?.(),
+          (ready) => {
+            joined = ready;
+            poll(ready);
+          },
+        );
       }
     };
     visibilityChanged();
@@ -266,6 +316,8 @@ export function ConversationThread({
     return () => {
       current = false;
       requestRefresh.current = null;
+      flushUpdates.current = null;
+      stopRealtime?.();
       requestAbort.current?.abort();
       requestPending.current = false;
       if (timer !== null) {
@@ -336,7 +388,7 @@ export function ConversationThread({
     if (requestPending.current || sendingRef.current) {
       return;
     }
-    requestRefresh.current?.();
+    requestRefresh.current?.(true);
     onRefreshInbox();
   };
   const loadOlder = async () => {
@@ -375,6 +427,7 @@ export function ConversationThread({
       if (active.current) {
         requestPending.current = false;
         setLoadingOlder(false);
+        flushUpdates.current?.();
       }
     }
   };
@@ -413,6 +466,7 @@ export function ConversationThread({
       if (active.current) {
         setSending(false);
         onSending(false);
+        flushUpdates.current?.();
       }
     }
   };
@@ -501,9 +555,6 @@ export function ConversationThread({
           </h2>
           <p>
             <span>{user.role === 'STUDENT' ? text.tutor : text.student}</span>
-            <span className={styles.updateHint} title={text.automatic}>
-              {text.automatic}
-            </span>
           </p>
         </div>
         <button
@@ -543,6 +594,9 @@ export function ConversationThread({
           // Only render when proximity changes, rather than on every scroll frame.
           if (previous.atLatest !== atLatest || previous.newCount !== next.newCount) {
             setView(next);
+            if (atLatest && !previous.atLatest) {
+              requestRefresh.current?.();
+            }
           }
         }}
       >

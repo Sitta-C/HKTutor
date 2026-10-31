@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 
 import type { ConversationMessage, ConversationSummary } from '@/lib/api/types';
-import type { Page } from '@playwright/test';
+import type { Page, WebSocketRoute } from '@playwright/test';
 
 // Isolated browser fixtures: all API requests are intercepted; no private data or real sends.
 async function mockInbox(
@@ -16,6 +16,7 @@ async function mockInbox(
     shortHistory?: boolean;
     brokenHistory?: boolean;
     messageCount?: number;
+    realtime?: boolean;
   } = {},
 ) {
   const role = options.role ?? 'STUDENT';
@@ -102,6 +103,9 @@ async function mockInbox(
     options.language ?? 'en',
   );
   await page.emulateMedia({ reducedMotion: 'reduce' });
+  if (!options.realtime) {
+    await page.routeWebSocket('**/api/v1/socket.io/**', (socket) => socket.close());
+  }
   if (!options.guest) {
     await page
       .context()
@@ -114,6 +118,9 @@ async function mockInbox(
     const url = new URL(request.url());
     const path = url.pathname.replace('/api/v1', '');
     const method = request.method();
+    if (path.startsWith('/socket.io')) {
+      return route.abort();
+    }
     if (path === '/conversations/unread-count') {
       unreadRequests += 1;
       const unreadCount =
@@ -394,6 +401,203 @@ async function openFirst(page: Page) {
   await page.getByRole('button', { name: /Teacher Praew 0|Mint 0/ }).click();
   await expect(page.getByText('History 61:', { exact: false })).toBeVisible();
 }
+
+// Exercise the real browser Socket.IO client against deterministic Engine.IO frames.
+// Persisted data still comes exclusively from mockInbox's REST fixture.
+async function mockChatSocket(page: Page) {
+  let current: WebSocketRoute | null = null;
+  const joins: string[] = [];
+  const authentications: unknown[] = [];
+  let closes = 0;
+  await page.routeWebSocket('**/api/v1/socket.io/**', (socket) => {
+    current = socket;
+    socket.send(
+      `0${JSON.stringify({
+        sid: `engine-${joins.length}`,
+        upgrades: [],
+        pingInterval: 60000,
+        pingTimeout: 60000,
+        maxPayload: 8192,
+      })}`,
+    );
+    socket.onClose(() => {
+      closes += 1;
+    });
+    socket.onMessage((data) => {
+      if (typeof data !== 'string') {
+        return;
+      }
+      if (data.startsWith('40/chat,')) {
+        authentications.push(JSON.parse(data.slice('40/chat,'.length)));
+        socket.send('40/chat,{"sid":"chat-fixture"}');
+      }
+      const match = /^42\/chat,(\d+)(\[.*)$/.exec(data);
+      if (match?.[2]) {
+        const [event, payload] = JSON.parse(match[2]) as [string, { conversationId: string }];
+        if (event === 'conversation_join') {
+          joins.push(payload.conversationId);
+          socket.send(`43/chat,${match[1]}${JSON.stringify([{ ok: true, ...payload }])}`);
+        }
+      }
+    });
+  });
+  return {
+    joins,
+    authentications,
+    closes: () => closes,
+    emit: (event: string, payload: unknown) =>
+      current?.send(`42/chat,${JSON.stringify([event, payload])}`),
+    disconnect: () => current?.close(),
+  };
+}
+
+test('reconciles socket messages and receipts through REST without duplicate or fabricated messages', async ({
+  page,
+}, testInfo) => {
+  await pauseChatClock(page);
+  const fixture = await mockInbox(page, { shortHistory: true, realtime: true });
+  const socket = await mockChatSocket(page);
+  await page.goto('/dashboard/messages');
+  await page.getByRole('button', { name: /Teacher Praew 0/ }).click();
+  const transcript = page.getByRole('region', { name: 'Conversation history', exact: true });
+  await expect(page.getByRole('textbox', { name: 'Your message' })).toBeEnabled();
+  await expect.poll(() => socket.joins.length).toBe(1);
+  expect(socket.authentications).toEqual([{ accessToken: 'fixture-token' }]);
+  await expect(page.getByText(/Live updates|Updates every/)).toHaveCount(0);
+  fixture.incoming('Persisted incoming message');
+  socket.emit('message_created', { conversationId: 'another-pair', text: 'Wrong room' });
+  socket.emit('message_created', { conversationId: 'pair-0', text: 'Untrusted pushed text' });
+  socket.emit('message_created', { conversationId: 'pair-0', text: 'Untrusted pushed text' });
+  await expect(transcript.getByText('Persisted incoming message', { exact: true })).toHaveCount(1);
+  await expect(transcript.getByText('Untrusted pushed text', { exact: true })).toHaveCount(0);
+  await expect(transcript.getByText('Wrong room', { exact: true })).toHaveCount(0);
+  fixture.readOwn();
+  socket.emit('messages_read', { conversationId: 'pair-0' });
+  await expect(transcript.locator('[data-message-id="short-1"]')).toContainText('Read');
+  await expect(transcript.locator('[data-message-id="short-2"]')).toContainText('Read');
+  await page.screenshot({ path: testInfo.outputPath('chat-realtime.png'), fullPage: true });
+  await page.getByRole('button', { name: 'Back to conversations' }).click();
+  const reads = fixture.calls.filter((call) => call.path.endsWith('/messages')).length;
+  await page.clock.runFor(35000);
+  expect(fixture.calls.filter((call) => call.path.endsWith('/messages'))).toHaveLength(reads);
+  await expect.poll(socket.closes).toBeGreaterThan(0);
+  expect(fixture.unexpected).toEqual([]);
+});
+
+test('rejoins after disconnect and recovers missed REST history without a new socket event', async ({
+  page,
+}) => {
+  await pauseChatClock(page);
+  const fixture = await mockInbox(page, { shortHistory: true, realtime: true });
+  const socket = await mockChatSocket(page);
+  await page.goto('/dashboard/messages');
+  await page.getByRole('button', { name: /Teacher Praew 0/ }).click();
+  await expect(page.getByRole('textbox', { name: 'Your message' })).toBeEnabled();
+  await expect.poll(() => socket.joins.length).toBe(1);
+  socket.disconnect();
+  fixture.incoming('Missed during disconnect');
+  await page.clock.runFor(2000);
+  await expect.poll(() => socket.joins.length).toBe(2);
+  await expect(page.getByText('Missed during disconnect', { exact: true })).toHaveCount(1);
+  expect(socket.joins).toEqual(['pair-0', 'pair-0']);
+  expect(fixture.unexpected).toEqual([]);
+});
+
+test('periodically reconciles missed events while the room is joined', async ({ page }) => {
+  await pauseChatClock(page);
+  const fixture = await mockInbox(page, { shortHistory: true, realtime: true });
+  const socket = await mockChatSocket(page);
+  await page.goto('/dashboard/messages');
+  await page.getByRole('button', { name: /Teacher Praew 0/ }).click();
+  await expect(page.getByRole('textbox', { name: 'Your message' })).toBeEnabled();
+  await expect.poll(() => socket.joins.length).toBe(1);
+  await expect
+    .poll(() => fixture.calls.filter((call) => call.path.endsWith('/read')).length)
+    .toBe(1);
+  await page.clock.runFor(100);
+  const reads = () =>
+    fixture.calls.filter((call) => call.method === 'GET' && call.path.endsWith('/messages')).length;
+  const initial = reads();
+  fixture.incoming('Missed event recovered by REST');
+  await page.clock.runFor(4000);
+  expect(reads()).toBe(initial);
+  await page.clock.runFor(26000);
+  await expect(page.getByText('Missed event recovered by REST', { exact: true })).toHaveCount(1);
+  expect(fixture.unexpected).toEqual([]);
+});
+
+test('reconciles events received during a pending send without advancing past concurrent incoming messages', async ({
+  page,
+}) => {
+  await pauseChatClock(page);
+  const fixture = await mockInbox(page, { shortHistory: true, realtime: true });
+  const socket = await mockChatSocket(page);
+  await page.goto('/dashboard/messages');
+  await page.getByRole('button', { name: /Teacher Praew 0/ }).click();
+  const input = page.getByRole('textbox', { name: 'Your message' });
+  await expect(input).toBeEnabled();
+  await expect.poll(() => socket.joins.length).toBe(1);
+  let release = () => {};
+  fixture.gateSend(
+    new Promise<void>((resolve) => {
+      release = resolve;
+    }),
+  );
+  await input.fill('My pending send');
+  await page.getByRole('button', { name: 'Send', exact: true }).click();
+  await expect(input).toBeDisabled();
+  fixture.incoming('Concurrent incoming during send');
+  socket.emit('message_created', { conversationId: 'pair-0' });
+  release();
+  const transcript = page.getByRole('region', { name: 'Conversation history', exact: true });
+  await expect(transcript.getByText('My pending send', { exact: true })).toHaveCount(1);
+  await expect(
+    transcript.getByText('Concurrent incoming during send', { exact: true }),
+  ).toHaveCount(1);
+  expect(
+    fixture.calls.filter((call) => call.method === 'POST' && call.path.endsWith('/messages')),
+  ).toHaveLength(1);
+  expect(fixture.unexpected).toEqual([]);
+});
+
+test('queues socket invalidations during older-history loading and pauses the socket while hidden', async ({
+  page,
+}) => {
+  await pauseChatClock(page);
+  const fixture = await mockInbox(page, { realtime: true });
+  const socket = await mockChatSocket(page);
+  await openFirst(page);
+  await expect.poll(() => socket.joins.length).toBe(1);
+  let release = () => {};
+  fixture.gateHistory(
+    new Promise<void>((resolve) => {
+      release = resolve;
+    }),
+  );
+  await page.getByRole('button', { name: 'Load earlier messages' }).click();
+  fixture.incoming('Arrived while loading older history');
+  socket.emit('message_created', { conversationId: 'pair-0' });
+  release();
+  fixture.gateHistory(undefined);
+  await expect(page.getByText('Arrived while loading older history', { exact: true })).toHaveCount(
+    1,
+  );
+  const before = socket.closes();
+  await page.evaluate(() => {
+    Object.defineProperty(document, 'hidden', { configurable: true, value: true });
+    document.dispatchEvent(new Event('visibilitychange'));
+  });
+  await expect.poll(socket.closes).toBeGreaterThan(before);
+  const reads = fixture.calls.filter((call) => call.path.endsWith('/messages')).length;
+  await page.clock.runFor(35000);
+  expect(fixture.calls.filter((call) => call.path.endsWith('/messages'))).toHaveLength(reads);
+  await page.evaluate(() => {
+    Reflect.deleteProperty(document, 'hidden');
+    document.dispatchEvent(new Event('visibilitychange'));
+  });
+  await expect.poll(() => socket.joins.length).toBe(2);
+  expect(fixture.unexpected).toEqual([]);
+});
 
 async function noOverflow(page: Page) {
   expect(

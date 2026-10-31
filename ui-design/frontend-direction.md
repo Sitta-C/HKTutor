@@ -562,7 +562,10 @@ Use the current `conversations` API and canonical tutor User ID. Do not add stud
   one/two checks as supplementary cues. Keep the current paper, pane layout and Ink Tickets composer.
   History Tab remains unselected. Open with the latest 20 messages and prepend one older page per
   click, preserving the visible reading position and keeping the composer stationary.
-- Check for updates every four seconds while the conversation is open and the document is visible.
+- S3-T03 subscribes the visible open thread to chat events and rejoins after reconnect. Events
+  trigger REST reconciliation; REST remains authoritative for messages, receipts and GET cursors.
+  Use four-second polling before a successful room join or during connection/read failures, and
+  30-second reconciliation while joined to catch missed events and same-user sends from other tabs.
   Prevent overlapping history requests. Pause and abort reads when hidden; resume on visibility,
   and clean timers/listeners/requests on close, conversation switch and page/user unmount.
   Keep the explicit Refresh action and cached drafts/history when a read fails. Forward catch-up
@@ -585,9 +588,10 @@ heading, aligned 72px pane headers, two-row contacts with time beside the name, 
 and participant-role avatar colors. Keep names accessible in full even when visually ellipsized.
 
 Use one visible refresh action in an open thread, refreshing both its history and the inbox. The
-index refresh remains available when choosing a conversation. Keep the automatic-update hint in the
-thread header. The workspace measures the actual shell/header offset and viewport height (including
-visual-viewport resize), within 360–760px, rather than using fixed subtraction for each breakpoint.
+index refresh remains available when choosing a conversation. The thread header shows participant
+identity and role without an automatic-update/real-time label. The workspace measures the actual
+shell/header offset and viewport height (including visual-viewport resize), within 360–760px,
+rather than using fixed subtraction for each breakpoint.
 
 Limit the message stream to 52rem and bubbles to 34rem, bottom-align short histories, and tighten the
 gap for consecutive same-sender messages within three minutes on the same Bangkok date. Start the
