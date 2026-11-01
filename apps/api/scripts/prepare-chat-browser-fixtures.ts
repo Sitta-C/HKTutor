@@ -50,6 +50,12 @@ const users = [
     role: Role.STUDENT,
     email: 'other@s3-chat.invalid',
   },
+  {
+    id: '55555555-5555-4555-8555-555555555555',
+    name: 'Browser Admin',
+    role: Role.ADMIN,
+    email: 'admin@s3-chat.invalid',
+  },
 ] as const;
 const pairs = [
   {
@@ -106,7 +112,7 @@ async function main(): Promise<void> {
           },
           update: {},
         });
-      } else {
+      } else if (fixture.role === Role.TUTOR) {
         await prisma.tutorProfile.upsert({
           where: { userId: fixture.id },
           create: {

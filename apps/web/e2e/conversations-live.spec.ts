@@ -5,6 +5,7 @@ import type {
   BrowserContext,
   Page,
   Request,
+  TestInfo,
   WebSocketRoute,
 } from '@playwright/test';
 
@@ -14,6 +15,12 @@ const FOREIGN = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
 const MISSING = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
 const PASSWORD = 'Chat-fixture-Only-2026!';
 
+async function captureEvidence(page: Page, name: string, testInfo: TestInfo): Promise<void> {
+  const path = testInfo.outputPath(`${name}.png`);
+  await page.screenshot({ path });
+  await testInfo.attach(name, { path, contentType: 'image/png' });
+}
+
 function socketEvent(frame: string): string | null {
   const match = /^42\/chat,\d*(\[.*)$/.exec(frame);
   if (!match?.[1]) return null;
@@ -21,7 +28,46 @@ function socketEvent(frame: string): string | null {
   return Array.isArray(payload) && typeof payload[0] === 'string' ? payload[0] : null;
 }
 
-test.describe.serial('S3-T03: real browser sessions, Nest API, Socket.IO and PostgreSQL', () => {
+// Use the browser's real WebSocket transport for denied identities too. Never attach raw frames,
+// handshake credentials or traces; only the rejection stage/code leaves this probe.
+async function probeRoom(page: Page, token: string): Promise<unknown> {
+  return page.evaluate(
+    ({ accessToken, conversationId }) =>
+      new Promise((resolve, reject) => {
+        const socket = new WebSocket(
+          `${location.origin.replace('http', 'ws')}/api/v1/socket.io/?EIO=4&transport=websocket`,
+        );
+        const finish = (result: unknown) => {
+          clearTimeout(timeout);
+          socket.close();
+          resolve(result);
+        };
+        const timeout = setTimeout(() => {
+          socket.close();
+          reject(new Error('Browser authorization probe timed out'));
+        }, 5000);
+        socket.addEventListener('message', ({ data }: MessageEvent<unknown>) => {
+          if (typeof data !== 'string') return;
+          if (data.startsWith('0')) {
+            socket.send(`40/chat,${JSON.stringify({ accessToken })}`);
+          } else if (data.startsWith('40/chat,')) {
+            socket.send(`42/chat,1${JSON.stringify(['conversation_join', { conversationId }])}`);
+          } else if (data.startsWith('44/chat,')) {
+            const error: unknown = JSON.parse(data.slice('44/chat,'.length));
+            finish({ stage: 'connect', error });
+          } else if (data.startsWith('43/chat,1')) {
+            const reply: unknown = JSON.parse(data.slice('43/chat,1'.length));
+            finish({ stage: 'join', reply });
+          } else if (data === '2') {
+            socket.send('3');
+          }
+        });
+      }),
+    { accessToken: token, conversationId: PRIMARY },
+  );
+}
+
+test.describe.serial('S3-T04: real browser sessions, Nest API, Socket.IO and PostgreSQL', () => {
   let student: BrowserContext;
   let tutor: BrowserContext;
   let studentPage: Page;
@@ -30,12 +76,17 @@ test.describe.serial('S3-T03: real browser sessions, Nest API, Socket.IO and Pos
   let reader: APIRequestContext;
   let writerToken = '';
   let readerToken = '';
+  const refreshes = new Map<'writer' | 'reader', Promise<void>>();
   let socketBlocked = false;
   let historyBlocked = false;
   let releaseHistoryOnJoin = false;
   let holdCreated = false;
   let studentCreated = 0;
   let tutorCreated = 0;
+  let studentReceipts = 0;
+  let tutorReceipts = 0;
+  let tutorOpenSockets = 0;
+  let studentSends = 0;
   let studentJoins = 0;
   let studentHistoryReads = 0;
   let studentRefreshes = 0;
@@ -45,9 +96,20 @@ test.describe.serial('S3-T03: real browser sessions, Nest API, Socket.IO and Pos
   const pendingHistory = new Set<Request>();
 
   async function login(request: APIRequestContext, email: string): Promise<string> {
-    const response = await request.post(`${ORIGIN}/api/v1/auth/login`, {
-      data: { email, password: PASSWORD },
-    });
+    const send = () =>
+      request.post(`${ORIGIN}/api/v1/auth/login`, {
+        data: { email, password: PASSWORD },
+      });
+    let response = await send();
+    if (response.status() === 429) {
+      // Six independent synthetic sessions share loopback's five-logins/minute limit.
+      // Honor the real guard instead of disabling it for this integration suite.
+      const retryAfter = Number(response.headers()['retry-after']);
+      expect(retryAfter).toBeGreaterThan(0);
+      expect(retryAfter).toBeLessThanOrEqual(60);
+      await new Promise((resolve) => setTimeout(resolve, retryAfter * 1000));
+      response = await send();
+    }
     expect(response.status()).toBe(200);
     const body: unknown = await response.json();
     if (
@@ -77,20 +139,30 @@ test.describe.serial('S3-T03: real browser sessions, Nest API, Socket.IO and Pos
       });
     let response = await send();
     if (response.status() === 401) {
-      const refreshed = await context.post(`${ORIGIN}/api/v1/auth/refresh`);
-      expect(refreshed.status()).toBe(200);
-      const body: unknown = await refreshed.json();
-      if (
-        typeof body !== 'object' ||
-        body === null ||
-        !('accessToken' in body) ||
-        typeof body.accessToken !== 'string'
-      ) {
-        throw new Error('Synthetic refresh did not return a credential');
+      const currentToken = actor === 'writer' ? writerToken : readerToken;
+      if (token === currentToken) {
+        let pending = refreshes.get(actor);
+        if (!pending) {
+          pending = (async () => {
+            const refreshed = await context.post(`${ORIGIN}/api/v1/auth/refresh`);
+            expect(refreshed.status()).toBe(200);
+            const body: unknown = await refreshed.json();
+            if (
+              typeof body !== 'object' ||
+              body === null ||
+              !('accessToken' in body) ||
+              typeof body.accessToken !== 'string'
+            ) {
+              throw new Error('Synthetic refresh did not return a credential');
+            }
+            if (actor === 'writer') writerToken = body.accessToken;
+            else readerToken = body.accessToken;
+          })().finally(() => refreshes.delete(actor));
+          refreshes.set(actor, pending);
+        }
+        await pending;
       }
-      token = body.accessToken;
-      if (actor === 'writer') writerToken = token;
-      else readerToken = token;
+      token = actor === 'writer' ? writerToken : readerToken;
       response = await send();
     }
     return response;
@@ -113,6 +185,9 @@ test.describe.serial('S3-T03: real browser sessions, Nest API, Socket.IO and Pos
       if (historyBlocked && route.request().method() === 'GET') return route.abort();
       return route.continue();
     });
+    await student.route('**/api/v1/socket.io/**', (route) =>
+      socketBlocked ? route.abort() : route.continue(),
+    );
     // Forward real frames unchanged. Outages and reordering happen only in this test network.
     await student.routeWebSocket('**/api/v1/socket.io/**', (client) => {
       if (socketBlocked) {
@@ -139,6 +214,7 @@ test.describe.serial('S3-T03: real browser sessions, Nest API, Socket.IO and Pos
             return;
           }
         }
+        if (socketEvent(text) === 'messages_read') studentReceipts += 1;
         client.send(frame);
       });
       client.onClose(() => {
@@ -158,12 +234,17 @@ test.describe.serial('S3-T03: real browser sessions, Nest API, Socket.IO and Pos
     readerToken = await login(reader, 'student@s3-chat.invalid');
     studentPage = await student.newPage();
     tutorPage = await tutor.newPage();
-    tutorPage.on('websocket', (socket) =>
+    tutorPage.on('websocket', (socket) => {
+      tutorOpenSockets += 1;
+      socket.on('close', () => {
+        tutorOpenSockets -= 1;
+      });
       socket.on('framereceived', ({ payload }) => {
         const frame = typeof payload === 'string' ? payload : payload.toString();
         if (socketEvent(frame) === 'message_created') tutorCreated += 1;
-      }),
-    );
+        if (socketEvent(frame) === 'messages_read') tutorReceipts += 1;
+      });
+    });
     studentPage.on('request', (request) => {
       if (/\/conversations\/[^/]+\/(messages|read)/.test(request.url())) {
         pendingHistory.add(request);
@@ -172,6 +253,11 @@ test.describe.serial('S3-T03: real browser sessions, Nest API, Socket.IO and Pos
         studentHistoryReads += 1;
       if (request.method() === 'POST' && request.url().endsWith('/api/v1/auth/refresh'))
         studentRefreshes += 1;
+      if (
+        request.method() === 'POST' &&
+        request.url().endsWith(`/conversations/${PRIMARY}/messages`)
+      )
+        studentSends += 1;
     });
     studentPage.on('requestfinished', (request) => pendingHistory.delete(request));
     studentPage.on('requestfailed', (request) => pendingHistory.delete(request));
@@ -209,11 +295,14 @@ test.describe.serial('S3-T03: real browser sessions, Nest API, Socket.IO and Pos
     ]);
   });
 
-  test('two independent sessions deliver committed messages/read receipts without sender echo', async () => {
+  test('two independent sessions deliver committed messages/read receipts without sender echo', async ({}, testInfo) => {
     await open(studentPage, 'Browser Tutor');
     await open(tutorPage, 'Browser Student');
     const sentBefore = studentCreated;
     const receivedBefore = tutorCreated;
+    const receiptsBefore = studentReceipts;
+    const readerReceiptsBefore = tutorReceipts;
+    const sendsBefore = studentSends;
     await studentPage.getByRole('textbox', { name: 'Your message' }).fill('Live student message');
     await studentPage.getByRole('button', { name: 'Send', exact: true }).click();
     const studentRow = studentPage
@@ -226,11 +315,86 @@ test.describe.serial('S3-T03: real browser sessions, Nest API, Socket.IO and Pos
     await expect(studentRow).toContainText('Read');
     expect(studentCreated).toBe(sentBefore);
     expect(tutorCreated).toBe(receivedBefore + 1);
+    expect(studentSends).toBe(sendsBefore + 1);
+    expect(studentReceipts).toBe(receiptsBefore + 1);
+    expect(tutorReceipts).toBe(readerReceiptsBefore);
+    const messageId = await studentRow.getAttribute('data-message-id');
+    expect(messageId).toBeTruthy();
+    await expect(tutorPage.locator(`[data-message-id="${messageId}"]`)).toHaveCount(1);
+    const history = await api('reader', `/conversations/${PRIMARY}/messages?latest=true`);
+    expect(history.status()).toBe(200);
+    const persisted: unknown = await history.json();
+    expect(persisted).toMatchObject({
+      items: expect.arrayContaining([
+        expect.objectContaining({
+          messageId,
+          text: 'Live student message',
+          sentAt: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T.*Z$/),
+          readAt: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T.*Z$/),
+        }),
+      ]),
+    });
+    for (const [role, page] of [
+      ['student', studentPage],
+      ['tutor', tutorPage],
+    ] as const) {
+      await captureEvidence(page, `${role}-delivery-read-receipt`, testInfo);
+    }
     const forbidden = await api('reader', `/conversations/${FOREIGN}/messages?latest=true`);
     const missing = await api('reader', `/conversations/${MISSING}/messages?latest=true`);
     expect(forbidden.status()).toBe(403);
     expect(missing.status()).toBe(404);
     await expect(studentPage.getByRole('button', { name: /Refresh/ })).toHaveCount(0);
+  });
+
+  test('a third user and admin cannot join, read or write the persisted private conversation', async ({
+    browser,
+  }) => {
+    test.setTimeout(90_000);
+    for (const email of ['other@s3-chat.invalid', 'admin@s3-chat.invalid']) {
+      const context = await browser.newContext({ baseURL: ORIGIN });
+      try {
+        const token = await login(context.request, email);
+        const page = await context.newPage();
+        await page.goto('/');
+        const probe = await probeRoom(page, token);
+        if (email.startsWith('admin')) {
+          expect(probe).toMatchObject({ stage: 'connect', error: { data: { code: 'FORBIDDEN' } } });
+        } else {
+          expect(probe).toMatchObject({
+            stage: 'join',
+            reply: [{ ok: false, error: { code: 'FORBIDDEN' } }],
+          });
+        }
+        for (const [method, path, data] of [
+          ['GET', 'messages?latest=true', undefined],
+          ['POST', 'messages', { text: 'Unauthorized synthetic send' }],
+          ['POST', 'read', {}],
+        ] as const) {
+          const response = await context.request.fetch(
+            `${ORIGIN}/api/v1/conversations/${PRIMARY}/${path}`,
+            {
+              method,
+              data,
+              headers: { Authorization: `Bearer ${token}` },
+            },
+          );
+          expect(response.status()).toBe(403);
+          const body: unknown = await response.json();
+          expect(body).not.toHaveProperty('text');
+          expect(body).not.toHaveProperty('items');
+          expect(body).not.toHaveProperty('otherParticipant');
+        }
+      } finally {
+        await context.close();
+      }
+    }
+    await expect(studentPage.getByText('Unauthorized synthetic send', { exact: true })).toHaveCount(
+      0,
+    );
+    await expect(tutorPage.getByText('Unauthorized synthetic send', { exact: true })).toHaveCount(
+      0,
+    );
   });
 
   test('concurrent retries persist one message and publish one event', async () => {
@@ -265,10 +429,11 @@ test.describe.serial('S3-T03: real browser sessions, Nest API, Socket.IO and Pos
     expect(conflict.status()).toBe(409);
   });
 
-  test('rejoins then drains more than one missed history page from the retained cursor', async () => {
+  test('rejoins then drains more than one missed history page from the retained cursor', async ({}, testInfo) => {
     const before = studentJoins;
     socketBlocked = true;
     historyBlocked = true;
+    await student.setOffline(true);
     for (const link of links) {
       link.client.close();
       link.server.close();
@@ -292,6 +457,7 @@ test.describe.serial('S3-T03: real browser sessions, Nest API, Socket.IO and Pos
     const pageBoundary = forwardPages.length;
     releaseHistoryOnJoin = true;
     socketBlocked = false;
+    await student.setOffline(false);
     await expect.poll(() => studentJoins, { timeout: 15000 }).toBeGreaterThan(before);
     await expect(
       studentPage.locator('[data-message-id]').filter({ hasText: /^Missed live / }),
@@ -303,6 +469,7 @@ test.describe.serial('S3-T03: real browser sessions, Nest API, Socket.IO and Pos
       .locator('[data-message-id]')
       .evaluateAll((rows) => rows.map((row) => row.getAttribute('data-message-id')));
     expect(new Set(ids).size).toBe(ids.length);
+    await captureEvidence(studentPage, 'reconnected-multi-page-history', testInfo);
   });
 
   test('deduplicates and orders replayed real events while healthy sockets stop history polling', async () => {
@@ -339,6 +506,11 @@ test.describe.serial('S3-T03: real browser sessions, Nest API, Socket.IO and Pos
         'Read',
       );
     }
+    // Start the quiet window immediately after real credential rotation so JWT expiry itself
+    // cannot be mistaken for a fallback polling tick during this assertion.
+    const refreshes = studentRefreshes;
+    await expect.poll(() => studentRefreshes, { timeout: 25000 }).toBeGreaterThan(refreshes);
+    await expect(studentPage.locator('[data-connection-state="connected"]')).toHaveCount(1);
     await expect.poll(() => pendingHistory.size).toBe(0);
     const before = studentHistoryReads;
     await studentPage.waitForTimeout(4500);
@@ -357,7 +529,46 @@ test.describe.serial('S3-T03: real browser sessions, Nest API, Socket.IO and Pos
     ).toHaveCount(1);
   });
 
-  test('falls back during socket outage, pauses hidden tabs, preserves drafts and leaves old rooms', async () => {
+  test('server logout revokes an open browser session without affecting another tutor session', async ({}, testInfo) => {
+    const received = tutorCreated;
+    const refreshed = await tutor.request.post(`${ORIGIN}/api/v1/auth/refresh`);
+    expect(refreshed.status()).toBe(200);
+    const credential: unknown = await refreshed.json();
+    if (
+      typeof credential !== 'object' ||
+      credential === null ||
+      !('accessToken' in credential) ||
+      typeof credential.accessToken !== 'string'
+    ) {
+      throw new Error('Missing synthetic credential before revocation');
+    }
+    expect((await tutor.request.post(`${ORIGIN}/api/v1/auth/logout`)).status()).toBe(204);
+    await expect(tutorPage).toHaveURL(/\/\?returnTo=/);
+    await expect.poll(() => tutorOpenSockets).toBe(0);
+    expect(await probeRoom(tutorPage, credential.accessToken)).toMatchObject({
+      stage: 'connect',
+      error: { data: { code: 'UNAUTHENTICATED' } },
+    });
+    const denied = await tutor.request.get(`${ORIGIN}/api/v1/conversations/${PRIMARY}/messages`, {
+      headers: { Authorization: `Bearer ${credential.accessToken}` },
+    });
+    expect(denied.status()).toBe(401);
+    const response = await api(
+      'reader',
+      `/conversations/${PRIMARY}/messages`,
+      'After tutor revocation',
+    );
+    expect(response.status()).toBe(201);
+    await expect.poll(() => pendingHistory.size).toBe(0);
+    expect(tutorCreated).toBe(received);
+    expect((await api('writer', `/conversations/${PRIMARY}/messages?latest=true`)).status()).toBe(
+      200,
+    );
+    await captureEvidence(tutorPage, 'revoked-session-redirect', testInfo);
+  });
+
+  test('falls back during socket outage, pauses hidden tabs, preserves drafts and leaves old rooms', async ({}, testInfo) => {
+    const socketDeliveries = studentCreated;
     socketBlocked = true;
     for (const link of links) {
       link.client.close();
@@ -367,6 +578,9 @@ test.describe.serial('S3-T03: real browser sessions, Nest API, Socket.IO and Pos
     await expect(
       studentPage.locator('[data-message-id]').filter({ hasText: 'Delivered by REST fallback' }),
     ).toHaveCount(1);
+    expect(studentCreated).toBe(socketDeliveries);
+    await expect(studentPage.locator('[data-connection-state="connected"]')).toHaveCount(0);
+    await captureEvidence(studentPage, 'rest-only-delivery', testInfo);
     await studentPage.getByRole('textbox', { name: 'Your message' }).fill('Preserved live draft');
     const transcript = studentPage.getByRole('region', {
       name: 'Conversation history',
@@ -404,9 +618,13 @@ test.describe.serial('S3-T03: real browser sessions, Nest API, Socket.IO and Pos
     expect(studentCreated).toBe(created);
     await expect(studentPage.getByText('Old room after switch', { exact: true })).toHaveCount(0);
     await studentPage.getByRole('button', { name: 'Back to conversations' }).click();
+    await expect.poll(() => links.size).toBe(0);
+    await expect.poll(() => pendingHistory.size).toBe(0);
     const closedReads = studentHistoryReads;
+    const closedJoins = studentJoins;
     await studentPage.waitForTimeout(4500);
     expect(studentHistoryReads).toBe(closedReads);
+    expect(studentJoins).toBe(closedJoins);
     await studentPage.getByRole('button', { name: /Browser Tutor/ }).click();
     await expect(studentPage.locator('[data-connection-state="connected"]')).toHaveCount(1);
     await studentPage.getByRole('button', { name: 'Sign out' }).click();

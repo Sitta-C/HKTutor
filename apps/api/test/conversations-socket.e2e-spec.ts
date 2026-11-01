@@ -919,6 +919,33 @@ describe('S3-T01 real Socket.IO transport, JWT and room authorization (mocked pe
       failure.mockRestore();
     });
 
+    it.each([
+      { userId: OTHER, role: Role.STUDENT },
+      { userId: '55555555-5555-4555-8555-555555555555', role: Role.ADMIN },
+    ])(
+      'rejects $role nonparticipant REST writes without persistence or broadcasts',
+      async ({ userId, role }) => {
+        const student = await joined(access());
+        const tutor = await joined(access(TUTOR, Role.TUTOR));
+        const seen = [student, tutor].map(recorder);
+        const token = access(userId, role);
+
+        for (const [path, body] of [
+          ['messages', { text: TEXT }],
+          ['read', {}],
+        ] as const) {
+          const response = await post(path, token, body);
+          expect(response.status).toBe(403);
+          expect(response.body).not.toHaveProperty('conversationId');
+          expect(response.body).not.toHaveProperty('text');
+        }
+        await settle([student, tutor]);
+        expect(db.message.create).not.toHaveBeenCalled();
+        expect(db.$queryRaw).not.toHaveBeenCalled();
+        expect(seen).toEqual([[], []]);
+      },
+    );
+
     it('still returns the stored message when socket delivery fails', async () => {
       const warn = jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
       jest
