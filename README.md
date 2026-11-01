@@ -33,7 +33,10 @@ private student/tutor messaging, and the informational `/about-me` page. Messagi
 incremental older-history loading, text sending and server-backed sent/read receipts. Visible open
 chats subscribe to authenticated Socket.IO events and reconcile through REST after joining or
 reconnecting. REST checks run every four seconds as a fallback and stop after a healthy room join.
-History is reconciled after joins/reconnects, visibility resume, incoming events and uncertain sends.
+History is reconciled after joins/reconnects, visibility resume, incoming events, uncertain sends
+and jumping back to new messages. Only degraded/error connection states are announced to screen readers.
+Inbox previews refresh from open-thread activity or reopening Messages; the sidebar badge retains
+its independent 15-second refresh.
 Hidden tabs and closed threads
 stop their socket, listeners and polling; failed loads retain a retry action. Use the
 [same-origin socket proxy](apps/api/README.md#same-origin-development-and-deployment-proxy) for
@@ -51,6 +54,10 @@ Message sends use `POST /api/v1/conversations/:conversationId/messages` with tri
 Unicode code points. The API returns `201` when a student or tutor participant sends successfully,
 `400 VALIDATION_FAILED` for blank or overlong text, `401 UNAUTHENTICATED` without a valid session,
 `403 FORBIDDEN` for an admin or nonparticipant, and `404 NOT_FOUND` for a missing conversation.
+The optional UUID `clientMessageId` makes retries idempotent per authenticated sender. The web
+composer retains one key per uncertain send intent in memory, including thread switches. Reusing
+a key with different text or conversation returns `409 CONFLICT`; omitting it creates a new message.
+Deploy the API before the updated web client; no migration is needed.
 The server derives the sender from the authenticated session; rejected responses never include
 conversation content or participant details.
 

@@ -1,15 +1,14 @@
 # S3-T03 chat verification
 
 The implemented scope follows S3-T03 with the later product decisions to remove manual Refresh
-buttons and visible connection labels. Connection transitions remain available to screen readers
-through a bilingual live region. Error recovery still offers Try again.
+buttons and visible connection labels. Only degraded/error connection states are announced to screen readers through a bilingual live region. Error recovery still offers Try again.
 
 ## Behavior and evidence
 
 | Requirement                                                                      | Implementation / executable evidence                                                                                                                                                                                  |
 | -------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Current memory-only JWT, refresh, logout, room lifecycle                         | `src/lib/use-conversation-socket.ts`, `conversation-realtime.ts`; transport unit tests and the live JWT-expiry/logout cases                                                                                           |
-| Fixed T01/T02 event schemas                                                      | `conversation-socket-events.ts`; UUID, UTC instant, text and read-batch boundary tests                                                                                                                                |
+| Forward-compatible event invalidation                                            | `conversation-socket-events.ts`; routing UUID validation; extra/future payload fields still invalidate REST                                                                                                           |
 | REST authority, deduplication, oldest-first order and irreversible read receipts | `conversation-model.ts`, `api/conversations.ts`; merge/API tests and replay of reversed/duplicated real server frames                                                                                                 |
 | Rejoin before catch-up; drain missed pages                                       | Live network outage commits 65 messages through the real REST API, then forwards a real join acknowledgement before releasing history reads; assertions require continuing and final forward pages and 65 unique rows |
 | Four-second fallback; no routine healthy polling                                 | Responsive browser tests and live healthy/outage cases; closing/hidden threads stop reads and subscriptions                                                                                                           |
@@ -96,3 +95,40 @@ that an older in-flight GET cannot unlock an uncertain-send retry.
 This verifies local feature behavior, not a production ingress deployment or cross-process fanout.
 The temporary PostgreSQL service was stopped after verification; the ordinary dev service was
 left running and its API/through-web health endpoints were checked again.
+
+## PR #137 review follow-up
+
+The latest-message button explicitly reconciles/acknowledges reads after jumping to new arrivals.
+Event invalidation validates only the conversation UUID; message contents still come from REST.
+Routine connection/rejoin states leave the screen-reader live region empty. Responsive browser
+cases cover Thai headers at 320px and 360px, including visible role and back controls.
+
+The agreed S3-T03 scope keeps inbox refresh tied to open-thread activity plus reopening Messages;
+other rooms are not streamed/polled. The sidebar global unread count retains its independent
+visible-only 15-second refresh. The five-socket server limit is unchanged; extra tabs retain REST
+fallback. This intentional limit does not require increasing backend access/resource limits.
+
+Manual send retries now carry a stable in-memory clientMessageId. The API uses the existing
+sender/key unique constraint to deduplicate concurrent retries, returns 409 on changed intent, and
+never republishes an already-created message. Unit/HTTP tests cover validation, authorization and
+conflicts; browser tests retain the key across uncertain sends/reopening. The live suite adds three
+concurrent POSTs against PostgreSQL and checks one message/event. S3-T04 can reuse this harness
+for broader QA; it remains a separate backlog task.
+
+Review fixes verified on 2026-11-01 with Node 24.19.0, pnpm 11.19.0 and a new disposable
+PostgreSQL 17 Docker container bound to loopback port 55447:
+
+| Command                                                                                                                               | Result                                                                 |
+| ------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| `pnpm --filter @hktutor/web test`                                                                                                     | 37 files, 472 passed (obsolete full-payload validation cases replaced) |
+| `pnpm --filter @hktutor/api test --runInBand`                                                                                         | 75 suites, 1,405 passed                                                |
+| `pnpm --filter @hktutor/api test --runInBand conversations.service.spec.ts`                                                           | 80 passed after final test-matcher cleanup                             |
+| Web/API lint and `pnpm lint:root`                                                                                                     | Passed, zero warnings                                                  |
+| `pnpm format:check` and changed-file Prettier                                                                                         | Passed                                                                 |
+| Web/API production builds                                                                                                             | Passed, including strict types and API scripts                         |
+| `pnpm --filter @hktutor/web test:e2e conversations-ui.spec.ts --project=chromium --project=tablet-chromium --project=mobile-chromium` | 141 passed                                                             |
+| `pnpm --filter @hktutor/web test:e2e:chat-live` with explicit disposable DB environment                                               | 6 passed against real services                                         |
+| `pnpm verify:workspace`                                                                                                               | 128 passed                                                             |
+
+Migrations and synthetic fixture preparation ran only in this newly created test container;
+no shared database migration, project seed, external provider write or deployment was performed.

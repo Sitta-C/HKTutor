@@ -109,6 +109,16 @@ non-participant senders, and de-duplicates retries by sender and `clientMessageI
 indexes support both ID and UTC `sentAt` ordering; API handlers must still perform participant
 authorization and map expected uniqueness conflicts to the appropriate HTTP response.
 
+### Message retry keys
+
+`POST /api/v1/conversations/:conversationId/messages` accepts `{ text, clientMessageId? }`.
+The optional key is a UUID normalized to lowercase, scoped to the authenticated sender using the
+existing database unique constraint. Concurrent retries with the same key, conversation and trimmed
+text return the same persisted message with 201 and no duplicate event. Changed text/conversation
+returns a generic 409 CONFLICT without exposing the original message. Authorization and current
+consent are checked before retry lookup. Missing keys preserve the existing fresh-message behavior.
+No migration is required; deploy this additive API change before the updated composer.
+
 ### Chat socket connection and rooms (S3-T01)
 
 Socket.IO uses namespace `/chat` and transport path `/api/v1/socket.io`. The HTTP global prefix

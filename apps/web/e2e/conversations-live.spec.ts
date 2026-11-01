@@ -61,14 +61,19 @@ test.describe.serial('S3-T03: real browser sessions, Nest API, Socket.IO and Pos
     return body.accessToken;
   }
 
-  async function api(actor: 'writer' | 'reader', path: string, text?: string) {
+  async function api(
+    actor: 'writer' | 'reader',
+    path: string,
+    text?: string,
+    clientMessageId?: string,
+  ) {
     const context = actor === 'writer' ? writer : reader;
     let token = actor === 'writer' ? writerToken : readerToken;
     const send = () =>
       context.fetch(`${ORIGIN}/api/v1${path}`, {
         method: text === undefined ? 'GET' : 'POST',
         headers: { Authorization: `Bearer ${token}` },
-        ...(text === undefined ? {} : { data: { text } }),
+        ...(text === undefined ? {} : { data: { text, clientMessageId } }),
       });
     let response = await send();
     if (response.status() === 401) {
@@ -95,7 +100,7 @@ test.describe.serial('S3-T03: real browser sessions, Nest API, Socket.IO and Pos
     await page.goto('/dashboard/messages');
     await page.getByRole('button', { name: new RegExp(contact) }).click();
     await expect(page.getByRole('textbox', { name: 'Your message' })).toBeEnabled();
-    await expect(page.getByRole('status').filter({ hasText: /^Chat connected$/ })).toHaveCount(1);
+    await expect(page.locator('[data-connection-state="connected"]')).toHaveCount(1);
   }
 
   test.beforeAll(async ({ browser, playwright }) => {
@@ -228,6 +233,38 @@ test.describe.serial('S3-T03: real browser sessions, Nest API, Socket.IO and Pos
     await expect(studentPage.getByRole('button', { name: /Refresh/ })).toHaveCount(0);
   });
 
+  test('concurrent retries persist one message and publish one event', async () => {
+    const before = studentCreated;
+    const key = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee';
+    const replies = await Promise.all(
+      Array.from({ length: 3 }, () =>
+        api('writer', `/conversations/${PRIMARY}/messages`, 'One concurrent intent', key),
+      ),
+    );
+    for (const reply of replies) {
+      expect(reply.status()).toBe(201);
+    }
+    const messages: unknown[] = await Promise.all(replies.map((reply) => reply.json()));
+    const messageIds = messages.map((message) => {
+      if (typeof message !== 'object' || message === null || !('messageId' in message)) {
+        throw new Error('Missing persisted message ID');
+      }
+      return message.messageId;
+    });
+    expect(new Set(messageIds).size).toBe(1);
+    await expect(
+      studentPage.locator('[data-message-id]').filter({ hasText: 'One concurrent intent' }),
+    ).toHaveCount(1);
+    await expect.poll(() => studentCreated).toBe(before + 1);
+    const conflict = await api(
+      'writer',
+      `/conversations/${PRIMARY}/messages`,
+      'Different intent',
+      key,
+    );
+    expect(conflict.status()).toBe(409);
+  });
+
   test('rejoins then drains more than one missed history page from the retained cursor', async () => {
     const before = studentJoins;
     socketBlocked = true;
@@ -237,9 +274,9 @@ test.describe.serial('S3-T03: real browser sessions, Nest API, Socket.IO and Pos
       link.server.close();
     }
     await expect(
-      studentPage
-        .getByRole('status')
-        .filter({ hasText: /Reconnecting chat|backup message updates/ }),
+      studentPage.locator(
+        '[data-connection-state="reconnecting"], [data-connection-state="fallback"]',
+      ),
     ).toHaveCount(1);
     for (let index = 0; index < 65; index += 1) {
       const response = await api(
@@ -269,9 +306,7 @@ test.describe.serial('S3-T03: real browser sessions, Nest API, Socket.IO and Pos
   });
 
   test('deduplicates and orders replayed real events while healthy sockets stop history polling', async () => {
-    await expect(
-      studentPage.getByRole('status').filter({ hasText: /^Chat connected$/ }),
-    ).toHaveCount(1);
+    await expect(studentPage.locator('[data-connection-state="connected"]')).toHaveCount(1);
     holdCreated = true;
     await api('writer', `/conversations/${PRIMARY}/messages`, 'Reordered live first');
     await api('writer', `/conversations/${PRIMARY}/messages`, 'Reordered live second');
@@ -315,9 +350,7 @@ test.describe.serial('S3-T03: real browser sessions, Nest API, Socket.IO and Pos
     const joins = studentJoins;
     await expect.poll(() => studentRefreshes, { timeout: 25000 }).toBeGreaterThan(refreshes);
     await expect.poll(() => studentJoins).toBeGreaterThan(joins);
-    await expect(
-      studentPage.getByRole('status').filter({ hasText: /^Chat connected$/ }),
-    ).toHaveCount(1);
+    await expect(studentPage.locator('[data-connection-state="connected"]')).toHaveCount(1);
     await api('writer', `/conversations/${PRIMARY}/messages`, 'After real JWT expiry');
     await expect(
       studentPage.locator('[data-message-id]').filter({ hasText: 'After real JWT expiry' }),
@@ -364,9 +397,7 @@ test.describe.serial('S3-T03: real browser sessions, Nest API, Socket.IO and Pos
     await expect.poll(() => transcript.evaluate((element) => element.scrollTop)).toBe(100);
     await studentPage.getByRole('button', { name: 'Back to conversations' }).click();
     await studentPage.getByRole('button', { name: /Second Tutor/ }).click();
-    await expect(
-      studentPage.getByRole('status').filter({ hasText: /^Chat connected$/ }),
-    ).toHaveCount(1);
+    await expect(studentPage.locator('[data-connection-state="connected"]')).toHaveCount(1);
     const created = studentCreated;
     await api('writer', `/conversations/${PRIMARY}/messages`, 'Old room after switch');
     await studentPage.waitForTimeout(350);
@@ -377,9 +408,7 @@ test.describe.serial('S3-T03: real browser sessions, Nest API, Socket.IO and Pos
     await studentPage.waitForTimeout(4500);
     expect(studentHistoryReads).toBe(closedReads);
     await studentPage.getByRole('button', { name: /Browser Tutor/ }).click();
-    await expect(
-      studentPage.getByRole('status').filter({ hasText: /^Chat connected$/ }),
-    ).toHaveCount(1);
+    await expect(studentPage.locator('[data-connection-state="connected"]')).toHaveCount(1);
     await studentPage.getByRole('button', { name: 'Sign out' }).click();
     await expect(studentPage).toHaveURL(`${ORIGIN}/`);
     await expect.poll(() => links.size).toBe(0);

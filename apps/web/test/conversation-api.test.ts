@@ -196,6 +196,16 @@ describe('participant-only conversation client', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  it('sends the stable intent key without retrying a failed POST', async () => {
+    const clientMessageId = '11111111-1111-4111-8111-111111111111';
+    fetchMock.mockRejectedValueOnce(new TypeError('Network lost'));
+    await expect(sendConversationMessage('pair', '  Hello  ', clientMessageId)).rejects.toThrow();
+    expect(fetchMock).toHaveBeenCalledOnce();
+    expect(fetchMock.mock.calls[0]?.[1]?.body).toBe(
+      JSON.stringify({ text: 'Hello', clientMessageId }),
+    );
+  });
+
   it('does not automatically retry an ambiguous send failure or server rejection', async () => {
     fetchMock.mockRejectedValueOnce(new TypeError('Network lost'));
     await expect(sendConversationMessage('pair', '  question\n😀  ')).rejects.toThrow(

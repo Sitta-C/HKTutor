@@ -97,6 +97,7 @@ async function mockInbox(
   let unreadGate: Promise<void> | undefined;
   let sendGate: Promise<void> | undefined;
   let listGate: Promise<void> | undefined;
+  const sentIntents = new Map<string, ConversationMessage>();
   let sendFailure: 'before' | 'after' | null = null;
   let historyStatus = options.status ?? 200;
   let brokenHistory = options.brokenHistory ?? false;
@@ -265,7 +266,11 @@ async function mockInbox(
         if (sendFailure === 'before') {
           return route.abort('failed');
         }
-        const payload = request.postDataJSON() as { text: string };
+        const payload = request.postDataJSON() as { text: string; clientMessageId: string };
+        const existing = sentIntents.get(payload.clientMessageId);
+        if (existing) {
+          return route.fulfill({ status: 201, json: existing });
+        }
         const sent: ConversationMessage = {
           messageId: 'sent',
           conversationId: path.split('/')[2] ?? '',
@@ -275,6 +280,7 @@ async function mockInbox(
           readAt: null,
         };
         messages.push(sent);
+        sentIntents.set(payload.clientMessageId, sent);
         const index = items.findIndex((item) => item.conversationId === sent.conversationId);
         const conversation = items[index];
         if (conversation) {
@@ -370,6 +376,9 @@ async function mockInbox(
     },
     failSending: (committed = false) => {
       sendFailure = committed ? 'after' : 'before';
+    },
+    resumeSending: () => {
+      sendFailure = null;
     },
     gateSend: (gate: Promise<void>) => {
       sendGate = gate;
@@ -910,7 +919,7 @@ test('sends once, trims text, keeps the GET cursor and deduplicates the sent res
     (call) => call.method === 'POST' && call.path.endsWith('/messages'),
   );
   expect(sends).toHaveLength(1);
-  expect(sends[0]?.body).toEqual({ text: 'Question\n😀' });
+  expect(sends[0]?.body).toEqual({ text: 'Question\n😀', clientMessageId: expect.any(String) });
   expect(
     fixture.calls.filter((call) => call.method === 'GET' && call.path.endsWith('/messages')).at(-1)
       ?.from,
@@ -1552,3 +1561,109 @@ test('collapsed desktop sidebar retains an accessible unread badge', async ({ pa
   );
   await noOverflow(page);
 });
+
+test('jumping to new messages acknowledges reads with a healthy socket', async ({ page }) => {
+  await pauseChatClock(page);
+  const fixture = await mockInbox(page, { realtime: true });
+  const socket = await mockChatSocket(page);
+  await openFirst(page);
+  await expect.poll(() => socket.joins.length).toBe(1);
+  await page.clock.runFor(100);
+  const transcript = page.getByRole('region', { name: 'Conversation history', exact: true });
+  await transcript.evaluate((element) => {
+    element.scrollTop = 0;
+  });
+  await expect(page.getByRole('button', { name: /Back to latest messages/ })).toBeVisible();
+  fixture.incoming('Unread while reading older messages');
+  socket.emit('message_created', { conversationId: pairId(0), attachments: [] });
+  await expect(
+    transcript.getByText('Unread while reading older messages', { exact: true }),
+  ).toHaveCount(1);
+  const readsBefore = fixture.calls.filter((call) => call.path.endsWith('/read')).length;
+  await page.getByRole('button', { name: /1 new messages/ }).click();
+  await expect
+    .poll(() => fixture.calls.filter((call) => call.path.endsWith('/read')).length)
+    .toBe(readsBefore + 1);
+  await expect(
+    transcript.getByText('Unread while reading older messages', { exact: true }),
+  ).toBeInViewport();
+  await expect
+    .poll(() => fixture.calls.filter((call) => call.path === '/conversations').length)
+    .toBeGreaterThan(1);
+  expect(fixture.unexpected).toEqual([]);
+});
+
+test('reuses an uncertain send key across reconciliation and reopening the conversation', async ({
+  page,
+}) => {
+  await pauseChatClock(page);
+  const fixture = await mockInbox(page, { shortHistory: true, realtime: true });
+  const socket = await mockChatSocket(page);
+  await page.goto('/dashboard/messages');
+  await page.getByRole('button', { name: /Teacher Praew 0/ }).click();
+  const input = page.getByRole('textbox', { name: 'Your message' });
+  const send = page.getByRole('button', { name: 'Send', exact: true });
+  await expect(input).toBeEnabled();
+  await expect.poll(() => socket.joins.length).toBe(1);
+  fixture.failSending(true);
+  await input.fill('Committed original intent');
+  await send.click();
+  await expect(send).toBeEnabled();
+  await page.getByRole('button', { name: 'Back to conversations' }).click();
+  await page.getByRole('button', { name: /Teacher Praew 0/ }).click();
+  await expect(input).toHaveValue('Committed original intent');
+  fixture.resumeSending();
+  await send.click();
+  await expect(input).toHaveValue('');
+  const sends = fixture.calls.filter(
+    (call) => call.method === 'POST' && call.path.endsWith('/messages'),
+  );
+  expect(sends).toHaveLength(2);
+  expect(sends[1]?.body).toEqual(sends[0]?.body);
+  await expect(page.locator('[data-message-id="sent"]')).toHaveCount(1);
+  await input.fill('Committed original intent');
+  await send.click();
+  await expect(input).toHaveValue('');
+  const newIntent = fixture.calls
+    .filter((call) => call.method === 'POST' && call.path.endsWith('/messages'))
+    .at(-1);
+  expect(newIntent?.body).not.toEqual(sends[0]?.body);
+});
+
+for (const width of [320, 360]) {
+  test(`thread header fits at ${width}px without routine connection announcements`, async ({
+    page,
+  }, testInfo) => {
+    await pauseChatClock(page);
+    await page.setViewportSize({ width, height: 760 });
+    await mockInbox(page, { shortHistory: true, realtime: true, language: 'th' });
+    const socket = await mockChatSocket(page);
+    await page.goto('/dashboard/messages');
+    await page.getByRole('button', { name: /Teacher Praew 0/ }).click();
+    const thread = page.locator('[data-connection-state="connected"]');
+    await expect(thread).toBeVisible();
+    await expect(thread.getByRole('status')).toBeEmpty();
+    const header = thread.locator('header');
+    const role = header.getByText('ติวเตอร์', { exact: true });
+    await expect(role).toBeVisible();
+    await expect(header.getByRole('button')).toBeInViewport();
+    const bounds = await header.boundingBox();
+    const roleBounds = await role.boundingBox();
+    expect((roleBounds?.y ?? 0) + (roleBounds?.height ?? 0)).toBeLessThanOrEqual(
+      (bounds?.y ?? 0) + (bounds?.height ?? 0),
+    );
+    await noOverflow(page);
+    socket.disconnect();
+    await expect(
+      page.locator('[aria-labelledby="conversation-name"]').getByRole('status'),
+    ).toBeEmpty();
+    await page.clock.runFor(2000);
+    await expect(
+      page.locator('[data-connection-state="connected"]').getByRole('status'),
+    ).toBeEmpty();
+    await page.screenshot({
+      path: testInfo.outputPath(`chat-header-${width}.png`),
+      fullPage: true,
+    });
+  });
+}

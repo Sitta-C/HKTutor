@@ -33,6 +33,23 @@ describe('SendMessageDto', () => {
     expect(dto.text).toHaveLength(33);
   });
 
+  it('accepts and normalizes a UUID retry key', async () => {
+    const { dto, errors } = await validateMessage({
+      text: 'Hello',
+      clientMessageId: MESSAGE_ID.toUpperCase(),
+    });
+    expect(errors).toHaveLength(0);
+    expect(dto.clientMessageId).toBe(MESSAGE_ID);
+  });
+
+  it.each([null, '', 123, 'invalid'])(
+    'rejects an invalid retry key %j',
+    async (clientMessageId) => {
+      const { errors } = await validateMessage({ text: 'Hello', clientMessageId });
+      expect(errors.map((error) => error.property)).toEqual(['clientMessageId']);
+    },
+  );
+
   it('trims surrounding whitespace before validating', async () => {
     const { dto, errors } = await validateMessage({ text: '  \n Hello \t ' });
 

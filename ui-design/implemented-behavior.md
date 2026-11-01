@@ -496,7 +496,7 @@ There is no durable-draft promise or new browser persistence.
 
 A successful send immediately moves its conversation to the top of the inbox and updates its preview,
 without altering other contacts' relative order or server unread counts. Back still restores contact
-focus and makes that contact visible if it moved. Manual inbox refresh refetches the previously loaded
+focus and makes that contact visible if it moved. Automatic inbox refresh refetches the previously loaded
 range and selected contact, retaining drafts and reading state. A list read that started before a send
 cannot overwrite that acknowledged message or discard its known contact when its pagination shifts.
 
@@ -512,8 +512,8 @@ REST; pushed payloads only invalidate history and never advance the GET cursor. 
 during a read, older-page load or send coalesce into a follow-up read, without overlapping history
 requests. REST polls every four seconds while unjoined or recovering a read failure; routine history
 polling stops while the socket is healthy. Every join/reconnect and visibility resume reconciles
-again. Full message/read payload validators enforce the fixed T01/T02 UUID, text, UTC timestamp
-and read-batch contracts before invalidation. The focused `useConversationSocket` hook owns the
+again. Event validators require only a valid conversation UUID; other payload fields are ignored
+and never rendered, so additive server changes still trigger authoritative REST reads. The focused `useConversationSocket` hook owns the
 visible-thread subscription and its Strict Mode cleanup.
 Token rotation uses the existing memory-only auth flow and rejoins with the new credential;
 rejected refreshed credentials do not create an unlimited refresh loop. Hidden documents abort
@@ -521,7 +521,15 @@ current reads and close sockets/timers; visibility resumes updates and rejoins. 
 the thread or unmounting the authenticated page cleans timers, socket/token listeners and requests.
 The header shows identity and role, without a connection-status label or Refresh button. Both
 panes update without a manual Refresh action; failed loads retain their Try again action.
-Connection states are announced only in a bilingual screen-reader live region.
+Only degraded/error states (fallback, expired authentication, forbidden or missing conversation)
+are announced in a bilingual live region. Routine connects/rejoins stay quiet. The latest-message
+action explicitly reconciles read state even when healthy polling is stopped.
+The inbox refreshes after open-thread arrivals, sends and successful read acknowledgements. Other
+conversation previews/order/new pairs refresh on reopening Messages; S3-T03 has no global inbox
+stream or poll. The sidebar global unread count continues its visible-only 15-second polling.
+Each send intent carries an in-memory UUID retained through ambiguous failures and thread switches.
+A manual retry of the same trimmed text reuses it; success clears it. The API atomically deduplicates
+by authenticated sender and key, rejecting changed content/conversation with 409.
 Catch-up follows forward pages of 50, bounded to 200 pages and one 60-second deadline including
 authentication awaits. Broken/cycling cursors and empty continuing pages fail explicitly. Deadlines
 settle stalled inner awaits, and failed refreshes preserve drafts/history and the last GET cursor.

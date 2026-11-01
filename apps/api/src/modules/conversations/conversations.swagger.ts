@@ -3,6 +3,7 @@ import {
   ApiBadRequestResponse,
   ApiBearerAuth,
   ApiCreatedResponse,
+  ApiConflictResponse,
   ApiExtraModels,
   ApiForbiddenResponse,
   ApiNotFoundResponse,
@@ -262,7 +263,7 @@ export function SendMessageDoc(): MethodDecorator {
     ApiOperation({
       summary: 'Send a message in a conversation',
       description:
-        'STUDENT or TUTOR participants with current privacy consent only. Text is trimmed and must be 1 to 2,000 characters. A missing conversation returns 404; a non-participant, admin, or missing/outdated consent returns 403. Successful responses use Cache-Control: no-store.',
+        'STUDENT or TUTOR participants with current privacy consent only. Text is trimmed and must be 1 to 2,000 characters. Optional clientMessageId makes retries idempotent per sender: the same conversation and text return the stored message without another event; reusing the key for different content or conversation returns 409. Omitting the key creates a new message. A missing conversation returns 404; a non-participant, admin, or missing/outdated consent returns 403. Successful responses use Cache-Control: no-store.',
     }),
     ApiBearerAuth(JWT_BEARER_AUTH),
     ApiCreatedResponse({
@@ -278,12 +279,22 @@ export function SendMessageDoc(): MethodDecorator {
     }),
     ApiBadRequestResponse({
       description:
-        'The text is blank or longer than 2000 characters, conversationId is not a UUID, or the request body contained an unknown field',
+        'The text is blank or longer than 2000 characters, conversationId or clientMessageId is not a UUID, or the request body contained an unknown field',
       schema: errorSchema({
         code: 'VALIDATION_FAILED',
         error: 'Bad Request',
         message: ['text should not be empty'],
         statusCode: 400,
+      }),
+    }),
+    ApiConflictResponse({
+      description:
+        'The sender already used this clientMessageId for different content or conversation',
+      schema: errorSchema({
+        code: 'CONFLICT',
+        error: 'Conflict',
+        statusCode: 409,
+        message: 'This message key has already been used for another message.',
       }),
     }),
     apiUnauthorizedResponse(),

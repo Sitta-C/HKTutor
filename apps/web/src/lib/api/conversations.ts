@@ -63,10 +63,11 @@ export function getConversationMessages(
 export function sendConversationMessage(
   conversationId: string,
   text: string,
+  clientMessageId?: string,
 ): Promise<ConversationMessage> {
   return authenticatedFetch(`/conversations/${encodeURIComponent(conversationId)}/messages`, {
     method: 'POST',
-    body: JSON.stringify({ text: text.trim() }),
+    body: JSON.stringify({ text: text.trim(), clientMessageId }),
   });
 }
 

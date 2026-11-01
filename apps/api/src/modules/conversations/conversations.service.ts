@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Injectable,
   NotFoundException,
@@ -231,16 +232,35 @@ export class ConversationsService {
       'Only participants can send messages in this conversation.',
     );
 
-    const message = await this.prisma.message.create({
-      data: {
-        // The database requires a key per sender, and API-02 does not take one from the client.
-        clientMessageId: randomUUID(),
-        conversationId: input.conversationId,
-        senderUserId: input.senderUserId,
-        text: input.text,
-      },
-      select: messageSelect,
-    });
+    const clientMessageId = input.clientMessageId?.toLowerCase() ?? randomUUID();
+    let message: SelectedMessage;
+    try {
+      message = await this.prisma.message.create({
+        data: {
+          clientMessageId,
+          conversationId: input.conversationId,
+          senderUserId: input.senderUserId,
+          text: input.text,
+        },
+        select: messageSelect,
+      });
+    } catch (error: unknown) {
+      if (input.clientMessageId === undefined || !isUniqueViolation(error)) {
+        throw error;
+      }
+      // The unique constraint serializes concurrent attempts, including a delayed original POST.
+      const existing = await this.prisma.message.findFirst({
+        where: { senderUserId: input.senderUserId, clientMessageId },
+        select: messageSelect,
+      });
+      if (!existing) {
+        throw error;
+      }
+      if (existing.conversationId !== input.conversationId || existing.text !== input.text) {
+        throw new ConflictException('This message key has already been used for another message.');
+      }
+      return toMessageResponse(existing);
+    }
     const response = toMessageResponse(message);
     // The create has committed; a failed rollback never reaches this line.
     this.events.publish({

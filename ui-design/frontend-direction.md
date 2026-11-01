@@ -556,8 +556,9 @@ Use the current `conversations` API and canonical tutor User ID. Do not add stud
 - Use actual API data, accessible native controls, bilingual copy, real pending/error states and
   trimmed Unicode code-point limits (1–2,000). Guard duplicate submission while pending. On uncertain
   send failures retain the draft. An uncertain POST blocks another send until a new REST catch-up
-  succeeds; an older in-flight GET cannot release this gate. The API has no client-send idempotency
-  key, so never retry a failed send automatically.
+  succeeds; an older in-flight GET cannot release this gate. Keep the same in-memory clientMessageId
+  for retries of that trimmed text, including closing/reopening the thread; clear it after success.
+  The API deduplicates concurrent retries. Never retry a failed send automatically.
 - S2-T20 adds the user-selected **Quiet Receipts** (2026-10-11): a quiet centered Load earlier
   messages action above the transcript and Sent/Read text beside each outgoing timestamp, with
   one/two checks as supplementary cues. Keep the current paper, pane layout and Ink Tickets composer.
@@ -567,7 +568,8 @@ Use the current `conversations` API and canonical tutor User ID. Do not add stud
   trigger REST reconciliation; REST remains authoritative for messages, receipts and GET cursors.
   Use four-second polling before a successful room join or during connection/read failures.
   Stop routine history polling while the socket is healthy. Reconcile again on every room join,
-  reconnect and visibility resume. Validate full T01/T02 event payloads before invalidation.
+  reconnect and visibility resume. Validate the conversation UUID before invalidation; ignore other
+  payload fields so additive server changes cannot suppress updates.
   Prevent overlapping history requests. Pause and abort reads when hidden; resume on visibility,
   and clean timers/listeners/requests on close, conversation switch and page/user unmount.
   Keep retry actions for failed loads and preserve cached drafts/history. Forward catch-up
@@ -580,8 +582,10 @@ Use the current `conversations` API and canonical tutor User ID. Do not add stud
   from persisted `readAt`, never from a send or local opening alone. Read acknowledgement failures
   retain history/drafts and retry while open. Refresh inbox values after new arrivals and successful
   acknowledgements; counts remain server values. GET history itself never marks messages read.
+  Clicking the latest-message action also reconciles and acknowledges newly visible messages.
   Do not add a global unread total from partial inbox pages.
-- Connection states use a bilingual screen-reader-only live region. They do not add visible
+- Only fallback, auth-expired, forbidden and missing states populate the bilingual screen-reader
+  live region; routine connects, token rotation and tab switches stay quiet. They do not add visible
   connection labels or bring back the removed Refresh controls.
 
 ### Margin Inbox refinement (2026-10-09)
@@ -591,7 +595,10 @@ structure and refine it directly: compact functional page title and sans-serif *
 heading, aligned 72px pane headers, two-row contacts with time beside the name, preview/unread below,
 and participant-role avatar colors. Keep names accessible in full even when visually ellipsized.
 
-Updates refresh history and inbox automatically; manual Refresh buttons are removed from both panes.
+The inbox refreshes after sends, arrivals in the open thread and successful read acknowledgements.
+The sidebar unread total polls every 15 seconds while visible. Background conversation previews,
+ordering and new pairs refresh on reopening Messages; no global inbox stream/poll is in S3-T03.
+Manual Refresh buttons are removed from both panes.
 Keep a Try again action only when loading fails. The thread header shows participant
 identity and role without an automatic-update/real-time label. The workspace measures the actual
 shell/header offset and viewport height (including visual-viewport resize), within 360–760px,

@@ -43,6 +43,7 @@ export interface ThreadMemory {
   scrollTop: number;
   atLatest: boolean;
   newCount: number;
+  pendingSend?: { clientMessageId: string; text: string } | null;
 }
 
 export function ConversationThread({
@@ -397,6 +398,7 @@ export function ConversationThread({
       newCount: 0,
       scrollTop: transcript.current?.scrollTop ?? 0,
     });
+    requestRefresh.current?.();
   };
   const retry = () => {
     if (requestPending.current || sendingRef.current) {
@@ -463,7 +465,14 @@ export function ConversationThread({
     onSending(true);
     setSendError(false);
     try {
-      const message = await sendConversationMessage(id, draft);
+      const trimmedText = draft.trim();
+      const pendingSend =
+        memory.current.pendingSend?.text === trimmedText
+          ? memory.current.pendingSend
+          : { clientMessageId: crypto.randomUUID(), text: trimmedText };
+      // Retain the intent across ambiguous responses and closing/reopening this thread.
+      commit({ ...memory.current, pendingSend });
+      const message = await sendConversationMessage(id, trimmedText, pendingSend.clientMessageId);
       if (!active.current) {
         return;
       }
@@ -472,6 +481,7 @@ export function ConversationThread({
         ...memory.current,
         items: mergeMessages(memory.current.items, [message]),
         draft: '',
+        pendingSend: null,
       });
       onDraft(false);
       onSent(message);
@@ -564,9 +574,15 @@ export function ConversationThread({
   );
 
   return (
-    <section className={styles.thread} aria-labelledby="conversation-name">
+    <section
+      className={styles.thread}
+      aria-labelledby="conversation-name"
+      data-connection-state={socketState}
+    >
       <span className="sr-only" role="status" aria-live="polite">
-        {text.connectionStates[socketState]}
+        {['fallback', 'authExpired', 'forbidden', 'missing'].includes(socketState)
+          ? text.connectionStates[socketState]
+          : ''}
       </span>
       <header className={styles.threadHeader}>
         <button
