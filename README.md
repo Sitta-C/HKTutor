@@ -30,19 +30,34 @@ The implemented web flow includes authentication and email verification, profile
 role-specific dashboards, tutor availability and course management, tutor discovery, student booking,
 private student/tutor messaging, and the informational `/about-me` page. Messaging at
 `/dashboard/messages` supports asking a tutor before booking, inbox pagination, latest-first opening,
-incremental older-history loading, text sending and server-backed sent/read receipts. The open chat
-checks for updates every four seconds, pauses while the tab is hidden and stops when closed;
-manual Refresh remains available. Student and tutor sidebar Messages badges show the global
+incremental older-history loading, text sending and server-backed sent/read receipts. Visible open
+chats subscribe to authenticated Socket.IO events and reconcile through REST after joining or
+reconnecting. REST checks run every four seconds as a fallback and stop after a healthy room join.
+History is reconciled after joins/reconnects, visibility resume, incoming events, uncertain sends
+and jumping back to new messages. Only degraded/error connection states are announced to screen readers.
+Inbox previews refresh from open-thread activity or reopening Messages; the sidebar badge retains
+its independent 15-second refresh.
+Hidden tabs and closed threads
+stop their socket, listeners and polling; failed loads retain a retry action. Use the
+[same-origin socket proxy](apps/api/README.md#same-origin-development-and-deployment-proxy) for
+WebSocket support. Student and tutor sidebar Messages badges show the global
 unread incoming-message count, refresh every 15 seconds while visible, and refresh immediately
-after successful read acknowledgements. Availability supports overnight and multi-day ranges with
+after received messages and successful read acknowledgements. Availability supports overnight and multi-day ranges with
 Bangkok-time presentation and UTC timestamps on the wire. Day and week views use the private
 availability overlap filter to include carry-over slots without loading past history. Reserved slots
 remain protected.
+
+See [S3-T03 verification](apps/web/e2e/chat-realtime-verification.md) for recorded commands/results
+and the opted-in two-session browser suite against a disposable PostgreSQL database.
 
 Message sends use `POST /api/v1/conversations/:conversationId/messages` with trimmed text of 1–2,000
 Unicode code points. The API returns `201` when a student or tutor participant sends successfully,
 `400 VALIDATION_FAILED` for blank or overlong text, `401 UNAUTHENTICATED` without a valid session,
 `403 FORBIDDEN` for an admin or nonparticipant, and `404 NOT_FOUND` for a missing conversation.
+The optional UUID `clientMessageId` makes retries idempotent per authenticated sender. The web
+composer retains one key per uncertain send intent in memory, including thread switches. Reusing
+a key with different text or conversation returns `409 CONFLICT`; omitting it creates a new message.
+Deploy the API before the updated web client; no migration is needed.
 The server derives the sender from the authenticated session; rejected responses never include
 conversation content or participant details.
 

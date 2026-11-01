@@ -1,4 +1,10 @@
-import { BadRequestException, ForbiddenException, Logger, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 
 import { AccountStatus, Role } from '@generated/prisma/enums';
@@ -646,6 +652,53 @@ describe('ConversationsService', () => {
       expect(createdData(0)?.clientMessageId).toMatch(UUID_V4);
       expect(createdData(1)?.clientMessageId).toMatch(UUID_V4);
       expect(createdData(1)?.clientMessageId).not.toBe(createdData(0)?.clientMessageId);
+    });
+
+    describe('idempotent sends', () => {
+      const input = {
+        conversationId: CONVERSATION_ID,
+        senderUserId: STUDENT_ID,
+        text: US2_1_MESSAGE,
+        clientMessageId: MESSAGE_ID,
+      };
+      beforeEach(() => {
+        mockPrismaService.conversation.findUnique.mockResolvedValue(participants);
+        mockPrismaService.message.create.mockRejectedValue(createDatabaseError('P2002'));
+        mockPrismaService.message.findFirst.mockResolvedValue(storedMessage());
+      });
+      it('returns the committed original after a concurrent retry without republishing', async () => {
+        await expect(service.sendMessage(input)).resolves.toMatchObject({ messageId: MESSAGE_ID });
+        expect(mockPrismaService.message.findFirst.mock.calls).toMatchObject([
+          [{ where: { senderUserId: STUDENT_ID, clientMessageId: MESSAGE_ID } }],
+        ]);
+        expect(published).toEqual([]);
+      });
+      it.each([{ text: 'Different content' }, { conversationId: OTHER_CONVERSATION_ID }])(
+        'rejects reuse for a different intent %j',
+        async (override) => {
+          mockPrismaService.message.findFirst.mockResolvedValue(storedMessage(override));
+          await expect(service.sendMessage(input)).rejects.toThrow(ConflictException);
+          expect(published).toEqual([]);
+        },
+      );
+      it('checks ownership before looking up a retry key', async () => {
+        await expect(
+          service.sendMessage({ ...input, senderUserId: OTHER_STUDENT_ID }),
+        ).rejects.toThrow(ForbiddenException);
+        expect(mockPrismaService.message.create).not.toHaveBeenCalled();
+        expect(mockPrismaService.message.findFirst).not.toHaveBeenCalled();
+      });
+      it('does not hide a different unique violation', async () => {
+        mockPrismaService.message.findFirst.mockResolvedValue(null);
+        await expect(service.sendMessage(input)).rejects.toThrow('Database error P2002');
+      });
+      it('stores a new key and publishes exactly once', async () => {
+        mockPrismaService.message.create.mockResolvedValue(storedMessage());
+        await service.sendMessage(input);
+        expect(createdData()?.clientMessageId).toBe(MESSAGE_ID);
+        expect(published).toHaveLength(1);
+        expect(mockPrismaService.message.findFirst).not.toHaveBeenCalled();
+      });
     });
 
     it('lets the tutor reply in the same conversation', async () => {

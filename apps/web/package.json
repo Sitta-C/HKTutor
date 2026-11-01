@@ -8,6 +8,7 @@
     "start": "next start",
     "test": "vitest run",
     "test:e2e": "playwright test",
+    "test:e2e:chat-live": "playwright test --config playwright.chat-live.config.ts",
     "test:watch": "vitest",
     "lint": "eslint --max-warnings=0",
     "lint:fix": "eslint --fix --max-warnings=0"
@@ -18,6 +19,7 @@
     "postcss": "^8.5.26",
     "react": "19.2.8",
     "react-dom": "19.2.8",
+    "socket.io-client": "4.8.4",
     "tailwindcss": "^4.3.3",
     "validator": "13.15.35"
   },

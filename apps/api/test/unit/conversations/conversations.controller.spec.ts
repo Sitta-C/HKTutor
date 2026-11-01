@@ -347,6 +347,20 @@ describe('conversation routes', () => {
       });
     });
 
+    it('accepts an idempotency key while deriving the sender from authentication', async () => {
+      sendMessage.mockResolvedValue(storedMessage);
+      await request(app.getHttpServer())
+        .post(messagesPath)
+        .send({ text: 'Hello', clientMessageId: CLIENT_MESSAGE_ID.toUpperCase() })
+        .expect(201);
+      expect(sendMessage).toHaveBeenCalledWith({
+        conversationId: CONVERSATION_ID,
+        senderUserId: STUDENT_ID,
+        text: 'Hello',
+        clientMessageId: CLIENT_MESSAGE_ID.toLowerCase(),
+      });
+    });
+
     it('lets a tutor reply', async () => {
       currentUser = signedInAs(Role.TUTOR);
       sendMessage.mockResolvedValue({ ...storedMessage, senderId: TUTOR_ID });
@@ -367,7 +381,7 @@ describe('conversation routes', () => {
       ['an empty text', { text: '' }],
       ['a whitespace-only text', { text: '   \n\t ' }],
       ['a text over 2000 characters', { text: 'a'.repeat(2001) }],
-      ['a clientMessageId in the body', { clientMessageId: CLIENT_MESSAGE_ID, text: 'Hello' }],
+      ['an invalid clientMessageId', { clientMessageId: 'invalid', text: 'Hello' }],
       ['a senderUserId in the body', { senderUserId: OTHER_STUDENT_ID, text: 'Hello' }],
     ])('rejects %s with 400 and stores nothing', async (_label, payload) => {
       await request(app.getHttpServer()).post(messagesPath).send(payload).expect(400);
@@ -541,11 +555,11 @@ describe('ConversationsController OpenAPI contract', () => {
     for (const status of ['201', '400', '401', '403', '404']) {
       expect(operation?.responses[status]).toBeDefined();
     }
-    expect(operation?.responses['409']).toBeUndefined();
+    expect(operation?.responses['409']).toBeDefined();
     expect(operation?.security).toEqual([{ [JWT_BEARER_AUTH]: [] }]);
   });
 
-  it('documents the API-02 request body as text only, with its limits', () => {
+  it('documents text limits and the optional idempotency key', () => {
     const schema = document.components?.schemas?.['SendMessageDto'] as
       | {
           properties?: Record<string, { maxLength?: number; minLength?: number }>;
@@ -553,7 +567,7 @@ describe('ConversationsController OpenAPI contract', () => {
         }
       | undefined;
 
-    expect(Object.keys(schema?.properties ?? {})).toEqual(['text']);
+    expect(Object.keys(schema?.properties ?? {})).toEqual(['text', 'clientMessageId']);
     expect(schema?.properties?.['text']).toMatchObject({ maxLength: 2000, minLength: 1 });
     expect(schema?.required).toEqual(['text']);
   });

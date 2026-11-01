@@ -10,6 +10,7 @@ const REFRESH_LOCK_NAME = 'hktutor-auth-refresh';
 let accessToken: string | null = null;
 let refreshRequest: Promise<AuthResponse> | null = null;
 const sessionExpiredListeners = new Set<() => void>();
+const accessTokenListeners = new Set<(token: string | null) => void>();
 
 interface ApiRequestOptions {
   authenticated?: boolean;
@@ -52,7 +53,7 @@ async function readResponse<T>(response: Response): Promise<T> {
 }
 
 function expireSession(): void {
-  accessToken = null;
+  clearAccessToken();
   for (const listener of sessionExpiredListeners) listener();
 }
 
@@ -81,7 +82,7 @@ async function send<T>(path: string, init: RequestInit, authenticated: boolean):
 
 async function runRefresh(): Promise<AuthResponse> {
   const result = await send<AuthResponse>('/auth/refresh', { method: 'POST' }, false);
-  accessToken = result.accessToken;
+  setAccessToken(result.accessToken);
   return result;
 }
 
@@ -205,11 +206,28 @@ export async function authenticatedUpload<T>(
 }
 
 export function setAccessToken(token: string): void {
+  if (accessToken === token) {
+    return;
+  }
   accessToken = token;
+  for (const listener of accessTokenListeners) listener(token);
 }
 
 export function clearAccessToken(): void {
   accessToken = null;
+  for (const listener of accessTokenListeners) listener(null);
+}
+
+/** Read the existing memory-only credential for an authenticated socket handshake. */
+export function getAccessToken(): string | null {
+  return accessToken;
+}
+
+export function onAccessTokenChanged(listener: (token: string | null) => void): () => void {
+  accessTokenListeners.add(listener);
+  return () => {
+    accessTokenListeners.delete(listener);
+  };
 }
 
 export function onSessionExpired(listener: () => void): () => void {

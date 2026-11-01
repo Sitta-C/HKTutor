@@ -13,6 +13,8 @@ import {
 import {
   authenticatedFetch,
   clearAccessToken,
+  getAccessToken,
+  onAccessTokenChanged,
   onSessionExpired,
   setAccessToken,
 } from '@/lib/api/client';
@@ -89,6 +91,27 @@ describe('authentication API client', () => {
     expect(new Headers((retriedRequest?.[1] as RequestInit).headers).get('Authorization')).toBe(
       'Bearer rotated-access-token',
     );
+  });
+
+  it('notifies active sockets of REST token rotation and credential removal', async () => {
+    const changed = vi.fn();
+    const stop = onAccessTokenChanged(changed);
+    setAccessToken('old-token');
+    expect(getAccessToken()).toBe('old-token');
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse({}, 401))
+      .mockResolvedValueOnce(jsonResponse({ accessToken: 'new-token', user }))
+      .mockResolvedValueOnce(jsonResponse({}));
+    await authenticatedFetch('/profiles/me');
+    expect(getAccessToken()).toBe('new-token');
+    expect(changed).toHaveBeenLastCalledWith('new-token');
+    clearAccessToken();
+    expect(getAccessToken()).toBeNull();
+    expect(changed).toHaveBeenLastCalledWith(null);
+    stop();
+    changed.mockClear();
+    setAccessToken('another-token');
+    expect(changed).not.toHaveBeenCalled();
   });
 
   it.each([

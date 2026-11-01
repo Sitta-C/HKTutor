@@ -12,6 +12,7 @@ import {
   MaxLength,
   Min,
   MinLength,
+  ValidateIf,
 } from 'class-validator';
 
 import { Role } from '@generated/prisma/enums';
@@ -65,6 +66,18 @@ export class SendMessageDto {
     message: `text must be at most ${MESSAGE_TEXT_MAX_LENGTH} characters`,
   })
   text!: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Reuse this UUID for retries of the same message; scoped to the authenticated sender',
+    format: 'uuid',
+  })
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? value.toLowerCase() : value,
+  )
+  @ValidateIf((_object: unknown, value: unknown) => value !== undefined)
+  @IsUUID()
+  clientMessageId?: string;
 }
 
 export class GetMyConversationsQueryDto {

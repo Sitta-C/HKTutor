@@ -494,6 +494,13 @@ export interface ConversationMessage {
   readAt: string | null;
 }
 
+export interface ConversationMessagesReadEvent {
+  conversationId: string;
+  messageIds: string[];
+  readByUserId: string;
+  readAt: string;
+}
+
 export interface ConversationMessagesResponse {
   items: ConversationMessage[];
   nextAfterMessageId: string | null;
