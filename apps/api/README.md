@@ -1268,6 +1268,120 @@ rescheduled slot. Each case's Bangkok time is checked against the `Asia/Bangkok`
 minute-by-minute sweep confirms the band changes exactly at 24h, 1h and the start. It does not
 exercise PostgreSQL or the job; those belong to S3-T06 and S3-T08.
 
+### Scheduled reminder job (S3-T06)
+
+`ReminderJobService` in the notifications module is the only writer of the S3-T05 reminders, per
+the [S3-T06 card](https://trello.com/c/Az3hWEVx). It is a `@nestjs/schedule` cron named
+`class-and-payment-reminders` that ticks every minute on UTC. `waitForCompletion` stops a slow run
+from overlapping the next tick in the same process; the booking lock and the unique
+`(userId, eventKey)` index cover other processes, so every API instance can run it and there is no
+separate worker. The cron is disabled when `NODE_ENV=test`, which Jest sets, so suites that boot
+`AppModule` never fire it; tests call `runOnce(nowUtc)` with a fixed clock instead.
+
+`@nestjs/schedule` is pinned at 6.1.3 because 12.x is ESM-only and does not load under the API's
+CommonJS Jest setup. There is no endpoint, queue, Redis, schema change or external delivery.
+Reminders reach users through the existing `GET /api/v1/notifications` (S2-T29), for example:
+
+```json
+{
+  "id": "88888888-8888-4888-8888-888888888888",
+  "eventType": "CLASS_REMINDER_24H",
+  "title": "Class starts within 24 hours",
+  "bookingId": "11111111-1111-4111-8111-111111111111",
+  "readAt": null,
+  "createdAt": "2026-11-09T11:00:00.000Z"
+}
+```
+
+Each run captures one UTC clock and then:
+
+1. Scans `CONFIRMED` bookings whose slot starts in `(now, now + 24h]`, 100 per page, ordered and
+   paged by `(startAtUtc, id)`, so a booking canceled or rescheduled mid-run does not shift pages.
+2. Plans every booking on the page with `planReminders` and reads the page's stored reminder rows
+   without locks. A booking whose planned reminders are all stored counts as duplicates and is never
+   locked, so most minutes take no row locks.
+3. For each remaining booking, opens one transaction, takes the same `SELECT ... FOR UPDATE` on the
+   booking that payment, cancellation and reschedule take, re-reads the booking, slot and both
+   recipients, plans again and inserts with `skipDuplicates`. A payment, cancellation, reschedule or
+   account change committed after the scan is seen before anything is written.
+
+Runs are sequential, so the job uses at most one of the API's three pooled connections at a time.
+If the API is down, the next run sends only the band that is current then (see the S3-T05 table).
+
+| `eventType`            | `title`                      | `body`                                                  |
+| ---------------------- | ---------------------------- | ------------------------------------------------------- |
+| `CLASS_REMINDER_24H`   | Class starts within 24 hours | Your lesson starts within 24 hours.                     |
+| `CLASS_REMINDER_1H`    | Class starts within 1 hour   | Your lesson starts within 1 hour.                       |
+| `PAYMENT_REMINDER_24H` | Payment due for your class   | Your lesson starts within 24 hours and is still unpaid. |
+| `PAYMENT_REMINDER_1H`  | Payment due for your class   | Your lesson starts within 1 hour and is still unpaid.   |
+
+The text is a fallback with no names, amounts or links (S2-T28); S3-T07 localises by `eventType`.
+`NotificationEventsService.writeReminders` writes a booking's reminders in one insert and refuses
+reminders whose key belongs to another booking.
+
+`runOnce` returns `{ scanned, created, duplicates, failed }` for internal telemetry only; it is not
+an HTTP contract.
+
+- A reminder already stored is a no-op counted as a duplicate. Its ID, text, `readAt` and
+  `createdAt` are kept.
+- A failure on one booking rolls back that booking only, is counted as `failed` and is retried on the
+  next tick while the class is still in a band. The rest of the run continues.
+- A failure in the scan or the pre-check ends the run; the tick logs it and the next minute retries.
+- Logs carry counts and error classes only, such as
+  `Reminder booking skipped (PrismaClientKnownRequestError/P2039); retrying next tick` and
+  `Reminder run: scanned=2 created=3 duplicates=0 failed=1`. The summary is logged only when
+  something was created or failed. IDs, names and error messages are never logged.
+
+Focused checks: `pnpm --filter @hktutor/api test test/unit/notifications`.
+`reminder-job.service.spec.ts` covers the cron registration, scan window and keyset paging, the
+lock-before-read order, payment, cancellation, reschedule and suspension after the scan, the
+pre-check, failure isolation and log content. `notification-events.reminders.spec.ts` covers the text
+and the single skip-duplicates insert, and `reminder-job-verifier.spec.ts` the URL guard. They use
+persistence doubles and do not establish database locking.
+
+`pnpm --filter @hktutor/api db:verify:reminders` runs the real services against PostgreSQL. Neither
+root `pnpm check` nor `pnpm test` runs it. It uses the same approval flag and loopback-only URL
+gates as the S2-T03 verifier above, and also requires the database name to end in `_test` or
+`-test`. It refuses a database that already holds bookings, because every run scans the whole
+table. Leave `NODE_ENV` unset: the runner refuses `NODE_ENV=test` because it also
+checks the live cron registration. From the repository root:
+
+```bash
+nvm use 24.19.0
+pnpm install --frozen-lockfile
+docker run --detach --name hktutor-reminder-job-test \
+  --publish 127.0.0.1:55442:5432 \
+  --env POSTGRES_USER=postgres --env POSTGRES_PASSWORD=disposable-local-only \
+  --env POSTGRES_DB=hktutor_reminder_job_test postgres:17-alpine
+# Wait until this reports that PostgreSQL is accepting connections.
+docker exec hktutor-reminder-job-test pg_isready -U postgres -d hktutor_reminder_job_test
+export DATABASE_URL='postgresql://postgres:disposable-local-only@127.0.0.1:55442/hktutor_reminder_job_test'
+pnpm db:generate
+pnpm --filter @hktutor/api db:migrate:deploy
+HKTUTOR_ALLOW_DISPOSABLE_DB_VERIFY=1 pnpm --filter @hktutor/api db:verify:reminders
+# Discard this example's container and its anonymous data volume, including after a failed run.
+docker rm --force --volumes hktutor-reminder-job-test
+unset DATABASE_URL
+```
+
+Each scenario uses its own day in 2099, so one 24-hour scan never sees another scenario. The 11
+checks cover:
+
+- The cron registered outside Jest: every minute, UTC, running, and stopped on shutdown.
+- The 24h, 1h and start boundaries, exactly and ± 1 ms.
+- Excluded statuses, paid bookings, and a suspended student or deleted tutor.
+- A late first run, and repeats that keep the original rows and take no lock.
+- Two clients, standing in for two API processes, waiting on the same booking lock.
+- Payment, cancellation and reschedule committed while the job waits on a held booking lock.
+- 210 bookings with three-way start-time ties across page boundaries.
+- An insert failure, forced by a temporary trigger on `Notification` for one booking, that rolls
+  back only that booking, logs no IDs and succeeds on the next run.
+
+Held-lock cases poll `pg_stat_activity` until every worker is waiting, so nothing depends on
+timing. With the job's `FOR UPDATE` removed, the race checks fail. The runner removes its fixtures
+and the trigger in `finally`; discard the database afterwards. The inbox UI (S3-T07) is not part of
+this task.
+
 ## RescheduleRequest persistence (S2-DB04)
 
 The forward migration `20261014120000_add_reschedule_request` implements the

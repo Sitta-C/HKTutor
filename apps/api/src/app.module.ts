@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { ScheduleModule } from '@nestjs/schedule';
 import { ThrottlerModule } from '@nestjs/throttler';
 
 import { validateAuthEnvironment } from '@config/auth.config';
@@ -32,6 +33,7 @@ import { TutorsModule } from '@modules/tutors/tutors.module';
         ),
     }),
     ThrottlerModule.forRoot([{ limit: 100, ttl: 60_000 }]),
+    ScheduleModule.forRoot(),
     DatabaseModule,
     StorageModule,
     BookingsModule,

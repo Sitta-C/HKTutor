@@ -46,7 +46,8 @@
     "db:verify:meeting-links": "ts-node -r tsconfig-paths/register scripts/verify-meeting-link-access.ts",
     "db:verify:attendance": "ts-node -r tsconfig-paths/register scripts/verify-attendance-rules.ts",
     "db:verify:sprint2-flow": "ts-node -r tsconfig-paths/register scripts/verify-sprint2-integration.ts",
-    "db:verify:payments": "ts-node -r tsconfig-paths/register scripts/verify-promptpay-payments.ts"
+    "db:verify:payments": "ts-node -r tsconfig-paths/register scripts/verify-promptpay-payments.ts",
+    "db:verify:reminders": "ts-node -r tsconfig-paths/register scripts/verify-reminder-job.ts"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",
@@ -54,6 +55,7 @@
     "@nestjs/core": "^11.0.1",
     "@nestjs/platform-express": "^11.0.1",
     "@nestjs/platform-socket.io": "11.2.1",
+    "@nestjs/schedule": "6.1.3",
     "@nestjs/swagger": "^11.4.7",
     "@nestjs/throttler": "^6.5.0",
     "@nestjs/websockets": "11.2.1",
