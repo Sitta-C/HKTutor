@@ -9,6 +9,26 @@ export function notificationTitle(item: InboxNotification, language: 'en' | 'th'
     : item.title;
 }
 
+export function notificationDescription(item: InboxNotification, language: 'en' | 'th'): string {
+  const text = notificationCopy[language];
+  return Object.hasOwn(text.reminderDetails, item.eventType)
+    ? text.reminderDetails[item.eventType as keyof typeof text.reminderDetails]
+    : text.detailsHint;
+}
+
+export function notificationReminderKind(eventType: string): 'class' | 'payment' | null {
+  switch (eventType) {
+    case 'CLASS_REMINDER_24H':
+    case 'CLASS_REMINDER_1H':
+      return 'class';
+    case 'PAYMENT_REMINDER_24H':
+    case 'PAYMENT_REMINDER_1H':
+      return 'payment';
+    default:
+      return null;
+  }
+}
+
 export function notificationBookingHref(bookingId: string | null): string | null {
   return bookingId?.trim() ? `/dashboard/bookings/${encodeURIComponent(bookingId)}` : null;
 }

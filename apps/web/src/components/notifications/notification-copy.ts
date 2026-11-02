@@ -18,6 +18,8 @@ export const notificationCopy = {
     forbidden: 'You cannot access this notification. Refresh your inbox.',
     missing: 'This notification is no longer available. Refresh your inbox.',
     openBooking: 'View booking',
+    viewDetails: 'View notification details',
+    detailsHint: 'Open the booking for the latest lesson and booking details.',
     missingBooking: 'This notification has no available booking link.',
     timezone: 'Times shown in Asia/Bangkok',
     events: {
@@ -29,6 +31,20 @@ export const notificationCopy = {
       RESCHEDULE_APPROVED: 'Reschedule approved',
       RESCHEDULE_REJECTED: 'Reschedule declined',
       RESCHEDULE_WITHDRAWN: 'Reschedule withdrawn',
+      CLASS_REMINDER_24H: 'Class starts within 24 hours',
+      CLASS_REMINDER_1H: 'Class starts within 1 hour',
+      PAYMENT_REMINDER_24H: 'Payment reminder for your class',
+      PAYMENT_REMINDER_1H: 'Payment reminder for your class',
+    },
+    reminderDetails: {
+      CLASS_REMINDER_24H:
+        'When this reminder was sent, your lesson was starting within 24 hours. Open the booking for the latest schedule.',
+      CLASS_REMINDER_1H:
+        'When this reminder was sent, your lesson was starting within 1 hour. Open the booking for the latest schedule.',
+      PAYMENT_REMINDER_24H:
+        'When this reminder was sent, your lesson was unpaid and starting within 24 hours. Open the booking to check its current payment status.',
+      PAYMENT_REMINDER_1H:
+        'When this reminder was sent, your lesson was unpaid and starting within 1 hour. Open the booking to check its current payment status.',
     },
   },
   th: {
@@ -50,6 +66,8 @@ export const notificationCopy = {
     forbidden: 'คุณไม่มีสิทธิ์เข้าถึงการแจ้งเตือนนี้ กรุณาโหลดกล่องแจ้งเตือนใหม่',
     missing: 'ไม่พบการแจ้งเตือนนี้แล้ว กรุณาโหลดกล่องแจ้งเตือนใหม่',
     openBooking: 'ดูรายละเอียดการจอง',
+    viewDetails: 'ดูรายละเอียดการแจ้งเตือน',
+    detailsHint: 'เปิดการจองเพื่อดูวันเวลาเรียนและรายละเอียดการจองล่าสุด',
     missingBooking: 'การแจ้งเตือนนี้ไม่มีลิงก์การจองที่เปิดได้',
     timezone: 'แสดงเวลาตาม Asia/Bangkok',
     events: {
@@ -61,6 +79,20 @@ export const notificationCopy = {
       RESCHEDULE_APPROVED: 'อนุมัติการเลื่อนเวลาแล้ว',
       RESCHEDULE_REJECTED: 'คำขอเลื่อนเวลาถูกปฏิเสธ',
       RESCHEDULE_WITHDRAWN: 'ถอนคำขอเลื่อนเวลาแล้ว',
+      CLASS_REMINDER_24H: 'บทเรียนเริ่มภายใน 24 ชั่วโมง',
+      CLASS_REMINDER_1H: 'บทเรียนเริ่มภายใน 1 ชั่วโมง',
+      PAYMENT_REMINDER_24H: 'เตือนชำระเงินก่อนเรียน',
+      PAYMENT_REMINDER_1H: 'เตือนชำระเงินก่อนเรียน',
+    },
+    reminderDetails: {
+      CLASS_REMINDER_24H:
+        'ตอนส่งแจ้งเตือน บทเรียนจะเริ่มภายใน 24 ชั่วโมง เปิดการจองเพื่อตรวจสอบวันเวลาเรียนล่าสุด',
+      CLASS_REMINDER_1H:
+        'ตอนส่งแจ้งเตือน บทเรียนจะเริ่มภายใน 1 ชั่วโมง เปิดการจองเพื่อตรวจสอบวันเวลาเรียนล่าสุด',
+      PAYMENT_REMINDER_24H:
+        'ตอนส่งแจ้งเตือน บทเรียนจะเริ่มภายใน 24 ชั่วโมงและยังไม่ได้ชำระเงิน เปิดการจองเพื่อตรวจสอบสถานะการชำระเงินล่าสุด',
+      PAYMENT_REMINDER_1H:
+        'ตอนส่งแจ้งเตือน บทเรียนจะเริ่มภายใน 1 ชั่วโมงและยังไม่ได้ชำระเงิน เปิดการจองเพื่อตรวจสอบสถานะการชำระเงินล่าสุด',
     },
   },
 } as const;
