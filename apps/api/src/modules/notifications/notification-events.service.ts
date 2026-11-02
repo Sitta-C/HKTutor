@@ -1,6 +1,7 @@
 import { ForbiddenException, Injectable } from '@nestjs/common';
 
 import type { Prisma } from '@generated/prisma/client';
+import type { PlannedReminder, ReminderEventType } from '@modules/notifications/reminder-policy';
 
 const EVENT_COPY = {
   BOOKING_CREATED: {
@@ -36,6 +37,26 @@ const EVENT_COPY = {
     body: 'The other participant has withdrawn their reschedule request.',
   },
 } as const;
+
+// S3-T06 fallback text; S3-T07 localises by eventType. No names, amounts or links (S2-T28).
+const REMINDER_COPY: Record<ReminderEventType, { title: string; body: string }> = {
+  CLASS_REMINDER_24H: {
+    title: 'Class starts within 24 hours',
+    body: 'Your lesson starts within 24 hours.',
+  },
+  CLASS_REMINDER_1H: {
+    title: 'Class starts within 1 hour',
+    body: 'Your lesson starts within 1 hour.',
+  },
+  PAYMENT_REMINDER_24H: {
+    title: 'Payment due for your class',
+    body: 'Your lesson starts within 24 hours and is still unpaid.',
+  },
+  PAYMENT_REMINDER_1H: {
+    title: 'Payment due for your class',
+    body: 'Your lesson starts within 1 hour and is still unpaid.',
+  },
+};
 
 type BookingEventType =
   'BOOKING_CREATED' | 'BOOKING_CONFIRMED' | 'BOOKING_REJECTED' | 'BOOKING_CANCELED';
@@ -80,5 +101,34 @@ export class NotificationEventsService {
       // Existing title/body/readAt stay untouched; other persistence failures still roll back.
       skipDuplicates: true,
     });
+  }
+
+  /**
+   * Writes S3-T05 planned reminders inside the reminder job's per-booking transaction and returns
+   * how many rows were new; a reminder already stored for (userId, eventKey) is skipped.
+   */
+  async writeReminders(
+    tx: { notification: Pick<Prisma.TransactionClient['notification'], 'createMany'> },
+    bookingId: string,
+    planned: readonly PlannedReminder[],
+  ): Promise<number> {
+    if (planned.length === 0) {
+      return 0;
+    }
+    const keyPrefix = `reminder:${bookingId}:`;
+    if (planned.some(({ eventKey }) => !eventKey.startsWith(keyPrefix))) {
+      throw new RangeError('Planned reminder does not belong to this booking');
+    }
+    const { count } = await tx.notification.createMany({
+      data: planned.map(({ eventKey, eventType, userId }) => ({
+        ...REMINDER_COPY[eventType],
+        bookingId,
+        eventKey,
+        eventType,
+        userId,
+      })),
+      skipDuplicates: true,
+    });
+    return count;
   }
 }
