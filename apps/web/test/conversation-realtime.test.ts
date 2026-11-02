@@ -253,5 +253,34 @@ describe('conversation socket lifecycle', () => {
     expect([...socket.handlers.values()].every((handlers) => handlers.size === 0)).toBe(true);
     expect(auth.listener).toBeNull();
     expect(invalidate).not.toHaveBeenCalled();
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('cancels a pending join retry and ignores its late acknowledgement after switching rooms', async () => {
+    socket.connected = true;
+    socket.deliver('connect');
+    const stale = socket.joins[0];
+    stale?.ack(new Error('timeout'));
+    expect(vi.getTimerCount()).toBe(1);
+    stop();
+    expect(vi.getTimerCount()).toBe(0);
+
+    const oldSocket = socket;
+    socket = new TestSocket();
+    auth.io.mockReturnValue(socket);
+    const nextConversation = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+    stop = subscribeConversationRealtime(nextConversation, invalidate, changed);
+    invalidate.mockClear();
+    changed.mockClear();
+    stale?.ack(null, { ok: true, conversationId: CONVERSATION });
+    oldSocket.deliver('message_created', { conversationId: CONVERSATION });
+    await vi.advanceTimersByTimeAsync(20000);
+    expect(oldSocket.joins).toHaveLength(1);
+    expect([...oldSocket.handlers.values()].every((handlers) => handlers.size === 0)).toBe(true);
+    expect(invalidate).not.toHaveBeenCalled();
+    expect(changed).not.toHaveBeenCalled();
+    stop();
+    expect(auth.listener).toBeNull();
+    expect(vi.getTimerCount()).toBe(0);
   });
 });

@@ -49,6 +49,8 @@ remain protected.
 
 See [S3-T03 verification](apps/web/e2e/chat-realtime-verification.md) for recorded commands/results
 and the opted-in two-session browser suite against a disposable PostgreSQL database.
+See [S3-T04 QA evidence](tests/s3-t04-qa.md) for the extended delivery, authorization, reconnect,
+duplicate prevention and session-revocation checks, fixture IDs and sanitized browser screenshots.
 
 Message sends use `POST /api/v1/conversations/:conversationId/messages` with trimmed text of 1–2,000
 Unicode code points. The API returns `201` when a student or tutor participant sends successfully,

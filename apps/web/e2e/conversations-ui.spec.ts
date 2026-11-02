@@ -112,11 +112,13 @@ async function mockInbox(
     await page.routeWebSocket('**/api/v1/socket.io/**', (socket) => socket.close());
   }
   if (!options.guest) {
-    await page
-      .context()
-      .addCookies([
-        { name: 'hktutor_refresh', value: 'chat-fixture', url: 'http://localhost:3000' },
-      ]);
+    await page.context().addCookies([
+      {
+        name: 'hktutor_refresh',
+        value: 'chat-fixture',
+        url: test.info().project.use.baseURL ?? 'http://localhost:3000',
+      },
+    ]);
   }
   await page.route('**/api/v1/**', async (route) => {
     const request = route.request();
@@ -858,7 +860,7 @@ test('keeps drafts, reading position and index position across conversations; wo
   expect(fixture.calls.some((call) => call.path.endsWith('/read'))).toBe(true);
   expect(fixture.unexpected).toEqual([]);
   await page.screenshot({
-    path: `/private/tmp/hktutor-chat-${testInfo.project.name}.png`,
+    path: testInfo.outputPath(`hktutor-chat-${testInfo.project.name}.png`),
     fullPage: true,
   });
 });
