@@ -90,6 +90,13 @@ See [frontend direction](ui-design/frontend-direction.md) for the Notebook Focus
 [implemented frontend behavior](ui-design/implemented-behavior.md) for interaction, loading,
 responsive layout, and accessibility details.
 
+The Student/Tutor notification bell uses a compact **Minimal Notes** inbox: expand one row to read
+its explanation, mark it read or open the linked booking. Expansion alone never marks it read.
+Class and payment reminders support the 24-hour/1-hour event types in Thai and English; their
+explanations describe the state when sent and link to the booking for current details. The API
+selects recipients, so paid bookings retain class reminders and stored payment reminders remain
+readable. Existing unread counts, pagination and read-error recovery are preserved.
+
 Students and tutors can optionally upload, replace, or remove a profile photo during onboarding or
 from `/dashboard/profile`. JPEG, PNG, and static WebP inputs up to 2 MiB are normalized server-side.
 Student photos remain in the owner's private account area; eligible tutor photos also appear in

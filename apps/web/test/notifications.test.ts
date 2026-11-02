@@ -4,6 +4,8 @@ import { notificationCopy } from '@/components/notifications/notification-copy';
 import {
   mergeNotificationPage,
   notificationBookingHref,
+  notificationDescription,
+  notificationReminderKind,
   notificationTitle,
   optimisticNotificationRead,
 } from '@/components/notifications/notification-model';
@@ -93,7 +95,46 @@ describe('notification presentation and optimistic state', () => {
     expect(Object.keys(notificationCopy.th.events)).toEqual(
       Object.keys(notificationCopy.en.events),
     );
+    expect(Object.keys(notificationCopy.th.reminderDetails)).toEqual(
+      Object.keys(notificationCopy.en.reminderDetails),
+    );
   });
+  it.each(['en', 'th'] as const)(
+    'localizes both reminder windows in %s without trusting fallback titles',
+    (language) => {
+      const text = notificationCopy[language];
+      for (const eventType of [
+        'CLASS_REMINDER_24H',
+        'CLASS_REMINDER_1H',
+        'PAYMENT_REMINDER_24H',
+        'PAYMENT_REMINDER_1H',
+      ] as const) {
+        const reminder = { ...item, eventType, title: 'Server fallback' };
+        expect(notificationTitle(reminder, language)).toBe(text.events[eventType]);
+        expect(notificationDescription(reminder, language)).toBe(text.reminderDetails[eventType]);
+        expect(notificationDescription(reminder, language)).toContain(
+          eventType.endsWith('24H') ? '24' : '1',
+        );
+        expect(notificationReminderKind(eventType)).toBe(
+          eventType.startsWith('CLASS_') ? 'class' : 'payment',
+        );
+        expect(notificationBookingHref(reminder.bookingId)).toBe(
+          '/dashboard/bookings/booking%2Fone',
+        );
+      }
+    },
+  );
+  it.each(['BOOKING_CONFIRMED', 'FUTURE_EVENT', 'CLASS_REMINDER_2H', 'toString', '__proto__'])(
+    'uses safe generic detail copy for %s without inferring a reminder',
+    (eventType) => {
+      expect(notificationReminderKind(eventType)).toBeNull();
+      for (const language of ['en', 'th'] as const) {
+        expect(notificationDescription({ ...item, eventType }, language)).toBe(
+          notificationCopy[language].detailsHint,
+        );
+      }
+    },
+  );
 });
 
 describe('notification API client', () => {

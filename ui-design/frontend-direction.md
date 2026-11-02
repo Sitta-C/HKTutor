@@ -1,6 +1,6 @@
 # HKTutor frontend direction — Notebook Focus
 
-Updated 2026-10-11. This describes the implemented Notebook Focus direction and component
+Updated 2026-11-02. This describes the implemented Notebook Focus direction and component
 patterns in this repository. Maintainers review changes to shared design conventions through the
 normal PR process; this guide does not assert team approval of decisions from an individual chat.
 Read it as implementation context before UI work. The current task's explicit requirements take
@@ -437,6 +437,31 @@ states show —; zero follows a successful empty response. Clear on login, verif
 session expiry, isolate by user ID and reject late results from older sessions or pre-create reads.
 Guests, tutors and onboarding do not request a student count. This adds a frontend read through the
 existing API, with no backend/client contract or booking payload changes.
+
+## Notification inbox — Minimal Notes (S3-T07)
+
+The user selected **Minimal Notes**, refined from Margin Notes, on 2026-11-02. Keep the existing
+Student/Tutor header bell and one compact paper inbox. Each collapsed row shows only its icon,
+localized title, Bangkok notification timestamp and explicit read/unread state. Use a pale unread
+wash, a thin margin line and quiet separators; omit repeated category labels, tape and per-row cards.
+
+- Use native grouped `details`/`summary` controls: all rows start collapsed, and opening another
+  closes the previous row. Support keyboard activation, visible focus and reduced motion.
+- Expansion reveals the localized explanation, existing booking link and mark-read action.
+  Expanding or collapsing never writes a read receipt. Marking one read returns focus to its
+  summary; opening a booking still waits for the existing read acknowledgement before navigating.
+- Translate `CLASS_REMINDER_24H`, `CLASS_REMINDER_1H`, `PAYMENT_REMINDER_24H` and
+  `PAYMENT_REMINDER_1H` in Thai/English. Descriptions explain the situation **when the notification
+  was sent** and direct the user to the booking for its current schedule/payment status. Do not
+  present the reminder band as a live countdown or claim an old payment reminder is still unpaid.
+- Render the server-selected inbox without filtering payment history or fetching payment state.
+  The existing reminder job sends class reminders to both participants, including paid bookings,
+  and payment reminders only to unpaid students. Unknown event types retain their server title
+  and a generic booking-detail hint. Missing booking IDs have no invented link.
+- Preserve inbox-wide unread counts, mark-all, pagination, loading/empty/error states, rollback
+  and refresh recovery, session isolation, outside dismissal and Escape focus return. Keep full
+  localized Bangkok timestamps, wrapping long titles/actions and 44px targets at 320px and above.
+  Styles remain scoped to `components/notifications/notification.module.css`.
 
 ## Action notifications
 

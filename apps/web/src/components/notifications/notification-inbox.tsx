@@ -12,7 +12,6 @@ import {
   optimisticNotificationRead,
 } from '@/components/notifications/notification-model';
 import { UnreadBadge } from '@/components/notifications/unread-badge';
-import { WashiTape } from '@/components/ui/notebook';
 import { NotebookLoadingRegion } from '@/components/ui/notebook-loading';
 import { ApiError } from '@/lib/api/error';
 import {
@@ -210,7 +209,6 @@ export function NotificationInbox({ role }: { role: 'STUDENT' | 'TUTOR' }) {
           className={styles.inbox}
           aria-labelledby="dashboard-notifications-title"
         >
-          <WashiTape tone="yellow" className="-top-2 left-1/2 -translate-x-1/2" />
           <header className={styles.header}>
             <div>
               <h2 id="dashboard-notifications-title">{text.title}</h2>

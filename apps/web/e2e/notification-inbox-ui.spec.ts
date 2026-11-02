@@ -27,13 +27,18 @@ test.beforeEach(async ({ page }, testInfo) => {
 // Every API request is intercepted. No real account, booking or read receipt is changed.
 async function setup(
   page: Page,
-  options: { role?: 'STUDENT' | 'TUTOR'; language?: 'en' | 'th'; listGate?: Promise<void> } = {},
+  options: {
+    role?: 'STUDENT' | 'TUTOR';
+    language?: 'en' | 'th';
+    listGate?: Promise<void>;
+    items?: InboxNotification[];
+  } = {},
 ) {
   const role = options.role ?? 'STUDENT';
   const language = options.language ?? 'en';
   const text = notificationCopy[language];
   const state = {
-    items: [
+    items: options.items ?? [
       notice('notice-one'),
       notice('notice-two', { eventType: 'BOOKING_CONFIRMED', readAt: READ_AT }),
       notice('notice-three', { bookingId: null, eventType: 'BOOKING_CANCELED' }),
@@ -176,6 +181,9 @@ for (const language of ['en', 'th'] as const) {
       await expect(first.locator('time')).toContainText(
         language === 'en' ? '18 Oct 2026' : '18 ต.ค. 2569',
       );
+      await expect(inbox.locator('details[open]')).toHaveCount(0);
+      await expect(inbox.getByText(text.missingBooking)).toBeHidden();
+      await inbox.getByRole('listitem').nth(2).locator('summary').click();
       await expect(inbox.getByText(text.missingBooking)).toBeVisible();
       await expect(inbox.getByRole('listitem').nth(2).getByRole('link')).toHaveCount(0);
       await inbox.getByRole('button', { name: text.loadMore }).click();
@@ -183,7 +191,9 @@ for (const language of ['en', 'th'] as const) {
       expect(state.reads.at(-1)?.searchParams.get('cursor')).toBe('opaque+/=cursor');
       expect(state.reads.at(-1)?.searchParams.get('limit')).toBe('20');
       await expect(inbox.getByRole('button', { name: text.loadMore })).toHaveCount(0);
+      await first.locator('summary').click();
       await first.getByRole('button', { name: text.markRead, exact: true }).click();
+      await expect(first.locator('summary')).toBeFocused();
       await expect(first.getByText(text.read, { exact: true })).toBeVisible();
       await expect(inbox.getByRole('button', { name: text.refresh })).toBeEnabled();
       expect(state.items[0]?.readAt).toBe(READ_AT);
@@ -246,6 +256,7 @@ test('mark all is optimistic, locked during save, and includes unread on later p
   const { state, bell, inbox, text } = await setup(page);
   await bell.click();
   await expect(inbox.getByRole('listitem')).toHaveCount(3);
+  await inbox.getByRole('listitem').first().locator('summary').click();
   const gate = Promise.withResolvers<void>();
   state.writeGate = gate.promise;
   await inbox.getByRole('button', { name: text.markAll }).click();
@@ -272,6 +283,7 @@ for (const status of [403, 404, 409, 500]) {
     await expect(inbox.getByRole('listitem')).toHaveCount(3);
     state.writeFailure = status;
     const first = inbox.getByRole('listitem').first();
+    await first.locator('summary').click();
     await first.getByRole('link').click();
     await expect(inbox.getByRole('alert')).toHaveText(
       status === 403 ? text.forbidden : status === 404 ? text.missing : text.saveFailed,
@@ -285,6 +297,7 @@ for (const status of [403, 404, 409, 500]) {
     expect(state.items[0]?.readAt).toBeNull();
     state.writeFailure = 0;
     await inbox.getByRole('button', { name: text.refresh }).click();
+    await first.locator('summary').click();
     await expect(first.getByRole('button', { name: text.markRead, exact: true })).toBeEnabled();
     await first.getByRole('button', { name: text.markRead, exact: true }).click();
     await expect(first.getByText(text.read, { exact: true })).toBeVisible();
@@ -314,6 +327,7 @@ test('lost write response rolls back then reconciles the persisted receipt on re
   await expect(inbox.getByRole('listitem')).toHaveCount(3);
   state.loseResponse = true;
   const first = inbox.getByRole('listitem').first();
+  await first.locator('summary').click();
   await first.getByRole('button', { name: text.markRead, exact: true }).click();
   await expect(inbox.getByRole('alert')).toHaveText(text.saveFailed);
   await expect(first.getByText(text.unread, { exact: true })).toBeVisible();
@@ -348,6 +362,7 @@ for (const role of ['STUDENT', 'TUTOR'] as const) {
   }) => {
     const { state, bell, inbox } = await setup(page, { role });
     await bell.click();
+    await inbox.getByRole('listitem').first().locator('summary').click();
     const link = inbox.getByRole('listitem').first().getByRole('link');
     await expect(link).toHaveAttribute('href', `/dashboard/bookings/${BOOKING_ID}`);
     await link.click();
@@ -373,4 +388,103 @@ test('keyboard operation, Escape focus return and outside dismissal remain avail
   await expect(inbox).toBeVisible();
   await page.mouse.click(1, 1);
   await expect(inbox).toHaveCount(0);
+});
+
+for (const language of ['en', 'th'] as const) {
+  for (const recipient of ['student-unpaid', 'student-paid', 'tutor'] as const) {
+    test(`${language} ${recipient}: minimal reminders expand one at a time without marking read`, async ({
+      page,
+    }, testInfo) => {
+      // These are server-selected fixtures. The inbox never fetches payment state or filters history.
+      const eventTypes = [
+        'CLASS_REMINDER_24H',
+        'CLASS_REMINDER_1H',
+        ...(recipient === 'student-unpaid'
+          ? (['PAYMENT_REMINDER_24H', 'PAYMENT_REMINDER_1H'] as const)
+          : []),
+      ] as const;
+      const { state, bell, inbox, text } = await setup(page, {
+        language,
+        role: recipient === 'tutor' ? 'TUTOR' : 'STUDENT',
+        items: eventTypes.map((eventType, index) =>
+          notice(`reminder-${index}`, { eventType, title: 'Server fallback' }),
+        ),
+      });
+      await bell.click();
+      await expect(inbox.getByRole('listitem')).toHaveCount(Math.min(3, eventTypes.length));
+      await expect(inbox.locator('details[open]')).toHaveCount(0);
+      await expect(inbox.getByRole('link')).toHaveCount(0);
+      await page.screenshot({
+        path: testInfo.outputPath(`reminders-${recipient}-${language}-collapsed.png`),
+        fullPage: true,
+      });
+      if (eventTypes.length > 3) {
+        await inbox.getByRole('button', { name: text.loadMore }).click();
+      }
+      await expect(inbox.getByRole('listitem')).toHaveCount(eventTypes.length);
+      for (const [index, eventType] of eventTypes.entries()) {
+        const row = inbox.getByRole('listitem').nth(index);
+        const summary = row.locator('summary');
+        await expect(summary).toHaveAccessibleName(
+          `${text.viewDetails}: ${text.events[eventType]}`,
+        );
+        await summary.focus();
+        await summary.press('Enter');
+        await expect(row.locator('details')).toHaveAttribute('open', '');
+        await expect(inbox.locator('details[open]')).toHaveCount(1);
+        await expect(row.getByText(text.reminderDetails[eventType], { exact: true })).toBeVisible();
+        await expect(row.getByRole('link')).toHaveAttribute(
+          'href',
+          `/dashboard/bookings/${BOOKING_ID}`,
+        );
+        await expect(row.getByText(text.unread, { exact: true })).toBeVisible();
+        expect(state.writes).toEqual([]);
+      }
+      await expect(bell).toHaveAccessibleName(
+        `${text.title}, ${text.unreadCount.replace('{count}', String(eventTypes.length))}`,
+      );
+      await page.screenshot({
+        path: testInfo.outputPath(`reminders-${recipient}-${language}-expanded.png`),
+        fullPage: true,
+      });
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+        true,
+      );
+      await inbox.getByRole('link').click();
+      await expect(page).toHaveURL(`/dashboard/bookings/${BOOKING_ID}`);
+      expect(state.writes).toEqual([
+        {
+          path: `/notifications/reminder-${eventTypes.length - 1}/read`,
+          method: 'PATCH',
+          body: null,
+        },
+      ]);
+      expect(state.unexpected).toEqual([]);
+    });
+  }
+}
+
+test('older payment reminders remain readable, with event-time wording and future-event fallback', async ({
+  page,
+}) => {
+  const longTitle = 'A future notification with a very long title '.repeat(10);
+  const { state, bell, inbox, text } = await setup(page, {
+    items: [
+      notice('old-payment', { eventType: 'PAYMENT_REMINDER_1H', readAt: READ_AT }),
+      notice('future-event', { eventType: 'FUTURE_EVENT', title: longTitle, bookingId: null }),
+    ],
+  });
+  await bell.click();
+  const oldPayment = inbox.getByRole('listitem').first();
+  await oldPayment.locator('summary').click();
+  await expect(oldPayment.getByText(text.reminderDetails.PAYMENT_REMINDER_1H)).toBeVisible();
+  await expect(oldPayment.getByText(text.read, { exact: true })).toBeVisible();
+  const future = inbox.getByRole('listitem').nth(1);
+  await expect(future.locator('summary')).toContainText(longTitle);
+  await future.locator('summary').click();
+  await expect(future.getByText(text.detailsHint)).toBeVisible();
+  await expect(future.getByText(text.missingBooking)).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  expect(state.writes).toEqual([]);
+  expect(state.unexpected).toEqual([]);
 });
