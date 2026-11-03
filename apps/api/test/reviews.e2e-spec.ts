@@ -121,14 +121,14 @@ describe('Reviews HTTP contract', () => {
     expect(reviews.create).not.toHaveBeenCalled();
   });
 
-  it('answers 404 NOT_FOUND for a missing booking and 400 INVALID_UUID for an invalid UUID', async () => {
+  it('answers 404 BOOKING_NOT_FOUND for a missing booking and 400 INVALID_UUID for an invalid UUID', async () => {
     booking.mockResolvedValue(null);
     const missing = await request(app.getHttpServer())
       .post(URL)
       .auth('test', { type: 'bearer' })
       .send(VALID_BODY)
       .expect(404);
-    expect((missing.body as { code: string }).code).toBe('NOT_FOUND');
+    expect((missing.body as { code: string }).code).toBe('BOOKING_NOT_FOUND');
     const invalid = await request(app.getHttpServer())
       .post('/api/v1/bookings/me/not-a-uuid/reviews')
       .auth('test', { type: 'bearer' })
@@ -280,9 +280,13 @@ describe('Reviews HTTP contract', () => {
       expect(reviews.findMine).not.toHaveBeenCalled();
     });
 
-    it('answers 404 for a missing booking and 400 for an invalid UUID', async () => {
+    it('answers 404 BOOKING_NOT_FOUND for a missing booking and 400 for an invalid UUID', async () => {
       booking.mockResolvedValue(null);
-      await request(app.getHttpServer()).get(GET_URL).auth('test', { type: 'bearer' }).expect(404);
+      const missing = await request(app.getHttpServer())
+        .get(GET_URL)
+        .auth('test', { type: 'bearer' })
+        .expect(404);
+      expect((missing.body as { code: string }).code).toBe('BOOKING_NOT_FOUND');
       await request(app.getHttpServer())
         .get('/api/v1/bookings/me/not-a-uuid/review')
         .auth('test', { type: 'bearer' })

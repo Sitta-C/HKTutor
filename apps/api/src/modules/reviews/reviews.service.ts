@@ -36,6 +36,10 @@ const bookingOwnerSelect = {
   studentUserId: true,
 } satisfies Prisma.BookingSelect;
 
+function bookingNotFound(): NotFoundException {
+  return new NotFoundException({ code: 'BOOKING_NOT_FOUND', message: 'Booking not found' });
+}
+
 function bookingNotOwned(): ForbiddenException {
   return new ForbiddenException({
     code: 'BOOKING_NOT_OWNED',
@@ -98,7 +102,7 @@ export class ReviewsService {
       where: { id: bookingId },
     });
     if (!booking) {
-      throw new NotFoundException('Booking not found');
+      throw bookingNotFound();
     }
     if (booking.studentUserId !== studentUserId) {
       throw bookingNotOwned();
@@ -196,7 +200,7 @@ export class ReviewsService {
       where: { id: bookingId },
     });
     if (!booking) {
-      throw new NotFoundException('Booking not found');
+      throw bookingNotFound();
     }
     if (booking.studentUserId !== studentUserId) {
       throw bookingNotOwned();

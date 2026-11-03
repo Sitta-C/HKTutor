@@ -1995,7 +1995,7 @@ Both private routes send `Cache-Control: no-store` and share one status code tab
 | 401    | `UNAUTHENTICATED`       | Missing, invalid or expired session                                    |
 | 403    | `FORBIDDEN`             | Caller is not a STUDENT, or has missing/outdated consent (API-01 only) |
 | 403    | `BOOKING_NOT_OWNED`     | Booking belongs to another student                                     |
-| 404    | `NOT_FOUND`             | No booking with this ID                                                |
+| 404    | `BOOKING_NOT_FOUND`     | No booking with this ID (matches the sibling booking routes)           |
 | 409    | `BOOKING_NOT_COMPLETED` | Booking is not `COMPLETED` (API-01 only)                               |
 | 409    | `REVIEW_ALREADY_EXISTS` | A review already exists for this booking (API-01 only)                 |
 

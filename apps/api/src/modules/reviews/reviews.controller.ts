@@ -36,6 +36,7 @@ import type { OwnershipRule } from '@modules/auth/ownership.decorator';
 const BOOKING_REVIEW_OWNERSHIP = {
   errors: {
     foreignOwner: { code: 'BOOKING_NOT_OWNED', message: 'This booking belongs to another student' },
+    missing: { code: 'BOOKING_NOT_FOUND', message: 'Booking not found' },
   },
   idParam: 'bookingId',
   resource: 'booking',
