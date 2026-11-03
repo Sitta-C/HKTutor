@@ -2,7 +2,6 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { readdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
-import { setTimeout as delay } from 'node:timers/promises';
 
 import { Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -20,8 +19,8 @@ import {
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import { CURRENT_PRIVACY_POLICY_VERSION } from '@modules/auth/auth.constants';
 import { NotificationEventsService } from '@modules/notifications/notification-events.service';
+import { NotificationsService } from '@modules/notifications/notifications.service';
 import { REMINDER_JOB_NAME, ReminderJobService } from '@modules/notifications/reminder-job.service';
-import { reminderEventKey } from '@modules/notifications/reminder-policy';
 
 import type { ReminderRunResult } from '@modules/notifications/reminder-job.service';
 import type { ReminderBand, ReminderKind } from '@modules/notifications/reminder-policy';
@@ -94,6 +93,7 @@ async function verify(): Promise<void> {
   };
   const failingFunction = `reminder_probe_${randomUUID().replaceAll('-', '')}`;
   const modules: TestingModule[] = [];
+  const evidence: string[] = [];
   let passed = 0;
   const pass = (label: string): void => {
     passed += 1;
@@ -240,8 +240,12 @@ async function verify(): Promise<void> {
     async function stored(item: Pick<Fixture, 'id'>): Promise<string[]> {
       const rows = await prisma.notification.findMany({
         where: { bookingId: item.id },
-        select: { userId: true, eventKey: true },
+        select: { userId: true, eventKey: true, eventType: true },
       });
+      for (const row of rows) {
+        const parts = row.eventKey.split(':');
+        assert.equal(row.eventType, `${parts.at(-1)}_REMINDER_${parts.at(-2)}`);
+      }
       return rows.map(({ userId, eventKey }) => `${userId} ${eventKey}`).sort();
     }
     function planned(
@@ -250,7 +254,9 @@ async function verify(): Promise<void> {
       recipients: { student?: boolean; tutor?: boolean; payment?: boolean } = {},
     ): string[] {
       const { student = true, tutor = true, payment = true } = recipients;
-      const key = (kind: ReminderKind): string => reminderEventKey(item, band, kind);
+      // Independent oracle: do not let the production key builder hide a regression in itself.
+      const key = (kind: ReminderKind): string =>
+        `reminder:${item.id}:${item.slotId}:${item.startAtUtc.toISOString()}:${band}:${kind}`;
       return [
         ...(student ? [`${studentId} ${key('CLASS')}`] : []),
         ...(tutor ? [`${item.tutorId} ${key('CLASS')}`] : []),
@@ -259,6 +265,32 @@ async function verify(): Promise<void> {
     }
     const run = (worker: ReminderJobService, nowMs: number): Promise<ReminderRunResult> =>
       worker.runOnce(new Date(nowMs));
+
+    const bangkok = (date: Date): string =>
+      new Intl.DateTimeFormat('sv-SE', {
+        timeZone: 'Asia/Bangkok',
+        dateStyle: 'short',
+        timeStyle: 'medium',
+      }).format(date) + `.${String(date.getUTCMilliseconds()).padStart(3, '0')}`;
+
+    async function assertRows(
+      label: string,
+      item: Fixture,
+      nowMs: number,
+      expected: string[],
+    ): Promise<void> {
+      assert.deepEqual(await stored(item), expected, label);
+      const pairs = expected.map((pair) => {
+        const [recipient, eventKey] = pair.split(' ');
+        const parts = eventKey?.split(':');
+        const suffix = `${recipient === studentId ? 'S' : 'T'}:${parts?.at(-2)}:${parts?.at(-1)}`;
+        return parts?.[2] === item.slotId ? suffix : `${suffix} (key ${eventKey})`;
+      });
+      evidence.push(
+        `| ${label} | ${item.id} | ${item.slotId} | ${new Date(nowMs).toISOString()} / ${bangkok(new Date(nowMs))} | ` +
+          `${item.startAtUtc.toISOString()} / ${bangkok(item.startAtUtc)} | ${pairs.join(', ') || 'none'} | ${expected.length}; exact DB pairs + event types matched |`,
+      );
+    }
 
     // Hold a real row lock until every worker is observed waiting for it in PostgreSQL, then
     // commit the competing change. There is no sleep-based assumption that work overlaps.
@@ -289,7 +321,7 @@ async function verify(): Promise<void> {
             break;
           }
           assert.ok(Date.now() < deadline, 'Every worker must wait for the booking row lock');
-          await delay(20);
+          // Query observed lock state again; elapsed time never decides when to commit.
         }
         await blocker.query('COMMIT');
         holdingLock = false;
@@ -325,12 +357,15 @@ async function verify(): Promise<void> {
     assert.deepEqual(await stored(boundary), []);
     assert.deepEqual(await run(job, start - DAY_MS), outcome(1, 3, 0));
     assert.deepEqual(await stored(boundary), planned(boundary, '24H'));
+    assert.deepEqual(await run(job, start - DAY_MS + 1), outcome(1, 0, 3));
     assert.deepEqual(await run(job, start - HOUR_MS - 1), outcome(1, 0, 3));
     assert.deepEqual(await run(job, start - HOUR_MS), outcome(1, 3, 0));
+    assert.deepEqual(await run(job, start - HOUR_MS + 1), outcome(1, 0, 3));
     const bothBands = [...planned(boundary, '24H'), ...planned(boundary, '1H')].sort();
     assert.deepEqual(await stored(boundary), bothBands);
     assert.deepEqual(await run(job, start - 1), outcome(1, 0, 3));
     assert.deepEqual(await run(job, start), outcome(0, 0, 0));
+    assert.deepEqual(await run(job, start + 1), outcome(0, 0, 0));
     assert.deepEqual(await stored(boundary), bothBands);
     const sample = await prisma.notification.findFirstOrThrow({
       where: { bookingId: boundary.id, eventType: 'PAYMENT_REMINDER_1H' },
@@ -405,10 +440,8 @@ async function verify(): Promise<void> {
     try {
       await blocker.query('BEGIN');
       await blocker.query('SELECT "id" FROM "Booking" WHERE "id" = $1 FOR UPDATE', [late.id]);
-      const repeat = await Promise.race([
-        run(job, lateNow),
-        delay(3000).then(() => 'blocked' as const),
-      ]);
+      // The interactive transaction timeout bounds a broken implementation; no clock is advanced.
+      const repeat = await run(job, lateNow);
       assert.deepEqual(repeat, outcome(1, 0, 3), 'A fully stored booking must not be locked');
     } finally {
       await blocker.query('ROLLBACK');
@@ -441,7 +474,7 @@ async function verify(): Promise<void> {
       ),
       outcome(2, 3, 3),
     );
-    assert.deepEqual(await stored(raced), planned(raced, '24H'));
+    await assertRows('two workers', raced, racedDay, planned(raced, '24H'));
     pass('two processes waiting on the same booking lock create each reminder once, no failures');
 
     // 7. A payment committed while the job waits for the lock removes the payment reminder.
@@ -458,7 +491,12 @@ async function verify(): Promise<void> {
       [() => run(job, paymentDay)],
     );
     assert.deepEqual(afterPayment, outcome(1, 2, 0));
-    assert.deepEqual(await stored(paying), planned(paying, '24H', { payment: false }));
+    await assertRows(
+      'payment commits after scan',
+      paying,
+      paymentDay,
+      planned(paying, '24H', { payment: false }),
+    );
     pass('payment committed under the booking lock: class reminders only, no payment reminder');
 
     // 8. A cancellation committed while the job waits for the lock writes nothing.
@@ -476,7 +514,7 @@ async function verify(): Promise<void> {
       [() => run(job, cancelDay)],
     );
     assert.deepEqual(afterCancel, outcome(1, 0, 0));
-    assert.deepEqual(await stored(canceling), []);
+    await assertRows('cancel commits after scan', canceling, cancelDay, []);
     pass('cancellation committed under the booking lock leaves no reminder behind');
 
     // 9. A reschedule committed while the job waits re-keys reminders to the new slot and band.
@@ -492,8 +530,87 @@ async function verify(): Promise<void> {
     );
     assert.deepEqual(afterReschedule, outcome(1, 3, 0));
     const moved = { ...moving, slotId: newSlotId, startAtUtc: new Date(newStart) };
-    assert.deepEqual(await stored(moving), planned(moved, '1H'));
+    await assertRows('reschedule commits after scan', moved, rescheduleDay, planned(moved, '1H'));
     pass('reschedule committed under the booking lock: reminders use the new slot, not the old');
+
+    // S3-T08: a previously notified occurrence can move to a fresh slot in the same band.
+    const nextStart = rescheduleDay + 45 * MINUTE_MS;
+    // Keep the synthetic slots disjoint, as required by the tutor availability exclusion index.
+    await prisma.availabilitySlot.update({
+      where: { id: newSlotId },
+      data: { endAtUtc: new Date(nextStart) },
+    });
+    const nextSlotId = await slot(nextStart);
+    await prisma.booking.update({ where: { id: moving.id }, data: { slotId: nextSlotId } });
+    const nextOccurrence = { ...moved, slotId: nextSlotId, startAtUtc: new Date(nextStart) };
+    assert.deepEqual(await run(job, rescheduleDay), outcome(1, 3, 0));
+    const occurrences = [...planned(moved, '1H'), ...planned(nextOccurrence, '1H')].sort();
+    assert.deepEqual(await stored(moving), occurrences);
+    assert.deepEqual(await run(otherJob, rescheduleDay), outcome(1, 0, 3));
+    await assertRows(
+      'same-band reschedule then repeat',
+      nextOccurrence,
+      rescheduleDay,
+      occurrences,
+    );
+    pass('rescheduled occurrences in the same band keep separate keys and each recipient once');
+
+    const catchUp = await booking(scenarioDay(12) + 12 * HOUR_MS);
+    const catchUpStart = catchUp.startAtUtc.getTime();
+    assert.deepEqual(await run(job, catchUpStart - 2 * HOUR_MS), outcome(1, 3, 0));
+    await assertRows(
+      'first run at 2h',
+      catchUp,
+      catchUpStart - 2 * HOUR_MS,
+      planned(catchUp, '24H'),
+    );
+    const restarted = (await jobFor(otherPrisma)).get(ReminderJobService);
+    assert.deepEqual(await run(restarted, catchUpStart - 30 * MINUTE_MS), outcome(1, 3, 0));
+    const catchUpPairs = [...planned(catchUp, '24H'), ...planned(catchUp, '1H')].sort();
+    await assertRows('restart at 30m', catchUp, catchUpStart - 30 * MINUTE_MS, catchUpPairs);
+
+    // The actual inbox service reads job-written rows, including both recipients and both bands.
+    const inbox = new NotificationsService(prisma);
+    const studentInbox = await inbox.list(studentId, { limit: 50 });
+    const tutorInbox = await inbox.list(tutorId, { limit: 50 });
+    const studentReminders = studentInbox.items.filter((item) => item.bookingId === catchUp.id);
+    const tutorReminders = tutorInbox.items.filter((item) => item.bookingId === catchUp.id);
+    assert.deepEqual(studentReminders.map((item) => item.eventType).sort(), [
+      'CLASS_REMINDER_1H',
+      'CLASS_REMINDER_24H',
+      'PAYMENT_REMINDER_1H',
+      'PAYMENT_REMINDER_24H',
+    ]);
+    assert.deepEqual(tutorReminders.map((item) => item.eventType).sort(), [
+      'CLASS_REMINDER_1H',
+      'CLASS_REMINDER_24H',
+    ]);
+    const unread = studentReminders[0];
+    assert.ok(unread);
+    assert.equal(unread.readAt, null);
+    assert.match(unread.createdAt, /^\d{4}-\d{2}-\d{2}T.*Z$/);
+    const receipt = await inbox.markRead(studentId, unread.id);
+    const beforeRetry = await prisma.notification.findMany({
+      where: { bookingId: catchUp.id },
+      orderBy: { id: 'asc' },
+    });
+    assert.deepEqual(await run(restarted, catchUpStart - 29 * MINUTE_MS), outcome(1, 0, 3));
+    assert.deepEqual(await run(restarted, catchUpStart), outcome(0, 0, 0));
+    assert.deepEqual(await run(restarted, catchUpStart + 1), outcome(0, 0, 0));
+    assert.deepEqual(
+      await prisma.notification.findMany({
+        where: { bookingId: catchUp.id },
+        orderBy: { id: 'asc' },
+      }),
+      beforeRetry,
+    );
+    const readInbox = await inbox.list(studentId, { limit: 50 });
+    assert.equal(readInbox.items.find((item) => item.id === unread.id)?.readAt, receipt.readAt);
+    assert.equal(readInbox.unreadCount, studentInbox.unreadCount - 1);
+    await assertRows('repeat then start + 1ms', catchUp, catchUpStart + 1, catchUpPairs);
+    pass(
+      '2h catch-up then a restarted worker at 30m: both bands, inbox ownership and stable read receipts',
+    );
 
     // 10. Keyset paging over 210 bookings with three-way start-time ties loses and repeats none.
     const pagingDay = scenarioDay(10);
@@ -538,8 +655,9 @@ async function verify(): Promise<void> {
          BEGIN RAISE EXCEPTION 'Reminder rollback probe' USING ERRCODE = '23514'; END; $$`,
     );
     await prisma.$executeRawUnsafe(
-      `CREATE TRIGGER "${failingFunction}" BEFORE INSERT ON "Notification" FOR EACH ROW
-       WHEN (NEW."bookingId" = '${failing.id}'::uuid) EXECUTE FUNCTION "${failingFunction}"()`,
+      `CREATE TRIGGER "${failingFunction}" AFTER INSERT ON "Notification" FOR EACH ROW
+       WHEN (NEW."bookingId" = '${failing.id}'::uuid AND NEW."eventType" = 'PAYMENT_REMINDER_24H')
+       EXECUTE FUNCTION "${failingFunction}"()`,
     );
     // @nestjs/testing prints errors only, so capture the job's own lines to check what it logs.
     const logged: string[] = [];
@@ -548,11 +666,26 @@ async function verify(): Promise<void> {
     };
     Logger.overrideLogger({ log: capture, warn: capture, error: capture });
     assert.deepEqual(await run(job, failureDay), outcome(2, 3, 0, 1));
-    assert.deepEqual(await stored(failing), []);
-    assert.deepEqual(await stored(healthy), planned(healthy, '24H'));
+    await assertRows(
+      'failure after payment insert rolls back all recipients',
+      failing,
+      failureDay,
+      [],
+    );
+    await assertRows(
+      'healthy booking survives neighbor failure',
+      healthy,
+      failureDay,
+      planned(healthy, '24H'),
+    );
     await dropFailureProbe();
     assert.deepEqual(await run(job, failureDay + MINUTE_MS), outcome(2, 3, 3));
-    assert.deepEqual(await stored(failing), planned(failing, '24H'));
+    await assertRows(
+      'retry after insert failure',
+      failing,
+      failureDay + MINUTE_MS,
+      planned(failing, '24H'),
+    );
     Logger.overrideLogger(['error']);
     for (const line of logged) {
       process.stdout.write(`LOG ${line}\n`);
@@ -569,6 +702,71 @@ async function verify(): Promise<void> {
       'Logs carry no IDs',
     );
     pass('an insert failure rolls back only its booking, logs only its class, and is retried');
+
+    // Independent fresh bookings prevent an earlier successful tick from masking a wrong boundary.
+    let scenario = 20;
+    for (const paid of [false, true]) {
+      for (const [label, delta, band] of [
+        ['25h', 25 * HOUR_MS, null],
+        ['24h + 1ms', DAY_MS + 1, null],
+        ['24h', DAY_MS, '24H'],
+        ['24h - 1ms', DAY_MS - 1, '24H'],
+        ['1h + 1ms', HOUR_MS + 1, '24H'],
+        ['1h', HOUR_MS, '1H'],
+        ['1h - 1ms', HOUR_MS - 1, '1H'],
+        ['0 + 1ms', 1, '1H'],
+        ['0', 0, null],
+        ['0 - 1ms', -1, null],
+      ] as const) {
+        const item = await booking(
+          scenarioDay(scenario++) + 17 * HOUR_MS,
+          BookingStatus.CONFIRMED,
+          paid,
+        );
+        const now = item.startAtUtc.getTime() - delta;
+        const expected = band ? planned(item, band, { payment: !paid }) : [];
+        assert.deepEqual(await run(job, now), outcome(band ? 1 : 0, expected.length, 0));
+        await assertRows(`${paid ? 'paid' : 'unpaid'} ${label}`, item, now, expected);
+      }
+    }
+    pass(
+      'fresh paid/unpaid bookings at every exact boundary and +/-1ms, including Bangkok midnight',
+    );
+
+    for (const status of [
+      BookingStatus.PENDING,
+      BookingStatus.COMPLETED,
+      BookingStatus.CANCELED,
+      BookingStatus.EXPIRED,
+    ]) {
+      for (const delta of [2 * HOUR_MS, 30 * MINUTE_MS]) {
+        const item = await booking(scenarioDay(scenario++) + 12 * HOUR_MS, status);
+        const now = item.startAtUtc.getTime() - delta;
+        assert.deepEqual(await run(job, now), outcome(0, 0, 0));
+        await assertRows(`${status} at ${delta / MINUTE_MS}m`, item, now, []);
+      }
+    }
+    const lateOnly = await booking(scenarioDay(scenario++) + 12 * HOUR_MS);
+    const lateOnlyNow = lateOnly.startAtUtc.getTime() - 30 * MINUTE_MS;
+    assert.deepEqual(await run(restarted, lateOnlyNow), outcome(1, 3, 0));
+    await assertRows(
+      'restart first sees booking at 30m: 1H only',
+      lateOnly,
+      lateOnlyNow,
+      planned(lateOnly, '1H'),
+    );
+    pass('every excluded status in both bands and a restarted worker with no 24H history');
+
+    process.stdout.write('\nS3-T08 database evidence (all fixture IDs are synthetic).\n');
+    process.stdout.write(`S=${studentId}; T=${tutorId}.\n`);
+    process.stdout.write(
+      'Each S/T:band:kind expands to (recipient, reminder:bookingId:slotId:startISO:band:kind).\n',
+    );
+    process.stdout.write(
+      '| Case | Booking ID | Slot ID | Fake now UTC / Bangkok | Start UTC / Bangkok | Expected recipient:key suffix | Actual DB assertion |\n',
+    );
+    process.stdout.write('| --- | --- | --- | --- | --- | --- | --- |\n');
+    process.stdout.write(evidence.join('\n') + '\n');
 
     process.stdout.write(`Passed ${passed} reminder job database checks.\n`);
   } finally {

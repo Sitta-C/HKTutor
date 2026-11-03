@@ -2,7 +2,12 @@ import { expect, test } from '@playwright/test';
 
 import { notificationCopy } from '@/components/notifications/notification-copy';
 
-import type { InboxNotification } from '@/lib/api/types';
+import type {
+  BookingClassDetails,
+  BookingDetail,
+  InboxNotification,
+  PromptPayPayment,
+} from '@/lib/api/types';
 import type { Page } from '@playwright/test';
 
 const BOOKING_ID = '11111111-1111-4111-8111-111111111111';
@@ -18,6 +23,39 @@ const notice = (id: string, overrides: Partial<InboxNotification> = {}): InboxNo
   ...overrides,
 });
 
+const CURRENT_BOOKING: BookingDetail = {
+  id: BOOKING_ID,
+  status: 'CONFIRMED',
+  tutor: {
+    tutorId: 'synthetic-tutor',
+    displayName: 'Teacher Mint',
+    verificationStatus: 'VERIFIED',
+  },
+  listing: {
+    id: 'synthetic-listing',
+    subjectId: 'math',
+    subjectName: 'Mathematics',
+    gradeLevelId: 'grade-10',
+    gradeLevelName: 'Grade 10',
+    pricePerHour: '450.00',
+    description: 'Synthetic reminder QA lesson',
+  },
+  slot: {
+    id: '22222222-2222-4222-8222-222222222222',
+    startAtUtc: '2026-11-10T11:00:00.000Z',
+    endAtUtc: '2026-11-10T12:00:00.000Z',
+  },
+  subtotalAmount: '450.00',
+  discountAmount: '0.00',
+  netAmount: '450.00',
+  currency: 'THB',
+  paymentStatus: 'UNPAID',
+  paidAt: null,
+  mockReference: null,
+  createdAt: '2026-11-01T00:00:00.000Z',
+  updatedAt: '2026-11-01T00:00:00.000Z',
+};
+
 test.beforeEach(async ({ page }, testInfo) => {
   if (testInfo.project.name === 'mobile-chromium') {
     await page.setViewportSize({ width: 320, height: 800 });
@@ -32,6 +70,7 @@ async function setup(
     language?: 'en' | 'th';
     listGate?: Promise<void>;
     items?: InboxNotification[];
+    booking?: BookingDetail;
   } = {},
 ) {
   const role = options.role ?? 'STUDENT';
@@ -52,6 +91,9 @@ async function setup(
     reads: [] as URL[],
     writes: [] as { path: string; method: string; body: string | null }[],
     unexpected: [] as string[],
+    bookingReads: 0,
+    paymentReads: 0,
+    domainWrites: [] as string[],
   };
   await page.addInitScript((value) => localStorage.setItem('hktutor-language', value), language);
   await page.emulateMedia({ reducedMotion: 'reduce' });
@@ -64,6 +106,9 @@ async function setup(
     const request = route.request();
     const url = new URL(request.url());
     const path = url.pathname.replace('/api/v1', '');
+    if (path.startsWith('/bookings/') && request.method() !== 'GET') {
+      state.domainWrites.push(`${request.method()} ${path}`);
+    }
     if (path.endsWith('/conversations/unread-count')) {
       return route.fulfill({ json: { unreadCount: 0 } });
     }
@@ -144,7 +189,55 @@ async function setup(
           : { id: selected[0]?.id, readAt: READ_AT },
       });
     }
-    if (path.startsWith('/bookings/me/') || path.endsWith('/class-details')) {
+    if (options.booking && request.method() === 'GET') {
+      const booking = options.booking;
+      if (path === `/bookings/me/${BOOKING_ID}`) {
+        state.bookingReads += 1;
+        return route.fulfill({ json: booking });
+      }
+      if (path === `/bookings/me/${BOOKING_ID}/payments/current`) {
+        state.paymentReads += 1;
+        return route.fulfill({
+          json: {
+            bookingId: BOOKING_ID,
+            paymentStatus: booking.paymentStatus,
+            paymentPending: false,
+            paidAt: booking.paidAt,
+            reference: booking.mockReference,
+            attempt: null,
+          } satisfies PromptPayPayment,
+        });
+      }
+      if (path === `/bookings/${BOOKING_ID}/reschedule-requests/current`) {
+        return route.fulfill({ json: { request: null, targetSlot: null, allowedActions: [] } });
+      }
+      if (path === `/bookings/${BOOKING_ID}/class-details`) {
+        return route.fulfill({
+          json: {
+            bookingId: BOOKING_ID,
+            status: booking.status,
+            paymentStatus: booking.paymentStatus,
+            startAt: booking.slot.startAtUtc,
+            endAt: booking.slot.endAtUtc,
+            subject: { id: 'math', name: 'Mathematics' },
+            meetingUrl: null,
+            attendance: null,
+            attendanceMarkedAt: null,
+            participants: {
+              tutor: { id: booking.tutor.tutorId, detail: { displayName: 'Teacher Mint' } },
+              student: {
+                id: 'notification-user',
+                detail: { firstName: 'Mint', lastName: 'Preview', nickname: 'Mint' },
+              },
+            },
+          } satisfies BookingClassDetails,
+        });
+      }
+    }
+    if (
+      request.method() === 'GET' &&
+      (path.startsWith('/bookings/me/') || path.endsWith('/class-details'))
+    ) {
       return route.fulfill({ status: 404, json: { message: 'Booking no longer exists' } });
     }
     if (path === '/auth/logout') {
@@ -488,3 +581,92 @@ test('older payment reminders remain readable, with event-time wording and futur
   expect(state.writes).toEqual([]);
   expect(state.unexpected).toEqual([]);
 });
+
+for (const language of ['en', 'th'] as const) {
+  for (const current of [
+    'unpaid',
+    'paid',
+    'PENDING',
+    'COMPLETED',
+    'CANCELED',
+    'EXPIRED',
+    'missing',
+  ] as const) {
+    test(`${language}: old payment reminder opens current ${current} booking without an unsafe payment CTA`, async ({
+      page,
+    }) => {
+      await page.clock.setFixedTime(new Date('2026-11-10T09:00:00.000Z'));
+      const booking =
+        current === 'missing'
+          ? undefined
+          : {
+              ...CURRENT_BOOKING,
+              status: current === 'paid' || current === 'unpaid' ? ('CONFIRMED' as const) : current,
+              ...(current === 'paid'
+                ? {
+                    paymentStatus: 'PAID' as const,
+                    paidAt: '2026-11-10T08:00:00.000Z',
+                    mockReference: 'SYNTHETIC-PAID-REMINDER',
+                  }
+                : {}),
+            };
+      const { state, bell, inbox, text } = await setup(page, {
+        language,
+        ...(booking ? { booking } : {}),
+        items: [notice('historical-payment', { eventType: 'PAYMENT_REMINDER_1H' })],
+      });
+      await bell.click();
+      const row = inbox.getByRole('listitem');
+      await row.locator('summary').click();
+      await expect(row.getByText(text.events.PAYMENT_REMINDER_1H, { exact: true })).toBeVisible();
+      await expect(
+        row.getByText(text.reminderDetails.PAYMENT_REMINDER_1H, { exact: true }),
+      ).toBeVisible();
+      await expect(row.getByText(text.unread, { exact: true })).toBeVisible();
+      const link = row.getByRole('link', {
+        name: `${text.openBooking}: ${text.events.PAYMENT_REMINDER_1H}`,
+      });
+      await expect(link).toHaveText(text.openBooking);
+      await expect(link).toHaveAttribute('href', `/dashboard/bookings/${BOOKING_ID}`);
+      await expect(
+        inbox.getByRole('button', { name: /Create test QR|สร้าง QR ทดสอบ/ }),
+      ).toHaveCount(0);
+      expect(state.bookingReads).toBe(0);
+      expect(state.paymentReads).toBe(0);
+      await row.getByRole('button', { name: text.markRead, exact: true }).click();
+      await expect(row.getByText(text.read, { exact: true })).toBeVisible();
+      await expect(bell).toHaveAccessibleName(text.title);
+      await expect(row.getByRole('button', { name: text.markRead, exact: true })).toHaveCount(0);
+      await link.click();
+      await expect(page).toHaveURL(`/dashboard/bookings/${BOOKING_ID}`);
+      const create = page.getByRole('button', {
+        name: /Create test QR|สร้าง QR ทดสอบ/,
+        exact: true,
+      });
+      if (current === 'missing') {
+        await expect(page.getByRole('alert').first()).toBeVisible();
+        await expect(create).toHaveCount(0);
+      } else {
+        const panel = page.getByRole('region', {
+          name: language === 'en' ? 'Pay with PromptPay' : 'ชำระด้วย PromptPay',
+        });
+        await expect(panel).toBeVisible();
+        await expect(panel).not.toContainText(
+          language === 'en' ? 'Checking payment status…' : 'กำลังตรวจสถานะชำระเงิน…',
+        );
+        await expect(panel.getByRole('alert')).toHaveCount(0);
+        expect(state.paymentReads).toBeGreaterThan(0);
+        if (current === 'unpaid') {
+          await expect(create).toBeEnabled();
+        } else {
+          await expect(create).toHaveCount(0);
+        }
+      }
+      expect(state.writes).toEqual([
+        { path: '/notifications/historical-payment/read', method: 'PATCH', body: null },
+      ]);
+      expect(state.domainWrites).toEqual([]);
+      expect(state.unexpected).toEqual([]);
+    });
+  }
+}

@@ -92,6 +92,8 @@ responsive layout, and accessibility details.
 
 The Student/Tutor notification bell uses a compact **Minimal Notes** inbox: expand one row to read
 its explanation, mark it read or open the linked booking. Expansion alone never marks it read.
+See [S3-T08 reminder QA evidence](tests/s3-t08-qa.md) for boundary, concurrency, retry and inbox checks.
+
 Class and payment reminders support the 24-hour/1-hour event types in Thai and English; their
 explanations describe the state when sent and link to the booking for current details. The API
 selects recipients, so paid bookings retain class reminders and stored payment reminders remain
