@@ -233,7 +233,8 @@ For Sprint 2 the seed also prepares the demo states that cannot be produced live
 for the tutor at 17:00 Bangkok time on days +8, +9 and +10 (for the booking, reschedule and
 cancellation steps), and yesterday's 17:00 class, confirmed and mock-paid with a meeting link, so
 attendance can be recorded during the demo. Re-seeding resets that class to "attendance not
-recorded" and never moves an open slot that a live booking now holds. The seeded class retains the legacy `DEMO-SEED-ENDED-CLASS` reference. New PromptPay attempts
+recorded" until it has a review; reviewed classes and their time windows are preserved. It never
+moves an open slot that a live booking now holds. The seeded class retains the legacy `DEMO-SEED-ENDED-CLASS` reference. New PromptPay attempts
 store test charge IDs and QR URLs, never card or bank credentials.
 
 To exercise database constraints against a disposable local PostgreSQL database only:
@@ -249,6 +250,12 @@ S2-DB04 adds `RescheduleRequest` persistence with one pending request per bookin
 relations. Its PostgreSQL race/rollback verifier is `pnpm db:verify:reschedules`; see the
 [API runbook](apps/api/README.md#reschedulerequest-persistence-s2-db04) for the disposable-target
 requirements and the separate S2-T25 endpoint work.
+
+S3-DB01 adds Review persistence with one review per completed booking, matching private author/tutor
+identities, Unicode feedback limits, and database-enforced eligibility. Its migration clears legacy
+rating caches for tutors without reviews, and seeds no longer recreate synthetic ratings. Review
+HTTP APIs and aggregate/filter updates remain separate Sprint 3 tasks. See the
+[Review contract and verification](apps/api/README.md#review-persistence-s3-db01).
 
 ## Checks
 

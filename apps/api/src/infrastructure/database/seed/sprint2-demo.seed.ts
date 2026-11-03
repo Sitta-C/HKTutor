@@ -50,7 +50,8 @@ export function demoWindow(now: Date, daysOffset: number): { startAtUtc: Date; e
  * through the UI on the open slots, so the demo exercises real flows rather than seeded results.
  *
  * Re-running is safe: an open slot that a live booking now holds is left exactly as it is, and
- * the ended class is reset to "confirmed, paid, attendance not recorded". No real payment data is
+ * the ended class is reset to "confirmed, paid, attendance not recorded" unless it has a review.
+ * A reviewed class and its time window remain evidence. No real payment data is
  * stored; the reference is a fixed DEMO- value.
  */
 export async function seedSprint2Demo(
@@ -80,6 +81,14 @@ export async function seedSprint2Demo(
       update: { tutorProfileId: foundation.tutorUserId, startAtUtc, endAtUtc, deletedAt: null },
       create: { id: slot.id, tutorProfileId: foundation.tutorUserId, startAtUtc, endAtUtc },
     });
+  }
+
+  const reviewedClass = await client.booking.findFirst({
+    where: { id: SPRINT2_DEMO_IDS.endedClassBooking, review: { isNot: null } },
+    select: { id: true },
+  });
+  if (reviewedClass) {
+    return;
   }
 
   const ended = demoWindow(now, -1);

@@ -23,7 +23,10 @@ function createClient(firstRole: Role = Role.TUTOR) {
   const teachingListingUpsert = jest
     .fn<Promise<{ id: string }>, [Prisma.TeachingListingUpsertArgs]>()
     .mockResolvedValue({ id: 'listing-id' });
-  const tutorProfileUpsert = jest.fn().mockResolvedValue({ userId: 'fixture-id' });
+  const tutorProfileUpdateMany = jest.fn().mockResolvedValue({ count: 5 });
+  const tutorProfileUpsert = jest
+    .fn<Promise<{ userId: string }>, [Prisma.TutorProfileUpsertArgs]>()
+    .mockResolvedValue({ userId: 'fixture-id' });
 
   return {
     client: {
@@ -33,11 +36,13 @@ function createClient(firstRole: Role = Role.TUTOR) {
       tutorProfile: {
         update: jest.fn().mockResolvedValue({ userId: 'anan-id' }),
         upsert: tutorProfileUpsert,
+        updateMany: tutorProfileUpdateMany,
       },
       teachingListing: { upsert: teachingListingUpsert },
     } as unknown as SeedTransactionClient,
     teachingListingUpsert,
     tutorProfileUpsert,
+    tutorProfileUpdateMany,
     userUpsert,
   };
 }
@@ -75,6 +80,34 @@ describe('seedTutorSearchFixtures', () => {
       { id: '10000000-0000-4000-8000-000000000005', status: ListingPublicationStatus.PUBLISHED },
       { id: '10000000-0000-4000-8000-000000000006', status: ListingPublicationStatus.DRAFT },
     ]);
+  });
+
+  it('clears synthetic ratings only for seeded tutors without reviews', async () => {
+    const { client, tutorProfileUpsert, tutorProfileUpdateMany } = createClient();
+
+    await seedTutorSearchFixtures(client, foundation);
+
+    expect(tutorProfileUpdateMany).toHaveBeenCalledWith({
+      where: {
+        userId: {
+          in: [
+            foundation.tutorUserId,
+            '20000000-0000-4000-8000-000000000001',
+            '20000000-0000-4000-8000-000000000002',
+            '20000000-0000-4000-8000-000000000003',
+            '20000000-0000-4000-8000-000000000004',
+          ],
+        },
+        reviews: { none: {} },
+      },
+      data: { ratingAverage: null, reviewCount: 0, ratingUpdatedAt: null },
+    });
+    for (const [args] of tutorProfileUpsert.mock.calls) {
+      expect(args.update).not.toHaveProperty('ratingAverage');
+      expect(args.update).not.toHaveProperty('reviewCount');
+      expect(args.create).not.toHaveProperty('ratingAverage');
+      expect(args.create).not.toHaveProperty('reviewCount');
+    }
   });
 
   it('refuses a deterministic fixture id owned by a non-tutor', async () => {
