@@ -1,0 +1,199 @@
+'use client';
+
+import { useId, useState } from 'react';
+
+import { reviewCopy } from '@/components/reviews/review-copy';
+import {
+  REVIEW_FEEDBACK_MAX_LENGTH,
+  canSubmitReview,
+  reviewFeedbackLength,
+  reviewSubmitOutcome,
+} from '@/components/reviews/review-model';
+import { NotebookAction } from '@/components/ui/notebook-action';
+import { useNotebookToast } from '@/components/ui/notebook-toast';
+import { submitBookingReview } from '@/lib/api/bookings';
+import { useLanguage } from '@/lib/i18n';
+
+import styles from './review.module.css';
+
+import type { ReviewSubmitOutcome } from '@/components/reviews/review-model';
+import type { BookingReview } from '@/lib/api/types';
+
+const RATING_VALUES = [1, 2, 3, 4, 5] as const;
+
+export function ReviewForm({
+  bookingId,
+  onSaved,
+  onOutcome,
+  disabled = false,
+  disabledMessage,
+}: {
+  bookingId: string;
+  onSaved: (review: BookingReview) => void;
+  onOutcome: (outcome: ReviewSubmitOutcome) => void;
+  disabled?: boolean;
+  disabledMessage?: string | undefined;
+}) {
+  const { language } = useLanguage();
+  const text = reviewCopy[language];
+  const toast = useNotebookToast();
+  const feedbackId = useId();
+  const [clarity, setClarity] = useState<number | null>(null);
+  const [punctuality, setPunctuality] = useState<number | null>(null);
+  const [preparation, setPreparation] = useState<number | null>(null);
+  const [feedback, setFeedback] = useState('');
+  const [touched, setTouched] = useState(false);
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const length = reviewFeedbackLength(feedback);
+  const overLimit = length > REVIEW_FEEDBACK_MAX_LENGTH;
+  const canSubmit = canSubmitReview({ clarity, punctuality, preparation, feedback });
+  const locked = disabled || Boolean(disabledMessage) || pending;
+  const feedbackInvalid = touched && (length === 0 || overLimit);
+
+  async function submit(): Promise<void> {
+    setTouched(true);
+    if (locked || !canSubmit) {
+      return;
+    }
+    setPending(true);
+    setError(null);
+    try {
+      const review = await submitBookingReview(bookingId, {
+        clarity: clarity as number,
+        punctuality: punctuality as number,
+        preparation: preparation as number,
+        feedback: feedback.trim(),
+      });
+      toast.success(text.submitted);
+      onSaved(review);
+    } catch (caught: unknown) {
+      const outcome = reviewSubmitOutcome(caught);
+      const message =
+        outcome === 'unauthenticated'
+          ? text.unauthenticated
+          : outcome === 'forbidden'
+            ? text.forbidden
+            : outcome === 'notFound'
+              ? text.notFound
+              : outcome === 'notCompleted'
+                ? text.notCompleted
+                : outcome === 'alreadyExists'
+                  ? text.alreadyExists
+                  : outcome === 'uncertain'
+                    ? text.uncertain
+                    : text.failed;
+      toast.error(message);
+      // The parent takes over messaging for outcomes it reconciles or locks on; avoid a stale
+      // duplicate once it sets its own disabledMessage/note.
+      const parentHandles =
+        outcome === 'alreadyExists' || outcome === 'uncertain' || outcome === 'notCompleted';
+      if (!parentHandles) {
+        setError(message);
+      }
+      onOutcome(outcome);
+    } finally {
+      setPending(false);
+    }
+  }
+
+  const ratingGroups = [
+    {
+      legend: text.clarityLegend,
+      value: clarity,
+      setValue: setClarity,
+      name: `review-clarity-${bookingId}`,
+    },
+    {
+      legend: text.punctualityLegend,
+      value: punctuality,
+      setValue: setPunctuality,
+      name: `review-punctuality-${bookingId}`,
+    },
+    {
+      legend: text.preparationLegend,
+      value: preparation,
+      setValue: setPreparation,
+      name: `review-preparation-${bookingId}`,
+    },
+  ] as const;
+
+  return (
+    <section className={styles.form} aria-labelledby="review-title" aria-busy={pending}>
+      <h3 id="review-title">{text.title}</h3>
+      <p className={styles.note} id="review-help">
+        {disabledMessage ?? text.help}
+      </p>
+      {error && !disabledMessage && (
+        <p role="alert" className={styles.error}>
+          {error}
+        </p>
+      )}
+      <fieldset className={styles.ratingGroups} disabled={locked} aria-describedby="review-help">
+        {ratingGroups.map((group) => (
+          <fieldset key={group.name} className={styles.ratingGroup}>
+            <legend className={styles.caption}>{group.legend}</legend>
+            <div className={styles.ratingChoices}>
+              {RATING_VALUES.map((value) => (
+                <label className={styles.ratingChoice} key={value}>
+                  <input
+                    type="radio"
+                    name={group.name}
+                    value={value}
+                    checked={group.value === value}
+                    onChange={() => group.setValue(value)}
+                  />
+                  <span className="sr-only">{group.legend} </span>
+                  {value}
+                  <span className="sr-only"> {text.ratingOption}</span>
+                </label>
+              ))}
+            </div>
+          </fieldset>
+        ))}
+      </fieldset>
+      <div className={styles.feedbackField}>
+        <label htmlFor={feedbackId}>{text.feedbackLabel}</label>
+        <p className={styles.note} id={`${feedbackId}-help`}>
+          {text.feedbackHelp}
+        </p>
+        <textarea
+          id={feedbackId}
+          rows={4}
+          value={feedback}
+          placeholder={text.feedbackPlaceholder}
+          disabled={locked}
+          aria-describedby={`${feedbackId}-help ${feedbackId}-counter`}
+          aria-invalid={feedbackInvalid}
+          onChange={(event) => setFeedback(event.target.value)}
+          onBlur={() => setTouched(true)}
+        />
+        <div className={styles.feedbackFooter}>
+          {feedbackInvalid && (
+            <p role="alert">{length === 0 ? text.feedbackBlank : text.feedbackTooLong}</p>
+          )}
+          <span id={`${feedbackId}-counter`} data-over-limit={overLimit}>
+            {length} {text.feedbackCounterSuffix}
+          </span>
+        </div>
+      </div>
+      {!disabledMessage && (
+        <p className={styles.note} id="review-finality">
+          {text.finality}
+        </p>
+      )}
+      <div className={styles.formActions}>
+        <NotebookAction
+          type="button"
+          role="student"
+          size="compact"
+          disabled={locked || !canSubmit}
+          aria-describedby={disabledMessage ? 'review-help' : 'review-finality'}
+          onClick={() => void submit()}
+        >
+          {pending ? text.submitting : text.submit}
+        </NotebookAction>
+      </div>
+    </section>
+  );
+}

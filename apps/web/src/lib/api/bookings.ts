@@ -9,9 +9,12 @@ import type {
   BookingMeetingLink,
   BookingQuote,
   BookingResponse,
+  BookingReview,
+  BookingReviewResult,
   CancelBookingResult,
   ConfirmTutorBookingPayload,
   CreateBookingPayload,
+  CreateBookingReviewPayload,
   PromptPayPayment,
   MyBookingsQuery,
   MyBookingsResponse,
@@ -70,6 +73,22 @@ export function getClassDetails(bookingId: string): Promise<BookingClassDetails>
   return authenticatedFetch<BookingClassDetails>(
     `/bookings/${encodeURIComponent(bookingId)}/class-details`,
   );
+}
+
+export function getMyBookingReview(bookingId: string): Promise<BookingReviewResult> {
+  return authenticatedFetch<BookingReviewResult>(
+    `/bookings/me/${encodeURIComponent(bookingId)}/review`,
+  );
+}
+
+export function submitBookingReview(
+  bookingId: string,
+  payload: CreateBookingReviewPayload,
+): Promise<BookingReview> {
+  return authenticatedFetch<{ review: BookingReview }>(
+    `/bookings/me/${encodeURIComponent(bookingId)}/reviews`,
+    { method: 'POST', body: JSON.stringify(payload) },
+  ).then((result) => result.review);
 }
 
 export function updateMeetingLink(

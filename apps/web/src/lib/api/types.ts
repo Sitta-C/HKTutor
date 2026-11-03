@@ -343,6 +343,27 @@ export interface BookingDetail extends BookingView {
   updatedAt: string;
 }
 
+export interface BookingReview {
+  id: string;
+  clarity: number;
+  punctuality: number;
+  preparation: number;
+  overallRating: number;
+  feedback: string;
+  createdAt: string;
+}
+
+export interface BookingReviewResult {
+  review: BookingReview | null;
+}
+
+export interface CreateBookingReviewPayload {
+  clarity: number;
+  punctuality: number;
+  preparation: number;
+  feedback: string;
+}
+
 export interface BookingClassDetails {
   bookingId: string;
   status: BookingStatus;

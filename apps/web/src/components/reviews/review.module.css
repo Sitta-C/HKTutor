@@ -1,0 +1,148 @@
+.section {
+  --review-accent: var(--color-student-deep);
+  margin-top: 22px;
+  padding-top: 18px;
+  border-top: 1px dashed var(--color-paper-edge);
+  min-width: 0;
+  color: var(--color-notebook-ink);
+  overflow-wrap: anywhere;
+}
+.note {
+  margin-block: 10px;
+  color: var(--color-notebook-muted);
+  font-size: 13px;
+  line-height: 1.7;
+}
+.form h3 {
+  margin: 0;
+  color: var(--review-accent);
+  font-size: 14px;
+  font-weight: 700;
+}
+.error {
+  color: var(--color-red-800);
+  font-size: 13px;
+  font-weight: 600;
+}
+.caption {
+  color: var(--color-notebook-muted);
+  font-size: 12px;
+}
+.ratingGroups {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin: 14px 0 0;
+  padding: 0;
+  border: 0;
+}
+.ratingGroup {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.ratingChoices {
+  display: flex;
+  flex-wrap: wrap;
+  margin-top: 6px;
+}
+.ratingChoice {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 40px;
+  margin: 4px 16px 4px 0;
+  font-weight: 600;
+}
+.ratingChoice input {
+  accent-color: var(--review-accent);
+}
+.feedbackField {
+  margin-top: 16px;
+}
+.feedbackField label {
+  font-size: 13px;
+  font-weight: 700;
+}
+.feedbackField textarea {
+  width: 100%;
+  margin-top: 6px;
+  padding: 10px 12px;
+  border: 1px solid var(--color-paper-edge);
+  border-radius: 6px;
+  background: var(--color-paper);
+  font-family: inherit;
+  font-size: 14px;
+  resize: vertical;
+}
+.feedbackField textarea[aria-invalid='true'] {
+  border-color: var(--color-red-800);
+}
+.feedbackFooter {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--color-notebook-muted);
+}
+.feedbackFooter [data-over-limit='true'] {
+  color: var(--color-red-800);
+  font-weight: 700;
+}
+.formActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 16px;
+}
+.saved {
+  min-width: 0;
+  padding: 14px 16px;
+  border: 1px solid var(--color-paper-edge);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--color-student) 14%, var(--color-paper));
+}
+.savedLabel {
+  margin: 0;
+  color: var(--review-accent);
+  font-size: 14px;
+  font-weight: 700;
+}
+.savedRatings {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  gap: 10px;
+  margin-top: 10px;
+}
+.savedRatings dt {
+  color: var(--color-notebook-muted);
+  font-size: 12px;
+}
+.savedRatings dd {
+  margin-top: 2px;
+  font-size: 15px;
+  font-weight: 700;
+}
+.savedOverall {
+  margin-top: 10px;
+  font-size: 14px;
+}
+.savedFeedbackLabel {
+  margin-top: 12px;
+  color: var(--color-notebook-muted);
+  font-size: 12px;
+}
+.savedFeedback {
+  margin-top: 4px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 14px;
+  line-height: 1.6;
+}
+.savedTimestamp {
+  margin-top: 10px;
+  color: var(--color-notebook-muted);
+  font-size: 13px;
+}
