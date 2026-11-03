@@ -12,6 +12,7 @@ export const reviewCopy = {
     feedbackCounterSuffix: '/ 1,000',
     feedbackBlank: 'Feedback cannot be empty.',
     feedbackTooLong: 'Feedback is longer than 1,000 characters.',
+    ratingsRequired: 'Rate clarity, punctuality, and preparation before submitting.',
     finality: 'Check your ratings and feedback. A review cannot be changed after it is submitted.',
     submit: 'Submit review',
     submitting: 'Submitting…',
@@ -34,6 +35,7 @@ export const reviewCopy = {
     uncertain: 'Could not confirm the submission. Checking your saved review…',
     uncertainFailed: 'Could not confirm the submission, and no saved review was found. Try again.',
     failed: 'Could not submit the review. Try again.',
+    loadFailed: 'Could not load your review status. Try again.',
   },
   th: {
     title: 'รีวิวคลาสนี้',
@@ -48,6 +50,7 @@ export const reviewCopy = {
     feedbackCounterSuffix: '/ 1,000',
     feedbackBlank: 'กรุณากรอกความคิดเห็น',
     feedbackTooLong: 'ความคิดเห็นยาวเกิน 1,000 ตัวอักษร',
+    ratingsRequired: 'กรุณาให้คะแนนความชัดเจน ความตรงต่อเวลา และความเตรียมพร้อมก่อนส่ง',
     finality: 'ตรวจสอบคะแนนและความคิดเห็นก่อนส่ง รีวิวจะไม่สามารถเปลี่ยนแปลงได้หลังส่งแล้ว',
     submit: 'ส่งรีวิว',
     submitting: 'กำลังส่ง…',
@@ -70,5 +73,6 @@ export const reviewCopy = {
     uncertain: 'ไม่สามารถยืนยันการส่งได้ กำลังตรวจสอบรีวิวที่บันทึกไว้…',
     uncertainFailed: 'ไม่สามารถยืนยันการส่งได้ และไม่พบรีวิวที่บันทึกไว้ กรุณาลองใหม่',
     failed: 'ไม่สามารถส่งรีวิวได้ กรุณาลองใหม่',
+    loadFailed: 'ไม่สามารถโหลดสถานะรีวิวได้ กรุณาลองใหม่',
   },
 };

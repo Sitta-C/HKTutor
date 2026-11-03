@@ -7,6 +7,7 @@ import {
   isValidReviewRating,
   reviewEligibility,
   reviewFeedbackLength,
+  reviewLoadErrorKey,
   reviewSubmitOutcome,
 } from '@/components/reviews/review-model';
 import { getMyBookingReview, submitBookingReview } from '@/lib/api/bookings';
@@ -123,6 +124,24 @@ describe('reviewSubmitOutcome', () => {
   });
   it('maps a 409 with no details to notCompleted', () => {
     expect(reviewSubmitOutcome(new ApiError('Conflict', 409))).toBe('notCompleted');
+  });
+});
+
+describe('reviewLoadErrorKey', () => {
+  it('treats a non-ApiError (network failure) as loadFailed', () => {
+    expect(reviewLoadErrorKey(new TypeError('Network failure'))).toBe('loadFailed');
+  });
+  it.each([500, 502, 503])('treats a %s server error as loadFailed', (status) => {
+    expect(reviewLoadErrorKey(new ApiError('Server error', status))).toBe('loadFailed');
+  });
+  it('maps 401 to unauthenticated', () => {
+    expect(reviewLoadErrorKey(new ApiError('Unauthenticated', 401))).toBe('unauthenticated');
+  });
+  it('maps 403 to forbidden', () => {
+    expect(reviewLoadErrorKey(new ApiError('Forbidden', 403))).toBe('forbidden');
+  });
+  it('maps 404 to notFound', () => {
+    expect(reviewLoadErrorKey(new ApiError('Not found', 404))).toBe('notFound');
   });
 });
 

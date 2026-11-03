@@ -12,16 +12,25 @@ export function reviewFeedbackLength(feedback: string): number {
   return Array.from(feedback.trim()).length;
 }
 
-export function isValidReviewRating(value: number | null): boolean {
+export function isValidReviewRating(value: number | null): value is number {
   return value !== null && Number.isInteger(value) && value >= 1 && value <= 5;
 }
 
-export function canSubmitReview(fields: {
+export interface ReviewFormFields {
   clarity: number | null;
   punctuality: number | null;
   preparation: number | null;
   feedback: string;
-}): boolean {
+}
+
+export interface ValidReviewFormFields {
+  clarity: number;
+  punctuality: number;
+  preparation: number;
+  feedback: string;
+}
+
+export function canSubmitReview(fields: ReviewFormFields): fields is ValidReviewFormFields {
   const length = reviewFeedbackLength(fields.feedback);
   return (
     isValidReviewRating(fields.clarity) &&
@@ -52,10 +61,10 @@ export type ReviewSubmitOutcome =
   | 'notCompleted'
   | 'uncertain';
 
-function reviewErrorCode(error: ApiError): string | undefined {
+function reviewErrorCode(error: ApiError): unknown {
   const details = error.details;
   return details !== null && typeof details === 'object' && 'code' in details
-    ? (details as { code?: unknown }).code?.toString()
+    ? details.code
     : undefined;
 }
 
@@ -80,4 +89,22 @@ export function reviewSubmitOutcome(error: unknown): ReviewSubmitOutcome {
     return reviewErrorCode(error) === 'REVIEW_ALREADY_EXISTS' ? 'alreadyExists' : 'notCompleted';
   }
   return 'validation';
+}
+
+/** Distinguishes why reading the booking's own review failed from why a submission failed. */
+export function reviewLoadErrorKey(
+  error: unknown,
+): 'unauthenticated' | 'forbidden' | 'notFound' | 'loadFailed' {
+  if (error instanceof ApiError) {
+    if (error.status === 401) {
+      return 'unauthenticated';
+    }
+    if (error.status === 403) {
+      return 'forbidden';
+    }
+    if (error.status === 404) {
+      return 'notFound';
+    }
+  }
+  return 'loadFailed';
 }

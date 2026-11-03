@@ -217,12 +217,18 @@ test('shows the locked message for a booking that is not completed yet', async (
   await expect(page.getByRole('heading', { name: text.title })).toHaveCount(0);
 });
 
-test('disables submit until all ratings and feedback are valid, then submits successfully', async ({
+test('shows validation errors for missing ratings and feedback on submit, then submits successfully', async ({
   page,
 }) => {
   const { state, text } = await setup(page);
   const submit = page.getByRole('button', { name: text.submit, exact: true });
-  await expect(submit).toBeDisabled();
+  await expect(submit).toBeEnabled();
+
+  // Clicking with nothing filled in surfaces both field-level errors rather than doing nothing.
+  await submit.click();
+  await expect(page.getByText(text.ratingsRequired, { exact: true })).toBeVisible();
+  await expect(page.getByText(text.feedbackBlank, { exact: true })).toBeVisible();
+  expect(state.posts).toEqual([]);
 
   await page
     .getByRole('radio', { name: `${text.clarityLegend} 5 ${text.ratingOption}`, exact: true })
@@ -233,11 +239,12 @@ test('disables submit until all ratings and feedback are valid, then submits suc
   await page
     .getByRole('radio', { name: `${text.preparationLegend} 5 ${text.ratingOption}`, exact: true })
     .check();
-  await expect(submit).toBeDisabled();
+  await expect(page.getByText(text.ratingsRequired, { exact: true })).toHaveCount(0);
+  expect(state.posts).toEqual([]);
 
   const feedback = page.getByLabel(text.feedbackLabel, { exact: true });
   await feedback.fill('Great class, very clear explanations.');
-  await expect(submit).toBeEnabled();
+  await expect(page.getByText(text.feedbackBlank, { exact: true })).toHaveCount(0);
 
   await submit.click();
   await expect(page.getByText(text.savedTitle, { exact: true })).toBeVisible();
@@ -287,8 +294,8 @@ test('arrow keys move the selection within one rating group without crossing int
   ).toBeFocused();
 });
 
-test('invalid feedback shows an inline error and keeps submit disabled', async ({ page }) => {
-  const { text } = await setup(page);
+test('invalid feedback shows an inline error and blocks submission', async ({ page }) => {
+  const { state, text } = await setup(page);
   await page
     .getByRole('radio', { name: `${text.clarityLegend} 5 ${text.ratingOption}`, exact: true })
     .check();
@@ -302,15 +309,51 @@ test('invalid feedback shows an inline error and keeps submit disabled', async (
   await feedback.fill('   ');
   await feedback.blur();
   await expect(page.getByRole('alert').filter({ hasText: text.feedbackBlank })).toBeVisible();
-  await expect(page.getByRole('button', { name: text.submit, exact: true })).toBeDisabled();
+
+  await page.getByRole('button', { name: text.submit, exact: true }).click();
+  expect(state.posts).toEqual([]);
+  await expect(page.getByRole('alert').filter({ hasText: text.feedbackBlank })).toBeVisible();
 });
 
 test('a 403 from the review read shows the forbidden message instead of a crash', async ({
   page,
 }) => {
   const { text } = await setup(page, { getReviewStatus: 403 });
-  await expect(page.getByText(text.failed, { exact: true })).toBeVisible();
+  await expect(page.getByText(text.forbidden, { exact: true })).toBeVisible();
   await expect(page.getByRole('heading', { name: text.title })).toHaveCount(0);
+});
+
+test('a 404 from the review read shows the not-found message instead of a crash', async ({
+  page,
+}) => {
+  const { text } = await setup(page, { getReviewStatus: 404 });
+  await expect(page.getByText(text.notFound, { exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: text.title })).toHaveCount(0);
+});
+
+test('a wrong-owner 403 on submit shows the forbidden message and preserves the input', async ({
+  page,
+}) => {
+  const { state, text } = await setup(page, { postStatus: 403 });
+  await page
+    .getByRole('radio', { name: `${text.clarityLegend} 5 ${text.ratingOption}`, exact: true })
+    .check();
+  await page
+    .getByRole('radio', { name: `${text.punctualityLegend} 5 ${text.ratingOption}`, exact: true })
+    .check();
+  await page
+    .getByRole('radio', { name: `${text.preparationLegend} 5 ${text.ratingOption}`, exact: true })
+    .check();
+  const feedback = page.getByLabel(text.feedbackLabel, { exact: true });
+  await feedback.fill('Written by the wrong student');
+  await page.getByRole('button', { name: text.submit, exact: true }).click();
+  // Scoped to the form's own region: the same text also appears in a transient toast.
+  await expect(
+    page.getByRole('region', { name: text.title }).getByText(text.forbidden, { exact: true }),
+  ).toBeVisible();
+  await expect(feedback).toHaveValue('Written by the wrong student');
+  await expect(page.getByText(text.savedTitle, { exact: true })).toHaveCount(0);
+  expect(state.posts).toHaveLength(1);
 });
 
 test('a duplicate 409 reconciles by reading back the already-saved review', async ({ page }) => {

@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { reviewCopy } from '@/components/reviews/review-copy';
 import { ReviewForm } from '@/components/reviews/review-form';
-import { reviewEligibility } from '@/components/reviews/review-model';
+import { reviewEligibility, reviewLoadErrorKey } from '@/components/reviews/review-model';
 import { SubmittedReview } from '@/components/reviews/submitted-review';
 import { NotebookLoadingRegion } from '@/components/ui/notebook-loading';
 import { getMyBookingReview } from '@/lib/api/bookings';
@@ -114,7 +114,7 @@ export function BookingReviewSection({
         <NotebookLoadingRegion label={text.loading} />
       ) : error ? (
         <p role="alert" className={styles.note}>
-          {text.failed}
+          {text[reviewLoadErrorKey(error)]}
         </p>
       ) : eligibility === 'saved' && review ? (
         <SubmittedReview review={review} language={language} />
@@ -128,13 +128,14 @@ export function BookingReviewSection({
           <ReviewForm
             bookingId={bookingId}
             onSaved={(saved) => {
-              // Show the response immediately, then confirm against the canonical GET and let the
-              // parent refresh the booking (its status and any aggregate it reads elsewhere).
+              // Show the response immediately, then confirm against the canonical GET. A
+              // successful review does not change the booking's own status, so there is nothing
+              // for the parent to refresh here; unmounting this section via a full booking
+              // reload would only discard this state and flash the whole card.
               setReview(saved);
               setLockMessage(undefined);
               setReconcileNote(undefined);
               void load();
-              onRequiresBookingRefresh();
             }}
             onOutcome={handleOutcome}
             disabledMessage={lockMessage}

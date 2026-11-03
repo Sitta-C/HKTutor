@@ -42,28 +42,34 @@ export function ReviewForm({
   const [punctuality, setPunctuality] = useState<number | null>(null);
   const [preparation, setPreparation] = useState<number | null>(null);
   const [feedback, setFeedback] = useState('');
-  const [touched, setTouched] = useState(false);
+  const [feedbackTouched, setFeedbackTouched] = useState(false);
+  const [submitAttempted, setSubmitAttempted] = useState(false);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const length = reviewFeedbackLength(feedback);
   const overLimit = length > REVIEW_FEEDBACK_MAX_LENGTH;
-  const canSubmit = canSubmitReview({ clarity, punctuality, preparation, feedback });
   const locked = disabled || Boolean(disabledMessage) || pending;
-  const feedbackInvalid = touched && (length === 0 || overLimit);
+  const feedbackInvalid = (feedbackTouched || submitAttempted) && (length === 0 || overLimit);
+  const ratingsInvalid =
+    submitAttempted && (clarity === null || punctuality === null || preparation === null);
 
   async function submit(): Promise<void> {
-    setTouched(true);
-    if (locked || !canSubmit) {
+    setSubmitAttempted(true);
+    if (locked) {
+      return;
+    }
+    const fields = { clarity, punctuality, preparation, feedback };
+    if (!canSubmitReview(fields)) {
       return;
     }
     setPending(true);
     setError(null);
     try {
       const review = await submitBookingReview(bookingId, {
-        clarity: clarity as number,
-        punctuality: punctuality as number,
-        preparation: preparation as number,
-        feedback: feedback.trim(),
+        clarity: fields.clarity,
+        punctuality: fields.punctuality,
+        preparation: fields.preparation,
+        feedback: fields.feedback.trim(),
       });
       toast.success(text.submitted);
       onSaved(review);
@@ -129,7 +135,11 @@ export function ReviewForm({
           {error}
         </p>
       )}
-      <fieldset className={styles.ratingGroups} disabled={locked} aria-describedby="review-help">
+      <fieldset
+        className={styles.ratingGroups}
+        disabled={locked}
+        aria-describedby={ratingsInvalid ? 'review-help review-ratings-error' : 'review-help'}
+      >
         {ratingGroups.map((group) => (
           <fieldset key={group.name} className={styles.ratingGroup}>
             <legend className={styles.caption}>{group.legend}</legend>
@@ -152,6 +162,11 @@ export function ReviewForm({
           </fieldset>
         ))}
       </fieldset>
+      {ratingsInvalid && (
+        <p role="alert" id="review-ratings-error" className={styles.error}>
+          {text.ratingsRequired}
+        </p>
+      )}
       <div className={styles.feedbackField}>
         <label htmlFor={feedbackId}>{text.feedbackLabel}</label>
         <p className={styles.note} id={`${feedbackId}-help`}>
@@ -163,14 +178,20 @@ export function ReviewForm({
           value={feedback}
           placeholder={text.feedbackPlaceholder}
           disabled={locked}
-          aria-describedby={`${feedbackId}-help ${feedbackId}-counter`}
+          aria-describedby={
+            feedbackInvalid
+              ? `${feedbackId}-help ${feedbackId}-error ${feedbackId}-counter`
+              : `${feedbackId}-help ${feedbackId}-counter`
+          }
           aria-invalid={feedbackInvalid}
           onChange={(event) => setFeedback(event.target.value)}
-          onBlur={() => setTouched(true)}
+          onBlur={() => setFeedbackTouched(true)}
         />
         <div className={styles.feedbackFooter}>
           {feedbackInvalid && (
-            <p role="alert">{length === 0 ? text.feedbackBlank : text.feedbackTooLong}</p>
+            <p role="alert" id={`${feedbackId}-error`}>
+              {length === 0 ? text.feedbackBlank : text.feedbackTooLong}
+            </p>
           )}
           <span id={`${feedbackId}-counter`} data-over-limit={overLimit}>
             {length} {text.feedbackCounterSuffix}
@@ -187,7 +208,7 @@ export function ReviewForm({
           type="button"
           role="student"
           size="compact"
-          disabled={locked || !canSubmit}
+          disabled={locked}
           aria-describedby={disabledMessage ? 'review-help' : 'review-finality'}
           onClick={() => void submit()}
         >
