@@ -7,6 +7,7 @@ import {
   HttpStatus,
   Param,
   Post,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 
@@ -18,13 +19,15 @@ import { RequireOwnership } from '@modules/auth/ownership.decorator';
 import { ResourceOwnershipGuard } from '@modules/auth/ownership.guard';
 import { Roles } from '@modules/auth/roles.decorator';
 import { RolesGuard } from '@modules/auth/roles.guard';
-import { CreateReviewDto } from '@modules/reviews/reviews.dto';
+import { CreateReviewDto, GetTutorReviewsQueryDto } from '@modules/reviews/reviews.dto';
 import { ReviewsService } from '@modules/reviews/reviews.service';
 import {
   CreateReviewDoc,
   CreateReviewResponseDto,
   GetReviewDoc,
   GetReviewResponseDto,
+  GetTutorReviewsDoc,
+  TutorReviewsResponseDto,
 } from '@modules/reviews/reviews.swagger';
 
 import type { AuthenticatedUser } from '@modules/auth/auth.guard';
@@ -73,5 +76,19 @@ export class ReviewController {
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<GetReviewResponseDto> {
     return this.reviews.findMine(bookingId, user.id);
+  }
+}
+
+@Controller('tutors/:tutorId/reviews')
+export class TutorReviewsController {
+  constructor(private readonly reviews: ReviewsService) {}
+
+  @Get()
+  @GetTutorReviewsDoc()
+  list(
+    @Param('tutorId', UuidParamPipe) tutorId: string,
+    @Query() query: GetTutorReviewsQueryDto,
+  ): Promise<TutorReviewsResponseDto> {
+    return this.reviews.listForTutor(tutorId, query);
   }
 }

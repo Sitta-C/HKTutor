@@ -1,6 +1,15 @@
-import { ApiProperty } from '@nestjs/swagger';
-import { Transform } from 'class-transformer';
-import { IsInt, IsString, Matches, Max, Min } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { Transform, Type } from 'class-transformer';
+import {
+  IsInt,
+  IsOptional,
+  IsString,
+  Matches,
+  Max,
+  MaxLength,
+  Min,
+  MinLength,
+} from 'class-validator';
 
 const trimString = ({ value }: { value: unknown }): unknown =>
   typeof value === 'string' ? value.trim() : value;
@@ -45,4 +54,33 @@ export class CreateReviewDto {
     message: `feedback must be 1-${REVIEW_FEEDBACK_MAX_LENGTH} characters once trimmed`,
   })
   feedback!: string;
+}
+
+export const DEFAULT_TUTOR_REVIEWS_LIMIT = 20;
+export const MAX_TUTOR_REVIEWS_LIMIT = 50;
+export const MAX_TUTOR_REVIEWS_CURSOR_LENGTH = 512;
+
+export class GetTutorReviewsQueryDto {
+  @ApiPropertyOptional({
+    description: 'Opaque cursor from the previous page',
+    maxLength: MAX_TUTOR_REVIEWS_CURSOR_LENGTH,
+  })
+  @IsOptional()
+  @IsString()
+  @MinLength(1)
+  @MaxLength(MAX_TUTOR_REVIEWS_CURSOR_LENGTH)
+  cursor?: string;
+
+  @ApiPropertyOptional({
+    default: DEFAULT_TUTOR_REVIEWS_LIMIT,
+    example: DEFAULT_TUTOR_REVIEWS_LIMIT,
+    maximum: MAX_TUTOR_REVIEWS_LIMIT,
+    minimum: 1,
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(MAX_TUTOR_REVIEWS_LIMIT)
+  limit?: number;
 }

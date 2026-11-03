@@ -1,4 +1,4 @@
-import { ConflictException } from '@nestjs/common';
+import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
 
@@ -9,7 +9,11 @@ import { JwtAuthGuard } from '@modules/auth/auth.guard';
 import { JwtTokenService } from '@modules/auth/jwt.service';
 import { ResourceOwnershipGuard } from '@modules/auth/ownership.guard';
 import { RolesGuard } from '@modules/auth/roles.guard';
-import { ReviewController, ReviewsController } from '@modules/reviews/reviews.controller';
+import {
+  ReviewController,
+  ReviewsController,
+  TutorReviewsController,
+} from '@modules/reviews/reviews.controller';
 import { ReviewsService } from '@modules/reviews/reviews.service';
 
 import type { INestApplication } from '@nestjs/common';
@@ -17,8 +21,10 @@ import type { App } from 'supertest/types';
 
 const STUDENT_ID = '30000000-0000-4000-8000-000000000001';
 const BOOKING_ID = '40000000-0000-4000-8000-000000000001';
+const TUTOR_ID = '50000000-0000-4000-8000-000000000001';
 const URL = `/api/v1/bookings/me/${BOOKING_ID}/reviews`;
 const GET_URL = `/api/v1/bookings/me/${BOOKING_ID}/review`;
+const PUBLIC_URL = `/api/v1/tutors/${TUTOR_ID}/reviews`;
 const VALID_BODY = { clarity: 5, feedback: 'Clear examples', preparation: 5, punctuality: 4 };
 const SAVED_REVIEW = {
   clarity: 5,
@@ -29,17 +35,18 @@ const SAVED_REVIEW = {
   preparation: 5,
   punctuality: 4,
 };
+const PUBLIC_REVIEW = { ...SAVED_REVIEW, author: { displayName: 'Nan' } };
 
 describe('Reviews HTTP contract', () => {
   let app: INestApplication<App>;
-  const reviews = { create: jest.fn(), findMine: jest.fn() };
+  const reviews = { create: jest.fn(), findMine: jest.fn(), listForTutor: jest.fn() };
   const verifyAccessToken = jest.fn();
   const session = jest.fn();
   const booking = jest.fn();
 
   beforeAll(async () => {
     const module = await Test.createTestingModule({
-      controllers: [ReviewsController, ReviewController],
+      controllers: [ReviewsController, ReviewController, TutorReviewsController],
       providers: [
         { provide: ReviewsService, useValue: reviews },
         JwtAuthGuard,
@@ -65,6 +72,7 @@ describe('Reviews HTTP contract', () => {
     booking.mockResolvedValue({ studentUserId: STUDENT_ID, tutorProfileId: 'tutor' });
     reviews.create.mockResolvedValue({ review: SAVED_REVIEW });
     reviews.findMine.mockResolvedValue({ review: SAVED_REVIEW });
+    reviews.listForTutor.mockResolvedValue({ items: [PUBLIC_REVIEW], nextCursor: null });
   });
 
   it('requires authentication', async () => {
@@ -247,6 +255,62 @@ describe('Reviews HTTP contract', () => {
         .auth('test', { type: 'bearer' })
         .expect(200);
       expect(response.body as { review: unknown }).toEqual({ review: null });
+    });
+  });
+
+  describe('GET /tutors/:tutorId/reviews', () => {
+    it('requires no authentication', async () => {
+      await request(app.getHttpServer()).get(PUBLIC_URL).expect(200);
+      expect(reviews.listForTutor).toHaveBeenCalledWith(TUTOR_ID, {});
+    });
+
+    it('returns the public review shape and does not set Cache-Control', async () => {
+      const response = await request(app.getHttpServer()).get(PUBLIC_URL).expect(200);
+      expect(response.headers['cache-control']).toBeUndefined();
+      expect(response.body as { items: unknown }).toEqual({
+        items: [PUBLIC_REVIEW],
+        nextCursor: null,
+      });
+    });
+
+    it('answers 404 for a hidden or missing tutor the same as for an invalid request', async () => {
+      reviews.listForTutor.mockRejectedValue(new NotFoundException('Tutor not found'));
+      await request(app.getHttpServer()).get(PUBLIC_URL).expect(404);
+    });
+
+    it('answers 400 for an invalid tutor UUID without calling the service', async () => {
+      await request(app.getHttpServer()).get('/api/v1/tutors/not-a-uuid/reviews').expect(400);
+      expect(reviews.listForTutor).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ['zero', 0],
+      ['51', 51],
+      ['a fraction', 2.5],
+    ])('rejects a limit that is %s', async (_label, limit) => {
+      await request(app.getHttpServer()).get(PUBLIC_URL).query({ limit }).expect(400);
+      expect(reviews.listForTutor).not.toHaveBeenCalled();
+    });
+
+    it('accepts the boundary limits 1 and 50 and forwards a cursor', async () => {
+      await request(app.getHttpServer()).get(PUBLIC_URL).query({ limit: 1 }).expect(200);
+      expect(reviews.listForTutor).toHaveBeenCalledWith(TUTOR_ID, { limit: 1 });
+      await request(app.getHttpServer())
+        .get(PUBLIC_URL)
+        .query({ cursor: 'opaque-cursor', limit: 50 })
+        .expect(200);
+      expect(reviews.listForTutor).toHaveBeenCalledWith(TUTOR_ID, {
+        cursor: 'opaque-cursor',
+        limit: 50,
+      });
+    });
+
+    it('passes a service-rejected foreign-tutor cursor through as 400', async () => {
+      reviews.listForTutor.mockRejectedValue(new BadRequestException('Invalid review list cursor'));
+      await request(app.getHttpServer())
+        .get(PUBLIC_URL)
+        .query({ cursor: 'cursor-for-another-tutor' })
+        .expect(400);
     });
   });
 

@@ -38,6 +38,28 @@ export class GetReviewResponseDto {
   @ApiProperty({ nullable: true, type: ReviewDto }) review!: ReviewDto | null;
 }
 
+export class ReviewAuthorDto {
+  @ApiProperty({
+    description: 'The reviewing student, reduced to a public nickname.',
+    example: 'Nan',
+  })
+  displayName!: string;
+}
+
+export class PublicReviewDto extends ReviewDto {
+  @ApiProperty({ type: ReviewAuthorDto }) author!: ReviewAuthorDto;
+}
+
+export class TutorReviewsResponseDto {
+  @ApiProperty({ isArray: true, type: PublicReviewDto }) items!: PublicReviewDto[];
+  @ApiProperty({
+    description: 'Pass back as ?cursor= to fetch the next page; null on the last page.',
+    nullable: true,
+    type: String,
+  })
+  nextCursor!: string | null;
+}
+
 export function CreateReviewDoc(): MethodDecorator {
   return applyDecorators(
     ApiTags('Reviews'),
@@ -77,5 +99,26 @@ export function GetReviewDoc(): MethodDecorator {
     ApiUnauthorizedResponse({ description: 'Authentication required' }),
     ApiForbiddenResponse({ description: 'Wrong role, or the booking belongs to another student' }),
     ApiNotFoundResponse({ description: 'Booking not found' }),
+  );
+}
+
+export function GetTutorReviewsDoc(): MethodDecorator {
+  return applyDecorators(
+    ApiTags('Reviews'),
+    ApiOperation({
+      summary: "List a verified tutor's reviews",
+      description:
+        'Public, newest first (createdAt desc, id desc), cursor-paginated. Only returns reviews for ' +
+        'an existing, verified, active, non-deleted tutor; the author is reduced to a display name. ' +
+        'An empty tutor review list answers items: [] rather than 404.',
+    }),
+    ApiOkResponse({ type: TutorReviewsResponseDto }),
+    ApiBadRequestResponse({
+      description:
+        'Invalid tutor UUID, an out-of-range limit, or a cursor that is malformed or was minted for a different tutor',
+    }),
+    ApiNotFoundResponse({
+      description: 'Tutor not found, unverified, inactive, deleted or hidden',
+    }),
   );
 }

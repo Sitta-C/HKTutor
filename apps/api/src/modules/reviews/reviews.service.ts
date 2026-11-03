@@ -2,17 +2,28 @@ import {
   ConflictException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 
 import { Prisma } from '@generated/prisma/client';
 import { BookingStatus } from '@generated/prisma/enums';
 import { PrismaService } from '@infrastructure/database/prisma.service';
+import {
+  decodeTutorReviewsCursor,
+  encodeTutorReviewsCursor,
+} from '@modules/reviews/reviews.cursor';
+import { DEFAULT_TUTOR_REVIEWS_LIMIT } from '@modules/reviews/reviews.dto';
+import {
+  isPublicTutorVerificationStatus,
+  publicTutorWhere,
+} from '@modules/tutors/public-tutor-access';
 
-import type { CreateReviewDto } from '@modules/reviews/reviews.dto';
+import type { CreateReviewDto, GetTutorReviewsQueryDto } from '@modules/reviews/reviews.dto';
 import type {
   CreateReviewResponseDto,
   GetReviewResponseDto,
+  TutorReviewsResponseDto,
 } from '@modules/reviews/reviews.swagger';
 
 const bookingSelect = {
@@ -73,6 +84,8 @@ function overallRatingOf(review: {
 
 @Injectable()
 export class ReviewsService {
+  private readonly logger = new Logger(ReviewsService.name);
+
   constructor(private readonly prisma: PrismaService) {}
 
   async create(
@@ -204,6 +217,83 @@ export class ReviewsService {
         preparation: review.preparation,
         punctuality: review.punctuality,
       },
+    };
+  }
+
+  /**
+   * Public, cursor-paginated review list for one tutor's profile. Reuses the same visibility rule
+   * as the public tutor detail endpoint: a hidden, unverified, inactive, deleted or missing tutor
+   * answers 404, while a visible tutor with zero reviews answers 200 with an empty page.
+   */
+  async listForTutor(
+    tutorId: string,
+    query: GetTutorReviewsQueryDto,
+  ): Promise<TutorReviewsResponseDto> {
+    const tutor = await this.prisma.tutorProfile.findFirst({
+      select: { userId: true, verificationStatus: true },
+      where: { ...publicTutorWhere, userId: tutorId },
+    });
+    if (!tutor || !isPublicTutorVerificationStatus(tutor.verificationStatus)) {
+      if (tutor) {
+        this.logger.warn(
+          `Hiding reviews for tutor ${tutor.userId} with unexpected verification status ${tutor.verificationStatus}`,
+        );
+      }
+      throw new NotFoundException('Tutor not found');
+    }
+
+    const cursor =
+      query.cursor === undefined ? undefined : decodeTutorReviewsCursor(query.cursor, tutorId);
+    const limit = query.limit ?? DEFAULT_TUTOR_REVIEWS_LIMIT;
+
+    // One extra row tells whether another page follows, without a separate count query.
+    const rows = await this.prisma.review.findMany({
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      select: {
+        author: { select: { studentProfile: { select: { nickname: true } } } },
+        clarity: true,
+        createdAt: true,
+        feedback: true,
+        id: true,
+        preparation: true,
+        punctuality: true,
+      },
+      take: limit + 1,
+      where: {
+        tutorProfileId: tutorId,
+        ...(cursor === undefined
+          ? {}
+          : {
+              OR: [
+                { createdAt: { lt: new Date(cursor.createdAt) } },
+                { AND: [{ createdAt: new Date(cursor.createdAt) }, { id: { lt: cursor.id } }] },
+              ],
+            }),
+      },
+    });
+
+    const page = rows.slice(0, limit);
+    const last = page.at(-1);
+
+    return {
+      items: page.map((review) => ({
+        author: { displayName: review.author.studentProfile?.nickname.trim() || 'A student' },
+        clarity: review.clarity,
+        createdAt: review.createdAt.toISOString(),
+        feedback: review.feedback,
+        id: review.id,
+        overallRating: overallRatingOf(review),
+        preparation: review.preparation,
+        punctuality: review.punctuality,
+      })),
+      nextCursor:
+        rows.length > limit && last !== undefined
+          ? encodeTutorReviewsCursor({
+              createdAt: last.createdAt.toISOString(),
+              id: last.id,
+              tutorId,
+            })
+          : null,
     };
   }
 }
