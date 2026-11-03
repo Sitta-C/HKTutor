@@ -2,6 +2,7 @@
 
 import { useId, useState } from 'react';
 
+import { DashboardIcon } from '@/components/dashboard/dashboard-icon';
 import { reviewCopy } from '@/components/reviews/review-copy';
 import {
   REVIEW_FEEDBACK_MAX_LENGTH,
@@ -207,8 +208,9 @@ export function ReviewForm({
         <NotebookAction
           type="button"
           role="student"
-          size="compact"
+          icon={<DashboardIcon name="check" />}
           disabled={locked}
+          aria-busy={pending}
           aria-describedby={disabledMessage ? 'review-help' : 'review-finality'}
           onClick={() => void submit()}
         >
