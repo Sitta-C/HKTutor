@@ -1,7 +1,7 @@
 export const reviewCopy = {
   en: {
     title: 'Review this class',
-    help: 'Rate the class and leave feedback for other students. A review cannot be edited or deleted once submitted.',
+    help: 'Rate the class and leave feedback for other students.',
     clarityLegend: 'Clarity of teaching',
     punctualityLegend: 'Punctuality',
     preparationLegend: 'Preparation',
@@ -18,9 +18,6 @@ export const reviewCopy = {
     submitting: 'Submitting…',
     submitted: 'Review submitted.',
     savedTitle: 'Your review',
-    savedClarity: 'Clarity',
-    savedPunctuality: 'Punctuality',
-    savedPreparation: 'Preparation',
     savedOverall: 'Overall rating',
     savedFeedback: 'Feedback',
     savedAt: 'Submitted',
@@ -39,7 +36,7 @@ export const reviewCopy = {
   },
   th: {
     title: 'รีวิวคลาสนี้',
-    help: 'ให้คะแนนคลาสและแสดงความคิดเห็นสำหรับนักเรียนคนอื่น รีวิวจะไม่สามารถแก้ไขหรือลบได้หลังส่งแล้ว',
+    help: 'ให้คะแนนคลาสและแสดงความคิดเห็นสำหรับนักเรียนคนอื่น',
     clarityLegend: 'ความชัดเจนในการสอน',
     punctualityLegend: 'ความตรงต่อเวลา',
     preparationLegend: 'ความเตรียมพร้อม',
@@ -56,9 +53,6 @@ export const reviewCopy = {
     submitting: 'กำลังส่ง…',
     submitted: 'ส่งรีวิวแล้ว',
     savedTitle: 'รีวิวของคุณ',
-    savedClarity: 'ความชัดเจน',
-    savedPunctuality: 'ความตรงต่อเวลา',
-    savedPreparation: 'ความเตรียมพร้อม',
     savedOverall: 'คะแนนรวม',
     savedFeedback: 'ความคิดเห็น',
     savedAt: 'ส่งเมื่อ',

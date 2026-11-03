@@ -5,7 +5,7 @@
   overflow-wrap: anywhere;
 }
 .note {
-  color: var(--color-notebook-muted);
+  color: var(--color-notebook-muted-deep);
   font-size: 13px;
   line-height: 1.7;
 }
@@ -26,7 +26,7 @@
   font-weight: 600;
 }
 .caption {
-  color: var(--color-notebook-muted);
+  color: var(--color-notebook-muted-deep);
   font-size: 12px;
 }
 .ratingGroups {
@@ -38,6 +38,9 @@
   border: 0;
 }
 .ratingGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
   margin: 0;
   padding: 0;
   border: 0;
@@ -45,18 +48,26 @@
 .ratingChoices {
   display: flex;
   flex-wrap: wrap;
-  margin-top: 6px;
+  gap: 8px;
 }
 .ratingChoice {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 6px;
-  min-height: 40px;
-  margin: 4px 16px 4px 0;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 4px 10px;
+  margin: 0;
+  border-radius: 6px;
   font-weight: 600;
 }
 .ratingChoice input {
   accent-color: var(--review-accent);
+}
+.ratingChoice input:focus-visible {
+  outline: 2px solid var(--review-accent);
+  outline-offset: 3px;
 }
 .feedbackField {
   display: flex;
@@ -82,13 +93,16 @@
 .feedbackField textarea[aria-invalid='true'] {
   border-color: var(--color-red-800);
 }
+.feedbackField textarea::placeholder {
+  color: var(--color-notebook-muted-deep);
+}
 .feedbackFooter {
   display: flex;
   flex-wrap: wrap;
   justify-content: space-between;
   gap: 8px;
   font-size: 12px;
-  color: var(--color-notebook-muted);
+  color: var(--color-notebook-muted-deep);
 }
 .feedbackFooter [data-over-limit='true'] {
   color: var(--color-red-800);
@@ -100,6 +114,9 @@
   gap: 10px;
 }
 .saved {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
   min-width: 0;
   padding: 14px 16px;
   border: 1px solid var(--color-paper-edge);
@@ -116,10 +133,9 @@
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
   gap: 10px;
-  margin-top: 10px;
 }
 .savedRatings dt {
-  color: var(--color-notebook-muted);
+  color: var(--color-notebook-muted-deep);
   font-size: 12px;
 }
 .savedRatings dd {
@@ -128,23 +144,33 @@
   font-weight: 700;
 }
 .savedOverall {
-  margin-top: 10px;
+  margin: 0;
   font-size: 14px;
 }
+.savedOverallValue {
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--review-accent);
+}
+.savedFeedbackBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
 .savedFeedbackLabel {
-  margin-top: 12px;
-  color: var(--color-notebook-muted);
+  margin: 0;
+  color: var(--color-notebook-muted-deep);
   font-size: 12px;
 }
 .savedFeedback {
-  margin-top: 4px;
+  margin: 0;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   font-size: 14px;
   line-height: 1.6;
 }
 .savedTimestamp {
-  margin-top: 10px;
-  color: var(--color-notebook-muted);
+  margin: 0;
+  color: var(--color-notebook-muted-deep);
   font-size: 13px;
 }

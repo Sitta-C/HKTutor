@@ -13,6 +13,8 @@
   --color-sticky-green: #dcfce7;
   --color-notebook-ink: #292524;
   --color-notebook-muted: #78716c;
+  /* Darker muted/secondary text for tinted card backgrounds, where --color-notebook-muted falls below WCAG AA 4.5:1. */
+  --color-notebook-muted-deep: #57534e;
   --color-student: #22c49a;
   --color-student-deep: #0e8a73;
   --color-tutor: #0e8eea;

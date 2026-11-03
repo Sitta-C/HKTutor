@@ -20,9 +20,9 @@ export function SubmittedReview({
       <dl className={styles.savedRatings}>
         {(
           [
-            [text.savedClarity, review.clarity],
-            [text.savedPunctuality, review.punctuality],
-            [text.savedPreparation, review.preparation],
+            [text.clarityLegend, review.clarity],
+            [text.punctualityLegend, review.punctuality],
+            [text.preparationLegend, review.preparation],
           ] as const
         ).map(([label, value]) => (
           <div key={label}>
@@ -32,10 +32,15 @@ export function SubmittedReview({
         ))}
       </dl>
       <p className={styles.savedOverall}>
-        {text.savedOverall}: <strong>{review.overallRating.toFixed(2)} / 5</strong>
+        {text.savedOverall}:{' '}
+        <strong className={styles.savedOverallValue}>
+          {review.overallRating.toFixed(2)} / 5
+        </strong>
       </p>
-      <p className={styles.savedFeedbackLabel}>{text.savedFeedback}</p>
-      <p className={styles.savedFeedback}>{review.feedback}</p>
+      <div className={styles.savedFeedbackBlock}>
+        <p className={styles.savedFeedbackLabel}>{text.savedFeedback}</p>
+        <p className={styles.savedFeedback}>{review.feedback}</p>
+      </div>
       <p className={styles.savedTimestamp}>
         {text.savedAt}:{' '}
         <time dateTime={review.createdAt}>{formatBangkokDateTime(review.createdAt, language)}</time>
