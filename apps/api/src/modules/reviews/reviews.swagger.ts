@@ -67,15 +67,19 @@ export function CreateReviewDoc(): MethodDecorator {
     ApiOperation({
       summary: 'Submit a review for one completed booking',
       description:
-        'Student owner only. The booking must be COMPLETED (either attendance outcome); one immutable ' +
-        'review per booking, no edit or delete. Updates the tutor rating aggregate in the same transaction.',
+        'Student owner with current privacy consent only. The booking must be COMPLETED (either ' +
+        'attendance outcome); one immutable review per booking, no edit or delete. Updates the tutor ' +
+        'rating aggregate in the same transaction.',
     }),
     ApiCreatedResponse({ type: CreateReviewResponseDto }),
     ApiBadRequestResponse({
       description: 'Invalid booking UUID, or a rating/feedback field fails validation',
     }),
     ApiUnauthorizedResponse({ description: 'Authentication required' }),
-    ApiForbiddenResponse({ description: 'Wrong role, or the booking belongs to another student' }),
+    ApiForbiddenResponse({
+      description:
+        'Wrong role, the booking belongs to another student, or consent is missing/outdated',
+    }),
     ApiNotFoundResponse({ description: 'Booking not found' }),
     ApiConflictResponse({
       description: 'The booking is not completed yet, or already has a review',

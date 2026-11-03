@@ -13,7 +13,7 @@ import {
 
 import { UuidParamPipe } from '@common/pipes/uuid-param.pipe';
 import { Role } from '@generated/prisma/enums';
-import { CurrentUser } from '@modules/auth/auth.decorator';
+import { CurrentUser, RequireCurrentConsent } from '@modules/auth/auth.decorator';
 import { JwtAuthGuard } from '@modules/auth/auth.guard';
 import { RequireOwnership } from '@modules/auth/ownership.decorator';
 import { ResourceOwnershipGuard } from '@modules/auth/ownership.guard';
@@ -50,6 +50,7 @@ export class ReviewsController {
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
+  @RequireCurrentConsent()
   @Header('Cache-Control', 'no-store')
   @CreateReviewDoc()
   create(

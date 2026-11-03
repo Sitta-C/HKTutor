@@ -5,6 +5,7 @@ import request from 'supertest';
 import { configureApplication } from '@app/app.setup';
 import { AccountStatus, Role } from '@generated/prisma/enums';
 import { PrismaService } from '@infrastructure/database/prisma.service';
+import { CURRENT_PRIVACY_POLICY_VERSION } from '@modules/auth/auth.constants';
 import { JwtAuthGuard } from '@modules/auth/auth.guard';
 import { JwtTokenService } from '@modules/auth/jwt.service';
 import { ResourceOwnershipGuard } from '@modules/auth/ownership.guard';
@@ -78,6 +79,23 @@ describe('Reviews HTTP contract', () => {
   it('requires authentication', async () => {
     const response = await request(app.getHttpServer()).post(URL).send(VALID_BODY).expect(401);
     expect((response.body as { code: string }).code).toBe('UNAUTHENTICATED');
+    expect(reviews.create).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['missing', { consentAcceptedAt: null, policyVersion: CURRENT_PRIVACY_POLICY_VERSION }],
+    ['outdated', { consentAcceptedAt: new Date(), policyVersion: 'obsolete-policy' }],
+  ])('rejects %s consent as 403 before calling the service', async (_label, consent) => {
+    authenticate(Role.STUDENT, consent);
+    const response = await request(app.getHttpServer())
+      .post(URL)
+      .auth('test', { type: 'bearer' })
+      .send(VALID_BODY)
+      .expect(403);
+    expect(response.body).toMatchObject({
+      code: 'FORBIDDEN',
+      message: 'Accept the current privacy notice to continue.',
+    });
     expect(reviews.create).not.toHaveBeenCalled();
   });
 
@@ -355,7 +373,13 @@ describe('Reviews HTTP contract', () => {
     });
   });
 
-  function authenticate(role: Role): void {
+  function authenticate(
+    role: Role,
+    consent: { consentAcceptedAt: Date | null; policyVersion: string | null } = {
+      consentAcceptedAt: new Date(),
+      policyVersion: CURRENT_PRIVACY_POLICY_VERSION,
+    },
+  ): void {
     verifyAccessToken.mockReturnValue({ sid: 'session-id', sub: STUDENT_ID });
     session.mockResolvedValue({
       expiresAt: new Date(Date.now() + 60_000),
@@ -366,6 +390,7 @@ describe('Reviews HTTP contract', () => {
         deletedAt: null,
         email: 'student@example.test',
         emailVerifiedAt: new Date(),
+        ...consent,
         id: STUDENT_ID,
         role,
       },
