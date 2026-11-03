@@ -19,6 +19,7 @@ import { PaymentsModule } from '@modules/payments/payments.module';
 import { ProfilesModule } from '@modules/profiles/profiles.module';
 import { QualificationDocumentsModule } from '@modules/qualification-documents/qualification-documents.module';
 import { RescheduleRequestsModule } from '@modules/reschedule-requests/reschedule-requests.module';
+import { ReviewsModule } from '@modules/reviews/reviews.module';
 import { TutorsModule } from '@modules/tutors/tutors.module';
 
 @Module({
@@ -46,6 +47,7 @@ import { TutorsModule } from '@modules/tutors/tutors.module';
     ProfilesModule,
     QualificationDocumentsModule,
     RescheduleRequestsModule,
+    ReviewsModule,
     TutorsModule,
   ],
 })
