@@ -1364,7 +1364,7 @@ docker rm --force --volumes hktutor-reminder-job-test
 unset DATABASE_URL
 ```
 
-Each scenario uses its own day in 2099, so one 24-hour scan never sees another scenario. The 11
+Each scenario uses its own day in 2099, so one 24-hour scan never sees another scenario. The
 checks cover:
 
 - The cron registered outside Jest: every minute, UTC, running, and stopped on shutdown.
@@ -1374,13 +1374,21 @@ checks cover:
 - Two clients, standing in for two API processes, waiting on the same booking lock.
 - Payment, cancellation and reschedule committed while the job waits on a held booking lock.
 - 210 bookings with three-way start-time ties across page boundaries.
-- An insert failure, forced by a temporary trigger on `Notification` for one booking, that rolls
-  back only that booking, logs no IDs and succeeds on the next run.
+- An insert failure after the payment recipient row is inserted, forced by a temporary trigger on
+  `Notification` for one booking, that rolls back every recipient, logs no IDs and retries successfully.
+- Fresh paid/unpaid bookings at 24h, 1h and zero, each with +/-1ms checks, plus more than 24h.
+- A first run at 2h followed by a new worker at 30m, and a restart first seeing a booking at 30m.
+- Separate keys for two rescheduled occurrences in the same band; inbox reads for both participants
+  and read receipts preserved across repeated ticks and the start boundary.
 
 Held-lock cases poll `pg_stat_activity` until every worker is waiting, so nothing depends on
 timing. With the job's `FOR UPDATE` removed, the race checks fail. The runner removes its fixtures
-and the trigger in `finally`; discard the database afterwards. The inbox UI (S3-T07) is not part of
-this task.
+and the trigger in `finally`; discard the database afterwards. Reminder eligibility uses only the
+injected UTC instant; lock polling observes PostgreSQL state without sleeps. The runner prints an
+evidence table with synthetic booking/slot IDs, UTC and Bangkok times, expected recipient/key pairs
+and exact database assertions. See [S3-T08 QA evidence](../../tests/s3-t08-qa.md) for the executed
+commands, results and inbox browser coverage. No endpoint, DTO, wire type or schema changes are needed
+for this test-only extension.
 
 ## RescheduleRequest persistence (S2-DB04)
 

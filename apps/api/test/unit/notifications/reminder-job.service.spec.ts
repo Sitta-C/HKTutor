@@ -144,13 +144,14 @@ describe('ReminderJobService (S3-T06)', () => {
     const runOnce = jest
       .spyOn(service, 'runOnce')
       .mockRejectedValue(new TypeError(`leaked booking ${BOOKING_ID}`));
-    const before = Date.now();
-
-    await expect(service.tick()).resolves.toBeUndefined();
-
-    const [now] = runOnce.mock.calls[0] ?? [];
-    expect(now).toBeInstanceOf(Date);
-    expect(now?.getTime()).toBeGreaterThanOrEqual(before);
+    jest.useFakeTimers().setSystemTime(NOW_24H);
+    try {
+      await expect(service.tick()).resolves.toBeUndefined();
+      expect(runOnce).toHaveBeenCalledTimes(1);
+      expect(runOnce).toHaveBeenCalledWith(NOW_24H);
+    } finally {
+      jest.useRealTimers();
+    }
     expect(error).toHaveBeenCalledWith('Reminder run failed (TypeError); retrying next tick');
   });
 
@@ -259,6 +260,31 @@ describe('ReminderJobService (S3-T06)', () => {
       [TUTOR_ID, keyOf(row, '1H', 'CLASS')],
       [STUDENT_ID, keyOf(row, '1H', 'PAYMENT')],
     ]);
+  });
+
+  it.each([
+    [24 * 60 * 60 * 1000 + 1, null],
+    [24 * 60 * 60 * 1000, '24H'],
+    [24 * 60 * 60 * 1000 - 1, '24H'],
+    [2 * 60 * 60 * 1000, '24H'],
+    [60 * 60 * 1000 + 1, '24H'],
+    [60 * 60 * 1000, '1H'],
+    [60 * 60 * 1000 - 1, '1H'],
+    [1, '1H'],
+    [0, null],
+    [-1, null],
+  ] as const)('re-plans a scanned row at delta %d ms into %s only', async (delta, band) => {
+    // A stale scan must still pass the policy after locking, including the start boundary.
+    await service.runOnce(new Date(START.getTime() - delta));
+    expect(writtenPairs()).toEqual(
+      band
+        ? [
+            [STUDENT_ID, keyOf(bookingRow(), band, 'CLASS')],
+            [TUTOR_ID, keyOf(bookingRow(), band, 'CLASS')],
+            [STUDENT_ID, keyOf(bookingRow(), band, 'PAYMENT')],
+          ]
+        : [],
+    );
   });
 
   it('drops the payment reminder when the booking was paid after the scan', async () => {
