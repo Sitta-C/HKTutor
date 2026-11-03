@@ -10,12 +10,19 @@ import { BookingStatus } from '@generated/prisma/enums';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 
 import type { CreateReviewDto } from '@modules/reviews/reviews.dto';
-import type { CreateReviewResponseDto } from '@modules/reviews/reviews.swagger';
+import type {
+  CreateReviewResponseDto,
+  GetReviewResponseDto,
+} from '@modules/reviews/reviews.swagger';
 
 const bookingSelect = {
   status: true,
   studentUserId: true,
   tutorProfileId: true,
+} satisfies Prisma.BookingSelect;
+
+const bookingOwnerSelect = {
+  studentUserId: true,
 } satisfies Prisma.BookingSelect;
 
 function bookingNotOwned(): ForbiddenException {
@@ -163,5 +170,40 @@ export class ReviewsService {
       }
       throw error;
     }
+  }
+
+  /**
+   * Reads the canonical saved review for the caller's own booking, or null if none exists yet.
+   * Eligibility to submit a review comes from the booking's own detail, not from this read, so a
+   * booking that is not COMPLETED yet also answers null here rather than an error.
+   */
+  async findMine(bookingId: string, studentUserId: string): Promise<GetReviewResponseDto> {
+    const booking = await this.prisma.booking.findUnique({
+      select: bookingOwnerSelect,
+      where: { id: bookingId },
+    });
+    if (!booking) {
+      throw new NotFoundException('Booking not found');
+    }
+    if (booking.studentUserId !== studentUserId) {
+      throw bookingNotOwned();
+    }
+
+    const review = await this.prisma.review.findUnique({ where: { bookingId } });
+    if (!review) {
+      return { review: null };
+    }
+
+    return {
+      review: {
+        clarity: review.clarity,
+        createdAt: review.createdAt.toISOString(),
+        feedback: review.feedback,
+        id: review.id,
+        overallRating: overallRatingOf(review),
+        preparation: review.preparation,
+        punctuality: review.punctuality,
+      },
+    };
   }
 }

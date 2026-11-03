@@ -6,6 +6,7 @@ import {
   ApiCreatedResponse,
   ApiForbiddenResponse,
   ApiNotFoundResponse,
+  ApiOkResponse,
   ApiOperation,
   ApiProperty,
   ApiTags,
@@ -33,6 +34,10 @@ export class CreateReviewResponseDto {
   @ApiProperty({ type: ReviewDto }) review!: ReviewDto;
 }
 
+export class GetReviewResponseDto {
+  @ApiProperty({ nullable: true, type: ReviewDto }) review!: ReviewDto | null;
+}
+
 export function CreateReviewDoc(): MethodDecorator {
   return applyDecorators(
     ApiTags('Reviews'),
@@ -53,5 +58,24 @@ export function CreateReviewDoc(): MethodDecorator {
     ApiConflictResponse({
       description: 'The booking is not completed yet, or already has a review',
     }),
+  );
+}
+
+export function GetReviewDoc(): MethodDecorator {
+  return applyDecorators(
+    ApiTags('Reviews'),
+    ApiBearerAuth(JWT_BEARER_AUTH),
+    ApiOperation({
+      summary: "Read the authenticated student's own review for one booking",
+      description:
+        'Student owner only. Reads the canonical saved review, or null if none was submitted yet; ' +
+        'this never writes and never fabricates a review. Eligibility to submit one comes from the ' +
+        "booking's own detail, not from this endpoint, so a non-completed booking also answers null.",
+    }),
+    ApiOkResponse({ type: GetReviewResponseDto }),
+    ApiBadRequestResponse({ description: 'Invalid booking UUID' }),
+    ApiUnauthorizedResponse({ description: 'Authentication required' }),
+    ApiForbiddenResponse({ description: 'Wrong role, or the booking belongs to another student' }),
+    ApiNotFoundResponse({ description: 'Booking not found' }),
   );
 }

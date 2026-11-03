@@ -39,7 +39,7 @@ describe('ReviewsService', () => {
   let service: ReviewsService;
   const db = {
     booking: { findUnique: jest.fn(), findUniqueOrThrow: jest.fn() },
-    review: { aggregate: jest.fn(), create: jest.fn() },
+    review: { aggregate: jest.fn(), create: jest.fn(), findUnique: jest.fn() },
     tutorProfile: { update: jest.fn() },
     $queryRaw: jest.fn(),
   };
@@ -160,6 +160,54 @@ describe('ReviewsService', () => {
     );
     await expect(service.create(BOOKING_ID, STUDENT_ID, dto())).rejects.toMatchObject({
       response: { code: 'BOOKING_NOT_COMPLETED' },
+    });
+  });
+
+  describe('findMine', () => {
+    beforeEach(() => {
+      db.booking.findUnique.mockResolvedValue({ studentUserId: STUDENT_ID });
+    });
+
+    it('returns the saved review with its own rounded mean', async () => {
+      db.review.findUnique.mockResolvedValue(createdReview());
+      const result = await service.findMine(BOOKING_ID, STUDENT_ID);
+      expect(result).toEqual({
+        review: {
+          clarity: 5,
+          createdAt: '2026-11-10T11:00:00.000Z',
+          feedback: 'Clear examples',
+          id: REVIEW_ID,
+          overallRating: 4.67,
+          preparation: 5,
+          punctuality: 4,
+        },
+      });
+    });
+
+    it('returns null without throwing when no review was submitted yet, including on a booking that is not completed', async () => {
+      // findMine never selects or checks booking.status: eligibility to submit lives on the
+      // booking's own detail, so a not-yet-completed booking takes the exact same "no review" path.
+      db.review.findUnique.mockResolvedValue(null);
+      await expect(service.findMine(BOOKING_ID, STUDENT_ID)).resolves.toEqual({ review: null });
+      expect(db.booking.findUnique).toHaveBeenCalledWith(
+        expect.objectContaining({ select: { studentUserId: true } }),
+      );
+    });
+
+    it('throws 404 when the booking does not exist', async () => {
+      db.booking.findUnique.mockResolvedValue(null);
+      await expect(service.findMine(BOOKING_ID, STUDENT_ID)).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
+      expect(db.review.findUnique).not.toHaveBeenCalled();
+    });
+
+    it('throws 403 when the booking belongs to another student', async () => {
+      db.booking.findUnique.mockResolvedValue({ studentUserId: 'someone-else' });
+      const outcome = service.findMine(BOOKING_ID, STUDENT_ID);
+      await expect(outcome).rejects.toThrow(ForbiddenException);
+      await expect(outcome).rejects.toMatchObject({ response: { code: 'BOOKING_NOT_OWNED' } });
+      expect(db.review.findUnique).not.toHaveBeenCalled();
     });
   });
 });

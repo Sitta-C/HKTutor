@@ -9,7 +9,7 @@ import { JwtAuthGuard } from '@modules/auth/auth.guard';
 import { JwtTokenService } from '@modules/auth/jwt.service';
 import { ResourceOwnershipGuard } from '@modules/auth/ownership.guard';
 import { RolesGuard } from '@modules/auth/roles.guard';
-import { ReviewsController } from '@modules/reviews/reviews.controller';
+import { ReviewController, ReviewsController } from '@modules/reviews/reviews.controller';
 import { ReviewsService } from '@modules/reviews/reviews.service';
 
 import type { INestApplication } from '@nestjs/common';
@@ -18,18 +18,28 @@ import type { App } from 'supertest/types';
 const STUDENT_ID = '30000000-0000-4000-8000-000000000001';
 const BOOKING_ID = '40000000-0000-4000-8000-000000000001';
 const URL = `/api/v1/bookings/me/${BOOKING_ID}/reviews`;
+const GET_URL = `/api/v1/bookings/me/${BOOKING_ID}/review`;
 const VALID_BODY = { clarity: 5, feedback: 'Clear examples', preparation: 5, punctuality: 4 };
+const SAVED_REVIEW = {
+  clarity: 5,
+  createdAt: '2026-11-10T11:00:00.000Z',
+  feedback: 'Clear examples',
+  id: '60000000-0000-4000-8000-000000000001',
+  overallRating: 4.67,
+  preparation: 5,
+  punctuality: 4,
+};
 
 describe('Reviews HTTP contract', () => {
   let app: INestApplication<App>;
-  const reviews = { create: jest.fn() };
+  const reviews = { create: jest.fn(), findMine: jest.fn() };
   const verifyAccessToken = jest.fn();
   const session = jest.fn();
   const booking = jest.fn();
 
   beforeAll(async () => {
     const module = await Test.createTestingModule({
-      controllers: [ReviewsController],
+      controllers: [ReviewsController, ReviewController],
       providers: [
         { provide: ReviewsService, useValue: reviews },
         JwtAuthGuard,
@@ -53,17 +63,8 @@ describe('Reviews HTTP contract', () => {
     jest.resetAllMocks();
     authenticate(Role.STUDENT);
     booking.mockResolvedValue({ studentUserId: STUDENT_ID, tutorProfileId: 'tutor' });
-    reviews.create.mockResolvedValue({
-      review: {
-        clarity: 5,
-        createdAt: '2026-11-10T11:00:00.000Z',
-        feedback: 'Clear examples',
-        id: '60000000-0000-4000-8000-000000000001',
-        overallRating: 4.67,
-        preparation: 5,
-        punctuality: 4,
-      },
-    });
+    reviews.create.mockResolvedValue({ review: SAVED_REVIEW });
+    reviews.findMine.mockResolvedValue({ review: SAVED_REVIEW });
   });
 
   it('requires authentication', async () => {
@@ -200,6 +201,53 @@ describe('Reviews HTTP contract', () => {
       .send({ ...VALID_BODY, authorStudentUserId: STUDENT_ID })
       .expect(400);
     expect(reviews.create).not.toHaveBeenCalled();
+  });
+
+  describe('GET /bookings/me/:bookingId/review', () => {
+    it('requires authentication', async () => {
+      await request(app.getHttpServer()).get(GET_URL).expect(401);
+      expect(reviews.findMine).not.toHaveBeenCalled();
+    });
+
+    it.each([Role.TUTOR, Role.ADMIN])('rejects the %s role', async (role) => {
+      authenticate(role);
+      await request(app.getHttpServer()).get(GET_URL).auth('test', { type: 'bearer' }).expect(403);
+      expect(reviews.findMine).not.toHaveBeenCalled();
+    });
+
+    it('rejects a foreign booking as 403 before calling the service', async () => {
+      booking.mockResolvedValue({ studentUserId: 'someone-else', tutorProfileId: 'tutor' });
+      await request(app.getHttpServer()).get(GET_URL).auth('test', { type: 'bearer' }).expect(403);
+      expect(reviews.findMine).not.toHaveBeenCalled();
+    });
+
+    it('answers 404 for a missing booking and 400 for an invalid UUID', async () => {
+      booking.mockResolvedValue(null);
+      await request(app.getHttpServer()).get(GET_URL).auth('test', { type: 'bearer' }).expect(404);
+      await request(app.getHttpServer())
+        .get('/api/v1/bookings/me/not-a-uuid/review')
+        .auth('test', { type: 'bearer' })
+        .expect(400);
+    });
+
+    it('returns the saved review and disables caching, taking identity from the session', async () => {
+      const response = await request(app.getHttpServer())
+        .get(GET_URL)
+        .auth('test', { type: 'bearer' })
+        .expect(200)
+        .expect('Cache-Control', 'no-store');
+      expect(response.body as { review: unknown }).toEqual({ review: SAVED_REVIEW });
+      expect(reviews.findMine).toHaveBeenCalledWith(BOOKING_ID, STUDENT_ID);
+    });
+
+    it('answers 200 with a null review rather than 404 when none was submitted yet', async () => {
+      reviews.findMine.mockResolvedValue({ review: null });
+      const response = await request(app.getHttpServer())
+        .get(GET_URL)
+        .auth('test', { type: 'bearer' })
+        .expect(200);
+      expect(response.body as { review: unknown }).toEqual({ review: null });
+    });
   });
 
   function authenticate(role: Role): void {
