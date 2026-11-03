@@ -1956,3 +1956,72 @@ limits, direct insert/update identity and status violations, deletion restrictio
 contention, both directions of status contention, participant-change contention, repeatable-read
 snapshot protection, cursor ties, RLS/grants and review/cache rollback. Contention is observed using
 `pg_blocking_pids`, not inferred from Promise timing. See [actual evidence](../../tests/s3-db01-qa.md).
+
+## Review API (S3-T13)
+
+Implements the three child cards of S3-T13 on top of the `Review` table from S3-DB01 above. All
+three live in the `reviews` module (`apps/api/src/modules/reviews/`), reusing the `Review`-table
+contract rather than introducing a new one.
+
+| Card   | Method and route (all under `/api/v1`) | Access                                                                   |
+| ------ | -------------------------------------- | ------------------------------------------------------------------------ |
+| API-01 | `POST /bookings/me/:bookingId/reviews` | Owning STUDENT with current privacy consent, booking must be `COMPLETED` |
+| API-02 | `GET /bookings/me/:bookingId/review`   | Owning STUDENT                                                           |
+| API-03 | `GET /tutors/:tutorId/reviews`         | Public, no JWT                                                           |
+
+**API-01** requires `@RequireCurrentConsent()` in addition to the STUDENT role, so an authenticated
+caller with missing or outdated privacy consent answers 403 `FORBIDDEN` before the service runs,
+matching the S3-DB01 contract that assigns this check to S3-T13. It accepts
+`{ clarity, punctuality, preparation }` as integers 1–5 and `feedback` trimmed to 1–1,000 Unicode
+code points; the global validation pipe rejects any other field, including an aggregate, author or
+tutor identifier supplied by the client. The booking must belong to the caller and be `COMPLETED` (an `ATTENDED` or `ABSENT` attendance outcome is equally eligible; there is no
+attended-only restriction). The write locks the booking row and then the tutor row, re-validates
+ownership and completion under that lock, inserts the review, and recomputes the tutor's
+`ratingAverage`/`reviewCount`/`ratingUpdatedAt` from every stored review's raw dimensions in the same
+transaction — not from an average of already-rounded per-review means, which would drift from the
+agreed result (`5/4/5` and `4/4/4` average to `4.33`, never `4.34`). A concurrent duplicate
+submission for the same booking loses the database's unique constraint and answers 409
+`REVIEW_ALREADY_EXISTS`; there are no edit or delete routes, so a review is immutable once created.
+
+**API-02** reads back the canonical saved review, or `{ review: null }` when none exists — including
+for a booking that is not `COMPLETED` yet, since eligibility to submit belongs to the booking's own
+detail, not to this read. It never writes and never fabricates a review.
+
+Both private routes send `Cache-Control: no-store` and share one status code table:
+
+| Status | Code                    | Cause                                                                  |
+| ------ | ----------------------- | ---------------------------------------------------------------------- |
+| 400    | `VALIDATION_FAILED`     | Malformed/unknown body field (API-01) or bad UUID                      |
+| 401    | `UNAUTHENTICATED`       | Missing, invalid or expired session                                    |
+| 403    | `FORBIDDEN`             | Caller is not a STUDENT, or has missing/outdated consent (API-01 only) |
+| 403    | `BOOKING_NOT_OWNED`     | Booking belongs to another student                                     |
+| 404    | `BOOKING_NOT_FOUND`     | No booking with this ID (matches the sibling booking routes)           |
+| 409    | `BOOKING_NOT_COMPLETED` | Booking is not `COMPLETED` (API-01 only)                               |
+| 409    | `REVIEW_ALREADY_EXISTS` | A review already exists for this booking (API-01 only)                 |
+
+**API-03** is public and cursor-paginated, newest first (`createdAt DESC, id DESC`), `limit` 1–50
+(default 20). It reuses the exact visibility rule the existing public tutor detail endpoint
+(`getPublicTutor`) already applies — verified, active, non-deleted — rather than inventing a
+stricter rule that would make this list 404 where the tutor's own profile page does not. The cursor
+is an opaque, base64url-encoded, structurally validated token (the same convention already used for
+conversations and notifications), with the requested `tutorId` encoded into it: a cursor minted
+while paginating one tutor's list is rejected as 400 if replayed against a different tutor. The
+response's `author` is reduced to a `displayName` built from the reviewing student's nickname (or a
+generic label if they have none); the Prisma `select` never fetches `bookingId`, `studentUserId`,
+email, phone, school or an avatar, so there is nothing to omit by convention alone. A tutor with no
+reviews yet answers `200 { items: [], nextCursor: null }`, never 404.
+
+Verification:
+
+```bash
+pnpm --filter @hktutor/api test --runInBand reviews
+pnpm --filter @hktutor/api test:e2e --runInBand --runTestsByPath test/reviews.e2e-spec.ts
+```
+
+Unit tests cover the HALF_UP aggregate math against the agreed worked example, the booking lock and
+re-validation, the P2002/P2003 error mappings, the cursor's cross-tutor rejection, and the privacy
+exclusions in the public list. The HTTP suite exercises real validation, guards and service-logic
+wiring with isolated persistence, including the full rating/feedback validation matrix and the
+`{ review: null }` and empty-list shapes. Neither suite exercises real PostgreSQL concurrency; the
+disposable-database proof of the duplicate-review race and the uniqueness constraint is S3-T15's
+scope, not S3-T13's.
