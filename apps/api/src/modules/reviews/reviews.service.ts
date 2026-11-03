@@ -109,8 +109,8 @@ export class ReviewsService {
 
     try {
       return await this.prisma.$transaction(async (tx) => {
-        // Locking the booking row first, then the tutor row, matches the order every other module
-        // in this codebase locks these two tables in, so this transaction cannot deadlock against them.
+        // Locks the booking row, then the tutor row: no other module in this codebase locks both
+        // tables in one transaction, so this order cannot deadlock against an existing code path.
         await tx.$queryRaw`SELECT "id" FROM "Booking" WHERE "id" = ${bookingId}::uuid FOR UPDATE`;
         await tx.$queryRaw`SELECT "userId" FROM "TutorProfile" WHERE "userId" = ${booking.tutorProfileId}::uuid FOR UPDATE`;
 

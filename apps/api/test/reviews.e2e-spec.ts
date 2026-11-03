@@ -76,42 +76,47 @@ describe('Reviews HTTP contract', () => {
   });
 
   it('requires authentication', async () => {
-    await request(app.getHttpServer()).post(URL).send(VALID_BODY).expect(401);
+    const response = await request(app.getHttpServer()).post(URL).send(VALID_BODY).expect(401);
+    expect((response.body as { code: string }).code).toBe('UNAUTHENTICATED');
     expect(reviews.create).not.toHaveBeenCalled();
   });
 
   it.each([Role.TUTOR, Role.ADMIN])('rejects the %s role', async (role) => {
     authenticate(role);
-    await request(app.getHttpServer())
+    const response = await request(app.getHttpServer())
       .post(URL)
       .auth('test', { type: 'bearer' })
       .send(VALID_BODY)
       .expect(403);
+    expect((response.body as { code: string }).code).toBe('FORBIDDEN');
     expect(reviews.create).not.toHaveBeenCalled();
   });
 
-  it('rejects a foreign booking as 403 before calling the service', async () => {
+  it('rejects a foreign booking as 403 BOOKING_NOT_OWNED before calling the service', async () => {
     booking.mockResolvedValue({ studentUserId: 'someone-else', tutorProfileId: 'tutor' });
-    await request(app.getHttpServer())
+    const response = await request(app.getHttpServer())
       .post(URL)
       .auth('test', { type: 'bearer' })
       .send(VALID_BODY)
       .expect(403);
+    expect((response.body as { code: string }).code).toBe('BOOKING_NOT_OWNED');
     expect(reviews.create).not.toHaveBeenCalled();
   });
 
-  it('answers 404 for a missing booking and 400 for an invalid UUID', async () => {
+  it('answers 404 NOT_FOUND for a missing booking and 400 INVALID_UUID for an invalid UUID', async () => {
     booking.mockResolvedValue(null);
-    await request(app.getHttpServer())
+    const missing = await request(app.getHttpServer())
       .post(URL)
       .auth('test', { type: 'bearer' })
       .send(VALID_BODY)
       .expect(404);
-    await request(app.getHttpServer())
+    expect((missing.body as { code: string }).code).toBe('NOT_FOUND');
+    const invalid = await request(app.getHttpServer())
       .post('/api/v1/bookings/me/not-a-uuid/reviews')
       .auth('test', { type: 'bearer' })
       .send(VALID_BODY)
       .expect(400);
+    expect((invalid.body as { code: string }).code).toBe('INVALID_UUID');
   });
 
   it('creates a review and disables caching on the response', async () => {
@@ -170,6 +175,34 @@ describe('Reviews HTTP contract', () => {
       .send({ ...VALID_BODY, clarity: 1, preparation: 5, punctuality: 1 })
       .expect(201);
     expect(reviews.create).toHaveBeenCalled();
+  });
+
+  it.each([
+    ['empty', ''],
+    ['whitespace-only', '   '],
+  ])('rejects %s feedback', async (_label, feedback) => {
+    await request(app.getHttpServer())
+      .post(URL)
+      .auth('test', { type: 'bearer' })
+      .send({ ...VALID_BODY, feedback })
+      .expect(400);
+    expect(reviews.create).not.toHaveBeenCalled();
+  });
+
+  it('stores and returns markup-looking feedback as literal text, never interpreted', async () => {
+    const markup = '<b>Great tutor</b> & "quotes"';
+    reviews.create.mockResolvedValue({ review: { ...SAVED_REVIEW, feedback: markup } });
+    const response = await request(app.getHttpServer())
+      .post(URL)
+      .auth('test', { type: 'bearer' })
+      .send({ ...VALID_BODY, feedback: markup })
+      .expect(201);
+    expect(reviews.create).toHaveBeenCalledWith(
+      BOOKING_ID,
+      STUDENT_ID,
+      expect.objectContaining({ feedback: markup }),
+    );
+    expect((response.body as { review: { feedback: string } }).review.feedback).toBe(markup);
   });
 
   it('rejects blank feedback and feedback over 1000 Unicode code points, accepts exactly 1000', async () => {
@@ -278,8 +311,16 @@ describe('Reviews HTTP contract', () => {
       await request(app.getHttpServer()).get(PUBLIC_URL).expect(404);
     });
 
-    it('answers 400 for an invalid tutor UUID without calling the service', async () => {
-      await request(app.getHttpServer()).get('/api/v1/tutors/not-a-uuid/reviews').expect(400);
+    it('answers 400 INVALID_UUID for an invalid tutor UUID without calling the service', async () => {
+      const response = await request(app.getHttpServer())
+        .get('/api/v1/tutors/not-a-uuid/reviews')
+        .expect(400);
+      expect((response.body as { code: string }).code).toBe('INVALID_UUID');
+      expect(reviews.listForTutor).not.toHaveBeenCalled();
+    });
+
+    it('rejects an unknown query field', async () => {
+      await request(app.getHttpServer()).get(PUBLIC_URL).query({ status: 'PUBLISHED' }).expect(400);
       expect(reviews.listForTutor).not.toHaveBeenCalled();
     });
 
