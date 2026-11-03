@@ -1873,3 +1873,86 @@ confirming the fixture is discriminating rather than accidentally passing. One o
 been chosen only to avoid colliding with `tiedHigh`'s, which left it landing in the same place
 whether the filter worked or not. Moving it to a timestamp where leaking is visibly different from
 being excluded restored the check.
+
+## Review persistence (S3-DB01)
+
+The additive migration `20261103120000_add_review` introduces `Review` without changing shared
+migration history or inventing historical reviews. It retains `TutorProfile.ratingAverage`
+(`Decimal(3,2)`), `reviewCount` and `ratingUpdatedAt` as display caches. At rollout, tutors without
+reviews are reset to `null`, `0`, `null`; search seeds no longer supply synthetic ratings. Existing
+review-backed seed caches are preserved. Re-seeding also preserves a reviewed Sprint 2 ended class
+and its original time window rather than resetting that evidence to confirmed.
+
+Each review has a UUID, unique `bookingId`, private `authorStudentUserId`, `tutorProfileId`, three
+integer dimensions (`clarity`, `punctuality`, `preparation`), feedback and UTC `createdAt`. No rounded
+`overallRating` is stored. The descending `(tutorProfileId, createdAt, id)` index supports public
+review-list cursors; `authorStudentUserId` has its own index and the unique booking index covers
+booking lookup. Foreign keys restrict deleting the referenced booking, author and tutor profile.
+RLS and revoked PUBLIC/`anon`/`authenticated` grants keep direct browser access closed.
+
+### Completed booking and identity enforcement
+
+A normal CHECK cannot inspect another table. This implementation uses a native composite foreign
+key rather than a custom constraint trigger: Review's internal `bookingStatus` has default
+`completed` and a CHECK that accepts only `completed`. The tuple
+`(bookingId, authorStudentUserId, tutorProfileId, bookingStatus)` references Booking's unique
+`(id, studentUserId, tutorProfileId, status)` tuple, with `ON DELETE RESTRICT ON UPDATE RESTRICT`.
+This rejects unfinished bookings and mismatched identities and prevents later Booking updates from
+invalidating existing evidence. PostgreSQL's referential locks cover both write directions,
+including concurrent transactions with older snapshots. The extra Review tuple unique index is
+required by Prisma to model this composite relation as one-to-one; `bookingId` remains independently
+unique, so changing other fields cannot bypass one-review-per-booking enforcement.
+
+`bookingStatus` is an internal eligibility constant, never client input or a public response field.
+The database does not authenticate actors. S3-T13 must derive the author from `@CurrentUser()`, check
+student role/current consent/ownership, lock and validate the booking in the write transaction,
+select public fields explicitly and map duplicate/eligibility conflicts to the HTTP contract.
+No Review HTTP endpoint, DTO, public wire type, or aggregate writer is introduced by this database
+card; those belong to S3-T13/T17/T19. Public responses must omit student IDs and private profiles.
+
+### Text and aggregate contract for subsequent API work
+
+Ratings use PostgreSQL INTEGER plus inclusive `1..5` checks. Feedback is stored as literal plain
+text, trimmed and nonempty, at most 1,000 Unicode code points. The SQL trim character set matches
+ECMAScript `String.trim()` (including tabs, line breaks, NBSP and BOM). Interior whitespace is
+allowed. A future DTO must trim first and validate `Array.from(feedback).length`, or an equivalent
+code-point-aware validator, rather than UTF-16 `.length`. Combining marks count separately, matching
+PostgreSQL `CHAR_LENGTH`; markup-looking text remains literal and must be escaped when rendered.
+
+Compute a tutor's authoritative rating from raw dimensions:
+`SUM(clarity + punctuality + preparation)::numeric / (3 * COUNT(*))`, with an explicit no-reviews
+case of `null`/`0`. Retain that precision for filters/ranking; use HALF_UP to two decimals only for
+final display. For `5/4/5` and `4/4/4`, the result is `4.33`. Do not average prematurely rounded
+per-review means or use the rounded display cache as the filter/ranking source. S3-T17 owns cache
+maintenance: review insertion and any cache update must share one transaction and serialize on the
+tutor row before aggregating to avoid concurrent lost cache updates. The verifier demonstrates
+rollback of that transaction boundary; it is not evidence of a production aggregate service.
+
+### Disposable PostgreSQL verification
+
+`pnpm db:verify:reviews` is separate from `pnpm check`. It never loads `.env`, migrates or seeds.
+It requires explicit opt-in, an explicit loopback-only `DATABASE_URL`, a database name matching
+`hktutor_*_test` or `hktutor-*-test`, no URL options/fragments, and all committed migrations applied.
+It creates random synthetic fixtures and removes only those fixtures in `finally`.
+
+After confirming that a new target is disposable, for example PostgreSQL 17:
+
+```bash
+docker run --detach --name hktutor-review-test \
+  --publish 127.0.0.1:55442:5432 \
+  --env POSTGRES_USER=postgres --env POSTGRES_PASSWORD=disposable-local-only \
+  --env POSTGRES_DB=hktutor_review_test postgres:17
+export DATABASE_URL='postgresql://postgres:disposable-local-only@127.0.0.1:55442/hktutor_review_test'
+pnpm db:validate
+pnpm db:generate
+pnpm db:migrate:deploy
+HKTUTOR_ALLOW_DISPOSABLE_DB_VERIFY=1 pnpm db:verify:reviews
+docker rm --force --volumes hktutor-review-test
+unset DATABASE_URL
+```
+
+Coverage includes rating/type/null boundaries, every ECMAScript trim character, Thai/emoji text
+limits, direct insert/update identity and status violations, deletion restrictions, unique-insert
+contention, both directions of status contention, participant-change contention, repeatable-read
+snapshot protection, cursor ties, RLS/grants and review/cache rollback. Contention is observed using
+`pg_blocking_pids`, not inferred from Promise timing. See [actual evidence](../../tests/s3-db01-qa.md).

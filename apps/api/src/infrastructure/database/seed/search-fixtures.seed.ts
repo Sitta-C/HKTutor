@@ -18,8 +18,6 @@ const SYNTHETIC_TUTORS = [
     displayName: 'Mali',
     bio: 'Mathematics tutor fixture for lowest-price search cases.',
     experienceYears: 4,
-    ratingAverage: '4.40',
-    reviewCount: 18,
   },
   {
     key: 'kiet',
@@ -28,8 +26,6 @@ const SYNTHETIC_TUTORS = [
     displayName: 'Kiet',
     bio: 'Mathematics tutor fixture for inclusive budget boundary cases.',
     experienceYears: 3,
-    ratingAverage: '4.00',
-    reviewCount: 10,
   },
   {
     key: 'niran',
@@ -38,8 +34,6 @@ const SYNTHETIC_TUTORS = [
     displayName: 'Niran',
     bio: 'Physics tutor fixture for subject mismatch search cases.',
     experienceYears: 6,
-    ratingAverage: '4.70',
-    reviewCount: 12,
   },
   {
     key: 'pim',
@@ -48,8 +42,6 @@ const SYNTHETIC_TUTORS = [
     displayName: 'Pim',
     bio: 'Grade 11 mathematics tutor fixture for grade mismatch cases.',
     experienceYears: 5,
-    ratingAverage: '4.60',
-    reviewCount: 15,
   },
 ] as const;
 
@@ -94,9 +86,6 @@ export async function seedTutorSearchFixtures(
     where: { userId: foundation.tutorUserId },
     data: {
       verificationStatus: TutorVerificationStatus.VERIFIED,
-      ratingAverage: '4.80',
-      reviewCount: 24,
-      ratingUpdatedAt: SEEDED_AT,
     },
   });
 
@@ -133,9 +122,6 @@ export async function seedTutorSearchFixtures(
       bio: fixture.bio,
       experienceYears: fixture.experienceYears,
       verificationStatus: TutorVerificationStatus.VERIFIED,
-      ratingAverage: fixture.ratingAverage,
-      reviewCount: fixture.reviewCount,
-      ratingUpdatedAt: SEEDED_AT,
     };
 
     await client.tutorProfile.upsert({
@@ -147,6 +133,15 @@ export async function seedTutorSearchFixtures(
       },
     });
   }
+
+  // Re-seeding must neither invent history nor overwrite caches backed by real reviews.
+  await client.tutorProfile.updateMany({
+    where: {
+      userId: { in: [foundation.tutorUserId, ...tutorIds.values()] },
+      reviews: { none: {} },
+    },
+    data: { ratingAverage: null, reviewCount: 0, ratingUpdatedAt: null },
+  });
 
   const requiredTutorId = (key: string): string => {
     const id = tutorIds.get(key);

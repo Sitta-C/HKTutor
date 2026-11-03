@@ -19,8 +19,11 @@ const student = { studentUserId: 'student-user-id' };
 /** 01:30 on 18 October in Bangkok, which is still 17 October in UTC. */
 const NOW = new Date('2026-10-17T18:30:00.000Z');
 
-function createClient(heldSlotIds: string[] = []) {
+function createClient(heldSlotIds: string[] = [], reviewedClass = false) {
   const findFirst = jest.fn((args: Prisma.BookingFindFirstArgs) => {
+    if (args.where?.id === SPRINT2_DEMO_IDS.endedClassBooking && reviewedClass) {
+      return Promise.resolve({ id: SPRINT2_DEMO_IDS.endedClassBooking });
+    }
     const slotId = args.where?.slotId;
     return Promise.resolve(
       typeof slotId === 'string' && heldSlotIds.includes(slotId) ? { id: 'live-booking-id' } : null,
@@ -108,6 +111,18 @@ describe('seedSprint2Demo', () => {
 
     expect(slotUpsert.mock.calls.map(([args]) => args.where.id)).not.toContain(held);
     expect(slotUpsert).toHaveBeenCalledTimes(3);
+  });
+
+  it('preserves a reviewed ended class and its time window on re-seed', async () => {
+    const { client, slotUpsert, bookingUpsert } = createClient([], true);
+
+    await seedSprint2Demo(client, foundation, student, NOW);
+
+    expect(slotUpsert).toHaveBeenCalledTimes(3);
+    expect(slotUpsert.mock.calls.map(([args]) => args.where.id)).not.toContain(
+      SPRINT2_DEMO_IDS.endedClassSlot,
+    );
+    expect(bookingUpsert).not.toHaveBeenCalled();
   });
 
   it('uses only DEMO- payment data', () => {

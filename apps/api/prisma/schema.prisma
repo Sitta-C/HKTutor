@@ -116,6 +116,7 @@ model User {
   authSessions         AuthSession[]
   verificationTokens   EmailVerificationToken[]
   passwordResetTokens  PasswordResetToken[]
+  authoredReviews      Review[]
 }
 
 model StudentProfile {
@@ -191,6 +192,7 @@ model TutorProfile {
   availabilitySlots  AvailabilitySlot[]
   bookings           Booking[]
   documents          TutorDocument[]
+  reviews            Review[]
 }
 
 model TutorDocument {
@@ -334,9 +336,34 @@ model Booking {
   rescheduleRequests RescheduleRequest[]
   notifications      Notification[]
   paymentAttempts    PaymentAttempt[]
+  review             Review?
 
+  /// Composite target for the Review evidence foreign key.
+  @@unique([id, studentUserId, tutorProfileId, status], map: "Booking_review_identity_key")
   @@index([studentUserId, status, createdAt], map: "Booking_studentUserId_status_createdAt_idx")
   @@index([tutorProfileId, status, createdAt], map: "Booking_tutorProfileId_status_createdAt_idx")
+}
+
+/// Raw dimensions are the aggregate source; rounded TutorProfile fields are display caches only.
+/// A migration-managed CHECK fixes bookingStatus to COMPLETED; the composite FK enforces eligibility.
+model Review {
+  id                  String        @id @default(uuid()) @db.Uuid
+  bookingId           String        @unique @db.Uuid
+  authorStudentUserId String        @db.Uuid
+  tutorProfileId      String        @db.Uuid
+  bookingStatus       BookingStatus @default(COMPLETED)
+  clarity             Int
+  punctuality         Int
+  preparation         Int
+  feedback            String
+  createdAt           DateTime      @default(now()) @db.Timestamptz(3)
+  booking             Booking       @relation(fields: [bookingId, authorStudentUserId, tutorProfileId, bookingStatus], references: [id, studentUserId, tutorProfileId, status], onDelete: Restrict, onUpdate: Restrict, map: "Review_booking_evidence_fkey")
+  author              User          @relation(fields: [authorStudentUserId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  tutorProfile        TutorProfile  @relation(fields: [tutorProfileId], references: [userId], onDelete: Restrict, onUpdate: Cascade)
+
+  @@unique([bookingId, authorStudentUserId, tutorProfileId, bookingStatus], map: "Review_booking_identity_key")
+  @@index([tutorProfileId, createdAt(sort: Desc), id(sort: Desc)], map: "Review_tutorProfileId_createdAt_id_idx")
+  @@index([authorStudentUserId], map: "Review_authorStudentUserId_idx")
 }
 
 model PaymentAttempt {
