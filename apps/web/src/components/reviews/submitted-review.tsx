@@ -33,9 +33,7 @@ export function SubmittedReview({
       </dl>
       <p className={styles.savedOverall}>
         {text.savedOverall}:{' '}
-        <strong className={styles.savedOverallValue}>
-          {review.overallRating.toFixed(2)} / 5
-        </strong>
+        <strong className={styles.savedOverallValue}>{review.overallRating.toFixed(2)} / 5</strong>
       </p>
       <div className={styles.savedFeedbackBlock}>
         <p className={styles.savedFeedbackLabel}>{text.savedFeedback}</p>
