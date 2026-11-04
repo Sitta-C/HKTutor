@@ -16,7 +16,15 @@ export function SubmittedReview({
   const text = reviewCopy[language];
   return (
     <section className={styles.saved} aria-label={text.savedTitle}>
-      <p className={styles.savedLabel}>{text.savedTitle}</p>
+      <div className={styles.savedLead}>
+        <h2 className={styles.savedHeading}>{text.savedTitle}</h2>
+        <p className={styles.savedOverall}>
+          {text.savedOverall}:{' '}
+          <strong className={styles.savedOverallValue}>
+            {review.overallRating.toFixed(2)} / 5
+          </strong>
+        </p>
+      </div>
       <dl className={styles.savedRatings}>
         {(
           [
@@ -31,10 +39,6 @@ export function SubmittedReview({
           </div>
         ))}
       </dl>
-      <p className={styles.savedOverall}>
-        {text.savedOverall}:{' '}
-        <strong className={styles.savedOverallValue}>{review.overallRating.toFixed(2)} / 5</strong>
-      </p>
       <div className={styles.savedFeedbackBlock}>
         <p className={styles.savedFeedbackLabel}>{text.savedFeedback}</p>
         <p className={styles.savedFeedback}>{review.feedback}</p>

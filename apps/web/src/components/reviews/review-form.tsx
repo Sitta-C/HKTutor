@@ -127,7 +127,9 @@ export function ReviewForm({
 
   return (
     <section className={styles.form} aria-labelledby="review-title" aria-busy={pending}>
-      <h3 id="review-title">{text.title}</h3>
+      <h2 className={styles.heading} id="review-title">
+        {text.title}
+      </h2>
       <p className={styles.note} id="review-help">
         {disabledMessage ?? text.help}
       </p>
@@ -136,32 +138,49 @@ export function ReviewForm({
           {error}
         </p>
       )}
+      <p className={styles.scaleGuidance} id="review-rating-scale">
+        {text.ratingScale}
+      </p>
       <fieldset
         className={styles.ratingGroups}
         disabled={locked}
-        aria-describedby={ratingsInvalid ? 'review-help review-ratings-error' : 'review-help'}
+        aria-describedby={
+          ratingsInvalid
+            ? 'review-rating-scale review-help review-ratings-error'
+            : 'review-rating-scale review-help'
+        }
       >
-        {ratingGroups.map((group) => (
-          <fieldset key={group.name} className={styles.ratingGroup}>
-            <legend className={styles.caption}>{group.legend}</legend>
-            <div className={styles.ratingChoices}>
-              {RATING_VALUES.map((value) => (
-                <label className={styles.ratingChoice} key={value}>
-                  <input
-                    type="radio"
-                    name={group.name}
-                    value={value}
-                    checked={group.value === value}
-                    onChange={() => group.setValue(value)}
-                  />
-                  <span className="sr-only">{group.legend} </span>
-                  {value}
-                  <span className="sr-only"> {text.ratingOption}</span>
-                </label>
-              ))}
+        {ratingGroups.map((group) => {
+          const labelId = `${group.name}-label`;
+          return (
+            <div
+              key={group.name}
+              className={styles.ratingGroup}
+              role="radiogroup"
+              aria-labelledby={labelId}
+            >
+              <span className={styles.caption} id={labelId}>
+                {group.legend}
+              </span>
+              <div className={styles.ratingChoices}>
+                {RATING_VALUES.map((value) => (
+                  <label className={styles.ratingChoice} key={value}>
+                    <input
+                      type="radio"
+                      name={group.name}
+                      value={value}
+                      checked={group.value === value}
+                      onChange={() => group.setValue(value)}
+                    />
+                    <span className="sr-only">{group.legend} </span>
+                    {value}
+                    <span className="sr-only"> {text.ratingOption}</span>
+                  </label>
+                ))}
+              </div>
             </div>
-          </fieldset>
-        ))}
+          );
+        })}
       </fieldset>
       {ratingsInvalid && (
         <p role="alert" id="review-ratings-error" className={styles.error}>
@@ -194,7 +213,11 @@ export function ReviewForm({
               {length === 0 ? text.feedbackBlank : text.feedbackTooLong}
             </p>
           )}
-          <span id={`${feedbackId}-counter`} data-over-limit={overLimit}>
+          <span
+            className={styles.feedbackCounter}
+            id={`${feedbackId}-counter`}
+            data-over-limit={overLimit}
+          >
             {length} {text.feedbackCounterSuffix}
           </span>
         </div>
