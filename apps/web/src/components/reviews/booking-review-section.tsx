@@ -27,7 +27,9 @@ export function BookingReviewSection({
   const { language } = useLanguage();
   const text = reviewCopy[language];
   const [review, setReview] = useState<BookingReview | null>(null);
-  const [loading, setLoading] = useState(true);
+  // A review can only exist once a booking reaches COMPLETED, so there is nothing to read for any
+  // other status; skip the request and render the locked message immediately.
+  const [loading, setLoading] = useState(status === 'COMPLETED');
   const [error, setError] = useState<unknown>(null);
   const [lockMessage, setLockMessage] = useState<string | undefined>(undefined);
   const [reconcileNote, setReconcileNote] = useState<string | undefined>(undefined);
@@ -56,13 +58,16 @@ export function BookingReviewSection({
   }, [bookingId]);
 
   useEffect(() => {
+    if (status !== 'COMPLETED') {
+      return;
+    }
     active.current = true;
     void load();
     return () => {
       active.current = false;
       sequence.current += 1;
     };
-  }, [load]);
+  }, [load, status]);
 
   /**
    * After an already-exists or uncertain POST outcome, read back before offering another manual
