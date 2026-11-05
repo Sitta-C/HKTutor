@@ -17,6 +17,7 @@ import { PromptPayPaymentPanel } from '@/components/bookings/promptpay-payment-p
 import { RescheduleRequestPanel } from '@/components/bookings/reschedule-request-panel';
 import { studentBookingsCopy } from '@/components/bookings/student-bookings-copy';
 import { DashboardIcon } from '@/components/dashboard/dashboard-icon';
+import { BookingReviewSection } from '@/components/reviews/booking-review-section';
 import { NotebookHeading, PaperCard } from '@/components/ui/notebook';
 import { NotebookLoadingRegion } from '@/components/ui/notebook-loading';
 import { getMyBooking } from '@/lib/api/bookings';
@@ -239,6 +240,15 @@ export default function StudentBookingDetailPage({ bookingId }: { bookingId: str
                 }}
               />
             </div>
+            <BookingReviewSection
+              key={`${booking.id}:${booking.status}`}
+              bookingId={booking.id}
+              status={booking.status}
+              onRequiresBookingRefresh={() => {
+                setIsLoading(true);
+                setReloadKey((value) => value + 1);
+              }}
+            />
           </>
         )}
       </PaperCard>

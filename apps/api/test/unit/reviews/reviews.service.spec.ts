@@ -106,11 +106,11 @@ describe('ReviewsService', () => {
     );
   });
 
-  it('throws 404 when the booking does not exist', async () => {
+  it('throws 404 BOOKING_NOT_FOUND when the booking does not exist', async () => {
     db.booking.findUnique.mockResolvedValue(null);
-    await expect(service.create(BOOKING_ID, STUDENT_ID, dto())).rejects.toBeInstanceOf(
-      NotFoundException,
-    );
+    const outcome = service.create(BOOKING_ID, STUDENT_ID, dto());
+    await expect(outcome).rejects.toThrow(NotFoundException);
+    await expect(outcome).rejects.toMatchObject({ response: { code: 'BOOKING_NOT_FOUND' } });
     expect(transaction).not.toHaveBeenCalled();
   });
 
@@ -197,11 +197,11 @@ describe('ReviewsService', () => {
       );
     });
 
-    it('throws 404 when the booking does not exist', async () => {
+    it('throws 404 BOOKING_NOT_FOUND when the booking does not exist', async () => {
       db.booking.findUnique.mockResolvedValue(null);
-      await expect(service.findMine(BOOKING_ID, STUDENT_ID)).rejects.toBeInstanceOf(
-        NotFoundException,
-      );
+      const outcome = service.findMine(BOOKING_ID, STUDENT_ID);
+      await expect(outcome).rejects.toThrow(NotFoundException);
+      await expect(outcome).rejects.toMatchObject({ response: { code: 'BOOKING_NOT_FOUND' } });
       expect(db.review.findUnique).not.toHaveBeenCalled();
     });
 

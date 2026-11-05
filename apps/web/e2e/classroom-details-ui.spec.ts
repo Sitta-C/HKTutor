@@ -136,6 +136,9 @@ async function setup(
     if (path === '/bookings/me') {
       return route.fulfill({ json: { items: [], total: 0 } });
     }
+    if (path === `/bookings/me/${BOOKING_ID}/review`) {
+      return route.fulfill({ json: { review: null } });
+    }
     if (path === `/bookings/me/${BOOKING_ID}/payments/current`) {
       return route.fulfill({
         json: {
