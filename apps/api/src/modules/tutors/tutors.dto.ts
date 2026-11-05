@@ -383,6 +383,9 @@ export class PublicTutorDetailResponseDto {
   listings!: PublicTeachingListingDto[];
 }
 
+/** Binding no-query routes to this DTO makes global validation reject unknown query fields. */
+export class TutorEmptyQueryDto {}
+
 export class SubjectCatalogItemDto {
   @ApiProperty({ example: '30000000-0000-4000-8000-000000000001', format: 'uuid' })
   id!: string;

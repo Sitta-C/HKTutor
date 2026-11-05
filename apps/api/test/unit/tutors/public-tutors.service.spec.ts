@@ -651,6 +651,56 @@ describe('TutorDirectoryService', () => {
     expectNoPrivateFields(await service.getPublicTutor(TUTOR_ID));
   });
 
+  it('returns null rating and zero review count for a Tutor with no reviews', async () => {
+    const prisma = createPrisma();
+    prisma.tutorProfile.findFirst.mockResolvedValue(
+      publicTutor({ listings: [], ratingAverage: null, reviewCount: 0 }),
+    );
+    const service = new TutorsService(prisma as unknown as PrismaService);
+
+    const detail = await service.getPublicTutor(TUTOR_ID);
+    expect(detail.tutor.ratingAverage).toBeNull();
+    expect(detail.tutor.reviewCount).toBe(0);
+  });
+
+  it('reads the Tutor detail fresh on every call, never from a stale prior response', async () => {
+    const prisma = createPrisma();
+    const service = new TutorsService(prisma as unknown as PrismaService);
+
+    prisma.tutorProfile.findFirst.mockResolvedValueOnce(
+      publicTutor({ listings: [], ratingAverage: null, reviewCount: 0 }),
+    );
+    const beforeReview = await service.getPublicTutor(TUTOR_ID);
+    expect(beforeReview.tutor.reviewCount).toBe(0);
+
+    // A review landing between calls (the same tutorProfile.ratingAverage/reviewCount columns
+    // ReviewsService.create updates) must be visible on the very next read; nothing in this
+    // service may cache the prior response.
+    prisma.tutorProfile.findFirst.mockResolvedValueOnce(
+      publicTutor({ listings: [], ratingAverage: decimal(4.33), reviewCount: 1 }),
+    );
+    const afterReview = await service.getPublicTutor(TUTOR_ID);
+    expect(afterReview.tutor.ratingAverage).toBe(4.33);
+    expect(afterReview.tutor.reviewCount).toBe(1);
+    expect(prisma.tutorProfile.findFirst).toHaveBeenCalledTimes(2);
+  });
+
+  it('reports the same rating and review count on the detail route as the search route', async () => {
+    const prisma = createPrisma();
+    const service = new TutorsService(prisma as unknown as PrismaService);
+
+    prisma.teachingListing.findMany.mockResolvedValue([publicSearchListing()]);
+    prisma.tutorProfile.findFirst.mockResolvedValue(publicTutor());
+
+    const [searchResult, detailResult] = await Promise.all([
+      service.searchPublicTutors({}),
+      service.getPublicTutor(TUTOR_ID),
+    ]);
+
+    expect(searchResult.items[0]?.ratingAverage).toBe(detailResult.tutor.ratingAverage);
+    expect(searchResult.items[0]?.reviewCount).toBe(detailResult.tutor.reviewCount);
+  });
+
   it('does not expose an unavailable Tutor', async () => {
     const prisma = createPrisma();
     prisma.tutorProfile.findFirst.mockResolvedValue(null);
