@@ -9,6 +9,27 @@
   font-size: 13px;
   line-height: 1.7;
 }
+.retry {
+  display: inline-block;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-notebook-ink);
+  font-size: inherit;
+  font-weight: 700;
+  text-decoration: underline;
+  text-decoration-color: var(--review-accent);
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+.retry:hover {
+  text-decoration-color: var(--color-notebook-ink);
+}
+.retry:focus-visible {
+  outline: 2px solid var(--review-accent);
+  outline-offset: 3px;
+}
 .form {
   display: flex;
   flex-direction: column;
@@ -79,7 +100,7 @@
 .ratingChoice:has(input:checked) {
   border-color: var(--review-accent);
   background: color-mix(in srgb, var(--review-accent) 16%, var(--color-paper));
-  color: var(--review-accent);
+  color: var(--color-notebook-ink);
   font-weight: 700;
 }
 .ratingChoice:has(input:focus-visible) {

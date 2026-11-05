@@ -117,12 +117,25 @@ export function BookingReviewSection({
     <section className={styles.section} aria-busy={loading}>
       {loading ? (
         <NotebookLoadingRegion label={text.loading} />
+      ) : eligibility === 'saved' && review ? (
+        // A confirmed review (from the POST response, or an earlier successful GET) always wins
+        // over a later failed reconciliation GET; losing it to a transient read error would hide
+        // data the student already knows was saved.
+        <SubmittedReview review={review} language={language} />
       ) : error ? (
         <p role="alert" className={styles.note}>
-          {text[reviewLoadErrorKey(error)]}
+          <span>{text[reviewLoadErrorKey(error)]}</span>{' '}
+          <button
+            type="button"
+            className={styles.retry}
+            onClick={() => {
+              setLoading(true);
+              void load();
+            }}
+          >
+            {text.retry}
+          </button>
         </p>
-      ) : eligibility === 'saved' && review ? (
-        <SubmittedReview review={review} language={language} />
       ) : eligibility === 'ready' ? (
         <>
           {reconcileNote && (

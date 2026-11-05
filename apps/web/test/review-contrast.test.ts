@@ -3,8 +3,9 @@ import { describe, expect, it } from 'vitest';
 // Mirrors the token values in apps/web/src/app/globals.css. Kept as literal hex, like
 // notebook-loading-palette.test.ts, so this fails loudly if a token value drifts.
 const PAPER = '#fcfbf7';
-const STUDENT = '#22c49a';
+const STUDENT_DEEP = '#0e8a73';
 const MUTED_DEEP = '#57534e';
+const INK = '#292524';
 
 function luminance(hex: string): number {
   const channels = [1, 3, 5].map((offset) => {
@@ -23,10 +24,10 @@ function contrast(hexA: string, hexB: string): number {
   return (lighter + 0.05) / (darker + 0.05);
 }
 
-/** Mirrors color-mix(in srgb, var(--color-student) <percent>%, var(--color-paper)). */
-function mix(percent: number): string {
-  const a = Number.parseInt(STUDENT.slice(1), 16);
-  const b = Number.parseInt(PAPER.slice(1), 16);
+/** Mirrors color-mix(in srgb, <fromHex> <percent>%, <toHex>). */
+function mix(fromHex: string, percent: number, toHex: string = PAPER): string {
+  const a = Number.parseInt(fromHex.slice(1), 16);
+  const b = Number.parseInt(toHex.slice(1), 16);
   const channel = (shift: number): number => {
     const from = (a >> shift) & 0xff;
     const to = (b >> shift) & 0xff;
@@ -39,8 +40,20 @@ describe('review section muted-text contrast', () => {
   it('meets WCAG AA (4.5:1) against the plain section background', () => {
     expect(contrast(MUTED_DEEP, PAPER)).toBeGreaterThanOrEqual(4.5);
   });
+});
 
-  it('meets WCAG AA (4.5:1) against the saved-review card background', () => {
-    expect(contrast(MUTED_DEEP, mix(14))).toBeGreaterThanOrEqual(4.5);
+describe('selected rating choice contrast', () => {
+  // .ratingChoice:has(input:checked) fills with color-mix(review-accent 16%, paper); the numeral
+  // uses notebook ink rather than the accent itself, per the contrast finding on PR #144.
+  it('meets WCAG AA (4.5:1) for the ink numeral against the mint-filled selected background', () => {
+    expect(contrast(INK, mix(STUDENT_DEEP, 16))).toBeGreaterThanOrEqual(4.5);
+  });
+});
+
+describe('retry link contrast', () => {
+  // .retry's resting text color is ink (the accent is kept only as the underline color), since
+  // --review-accent alone measures ~4.14:1 on plain paper at 13px/700, below WCAG AA.
+  it('meets WCAG AA (4.5:1) against the plain section background', () => {
+    expect(contrast(INK, PAPER)).toBeGreaterThanOrEqual(4.5);
   });
 });

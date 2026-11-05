@@ -331,6 +331,39 @@ test('a 404 from the review read shows the not-found message instead of a crash'
   await expect(page.getByRole('heading', { name: text.title })).toHaveCount(0);
 });
 
+test('an initial load error offers retry, which recovers without resubmitting', async ({
+  page,
+}) => {
+  const { state, text } = await setup(page, { getReviewStatus: 503 });
+  await expect(page.getByText(text.loadFailed, { exact: true })).toBeVisible();
+  const callsBeforeRetry = state.getReviewCalls;
+  state.getReviewStatus = 200;
+  await page.getByRole('button', { name: text.retry, exact: true }).click();
+  await expect(page.getByRole('heading', { name: text.title })).toBeVisible();
+  expect(state.getReviewCalls).toBeGreaterThan(callsBeforeRetry);
+  expect(state.posts).toHaveLength(0);
+});
+
+test('a confirmed saved review survives a failed reconciliation GET', async ({ page }) => {
+  const { state, text } = await setup(page);
+  await page
+    .getByRole('radio', { name: `${text.clarityLegend} 5 ${text.ratingOption}`, exact: true })
+    .check();
+  await page
+    .getByRole('radio', { name: `${text.punctualityLegend} 5 ${text.ratingOption}`, exact: true })
+    .check();
+  await page
+    .getByRole('radio', { name: `${text.preparationLegend} 5 ${text.ratingOption}`, exact: true })
+    .check();
+  await page.getByLabel(text.feedbackLabel, { exact: true }).fill('Submitted just before a 503');
+  // The reconciling GET fired by onSaved sees this 503, not the 200 the mount GET already saw.
+  state.getReviewStatus = 503;
+  await page.getByRole('button', { name: text.submit, exact: true }).click();
+  await expect(page.getByText(text.savedTitle, { exact: true })).toBeVisible();
+  await expect(page.getByText('Submitted just before a 503')).toBeVisible();
+  await expect(page.getByText(text.loadFailed, { exact: true })).toHaveCount(0);
+});
+
 test('a wrong-owner 403 on submit shows the forbidden message and preserves the input', async ({
   page,
 }) => {

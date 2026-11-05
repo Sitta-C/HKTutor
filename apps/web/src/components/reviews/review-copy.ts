@@ -33,7 +33,8 @@ export const reviewCopy = {
     uncertain: 'Could not confirm the submission. Checking your saved review…',
     uncertainFailed: 'Could not confirm the submission, and no saved review was found. Try again.',
     failed: 'Could not submit the review. Try again.',
-    loadFailed: 'Could not load your review status. Try again.',
+    loadFailed: 'Could not load your review status.',
+    retry: 'Try again',
   },
   th: {
     title: 'รีวิวคลาสนี้',
@@ -69,6 +70,7 @@ export const reviewCopy = {
     uncertain: 'ไม่สามารถยืนยันการส่งได้ กำลังตรวจสอบรีวิวที่บันทึกไว้…',
     uncertainFailed: 'ไม่สามารถยืนยันการส่งได้ และไม่พบรีวิวที่บันทึกไว้ กรุณาลองใหม่',
     failed: 'ไม่สามารถส่งรีวิวได้ กรุณาลองใหม่',
-    loadFailed: 'ไม่สามารถโหลดสถานะรีวิวได้ กรุณาลองใหม่',
+    loadFailed: 'ไม่สามารถโหลดสถานะรีวิวได้',
+    retry: 'ลองใหม่',
   },
 };
