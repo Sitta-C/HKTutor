@@ -256,8 +256,13 @@ requirements and the separate S2-T25 endpoint work.
 S3-DB01 adds Review persistence with one review per completed booking, matching private author/tutor
 identities, Unicode feedback limits, and database-enforced eligibility. Its migration clears legacy
 rating caches for tutors without reviews, and seeds no longer recreate synthetic ratings. Review
-HTTP APIs and aggregate/filter updates remain separate Sprint 3 tasks. See the
+HTTP APIs, aggregate maintenance/detail (S3-T17) and raw-precision search integration (S3-T19) are
+separate Sprint 3 scopes. See the
 [Review contract and verification](apps/api/README.md#review-persistence-s3-db01).
+S3-T17 adds an explicitly opted-in `pnpm db:reconcile:review-ratings` command to repair existing
+display caches without inventing reviews or changing bookings. Its real PostgreSQL verifier is
+`pnpm db:verify:review-ratings`; neither command is part of `pnpm check`. See the
+[rating cache runbook](apps/api/README.md#tutor-review-rating-caches-and-detail-s3-t17).
 
 ## Checks
 

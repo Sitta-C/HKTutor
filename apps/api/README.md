@@ -2033,3 +2033,56 @@ wiring with isolated persistence, including the full rating/feedback validation 
 `{ review: null }` and empty-list shapes. Neither suite exercises real PostgreSQL concurrency; the
 disposable-database proof of the duplicate-review race and the uniqueness constraint is S3-T15's
 scope, not S3-T13's.
+
+## Tutor review rating caches and detail (S3-T17)
+
+S3-T17 owns raw review aggregate calculation, cache maintenance/reconciliation and
+`GET /api/v1/tutors/:tutorId` (API-02). Search/filter/ranking/HIGHEST_RATED integration and search
+fixture changes belong to S3-T19/API-01; UI presentation belongs to S3-T18. The detail endpoint
+retains its `{ tutor, listings }` wrapper, numeric `ratingAverage | null` and integer `reviewCount`.
+Unknown query parameters and invalid UUIDs return 400; missing or non-public tutors return 404.
+
+`modules/reviews/review-ratings.ts` shares raw dimension totals/count between review creation and
+cache rebuilding. It preserves the unrounded numerator and count for later consumers and applies
+explicit HALF_UP rounding only to the two-decimal display cache. `5/4/5` and `4/4/4` therefore
+display `4.33` with count `2`, never `4.34`. No reviews means `null`, `0`, `null` for average, count
+and `ratingUpdatedAt`; otherwise the timestamp is the latest stored review's `createdAt`.
+
+Review insertion and cache refresh share the existing booking-then-tutor locking transaction.
+Reconciliation locks one tutor at a time before reading reviews, using READ COMMITTED so reviews
+committed while waiting for that lock are included. It scans tutors by ID in batches of 100,
+including private/hidden tutors, without changing visibility. Each tutor commits independently;
+an interrupted run can be restarted. Re-running preserves the derived cache values and review
+timestamp, although the profile's normal `updatedAt` advances. It never inserts/deletes reviews,
+changes bookings or invents historical ratings.
+
+### Rebuild caches on an explicitly selected target
+
+This is a write operation. Confirm the intended database before setting an explicit `DATABASE_URL`
+and opting in:
+
+```bash
+# Supply DATABASE_URL for the separately confirmed target; the command never loads .env.
+HKTUTOR_APPLY_REVIEW_RATING_RECONCILIATION=1 pnpm db:reconcile:review-ratings
+```
+
+The command does not migrate or seed. It fails without both the explicit target and opt-in, stops
+with a nonzero exit code on failure, and logs only aggregate progress rather than credentials,
+raw driver errors or private review data. Do not treat a partial failed run as a completed rebuild.
+
+### Real PostgreSQL verification
+
+```bash
+# Use a new, empty, migrated disposable PostgreSQL database only.
+HKTUTOR_ALLOW_DISPOSABLE_DB_VERIFY=1 pnpm db:verify:review-ratings
+```
+
+The verifier requires an explicit loopback-only `DATABASE_URL`, a `hktutor_*_test` or
+`hktutor-*-test` database name, no URL options/fragments and all migrations already applied. It
+never loads `.env`, migrates or seeds. It exercises the real ReviewsService, cache helpers,
+TutorDirectoryService and public detail HTTP pipeline against PostgreSQL. It observes actual row
+lock contention for concurrent review writers and reconciliation, forces cache-write failure to
+prove review rollback, repairs stale/no-review caches across a batch boundary, checks preserved
+history and repeated rebuilding, and verifies fresh numeric detail/search values and visibility.
+Only randomly identified synthetic fixtures and a temporary failure trigger are removed in
+`finally`. See [S3-T17 verification evidence](../../tests/s3-t17-qa.md).

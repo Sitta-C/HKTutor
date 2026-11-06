@@ -56,6 +56,7 @@ describe('ReviewsService', () => {
     db.review.create.mockResolvedValue(createdReview());
     db.review.aggregate.mockResolvedValue({
       _count: 1,
+      _max: { createdAt: new Date('2026-11-10T11:00:00.000Z') },
       _sum: { clarity: 5, preparation: 5, punctuality: 4 },
     });
     db.tutorProfile.update.mockResolvedValue({});
@@ -87,6 +88,7 @@ describe('ReviewsService', () => {
     // Averaging the two reviews' own rounded means (4.67 and 4.00) would wrongly give 4.335 -> 4.34.
     db.review.aggregate.mockResolvedValue({
       _count: 2,
+      _max: { createdAt: new Date('2026-11-10T11:00:00.000Z') },
       _sum: { clarity: 9, preparation: 9, punctuality: 8 },
     });
     let update: { data: { ratingAverage: Prisma.Decimal; reviewCount: number } } | undefined;

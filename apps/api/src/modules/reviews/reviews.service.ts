@@ -9,6 +9,7 @@ import {
 import { Prisma } from '@generated/prisma/client';
 import { BookingStatus } from '@generated/prisma/enums';
 import { PrismaService } from '@infrastructure/database/prisma.service';
+import { refreshLockedTutorReviewRating } from '@modules/reviews/review-ratings';
 import {
   decodeTutorReviewsCursor,
   encodeTutorReviewsCursor,
@@ -142,29 +143,7 @@ export class ReviewsService {
           },
         });
 
-        // Recomputed from every stored review each time: averaging per-review rounded means would
-        // double-round and drift from the raw-dimension aggregate the product decision requires.
-        const aggregate = await tx.review.aggregate({
-          _count: true,
-          _sum: { clarity: true, preparation: true, punctuality: true },
-          where: { tutorProfileId: current.tutorProfileId },
-        });
-        const dimensionTotal =
-          (aggregate._sum.clarity ?? 0) +
-          (aggregate._sum.punctuality ?? 0) +
-          (aggregate._sum.preparation ?? 0);
-        const ratingAverage = new Prisma.Decimal(dimensionTotal)
-          .dividedBy(aggregate._count * 3)
-          .toDecimalPlaces(2);
-
-        await tx.tutorProfile.update({
-          data: {
-            ratingAverage,
-            ratingUpdatedAt: new Date(),
-            reviewCount: aggregate._count,
-          },
-          where: { userId: current.tutorProfileId },
-        });
+        await refreshLockedTutorReviewRating(tx, current.tutorProfileId);
 
         return {
           review: {
