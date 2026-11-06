@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { DashboardIcon } from '@/components/dashboard/dashboard-icon';
 import { ProfileAvatar } from '@/components/profile/profile-avatar';
+import { TutorRatingSummary } from '@/components/tutors/tutor-rating-summary';
 import { tutorSearchCopy } from '@/components/tutors/tutor-search-copy';
 import {
   formatTutorSearchSummary,
@@ -562,8 +563,6 @@ function TutorResultCard({
   text: TutorSearchCopy;
   language: 'en' | 'th';
 }) {
-  const rating =
-    result.ratingAverage === null ? text.newTutor : `★ ${result.ratingAverage.toFixed(1)}`;
   const nextAvailable = result.nextAvailableAt
     ? `${text.next}: ${formatNextAvailable(result.nextAvailableAt, language)}`
     : text.noFutureSlots;
@@ -600,9 +599,12 @@ function TutorResultCard({
           />
         </div>
         <div className={styles.metadata}>
-          <span>
-            <NotebookMetadata items={[rating, `${result.reviewCount} ${text.reviews}`]} />
-          </span>
+          <TutorRatingSummary
+            ratingAverage={result.ratingAverage}
+            reviewCount={result.reviewCount}
+            language={language}
+            compact
+          />
           <span>
             {result.experienceYears} {text.years}
           </span>

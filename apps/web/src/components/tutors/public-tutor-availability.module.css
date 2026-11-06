@@ -106,20 +106,7 @@
   font-size: 12px;
 }
 .rating {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-top: 14px;
-  color: var(--color-notebook-muted);
-  font-size: 13px;
-}
-.score {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  color: var(--color-notebook-ink);
-  font-weight: 600;
+  margin-top: 16px;
 }
 .experience.experience {
   min-width: 100px;
