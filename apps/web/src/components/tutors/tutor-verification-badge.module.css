@@ -12,9 +12,17 @@
 }
 
 .badge[data-tutor-verification='VERIFIED'] {
-  border-color: var(--color-emerald-200);
-  background: var(--color-emerald-50);
-  color: var(--color-emerald-900);
+  padding: 2px 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--color-tutor-deep);
+  font-weight: 500;
+}
+
+.badge[data-tutor-verification='VERIFIED'] .icon {
+  width: 14px;
+  height: 14px;
 }
 
 .badge[data-tutor-verification='UNVERIFIED'] {

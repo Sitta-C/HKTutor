@@ -244,6 +244,10 @@ editor's student preview. Reuse `components/tutors/tutor-rating-summary.tsx` and
   account summary's review-unavailable notice action. Search precision/ranking integration remains
   S3-T19; this presentation does not add review-list or comparison features.
 
+Verified tutor metadata uses a plain tutor-blue trust line: a small shield and medium-weight text,
+without a filled green badge or enclosing border. Keep it secondary to the tutor name and rating.
+The shared badge retains distinct owner-only unverified, pending and rejected states and guidance.
+
 ## Student booking request
 
 The user selected **Appointment Docket** and requested implementation on 2026-10-07 for
