@@ -70,6 +70,9 @@ async function mockDetail(
     if (path.endsWith('/conversations/unread-count')) {
       return route.fulfill({ json: { unreadCount: 0 } });
     }
+    if (path === '/notifications') {
+      return route.fulfill({ json: { items: [], nextCursor: null, unreadCount: 0 } });
+    }
     if (path === '/auth/refresh') {
       return route.fulfill(
         options.role
@@ -174,7 +177,7 @@ for (const language of ['th', 'en'] as const) {
       const courses = page.locator('#public-tutor-course-list');
       const current = ruler.locator('[aria-current="page"]');
       const selectedHeading = page.getByRole('heading', {
-        name: 'Course 8 · Grade 11',
+        name: 'Course 8 Grade 11',
         exact: true,
       });
       await expect(current).toHaveAttribute('data-course-page', '3');
@@ -355,7 +358,7 @@ for (const language of ['th', 'en'] as const) {
       await page.goto('/tutors/tutor-anna?listingId=course%2Fphysics');
       const main = page.locator('main');
       await expect(main.getByRole('heading', { name: 'Teacher Anna', exact: true })).toBeVisible();
-      await expect(main).toContainText('4.8');
+      await expect(main).toContainText('4.80');
       await expect(main).toContainText('24');
       await expect(main).toContainText(language === 'th' ? '5 ปี' : '5 years');
       const mobileSidebar = page.getByRole('button', {

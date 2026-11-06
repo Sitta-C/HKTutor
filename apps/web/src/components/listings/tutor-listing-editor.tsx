@@ -19,13 +19,13 @@ import {
   validateListingForm,
 } from '@/components/listings/tutor-listing-editor-model';
 import { OwnProfileAvatar } from '@/components/profile/profile-avatar';
+import { TutorRatingSummary } from '@/components/tutors/tutor-rating-summary';
 import {
   TutorVerificationBadge,
   TutorVerificationGuidance,
 } from '@/components/tutors/tutor-verification-badge';
 import { PaperCard, StickyNote, WashiTape } from '@/components/ui/notebook';
 import { NotebookAction } from '@/components/ui/notebook-action';
-import { NotebookMetadata } from '@/components/ui/notebook-metadata';
 import { NotebookSelect } from '@/components/ui/notebook-select';
 import { useNotebookToast } from '@/components/ui/notebook-toast';
 import {
@@ -629,19 +629,13 @@ export default function TutorListingEditor({
                     audience="owner"
                     compact
                   />
-                  <span className={styles.previewRating}>
-                    <ListingIcon name="star" />
-                    <NotebookMetadata
-                      items={
-                        profile?.ratingAverage
-                          ? [
-                              String(profile.ratingAverage),
-                              `${profile.reviewCount} ${copy.reviews}`,
-                            ]
-                          : copy.noReviews
-                      }
-                    />
-                  </span>
+                </div>
+                <div className={styles.previewRating}>
+                  <TutorRatingSummary
+                    ratingAverage={profile?.ratingAverage ?? null}
+                    reviewCount={profile?.reviewCount ?? 0}
+                    language={language}
+                  />
                 </div>
 
                 <div className={styles.previewOffer}>

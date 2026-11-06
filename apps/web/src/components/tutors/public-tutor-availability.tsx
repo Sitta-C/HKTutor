@@ -13,7 +13,7 @@ import {
   formatPublicTutorSlot,
   groupPublicTutorSlots,
 } from '@/components/tutors/public-tutor-detail-model';
-import { tutorSearchCopy } from '@/components/tutors/tutor-search-copy';
+import { TutorRatingSummary } from '@/components/tutors/tutor-rating-summary';
 import { TutorVerificationBadge } from '@/components/tutors/tutor-verification-badge';
 import { NotebookHeading, PaperCard, StickyNote, WashiTape } from '@/components/ui/notebook';
 import {
@@ -41,7 +41,6 @@ export default function PublicTutorAvailabilityPage({ tutorId }: { tutorId: stri
   const text = copy.dashboard.tutorAvailability;
   const availabilityText = copy.dashboard.availability;
   const detailText = publicTutorDetailCopy[language];
-  const searchText = tutorSearchCopy[language];
   const router = useRouter();
   const searchParams = useSearchParams();
   const requestedListingId = searchParams.get('listingId');
@@ -194,19 +193,6 @@ export default function PublicTutorAvailabilityPage({ tutorId }: { tutorId: stri
                 </div>
               </div>
             </div>
-            <p className={styles.rating}>
-              {detail.tutor.ratingAverage === null ? (
-                <span>{searchText.newTutor}</span>
-              ) : (
-                <span className={styles.score}>
-                  <DashboardIcon name="star" className="h-4 w-4 text-amber-700" />
-                  {detail.tutor.ratingAverage.toFixed(1)}
-                </span>
-              )}
-              <span>
-                {detail.tutor.reviewCount} {searchText.reviews}
-              </span>
-            </p>
           </div>
           <StickyNote tone="yellow" className={styles.experience}>
             <strong className="font-note">
@@ -214,6 +200,13 @@ export default function PublicTutorAvailabilityPage({ tutorId }: { tutorId: stri
             </strong>
             <span>{detailText.experience}</span>
           </StickyNote>
+        </div>
+        <div className={styles.rating}>
+          <TutorRatingSummary
+            ratingAverage={detail.tutor.ratingAverage}
+            reviewCount={detail.tutor.reviewCount}
+            language={language}
+          />
         </div>
         {(!user || user.role === 'STUDENT') && (
           <div className="mt-4">

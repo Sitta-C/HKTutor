@@ -1,6 +1,6 @@
 # HKTutor frontend direction — Notebook Focus
 
-Updated 2026-11-02. This describes the implemented Notebook Focus direction and component
+Updated 2026-11-06. This describes the implemented Notebook Focus direction and component
 patterns in this repository. Maintainers review changes to shared design conventions through the
 normal PR process; this guide does not assert team approval of decisions from an individual chat.
 Read it as implementation context before UI work. The current task's explicit requirements take
@@ -220,6 +220,29 @@ The user selected **Appointment Pad** (option 3) and requested implementation on
 - Tutor identity, blue grade tab, upright price, selected subject/grade and Bangkok date/time are
   the reference anatomy for booking presentation. The request page uses Appointment Docket below;
   booking list/detail layouts still require selection.
+
+## Tutor rating presentation — Margin Score (S3-T18)
+
+**Margin Score**, selected on 2026-11-06, is the rating presentation for search result rows,
+public tutor profiles, the tutor account summary, the student-view profile preview and the listing
+editor's student preview. Reuse `components/tutors/tutor-rating-summary.tsx` and its scoped styles.
+
+- Place the average on the left, with a restrained yellow underline and a visible average label;
+  place the actual review count in a separate right column across a thin vertical rule. Keep the
+  summary passive, with thin horizontal rules and no extra card, tape, hover lift or star scale.
+  Preserve the surrounding Course Index, Profile Page and Note Window anatomy.
+- Display two decimal places. The API owns averaging raw review dimensions and HALF_UP rounding;
+  never average already-rounded review scores in the browser. The presentation uses `halfExpand`
+  for the positive 1–5 scale; the raw-dimension example from S3-T17 displays 4.33 with count 2.
+- Zero reviews shows New tutor / ติวเตอร์ใหม่, No reviews yet / ยังไม่มีรีวิว and an explicit count
+  of 0. It has no numeric score or empty stars. Missing/invalid data stays unavailable, rather than
+  becoming an invented zero. Existing page loading/error gates continue to own unavailable reads.
+- Retain bilingual accessible score labels and singular English review text. In narrow containers,
+  reduce the number size and omit only the decorative / 5 suffix; its accessible label stays complete.
+  Keep both columns readable at 320px, including inside desktop sidebars.
+- Preserve existing API calls, verification badges, ranking/tags, pagination and the private
+  account summary's review-unavailable notice action. Search precision/ranking integration remains
+  S3-T19; this presentation does not add review-list or comparison features.
 
 ## Student booking request
 

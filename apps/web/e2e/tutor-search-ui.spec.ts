@@ -66,6 +66,9 @@ async function mockSearch(
     if (path.endsWith('/conversations/unread-count')) {
       return route.fulfill({ json: { unreadCount: 0 } });
     }
+    if (path === '/notifications') {
+      return route.fulfill({ json: { items: [], nextCursor: null, unreadCount: 0 } });
+    }
     if (path === '/auth/refresh') {
       return route.fulfill(
         options.student
@@ -557,7 +560,7 @@ for (const language of ['en', 'th'] as const) {
       );
       await expect(first).toContainText('Grade 10');
       await expect(first).toContainText('450.5 ฿');
-      await expect(first).toContainText('4.8');
+      await expect(first).toContainText('4.80');
       await expect(first).toContainText('10:00');
       const second = main.getByRole('article').nth(1);
       await expect(second).toContainText(language === 'th' ? 'ติวเตอร์ใหม่' : 'New tutor');

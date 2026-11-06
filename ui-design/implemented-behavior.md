@@ -42,11 +42,13 @@ uses the shared tutor verification badge, with distinct VERIFIED/PENDING/REJECTE
 Owner-only guidance explains publication eligibility and links unverified tutors to qualification
 documents only when the document section is rendered in the profile editor. Onboarding keeps the
 status and guidance but omits the document link until the tutor reaches `/dashboard/profile`.
-Document anchors focus and scroll into view after the profile loads. The score, five
-stars, review count, and review action share one
-compact row. Stars fill proportionally from the existing profile rating, and ratings, review counts,
-and verification states update from the existing profile API responses. Tutors without
-reviews see an explicit new-tutor state.
+Document anchors focus and scroll into view after the profile loads. Ratings use **Margin Score**:
+a two-decimal average with a restrained yellow underline at left, and the actual review count at
+right across a thin vertical rule. The same presentation appears on search rows, public profiles,
+the student-view profile preview and listing previews. Positive values use HALF_UP display rounding;
+the API remains authoritative for raw review averaging. Ratings, counts and verification update
+from existing API responses. Zero reviews shows New tutor, No reviews yet and count 0 without a
+numeric score or empty stars; unavailable metadata is never displayed as a fabricated zero.
 The bilingual “Read all reviews” control currently explains that individual reviews are unavailable;
 it does not submit the profile form or call an unsupported reviews endpoint.
 

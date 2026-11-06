@@ -101,25 +101,7 @@
 }
 
 .previewRating {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.3125rem;
-  font-size: 0.75rem;
-  line-height: 1.5;
-}
-
-.previewRating {
-  color: var(--color-notebook-muted);
-}
-
-.previewRating svg {
-  flex-shrink: 0;
-  width: 0.9375rem;
-  height: 0.9375rem;
-}
-
-.previewRating svg {
-  color: var(--color-amber-700);
+  margin-top: 14px;
 }
 
 .previewOffer {

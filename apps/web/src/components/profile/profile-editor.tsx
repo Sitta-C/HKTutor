@@ -22,6 +22,7 @@ import {
 } from '@/components/profile/profile-editor-model';
 import { TutorProfileSummary } from '@/components/profile/tutor-profile-summary';
 import { TutorVerificationSection } from '@/components/qualifications/tutor-verification-section';
+import { TutorRatingSummary } from '@/components/tutors/tutor-rating-summary';
 import { TutorVerificationBadge } from '@/components/tutors/tutor-verification-badge';
 import {
   PaperCard,
@@ -484,6 +485,7 @@ export default function ProfileEditor({ mode }: ProfileEditorProps) {
               data={tutor}
               language={language}
               status={tutorMeta.verificationStatus}
+              tutorMeta={tutorMeta}
             />
           )}
         </div>
@@ -912,11 +914,13 @@ function TutorPreview({
   data,
   language,
   status,
+  tutorMeta,
 }: {
   userId: string;
   data: TutorForm;
   language: 'en' | 'th';
   status: TutorProfile['verificationStatus'];
+  tutorMeta: Pick<TutorProfile, 'ratingAverage' | 'reviewCount'>;
 }) {
   const text = copy[language];
   const name = data.displayName.trim() || text.displayName;
@@ -953,6 +957,13 @@ function TutorPreview({
             </strong>
             <span>{text.teachingExperience}</span>
           </StickyNote>
+        </div>
+        <div className="mt-4">
+          <TutorRatingSummary
+            ratingAverage={tutorMeta.ratingAverage}
+            reviewCount={tutorMeta.reviewCount}
+            language={language}
+          />
         </div>
         <div className={previewStyles.about}>
           <p className={previewStyles.aboutLabel}>{text.aboutMe}</p>

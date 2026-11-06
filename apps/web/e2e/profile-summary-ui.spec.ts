@@ -84,22 +84,21 @@ async function mockProfile(
   return calls;
 }
 
-test('shows real metadata and five fractional stars without submitting the form', async ({
-  page,
-}) => {
+test('shows Margin Score metadata without submitting the form', async ({ page }) => {
   const calls = await mockProfile(page, {
     meta: { ratingAverage: '4.40', reviewCount: 33, verificationStatus: 'REJECTED' },
   });
   await page.goto('/dashboard/profile');
   const summary = page.getByRole('region', { name: 'สรุปบัญชีติวเตอร์' });
-  await expect(summary.getByRole('img', { name: 'คะแนน 4.4 จาก 5 ดาว' })).toBeVisible();
-  await expect(summary.getByText('จาก 33 รีวิว', { exact: true })).toBeVisible();
+  await expect(summary.getByRole('img', { name: 'คะแนน 4.40 จาก 5' })).toBeVisible();
+  await expect(
+    summary.locator('[data-tutor-rating]').getByText('33 รีวิว', { exact: true }),
+  ).toBeVisible();
   await expect(summary.getByText('ไม่ผ่านการตรวจสอบ', { exact: true })).toBeVisible();
-  expect(
-    await summary
-      .locator('[data-rating-fill]')
-      .evaluateAll((stars) => stars.map((star) => star.getAttribute('data-rating-fill'))),
-  ).toEqual(['100', '100', '100', '100', '40']);
+  await expect(summary.locator('[data-tutor-rating]')).toHaveAttribute(
+    'data-tutor-rating',
+    'rated',
+  );
   const reviews = summary.getByRole('button', { name: 'อ่านรีวิวทั้งหมด' });
   await reviews.focus();
   await page.keyboard.press('Enter');
@@ -112,9 +111,10 @@ test('shows the new tutor state without invented ratings or review actions', asy
   await mockProfile(page, { meta: { ratingAverage: null, reviewCount: 0 } });
   await page.goto('/dashboard/profile');
   const summary = page.getByRole('region', { name: 'สรุปบัญชีติวเตอร์' });
-  await expect(summary.getByRole('img', { name: 'ยังไม่มีคะแนนรีวิว' })).toBeVisible();
-  await expect(summary.getByText('ติวเตอร์ใหม่ ยังไม่มีรีวิว')).toBeVisible();
-  await expect(summary.locator('[data-rating-fill="0"]')).toHaveCount(5);
+  await expect(summary.getByText('ติวเตอร์ใหม่', { exact: true })).toBeVisible();
+  await expect(summary.getByText('ยังไม่มีรีวิว', { exact: true })).toBeVisible();
+  await expect(summary.getByText('0 รีวิว', { exact: true })).toBeVisible();
+  await expect(summary.locator('[data-tutor-rating]').getByRole('img')).toHaveCount(0);
   await expect(summary.getByRole('button', { name: 'อ่านรีวิวทั้งหมด' })).toHaveCount(0);
   await expect(summary.getByRole('link', { name: 'ดูเอกสารและผลการตรวจสอบ' })).toHaveCount(0);
 });
@@ -125,11 +125,13 @@ test('keeps English copy and refreshes the rating from the existing save respons
   const calls = await mockProfile(page, { language: 'en' });
   await page.goto('/dashboard/profile');
   const summary = page.getByRole('region', { name: 'Tutor account summary' });
-  await expect(summary.getByRole('img', { name: 'Rated 4.8 out of 5 stars' })).toBeVisible();
+  await expect(summary.getByRole('img', { name: 'Rated 4.80 out of 5' })).toBeVisible();
   await page.locator('#displayName').fill('Anan Updated');
   await page.getByRole('button', { name: 'Save profile', exact: true }).click();
-  await expect(summary.getByRole('img', { name: 'Rated 3.5 out of 5 stars' })).toBeVisible();
-  await expect(summary.getByText('From 25 reviews', { exact: true })).toBeVisible();
+  await expect(summary.getByRole('img', { name: 'Rated 3.50 out of 5' })).toBeVisible();
+  await expect(
+    summary.locator('[data-tutor-rating]').getByText('25 reviews', { exact: true }),
+  ).toBeVisible();
   await summary.getByRole('button', { name: 'Read all reviews' }).click();
   await expect(summary.getByRole('status')).toHaveText(
     'Individual reviews are not available to read yet.',
@@ -138,7 +140,7 @@ test('keeps English copy and refreshes the rating from the existing save respons
 });
 
 for (const verificationStatus of ['UNVERIFIED', 'PENDING'] as const) {
-  test(`${verificationStatus} fits long emails, status, stars and the notice at 320px`, async ({
+  test(`${verificationStatus} fits long emails, status, rating and the notice at 320px`, async ({
     page,
   }) => {
     await page.setViewportSize({ width: 320, height: 900 });

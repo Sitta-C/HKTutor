@@ -3,12 +3,11 @@
 import { useId, useState } from 'react';
 
 import { DashboardIcon } from '@/components/dashboard/dashboard-icon';
-import { buildProfileRatingSummary } from '@/components/profile/profile-rating-model';
+import { TutorRatingSummary } from '@/components/tutors/tutor-rating-summary';
 import {
   TutorVerificationBadge,
   TutorVerificationGuidance,
 } from '@/components/tutors/tutor-verification-badge';
-import { NotebookMetadata } from '@/components/ui/notebook-metadata';
 
 import styles from './tutor-profile-summary.module.css';
 
@@ -30,12 +29,6 @@ export function TutorProfileSummary({
   const text = copy[language];
   const noticeId = useId();
   const [showReviewsNotice, setShowReviewsNotice] = useState(false);
-  const { score, starFills } = buildProfileRatingSummary(
-    tutorMeta.ratingAverage,
-    tutorMeta.reviewCount,
-  );
-  const scoreLabel =
-    score === null ? text.noRating : text.ratingLabel.replace('{score}', score.toFixed(1));
 
   return (
     <section className={styles.summary} aria-label={text.title} data-profile-summary>
@@ -62,39 +55,11 @@ export function TutorProfileSummary({
         <div className={`${styles.field} ${styles.feedback}`}>
           <p className={styles.caption}>{text.feedback}</p>
           <div className={styles.feedbackValue}>
-            <div className={styles.feedbackDetails}>
-              <div className={styles.scoreLine} role="img" aria-label={scoreLabel}>
-                <span className={styles.number} aria-hidden="true">
-                  <strong>{score === null ? '—' : score.toFixed(1)}</strong>
-                  {score !== null && <span>/ 5</span>}
-                </span>
-                <span className={styles.stars} aria-hidden="true">
-                  {starFills.map((fill, index) => (
-                    <span key={index} className={styles.star} data-rating-fill={fill}>
-                      <DashboardIcon name="star" className={styles.starOutline ?? ''} />
-                      <span
-                        className={styles.starFilled}
-                        style={{ clipPath: `inset(0 ${100 - fill}% 0 0)` }}
-                      >
-                        <DashboardIcon name="star" className={styles.starIcon ?? ''} />
-                      </span>
-                    </span>
-                  ))}
-                </span>
-              </div>
-              <p className={styles.reviewCount}>
-                <NotebookMetadata
-                  items={
-                    tutorMeta.reviewCount === 0
-                      ? text.newTutor
-                      : text.reviewCount.replace(
-                          '{count}',
-                          new Intl.NumberFormat(language).format(tutorMeta.reviewCount),
-                        )
-                  }
-                />
-              </p>
-            </div>
+            <TutorRatingSummary
+              ratingAverage={tutorMeta.ratingAverage}
+              reviewCount={tutorMeta.reviewCount}
+              language={language}
+            />
             {tutorMeta.reviewCount > 0 && (
               <button
                 type="button"
@@ -130,10 +95,6 @@ const copy = {
     accountEmail: 'Account email',
     verification: 'Tutor verification',
     feedback: 'Rating and reviews',
-    ratingLabel: 'Rated {score} out of 5 stars',
-    noRating: 'No rating yet',
-    newTutor: 'New tutor · No reviews yet',
-    reviewCount: 'From {count} reviews',
     readReviews: 'Read all reviews',
     reviewsUnavailable: 'Individual reviews are not available to read yet.',
   },
@@ -142,10 +103,6 @@ const copy = {
     accountEmail: 'อีเมลบัญชี',
     verification: 'สถานะติวเตอร์',
     feedback: 'คะแนนและรีวิว',
-    ratingLabel: 'คะแนน {score} จาก 5 ดาว',
-    noRating: 'ยังไม่มีคะแนนรีวิว',
-    newTutor: 'ติวเตอร์ใหม่ · ยังไม่มีรีวิว',
-    reviewCount: 'จาก {count} รีวิว',
     readReviews: 'อ่านรีวิวทั้งหมด',
     reviewsUnavailable: 'ยังไม่เปิดให้อ่านรีวิวรายรายการในขณะนี้',
   },
