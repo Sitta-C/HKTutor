@@ -100,7 +100,10 @@ export class TutorSearchQueryDto {
   maxPrice?: number;
 
   @ApiPropertyOptional({
-    description: 'Inclusive minimum rating from 1 to 5; omit to include every rating',
+    description:
+      'Inclusive minimum average review rating from 1 to 5, up to two decimals. Compared exactly ' +
+      "with the unrounded average of every review's three scores, so 4.333... passes 4.33 but " +
+      'not 4.34. Tutors without reviews are excluded; omit to include every tutor.',
     example: 4,
     maximum: 5,
     minimum: 1,
@@ -114,7 +117,9 @@ export class TutorSearchQueryDto {
   minimumRating?: number;
 
   @ApiPropertyOptional({
-    description: 'Sort priority for tutor rating (lower number = higher precedence)',
+    description:
+      'Sort priority for the unrounded average review rating (lower number = higher precedence); ' +
+      'tutors without reviews sort last',
     example: 1,
     maximum: 5,
     minimum: 0,
@@ -262,7 +267,9 @@ export class TutorSearchResultDto {
     description:
       'Language-neutral explanation codes. FITS_BUDGET needs an explicit matching maxPrice. ' +
       'Priority-specific tags identify every tie for the best value across all filtered public ' +
-      'results, not just this page. Null ratings and missing future slots receive no best-value tag.',
+      'results, not just this page. HIGHEST_RATED compares unrounded review averages, so ratings ' +
+      'that only display alike are not tied. Null ratings and missing future slots receive no ' +
+      'best-value tag.',
     enum: TutorRecommendationTag,
     enumName: 'TutorRecommendationTag',
     isArray: true,
@@ -297,10 +304,19 @@ export class TutorSearchResultDto {
   @ApiProperty({ example: 500, minimum: 0, type: Number })
   pricePerHour!: number;
 
-  @ApiProperty({ example: 4.8, maximum: 5, minimum: 1, nullable: true, type: Number })
+  @ApiProperty({
+    description:
+      "Average of every stored review's three scores, rounded HALF_UP to two decimals from the " +
+      'same review totals used for filtering and ranking; null when the tutor has no reviews',
+    example: 4.33,
+    maximum: 5,
+    minimum: 1,
+    nullable: true,
+    type: Number,
+  })
   ratingAverage!: number | null;
 
-  @ApiProperty({ example: 24, minimum: 0, type: Number })
+  @ApiProperty({ description: 'Number of stored reviews', example: 2, minimum: 0, type: Number })
   reviewCount!: number;
 
   @ApiProperty({ enum: ['VERIFIED'], example: 'VERIFIED' })
