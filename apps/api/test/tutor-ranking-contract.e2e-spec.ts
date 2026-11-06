@@ -14,20 +14,25 @@ import type { App } from 'supertest/types';
 
 const LISTING_ID = '10000000-0000-4000-8000-000000000001';
 const NEXT_SLOT = new Date('2026-11-01T02:00:00.000Z');
-function matchingObject(value: Record<string, unknown>): unknown {
-  return expect.objectContaining(value);
-}
 
 describe('S2-T13 named priority and explanation HTTP contract', () => {
   let app: INestApplication<App>;
-  const prisma = {
+  // S3-T19: search reads raw review totals in one snapshot; 72/15 is a 4.80 average.
+  const tx = {
+    $executeRaw: jest.fn(),
     $queryRaw: jest.fn(),
-    availabilitySlot: { findFirst: jest.fn() },
+    teachingListing: { findMany: jest.fn() },
+  };
+  const prisma = {
+    $transaction: jest.fn(),
     gradeLevel: { findFirst: jest.fn() },
     subject: { findFirst: jest.fn() },
-    teachingListing: { aggregate: jest.fn(), count: jest.fn(), findMany: jest.fn() },
-    tutorProfile: { aggregate: jest.fn() },
   };
+  const statements = (): Prisma.Sql[] =>
+    tx.$queryRaw.mock.calls.map(([statement]: [Prisma.Sql]) => statement);
+  const isSummary = (statement: Prisma.Sql): boolean => statement.sql.includes('AS "total"');
+  const isBest = (statement: Prisma.Sql): boolean =>
+    !isSummary(statement) && statement.sql.includes('LIMIT 1');
 
   beforeAll(async () => {
     const module = await Test.createTestingModule({
@@ -45,18 +50,34 @@ describe('S2-T13 named priority and explanation HTTP contract', () => {
 
   beforeEach(() => {
     jest.resetAllMocks();
-    prisma.$queryRaw.mockResolvedValue([{ id: LISTING_ID }]);
-    prisma.availabilitySlot.findFirst.mockResolvedValue({ startAtUtc: NEXT_SLOT });
-    prisma.teachingListing.aggregate.mockResolvedValue({
-      _min: { pricePerHour: new Prisma.Decimal('400.50') },
-    });
-    prisma.tutorProfile.aggregate.mockResolvedValue({
-      _max: { ratingAverage: new Prisma.Decimal('4.8') },
-    });
-    prisma.teachingListing.count.mockResolvedValue(1);
+    prisma.$transaction.mockImplementation((run: (client: typeof tx) => Promise<unknown>) =>
+      run(tx),
+    );
+    tx.$queryRaw.mockImplementation((statement: Prisma.Sql) =>
+      Promise.resolve(
+        isSummary(statement)
+          ? [
+              {
+                earliestAvailableAt: NEXT_SLOT,
+                lowestPrice: new Prisma.Decimal('400.50'),
+                total: 1,
+              },
+            ]
+          : isBest(statement)
+            ? [{ ratingTotal: BigInt(72), reviewCount: 5 }]
+            : [
+                {
+                  id: LISTING_ID,
+                  nextAvailableAt: NEXT_SLOT,
+                  ratingTotal: BigInt(72),
+                  reviewCount: 5,
+                },
+              ],
+      ),
+    );
     prisma.subject.findFirst.mockResolvedValue({ id: 'subject-id' });
     prisma.gradeLevel.findFirst.mockResolvedValue({ id: 'grade-id' });
-    prisma.teachingListing.findMany.mockResolvedValue([
+    tx.teachingListing.findMany.mockResolvedValue([
       {
         description: 'Secondary school mathematics lessons.',
         gradeLevel: { name: 'Grade 10' },
@@ -64,11 +85,8 @@ describe('S2-T13 named priority and explanation HTTP contract', () => {
         pricePerHour: new Prisma.Decimal('400.50'),
         subject: { name: 'Mathematics' },
         tutorProfile: {
-          availabilitySlots: [{ startAtUtc: NEXT_SLOT }],
           displayName: 'Tutor A',
           experienceYears: 3,
-          ratingAverage: new Prisma.Decimal('4.8'),
-          reviewCount: 5,
           user: { avatarUpdatedAt: null },
           userId: '20000000-0000-4000-8000-000000000001',
           verificationStatus: TutorVerificationStatus.VERIFIED,
@@ -101,19 +119,24 @@ describe('S2-T13 named priority and explanation HTTP contract', () => {
         })
         .expect(200);
       expect(response.body).toMatchObject({
-        items: [{ recommendationTags: [TutorRecommendationTag.FITS_BUDGET, tag] }],
+        items: [
+          {
+            ratingAverage: 4.8,
+            recommendationTags: [TutorRecommendationTag.FITS_BUDGET, tag],
+            reviewCount: 5,
+          },
+        ],
         page: 2,
         pageSize: 5,
       });
-      expect(prisma.teachingListing.count).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: matchingObject({
-            gradeLevelId: 'grade-id',
-            pricePerHour: { lte: 400.5 },
-            subjectId: 'subject-id',
-          }),
-        }),
-      );
+      const summary = statements().find(isSummary);
+      expect(summary?.values).toEqual([
+        expect.any(Date),
+        'subject-id',
+        'grade-id',
+        '400.50',
+        '4.00',
+      ]);
     },
   );
 
@@ -125,8 +148,7 @@ describe('S2-T13 named priority and explanation HTTP contract', () => {
         .query({ priority })
         .expect(400);
       expect(response.body).toMatchObject({ code: 'VALIDATION_FAILED', statusCode: 400 });
-      expect(prisma.teachingListing.findMany).not.toHaveBeenCalled();
-      expect(prisma.$queryRaw).not.toHaveBeenCalled();
+      expect(prisma.$transaction).not.toHaveBeenCalled();
     },
   );
 
@@ -144,8 +166,7 @@ describe('S2-T13 named priority and explanation HTTP contract', () => {
         .get('/api/v1/tutors')
         .query({ ...sort, priority: 'lowest_price' })
         .expect(400);
-      expect(prisma.teachingListing.findMany).not.toHaveBeenCalled();
-      expect(prisma.$queryRaw).not.toHaveBeenCalled();
+      expect(prisma.$transaction).not.toHaveBeenCalled();
     },
   );
 
@@ -155,6 +176,6 @@ describe('S2-T13 named priority and explanation HTTP contract', () => {
       .query({ ratingOrder: 'asc', ratingPriority: 1 })
       .expect(200);
     expect(response.body).toMatchObject({ items: [{ recommendationTags: [] }] });
-    expect(prisma.tutorProfile.aggregate).not.toHaveBeenCalled();
+    expect(statements().some(isBest)).toBe(false);
   });
 });
