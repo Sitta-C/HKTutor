@@ -1,5 +1,6 @@
 import { seedAdministrator } from '@infrastructure/database/seed/admin.seed';
 import { seedBookingFixtures } from '@infrastructure/database/seed/booking-fixtures.seed';
+import { seedReviewFixtures } from '@infrastructure/database/seed/review-fixtures.seed';
 import { seedTutorSearchFixtures } from '@infrastructure/database/seed/search-fixtures.seed';
 import { readSeedEnvironment } from '@infrastructure/database/seed/seed-environment';
 import { seedSprint2Demo } from '@infrastructure/database/seed/sprint2-demo.seed';
@@ -26,6 +27,7 @@ export async function runSeed(client: SeedDatabaseClient): Promise<void> {
     await seedTutorSearchFixtures(transaction, foundation);
     const student = await seedStudent(transaction, config.studentEmail, studentPasswordHash);
     await seedBookingFixtures(transaction, foundation);
+    await seedReviewFixtures(transaction, student);
     await seedSprint2Demo(transaction, foundation, student);
   });
 }

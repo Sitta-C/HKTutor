@@ -10,6 +10,8 @@ export type SeedTransactionClient = Pick<
   | 'teachingListing'
   | 'availabilitySlot'
   | 'booking'
+  | 'review'
+  | '$queryRaw'
 >;
 
 export interface SeedDatabaseClient {
