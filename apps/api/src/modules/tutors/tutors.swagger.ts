@@ -249,7 +249,7 @@ export function GetPublicTutorDoc(): MethodDecorator {
     }),
     ApiOkResponse({ description: 'Public Tutor detail', type: PublicTutorDetailResponseDto }),
     ApiBadRequestResponse({
-      description: 'The Tutor ID is not a valid UUID',
+      description: 'The Tutor ID is not a valid UUID, or an unsupported query parameter was sent',
       type: ApiErrorResponseDto,
     }),
     ApiNotFoundResponse({

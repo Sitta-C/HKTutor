@@ -156,6 +156,15 @@ describe('Public Tutor discovery APIs (e2e)', () => {
     expect(service.getPublicTutor).toHaveBeenCalledTimes(1);
   });
 
+  it('rejects an unsupported query parameter on the detail route', async () => {
+    await request(app.getHttpServer())
+      .get(`/api/v1/tutors/${TUTOR_ID}`)
+      .query({ unknown: 'value' })
+      .expect(400);
+
+    expect(service.getPublicTutor).not.toHaveBeenCalled();
+  });
+
   it('serves both catalogs publicly', async () => {
     service.getActiveSubjects.mockResolvedValue({ items: [] });
     service.getActiveGradeLevels.mockResolvedValue({ items: [] });

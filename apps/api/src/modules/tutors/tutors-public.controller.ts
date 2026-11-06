@@ -7,6 +7,7 @@ import {
   AvailabilityPublicResponseDto,
   AvailabilityQueryDto,
   PublicTutorDetailResponseDto,
+  TutorEmptyQueryDto,
   TutorSearchQueryDto,
   TutorSearchResponseDto,
 } from '@modules/tutors/tutors.dto';
@@ -35,7 +36,9 @@ export class TutorsPublicController {
   @GetPublicTutorDoc()
   getPublicTutor(
     @Param('tutorId', UuidParamPipe) tutorId: string,
+    @Query() _query: TutorEmptyQueryDto,
   ): Promise<PublicTutorDetailResponseDto> {
+    void _query;
     return this.directory.getPublicTutor(tutorId);
   }
 
