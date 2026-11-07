@@ -63,6 +63,7 @@ describe('comparison entry projection (S3-T31)', () => {
         startAtUtc: '2026-11-08T03:00:00.000Z',
         endAtUtc: '2026-11-08T04:00:00.000Z',
       },
+      sort: { price: 450, rating: 4.33, availability: Date.parse('2026-11-08T03:00:00.000Z') },
     });
   });
 
@@ -92,6 +93,7 @@ describe('comparison entry projection (S3-T31)', () => {
         'nextAvailability',
         'pricePerHour',
         'rating',
+        'sort',
         'subject',
         'tutorId',
       ].sort(),
@@ -215,7 +217,7 @@ describe('comparison view columns (S3-T31)', () => {
     'exposes no tutor or course metadata while %s',
     (state) => {
       expect(buildTutorComparisonView([{ choice, state }])).toEqual([
-        { tutorId: 'tutor-1', listingId: 'course-1', state },
+        { tutorId: 'tutor-1', listingId: 'course-1', position: 0, state },
       ]);
     },
   );

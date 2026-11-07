@@ -27,6 +27,17 @@ export interface ComparisonAvailability {
 }
 
 /**
+ * Raw values for the US10-2 comparison sorts (S3-T33): lowest price, highest rating and earliest
+ * availability. `null` means the value is missing and should sort last; the rating uses the shown
+ * two-decimal score so ties match what the student sees.
+ */
+export interface ComparisonSortValues {
+  price: number | null;
+  rating: number | null;
+  availability: number | null;
+}
+
+/**
  * One selected tutor course, projected from the public profile/listing/availability responses.
  * Only the fields the comparison shows are copied; bio, course description and any field the
  * public API adds later never reach the comparison view. `null` means the public value is
@@ -42,6 +53,7 @@ export interface TutorComparisonEntry {
   rating: TutorRatingSummary;
   experienceYears: number | null;
   nextAvailability: ComparisonAvailability | null;
+  sort: ComparisonSortValues;
 }
 
 export function buildTutorComparisonEntry(
@@ -50,16 +62,24 @@ export function buildTutorComparisonEntry(
   listing: PublicTeachingListing,
   nextSlot: PublicAvailabilitySlot | null,
 ): TutorComparisonEntry {
+  const pricePerHour = publicPrice(listing.pricePerHour);
+  const rating = buildTutorRatingSummary(tutor.ratingAverage, tutor.reviewCount);
+  const startAt = nextSlot ? Date.parse(nextSlot.startAtUtc) : Number.NaN;
   return {
     tutorId: choice.tutorId,
     listingId: choice.listingId,
     displayName: tutor.displayName.trim(),
     subject: publicText(listing.subject),
     grade: publicText(listing.grade),
-    pricePerHour: publicPrice(listing.pricePerHour),
-    rating: buildTutorRatingSummary(tutor.ratingAverage, tutor.reviewCount),
+    pricePerHour,
+    rating,
     experienceYears: publicExperience(tutor.experienceYears),
     nextAvailability: nextSlot && { startAtUtc: nextSlot.startAtUtc, endAtUtc: nextSlot.endAtUtc },
+    sort: {
+      price: pricePerHour,
+      rating: rating.state === 'rated' && rating.score !== null ? Number(rating.score) : null,
+      availability: Number.isFinite(startAt) ? startAt : null,
+    },
   };
 }
 
@@ -67,10 +87,22 @@ export function buildTutorComparisonEntry(
  * A comparison column keyed by the selected tutor ID. The key stays the same while the column
  * loads, fails or becomes ready, and when the tutor's course is replaced, so the table keeps the
  * tutor in place. Loading, unavailable and error columns carry no tutor or course metadata.
+ * `position` is the selection order, the stable tie-break for comparison sorting.
  */
 export type TutorComparisonViewColumn =
-  | { tutorId: string; listingId: string; state: 'loading' | 'unavailable' | 'error' }
-  | { tutorId: string; listingId: string; state: 'ready'; entry: TutorComparisonEntry };
+  | {
+      tutorId: string;
+      listingId: string;
+      position: number;
+      state: 'loading' | 'unavailable' | 'error';
+    }
+  | {
+      tutorId: string;
+      listingId: string;
+      position: number;
+      state: 'ready';
+      entry: TutorComparisonEntry;
+    };
 
 /** Builds the comparison view in selection order; no comparison data is stored or persisted. */
 export function buildTutorComparisonView(columns: ComparisonColumn[]): TutorComparisonViewColumn[] {
@@ -83,18 +115,20 @@ export function buildTutorComparisonView(columns: ComparisonColumn[]): TutorComp
       continue;
     }
     seen.add(tutorId);
+    const position = view.length;
     if (column.state !== 'ready') {
-      view.push({ tutorId, listingId, state: column.state });
+      view.push({ tutorId, listingId, position, state: column.state });
       continue;
     }
     // Defence in depth: never show a profile or course other than the one selected.
     if (column.tutor.tutorId !== tutorId || column.listing.listingId !== listingId) {
-      view.push({ tutorId, listingId, state: 'unavailable' });
+      view.push({ tutorId, listingId, position, state: 'unavailable' });
       continue;
     }
     view.push({
       tutorId,
       listingId,
+      position,
       state: 'ready',
       entry: buildTutorComparisonEntry(
         column.choice,
