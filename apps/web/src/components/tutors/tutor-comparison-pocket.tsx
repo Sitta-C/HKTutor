@@ -67,6 +67,7 @@ function FloatingPocket({ controller }: { controller: TutorComparisonController 
   const badgeRef = useRef<HTMLSpanElement>(null);
   const restoreFocus = useRef(true);
   const columnPositions = useRef(new Map<string, number>());
+  const columnLayout = useRef({ selection: '', width: 0 });
   const id = useId();
   const key = `${dialog.cycle}:${retry}:${choices.map((choice) => `${choice.tutorId}/${choice.listingId}`).join(',')}`;
   // Unchanged columns stay steady during edits; every open/retry starts a fresh public read.
@@ -205,19 +206,25 @@ function FloatingPocket({ controller }: { controller: TutorComparisonController 
     const panel = panelRef.current;
     if (!dialog.open || !panel?.open) {
       columnPositions.current.clear();
+      columnLayout.current = { selection: '', width: 0 };
       return;
     }
     const next = new Map<string, number>();
     const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const selection = choices.map((choice) => choice.tutorId).join(',');
+    const width = panel.clientWidth;
+    const animateEdit =
+      columnLayout.current.selection !== selection && columnLayout.current.width === width;
+    const tableLeft = panel.querySelector('table')?.getBoundingClientRect().left ?? 0;
     for (const header of panel.querySelectorAll<HTMLElement>('thead [data-tutor-column]')) {
       const tutorId = header.dataset.tutorColumn;
       if (!tutorId) {
         continue;
       }
-      const x = header.getBoundingClientRect().left;
+      const x = header.getBoundingClientRect().left - tableLeft;
       next.set(tutorId, x);
       const previous = columnPositions.current.get(tutorId);
-      if (reduced || previous === undefined || Math.abs(previous - x) < 1) {
+      if (!animateEdit || reduced || previous === undefined || Math.abs(previous - x) < 1) {
         continue;
       }
       for (const cell of panel.querySelectorAll<HTMLElement>('[data-tutor-column]')) {
@@ -230,6 +237,7 @@ function FloatingPocket({ controller }: { controller: TutorComparisonController 
       }
     }
     columnPositions.current = next;
+    columnLayout.current = { selection, width };
   }, [dialog.open, choices, loaded]);
 
   const arrive = useCallback(
@@ -303,7 +311,7 @@ function FloatingPocket({ controller }: { controller: TutorComparisonController 
       >
         <div className={styles.header}>
           <h2 id={`${id}-title`}>
-            {text.title} <span>· {choices.length}/3</span>
+            {text.title} <span>{choices.length}/3</span>
           </h2>
           <button
             ref={closeRef}
@@ -506,7 +514,7 @@ function ComparisonValue({
           {slot.startDate}
           <small className={styles.time}>
             {slot.start}–{slot.end}
-            {slot.endDate ? ` · ${slot.endDate}` : ''}
+            {slot.endDate ? ` ${slot.endDate}` : ''}
           </small>
         </time>
       );

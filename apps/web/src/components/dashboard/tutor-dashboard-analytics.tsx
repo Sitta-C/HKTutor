@@ -32,20 +32,20 @@ export interface TutorDashboardInsights {
 
 const panelClass = 'min-w-0 !rounded-2xl !bg-white p-5 !shadow-none sm:p-6';
 
-function formatAmounts(amounts: TutorBookingAmount[], language: Language): string {
+function formatAmounts(amounts: TutorBookingAmount[], language: Language): string[] {
   if (amounts.length === 0) {
-    return new Intl.NumberFormat(getCalendarLocale(language), {
-      style: 'currency',
-      currency: 'THB',
-    }).format(0);
+    return [
+      new Intl.NumberFormat(getCalendarLocale(language), {
+        style: 'currency',
+        currency: 'THB',
+      }).format(0),
+    ];
   }
-  return amounts
-    .map(({ currency, minorUnits }) =>
-      new Intl.NumberFormat(getCalendarLocale(language), { style: 'currency', currency }).format(
-        minorUnits / 100,
-      ),
-    )
-    .join(' · ');
+  return amounts.map(({ currency, minorUnits }) =>
+    new Intl.NumberFormat(getCalendarLocale(language), { style: 'currency', currency }).format(
+      minorUnits / 100,
+    ),
+  );
 }
 
 export function TutorDashboardAnalytics({
@@ -224,7 +224,7 @@ export function TutorDashboardAnalytics({
               </div>
               <table className="sr-only">
                 <caption>
-                  {text.weeklyWorkload} · {monthLabel}
+                  <NotebookMetadata items={[text.weeklyWorkload, monthLabel]} />
                 </caption>
                 <tbody>
                   {summary.weeks.map((week) => (

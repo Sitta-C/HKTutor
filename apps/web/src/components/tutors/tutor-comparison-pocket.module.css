@@ -116,6 +116,10 @@
 }
 
 .header h2 {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  align-items: baseline;
   flex: 1;
   min-width: 0;
   font-size: 17px;

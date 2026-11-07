@@ -279,7 +279,7 @@ for (const role of ['STUDENT', 'TUTOR'] as const) {
               ? '18 ต.ค. 2642'
               : '16 ต.ค. 2642';
         const endTime = endAtUtc === '2099-10-15T17:00:00Z' ? '00:00' : '01:00';
-        await expect(dialog).toContainText(`${startDate} · 23:00 → ${endDate} · ${endTime}`);
+        await expect(dialog).toContainText(`${startDate} 23:00 → ${endDate} ${endTime}`);
       });
     }
   }

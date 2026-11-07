@@ -286,7 +286,7 @@ for (const language of ['th', 'en'] as const) {
             ? 'Choose this time'
             : 'Sign in to choose this time';
       await page
-        .getByRole('button', { name: new RegExp(`^${choose} ·`) })
+        .getByRole('button', { name: new RegExp(`^${choose} `) })
         .first()
         .click();
       const bookingPath = '/dashboard/bookings/new?listingId=course%2F8&slotId=slot%2F8a';
@@ -310,13 +310,13 @@ test('choosing a course on another page updates the pad and booking without extr
   await ruler.locator('[aria-current="page"]').focus();
   await page.keyboard.press('Home');
   await page
-    .getByRole('button', { name: 'Choose this course: Course 2 · Grade 11', exact: true })
+    .getByRole('button', { name: 'Choose this course: Course 2 Grade 11', exact: true })
     .click();
   await expect(ruler.locator('[aria-current="page"]')).toHaveAttribute('data-course-page', '1');
   await expect(page.getByRole('heading', { name: 'Course 2 Grade 11', exact: true })).toBeVisible();
   expect(calls).toHaveLength(initialRequests);
   await page
-    .getByRole('button', { name: /^Choose this time ·/ })
+    .getByRole('button', { name: /^Choose this time / })
     .first()
     .click();
   await expect(page).toHaveURL(/listingId=course%2F2&slotId=slot%2F8a$/);
@@ -332,7 +332,7 @@ for (const query of ['', '?listingId=missing']) {
         .locator('[aria-current="page"]'),
     ).toHaveAttribute('data-course-page', '1');
     await expect(
-      page.getByRole('button', { name: /^Choose this course: Course 1 ·/ }),
+      page.getByRole('button', { name: /^Choose this course: Course 1 / }),
     ).toHaveAttribute('aria-pressed', 'true');
   });
 }
@@ -397,19 +397,19 @@ for (const language of ['th', 'en'] as const) {
           : student
             ? 'Choose this time'
             : 'Sign in to choose this time';
-      await expect(main.getByRole('button', { name: new RegExp(`^${choose} ·`) })).toHaveCount(3);
+      await expect(main.getByRole('button', { name: new RegExp(`^${choose} `) })).toHaveCount(3);
       const index = main.getByRole('group', {
         name: language === 'th' ? 'วันที่มีเวลาว่าง' : 'Dates with available times',
       });
       await index.getByRole('button').nth(2).focus();
       await page.keyboard.press('Enter');
-      await expect(main.getByRole('button', { name: new RegExp(`^${choose} ·`) })).toHaveCount(1);
+      await expect(main.getByRole('button', { name: new RegExp(`^${choose} `) })).toHaveCount(1);
       await expect(main).toContainText('23:00');
       const range = main.getByRole('group', {
         name:
           language === 'th'
-            ? '9 ต.ค. 2569 · 23:00 → 10 ต.ค. 2569 · 01:00'
-            : '9 Oct 2026 · 23:00 → 10 Oct 2026 · 01:00',
+            ? '9 ต.ค. 2569 23:00 → 10 ต.ค. 2569 01:00'
+            : '9 Oct 2026 23:00 → 10 Oct 2026 01:00',
       });
       await expect(range).toContainText(language === 'th' ? 'เริ่ม' : 'Start');
       await expect(range).toContainText(language === 'th' ? 'จบ' : 'End');
@@ -417,7 +417,7 @@ for (const language of ['th', 'en'] as const) {
       await expect(range).toContainText(language === 'th' ? '10 ต.ค. 2569' : '10 Oct 2026');
       await expect(range.locator('time')).toHaveText(['23:00', '01:00']);
       await index.getByRole('button').first().click();
-      await expect(main.getByRole('button', { name: new RegExp(`^${choose} ·`) })).toHaveCount(3);
+      await expect(main.getByRole('button', { name: new RegExp(`^${choose} `) })).toHaveCount(3);
       expect(calls).toHaveLength(initialRequests);
       const availability = calls.find((url) => url.pathname.endsWith('/availability'));
       expect(availability?.searchParams.size).toBe(2);
@@ -431,7 +431,7 @@ for (const language of ['th', 'en'] as const) {
         fullPage: true,
       });
       await main
-        .getByRole('button', { name: new RegExp(`^${choose} ·`) })
+        .getByRole('button', { name: new RegExp(`^${choose} `) })
         .first()
         .click();
       const bookingPath = '/dashboard/bookings/new?listingId=course%2Fmath&slotId=slot%2F8a';
@@ -463,7 +463,7 @@ for (const language of ['th', 'en'] as const) {
       await page.goto('/tutors/tutor-anna?listingId=course%2Fphysics');
       const main = page.locator('main');
       const choose = language === 'th' ? 'เลือกเวลานี้' : 'Choose this time';
-      const action = main.getByRole('button', { name: new RegExp(`^${choose} ·`) });
+      const action = main.getByRole('button', { name: new RegExp(`^${choose} `) });
       await expect(action).toHaveCount(1);
       await expect(action).toHaveAttribute('aria-label', /00:00$/);
       if (multiDay) {
@@ -533,7 +533,7 @@ for (const role of ['TUTOR', 'ADMIN'] as const) {
     await page.goto('/tutors/tutor-anna');
     const actions = page
       .locator('main')
-      .getByRole('button', { name: /^Student account required ·/ });
+      .getByRole('button', { name: /^Student account required / });
     await expect(actions).toHaveCount(3);
     for (const action of await actions.all()) {
       await expect(action).toBeDisabled();
@@ -551,7 +551,7 @@ for (const empty of ['listings', 'slots'] as const) {
       await expect(page.getByText('No published courses are available right now.')).toBeVisible();
       await expect(page.locator('main')).toContainText('0 courses');
       for (const action of await page
-        .getByRole('button', { name: /^Sign in to choose this time ·/ })
+        .getByRole('button', { name: /^Sign in to choose this time / })
         .all()) {
         await expect(action).toBeDisabled();
       }

@@ -58,7 +58,7 @@ describe('public tutor appointment days', () => {
       end: '24:00',
       startDate: '31 Dec 2026',
       endDate: null,
-      label: '31 Dec 2026 · 23:00 → 1 Jan 2027 · 00:00',
+      label: '31 Dec 2026 23:00 → 1 Jan 2027 00:00',
     });
     expect(groupPublicTutorSlots([slot], 'en')).toHaveLength(1);
   });
@@ -68,7 +68,7 @@ describe('public tutor appointment days', () => {
     expect(formatPublicTutorSlot(slot, 'en')).toMatchObject({
       end: '24:00',
       endDate: '1 Jan 2027',
-      label: '31 Dec 2026 · 23:00 → 2 Jan 2027 · 00:00',
+      label: '31 Dec 2026 23:00 → 2 Jan 2027 00:00',
     });
     expect(formatPublicTutorSlot(slot, 'th')).toMatchObject({
       startDate: '31 ธ.ค. 2569',

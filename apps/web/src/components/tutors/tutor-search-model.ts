@@ -63,7 +63,7 @@ export function toTutorSearchQuery(form: TutorSearchForm): TutorSearchQuery {
   };
 }
 
-export function formatTutorSearchSummary(query: TutorSearchQuery, text: TutorSearchCopy): string {
+export function formatTutorSearchSummary(query: TutorSearchQuery, text: TutorSearchCopy): string[] {
   const subject = query.subject || text.anySubject;
   const grade = query.grade || text.anyGrade;
   const budget =
@@ -72,7 +72,7 @@ export function formatTutorSearchSummary(query: TutorSearchQuery, text: TutorSea
     ? `${text.ratingSummary} ${query.minimumRating.toFixed(1)}+`
     : text.anyRating;
 
-  return [subject, grade, budget, rating].join(' · ');
+  return [subject, grade, budget, rating];
 }
 
 function decimalPlaces(value: string): number {

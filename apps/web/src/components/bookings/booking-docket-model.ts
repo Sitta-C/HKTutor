@@ -27,7 +27,7 @@ export function formatBookingDocketSlot(
     startDate,
     endDate,
     label: crossesDay
-      ? `${startDate} · ${start} → ${formatBangkokShortDate(endAt, language)} · ${formatBangkokTime(endAt, language)}`
-      : `${startDate} · ${start}–${end}`,
+      ? `${startDate} ${start} → ${formatBangkokShortDate(endAt, language)} ${formatBangkokTime(endAt, language)}`
+      : `${startDate} ${start}–${end}`,
   };
 }

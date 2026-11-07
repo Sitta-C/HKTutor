@@ -70,7 +70,7 @@ export function formatPublicTutorSlot(
     endDate,
     // The accessible range retains the actual UTC endpoints, including next-day 00:00.
     label: crossesDay
-      ? `${startDate} · ${start} → ${formatBangkokShortDate(endAt, language)} · ${formatBangkokTime(endAt, language)}`
-      : `${startDate} · ${start}–${end}`,
+      ? `${startDate} ${start} → ${formatBangkokShortDate(endAt, language)} ${formatBangkokTime(endAt, language)}`
+      : `${startDate} ${start}–${end}`,
   };
 }

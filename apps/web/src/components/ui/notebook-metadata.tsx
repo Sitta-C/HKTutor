@@ -6,7 +6,7 @@ import type { ReactNode } from 'react';
 
 /** Group short labels without visible punctuation; translated compound copy retains its parts. */
 export function NotebookMetadata({ items }: { items: string | readonly ReactNode[] }) {
-  const parts = typeof items === 'string' ? items.split(' · ') : items;
+  const parts = typeof items === 'string' ? items.split(/\s+\u00b7\s+/) : items;
   return (
     <span className={styles.group} data-notebook-metadata>
       {parts.map((item, index) => (

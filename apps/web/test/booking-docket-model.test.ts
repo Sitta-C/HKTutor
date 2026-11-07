@@ -21,20 +21,20 @@ describe('booking docket time presentation', () => {
     expect(result.end).toBe('01:00');
     expect(result.startDate).toBe('31 Dec 2026');
     expect(result.endDate).toBe('1 Jan 2027');
-    expect(result.label).toContain('1 Jan 2027 · 01:00');
+    expect(result.label).toContain('1 Jan 2027 01:00');
   });
 
   it('shows exact midnight as 24:00 without adding an empty next day', () => {
     const result = range('2026-10-12T16:00:00Z', '2026-10-12T17:00:00Z');
     expect(result.end).toBe('24:00');
     expect(result.endDate).toBeNull();
-    expect(result.label).toBe('12 Oct 2026 · 23:00 → 13 Oct 2026 · 00:00');
+    expect(result.label).toBe('12 Oct 2026 23:00 → 13 Oct 2026 00:00');
   });
 
   it('keeps the last occupied date on multi-day midnight endings', () => {
     const result = range('2026-10-12T16:00:00Z', '2026-10-14T17:00:00Z');
     expect(result.end).toBe('24:00');
     expect(result.endDate).toBe('14 Oct 2026');
-    expect(result.label).toContain('15 Oct 2026 · 00:00');
+    expect(result.label).toContain('15 Oct 2026 00:00');
   });
 });

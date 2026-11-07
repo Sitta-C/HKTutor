@@ -391,6 +391,9 @@ profiles, qualification review and the privacy notice. Keep the existing typogra
   value and its order; narrow layouts can move a group to the next line without clipping text.
 - Pass structured values as an array so punctuation in actual names/data stays intact. The shared
   component can also separate existing translated compound metadata copy for presentation.
+- Generated UI text, translations, date/time labels and accessible names also omit middle-dot
+  separators. Use spaces in plain text and structured metadata groups for visual spacing; do not
+  split labels on ordinary spaces or alter punctuation supplied in names or other user data.
 - Keep meaningful list bullets, actual decimal points, dates, money, native controls, accessible
   descriptions and business/API behavior. Course-ruler page/range labels use spacing within their
   existing compact layout.

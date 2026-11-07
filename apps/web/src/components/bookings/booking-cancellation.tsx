@@ -9,6 +9,7 @@ import {
 } from '@/components/bookings/booking-cancellation-model';
 import { formatBookingDocketSlot } from '@/components/bookings/booking-docket-model';
 import { NotebookAction } from '@/components/ui/notebook-action';
+import { NotebookMetadata } from '@/components/ui/notebook-metadata';
 import { useNotebookToast } from '@/components/ui/notebook-toast';
 import { cancelBooking } from '@/lib/api/bookings';
 import { useLanguage } from '@/lib/i18n';
@@ -181,7 +182,9 @@ export function BookingCancellation({
           </p>
           <div className="rounded-lg border border-dashed border-paper-edge p-3 text-sm">
             <p className="font-bold">
-              {booking.listing.subjectName} · {booking.listing.gradeLevelName}
+              <NotebookMetadata
+                items={[booking.listing.subjectName, booking.listing.gradeLevelName]}
+              />
             </p>
             <p>{formatBookingDocketSlot(booking.slot, language).label}</p>
           </div>

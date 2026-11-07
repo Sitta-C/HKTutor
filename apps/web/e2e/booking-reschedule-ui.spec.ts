@@ -373,7 +373,7 @@ for (const role of ['STUDENT', 'TUTOR'] as const) {
     const ui = await setup(page, role);
     await expect(ui.panel.getByRole('radio')).toHaveCount(1);
     await expect(ui.panel.getByRole('radio')).toHaveAccessibleName(
-      '18 Oct 2099 · 23:00 → 19 Oct 2099 · 01:00',
+      '18 Oct 2099 23:00 → 19 Oct 2099 01:00',
     );
     await ui.panel.screenshot({ path: testInfo.outputPath('reschedule-target-picker.png') });
     await expect(
@@ -418,7 +418,7 @@ for (const role of ['STUDENT', 'TUTOR'] as const) {
     await expect(ui.panel.getByRole('status')).toHaveText('Reschedule approved');
     await ui.open();
     await expect(ui.panel).toContainText(
-      'Current class time: 18 Oct 2099 · 23:00 → 19 Oct 2099 · 01:00',
+      'Current class time: 18 Oct 2099 23:00 → 19 Oct 2099 01:00',
     );
     expect(ui.getBooking().slot.id).toBe(target.id);
     await ui.reload();
@@ -730,7 +730,7 @@ test('a payment refresh started before approval cannot restore the original slot
   );
   release();
   await response;
-  await expect(ui.panel).toContainText('Current class time: 18 Oct 2099 · 23:00');
+  await expect(ui.panel).toContainText('Current class time: 18 Oct 2099 23:00');
   await expect(ui.panel.getByRole('status')).toHaveText('Reschedule approved');
 });
 
