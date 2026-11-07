@@ -1,6 +1,6 @@
 # HKTutor frontend direction — Notebook Focus
 
-Updated 2026-11-06. This describes the implemented Notebook Focus direction and component
+Updated 2026-11-07. This describes the implemented Notebook Focus direction and component
 patterns in this repository. Maintainers review changes to shared design conventions through the
 normal PR process; this guide does not assert team approval of decisions from an individual chat.
 Read it as implementation context before UI work. The current task's explicit requirements take
@@ -172,6 +172,36 @@ their existing presentation; retries remain explicit, with no automatic loop.
   and stale-response guards. Do not group by tutor, merge pages, add unsupported controls, or change
   availability formatting. Keep explicit null-rating/no-availability states and unavailable result
   counts until a successful response; zero belongs only to successful empty results.
+
+## Tutor comparison — Notebook Ledger button / Course Tabs popup
+
+Selected on 2026-11-07: use the **Notebook Ledger** floating button with the **Course Tabs**
+comparison popup. The button is a small paper notebook with a mint spine, ruled lines, a comparison
+icon and a yellow count bookmark. The popup has a mint top edge, blue grade tabs, continuous aligned
+rows, yellow price slips and Margin Score-style averages. Keep its contents upright and readable.
+
+- Each search row can select its course; count unique tutors, at most three. Selecting another
+  course of the same tutor replaces that tutor's course in place, even at the limit. Selected rows
+  stay removable. Keep the existing view-times link and all search/filter/ranking behavior.
+- Keep selections in memory across filtering, sorting, pagination and failed searches. Clear them
+  when leaving/reloading the search page. No browser storage, comparison database or URL handoff.
+- Drag the button freely within the visible viewport; keep drag separate from click. Keyboard
+  arrows also move it. Re-clamp on viewport changes, including the mobile visual viewport. Only
+  the button captures touch gestures; the page and table keep native scrolling.
+- Selecting a course sends a small initials token into the button and settles its count. Use
+  continuous motion, a short eased release, and an origin-aware popup transition. Honor reduced
+  motion and cancel work when selections or the page disappear.
+- Clicking the button opens comparison immediately: price, subject/grade, average, review count,
+  experience and next availability in matching rows. There is no second Compare button or separate
+  route. At zero/one selection, show honest empty/add-one guidance; do not disable access to removal.
+- Use a non-modal dialog without a dark overlay. Keep it inside the viewport and anchor its opening
+  to the button. Close with its labeled control, Escape or an outside click. Return focus after
+  explicit close; removing/clearing keeps focus on the popup close control. On narrow screens the
+  comparison table scrolls horizontally, retaining row labels and tutor headers.
+- Revalidate through the existing public profile and availability APIs on each open. Never substitute
+  another offering for a hidden course. Hide unavailable columns' old names and values, provide
+  retry for read failures, and discard responses after close/removal/replacement. Availability uses
+  the public future-slot contract and Bangkok display, without changing the profile page's range.
 
 ## Public tutor detail
 
@@ -361,6 +391,9 @@ profiles, qualification review and the privacy notice. Keep the existing typogra
   value and its order; narrow layouts can move a group to the next line without clipping text.
 - Pass structured values as an array so punctuation in actual names/data stays intact. The shared
   component can also separate existing translated compound metadata copy for presentation.
+- Generated UI text, translations, date/time labels and accessible names also omit middle-dot
+  separators. Use spaces in plain text and structured metadata groups for visual spacing; do not
+  split labels on ordinary spaces or alter punctuation supplied in names or other user data.
 - Keep meaningful list bullets, actual decimal points, dates, money, native controls, accessible
   descriptions and business/API behavior. Course-ruler page/range labels use spacing within their
   existing compact layout.

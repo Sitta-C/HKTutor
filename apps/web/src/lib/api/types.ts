@@ -207,6 +207,11 @@ export interface TutorSearchResult {
   nextAvailableAt: string | null;
 }
 
+export interface TutorComparisonSelection {
+  tutorId: string;
+  listingId: string;
+}
+
 export interface TutorSearchResponse {
   items: TutorSearchResult[];
   page: number;

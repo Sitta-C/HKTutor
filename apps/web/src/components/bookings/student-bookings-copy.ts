@@ -1,7 +1,7 @@
 export const studentBookingsCopy = {
   en: {
     title: 'Your appointment notebook',
-    count: '{count} bookings · {status}',
+    count: '{count} bookings {status}',
     countUnavailable: 'Booking count unavailable',
     emptyFilteredTitle: 'No bookings in this view',
     emptyFilteredBody: 'Choose another status or find a course to study.',
@@ -13,7 +13,7 @@ export const studentBookingsCopy = {
   },
   th: {
     title: 'สมุดนัดเรียน',
-    count: '{count} รายการ · {status}',
+    count: '{count} รายการ {status}',
     countUnavailable: 'ยังไม่ทราบจำนวนรายการจอง',
     emptyFilteredTitle: 'ไม่มีรายการจองในสถานะนี้',
     emptyFilteredBody: 'เลือกสถานะอื่น หรือค้นหาคอร์สที่ต้องการเรียน',

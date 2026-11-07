@@ -47,6 +47,12 @@ Bangkok-time presentation and UTC timestamps on the wire. Day and week views use
 availability overlap filter to include carry-over slots without loading past history. Reserved slots
 remain protected.
 
+Tutor search also supports selecting up to three tutors with one course each. A movable notebook
+button opens their comparison directly in a Course Tabs popup, with current public price, subject,
+rating, review count, experience and next availability. Selections survive search changes in memory;
+they reset on reload/navigation away. Each open rechecks public visibility, and missing courses are
+not replaced automatically. This uses the existing public APIs and adds no database migration.
+
 See [S3-T03 verification](apps/web/e2e/chat-realtime-verification.md) for recorded commands/results
 and the opted-in two-session browser suite against a disposable PostgreSQL database.
 See [S3-T04 QA evidence](tests/s3-t04-qa.md) for the extended delivery, authorization, reconnect,

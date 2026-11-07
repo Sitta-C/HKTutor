@@ -68,6 +68,12 @@ async function mockBookings(
     if (path.endsWith('/conversations/unread-count')) {
       return route.fulfill({ json: { unreadCount: 0 } });
     }
+    if (request.method() === 'GET' && path === '/notifications') {
+      return route.fulfill({ json: { items: [], nextCursor: null, unreadCount: 0 } });
+    }
+    if (request.method() === 'GET' && path.endsWith('/reschedule-requests/current')) {
+      return route.fulfill({ json: { request: null, targetSlot: null, allowedActions: [] } });
+    }
     if (path === '/auth/refresh') {
       return route.fulfill({
         json: {
@@ -495,7 +501,7 @@ test('detail loading and resource changes hide the previous booking; midnight re
   release();
   await expect(page.locator('[data-booking-summary]')).toContainText('23:00–24:00');
   await expect(
-    page.getByRole('group', { name: '12 Oct 2026 · 23:00 → 13 Oct 2026 · 00:00', exact: true }),
+    page.getByRole('group', { name: '12 Oct 2026 23:00 → 13 Oct 2026 00:00', exact: true }),
   ).toBeVisible();
   // A new detail resource also keeps its summary unavailable until its own response arrives.
   await page.goto('/dashboard/bookings/alternate');

@@ -24,6 +24,14 @@ export function formatBangkokRange(
   endAtUtc: string,
   language: BookingLanguage,
 ): string {
+  return formatBangkokRangeParts(startAtUtc, endAtUtc, language).join(' ');
+}
+
+function formatBangkokRangeParts(
+  startAtUtc: string,
+  endAtUtc: string,
+  language: BookingLanguage,
+): string[] {
   const locale = language === 'th' ? 'th-TH' : 'en-GB';
   const dateOptions: Intl.DateTimeFormatOptions = {
     day: 'numeric',
@@ -39,7 +47,10 @@ export function formatBangkokRange(
   };
   const start = new Date(startAtUtc);
   const end = new Date(endAtUtc);
-  return `${new Intl.DateTimeFormat(locale, dateOptions).format(start)} · ${new Intl.DateTimeFormat(locale, timeOptions).format(start)}–${new Intl.DateTimeFormat(locale, timeOptions).format(end)}`;
+  return [
+    new Intl.DateTimeFormat(locale, dateOptions).format(start),
+    `${new Intl.DateTimeFormat(locale, timeOptions).format(start)}–${new Intl.DateTimeFormat(locale, timeOptions).format(end)}`,
+  ];
 }
 
 export function formatBangkokDateTime(valueAtUtc: string, language: BookingLanguage): string {
@@ -131,9 +142,7 @@ export function BookingSummaryRow({
         <p className="mt-1 text-sm text-notebook-muted">
           <NotebookMetadata
             items={[
-              ...formatBangkokRange(booking.slot.startAtUtc, booking.slot.endAtUtc, language).split(
-                ' · ',
-              ),
+              ...formatBangkokRangeParts(booking.slot.startAtUtc, booking.slot.endAtUtc, language),
               formatMoney(booking.netAmount, booking.currency),
             ]}
           />

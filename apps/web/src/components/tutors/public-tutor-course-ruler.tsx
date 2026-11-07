@@ -229,7 +229,7 @@ export function PublicTutorCourseRuler({
             type="button"
             data-course-page={item.page}
             aria-current={item.page === page ? 'page' : undefined}
-            aria-label={`${text.page} ${item.page} · ${text.courses} ${item.range}`}
+            aria-label={`${text.page} ${item.page} ${text.courses} ${item.range}`}
             aria-controls="public-tutor-course-list"
             tabIndex={item.page === page ? 0 : -1}
             onClick={() => choosePage(item.page)}

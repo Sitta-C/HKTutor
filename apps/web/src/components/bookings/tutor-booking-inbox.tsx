@@ -175,7 +175,7 @@ export default function TutorBookingInbox() {
   const countLabel =
     isLoading || loadFailed || total === null
       ? copy.countUnavailable
-      : formatInboxCount(total, filterLabel(filter), copy);
+      : [formatInboxCount(total, '', copy).trim(), filterLabel(filter)];
 
   return (
     <div className={styles.page}>

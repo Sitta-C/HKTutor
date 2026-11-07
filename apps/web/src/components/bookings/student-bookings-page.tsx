@@ -95,9 +95,10 @@ export default function StudentBookingsPage() {
           <NotebookMetadata
             items={
               countsAvailable
-                ? pageText.count
-                    .replace('{count}', String(total))
-                    .replace('{status}', filterLabel(filter))
+                ? [
+                    pageText.count.replace('{count}', String(total)).replace('{status}', '').trim(),
+                    filterLabel(filter),
+                  ]
                 : pageText.countUnavailable
             }
           />

@@ -284,7 +284,7 @@ export default function PublicTutorAvailabilityPage({ tutorId }: { tutorId: stri
                         ref={selected ? selectedCourseButtonRef : undefined}
                         type="button"
                         aria-pressed={selected}
-                        aria-label={`${detailText.select}: ${listing.subject} · ${listing.grade}`}
+                        aria-label={`${detailText.select}: ${listing.subject} ${listing.grade}`}
                         className={styles.courseButton}
                         onClick={() => {
                           focusSelectedCourseRef.current = false;
@@ -431,7 +431,7 @@ export default function PublicTutorAvailabilityPage({ tutorId }: { tutorId: stri
                               disabled={
                                 !selectedListing || Boolean(user && user.role !== 'STUDENT')
                               }
-                              aria-label={`${actionLabel} · ${time.label}`}
+                              aria-label={`${actionLabel} ${time.label}`}
                               onClick={() => {
                                 if (!selectedListing) {
                                   return;

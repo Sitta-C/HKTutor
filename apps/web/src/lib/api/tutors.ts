@@ -51,13 +51,17 @@ export function searchTutors(
   );
 }
 
-export function getPublicTutor(tutorId: string): Promise<PublicTutorDetail> {
-  return apiFetch(`/tutors/${encodeURIComponent(tutorId)}`);
+export function getPublicTutor(
+  tutorId: string,
+  requestInit: Pick<RequestInit, 'signal'> = {},
+): Promise<PublicTutorDetail> {
+  return apiFetch(`/tutors/${encodeURIComponent(tutorId)}`, requestInit);
 }
 
 export function getPublicTutorAvailability(
   tutorId: string,
   query: PublicAvailabilityQuery = {},
+  requestInit: Pick<RequestInit, 'signal'> = {},
 ): Promise<PublicAvailabilitySlot[]> {
   const params = new URLSearchParams();
   if (query.from !== undefined) params.set('from', toIsoString(query.from));
@@ -66,6 +70,7 @@ export function getPublicTutorAvailability(
   const queryString = params.toString();
   return apiFetch<PublicAvailabilitySlot[]>(
     `/tutors/${encodeURIComponent(tutorId)}/availability${queryString ? `?${queryString}` : ''}`,
+    requestInit,
   );
 }
 
