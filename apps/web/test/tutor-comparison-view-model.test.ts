@@ -115,3 +115,65 @@ describe('comparison entry projection (S3-T31)', () => {
     expect({ tutorId: entry.tutorId, listingId: entry.listingId }).toEqual(choice);
   });
 });
+
+describe('missing comparison values (S3-T31)', () => {
+  const entry = (
+    tutorPatch: Partial<PublicTutorProfile>,
+    listingPatch: Partial<PublicTeachingListing>,
+  ) =>
+    buildTutorComparisonEntry(
+      choice,
+      { ...tutor, ...tutorPatch },
+      { ...listing, ...listingPatch },
+      null,
+    );
+
+  it('trims public text and keeps 0 years of experience as a real value', () => {
+    expect(
+      entry(
+        { displayName: '  Teacher Anan ', experienceYears: 0 },
+        { subject: ' Physics ', grade: ' Grade 12 ' },
+      ),
+    ).toMatchObject({
+      displayName: 'Teacher Anan',
+      subject: 'Physics',
+      grade: 'Grade 12',
+      experienceYears: 0,
+    });
+  });
+
+  it.each(['', '   '])('treats subject and grade %j as missing', (blank) => {
+    expect(entry({}, { subject: blank, grade: blank })).toMatchObject({
+      subject: null,
+      grade: null,
+    });
+  });
+
+  it.each([0, -450, Number.NaN, Number.POSITIVE_INFINITY])(
+    'treats price %s as missing',
+    (pricePerHour) => {
+      expect(entry({}, { pricePerHour }).pricePerHour).toBeNull();
+    },
+  );
+
+  it('keeps a two-decimal public price unchanged', () => {
+    expect(entry({}, { pricePerHour: 450.5 }).pricePerHour).toBe(450.5);
+  });
+
+  it.each([-1, 2.5, Number.NaN])('treats experience %s as missing', (experienceYears) => {
+    expect(entry({ experienceYears }, {}).experienceYears).toBeNull();
+  });
+
+  it('keeps New tutor and unavailable rating states from the shared rating model', () => {
+    expect(entry({ ratingAverage: null, reviewCount: 0 }, {}).rating).toEqual({
+      state: 'new',
+      score: null,
+      reviewCount: 0,
+    });
+    expect(entry({ ratingAverage: null, reviewCount: 3 }, {}).rating).toEqual({
+      state: 'unavailable',
+      score: null,
+      reviewCount: 3,
+    });
+  });
+});
