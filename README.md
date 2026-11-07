@@ -263,6 +263,10 @@ S3-T17 adds an explicitly opted-in `pnpm db:reconcile:review-ratings` command to
 display caches without inventing reviews or changing bookings. Its real PostgreSQL verifier is
 `pnpm db:verify:review-ratings`; neither command is part of `pnpm check`. See the
 [rating cache runbook](apps/api/README.md#tutor-review-rating-caches-and-detail-s3-t17).
+S3-T19 makes tutor search filter, rank, tag and display ratings from stored reviews rather than the
+rounded cache, and seeds real reviewed classes for two search fixtures. Its real PostgreSQL verifier
+is `pnpm --filter @hktutor/api db:verify:search-ratings`, also outside `pnpm check`; see
+[search review ratings](apps/api/README.md#tutor-search-review-ratings-s3-t19).
 
 ## Checks
 

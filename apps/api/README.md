@@ -656,14 +656,15 @@ Each result adds `recommendationTags`, an array of language-neutral codes for th
 | ----------------------- | ---------------------------------------------------------------------- |
 | `FITS_BUDGET`           | An explicit `maxPrice` is supplied and the actual hourly price fits.   |
 | `LOWEST_PRICE`          | Under `lowest_price`, this is a minimum-price matching public listing. |
-| `HIGHEST_RATED`         | Under `highest_rating`, this is a maximum known matching tutor rating. |
+| `HIGHEST_RATED`         | Under `highest_rating`, this is a maximum unrounded review average.    |
 | `EARLIEST_AVAILABILITY` | Under `earliest_availability`, this is the earliest bookable slot.     |
 
 Best-value tags use all matching published listings owned by verified, active, non-deleted tutor
 accounts, before pagination. Every tie receives its applicable tag. Null ratings and no-slot tutors
 never receive their respective best-value tag. Earliest-slot explanations exclude deleted, started,
 and PENDING/CONFIRMED-reserved slots. No supplied budget means no `FITS_BUDGET` tag; missing data is
-not treated as zero. Comparisons use the stored Decimal prices and ratings. An item with no applicable
+not treated as zero. Comparisons use the stored Decimal prices and, since S3-T19, unrounded averages of
+stored reviews (see "Tutor search review ratings (S3-T19)" below). An item with no applicable
 explanation returns `recommendationTags: []`.
 
 This contract addition delegates ordering and result pagination to the existing sorter. The mocked
@@ -1780,6 +1781,11 @@ one. Each mutation was reverted and confirmed byte-identical (`git diff`/checksu
 
 ## Tutor ranking verification (S2-T15)
 
+Since S3-T19, every search runs through one raw SQL path and ranks on stored reviews. The fixture
+ratings below are therefore created as real completed-booking reviews whose unrounded averages equal
+the stated values, and the cached `TutorProfile.ratingAverage` stays null. The ordering and tag
+assertions are unchanged.
+
 `pnpm --filter @hktutor/api db:verify:tutor-ranking` proves the S2-T13 ranking engine
 (`TutorDirectoryService.searchPublicTutors`, `tutor-ranking.ts`) against real PostgreSQL. As the
 S2-T13 section above already states, the mocked-Prisma suites (`tutor-ranking.spec.ts`,
@@ -1887,7 +1893,8 @@ being excluded restored the check.
 The additive migration `20261103120000_add_review` introduces `Review` without changing shared
 migration history or inventing historical reviews. It retains `TutorProfile.ratingAverage`
 (`Decimal(3,2)`), `reviewCount` and `ratingUpdatedAt` as display caches. At rollout, tutors without
-reviews are reset to `null`, `0`, `null`; search seeds no longer supply synthetic ratings. Existing
+reviews are reset to `null`, `0`, `null`; search seeds no longer supply synthetic ratings (S3-T19
+adds real reviewed classes for two search fixtures instead). Existing
 review-backed seed caches are preserved. Re-seeding also preserves a reviewed Sprint 2 ended class
 and its original time window rather than resetting that evidence to confirmed.
 
@@ -2086,3 +2093,86 @@ prove review rollback, repairs stale/no-review caches across a batch boundary, c
 history and repeated rebuilding, and verifies fresh numeric detail/search values and visibility.
 Only randomly identified synthetic fixtures and a temporary failure trigger are removed in
 `finally`. See [S3-T17 verification evidence](../../tests/s3-t17-qa.md).
+
+## Tutor search review ratings (S3-T19)
+
+`GET /api/v1/tutors` (S3-T19/API-01) takes every rating it filters, ranks, tags and returns from
+stored `Review` rows, using S3-T17's raw totals: the sum of each review's three scores and the review
+count. Search never reads the rounded `TutorProfile.ratingAverage` cache, which still serves the
+detail endpoint (S3-T17/API-02) and private profiles. The request and response contract is
+unchanged: the same query DTO and 400 responses, numeric `ratingAverage | null` and integer
+`reviewCount`.
+
+| Rule                           | Behaviour                                                                                                                                                                                   |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `minimumRating`                | Inclusive and exact: `total >= minimumRating × 3 × count`, with no division or rounding. 13/3 (4.333…) passes 4.33 and fails 4.34. Tutors without reviews are excluded.                     |
+| Rating sort                    | The unrounded average at a fixed 20-decimal scale, so 13/3 and 26/6 tie and 4.1333 sorts above 4.125. No reviews sorts last in both directions. Ties keep the S2-T13 order.                 |
+| `HIGHEST_RATED`                | Every listing whose average exactly equals the best of the whole matching set, compared by cross-multiplying, before pagination. 4.1333 and 4.125 both display 4.13; only 4.1333 is tagged. |
+| `ratingAverage`, `reviewCount` | From the same totals, HALF_UP to two decimals with S3-T17's `tutorReviewDisplayAverage`: 5/4/5 and 4/4/4 show 4.33 with count 2. No reviews gives `null` and `0`.                           |
+
+Each search runs in one read-only REPEATABLE READ transaction: a summary over the full matching set
+(total, lowest price, earliest free slot), the best raw rating for `priority=highest_rating`, the
+page of listing IDs, and finally the ORM load of those listings' public fields. A review committed
+mid-search therefore cannot make the page, `total` and tags disagree. The SQL pieces live in
+`modules/tutors/tutor-search-query.ts`, whose visibility conditions mirror `publicListingWhere` and
+`publicTutorWhere`. There is no schema change; `Review`'s `(tutorProfileId, createdAt, id)` index
+serves the per-tutor totals.
+
+### Seeded review fixtures
+
+`review-fixtures.seed.ts` gives two search fixtures real rating history instead of seeded
+aggregates. Mali has two completed, attended, paid classes reviewed 5/4/5 and 4/4/4 (4.33), and Kiet
+one reviewed 4/4/4 (4.00); the seeded student wrote the reviews. Rows use fixed IDs and are only
+ever created, never updated, so re-seeding cannot reset live reviews or bookings. Each tutor's cache
+is then rebuilt with S3-T17's `refreshLockedTutorReviewRating` under the tutor row lock. Anan, Niran
+and Pim keep no reviews, so Anan still shows the New tutor state until the live demo review.
+
+### Verification
+
+Focused checks: `pnpm --filter @hktutor/api test test/unit/tutors test/unit/database/seed`. They
+cover the SQL pieces (`tutor-search-query.spec.ts`), exact rating comparison and tags
+(`tutor-ranking.spec.ts`), the snapshot statements, filters, ordering and display
+(`public-tutors.service.spec.ts`, `tutor-ranking-explanations.service.spec.ts`), the seed
+(`review-fixtures.seed.spec.ts`) and the verifier URL guard. They use persistence doubles and do not
+establish PostgreSQL arithmetic.
+
+`pnpm --filter @hktutor/api db:verify:search-ratings` runs the real search, review and S3-T17
+services against PostgreSQL. Neither root `pnpm check` nor `pnpm test` runs it. It uses the same
+approval flag and loopback-only URL gates as the S3-T17 verifier above, and refuses a database that
+already has tutor profiles, because one check runs S3-T17 reconciliation across every tutor. From
+the repository root:
+
+```bash
+nvm use 24.19.0
+pnpm install --frozen-lockfile
+docker run --detach --name hktutor-search-ratings-test \
+  --publish 127.0.0.1:55443:5432 \
+  --env POSTGRES_USER=postgres --env POSTGRES_PASSWORD=disposable-local-only \
+  --env POSTGRES_DB=hktutor_search_ratings_test postgres:17-alpine
+# Wait until this reports that PostgreSQL is accepting connections.
+docker exec hktutor-search-ratings-test pg_isready -U postgres -d hktutor_search_ratings_test
+export DATABASE_URL='postgresql://postgres:disposable-local-only@127.0.0.1:55443/hktutor_search_ratings_test'
+pnpm db:generate
+pnpm --filter @hktutor/api db:migrate:deploy
+HKTUTOR_ALLOW_DISPOSABLE_DB_VERIFY=1 pnpm --filter @hktutor/api db:verify:search-ratings
+# Discard this example's container and its anonymous data volume, including after a failed run.
+docker rm --force --volumes hktutor-search-ratings-test
+unset DATABASE_URL
+```
+
+Every fixture rating is a set of completed, attended bookings with real reviews, and each fixture
+group has its own random subject. The 8 checks cover:
+
+- Exact thresholds: 13/3 passes 4.33 and fails 4.34; 4.00 passes 4 but not 4.01; 1.00 passes 1.
+- Unreviewed tutors as `null`/`0` and last, and five hidden tutors (unverified, suspended, deleted
+  account, draft listing, deleted listing) with perfect reviews that never appear or take a tag.
+- 4.1333 and 4.125, which both display 4.13 but rank, tag and filter apart.
+- An exact 13/3 and 26/6 tie, and pages of one that keep the order and full-set tags.
+- `lowest_price` breaking a price tie by raw rating, `earliest_availability`, and an inclusive 5.
+- A stale 1.00/77 cache that never drives search, then rebuilt to 4.00/2 by S3-T17 reconciliation.
+- Six concurrent `ReviewsService` reviews, shown as 4.17/6 by both search and the detail cache.
+- Every search result matching S3-T17's `readTutorReviewTotals` and HALF_UP display rule.
+
+With `minimumRating` compared on the rounded average instead, the third check fails. The S2-T15
+`db:verify:tutor-ranking` and S3-T17 `db:verify:review-ratings` verifiers also pass against this
+code. The runner removes its fixtures in `finally`; discard the database afterwards.

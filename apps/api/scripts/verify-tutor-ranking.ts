@@ -9,6 +9,7 @@ import 'reflect-metadata';
 
 import {
   AccountStatus,
+  AttendanceStatus,
   BookingStatus,
   ListingPublicationStatus,
   Role,
@@ -74,6 +75,7 @@ const directory = new TutorDirectoryService(prisma);
 
 const created = {
   users: [] as string[],
+  reviews: [] as string[],
   bookings: [] as string[],
   slots: [] as string[],
   listings: [] as string[],
@@ -96,6 +98,73 @@ interface TutorFixture {
   listingId: string;
 }
 
+type Scores = readonly [clarity: number, punctuality: number, preparation: number];
+const repeat = (scores: Scores, times: number): Scores[] =>
+  Array.from({ length: times }, () => scores);
+
+/**
+ * S3-T19: search ranks on raw Review totals, so each fixture rating is a set of real completed-booking
+ * reviews whose unrounded average is exactly that value. The TutorProfile cache is left at null/0.
+ */
+const REVIEWS_FOR_RATING = {
+  '3.00': [[3, 3, 3]],
+  '4.50': [
+    [5, 5, 4],
+    [5, 4, 4],
+  ], // 27 / 6
+  '4.90': [...repeat([5, 5, 5], 7), ...repeat([5, 5, 4], 3)], // 147 / 30
+  '5.00': [[5, 5, 5]],
+} satisfies Record<string, Scores[]>;
+
+let reviewerUserId: string | undefined;
+
+/** One past, completed, attended class per review, each in its own hour so slots never overlap. */
+async function addReviews(tutor: TutorFixture, reviews: readonly Scores[]): Promise<void> {
+  assert.ok(reviewerUserId, 'Create the reviewing student before rated tutors');
+  for (const [index, [clarity, punctuality, preparation]] of reviews.entries()) {
+    const slotId = randomUUID();
+    const bookingId = randomUUID();
+    const startAtUtc = new Date(Date.now() - (30 + index) * 24 * 60 * 60 * 1000);
+    created.slots.push(slotId);
+    created.bookings.push(bookingId);
+    await prisma.availabilitySlot.create({
+      data: {
+        id: slotId,
+        tutorProfileId: tutor.userId,
+        startAtUtc,
+        endAtUtc: new Date(startAtUtc.getTime() + 60 * 60 * 1000),
+      },
+    });
+    await prisma.booking.create({
+      data: {
+        id: bookingId,
+        studentUserId: reviewerUserId,
+        tutorProfileId: tutor.userId,
+        listingId: tutor.listingId,
+        slotId,
+        status: BookingStatus.COMPLETED,
+        subtotalAmount: '999.00',
+        netAmount: '999.00',
+        attendance: AttendanceStatus.ATTENDED,
+        attendanceMarkedAt: new Date(startAtUtc.getTime() + 2 * 60 * 60 * 1000),
+      },
+    });
+    const review = await prisma.review.create({
+      data: {
+        bookingId,
+        authorStudentUserId: reviewerUserId,
+        tutorProfileId: tutor.userId,
+        bookingStatus: BookingStatus.COMPLETED,
+        clarity,
+        punctuality,
+        preparation,
+        feedback: 'Synthetic review for S2-T15.',
+      },
+    });
+    created.reviews.push(review.id);
+  }
+}
+
 /** Creates one VERIFIED, ACTIVE tutor with a single PUBLISHED listing, bypassing the publish
  * workflow (that gate is S2-T10's contract, proven by `db:verify:tutor-verification`) so this
  * fixture is deterministic regardless of execution speed. */
@@ -104,7 +173,7 @@ async function createRankedTutor(input: {
   subjectId: string;
   gradeLevelId: string;
   price: string;
-  rating: string | null;
+  rating: keyof typeof REVIEWS_FOR_RATING | null;
   publishedAt: Date;
 }): Promise<TutorFixture> {
   const userId = randomUUID();
@@ -127,7 +196,6 @@ async function createRankedTutor(input: {
       displayName: input.displayName,
       bio: 'Synthetic fixture for S2-T15',
       experienceYears: 3,
-      ratingAverage: input.rating,
       verificationStatus: TutorVerificationStatus.VERIFIED,
     },
   });
@@ -144,7 +212,9 @@ async function createRankedTutor(input: {
     },
   });
 
-  return { userId, listingId };
+  const tutor = { userId, listingId };
+  await addReviews(tutor, input.rating === null ? [] : REVIEWS_FOR_RATING[input.rating]);
+  return tutor;
 }
 
 /** A bookable future slot: real rows a student could actually reserve. */
@@ -320,6 +390,7 @@ async function main(): Promise<void> {
       },
     });
     created.users.push(student.id);
+    reviewerUserId = student.id;
 
     // Two tutors genuinely tied at the global-lowest price; a higher rating must break the tie and
     // rank first. publishedAt deliberately disagrees with rating here (A is the more recently
@@ -656,6 +727,7 @@ async function main(): Promise<void> {
     new Logger('TutorRanking').log(`${passed} checks passed`);
   } finally {
     try {
+      await prisma.review.deleteMany({ where: { id: { in: created.reviews } } });
       await prisma.booking.deleteMany({ where: { id: { in: created.bookings } } });
       await prisma.availabilitySlot.deleteMany({ where: { id: { in: created.slots } } });
       await prisma.teachingListing.deleteMany({ where: { id: { in: created.listings } } });

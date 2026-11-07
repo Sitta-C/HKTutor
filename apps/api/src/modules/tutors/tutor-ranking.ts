@@ -1,6 +1,7 @@
 import { BadRequestException } from '@nestjs/common';
 
 import type { Prisma } from '@generated/prisma/client';
+import type { TutorReviewTotals } from '@modules/reviews/review-ratings';
 import type { TutorSearchQueryDto } from '@modules/tutors/tutors.dto';
 
 export enum TutorRankingPriority {
@@ -16,11 +17,23 @@ export enum TutorRecommendationTag {
   EARLIEST_AVAILABILITY = 'EARLIEST_AVAILABILITY',
 }
 
+/** S3-T17 raw review totals for a tutor with at least one review; never the rounded cache. */
+export type TutorRawRating = Pick<TutorReviewTotals, 'dimensionTotal' | 'reviewCount'>;
+
 export interface TutorRecommendationContext {
   maxPrice?: number;
   lowestPrice: Prisma.Decimal | null;
-  highestRating: Prisma.Decimal | null;
+  highestRating: TutorRawRating | null;
   earliestAvailableAt: Date | null;
+}
+
+/** Compares two unrounded averages exactly by cross-multiplying, so 13/3 equals 26/6 (S3-T19). */
+export function hasEqualRawRating(a: TutorRawRating, b: TutorRawRating): boolean {
+  return (
+    a.reviewCount > 0 &&
+    b.reviewCount > 0 &&
+    a.dimensionTotal.times(b.reviewCount).equals(b.dimensionTotal.times(a.reviewCount))
+  );
 }
 
 /** Named priorities delegate to the existing sorter without changing its query implementation. */
@@ -55,7 +68,7 @@ export function resolveTutorRankingQuery(query: TutorSearchQueryDto): TutorSearc
 export function buildTutorRecommendationTags(
   listing: {
     pricePerHour: Prisma.Decimal;
-    ratingAverage: Prisma.Decimal | null;
+    rating: TutorRawRating | null;
     nextAvailableAt: Date | null;
   },
   context: TutorRecommendationContext,
@@ -70,8 +83,8 @@ export function buildTutorRecommendationTags(
   }
   if (
     context.highestRating !== null &&
-    listing.ratingAverage !== null &&
-    listing.ratingAverage.equals(context.highestRating)
+    listing.rating !== null &&
+    hasEqualRawRating(listing.rating, context.highestRating)
   ) {
     tags.push(TutorRecommendationTag.HIGHEST_RATED);
   }

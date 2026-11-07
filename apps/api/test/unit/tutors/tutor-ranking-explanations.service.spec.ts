@@ -2,27 +2,42 @@ import { Test } from '@nestjs/testing';
 
 import { Prisma, TutorVerificationStatus } from '@generated/prisma/client';
 import { PrismaService } from '@infrastructure/database/prisma.service';
-import { publicTutorWhere } from '@modules/tutors/public-tutor-access';
 import { TutorDirectoryService } from '@modules/tutors/tutor-directory.service';
 import { TutorRankingPriority, TutorRecommendationTag } from '@modules/tutors/tutor-ranking';
+import { RATING_KEY, searchConditions } from '@modules/tutors/tutor-search-query';
 
 const NOW = new Date('2026-10-11T00:00:00.000Z');
 const EARLIEST = new Date('2026-10-12T02:00:00.000Z');
-function matchingObject(value: Record<string, unknown>): unknown {
-  return expect.objectContaining(value);
+const LISTING_IDS = [
+  '10000000-0000-4000-8000-000000000001',
+  '10000000-0000-4000-8000-000000000002',
+  '10000000-0000-4000-8000-000000000003',
+  '10000000-0000-4000-8000-000000000004',
+] as const;
+
+interface PageRow {
+  id: string;
+  ratingTotal: bigint;
+  reviewCount: number;
+  nextAvailableAt: Date | null;
 }
-const row = (price = '400.50', rating: string | null = '4.8', start: Date | null = EARLIEST) => ({
+
+const squash = (sql: string): string => sql.replace(/\s+/g, ' ').trim();
+const pageRow = (
+  id: string,
+  ratingTotal: number,
+  reviewCount: number,
+  nextAvailableAt: Date | null = EARLIEST,
+): PageRow => ({ id, ratingTotal: BigInt(ratingTotal), reviewCount, nextAvailableAt });
+const listing = (id: string, price = '400.50') => ({
   description: 'Mathematics lessons for secondary students.',
   gradeLevel: { name: 'Grade 10' },
-  id: '10000000-0000-4000-8000-000000000001',
+  id,
   pricePerHour: new Prisma.Decimal(price),
   subject: { name: 'Mathematics' },
   tutorProfile: {
-    availabilitySlots: start === null ? [] : [{ startAtUtc: start }],
     displayName: 'Tutor A',
     experienceYears: 5,
-    ratingAverage: rating === null ? null : new Prisma.Decimal(rating),
-    reviewCount: 2,
     user: { avatarUpdatedAt: null },
     userId: '20000000-0000-4000-8000-000000000001',
     verificationStatus: TutorVerificationStatus.VERIFIED,
@@ -31,23 +46,55 @@ const row = (price = '400.50', rating: string | null = '4.8', start: Date | null
 
 describe('TutorDirectoryService ranking explanations', () => {
   let service: TutorDirectoryService;
-  const prisma = {
+  const data = {
+    best: [] as { ratingTotal: bigint; reviewCount: number }[],
+    rows: [] as PageRow[],
+    summary: {
+      earliestAvailableAt: null as Date | null,
+      lowestPrice: null as Prisma.Decimal | null,
+      total: 0,
+    },
+  };
+  const tx = {
+    $executeRaw: jest.fn(),
     $queryRaw: jest.fn(),
-    availabilitySlot: { findFirst: jest.fn() },
+    teachingListing: { findMany: jest.fn() },
+  };
+  const prisma = {
+    $transaction: jest.fn(),
     gradeLevel: { findFirst: jest.fn() },
     subject: { findFirst: jest.fn() },
-    teachingListing: { aggregate: jest.fn(), count: jest.fn(), findMany: jest.fn() },
-    tutorProfile: { aggregate: jest.fn() },
   };
+
+  const statements = (): Prisma.Sql[] =>
+    tx.$queryRaw.mock.calls.map(([statement]: [Prisma.Sql]) => statement);
+  const statement = (kind: 'summary' | 'best' | 'page'): Prisma.Sql | undefined =>
+    statements().find((item) => kindOf(item) === kind);
+  function kindOf(item: Prisma.Sql): 'summary' | 'best' | 'page' {
+    if (item.sql.includes('AS "total"')) return 'summary';
+    return item.sql.includes('LIMIT 1') ? 'best' : 'page';
+  }
 
   beforeEach(async () => {
     jest.resetAllMocks();
     jest.useFakeTimers().setSystemTime(NOW);
+    data.best = [];
+    data.rows = [pageRow(LISTING_IDS[0], 72, 5)];
+    data.summary = { earliestAvailableAt: EARLIEST, lowestPrice: null, total: 20 };
     prisma.subject.findFirst.mockResolvedValue({ id: 'subject-id' });
     prisma.gradeLevel.findFirst.mockResolvedValue({ id: 'grade-id' });
-    prisma.teachingListing.findMany.mockResolvedValue([row()]);
-    prisma.teachingListing.count.mockResolvedValue(20);
-    prisma.$queryRaw.mockResolvedValue([{ id: row().id }]);
+    prisma.$transaction.mockImplementation((run: (client: typeof tx) => Promise<unknown>) =>
+      run(tx),
+    );
+    tx.$queryRaw.mockImplementation((item: Prisma.Sql) => {
+      const kind = kindOf(item);
+      return Promise.resolve(
+        kind === 'summary' ? [data.summary] : kind === 'best' ? data.best : data.rows,
+      );
+    });
+    tx.teachingListing.findMany.mockImplementation(() =>
+      Promise.resolve(data.rows.map(({ id }) => listing(id))),
+    );
     const module = await Test.createTestingModule({
       providers: [TutorDirectoryService, { provide: PrismaService, useValue: prisma }],
     }).compile();
@@ -59,9 +106,7 @@ describe('TutorDirectoryService ranking explanations', () => {
   });
 
   it('computes lowest price before pagination using all the same public filters', async () => {
-    prisma.teachingListing.aggregate.mockResolvedValue({
-      _min: { pricePerHour: new Prisma.Decimal('350') },
-    });
+    data.summary.lowestPrice = new Prisma.Decimal('350');
     const result = await service.searchPublicTutors({
       grade: 'Grade 10',
       maxPrice: 500,
@@ -71,115 +116,102 @@ describe('TutorDirectoryService ranking explanations', () => {
       priority: TutorRankingPriority.LOWEST_PRICE,
       subject: 'Mathematics',
     });
+
     expect(result.items[0]?.recommendationTags).toEqual([TutorRecommendationTag.FITS_BUDGET]);
-    expect(prisma.teachingListing.aggregate).toHaveBeenCalledWith({
-      _min: { pricePerHour: true },
-      where: {
-        deletedAt: null,
-        gradeLevelId: 'grade-id',
-        pricePerHour: { lte: 500 },
-        publicationStatus: 'PUBLISHED',
-        publishedAt: { not: null },
-        subjectId: 'subject-id',
-        tutorProfile: { ...publicTutorWhere, ratingAverage: { gte: 4 } },
-      },
+    const conditions = searchConditions({
+      gradeLevelId: 'grade-id',
+      maxPrice: 500,
+      minimumRating: 4,
+      subjectId: 'subject-id',
     });
+    const summary = statement('summary');
+    expect(squash(summary?.sql ?? '')).toContain(`MIN(tl."pricePerHour") AS "lowestPrice"`);
+    expect(squash(summary?.sql ?? '')).toMatch(
+      new RegExp(`WHERE ${escapeRegExp(squash(conditions.sql))}$`),
+    );
+    expect(summary?.values).toEqual([NOW, ...conditions.values]);
+    expect(summary?.sql).not.toMatch(/OFFSET|LIMIT/);
     expect(result.page).toBe(2);
   });
 
-  it('uses the globally highest known matching rating, never the best value on this page', async () => {
-    prisma.tutorProfile.aggregate.mockResolvedValue({
-      _max: { ratingAverage: new Prisma.Decimal('4.9') },
-    });
+  it('uses the globally highest matching rating, never the best value on this page', async () => {
+    data.best = [{ ratingTotal: BigInt(147), reviewCount: 10 }];
     const result = await service.searchPublicTutors({
       priority: TutorRankingPriority.HIGHEST_RATING,
       page: 2,
     });
+
     expect(result.items[0]?.recommendationTags).toEqual([]);
-    expect(prisma.tutorProfile.aggregate).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: matchingObject({
-          ...publicTutorWhere,
-          listings: {
-            some: matchingObject({ tutorProfile: publicTutorWhere }),
-          },
-        }),
-      }),
-    );
+    const best = squash(statement('best')?.sql ?? '');
+    expect(best).toContain(`${squash(searchConditions({}).sql)} AND rt."reviewCount" > 0`);
+    expect(best).toContain(`ORDER BY ${squash(RATING_KEY.sql)} DESC LIMIT 1`);
+    expect(best).not.toContain('OFFSET');
   });
 
-  it('marks every tied highest rating and does not turn null ratings into zero', async () => {
-    prisma.tutorProfile.aggregate.mockResolvedValue({
-      _max: { ratingAverage: new Prisma.Decimal('4.8') },
-    });
-    prisma.teachingListing.findMany.mockResolvedValue([
-      row(),
-      row('350', '4.80'),
-      row('300', null),
-    ]);
+  it('marks every exactly tied raw rating, not ratings that only round alike, and never null', async () => {
+    data.best = [{ ratingTotal: BigInt(62), reviewCount: 5 }];
+    data.rows = [
+      pageRow(LISTING_IDS[0], 62, 5),
+      pageRow(LISTING_IDS[1], 124, 10),
+      pageRow(LISTING_IDS[2], 99, 8),
+      pageRow(LISTING_IDS[3], 0, 0),
+    ];
     const result = await service.searchPublicTutors({
       priority: TutorRankingPriority.HIGHEST_RATING,
     });
-    expect(result.items.map((item) => item.recommendationTags)).toEqual([
-      [TutorRecommendationTag.HIGHEST_RATED],
-      [TutorRecommendationTag.HIGHEST_RATED],
-      [],
+
+    // 62/15 and 124/30 are the same 4.1333...; 99/24 is 4.125. All three display as 4.13.
+    expect(result.items.map((item) => [item.ratingAverage, item.recommendationTags])).toEqual([
+      [4.13, [TutorRecommendationTag.HIGHEST_RATED]],
+      [4.13, [TutorRecommendationTag.HIGHEST_RATED]],
+      [4.13, []],
+      [null, []],
     ]);
   });
 
-  it('gets the earliest explanation from future unreserved slots belonging to matching public tutors', async () => {
-    prisma.availabilitySlot.findFirst.mockResolvedValue({ startAtUtc: EARLIEST });
+  it('gets the earliest explanation from the matching set summary', async () => {
     const result = await service.searchPublicTutors({
       priority: TutorRankingPriority.EARLIEST_AVAILABILITY,
     });
+
     expect(result.items[0]?.recommendationTags).toEqual([
       TutorRecommendationTag.EARLIEST_AVAILABILITY,
     ]);
-    expect(prisma.availabilitySlot.findFirst).toHaveBeenCalledWith({
-      orderBy: [{ startAtUtc: 'asc' }, { id: 'asc' }],
-      select: { startAtUtc: true },
-      where: {
-        bookings: { none: { status: { in: ['PENDING', 'CONFIRMED'] } } },
-        deletedAt: null,
-        startAtUtc: { gt: NOW },
-        tutorProfile: {
-          ...publicTutorWhere,
-          listings: {
-            some: {
-              deletedAt: null,
-              publicationStatus: 'PUBLISHED',
-              publishedAt: { not: null },
-              tutorProfile: publicTutorWhere,
-            },
-          },
-        },
-      },
-    });
+    expect(squash(statement('summary')?.sql ?? '')).toContain(
+      'MIN(na."nextAvailableAt") AS "earliestAvailableAt"',
+    );
   });
 
   it('does not tag no-slot results when no matching bookable slot exists', async () => {
-    prisma.availabilitySlot.findFirst.mockResolvedValue(null);
-    prisma.teachingListing.findMany.mockResolvedValue([row('400.5', '4.8', null)]);
+    data.summary.earliestAvailableAt = null;
+    data.rows = [pageRow(LISTING_IDS[0], 72, 5, null)];
     const result = await service.searchPublicTutors({
       priority: TutorRankingPriority.EARLIEST_AVAILABILITY,
     });
+
     expect(result.items[0]?.recommendationTags).toEqual([]);
   });
 
   it('returns an empty result for no matches without inventing best-value tags', async () => {
-    prisma.teachingListing.aggregate.mockResolvedValue({ _min: { pricePerHour: null } });
-    prisma.teachingListing.findMany.mockResolvedValue([]);
-    prisma.teachingListing.count.mockResolvedValue(0);
+    data.rows = [];
+    data.summary = { earliestAvailableAt: null, lowestPrice: null, total: 0 };
+
     await expect(
       service.searchPublicTutors({ priority: TutorRankingPriority.LOWEST_PRICE }),
     ).resolves.toMatchObject({ items: [], total: 0, totalPages: 0 });
+    expect(tx.teachingListing.findMany).not.toHaveBeenCalled();
   });
 
-  it('does not issue best-value queries when no named priority is requested', async () => {
+  it('does not issue the best-rating statement or tags when no named priority is requested', async () => {
+    data.summary.lowestPrice = new Prisma.Decimal('400.50');
     const result = await service.searchPublicTutors({ maxPrice: 400.49 });
+
     expect(result.items[0]?.recommendationTags).toEqual([]);
-    expect(prisma.teachingListing.aggregate).not.toHaveBeenCalled();
-    expect(prisma.tutorProfile.aggregate).not.toHaveBeenCalled();
-    expect(prisma.availabilitySlot.findFirst).not.toHaveBeenCalled();
+    expect(statement('best')).toBeUndefined();
+    expect(statements().map(kindOf)).toEqual(['summary', 'page']);
   });
 });
+
+function escapeRegExp(text: string): string {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}

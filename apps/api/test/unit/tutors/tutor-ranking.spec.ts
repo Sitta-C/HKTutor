@@ -3,12 +3,13 @@ import { BadRequestException } from '@nestjs/common';
 import { Prisma } from '@generated/prisma/client';
 import {
   buildTutorRecommendationTags,
+  hasEqualRawRating,
   resolveTutorRankingQuery,
   TutorRankingPriority,
   TutorRecommendationTag,
 } from '@modules/tutors/tutor-ranking';
 
-import type { TutorRecommendationContext } from '@modules/tutors/tutor-ranking';
+import type { TutorRawRating, TutorRecommendationContext } from '@modules/tutors/tutor-ranking';
 import type { TutorSearchQueryDto } from '@modules/tutors/tutors.dto';
 
 const context = (
@@ -19,10 +20,14 @@ const context = (
   lowestPrice: null,
   ...overrides,
 });
+const raw = (dimensionTotal: number, reviewCount: number): TutorRawRating => ({
+  dimensionTotal: new Prisma.Decimal(dimensionTotal),
+  reviewCount,
+});
 const listing = {
   nextAvailableAt: new Date('2026-10-14T02:00:00.000Z'),
   pricePerHour: new Prisma.Decimal('400.50'),
-  ratingAverage: new Prisma.Decimal('4.8'),
+  rating: raw(72, 5),
 };
 
 describe('tutor ranking contract', () => {
@@ -86,7 +91,7 @@ describe('truthful tutor explanation tags', () => {
         listing,
         context({
           earliestAvailableAt: new Date(listing.nextAvailableAt),
-          highestRating: new Prisma.Decimal('4.80'),
+          highestRating: raw(144, 10),
           lowestPrice: new Prisma.Decimal('400.50'),
           maxPrice: 500,
         }),
@@ -105,7 +110,7 @@ describe('truthful tutor explanation tags', () => {
         listing,
         context({
           earliestAvailableAt: new Date('2026-10-13T02:00:00.000Z'),
-          highestRating: new Prisma.Decimal('4.9'),
+          highestRating: raw(147, 10),
           lowestPrice: new Prisma.Decimal('350'),
         }),
       ),
@@ -115,12 +120,36 @@ describe('truthful tutor explanation tags', () => {
   it('never labels an unrated or no-slot tutor as highest-rated or earliest available', () => {
     expect(
       buildTutorRecommendationTags(
-        { ...listing, nextAvailableAt: null, ratingAverage: null },
+        { ...listing, nextAvailableAt: null, rating: null },
         context({
-          highestRating: new Prisma.Decimal('4.8'),
+          highestRating: raw(72, 5),
           earliestAvailableAt: listing.nextAvailableAt,
         }),
       ),
     ).toEqual([]);
+  });
+});
+
+describe('exact raw rating comparison (S3-T19)', () => {
+  it('treats equal ratios as the same average, such as 13/3 and 26/6', () => {
+    expect(hasEqualRawRating(raw(13, 1), raw(26, 2))).toBe(true);
+    expect(hasEqualRawRating(raw(62, 5), raw(124, 10))).toBe(true);
+  });
+
+  it('keeps averages apart that only display alike: 4.1333 and 4.125 both show 4.13', () => {
+    expect(hasEqualRawRating(raw(62, 5), raw(99, 8))).toBe(false);
+  });
+
+  it('never matches a tutor without reviews', () => {
+    expect(hasEqualRawRating(raw(0, 0), raw(0, 0))).toBe(false);
+    expect(hasEqualRawRating(raw(15, 1), raw(0, 0))).toBe(false);
+  });
+
+  it('tags HIGHEST_RATED only for an exactly equal raw average', () => {
+    const best = context({ highestRating: raw(62, 5) });
+    expect(buildTutorRecommendationTags({ ...listing, rating: raw(124, 10) }, best)).toEqual([
+      TutorRecommendationTag.HIGHEST_RATED,
+    ]);
+    expect(buildTutorRecommendationTags({ ...listing, rating: raw(99, 8) }, best)).toEqual([]);
   });
 });
