@@ -8,6 +8,7 @@ import {
   floatingBounds,
   toggleComparisonChoice,
 } from '@/components/tutors/tutor-comparison-model';
+import { buildTutorRatingSummary } from '@/components/tutors/tutor-rating-model';
 import { ApiError } from '@/lib/api/error';
 import { getPublicTutor, getPublicTutorAvailability } from '@/lib/api/tutors';
 
@@ -144,6 +145,42 @@ describe('public comparison data', () => {
       });
     },
   );
+});
+
+describe('comparison rating values (S3-T20)', () => {
+  const rated = (ratingAverage: number | null, reviewCount: number): PublicTutorDetail => ({
+    ...detail,
+    tutor: { ...detail.tutor, ratingAverage, reviewCount },
+  });
+  // The comparison cell shows buildTutorRatingSummary of the column's tutor values.
+  const shown = (ratingAverage: number | null, reviewCount: number) => {
+    const column = buildComparisonColumn(choice, rated(ratingAverage, reviewCount), [], now);
+    if (column.state !== 'ready') throw new Error('Expected a ready column');
+    return {
+      tutor: column.tutor,
+      summary: buildTutorRatingSummary(column.tutor.ratingAverage, column.tutor.reviewCount),
+    };
+  };
+
+  it.each([
+    [4.33, 2, '4.33'],
+    [1, 1, '1.00'],
+    [5, 1, '5.00'],
+    [4.67, 1, '4.67'],
+  ])('keeps the API rating %s with %s reviews and shows %s', (ratingAverage, count, score) => {
+    expect(shown(ratingAverage, count)).toEqual({
+      tutor: expect.objectContaining({ ratingAverage, reviewCount: count }),
+      summary: { state: 'rated', score, reviewCount: count },
+    });
+  });
+
+  it('shows New tutor with 0 reviews instead of a 0.00 score', () => {
+    expect(shown(null, 0).summary).toEqual({ state: 'new', score: null, reviewCount: 0 });
+  });
+
+  it('never calls a tutor with reviews new when the score is missing', () => {
+    expect(shown(null, 2).summary).toEqual({ state: 'unavailable', score: null, reviewCount: 2 });
+  });
 });
 
 describe('floating comparison geometry', () => {

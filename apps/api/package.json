@@ -52,7 +52,8 @@
     "db:verify:reviews": "node scripts/verify-review-database.mjs",
     "db:verify:review-submissions": "ts-node -r tsconfig-paths/register scripts/verify-review-submissions.ts",
     "db:reconcile:review-ratings": "ts-node -r tsconfig-paths/register scripts/reconcile-review-ratings.ts",
-    "db:verify:review-ratings": "ts-node -r tsconfig-paths/register scripts/verify-review-ratings.ts"
+    "db:verify:review-ratings": "ts-node -r tsconfig-paths/register scripts/verify-review-ratings.ts",
+    "db:verify:rating-regression": "ts-node -r tsconfig-paths/register scripts/verify-rating-regression.ts"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",
