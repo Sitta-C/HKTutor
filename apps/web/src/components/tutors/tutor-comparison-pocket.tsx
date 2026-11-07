@@ -15,6 +15,7 @@ import { DashboardIcon } from '@/components/dashboard/dashboard-icon';
 import { formatPublicTutorSlot } from '@/components/tutors/public-tutor-detail-model';
 import { tutorComparisonCopy } from '@/components/tutors/tutor-comparison-copy';
 import { loadComparisonColumn } from '@/components/tutors/tutor-comparison-data';
+import { COMPARISON_ATTRIBUTES } from '@/components/tutors/tutor-comparison-view-model';
 import { buildTutorRatingSummary } from '@/components/tutors/tutor-rating-model';
 import {
   placeComparisonPanel,
@@ -27,6 +28,7 @@ import styles from './tutor-comparison-pocket.module.css';
 
 import type { TutorComparisonCopy } from '@/components/tutors/tutor-comparison-copy';
 import type { ComparisonColumn } from '@/components/tutors/tutor-comparison-model';
+import type { ComparisonAttribute } from '@/components/tutors/tutor-comparison-view-model';
 import type {
   ComparisonFlight,
   TutorComparisonController,
@@ -259,14 +261,6 @@ function FloatingPocket({ controller }: { controller: TutorComparisonController 
   const count = choices.filter(
     (choice) => !flights.some((flight) => flight.tutorId === choice.tutorId),
   ).length;
-  const labels = [
-    text.price,
-    text.subject,
-    text.rating,
-    text.reviews,
-    text.experience,
-    text.availability,
-  ];
 
   return (
     <div className={styles.root}>
@@ -384,14 +378,14 @@ function FloatingPocket({ controller }: { controller: TutorComparisonController 
                 </tr>
               </thead>
               <tbody>
-                {labels.map((label, row) => (
-                  <tr key={label}>
-                    <th scope="row">{label}</th>
+                {COMPARISON_ATTRIBUTES.map((attribute) => (
+                  <tr key={attribute}>
+                    <th scope="row">{text[attribute]}</th>
                     {columns.map((column) => (
                       <td key={column.choice.tutorId} data-tutor-column={column.choice.tutorId}>
                         <ComparisonValue
                           column={column}
-                          row={row}
+                          attribute={attribute}
                           language={language}
                           text={text}
                         />
@@ -451,12 +445,12 @@ function ColumnStatus({
 
 function ComparisonValue({
   column,
-  row,
+  attribute,
   language,
   text,
 }: {
   column: ComparisonColumn;
-  row: number;
+  attribute: ComparisonAttribute;
   language: 'en' | 'th';
   text: TutorComparisonCopy;
 }): ReactNode {
@@ -468,8 +462,8 @@ function ComparisonValue({
     );
   }
   const rating = buildTutorRatingSummary(column.tutor.ratingAverage, column.tutor.reviewCount);
-  switch (row) {
-    case 0:
+  switch (attribute) {
+    case 'price':
       return (
         <span className={styles.amount}>
           {new Intl.NumberFormat(language === 'th' ? 'th-TH' : 'en-US', {
@@ -478,14 +472,14 @@ function ComparisonValue({
           ฿
         </span>
       );
-    case 1:
+    case 'subject':
       return (
         <>
           {column.listing.subject}
           <small>{column.listing.grade}</small>
         </>
       );
-    case 2:
+    case 'rating':
       return rating.state === 'rated' ? (
         <>
           <strong className={styles.score}>{rating.score}</strong>
@@ -496,15 +490,15 @@ function ComparisonValue({
           {rating.state === 'new' ? text.newTutor : text.missing}
         </span>
       );
-    case 3:
+    case 'reviews':
       return rating.reviewCount === null ? text.missing : rating.reviewCount;
-    case 4:
+    case 'experience':
       return (
         <>
           {column.tutor.experienceYears} {text.years}
         </>
       );
-    case 5: {
+    case 'availability': {
       if (!column.nextSlot) {
         return <span className={styles.muted}>{text.noSlots}</span>;
       }
@@ -519,8 +513,6 @@ function ComparisonValue({
         </time>
       );
     }
-    default:
-      return null;
   }
 }
 
