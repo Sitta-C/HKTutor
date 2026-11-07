@@ -26,6 +26,7 @@ async function mockComparison(page: Page, language: 'en' | 'th' = 'en') {
     hidden: false,
     unavailableCourse: false,
     failDetail: false,
+    malformedPrice: false,
     slow: false,
   };
   const calls: string[] = [];
@@ -103,7 +104,7 @@ async function mockComparison(page: Page, language: 'en' | 'th' = 'en') {
         tutor: {
           tutorId: tutor.tutorId,
           displayName: tutor.displayName,
-          bio: '',
+          bio: 'Tutor bio stays on the profile page.',
           experienceYears: tutor.experienceYears,
           ratingAverage: tutor.ratingAverage,
           reviewCount: tutor.reviewCount,
@@ -116,7 +117,12 @@ async function mockComparison(page: Page, language: 'en' | 'th' = 'en') {
                 .filter((course) => course.tutorId === tutor.tutorId)
                 .map((course) => ({
                   ...course,
-                  pricePerHour: course.tutorId === 'shared-tutor' ? 425 : course.pricePerHour,
+                  pricePerHour:
+                    course.tutorId === 'shared-tutor'
+                      ? 425
+                      : state.malformedPrice && course.tutorId === 'tutor-2'
+                        ? 0
+                        : course.pricePerHour,
                 })),
       };
       return route.fulfill({ json: detail });
@@ -332,4 +338,28 @@ test('normal-motion flights, free dragging, immediate reopening, keyboard moves 
   expect(
     await page.evaluate(() => document.documentElement.scrollWidth - innerWidth),
   ).toBeLessThanOrEqual(1);
+});
+
+test('compares only allow-listed public values and shows malformed ones as unavailable (S3-T31)', async ({
+  page,
+}) => {
+  const { state, unexpected } = await mockComparison(page);
+  state.malformedPrice = true;
+  await page.goto('/tutors');
+  await expect(page.locator('article').first()).toContainText('Clear explanations');
+  await choose(page, 0).click();
+  await choose(page, 2).click();
+  await pocket(page).click();
+  await expect(panel(page).locator('[data-comparison-column="ready"]')).toHaveCount(2);
+  const price = panel(page).locator('tbody tr').first();
+  await expect(price.locator('[data-tutor-column="shared-tutor"]')).toContainText('425');
+  await expect(price.locator('[data-tutor-column="tutor-2"]')).toHaveText('Unavailable');
+  await expect(price).not.toContainText('NaN');
+  await expect(panel(page)).not.toContainText('Tutor bio stays on the profile page.');
+  await expect(panel(page)).not.toContainText('Clear explanations');
+  const headers = await panel(page)
+    .locator('thead [data-tutor-column]')
+    .evaluateAll((cells) => cells.map((cell) => cell.getAttribute('data-tutor-column')));
+  expect(headers).toEqual(['shared-tutor', 'tutor-2']);
+  expect(unexpected).toEqual([]);
 });
