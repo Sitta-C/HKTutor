@@ -260,3 +260,55 @@ describe('comparison view columns (S3-T31)', () => {
     expect(buildTutorComparisonView([])).toEqual([]);
   });
 });
+
+describe('comparison sort values (S3-T31 for S3-T33)', () => {
+  const sortOf = (
+    tutorPatch: Partial<PublicTutorProfile>,
+    listingPatch: Partial<PublicTeachingListing>,
+    next: PublicAvailabilitySlot | null,
+  ) =>
+    buildTutorComparisonEntry(
+      choice,
+      { ...tutor, ...tutorPatch },
+      { ...listing, ...listingPatch },
+      next,
+    ).sort;
+
+  it('orders the backlog price example 350 before 450 by raw number', () => {
+    expect(sortOf({}, { pricePerHour: 350 }, null).price).toBeLessThan(
+      sortOf({}, { pricePerHour: 450 }, null).price ?? Number.NaN,
+    );
+  });
+
+  it('uses the shown two-decimal score so displayed ties sort as ties', () => {
+    expect(sortOf({ ratingAverage: 4.67 }, {}, null).rating).toBe(4.67);
+    expect(sortOf({ ratingAverage: 4.666 }, {}, null).rating).toBe(4.67);
+  });
+
+  it('leaves new, unavailable and missing values null so they can sort last', () => {
+    expect(sortOf({ ratingAverage: null, reviewCount: 0 }, { pricePerHour: 0 }, null)).toEqual({
+      price: null,
+      rating: null,
+      availability: null,
+    });
+    expect(sortOf({ ratingAverage: null, reviewCount: 2 }, {}, null).rating).toBeNull();
+  });
+
+  it('uses the UTC instant for availability independent of the host time zone', () => {
+    const bangkokMorning = { ...slot, startAtUtc: '2026-11-08T02:00:00.000Z' };
+    expect(sortOf({}, {}, bangkokMorning).availability).toBe(Date.UTC(2026, 10, 8, 2));
+  });
+
+  it('numbers view positions in selection order after skipping a duplicate tutor', () => {
+    const columns: ComparisonColumn[] = ['tutor-2', 'tutor-2', 'tutor-1', 'tutor-3'].map(
+      (tutorId) => ({ choice: { tutorId, listingId: `${tutorId}-course` }, state: 'loading' }),
+    );
+    expect(
+      buildTutorComparisonView(columns).map((column) => [column.tutorId, column.position]),
+    ).toEqual([
+      ['tutor-2', 0],
+      ['tutor-1', 1],
+      ['tutor-3', 2],
+    ]);
+  });
+});
