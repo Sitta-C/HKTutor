@@ -1,10 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
+import { buildComparisonColumn } from '@/components/tutors/tutor-comparison-model';
 import {
   COMPARISON_ATTRIBUTES,
   buildTutorComparisonEntry,
+  buildTutorComparisonView,
 } from '@/components/tutors/tutor-comparison-view-model';
 
+import type { ComparisonColumn } from '@/components/tutors/tutor-comparison-model';
 import type {
   PublicAvailabilitySlot,
   PublicTeachingListing,
@@ -175,5 +178,83 @@ describe('missing comparison values (S3-T31)', () => {
       score: null,
       reviewCount: 3,
     });
+  });
+});
+
+describe('comparison view columns (S3-T31)', () => {
+  const now = Date.parse('2026-11-07T00:00:00.000Z');
+  const ready = (index: number): ComparisonColumn =>
+    buildComparisonColumn(
+      { tutorId: `tutor-${index}`, listingId: `course-${index}` },
+      {
+        tutor: { ...tutor, tutorId: `tutor-${index}`, displayName: `Teacher ${index}` },
+        listings: [{ ...listing, listingId: `course-${index}` }],
+      },
+      [slot],
+      now,
+    );
+
+  it('keeps selection order and the selected IDs as stable keys', () => {
+    const view = buildTutorComparisonView([ready(3), ready(1), ready(2)]);
+    expect(view.map((column) => [column.tutorId, column.listingId, column.state])).toEqual([
+      ['tutor-3', 'course-3', 'ready'],
+      ['tutor-1', 'course-1', 'ready'],
+      ['tutor-2', 'course-2', 'ready'],
+    ]);
+  });
+
+  it('keeps the tutor key when the column moves from loading to ready', () => {
+    const loading = buildTutorComparisonView([
+      { choice: { tutorId: 'tutor-1', listingId: 'course-1' }, state: 'loading' },
+    ]);
+    const loaded = buildTutorComparisonView([ready(1)]);
+    expect(loading[0]?.tutorId).toBe(loaded[0]?.tutorId);
+  });
+
+  it.each(['loading', 'unavailable', 'error'] as const)(
+    'exposes no tutor or course metadata while %s',
+    (state) => {
+      expect(buildTutorComparisonView([{ choice, state }])).toEqual([
+        { tutorId: 'tutor-1', listingId: 'course-1', state },
+      ]);
+    },
+  );
+
+  it('shows one column per tutor even if a tutor is passed twice', () => {
+    const view = buildTutorComparisonView([ready(1), ready(2), ready(1)]);
+    expect(view.map((column) => column.tutorId)).toEqual(['tutor-1', 'tutor-2']);
+  });
+
+  it('never shows a profile or course other than the selected one', () => {
+    const column = ready(1);
+    if (column.state !== 'ready') {
+      throw new Error('Expected a ready column');
+    }
+    const otherTutor: ComparisonColumn = { ...column, tutor: { ...column.tutor, tutorId: 'x' } };
+    const otherCourse: ComparisonColumn = {
+      ...column,
+      listing: { ...column.listing, listingId: 'x' },
+    };
+    expect(buildTutorComparisonView([otherTutor])[0]?.state).toBe('unavailable');
+    expect(buildTutorComparisonView([otherCourse])[0]?.state).toBe('unavailable');
+  });
+
+  it('builds a ready entry from the public column without bio or description', () => {
+    const [column] = buildTutorComparisonView([ready(1)]);
+    expect(column).toMatchObject({
+      state: 'ready',
+      entry: {
+        tutorId: 'tutor-1',
+        displayName: 'Teacher 1',
+        pricePerHour: 450,
+        nextAvailability: { startAtUtc: slot.startAtUtc },
+      },
+    });
+    expect(JSON.stringify(column)).not.toContain(tutor.bio);
+    expect(JSON.stringify(column)).not.toContain(listing.description);
+  });
+
+  it('returns an empty view for an empty selection', () => {
+    expect(buildTutorComparisonView([])).toEqual([]);
   });
 });
