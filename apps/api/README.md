@@ -2222,3 +2222,83 @@ group has its own random subject. The 8 checks cover:
 With `minimumRating` compared on the rounded average instead, the third check fails. The S2-T15
 `db:verify:tutor-ranking` and S3-T17 `db:verify:review-ratings` verifiers also pass against this
 code. The runner removes its fixtures in `finally`; discard the database afterwards.
+
+## Tutor rating regression (S3-T20)
+
+S3-T20 is the US8-2 regression suite for tutor ratings. It changes no production code. A rating is
+the sum of every review's three scores divided by three times the review count, rounded HALF_UP to
+two decimals only when displayed. Search filters, sorts and tags compare the unrounded value
+(S3-T19), the detail endpoint reads the S3-T17 cache, and the web formats the API value without
+re-averaging (S3-T18).
+
+### Acceptance wording change for S3-T39
+
+The backlog sheet's US8-2 criterion reads "Given review overall means 4.67 and 4.00. When displayed.
+Then average=4.34 and reviewCount=2." The product decision approved on 2026-10-26 replaces 4.34
+with **4.33**: aggregate the raw dimensions first and round once at display, so 5/4/5 and 4/4/4 give
+26/6 = 4.333… and display 4.33. The 4.34 only appears when each review's mean is rounded first
+(4.67 and 4.00 average to 4.335). Averaging the unrounded per-review means also gives 4.33. The
+sheet is not edited; S3-T39 records the final wording, suggested as "Given reviews 5/4/5 and 4/4/4
+(means 4.67 and 4.00). When displayed. Then average=4.33 and reviewCount=2." The zero-review
+criterion (New tutor, count 0, never 0.00) is unchanged.
+
+### Coverage
+
+| Requirement                                                                   | Tests                                                                                                                                                                                        |
+| ----------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 4.33, not 4.34; no per-review rounding; HALF_UP display; count 2              | `review-ratings.spec.ts`, `reviews.service.spec.ts`, `db:verify:rating-regression` check 1                                                                                                   |
+| A fresh review updates average and count                                      | `db:verify:rating-regression` check 1 (null/0, then 4.67/1, then 4.33/2 on detail, search and cache)                                                                                         |
+| Exact 1 and 5 bounds, a single review                                         | `review-ratings.spec.ts`, `reviews.e2e-spec.ts` (accepts 1 and 5), `db:verify:rating-regression` check 2                                                                                     |
+| Zero reviews: `null`/`0`, New tutor, never 0.00                               | `db:verify:rating-regression` check 3, web `tutor-rating.test.ts`, `tutor-rating-ui.spec.ts`                                                                                                 |
+| Concurrent reviews and cache rebuild                                          | `db:verify:review-ratings`, `db:verify:search-ratings` (six concurrent reviews, stale cache), `db:verify:review-submissions` (S3-T15 duplicate race, cache 4.00 to 4.33)                     |
+| Unicode feedback leaves ratings unchanged                                     | `reviews.e2e-spec.ts` (1000 code points, markup), `db:verify:rating-regression` check 4                                                                                                      |
+| `minimumRating` exact and inclusive; sort and `HIGHEST_RATED` from one source | `tutor-search-query.spec.ts`, `tutor-ranking.spec.ts`, `db:verify:search-ratings`, `db:verify:rating-regression` checks 1–3                                                                  |
+| Pagination and verified-only visibility                                       | `db:verify:search-ratings`                                                                                                                                                                   |
+| Card, profile and comparison displays                                         | web `tutor-rating.test.ts`, `tutor-rating-ui.spec.ts` (search, detail, profile, listing editor), `tutor-comparison.test.ts` (S3-T20 rating cases), `tutor-comparison-ui.spec.ts` (New tutor) |
+| Seeded ratings come from real reviews                                         | `review-fixtures.seed.spec.ts`, `db:verify:tutor-ranking` (ratings created as reviews)                                                                                                       |
+
+### Verification
+
+`pnpm --filter @hktutor/api db:verify:rating-regression` creates every review through the real
+`ReviewsService` and reads it back through the real public detail and search methods. Neither root
+`pnpm check` nor `pnpm test` runs it. It uses the same approval flag and loopback-only URL gates as
+the verifiers above. The four rating verifiers can share one disposable database; run S3-T17's
+first, because it requires an empty one. From the repository root:
+
+```bash
+nvm use 24.19.0
+pnpm install --frozen-lockfile
+docker run --detach --name hktutor-rating-regression-test \
+  --publish 127.0.0.1:55443:5432 \
+  --env POSTGRES_USER=postgres --env POSTGRES_PASSWORD=disposable-local-only \
+  --env POSTGRES_DB=hktutor_rating_regression_test postgres:17-alpine
+# Wait until this reports that PostgreSQL is accepting connections.
+docker exec hktutor-rating-regression-test pg_isready -U postgres -d hktutor_rating_regression_test
+export DATABASE_URL='postgresql://postgres:disposable-local-only@127.0.0.1:55443/hktutor_rating_regression_test'
+pnpm db:generate
+pnpm --filter @hktutor/api db:migrate:deploy
+export HKTUTOR_ALLOW_DISPOSABLE_DB_VERIFY=1
+pnpm --filter @hktutor/api db:verify:review-ratings
+pnpm --filter @hktutor/api db:verify:tutor-ranking
+pnpm --filter @hktutor/api db:verify:search-ratings
+pnpm --filter @hktutor/api db:verify:rating-regression
+# Discard this example's container and its anonymous data volume, including after a failed run.
+docker rm --force --volumes hktutor-rating-regression-test
+unset DATABASE_URL HKTUTOR_ALLOW_DISPOSABLE_DB_VERIFY
+```
+
+The 4 rating regression checks cover:
+
+- 5/4/5 then 4/4/4: per-review means 4.67 and 4.00; the tutor goes from `null`/`0` to 4.67/1 to
+  4.33/2 on detail, search and cache, never the 4.34 of averaging rounded means. `minimumRating`
+  4.33 includes the tutor and 4.34 excludes them.
+- 1/1/1 is 1.00 and passes 1; 5/5/5 is 5.00, the only tutor passing 5 and the only `HIGHEST_RATED`;
+  1/1/1 plus 5/5/5 is exactly 3.00; a single 5/5/4 review shows 4.67 but fails `minimumRating=4.67`.
+- Zero reviews: `null`/`0` everywhere with no rating timestamp, sorted after a rated tutor, never
+  `HIGHEST_RATED` even as the only result, and excluded by `minimumRating=1`.
+- 1000 code points of Thai with stacked marks, a ZWJ emoji, combining accents and markup-looking
+  text are stored and read back exactly, and the rating matches a twin with ASCII feedback.
+
+The runner removes its fixtures in `finally`; discard the database afterwards. The browser check of
+a fresh review (two reviews submitted through the UI against a disposable stack, then search,
+detail and comparison) is recorded as manual evidence in the S3-T20 pull request.
