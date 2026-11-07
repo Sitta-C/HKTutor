@@ -19,6 +19,7 @@ async function setup(
     postStatus?: number;
     postCode?: string;
     loseResponse?: boolean;
+    saveBeforeResponseLoss?: boolean;
   } = {},
 ) {
   const state = {
@@ -30,6 +31,7 @@ async function setup(
     postStatus: options.postStatus,
     postCode: options.postCode,
     loseResponse: options.loseResponse ?? false,
+    saveBeforeResponseLoss: options.saveBeforeResponseLoss ?? false,
     unexpected: [] as string[],
   };
   await page.clock.install({ time: new Date(NOW) });
@@ -167,7 +169,7 @@ async function setup(
     if (path === `/bookings/me/${BOOKING_ID}/reviews` && request.method() === 'POST') {
       const body: unknown = request.postDataJSON();
       state.posts.push(body);
-      if (state.loseResponse) {
+      if (state.loseResponse && !state.saveBeforeResponseLoss) {
         return route.abort('failed');
       }
       if (state.postStatus) {
@@ -200,6 +202,9 @@ async function setup(
         createdAt: NOW,
       };
       state.review = created;
+      if (state.loseResponse) {
+        return route.abort('failed');
+      }
       return route.fulfill({ status: 201, json: { review: created } });
     }
     state.unexpected.push(`${request.method()} ${path}`);
@@ -211,11 +216,15 @@ async function setup(
   return { state, text };
 }
 
-test('shows the locked message for a booking that is not completed yet', async ({ page }) => {
-  const { text } = await setup(page, { status: 'CONFIRMED' });
-  await expect(page.getByText(text.locked, { exact: true })).toBeVisible();
-  await expect(page.getByRole('heading', { name: text.title })).toHaveCount(0);
-});
+for (const status of ['PENDING', 'CONFIRMED', 'CANCELED', 'EXPIRED'] as const) {
+  test(`keeps the review form locked for a ${status} booking`, async ({ page }) => {
+    const { state, text } = await setup(page, { status });
+    await expect(page.getByText(text.locked, { exact: true })).toBeVisible();
+    await expect(page.getByRole('heading', { name: text.title })).toHaveCount(0);
+    expect(state.getReviewCalls).toBe(0);
+    expect(state.posts).toEqual([]);
+  });
+}
 
 test('shows validation errors for missing ratings and feedback on submit, then submits successfully', async ({
   page,
@@ -313,6 +322,24 @@ test('invalid feedback shows an inline error and blocks submission', async ({ pa
   await page.getByRole('button', { name: text.submit, exact: true }).click();
   expect(state.posts).toEqual([]);
   await expect(page.getByRole('alert').filter({ hasText: text.feedbackBlank })).toBeVisible();
+});
+
+test('rejects 1001 astral code points and sends exactly 1000 after trimming', async ({ page }) => {
+  const { state, text } = await setup(page);
+  await selectRatings(page);
+  const feedback = page.getByLabel(text.feedbackLabel, { exact: true });
+  const limit = '😀'.repeat(1000);
+  await feedback.fill(limit + '😀');
+  await feedback.blur();
+  await expect(page.getByRole('alert').filter({ hasText: text.feedbackTooLong })).toBeVisible();
+  const submit = page.getByRole('button', { name: text.submit, exact: true });
+  await submit.click();
+  expect(state.posts).toEqual([]);
+
+  await feedback.fill(`  ${limit}  `);
+  await submit.click();
+  await expect(page.getByText(text.savedTitle, { exact: true })).toBeVisible();
+  expect(state.posts).toEqual([{ clarity: 5, punctuality: 4, preparation: 5, feedback: limit }]);
 });
 
 test('a 403 from the review read shows the forbidden message instead of a crash', async ({
@@ -422,13 +449,47 @@ test('an uncertain (lost response) submission preserves input and does not auto-
     .check();
   const feedback = page.getByLabel(text.feedbackLabel, { exact: true });
   await feedback.fill('Network will drop this response');
+  state.getReviewStatus = 503;
   await page.getByRole('button', { name: text.submit, exact: true }).click();
   await expect(page.getByText(text.uncertainFailed, { exact: true })).toBeVisible();
   await expect(feedback).toHaveValue('Network will drop this response');
   expect(state.posts).toHaveLength(1);
 
   state.loseResponse = false;
+  state.getReviewStatus = 200;
   await page.getByRole('button', { name: text.submit, exact: true }).click();
   await expect(page.getByText(text.savedTitle, { exact: true })).toBeVisible();
   expect(state.posts).toHaveLength(2);
+  expect(state.posts[1]).toEqual(state.posts[0]);
 });
+
+test('a lost response after saving shows canonical feedback as inert text without resending', async ({
+  page,
+}) => {
+  const { state, text } = await setup(page, { loseResponse: true, saveBeforeResponseLoss: true });
+  await selectRatings(page);
+  const markup =
+    '<img data-review-probe src="/missing-review-image" onerror="document.body.dataset.reviewExecuted=1">';
+  await page.getByLabel(text.feedbackLabel, { exact: true }).fill(markup);
+  const callsBeforeSubmit = state.getReviewCalls;
+  await page.getByRole('button', { name: text.submit, exact: true }).click();
+
+  await expect(page.getByText(text.savedTitle, { exact: true })).toBeVisible();
+  await expect(page.getByText(markup, { exact: true })).toBeVisible();
+  await expect(page.locator('img[data-review-probe], body[data-review-executed]')).toHaveCount(0);
+  expect(state.getReviewCalls).toBeGreaterThan(callsBeforeSubmit);
+  expect(state.posts).toEqual([{ clarity: 5, punctuality: 4, preparation: 5, feedback: markup }]);
+});
+
+async function selectRatings(page: Page): Promise<void> {
+  const text = reviewCopy.en;
+  for (const [legend, rating] of [
+    [text.clarityLegend, 5],
+    [text.punctualityLegend, 4],
+    [text.preparationLegend, 5],
+  ]) {
+    await page
+      .getByRole('radio', { name: `${legend} ${rating} ${text.ratingOption}`, exact: true })
+      .check();
+  }
+}
