@@ -1,5 +1,6 @@
 import { buildTutorRatingSummary } from '@/components/tutors/tutor-rating-model';
 
+import type { ComparisonColumn } from '@/components/tutors/tutor-comparison-model';
 import type { TutorRatingSummary } from '@/components/tutors/tutor-rating-model';
 import type {
   PublicAvailabilitySlot,
@@ -60,6 +61,50 @@ export function buildTutorComparisonEntry(
     experienceYears: publicExperience(tutor.experienceYears),
     nextAvailability: nextSlot && { startAtUtc: nextSlot.startAtUtc, endAtUtc: nextSlot.endAtUtc },
   };
+}
+
+/**
+ * A comparison column keyed by the selected tutor ID. The key stays the same while the column
+ * loads, fails or becomes ready, and when the tutor's course is replaced, so the table keeps the
+ * tutor in place. Loading, unavailable and error columns carry no tutor or course metadata.
+ */
+export type TutorComparisonViewColumn =
+  | { tutorId: string; listingId: string; state: 'loading' | 'unavailable' | 'error' }
+  | { tutorId: string; listingId: string; state: 'ready'; entry: TutorComparisonEntry };
+
+/** Builds the comparison view in selection order; no comparison data is stored or persisted. */
+export function buildTutorComparisonView(columns: ComparisonColumn[]): TutorComparisonViewColumn[] {
+  const seen = new Set<string>();
+  const view: TutorComparisonViewColumn[] = [];
+  for (const column of columns) {
+    const { tutorId, listingId } = column.choice;
+    // One column per tutor; a duplicated tutor would break stable keys and column alignment.
+    if (seen.has(tutorId)) {
+      continue;
+    }
+    seen.add(tutorId);
+    if (column.state !== 'ready') {
+      view.push({ tutorId, listingId, state: column.state });
+      continue;
+    }
+    // Defence in depth: never show a profile or course other than the one selected.
+    if (column.tutor.tutorId !== tutorId || column.listing.listingId !== listingId) {
+      view.push({ tutorId, listingId, state: 'unavailable' });
+      continue;
+    }
+    view.push({
+      tutorId,
+      listingId,
+      state: 'ready',
+      entry: buildTutorComparisonEntry(
+        column.choice,
+        column.tutor,
+        column.listing,
+        column.nextSlot,
+      ),
+    });
+  }
+  return view;
 }
 
 function publicText(value: unknown): string | null {
