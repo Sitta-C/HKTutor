@@ -52,6 +52,8 @@ button opens their comparison directly in a Course Tabs popup, with current publ
 rating, review count, experience and next availability. Selections survive search changes in memory;
 they reset on reload/navigation away. Each open rechecks public visibility, and missing courses are
 not replaced automatically. This uses the existing public APIs and adds no database migration.
+The popup renders an allow-listed view model (S3-T31) keyed by stable tutor IDs; bio, course
+description and other public fields stay out, and malformed values show as unavailable.
 
 See [S3-T03 verification](apps/web/e2e/chat-realtime-verification.md) for recorded commands/results
 and the opted-in two-session browser suite against a disposable PostgreSQL database.

@@ -105,6 +105,22 @@ no stale column metadata. Other read failures offer retry; reads time out after 
 aborted/discarded on close, selection change or unmount. No new HTTP endpoint, URL selection format,
 storage table or browser persistence is introduced. The other public tutor page requests are unchanged.
 
+### Comparison view model (S3-T31)
+
+`tutor-comparison-view-model.ts` turns the loaded columns into the view the popup renders. Each
+column is keyed by the selected tutor ID, keeps its selection `position`, and stays on the same key
+while loading, failing, becoming ready or switching to another course of that tutor. A repeated tutor
+keeps only its first column; a profile or course that does not match the selection is unavailable.
+Loading, unavailable and error columns carry only IDs and state.
+
+A ready column holds an allow-listed entry: display name, subject, grade, hourly price, the shared
+rating summary (score and review count), experience and the next slot's UTC start/end. Bio, course
+description, slot IDs and any other field in the public responses are not copied. A blank subject or
+grade, a non-positive or non-finite price and a negative or fractional experience become `null` and
+show as Unavailable. Each entry also exposes raw `sort` values (price, shown two-decimal rating, next
+slot start instant; `null` when missing) for the S3-T33 comparison sort. The view is derived per
+render from the existing public responses; there is still no comparison table or browser storage.
+
 ## Tutor qualification review
 
 Tutor verification distinguishes `UNVERIFIED` (no documents submitted) from `PENDING` (documents
