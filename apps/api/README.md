@@ -2035,11 +2035,57 @@ pnpm --filter @hktutor/api test:e2e --runInBand --runTestsByPath test/reviews.e2
 
 Unit tests cover the HALF_UP aggregate math against the agreed worked example, the booking lock and
 re-validation, the P2002/P2003 error mappings, the cursor's cross-tutor rejection, and the privacy
-exclusions in the public list. The HTTP suite exercises real validation, guards and service-logic
-wiring with isolated persistence, including the full rating/feedback validation matrix and the
-`{ review: null }` and empty-list shapes. Neither suite exercises real PostgreSQL concurrency; the
-disposable-database proof of the duplicate-review race and the uniqueness constraint is S3-T15's
-scope, not S3-T13's.
+exclusions in the public list. The HTTP suite exercises real validation, guards and controller
+wiring with test doubles, including the full rating/feedback validation matrix and the
+`{ review: null }` and empty-list shapes. See S3-T15 below for the real PostgreSQL race.
+
+### Review QA (S3-T15)
+
+Local verification on 2026-11-07, using Node.js 24.20.0, pnpm 11.19.0 and PostgreSQL 17.11:
+
+| Command                                                                                     | Result                                                                        |
+| ------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| `pnpm --filter @hktutor/api test --runInBand reviews`                                       | 57 unit cases passed                                                          |
+| `pnpm --filter @hktutor/api test:e2e --runInBand --runTestsByPath test/reviews.e2e-spec.ts` | 56 HTTP contract cases passed                                                 |
+| `pnpm --filter @hktutor/web test:e2e review-ui.spec.ts --workers=2`                         | 48 passed across desktop, tablet and mobile Chromium                          |
+| `pnpm --filter @hktutor/api db:migrate:deploy`                                              | 24 migrations applied to the new disposable database                          |
+| `pnpm --filter @hktutor/api db:verify:review-submissions`                                   | Real PostgreSQL, signed JWTs, and the review HTTP routes passed               |
+| `pnpm db:verify:reviews`                                                                    | Direct PostgreSQL constraint, Unicode, uniqueness, and rollback checks passed |
+
+Workspace verification:
+
+- `pnpm check` generated Prisma Client and stopped at `format:check` on 625 existing CRLF files
+  in the Windows checkout. Default Prettier passed for the six changed files, and
+  `pnpm exec prettier --check --end-of-line auto .` passed across the workspace.
+- `pnpm lint` picked up the local `.pnpm-store` cache. Root lint passed with
+  `pnpm exec eslint . --max-warnings=0 --ignore-pattern '.pnpm-store/**'`;
+  `pnpm -r --if-present lint` passed for the workspace packages.
+- `pnpm test` passed: 1,560 API cases and 558 web cases. `pnpm build` passed for API and web,
+  including API script typechecking.
+
+The HTTP contract checks all three rating dimensions independently and trims feedback before
+enforcing the 1–1000 Unicode code point range. The browser suite intercepts API traffic to check
+unfinished booking states, duplicate and lost response recovery, draft preservation on retry,
+and rendering markup-like feedback as plain text. It does not write to PostgreSQL.
+
+The database verifier observed both POST transactions waiting on the same booking lock before
+releasing it. One returned 201 and the other 409 `REVIEW_ALREADY_EXISTS`. Denied requests created
+zero reviews. The owner read returned the winning review; equal-timestamp public pages had no
+duplicates or private fields, and unverified/suspended tutors returned 404.
+
+| PostgreSQL evidence               | Before the race | After the race |
+| --------------------------------- | --------------- | -------------- |
+| Review rows for the raced booking | 0               | 1              |
+| Review rows for the tutor         | 1               | 2              |
+| Cached review count               | 1               | 2              |
+| Cached rating average             | 4.00            | 4.33           |
+
+To reproduce, create a fresh PostgreSQL 17 container with the database `hktutor_s3_t15_test`,
+published on `127.0.0.1` only. Set `DATABASE_URL` in the test shell to that container's database
+and set `HKTUTOR_ALLOW_DISPOSABLE_DB_VERIFY=1`. Run `pnpm db:generate`, then the three database
+commands above in order. The new verifier refuses other database names, non-loopback addresses,
+URL options and nonempty user tables. It uses synthetic fixtures and leaves them in the container
+for inspection. Stop the disposable container when finished; no seed is required.
 
 ## Tutor review rating caches and detail (S3-T17)
 
