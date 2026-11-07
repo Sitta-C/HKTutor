@@ -47,7 +47,7 @@ export function groupPublicTutorSlots(
 }
 
 export function formatPublicTutorSlot(
-  slot: PublicAvailabilitySlot,
+  slot: Pick<PublicAvailabilitySlot, 'startAtUtc' | 'endAtUtc'>,
   language: DateTimeLanguage,
 ): { start: string; end: string; startDate: string; endDate: string | null; label: string } {
   const start = formatBangkokTime(slot.startAtUtc, language);
