@@ -27,6 +27,7 @@ const URL = `/api/v1/bookings/me/${BOOKING_ID}/reviews`;
 const GET_URL = `/api/v1/bookings/me/${BOOKING_ID}/review`;
 const PUBLIC_URL = `/api/v1/tutors/${TUTOR_ID}/reviews`;
 const VALID_BODY = { clarity: 5, feedback: 'Clear examples', preparation: 5, punctuality: 4 };
+const RATING_DIMENSIONS = ['clarity', 'punctuality', 'preparation'] as const;
 const SAVED_REVIEW = {
   clarity: 5,
   createdAt: '2026-11-10T11:00:00.000Z',
@@ -171,28 +172,25 @@ describe('Reviews HTTP contract', () => {
     expect((alreadyExists.body as { code: string }).code).toBe('REVIEW_ALREADY_EXISTS');
   });
 
-  it.each([
-    ['missing', { ...VALID_BODY, clarity: undefined }],
-    ['zero', { ...VALID_BODY, clarity: 0 }],
-    ['above range', { ...VALID_BODY, clarity: 6 }],
-    ['a fraction', { ...VALID_BODY, clarity: 4.5 }],
-    ['a numeric string', { ...VALID_BODY, clarity: '5' }],
-  ])('rejects a rating that is %s', async (_label, body) => {
-    await request(app.getHttpServer())
-      .post(URL)
-      .auth('test', { type: 'bearer' })
-      .send(body)
-      .expect(400);
-    expect(reviews.create).not.toHaveBeenCalled();
-  });
+  describe.each(RATING_DIMENSIONS)('%s rating', (dimension) => {
+    it.each([0, 6, 4.5, '5', undefined])('rejects %p before writing', async (value) => {
+      await request(app.getHttpServer())
+        .post(URL)
+        .auth('test', { type: 'bearer' })
+        .send({ ...VALID_BODY, [dimension]: value })
+        .expect(400);
+      expect(reviews.create).not.toHaveBeenCalled();
+    });
 
-  it('accepts the boundary ratings 1 and 5', async () => {
-    await request(app.getHttpServer())
-      .post(URL)
-      .auth('test', { type: 'bearer' })
-      .send({ ...VALID_BODY, clarity: 1, preparation: 5, punctuality: 1 })
-      .expect(201);
-    expect(reviews.create).toHaveBeenCalled();
+    it.each([1, 5])('accepts boundary %i unchanged', async (value) => {
+      const body = { ...VALID_BODY, [dimension]: value };
+      await request(app.getHttpServer())
+        .post(URL)
+        .auth('test', { type: 'bearer' })
+        .send(body)
+        .expect(201);
+      expect(reviews.create).toHaveBeenCalledWith(BOOKING_ID, STUDENT_ID, body);
+    });
   });
 
   it.each([
@@ -223,44 +221,39 @@ describe('Reviews HTTP contract', () => {
     expect((response.body as { review: { feedback: string } }).review.feedback).toBe(markup);
   });
 
-  it('rejects blank feedback and feedback over 1000 Unicode code points, accepts exactly 1000', async () => {
+  it('rejects 1001 Unicode code points after trimming', async () => {
     await request(app.getHttpServer())
       .post(URL)
       .auth('test', { type: 'bearer' })
-      .send({ ...VALID_BODY, feedback: '   ' })
-      .expect(400);
-    await request(app.getHttpServer())
-      .post(URL)
-      .auth('test', { type: 'bearer' })
-      .send({ ...VALID_BODY, feedback: '😀'.repeat(1001) })
+      .send({ ...VALID_BODY, feedback: `  ก${'😀'.repeat(1000)}  ` })
       .expect(400);
     expect(reviews.create).not.toHaveBeenCalled();
+  });
 
+  it.each([1, 1000])('accepts %i astral Unicode code points after trimming', async (length) => {
+    const feedback = '😀'.repeat(length);
     await request(app.getHttpServer())
       .post(URL)
       .auth('test', { type: 'bearer' })
-      .send({ ...VALID_BODY, feedback: '😀'.repeat(1000) })
+      .send({ ...VALID_BODY, feedback: ` \t${feedback}\n ` })
       .expect(201);
-    expect(reviews.create).toHaveBeenCalledWith(
-      BOOKING_ID,
-      STUDENT_ID,
-      expect.objectContaining({ feedback: '😀'.repeat(1000) }),
-    );
+    expect(reviews.create).toHaveBeenCalledWith(BOOKING_ID, STUDENT_ID, {
+      ...VALID_BODY,
+      feedback,
+    });
   });
 
-  it('rejects unknown and aggregate fields', async () => {
-    await request(app.getHttpServer())
-      .post(URL)
-      .auth('test', { type: 'bearer' })
-      .send({ ...VALID_BODY, overallRating: 5 })
-      .expect(400);
-    await request(app.getHttpServer())
-      .post(URL)
-      .auth('test', { type: 'bearer' })
-      .send({ ...VALID_BODY, authorStudentUserId: STUDENT_ID })
-      .expect(400);
-    expect(reviews.create).not.toHaveBeenCalled();
-  });
+  it.each([{ overallRating: 5 }, { authorStudentUserId: STUDENT_ID }, { rating: 5 }])(
+    'rejects unrecognized fields %p before writing',
+    async (extra) => {
+      await request(app.getHttpServer())
+        .post(URL)
+        .auth('test', { type: 'bearer' })
+        .send({ ...VALID_BODY, ...extra })
+        .expect(400);
+      expect(reviews.create).not.toHaveBeenCalled();
+    },
+  );
 
   describe('GET /bookings/me/:bookingId/review', () => {
     it('requires authentication', async () => {

@@ -127,13 +127,16 @@ describe('ReviewsService', () => {
     expect(transaction).not.toHaveBeenCalled();
   });
 
-  it('throws 409 when the booking is not completed yet', async () => {
-    db.booking.findUnique.mockResolvedValue({ ...completedBooking(), status: 'CONFIRMED' });
-    const outcome = service.create(BOOKING_ID, STUDENT_ID, dto());
-    await expect(outcome).rejects.toThrow(ConflictException);
-    await expect(outcome).rejects.toMatchObject({ response: { code: 'BOOKING_NOT_COMPLETED' } });
-    expect(transaction).not.toHaveBeenCalled();
-  });
+  it.each(['PENDING', 'CONFIRMED', 'CANCELED', 'EXPIRED'] as const)(
+    'rejects a %s booking before opening a transaction',
+    async (status) => {
+      db.booking.findUnique.mockResolvedValue({ ...completedBooking(), status });
+      const outcome = service.create(BOOKING_ID, STUDENT_ID, dto());
+      await expect(outcome).rejects.toThrow(ConflictException);
+      await expect(outcome).rejects.toMatchObject({ response: { code: 'BOOKING_NOT_COMPLETED' } });
+      expect(transaction).not.toHaveBeenCalled();
+    },
+  );
 
   it('re-validates completion under the lock, not only before opening the transaction', async () => {
     db.booking.findUniqueOrThrow.mockResolvedValue({ ...completedBooking(), status: 'CANCELED' });
