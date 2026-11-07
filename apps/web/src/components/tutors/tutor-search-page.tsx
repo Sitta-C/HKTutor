@@ -5,6 +5,9 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { DashboardIcon } from '@/components/dashboard/dashboard-icon';
 import { ProfileAvatar } from '@/components/profile/profile-avatar';
+import { tutorComparisonCopy } from '@/components/tutors/tutor-comparison-copy';
+import { MAX_COMPARISON_TUTORS } from '@/components/tutors/tutor-comparison-model';
+import { TutorComparisonPocket } from '@/components/tutors/tutor-comparison-pocket';
 import { TutorRatingSummary } from '@/components/tutors/tutor-rating-summary';
 import { tutorSearchCopy } from '@/components/tutors/tutor-search-copy';
 import {
@@ -17,6 +20,7 @@ import {
   validateTutorSearch,
 } from '@/components/tutors/tutor-search-model';
 import { TutorVerificationBadge } from '@/components/tutors/tutor-verification-badge';
+import { useTutorComparison } from '@/components/tutors/use-tutor-comparison';
 import {
   NotebookHeading,
   PaperCard,
@@ -46,6 +50,7 @@ import paginationStyles from './tutor-search-pagination.module.css';
 
 import type { TutorSearchCopy } from '@/components/tutors/tutor-search-copy';
 import type { TutorSearchErrors, TutorSearchForm } from '@/components/tutors/tutor-search-model';
+import type { TutorComparisonController } from '@/components/tutors/use-tutor-comparison';
 import type {
   GradeLevelOption,
   SubjectOption,
@@ -66,6 +71,8 @@ const initialPagination: Pick<TutorSearchResponse, 'page' | 'pageSize' | 'total'
 export default function TutorSearchPage() {
   const { language } = useLanguage();
   const text = tutorSearchCopy[language];
+  const comparison = useTutorComparison();
+  const comparisonText = tutorComparisonCopy[language];
   const [form, setForm] = useState<TutorSearchForm>(initialTutorSearchForm);
   const [subjects, setSubjects] = useState<SubjectOption[]>([]);
   const [gradeLevels, setGradeLevels] = useState<GradeLevelOption[]>([]);
@@ -389,6 +396,11 @@ export default function TutorSearchPage() {
             <p id="tutor-search-ranking-hint">{text.rankingHint}</p>
           </div>
           <div className={styles.resultBody}>
+            <p id="tutor-comparison-guide" className={styles.comparisonGuide}>
+              {comparison.choices.length === MAX_COMPARISON_TUTORS
+                ? comparisonText.limit
+                : comparisonText.guide}
+            </p>
             {status === 'error' && hasSearchError && (
               <div className={styles.retryState}>
                 <div className={styles.returnSlip} role="alert">
@@ -429,6 +441,7 @@ export default function TutorSearchPage() {
                   result={result}
                   text={text}
                   language={language}
+                  comparison={comparison}
                 />
               ))}
           </div>
@@ -445,6 +458,7 @@ export default function TutorSearchPage() {
           <p className={styles.resultNote}>{text.cardNote}</p>
         </PaperCard>
       </div>
+      <TutorComparisonPocket controller={comparison} />
     </div>
   );
 }
@@ -558,11 +572,21 @@ function TutorResultCard({
   result,
   text,
   language,
+  comparison,
 }: {
   result: TutorSearchResult;
   text: TutorSearchCopy;
   language: 'en' | 'th';
+  comparison: TutorComparisonController;
 }) {
+  const comparisonText = tutorComparisonCopy[language];
+  const choice = comparison.choices.find((item) => item.tutorId === result.tutorId);
+  const chosen = choice?.listingId === result.listingId;
+  const choiceLabel = chosen
+    ? comparisonText.selected
+    : choice
+      ? comparisonText.replace
+      : comparisonText.choose;
   const nextAvailable = result.nextAvailableAt
     ? `${text.next}: ${formatNextAvailable(result.nextAvailableAt, language)}`
     : text.noFutureSlots;
@@ -641,14 +665,28 @@ function TutorResultCard({
         )}
       </div>
       <p className={styles.availability}>{nextAvailable}</p>
-      <Link
-        href={`/tutors/${encodeURIComponent(result.tutorId)}?listingId=${encodeURIComponent(result.listingId)}`}
-        className={notebookActionClass({ role: 'student', className: styles.courseAction })}
-      >
-        <NotebookActionContent icon={<DashboardIcon name="arrow-right" />} iconPosition="end">
-          <span className={styles.courseActionLabel}>{text.viewTimes}</span>
-        </NotebookActionContent>
-      </Link>
+      <div className={styles.courseActions}>
+        <button
+          type="button"
+          className={styles.comparisonChoice}
+          aria-pressed={chosen}
+          aria-label={`${choiceLabel}: ${result.displayName}, ${result.subject}, ${result.grade}`}
+          aria-describedby="tutor-comparison-guide"
+          disabled={!choice && comparison.choices.length >= MAX_COMPARISON_TUTORS}
+          onClick={(event) => comparison.toggle(result, event.currentTarget)}
+        >
+          <DashboardIcon name={chosen ? 'check-single' : 'plus'} className="h-4 w-4" />
+          {choiceLabel}
+        </button>
+        <Link
+          href={`/tutors/${encodeURIComponent(result.tutorId)}?listingId=${encodeURIComponent(result.listingId)}`}
+          className={notebookActionClass({ role: 'student', className: styles.courseAction })}
+        >
+          <NotebookActionContent icon={<DashboardIcon name="arrow-right" />} iconPosition="end">
+            <span className={styles.courseActionLabel}>{text.viewTimes}</span>
+          </NotebookActionContent>
+        </Link>
+      </div>
     </article>
   );
 }

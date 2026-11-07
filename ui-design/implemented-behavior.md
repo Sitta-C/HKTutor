@@ -79,6 +79,32 @@ Repeated failure restores the retry action and success restores results. Focus r
 button after failure or the result heading after success, unless the user has moved focus elsewhere
 or started another search. Validation, empty results and catalog errors do not receive this button.
 
+## Floating tutor comparison (S3-T29)
+
+`/tutors` offers up to three unique tutors, each paired with one selected course. The comparison
+control toggles that course; choosing a different course of the same tutor replaces it without
+moving the tutor's position. At the limit, new tutors are disabled while removal/replacement remain
+available. Search pagination, filters, ranking and read failures preserve the in-memory selection.
+Reloading or leaving the page starts a new selection.
+
+The chosen design combines the Notebook Ledger floating button with the Course Tabs popup. It is
+freely draggable, keyboard movable and clamped to the visual viewport. Selection tokens fly to the
+button; its count settles on arrival. Reduced motion skips flights and transitions. Drag release
+does not activate the popup, and the next intentional click remains available immediately.
+
+The non-modal popup directly shows all six attributes in aligned table rows. There is no intermediate
+selection-list screen, Compare CTA or `/tutors/compare` route. It supports zero/one selections, removal,
+clear, outside-click/Escape close, explicit focus restoration, and native table scrolling on mobile.
+
+Each open fetches `GET /tutors/:tutorId` and `GET /tutors/:tutorId/availability` for at most three
+selected tutors through the existing same-origin client. The selected listing must still be present
+in the public response; no alternative course is substituted. The earliest valid future public slot
+is displayed in Bangkok time. Raw review averages remain server owned; the shared rating model
+formats the returned average and preserves null/zero-review states. A missing tutor/course exposes
+no stale column metadata. Other read failures offer retry; reads time out after 15 seconds and are
+aborted/discarded on close, selection change or unmount. No new HTTP endpoint, URL selection format,
+storage table or browser persistence is introduced. The other public tutor page requests are unchanged.
+
 ## Tutor qualification review
 
 Tutor verification distinguishes `UNVERIFIED` (no documents submitted) from `PENDING` (documents

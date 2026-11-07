@@ -12,6 +12,7 @@ export type DashboardIconName =
   | 'check-double'
   | 'clock'
   | 'close'
+  | 'compare'
   | 'dashboard'
   | 'eye'
   | 'inbox'
@@ -81,6 +82,11 @@ export function DashboardIcon({
       </>
     ),
     close: <path d="m6 6 12 12M18 6 6 18" />,
+    compare: (
+      <>
+        <path d="m3 8 9-5 9 5-9 5-9-5Zm0 5 9 5 9-5M3 18l9 5 9-5" />
+      </>
+    ),
     dashboard: (
       <>
         <rect x="4" y="4" width="6" height="6" rx="1.5" />
