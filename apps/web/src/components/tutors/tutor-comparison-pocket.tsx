@@ -15,8 +15,10 @@ import { DashboardIcon } from '@/components/dashboard/dashboard-icon';
 import { formatPublicTutorSlot } from '@/components/tutors/public-tutor-detail-model';
 import { tutorComparisonCopy } from '@/components/tutors/tutor-comparison-copy';
 import { loadComparisonColumn } from '@/components/tutors/tutor-comparison-data';
-import { COMPARISON_ATTRIBUTES } from '@/components/tutors/tutor-comparison-view-model';
-import { buildTutorRatingSummary } from '@/components/tutors/tutor-rating-model';
+import {
+  COMPARISON_ATTRIBUTES,
+  buildTutorComparisonView,
+} from '@/components/tutors/tutor-comparison-view-model';
 import {
   placeComparisonPanel,
   useFloatingComparison,
@@ -28,7 +30,10 @@ import styles from './tutor-comparison-pocket.module.css';
 
 import type { TutorComparisonCopy } from '@/components/tutors/tutor-comparison-copy';
 import type { ComparisonColumn } from '@/components/tutors/tutor-comparison-model';
-import type { ComparisonAttribute } from '@/components/tutors/tutor-comparison-view-model';
+import type {
+  ComparisonAttribute,
+  TutorComparisonViewColumn,
+} from '@/components/tutors/tutor-comparison-view-model';
 import type {
   ComparisonFlight,
   TutorComparisonController,
@@ -84,6 +89,8 @@ function FloatingPocket({ controller }: { controller: TutorComparisonController 
         : undefined;
     return existing ?? { choice, state: 'loading' };
   });
+  // Cells render only the allow-listed public view, never the raw profile/listing responses.
+  const view = buildTutorComparisonView(columns);
 
   const close = useCallback((focus = true) => {
     restoreFocus.current = focus;
@@ -333,23 +340,23 @@ function FloatingPocket({ controller }: { controller: TutorComparisonController 
               <thead>
                 <tr>
                   <th scope="col">{text.course}</th>
-                  {columns.map((column, index) => (
+                  {view.map((column) => (
                     <th
-                      key={column.choice.tutorId}
+                      key={column.tutorId}
                       scope="col"
                       data-comparison-column={column.state}
-                      data-tutor-column={column.choice.tutorId}
+                      data-tutor-column={column.tutorId}
                     >
                       <div className={styles.columnTop}>
                         <span className={styles.grade}>
-                          {column.state === 'ready' ? column.listing.grade : '—'}
+                          {column.state === 'ready' ? (column.entry.grade ?? '—') : '—'}
                         </span>
                         <button
                           type="button"
                           className={styles.iconButton}
-                          aria-label={`${text.remove}: ${column.state === 'ready' ? column.tutor.displayName : index + 1}`}
+                          aria-label={`${text.remove}: ${column.state === 'ready' ? column.entry.displayName : column.position + 1}`}
                           onClick={() => {
-                            remove(column.choice.tutorId);
+                            remove(column.tutorId);
                             closeRef.current?.focus({ preventScroll: true });
                           }}
                         >
@@ -359,11 +366,13 @@ function FloatingPocket({ controller }: { controller: TutorComparisonController 
                       {column.state === 'ready' ? (
                         <div className={styles.columnIdentity}>
                           <span className={styles.avatar} aria-hidden="true">
-                            {initials(column.tutor.displayName)}
+                            {initials(column.entry.displayName)}
                           </span>
                           <div>
-                            <strong className={styles.name}>{column.tutor.displayName}</strong>
-                            <small className={styles.subject}>{column.listing.subject}</small>
+                            <strong className={styles.name}>{column.entry.displayName}</strong>
+                            <small className={styles.subject}>
+                              {column.entry.subject ?? text.missing}
+                            </small>
                           </div>
                         </div>
                       ) : (
@@ -381,8 +390,8 @@ function FloatingPocket({ controller }: { controller: TutorComparisonController 
                 {COMPARISON_ATTRIBUTES.map((attribute) => (
                   <tr key={attribute}>
                     <th scope="row">{text[attribute]}</th>
-                    {columns.map((column) => (
-                      <td key={column.choice.tutorId} data-tutor-column={column.choice.tutorId}>
+                    {view.map((column) => (
+                      <td key={column.tutorId} data-tutor-column={column.tutorId}>
                         <ComparisonValue
                           column={column}
                           attribute={attribute}
@@ -424,7 +433,7 @@ function ColumnStatus({
   text,
   retry,
 }: {
-  column: ComparisonColumn;
+  column: TutorComparisonViewColumn;
   text: TutorComparisonCopy;
   retry: () => void;
 }) {
@@ -449,7 +458,7 @@ function ComparisonValue({
   language,
   text,
 }: {
-  column: ComparisonColumn;
+  column: TutorComparisonViewColumn;
   attribute: ComparisonAttribute;
   language: 'en' | 'th';
   text: TutorComparisonCopy;
@@ -461,22 +470,28 @@ function ComparisonValue({
       </span>
     );
   }
-  const rating = buildTutorRatingSummary(column.tutor.ratingAverage, column.tutor.reviewCount);
+  const { entry } = column;
+  const { rating } = entry;
+  const missing = <span className={styles.muted}>{text.missing}</span>;
   switch (attribute) {
     case 'price':
-      return (
+      return entry.pricePerHour === null ? (
+        missing
+      ) : (
         <span className={styles.amount}>
           {new Intl.NumberFormat(language === 'th' ? 'th-TH' : 'en-US', {
             maximumFractionDigits: 2,
-          }).format(column.listing.pricePerHour)}{' '}
+          }).format(entry.pricePerHour)}{' '}
           ฿
         </span>
       );
     case 'subject':
-      return (
+      return entry.subject === null ? (
+        missing
+      ) : (
         <>
-          {column.listing.subject}
-          <small>{column.listing.grade}</small>
+          {entry.subject}
+          {entry.grade !== null && <small>{entry.grade}</small>}
         </>
       );
     case 'rating':
@@ -493,18 +508,20 @@ function ComparisonValue({
     case 'reviews':
       return rating.reviewCount === null ? text.missing : rating.reviewCount;
     case 'experience':
-      return (
+      return entry.experienceYears === null ? (
+        missing
+      ) : (
         <>
-          {column.tutor.experienceYears} {text.years}
+          {entry.experienceYears} {text.years}
         </>
       );
     case 'availability': {
-      if (!column.nextSlot) {
+      if (!entry.nextAvailability) {
         return <span className={styles.muted}>{text.noSlots}</span>;
       }
-      const slot = formatPublicTutorSlot(column.nextSlot, language);
+      const slot = formatPublicTutorSlot(entry.nextAvailability, language);
       return (
-        <time dateTime={column.nextSlot.startAtUtc} aria-label={slot.label}>
+        <time dateTime={entry.nextAvailability.startAtUtc} aria-label={slot.label}>
           {slot.startDate}
           <small className={styles.time}>
             {slot.start}–{slot.end}
