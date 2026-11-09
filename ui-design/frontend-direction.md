@@ -182,7 +182,7 @@ rows, yellow price slips and Margin Score-style averages. Keep its contents upri
 
 On 2026-11-09 the user selected **Balance** for the floating button's comparison glyph. Use the
 outlined scales in the existing shared icon system at 23px with a 1.8px stroke. The contrast
-refinement uses a deep student-mint cover, pale glyph and ruled lines, a darker mint spine and the
+refinement uses a deep student-mint cover, pale glyph and ruled lines, a white paper spine and the
 yellow count bookmark, keeping the notebook shape and existing button interactions.
 
 - Each search row can select its course; count unique tutors, at most three. Selecting another

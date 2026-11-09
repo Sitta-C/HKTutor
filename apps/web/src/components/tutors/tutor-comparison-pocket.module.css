@@ -16,8 +16,7 @@
   place-items: center;
   padding: 0;
   border: 1px solid color-mix(in srgb, var(--color-student-deep) 75%, var(--color-notebook-ink));
-  border-left: 7px solid
-    color-mix(in srgb, var(--color-student-deep) 65%, var(--color-notebook-ink));
+  border-left: 7px solid var(--color-paper);
   border-radius: 9px;
   background: var(--color-student-deep);
   color: var(--color-paper);
