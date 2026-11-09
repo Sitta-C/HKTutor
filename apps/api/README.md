@@ -2302,3 +2302,116 @@ The 4 rating regression checks cover:
 The runner removes its fixtures in `finally`; discard the database afterwards. The browser check of
 a fresh review (two reviews submitted through the UI against a disposable stack, then search,
 detail and comparison) is recorded as manual evidence in the S3-T20 pull request.
+
+## Coupon persistence (S3-DB02)
+
+`20261109120000_add_coupon_persistence` is additive. It introduces `Coupon`, `CouponReservation`,
+`CouponUse` and a separate minimal `AuditLog`. Existing Booking money fields, PromptPay and
+reschedule constraints remain intact. Coupon APIs/UI, applicability/expiry validation, discount
+calculation, Booking snapshots and payment orchestration belong to S3-T21/T25/T26 and S3-DB03.
+There are no new HTTP routes or wire types in this database card.
+
+### Codes, claims and capacity
+
+Coupon codes use `extensions.CITEXT` with unique indexing. A trigger trims the ECMAScript whitespace
+set and uppercases the code; empty normalized codes are rejected. Thus `welcome_10` and `WELCOME_10` collide even for direct SQL.
+Percent is an integer 1–100, maxUses an integer >=1, expiry a UTC timestamptz and active a boolean.
+Creation does not require a future expiry: the subsequent admin API owns that validation.
+The descending `(createdAt,id)` index supports admin pagination.
+
+Capacity is `COUNT(CouponUse) + COUNT(CouponReservation WHERE status='RESERVED')`. A CONSUMED
+reservation is never counted again. There is no writable usage cache that can drift. Before each
+new claim, SQL forces a Booking row update followed by a Coupon row update, then checks
+`0 <= used + reserved + 1 <= maxUses`. These no-op writes serialize competing direct writers and
+make an older repeatable-read snapshot fail with `40001` rather than accept stale counts.
+Reducing maxUses uses the same coupon row and rejects a limit below existing claims.
+Partial indexes permanently claim `(couponId,studentUserId)` for RESERVED/CONSUMED and claim
+bookingId for RESERVED. A separate permanent CouponUse booking unique key, checked under the
+booking lock, also prevents reserving a different coupon after a booking has consumed one.
+Released reservations do not claim capacity or a student, allowing a new attempt to retry.
+
+Composite foreign keys bind each reservation/use to the booking's actual student, and each
+non-null paymentAttemptId to the same booking. Referenced evidence cannot be deleted/reassigned.
+Discount amounts are Decimal(10,2), nonnegative and reject PostgreSQL numeric NaN. The discount
+is an immutable snapshot; this card does not calculate it or validate it against the percentage.
+
+### One settlement path
+
+Always write a reservation; never insert CouponUse from application code. The consumption trigger
+creates exactly one CouponUse with the reservation's ID and immutable identity/amount/time. It also
+writes the audit event in the same statement/transaction. A direct CouponUse insertion without
+that exact canonical CONSUMED reservation is rejected.
+
+- For PromptPay, insert RESERVED with a unique paymentAttemptId. Keep it reserved while the provider
+  outcome is active or uncertain. Transition to CONSUMED only after persisting SUCCESSFUL on the
+  attempt; transition to RELEASED only after persisting FAILED/EXPIRED. SQL checks the persisted
+  terminal status while locking the attempt. An elapsed expiresAt alone cannot release a claim.
+- For a zero settlement, insert CONSUMED with a null paymentAttemptId and consumedAt. SQL requires
+  Booking.netAmount=0. This creates CouponUse directly through the same trigger and coupon lock;
+  do not call Omise. The future payment flow must mark the booking paid in that transaction using
+  the S3-DB03 zero-payment contract; this migration deliberately preserves existing payment checks.
+- Only RESERVED may change status. Supply consumedAt or releasedAt for that terminal transition,
+  at or after createdAt, leaving the other null. Terminal rows and all snapshot/identity fields are
+  immutable. Repeating the exact same terminal write is a no-op with no extra use or audit event.
+  Replays that change timestamps fail. Reuse the original reservation ID for insert retries with
+  `ON CONFLICT (id) DO NOTHING` (only identical immutable input is accepted), and
+  read the canonical row after a duplicate-key response; never mint another charge to resolve an
+  uncertain result.
+
+Payment writers must keep the existing booking lock first, then coupon, then attempt. Lock multiple
+bookings/coupons in a stable ID order. Retry whole transactions on serialization/deadlock failures;
+never retry only the final write. Verify provider terminal evidence before recording it and never
+regress a terminal provider outcome. SQL verifies persisted status, not webhook authenticity.
+Current consent, student role, authenticated ownership, active/unexpired applicability, amount
+math and the atomic Booking/payment changes remain the API's responsibility.
+
+### Minimal append-only audit
+
+Triggers write `coupon.create`, `coupon.reserve`, `coupon.release` and `coupon.consume` with unique
+`action:entityId` operation keys. Creation JSON contains only percent/maxUses/active. Reservation
+JSON contains only status/discountAmount and an optional prior RESERVED status. SQL rejects other
+keys and invalid value shapes; do not persist raw provider responses, secrets, QR URLs or student
+contact information. The optional actor and request context can be set by a trusted API transaction:
+
+```sql
+-- Bind these values as SQL parameters; derive the actor from the authenticated session.
+SELECT set_config('hktutor.audit_actor_user_id', $1, true);
+SELECT set_config('hktutor.audit_request_id', $2, true);
+```
+
+Use an opaque request identifier of 1–100 ASCII letters/digits/`._:-`; omit it if unavailable.
+Transaction-local settings prevent pool context leaking into another request. The actor FK rejects
+unknown users, but does not authenticate the actor; API authorization is mandatory. Direct maintenance
+writes without context record a null actor. An audit failure rolls back the reservation, use and
+capacity change together. AuditLog and CouponUse reject UPDATE/DELETE; reservations reject DELETE;
+all four tables reject TRUNCATE. Coupons are retained and can be deactivated rather than deleted.
+RLS and revoked PUBLIC/browser-role grants keep access behind the backend. As with other migrations,
+these protections assume a trusted migration owner; a superuser can alter database protections.
+
+### Disposable verification
+
+`pnpm db:verify:coupons` shares the existing review verifier's target guard: explicit opt-in,
+explicit loopback DATABASE_URL, a `hktutor_*_test`/`hktutor-*-test` name, no URL options/fragments,
+and all committed migrations applied. It never loads `.env`, migrates, seeds or deletes evidence.
+It leaves randomly identified synthetic evidence behind, so discard the disposable database after
+running it. It is separate from `pnpm check`.
+
+```bash
+# Create a NEW isolated test container; never point these commands at the shared/demo DB.
+docker run --detach --name hktutor-s3-db02-test \
+  --publish 127.0.0.1:55449:5432 \
+  --env POSTGRES_USER=postgres --env POSTGRES_PASSWORD=disposable-local-only \
+  --env POSTGRES_DB=hktutor_coupon_test postgres:17
+export DATABASE_URL='postgresql://postgres:disposable-local-only@127.0.0.1:55449/hktutor_coupon_test'
+pnpm db:migrate:deploy
+HKTUTOR_ALLOW_DISPOSABLE_DB_VERIFY=1 pnpm db:verify:coupons
+# Retained rows are synthetic evidence created in this disposable container only.
+docker rm --force --volumes hktutor-s3-db02-test
+unset DATABASE_URL
+```
+
+The verifier checks direct SQL boundaries/identity, normalized code collision, real row-lock
+contention for capacity/student/booking/maxUses races, repeatable-read safety, released retry,
+consume/release retries, zero settlement, append-only/JSON/privacy constraints, audit failure and
+transaction rollback, RLS/grants and preservation of existing payment/reschedule indexes.
+See [S3-DB02 evidence](../../tests/s3-db02-qa.md) for actual commands/results and limitations.
