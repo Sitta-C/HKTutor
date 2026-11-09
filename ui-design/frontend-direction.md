@@ -180,6 +180,10 @@ comparison popup. The button is a small paper notebook with a mint spine, ruled 
 icon and a yellow count bookmark. The popup has a mint top edge, blue grade tabs, continuous aligned
 rows, yellow price slips and Margin Score-style averages. Keep its contents upright and readable.
 
+On 2026-11-09 the user selected **Balance** for the floating button's comparison glyph. Use the
+outlined scales in the existing shared icon system at 23px with a 1.8px stroke. Retain the notebook,
+mint spine, ruled lines, yellow count bookmark and all existing button interactions.
+
 - Each search row can select its course; count unique tutors, at most three. Selecting another
   course of the same tutor replaces that tutor's course in place, even at the limit. Selected rows
   stay removable. Keep the existing view-times link and all search/filter/ranking behavior.

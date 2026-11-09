@@ -84,7 +84,8 @@ export function DashboardIcon({
     close: <path d="m6 6 12 12M18 6 6 18" />,
     compare: (
       <>
-        <path d="m3 8 9-5 9 5-9 5-9-5Zm0 5 9 5 9-5M3 18l9 5 9-5" />
+        <path d="m16 16 3-8 3 8c-1.9 1.33-4.1 1.33-6 0Zm-14 0 3-8 3 8c-1.9 1.33-4.1 1.33-6 0Z" />
+        <path d="M7 21h10M12 3v18M3 7h2c2 0 3-1 7-1s5 1 7 1h2" />
       </>
     ),
     dashboard: (
