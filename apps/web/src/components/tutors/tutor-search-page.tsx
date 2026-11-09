@@ -68,11 +68,7 @@ const initialPagination: Pick<TutorSearchResponse, 'page' | 'pageSize' | 'total'
   totalPages: 0,
 };
 
-export default function TutorSearchPage({
-  comparisonSort,
-}: {
-  comparisonSort?: string | string[] | undefined;
-}) {
+export default function TutorSearchPage() {
   const { language } = useLanguage();
   const text = tutorSearchCopy[language];
   const comparison = useTutorComparison();
@@ -462,7 +458,7 @@ export default function TutorSearchPage({
           <p className={styles.resultNote}>{text.cardNote}</p>
         </PaperCard>
       </div>
-      <TutorComparisonPocket controller={comparison} comparisonSort={comparisonSort} />
+      <TutorComparisonPocket controller={comparison} />
     </div>
   );
 }

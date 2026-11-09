@@ -1,0 +1,99 @@
+.root {
+  flex: none;
+  min-width: 0;
+  margin: 0 18px 13px;
+  padding: 0;
+  border: 0;
+}
+
+.root legend {
+  margin-bottom: 7px;
+  padding: 0;
+  color: var(--color-student-deep);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.options {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 5px;
+}
+
+.option {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  min-height: 44px;
+  gap: 6px;
+  align-items: center;
+  justify-content: center;
+  padding: 7px;
+  border: 1px solid var(--color-paper-edge);
+  border-bottom-width: 3px;
+  border-radius: 7px 7px 0 0;
+  background: var(--color-paper);
+  color: var(--color-notebook-muted-deep);
+  font-size: 12px;
+  text-align: center;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+
+.option input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+
+.option svg,
+.currency {
+  flex: none;
+  width: 16px;
+  height: 16px;
+}
+
+.option:has(input:checked) {
+  border-bottom-color: var(--color-student-deep);
+  background: color-mix(in srgb, var(--color-sticky-green) 45%, var(--color-paper));
+  color: var(--color-student-deep);
+  font-weight: 600;
+}
+
+.option:has(input:focus-visible) {
+  outline: 2px solid var(--color-student-deep);
+  outline-offset: 3px;
+}
+
+.root:disabled .option {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.hint {
+  margin: 5px 0 0;
+  color: var(--color-notebook-muted-deep);
+  font-size: 11px;
+}
+
+@media (max-width: 700px) {
+  .root {
+    margin-right: 12px;
+    margin-left: 12px;
+  }
+}
+
+@media (max-width: 470px) {
+  .options {
+    grid-template-columns: 1fr;
+  }
+
+  .option {
+    justify-content: flex-start;
+    border-radius: 7px;
+    text-align: left;
+  }
+}

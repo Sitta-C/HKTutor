@@ -61,8 +61,14 @@ does not store or restore selections. Sorts move whole tutor/course columns, com
 canonical API rating numbers or future UTC instants, and put missing values last. Ties retain the
 original selection index, with tutor ID as a fallback when the index is absent. Each public-data
 refresh captures one current time and applies the same sort again without changing selected courses.
-The comparison sort selector remains S3-T34 work; this does not change server-side search ranking.
+The popup's bilingual **Priority Tabs** selector (S3-T34) switches those three priorities locally.
+It updates only `comparisonSort` through native browser history, preserving other query parameters,
+selected courses, focus, table scroll and retry state. Back/Forward restores the priority without
+reloading selections or requesting public data solely to sort. Controls are disabled for fewer than
+two selections or until some public comparison data is ready. This does not change server-side
+search ranking.
 See [S3-T33 verification](tests/s3-t33-qa.md) for the sorting contract and actual check results.
+See [S3-T34 verification](tests/s3-t34-qa.md) for the selector and history checks.
 
 See [S3-T03 verification](apps/web/e2e/chat-realtime-verification.md) for recorded commands/results
 and the opted-in two-session browser suite against a disposable PostgreSQL database.

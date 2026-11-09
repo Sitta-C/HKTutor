@@ -117,9 +117,32 @@ A ready column holds an allow-listed entry: display name, subject, grade, hourly
 rating summary (score and review count), experience and the next slot's UTC start/end. Bio, course
 description, slot IDs and any other field in the public responses are not copied. A blank subject or
 grade, a non-positive or non-finite price and a negative or fractional experience become `null` and
-show as Unavailable. Each entry also exposes raw `sort` values (price, shown two-decimal rating, next
+show as Unavailable. Each entry also exposes raw `sort` values (price, canonical API rating, next
 slot start instant; `null` when missing) for the S3-T33 comparison sort. The view is derived per
 render from the existing public responses; there is still no comparison table or browser storage.
+
+### Comparison sort selector (S3-T34)
+
+The selected **Priority Tabs** design adds three labeled native radios above the table: lowest price,
+highest rating and earliest availability. A mint wash, heavier bottom border and checked radio state
+identify the current choice; keyboard focus outlines the whole label. Each option has a 44px minimum
+target. Below 470px the options stack, while the existing six-row comparison keeps native horizontal
+scrolling and sticky row labels. Labels, guidance and the polite current-sort announcement are
+translated in Thai/English.
+
+The client reads `comparisonSort` with `useSearchParams` behind a Suspense boundary. Native
+`history.pushState` updates that parameter without navigation or a public read; Back/Forward uses
+the same existing sorter. All other parameters and the URL fragment are retained, including repeated
+unrelated parameters and any supplied tutor/course IDs or selection order metadata. They do not
+restore selections; reload/navigation away still clears the in-memory selection. The search page
+no longer needs server query props for comparison sorting.
+
+Missing priorities default to lowest price. Unknown, empty or repeated values retain the validation
+guidance; selecting even the already-checked default repairs an invalid query. Sorting moves complete
+columns, retaining selected courses, focus, table scroll, missing-value ordering and per-column retry
+state. Controls are disabled for zero/one selection or when no public column is ready, including an
+initial read or retry. The chosen priority stays checked while disabled. No endpoint, wire type,
+database migration, browser storage or server search-ranking change is introduced.
 
 ## Tutor qualification review
 

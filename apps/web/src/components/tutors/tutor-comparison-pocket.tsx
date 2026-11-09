@@ -1,6 +1,8 @@
 'use client';
 
+import { useSearchParams } from 'next/navigation';
 import {
+  Suspense,
   useCallback,
   useEffect,
   useId,
@@ -12,6 +14,11 @@ import {
 import { createPortal } from 'react-dom';
 
 import { DashboardIcon } from '@/components/dashboard/dashboard-icon';
+import {
+  comparisonSortQueryValue,
+  withComparisonSort,
+} from '@/components/tutors/comparison-sort-query';
+import { ComparisonSortSelector } from '@/components/tutors/comparison-sort-selector';
 import { formatPublicTutorSlot } from '@/components/tutors/public-tutor-detail-model';
 import { tutorComparisonCopy } from '@/components/tutors/tutor-comparison-copy';
 import { loadComparisonColumn } from '@/components/tutors/tutor-comparison-data';
@@ -31,6 +38,7 @@ import styles from './tutor-comparison-pocket.module.css';
 
 import type { TutorComparisonCopy } from '@/components/tutors/tutor-comparison-copy';
 import type { ComparisonColumn } from '@/components/tutors/tutor-comparison-model';
+import type { ComparisonSort } from '@/components/tutors/tutor-comparison-sort';
 import type {
   ComparisonAttribute,
   TutorComparisonViewColumn,
@@ -47,27 +55,22 @@ const serverSnapshot = () => false;
 
 export function TutorComparisonPocket({
   controller,
-  comparisonSort,
 }: {
   controller: TutorComparisonController;
-  comparisonSort?: string | string[] | undefined;
 }): ReactNode {
   const mounted = useSyncExternalStore(subscribeClient, clientSnapshot, serverSnapshot);
   return mounted
     ? createPortal(
-        <FloatingPocket controller={controller} comparisonSort={comparisonSort} />,
+        <Suspense fallback={null}>
+          <FloatingPocket controller={controller} />
+        </Suspense>,
         document.body,
       )
     : null;
 }
 
-function FloatingPocket({
-  controller,
-  comparisonSort,
-}: {
-  controller: TutorComparisonController;
-  comparisonSort?: string | string[] | undefined;
-}) {
+function FloatingPocket({ controller }: { controller: TutorComparisonController }) {
+  const searchParams = useSearchParams();
   const { language } = useLanguage();
   const text = tutorComparisonCopy[language];
   const { choices, flights, notice, remove, clear, finishFlight } = controller;
@@ -108,10 +111,17 @@ function FloatingPocket({
   // Cells render only the allow-listed public view, never the raw profile/listing responses.
   const sorted = sortTutorComparisonView(
     buildTutorComparisonView(columns),
-    comparisonSort,
+    comparisonSortQueryValue(searchParams),
     loaded.now,
   );
   const view = sorted.columns;
+  const changeSort = (sort: ComparisonSort): void => {
+    if (sort === sorted.sort && !sorted.error) {
+      return;
+    }
+    // Next's native history integration updates useSearchParams without navigation or public reads.
+    window.history.pushState(null, '', withComparisonSort(new URL(window.location.href), sort));
+  };
 
   const close = useCallback((focus = true) => {
     restoreFocus.current = focus;
@@ -351,6 +361,21 @@ function FloatingPocket({
             : choices.length === 0
               ? text.guide
               : text.subtitle}
+        </p>
+        <ComparisonSortSelector
+          sort={sorted.sort}
+          disabled={choices.length < 2 || !columns.some((column) => column.state === 'ready')}
+          onChange={changeSort}
+          text={text}
+        />
+        <p
+          className="sr-only"
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
+          data-comparison-sort-status
+        >
+          {dialog.open ? text.sortAnnouncement.replace('{sort}', text[sorted.sort]) : ''}
         </p>
         {sorted.error && (
           <p role="alert" className={styles.hint}>

@@ -1,6 +1,6 @@
 # HKTutor frontend direction — Notebook Focus
 
-Updated 2026-11-07. This describes the implemented Notebook Focus direction and component
+Updated 2026-11-09. This describes the implemented Notebook Focus direction and component
 patterns in this repository. Maintainers review changes to shared design conventions through the
 normal PR process; this guide does not assert team approval of decisions from an individual chat.
 Read it as implementation context before UI work. The current task's explicit requirements take
@@ -202,6 +202,24 @@ rows, yellow price slips and Margin Score-style averages. Keep its contents upri
   another offering for a hidden course. Hide unavailable columns' old names and values, provide
   retry for read failures, and discard responses after close/removal/replacement. Availability uses
   the public future-slot contract and Bangkok display, without changing the profile page's range.
+
+### Comparison sorting — Priority Tabs (S3-T34)
+
+Selected on 2026-11-09: place **Priority Tabs** between the popup introduction and the table. Use
+three native radios for lowest price, highest rating and earliest availability, with a mint wash
+and a solid bottom edge on the checked option. Keep the existing Course Tabs paper, blue grade tabs,
+yellow prices and six aligned attribute rows. Stack the three 44px controls on narrow screens.
+
+- Translate labels and the selected-tutors-only hint in Thai/English. Keep native radio keyboard
+  behavior and visible focus; announce the current priority through a polite live region.
+- Use the existing S3-T33 whole-column sorter and exact priority values. Update only
+  `comparisonSort` with `URLSearchParams` and native history; Back/Forward restores the priority.
+  Preserve other query parameters, including any supplied tutor/course IDs and selection order
+  metadata. Those parameters do not initialize or persist the in-memory selection.
+- Keep selected courses, selector focus, table scrolling and retry state during sorting. Do not
+  fetch public data merely to reorder. Disable controls below two selections or until some public
+  data is ready; retain the checked priority while loading/retrying. Invalid queries show the
+  existing localized guidance and default to lowest price; selecting a priority repairs the query.
 
 ## Public tutor detail
 

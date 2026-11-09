@@ -35,6 +35,12 @@ export const tutorComparisonCopy = {
     removed: 'Removed',
     cleared: 'Selection cleared',
     invalidSort: 'Invalid comparison sort. Showing lowest price first.',
+    sortBy: 'Sort by',
+    sortHint: 'Your selected tutors only',
+    lowest_price: 'Lowest price',
+    highest_rating: 'Highest rating',
+    earliest_availability: 'Earliest availability',
+    sortAnnouncement: 'Tutors sorted by: {sort}.',
   },
   th: {
     choose: 'เลือกเปรียบเทียบ',
@@ -72,6 +78,12 @@ export const tutorComparisonCopy = {
     removed: 'ถอดรายการ',
     cleared: 'ล้างรายการแล้ว',
     invalidSort: 'รูปแบบการเรียงเปรียบเทียบไม่ถูกต้อง แสดงราคาต่ำสุดก่อน',
+    sortBy: 'เรียงตาม',
+    sortHint: 'เรียงเฉพาะติวเตอร์ที่เลือก',
+    lowest_price: 'ราคาต่ำสุด',
+    highest_rating: 'คะแนนสูงสุด',
+    earliest_availability: 'เวลาว่างเร็วสุด',
+    sortAnnouncement: 'เรียงติวเตอร์แล้ว: {sort}',
   },
 } as const;
 
