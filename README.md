@@ -276,6 +276,11 @@ rounded cache, and seeds real reviewed classes for two search fixtures. Its real
 is `pnpm --filter @hktutor/api db:verify:search-ratings`, also outside `pnpm check`; see
 [search review ratings](apps/api/README.md#tutor-search-review-ratings-s3-t19).
 
+S3-DB02 adds Coupon, CouponReservation, CouponUse and minimal append-only AuditLog persistence.
+Database triggers serialize claims, enforce capacity and create consumption/audit evidence atomically.
+Coupon HTTP/UI flows and Booking/payment snapshot changes remain subsequent scopes. See the
+[coupon persistence contract and disposable verifier](apps/api/README.md#coupon-persistence-s3-db02).
+
 ## Checks
 
 ```bash

@@ -101,7 +101,8 @@ test('defines the S1-T23 Booking Prisma boundary', async () => {
   );
 
   assert.doesNotMatch(booking, /\b(deletedAt|couponId)\b/);
-  assert.doesNotMatch(schema, /model AuditLog\s*{/);
+  // S3-DB02 now supplies append-only coupon audit evidence.
+  assert.match(schema, /model AuditLog\s*{/);
   assert.doesNotMatch(slot, /\b(available|reserved|status|state)\b/i);
 });
 
