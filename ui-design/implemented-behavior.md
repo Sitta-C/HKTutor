@@ -87,8 +87,8 @@ moving the tutor's position. At the limit, new tutors are disabled while removal
 available. Search pagination, filters, ranking and read failures preserve the in-memory selection.
 Reloading or leaving the page starts a new selection.
 
-The chosen **Compact Dock** design replaces the corner Notebook Ledger button. One deep mint bar
-is fixed at the bottom center of the visual viewport, with a white left edge, Balance icon,
+The chosen **Compact Dock** design replaces the corner Notebook Ledger button. One white paper bar
+is fixed at the bottom center of the visual viewport, with a deep mint left edge and Balance icon,
 bilingual title/helper and yellow `0/3`–`3/3` count tag. It is up to 440px wide with 12px side
 clearance, 14px corners and a 60px minimum height. Guidance adapts to zero/one/two/three selections.
 The whole bar opens the Course Tabs popup, including empty/add-one guidance at zero/one selection.

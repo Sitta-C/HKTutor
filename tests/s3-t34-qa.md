@@ -29,8 +29,8 @@ Sprint 3 Backlog row 35. Node.js 24.19.0, pnpm 11.19.0.
 ## Compact Dock refinement
 
 The user subsequently selected **Compact Dock** to replace the corner notebook entry point. One
-deep mint bar remains at the bottom center of the visible viewport, with the Balance icon, white
-left edge, bilingual title/helper and yellow selected count. It opens the same Course Tabs popup
+white paper bar remains at the bottom center of the visible viewport, with the Balance icon, deep
+mint left edge, bilingual title/helper and yellow selected count. It opens the same Course Tabs popup
 and Priority Tabs selector. Zero/one-selection guidance remains accessible; dragging and arrow-key
 movement are removed. Native Enter/Space opens comparison and Escape returns focus to the dock.
 
@@ -55,6 +55,8 @@ cover desktop/tablet/mobile widths and an offset, short visual viewport with a b
 An additional focused run exposed a test timing race that asserted geometry before resize events
 settled; the test now polls the actual dock position before making its layout assertions. Its final
 focused rerun passed all three viewport projects, including complete pagination-button clearance.
+The later white-cover/mint-edge palette adjustment changes only scoped colors; its formatting and
+web lint checks were run separately, without repeating the geometry and interaction suites below.
 
 ## Commands and actual results
 

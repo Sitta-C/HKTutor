@@ -176,7 +176,7 @@ their existing presentation; retries remain explicit, with no automatic loop.
 ## Tutor comparison — Compact Dock / Course Tabs popup
 
 Selected on 2026-11-09: use **Compact Dock**, replacing the corner notebook button. Center one
-deep student-mint bar at the bottom of the visible viewport, with a white left edge, pale **Balance**
+white paper bar at the bottom of the visible viewport, with a deep student-mint left edge and **Balance**
 icon, bilingual title/helper and yellow selected-count tag (`0/3`–`3/3`). Make the whole bar one
 button, up to 440px wide with 12px side clearance, 14px corners, 12px vertical padding and a minimum
 60px height. Keep a 16px bottom gap plus the device safe area. The **Course Tabs** popup retains

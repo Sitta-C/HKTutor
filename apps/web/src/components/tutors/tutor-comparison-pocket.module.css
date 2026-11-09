@@ -18,10 +18,10 @@
   margin-bottom: env(safe-area-inset-bottom, 0px);
   padding: 12px 14px;
   border: 1px solid color-mix(in srgb, var(--color-student-deep) 75%, var(--color-notebook-ink));
-  border-left: 6px solid var(--color-paper);
+  border-left: 6px solid var(--color-student-deep);
   border-radius: 14px;
-  background: var(--color-student-deep);
-  color: var(--color-paper);
+  background: var(--color-paper);
+  color: var(--color-notebook-ink);
   box-shadow:
     0 2px 0 -1px var(--color-paper-edge),
     0 10px 24px -9px rgb(68 64 60 / 30%);
@@ -34,6 +34,7 @@
   display: grid;
   flex: none;
   place-items: center;
+  color: var(--color-student-deep);
 }
 
 .glyph svg {
@@ -56,6 +57,7 @@
   display: block;
   margin-top: 1px;
   font-size: 11px;
+  color: var(--color-notebook-muted-deep);
   overflow-wrap: anywhere;
 }
 
