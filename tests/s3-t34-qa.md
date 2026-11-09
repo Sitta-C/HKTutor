@@ -26,6 +26,36 @@ Sprint 3 Backlog row 35. Node.js 24.19.0, pnpm 11.19.0.
   live region announces the current sort independently of selection notices.
 - No API endpoint, DTO/wire type, server search ranking, database schema or migration changed.
 
+## Compact Dock refinement
+
+The user subsequently selected **Compact Dock** to replace the corner notebook entry point. One
+deep mint bar remains at the bottom center of the visible viewport, with the Balance icon, white
+left edge, bilingual title/helper and yellow selected count. It opens the same Course Tabs popup
+and Priority Tabs selector. Zero/one-selection guidance remains accessible; dragging and arrow-key
+movement are removed. Native Enter/Space opens comparison and Escape returns focus to the dock.
+
+The dock fits up to 440px with 12px side clearance, a 16px bottom gap plus safe-area inset, and
+repositions when its text/size or the visual viewport changes. The popup reserves space for the
+dock underneath it; the search page reserves bottom clearance for course actions and pagination.
+Selection flights now finish at the count tag. The obsolete drag controller and its geometry were
+replaced by the focused dock-placement hook and pure centered-position helper.
+
+After this refinement, unit tests (44 files, 652 tests), web lint, production build and workspace
+contracts (133 tests) were rerun successfully. The complete comparison browser suite passed all
+48 tests against a separate production server on port 3002, using:
+
+```bash
+PLAYWRIGHT_BASE_URL=http://127.0.0.1:3002 pnpm --filter @hktutor/web test:e2e tutor-comparison-ui.spec.ts
+```
+
+The updated dock scenario verifies zero/one/two-selection guidance, normal-motion flight counts,
+centering during page scrolling, Enter/Space/Escape, focus return, a resize to 320×640, a popup above
+the dock, and full pagination-button clearance after scrolling to the page end. Pure geometry tests
+cover desktop/tablet/mobile widths and an offset, short visual viewport with a bottom safe area.
+An additional focused run exposed a test timing race that asserted geometry before resize events
+settled; the test now polls the actual dock position before making its layout assertions. Its final
+focused rerun passed all three viewport projects, including complete pagination-button clearance.
+
 ## Commands and actual results
 
 | Command                                                           | Result                                                                                        |
@@ -64,12 +94,15 @@ it served the production pages successfully.
   pending retry, and reapplies the chosen priority when the retry succeeds.
 - **Ties, nulls and regression:** existing S3-T33 unit/browser cases continue to cover stable ties,
   raw rating precision, missing prices/ratings/future availability, invalid sorts and refreshed data.
-  Existing selection/replacement, privacy, timeout, delayed-response and movement checks also pass.
+  Existing selection/replacement, privacy, timeout and delayed-response checks also pass. Dock
+  placement and native activation replace the obsolete drag/movement scenario.
 
 Screenshots `priority-tabs-2.png` and `priority-tabs-3.png` are generated under
 `apps/web/test-results/**/`. The three-tutor desktop, tablet and 320px mobile screenshots were
 visually inspected: controls fit, columns stay aligned, and the mobile table retains its native
 horizontal scrolling. The viewport-height limit can require vertical table scrolling on desktop.
+The Compact Dock desktop/tablet screenshots were also visually inspected, along with its Thai
+320px mobile screenshot (`compact-dock-mobile.png`).
 
 Browser tests intercept public/auth APIs and do not certify a live database-backed journey. No
 database was migrated, seeded or reset. Full `pnpm check`, API/database tests and browsers other than

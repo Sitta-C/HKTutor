@@ -87,10 +87,18 @@ moving the tutor's position. At the limit, new tutors are disabled while removal
 available. Search pagination, filters, ranking and read failures preserve the in-memory selection.
 Reloading or leaving the page starts a new selection.
 
-The chosen design combines the Notebook Ledger floating button with the Course Tabs popup. It is
-freely draggable, keyboard movable and clamped to the visual viewport. Selection tokens fly to the
-button; its count settles on arrival. Reduced motion skips flights and transitions. Drag release
-does not activate the popup, and the next intentional click remains available immediately.
+The chosen **Compact Dock** design replaces the corner Notebook Ledger button. One deep mint bar
+is fixed at the bottom center of the visual viewport, with a white left edge, Balance icon,
+bilingual title/helper and yellow `0/3`–`3/3` count tag. It is up to 440px wide with 12px side
+clearance, 14px corners and a 60px minimum height. Guidance adapts to zero/one/two/three selections.
+The whole bar opens the Course Tabs popup, including empty/add-one guidance at zero/one selection.
+It is no longer draggable or moved by arrow keys; native Enter/Space activates it.
+
+The dock is repositioned on resize, visual-viewport scroll/resize and changes to its rendered size,
+including translated helper wrapping. Its 16px bottom gap is increased by the device safe-area inset.
+Search content reserves bottom clearance for final course actions and pagination. The popup fits
+above the dock with a 12px gap and scrolls its table when height is limited. Selection tokens fly to
+the count tag; its count settles on arrival. Reduced motion skips flights and transitions.
 
 The non-modal popup directly shows all six attributes in aligned table rows. There is no intermediate
 selection-list screen, Compare CTA or `/tutors/compare` route. It supports zero/one selections, removal,

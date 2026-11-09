@@ -573,7 +573,7 @@ test('a timed-out public read becomes retryable without losing the selection', a
   }
 });
 
-test('normal-motion flights, free dragging, immediate reopening, keyboard moves and Thai copy', async ({
+test('Compact Dock stays centered through scroll/resize with keyboard activation and Thai copy', async ({
   page,
 }, testInfo) => {
   if (testInfo.project.name === 'mobile-chromium') {
@@ -582,47 +582,98 @@ test('normal-motion flights, free dragging, immediate reopening, keyboard moves 
   await mockComparison(page, 'th');
   await page.emulateMedia({ reducedMotion: 'no-preference' });
   await page.goto('/tutors');
+  await expect(pocket(page)).toContainText('เลือกติวเตอร์ 2–3 คนเพื่อเปรียบเทียบ');
+  await expect(pocket(page)).toContainText('0/3');
+  const readDockGeometry = () =>
+    pocket(page).evaluate((element) => {
+      const rect = element.getBoundingClientRect();
+      const viewport = window.visualViewport;
+      return {
+        left: rect.left,
+        right: rect.right,
+        top: rect.top,
+        bottom: rect.bottom,
+        center: rect.left + rect.width / 2,
+        viewportCenter: (viewport?.offsetLeft ?? 0) + (viewport?.width ?? innerWidth) / 2,
+        viewportBottom: (viewport?.offsetTop ?? 0) + (viewport?.height ?? innerHeight),
+      };
+    });
+  const dockGeometry = async () => {
+    const geometry = await readDockGeometry();
+    expect(Math.abs(geometry.center - geometry.viewportCenter)).toBeLessThanOrEqual(1);
+    expect(geometry.left).toBeGreaterThanOrEqual(11);
+    expect(geometry.right).toBeLessThanOrEqual((await page.evaluate(() => innerWidth)) - 11);
+    expect(geometry.bottom).toBeLessThanOrEqual(geometry.viewportBottom - 15);
+    return geometry;
+  };
+  await dockGeometry();
+  await pocket(page).focus();
+  await page.keyboard.press('Enter');
+  await expect(panel(page)).toBeVisible();
+  await expect(panel(page)).toContainText('เลือกคอร์สที่สนใจ');
+  await page.keyboard.press('Escape');
+  await expect(pocket(page)).toBeFocused();
   await page
     .locator('article')
     .nth(0)
     .getByRole('button', { name: /^เลือกเปรียบเทียบ:/ })
     .click();
+  await expect(pocket(page)).toContainText('เลือกเพิ่มอีก 1 คนเพื่อเทียบกัน');
   await page
     .locator('article')
     .nth(2)
     .getByRole('button', { name: /^เลือกเปรียบเทียบ:/ })
     .click();
-  await expect(pocket(page).locator('span').last()).toHaveText('2');
-  const before = await pocket(page).boundingBox();
-  if (!before) {
-    throw new Error('Missing floating button');
-  }
-  await page.mouse.move(before.x + 30, before.y + 30);
-  await page.mouse.down();
-  await page.mouse.move(100, 220, { steps: 20 });
-  await page.mouse.up();
-  await expect(pocket(page)).toHaveAttribute('aria-expanded', 'false');
-  await expect(panel(page)).not.toBeVisible();
-  await pocket(page).click();
+  await expect(pocket(page).locator('span').last()).toHaveText('2/3');
+  await expect(pocket(page)).toContainText('เลือกแล้ว 2 คน');
+  const before = await dockGeometry();
+  await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+  const scrolled = await dockGeometry();
+  expect(scrolled.center).toBe(before.center);
+  expect(scrolled.bottom).toBe(before.bottom);
+  const next = page.getByRole('button', { name: 'ถัดไป', exact: true });
+  const nextBounds = await next.boundingBox();
+  expect(nextBounds ? nextBounds.y + nextBounds.height : Number.POSITIVE_INFINITY).toBeLessThan(
+    scrolled.top,
+  );
+  await pocket(page).focus();
+  await page.keyboard.press('Space');
   await expect(panel(page).locator('[data-comparison-column="ready"]')).toHaveCount(2);
   await expect(panel(page)).toContainText('เปรียบเทียบติวเตอร์');
   await page.keyboard.press('Escape');
   await expect(panel(page)).not.toBeVisible();
   await expect(pocket(page)).toBeFocused();
-  const moved = await pocket(page).boundingBox();
-  if (!moved) {
-    throw new Error('Missing moved button');
-  }
-  expect(moved.x).toBeLessThan(before.x);
+  const fixed = await dockGeometry();
   await page.keyboard.press('ArrowRight');
-  const shifted = await pocket(page).boundingBox();
-  expect(shifted?.x).toBeGreaterThan(moved.x);
+  expect(await dockGeometry()).toEqual(fixed);
   await page.setViewportSize({ width: 320, height: 640 });
+  await expect
+    .poll(async () => {
+      const geometry = await readDockGeometry();
+      return Math.abs(geometry.bottom - (geometry.viewportBottom - 16));
+    })
+    .toBeLessThanOrEqual(1);
+  await dockGeometry();
   await pocket(page).click();
   await expect(panel(page)).toBeVisible();
+  const dockTop = (await dockGeometry()).top;
+  await expect
+    .poll(async () => {
+      const rect = await panel(page).boundingBox();
+      return rect ? rect.y + rect.height : Number.POSITIVE_INFINITY;
+    })
+    .toBeLessThanOrEqual(dockTop - 11);
   expect(
     await page.evaluate(() => document.documentElement.scrollWidth - innerWidth),
   ).toBeLessThanOrEqual(1);
+  await page.keyboard.press('Escape');
+  await expect(panel(page)).not.toBeVisible();
+  await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+  const finalNext = await next.boundingBox();
+  expect(finalNext ? finalNext.y + finalNext.height : Number.POSITIVE_INFINITY).toBeLessThan(
+    (await dockGeometry()).top,
+  );
+  await page.screenshot({ path: testInfo.outputPath('compact-dock-mobile.png') });
 });
 
 test('compares only allow-listed public values and shows malformed ones as unavailable (S3-T31)', async ({

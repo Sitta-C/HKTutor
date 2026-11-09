@@ -27,10 +27,7 @@ import {
   COMPARISON_ATTRIBUTES,
   buildTutorComparisonView,
 } from '@/components/tutors/tutor-comparison-view-model';
-import {
-  placeComparisonPanel,
-  useFloatingComparison,
-} from '@/components/tutors/use-floating-comparison';
+import { placeComparisonPanel, useComparisonDock } from '@/components/tutors/use-comparison-dock';
 import { NotebookLoadingRegion } from '@/components/ui/notebook-loading';
 import { useLanguage } from '@/lib/i18n';
 
@@ -127,12 +124,11 @@ function FloatingPocket({ controller }: { controller: TutorComparisonController 
     restoreFocus.current = focus;
     setDialog((current) => ({ ...current, open: false }));
   }, []);
-  const onDragStart = useCallback(() => close(false), [close]);
   const toggle = useCallback(() => {
     restoreFocus.current = true;
     setDialog((current) => ({ open: !current.open, cycle: current.cycle + 1 }));
   }, []);
-  const floating = useFloatingComparison(buttonRef, panelRef, onDragStart, toggle);
+  useComparisonDock(buttonRef, panelRef);
 
   useEffect(() => {
     if (!dialog.open || choices.length === 0) {
@@ -310,20 +306,27 @@ function FloatingPocket({ controller }: { controller: TutorComparisonController 
         aria-expanded={dialog.open}
         aria-haspopup="dialog"
         aria-controls={`${id}-panel`}
-        aria-describedby={`${id}-drag`}
+        aria-describedby={`${id}-dock-hint`}
         data-comparison-button
-        {...floating}
+        onClick={toggle}
       >
         <span className={styles.glyph}>
           <DashboardIcon name="compare" />
         </span>
+        <span className={styles.dockCopy}>
+          <span className={styles.dockTitle}>{text.title}</span>
+          <span id={`${id}-dock-hint`} className={styles.dockHint}>
+            {choices.length === 0
+              ? text.guide
+              : choices.length === 1
+                ? text.oneMore
+                : text.dockSelected.replace('{count}', String(choices.length))}
+          </span>
+        </span>
         <span ref={badgeRef} className={styles.badge} aria-hidden="true">
-          {count}
+          {count}/3
         </span>
       </button>
-      <p id={`${id}-drag`} className="sr-only">
-        {text.dragHelp}
-      </p>
       <p role="status" aria-live="polite" className="sr-only">
         {notice
           ? `${text[notice.action]} ${notice.name}. ${choices.length}/3. ${choices.length === 3 ? text.limit : text.guide}`
@@ -473,7 +476,7 @@ function FloatingPocket({ controller }: { controller: TutorComparisonController 
         </div>
       </dialog>
       {flights.map((flight) => (
-        <SelectionFlight key={flight.id} flight={flight} target={buttonRef} onFinish={arrive} />
+        <SelectionFlight key={flight.id} flight={flight} target={badgeRef} onFinish={arrive} />
       ))}
     </div>
   );
@@ -590,7 +593,7 @@ function SelectionFlight({
   onFinish,
 }: {
   flight: ComparisonFlight;
-  target: RefObject<HTMLButtonElement | null>;
+  target: RefObject<HTMLElement | null>;
   onFinish: (id: number) => void;
 }) {
   const ref = useRef<HTMLSpanElement>(null);

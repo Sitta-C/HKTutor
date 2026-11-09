@@ -3,9 +3,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { loadComparisonColumn } from '@/components/tutors/tutor-comparison-data';
 import {
   buildComparisonColumn,
-  clampFloatingPoint,
+  comparisonDockPosition,
   comparisonPanelPosition,
-  floatingBounds,
   toggleComparisonChoice,
 } from '@/components/tutors/tutor-comparison-model';
 import { buildTutorRatingSummary } from '@/components/tutors/tutor-rating-model';
@@ -183,30 +182,31 @@ describe('comparison rating values (S3-T20)', () => {
   });
 });
 
-describe('floating comparison geometry', () => {
-  it.each([320, 768, 1440])('keeps button and popup inside a %spx viewport', (width) => {
+describe('comparison dock geometry', () => {
+  it.each([320, 768, 1440])('centers the dock and keeps its popup above it at %spx', (width) => {
     const viewport = { left: 0, top: 0, width, height: 900 };
-    const { min, max } = floatingBounds(viewport);
-    expect(clampFloatingPoint({ x: -500, y: -500 }, viewport)).toEqual(min);
-    expect(clampFloatingPoint({ x: 9999, y: 9999 }, viewport)).toEqual(max);
+    const dock = { width: Math.min(440, width - 24), height: 66 };
+    const point = comparisonDockPosition(dock, viewport);
+    expect(point.x + dock.width / 2).toBe(width / 2);
+    expect(point.y + dock.height).toBe(884);
     const panel = { width: Math.min(680, width - 24), height: 600 };
-    for (const button of [min, max]) {
-      const point = comparisonPanelPosition(
-        { left: button.x, top: button.y, width: 60, height: 60 },
-        panel,
-        viewport,
-      );
-      expect(point.x).toBeGreaterThanOrEqual(12);
-      expect(point.x + panel.width).toBeLessThanOrEqual(width - 12);
-      expect(point.y).toBeGreaterThanOrEqual(12);
-      expect(point.y + panel.height).toBeLessThanOrEqual(888);
-    }
+    const panelPoint = comparisonPanelPosition(
+      { left: point.x, top: point.y, ...dock },
+      panel,
+      viewport,
+    );
+    expect(panelPoint.x).toBeGreaterThanOrEqual(12);
+    expect(panelPoint.x + panel.width).toBeLessThanOrEqual(width - 12);
+    expect(panelPoint.y).toBeGreaterThanOrEqual(12);
+    expect(panelPoint.y + panel.height).toBeLessThanOrEqual(point.y - 12);
   });
 
-  it('respects an offset visual viewport and a short viewport after keyboard/zoom changes', () => {
+  it('respects offset visual viewports, changing dock height and the bottom safe area', () => {
     const viewport = { left: 100, top: 200, width: 320, height: 240 };
-    const point = clampFloatingPoint({ x: 2000, y: 2000 }, viewport);
-    expect(point.x + 60).toBeLessThanOrEqual(404);
-    expect(point.y + 60).toBeLessThanOrEqual(424);
+    const dock = { width: 296, height: 82 };
+    const point = comparisonDockPosition(dock, viewport, 24);
+    expect(point.x + dock.width / 2).toBe(260);
+    expect(point.y + dock.height).toBe(400);
+    expect(point.y).toBeGreaterThanOrEqual(viewport.top + 12);
   });
 });
