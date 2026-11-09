@@ -7,7 +7,6 @@ import type {
 } from '@/lib/api/types';
 
 export const MAX_COMPARISON_TUTORS = 3;
-export const COMPARISON_BUTTON_SIZE = 60;
 
 export interface ComparisonChoice extends TutorComparisonSelection {
   displayName: string;
@@ -74,25 +73,14 @@ export function buildComparisonColumn(
   return { choice, state: 'ready', tutor: detail.tutor, listing, nextSlot };
 }
 
-export function floatingBounds(viewport: Viewport): { min: Point; max: Point } {
-  const min = {
-    x: viewport.left + 16,
-    y: viewport.top + Math.max(16, Math.min(80, viewport.height - COMPARISON_BUTTON_SIZE - 16)),
-  };
+export function comparisonDockPosition(
+  dock: { width: number; height: number },
+  viewport: Viewport,
+  safeBottom = 0,
+): Point {
   return {
-    min,
-    max: {
-      x: Math.max(min.x, viewport.left + viewport.width - COMPARISON_BUTTON_SIZE - 16),
-      y: Math.max(min.y, viewport.top + viewport.height - COMPARISON_BUTTON_SIZE - 16),
-    },
-  };
-}
-
-export function clampFloatingPoint(point: Point, viewport: Viewport): Point {
-  const { min, max } = floatingBounds(viewport);
-  return {
-    x: Math.max(min.x, Math.min(max.x, point.x)),
-    y: Math.max(min.y, Math.min(max.y, point.y)),
+    x: viewport.left + Math.max(12, (viewport.width - dock.width) / 2),
+    y: viewport.top + Math.max(12, viewport.height - dock.height - 16 - safeBottom),
   };
 }
 

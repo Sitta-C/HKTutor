@@ -47,11 +47,16 @@ Bangkok-time presentation and UTC timestamps on the wire. Day and week views use
 availability overlap filter to include carry-over slots without loading past history. Reserved slots
 remain protected.
 
-Tutor search also supports selecting up to three tutors with one course each. A movable notebook
-button opens their comparison directly in a Course Tabs popup, with current public price, subject,
+Tutor search also supports selecting up to three tutors with one course each. A bottom-centered
+**Compact Dock** with a Balance icon, bilingual guidance and selected count opens their comparison
+directly in a Course Tabs popup, with current public price, subject,
 rating, review count, experience and next availability. Selections survive search changes in memory;
 they reset on reload/navigation away. Each open rechecks public visibility, and missing courses are
 not replaced automatically. This uses the existing public APIs and adds no database migration.
+The dock stays centered while scrolling/resizing, respects the visible viewport and bottom safe
+area, and reserves space above it for the popup. It remains available with zero/one selection for
+guidance; Enter/Space opens it and Escape restores focus. Search content has bottom clearance so
+the dock does not prevent access to the final course or pagination.
 The popup renders an allow-listed view model (S3-T31) keyed by stable tutor IDs; bio, course
 description and other public fields stay out, and malformed values show as unavailable.
 Comparison columns default to `lowest_price` (S3-T33). The optional `/tutors?comparisonSort=` query
@@ -61,8 +66,14 @@ does not store or restore selections. Sorts move whole tutor/course columns, com
 canonical API rating numbers or future UTC instants, and put missing values last. Ties retain the
 original selection index, with tutor ID as a fallback when the index is absent. Each public-data
 refresh captures one current time and applies the same sort again without changing selected courses.
-The comparison sort selector remains S3-T34 work; this does not change server-side search ranking.
+The popup's bilingual **Priority Tabs** selector (S3-T34) switches those three priorities locally.
+It updates only `comparisonSort` through native browser history, preserving other query parameters,
+selected courses, focus, table scroll and retry state. Back/Forward restores the priority without
+reloading selections or requesting public data solely to sort. Controls are disabled for fewer than
+two selections or until some public comparison data is ready. This does not change server-side
+search ranking.
 See [S3-T33 verification](tests/s3-t33-qa.md) for the sorting contract and actual check results.
+See [S3-T34 verification](tests/s3-t34-qa.md) for the selector and history checks.
 
 See [S3-T03 verification](apps/web/e2e/chat-realtime-verification.md) for recorded commands/results
 and the opted-in two-session browser suite against a disposable PostgreSQL database.

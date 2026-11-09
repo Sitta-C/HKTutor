@@ -8,72 +8,70 @@
 .button {
   position: fixed;
   z-index: 45;
-  right: 16px;
-  bottom: 20px;
-  display: grid;
-  width: 60px;
-  height: 60px;
-  place-items: center;
-  padding: 0;
-  border: 1px solid var(--color-paper-edge);
-  border-left: 7px solid var(--color-student-deep);
-  border-radius: 9px;
+  bottom: 16px;
+  left: 50%;
+  display: flex;
+  width: min(440px, calc(100vw - 24px));
+  min-height: 60px;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: env(safe-area-inset-bottom, 0px);
+  padding: 12px 14px;
+  border: 1px solid color-mix(in srgb, var(--color-student-deep) 75%, var(--color-notebook-ink));
+  border-left: 6px solid var(--color-student-deep);
+  border-radius: 14px;
   background: var(--color-paper);
-  color: var(--color-student-deep);
+  color: var(--color-notebook-ink);
   box-shadow:
-    2px 3px 0 -1px var(--color-paper-edge),
-    0 12px 23px -9px rgb(68 64 60 / 30%);
-  cursor: grab;
-  touch-action: none;
-  user-select: none;
-  will-change: transform;
-}
-
-.button::before {
-  position: absolute;
-  inset: 15px 7px 12px 9px;
-  background: repeating-linear-gradient(
-    transparent 0,
-    transparent 7px,
-    var(--color-paper-edge) 8px,
-    transparent 9px
-  );
-  opacity: 0.65;
-  content: '';
-  pointer-events: none;
-}
-
-.button[data-dragging] {
-  cursor: grabbing;
+    0 2px 0 -1px var(--color-paper-edge),
+    0 10px 24px -9px rgb(68 64 60 / 30%);
+  text-align: left;
+  transform: translateX(-50%);
+  cursor: pointer;
 }
 
 .glyph {
-  z-index: 1;
-  padding: 3px;
-  border-radius: 4px;
-  background: var(--color-paper);
+  display: grid;
+  flex: none;
+  place-items: center;
+  color: var(--color-student-deep);
 }
 
 .glyph svg {
-  width: 23px;
-  height: 23px;
+  width: 24px;
+  height: 24px;
+}
+
+.dockCopy {
+  flex: 1;
+  min-width: 0;
+}
+
+.dockTitle {
+  display: block;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.dockHint {
+  display: block;
+  margin-top: 1px;
+  font-size: 11px;
+  color: var(--color-notebook-muted-deep);
+  overflow-wrap: anywhere;
 }
 
 .badge {
-  position: absolute;
-  top: -7px;
-  right: 5px;
   display: grid;
-  min-width: 23px;
-  height: 27px;
+  flex: none;
   place-items: center;
-  padding: 0 4px 4px;
+  padding: 4px 8px;
+  border-radius: 4px;
   background: var(--color-sticky-yellow);
   color: var(--color-notebook-ink);
   font-size: 12px;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
-  clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 82%, 0 100%);
   pointer-events: none;
 }
 
