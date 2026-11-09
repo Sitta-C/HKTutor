@@ -280,9 +280,9 @@ describe('comparison sort values (S3-T31 for S3-T33)', () => {
     );
   });
 
-  it('uses the shown two-decimal score so displayed ties sort as ties', () => {
+  it('retains the canonical API rating before display formatting', () => {
     expect(sortOf({ ratingAverage: 4.67 }, {}, null).rating).toBe(4.67);
-    expect(sortOf({ ratingAverage: 4.666 }, {}, null).rating).toBe(4.67);
+    expect(sortOf({ ratingAverage: 4.666 }, {}, null).rating).toBe(4.666);
   });
 
   it('leaves new, unavailable and missing values null so they can sort last', () => {

@@ -34,6 +34,7 @@ export const tutorComparisonCopy = {
     chosen: 'Selected',
     removed: 'Removed',
     cleared: 'Selection cleared',
+    invalidSort: 'Invalid comparison sort. Showing lowest price first.',
   },
   th: {
     choose: 'เลือกเปรียบเทียบ',
@@ -70,6 +71,7 @@ export const tutorComparisonCopy = {
     chosen: 'เลือก',
     removed: 'ถอดรายการ',
     cleared: 'ล้างรายการแล้ว',
+    invalidSort: 'รูปแบบการเรียงเปรียบเทียบไม่ถูกต้อง แสดงราคาต่ำสุดก่อน',
   },
 } as const;
 

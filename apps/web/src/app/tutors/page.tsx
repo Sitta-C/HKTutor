@@ -6,10 +6,15 @@ export const metadata = {
   description: 'Search published listings from verified HKTutor tutors.',
 };
 
-export default function TutorsPage() {
+export default async function TutorsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
+}) {
+  const { comparisonSort } = await searchParams;
   return (
     <PublicTutorSearchShell>
-      <TutorSearchPage />
+      <TutorSearchPage comparisonSort={comparisonSort} />
     </PublicTutorSearchShell>
   );
 }

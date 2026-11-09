@@ -54,6 +54,15 @@ they reset on reload/navigation away. Each open rechecks public visibility, and 
 not replaced automatically. This uses the existing public APIs and adds no database migration.
 The popup renders an allow-listed view model (S3-T31) keyed by stable tutor IDs; bio, course
 description and other public fields stay out, and malformed values show as unavailable.
+Comparison columns default to `lowest_price` (S3-T33). The optional `/tutors?comparisonSort=` query
+accepts only `lowest_price`, `highest_rating` or `earliest_availability`; unknown, empty or repeated
+values show a bilingual validation message in the popup and fall back to lowest price. This query
+does not store or restore selections. Sorts move whole tutor/course columns, compare integer satang,
+canonical API rating numbers or future UTC instants, and put missing values last. Ties retain the
+original selection index, with tutor ID as a fallback when the index is absent. Each public-data
+refresh captures one current time and applies the same sort again without changing selected courses.
+The comparison sort selector remains S3-T34 work; this does not change server-side search ranking.
+See [S3-T33 verification](tests/s3-t33-qa.md) for the sorting contract and actual check results.
 
 See [S3-T03 verification](apps/web/e2e/chat-realtime-verification.md) for recorded commands/results
 and the opted-in two-session browser suite against a disposable PostgreSQL database.
