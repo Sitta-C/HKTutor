@@ -28,6 +28,9 @@ async function mockComparison(page: Page, language: 'en' | 'th' = 'en') {
     failDetail: false,
     malformedPrice: false,
     slow: false,
+    sharedPrice: 425,
+    secondRating: 4.33,
+    laterSecondSlot: false,
   };
   const calls: string[] = [];
   const unexpected: string[] = [];
@@ -94,8 +97,14 @@ async function mockComparison(page: Page, language: 'en' | 'th' = 'en') {
                   },
                   {
                     id: 'next',
-                    startAtUtc: '2099-11-08T03:00:00.000Z',
-                    endAtUtc: '2099-11-08T04:00:00.000Z',
+                    startAtUtc:
+                      state.laterSecondSlot && tutor.tutorId === 'tutor-2'
+                        ? '2099-11-09T03:00:00.000Z'
+                        : '2099-11-08T03:00:00.000Z',
+                    endAtUtc:
+                      state.laterSecondSlot && tutor.tutorId === 'tutor-2'
+                        ? '2099-11-09T04:00:00.000Z'
+                        : '2099-11-08T04:00:00.000Z',
                   },
                 ],
         });
@@ -106,7 +115,7 @@ async function mockComparison(page: Page, language: 'en' | 'th' = 'en') {
           displayName: tutor.displayName,
           bio: 'Tutor bio stays on the profile page.',
           experienceYears: tutor.experienceYears,
-          ratingAverage: tutor.ratingAverage,
+          ratingAverage: tutor.tutorId === 'tutor-2' ? state.secondRating : tutor.ratingAverage,
           reviewCount: tutor.reviewCount,
           verificationStatus: 'VERIFIED',
         },
@@ -119,7 +128,7 @@ async function mockComparison(page: Page, language: 'en' | 'th' = 'en') {
                   ...course,
                   pricePerHour:
                     course.tutorId === 'shared-tutor'
-                      ? 425
+                      ? state.sharedPrice
                       : state.malformedPrice && course.tutorId === 'tutor-2'
                         ? 0
                         : course.pricePerHour,
@@ -140,6 +149,79 @@ const choose = (page: Page, index: number) =>
     .locator('article')
     .nth(index)
     .getByRole('button', { name: /Select to compare|Use this course|Selected/ });
+
+for (const scenario of [
+  { sort: 'lowest_price', expected: ['shared-tutor', 'tutor-3', 'tutor-2'] },
+  { sort: 'highest_rating', expected: ['tutor-2', 'shared-tutor', 'tutor-3'] },
+  { sort: 'earliest_availability', expected: ['shared-tutor', 'tutor-2', 'tutor-3'] },
+  { sort: '__proto__', expected: ['shared-tutor', 'tutor-3', 'tutor-2'] },
+]) {
+  test(`sorts complete comparison columns for ${scenario.sort} (S3-T33)`, async ({
+    page,
+  }, testInfo) => {
+    const { state, unexpected } = await mockComparison(page);
+    state.secondRating = 4.9;
+    state.laterSecondSlot = true;
+    await page.goto(`/tutors?comparisonSort=${scenario.sort}`);
+    for (const index of [3, 2, 0]) {
+      await choose(page, index).click();
+    }
+    await pocket(page).click();
+    await expect(panel(page).locator('[data-comparison-column="ready"]')).toHaveCount(3);
+    const columnIds = (selector: string) =>
+      panel(page)
+        .locator(selector)
+        .evaluateAll((cells) => cells.map((cell) => cell.getAttribute('data-tutor-column')));
+    expect(await columnIds('thead [data-tutor-column]')).toEqual(scenario.expected);
+    for (let row = 1; row <= 6; row++) {
+      expect(await columnIds(`tbody tr:nth-child(${row}) [data-tutor-column]`)).toEqual(
+        scenario.expected,
+      );
+    }
+    await expect(
+      panel(page).locator('tbody tr').first().locator('[data-tutor-column="shared-tutor"]'),
+    ).toContainText('425');
+    await expect(
+      panel(page).locator('tbody tr').nth(2).locator('[data-tutor-column="tutor-2"]'),
+    ).toContainText('4.90');
+    await expect(panel(page).getByRole('alert')).toHaveCount(scenario.sort === '__proto__' ? 1 : 0);
+    for (const index of [3, 2, 0]) {
+      await expect(choose(page, index)).toHaveAttribute('aria-pressed', 'true');
+    }
+    await page.screenshot({ path: testInfo.outputPath('comparison-sort.png') });
+    expect(unexpected).toEqual([]);
+  });
+}
+
+test('re-sorts refreshed public data without changing selected courses (S3-T33)', async ({
+  page,
+}) => {
+  const { state, unexpected } = await mockComparison(page);
+  await page.goto('/tutors');
+  await choose(page, 0).click();
+  await choose(page, 2).click();
+  await pocket(page).click();
+  await expect(panel(page).locator('[data-comparison-column="ready"]')).toHaveCount(2);
+  await expect(panel(page).locator('thead [data-tutor-column]').first()).toHaveAttribute(
+    'data-tutor-column',
+    'shared-tutor',
+  );
+  await panel(page).getByRole('button', { name: 'Close comparison' }).click();
+  await expect(panel(page)).not.toBeVisible();
+  state.sharedPrice = 500;
+  await pocket(page).click();
+  await expect(panel(page).locator('[data-comparison-column="ready"]')).toHaveCount(2);
+  await expect(panel(page).locator('thead [data-tutor-column]').first()).toHaveAttribute(
+    'data-tutor-column',
+    'tutor-2',
+  );
+  await expect(
+    panel(page).locator('tbody tr').first().locator('[data-tutor-column="shared-tutor"]'),
+  ).toContainText('500');
+  await expect(choose(page, 0)).toHaveAttribute('aria-pressed', 'true');
+  await expect(choose(page, 2)).toHaveAttribute('aria-pressed', 'true');
+  expect(unexpected).toEqual([]);
+});
 
 test('selection boundaries, same-tutor replacement, persisted search selection and immediate comparison', async ({
   page,

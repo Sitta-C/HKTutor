@@ -15,6 +15,7 @@ import { DashboardIcon } from '@/components/dashboard/dashboard-icon';
 import { formatPublicTutorSlot } from '@/components/tutors/public-tutor-detail-model';
 import { tutorComparisonCopy } from '@/components/tutors/tutor-comparison-copy';
 import { loadComparisonColumn } from '@/components/tutors/tutor-comparison-data';
+import { sortTutorComparisonView } from '@/components/tutors/tutor-comparison-sort';
 import {
   COMPARISON_ATTRIBUTES,
   buildTutorComparisonView,
@@ -46,14 +47,27 @@ const serverSnapshot = () => false;
 
 export function TutorComparisonPocket({
   controller,
+  comparisonSort,
 }: {
   controller: TutorComparisonController;
+  comparisonSort?: string | string[] | undefined;
 }): ReactNode {
   const mounted = useSyncExternalStore(subscribeClient, clientSnapshot, serverSnapshot);
-  return mounted ? createPortal(<FloatingPocket controller={controller} />, document.body) : null;
+  return mounted
+    ? createPortal(
+        <FloatingPocket controller={controller} comparisonSort={comparisonSort} />,
+        document.body,
+      )
+    : null;
 }
 
-function FloatingPocket({ controller }: { controller: TutorComparisonController }) {
+function FloatingPocket({
+  controller,
+  comparisonSort,
+}: {
+  controller: TutorComparisonController;
+  comparisonSort?: string | string[] | undefined;
+}) {
   const { language } = useLanguage();
   const text = tutorComparisonCopy[language];
   const { choices, flights, notice, remove, clear, finishFlight } = controller;
@@ -63,10 +77,12 @@ function FloatingPocket({ controller }: { controller: TutorComparisonController 
     cycle: number;
     retry: number;
     columns: ComparisonColumn[];
+    now: number;
   }>({
     cycle: 0,
     retry: 0,
     columns: [],
+    now: 0,
   });
   const buttonRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDialogElement>(null);
@@ -90,7 +106,12 @@ function FloatingPocket({ controller }: { controller: TutorComparisonController 
     return existing ?? { choice, state: 'loading' };
   });
   // Cells render only the allow-listed public view, never the raw profile/listing responses.
-  const view = buildTutorComparisonView(columns);
+  const sorted = sortTutorComparisonView(
+    buildTutorComparisonView(columns),
+    comparisonSort,
+    loaded.now,
+  );
+  const view = sorted.columns;
 
   const close = useCallback((focus = true) => {
     restoreFocus.current = focus;
@@ -115,7 +136,7 @@ function FloatingPocket({ controller }: { controller: TutorComparisonController 
       (next) => {
         window.clearTimeout(timeout);
         if (active) {
-          setLoaded({ cycle: dialog.cycle, retry, columns: next });
+          setLoaded({ cycle: dialog.cycle, retry, columns: next, now: Date.now() });
         }
       },
     );
@@ -331,6 +352,11 @@ function FloatingPocket({ controller }: { controller: TutorComparisonController 
               ? text.guide
               : text.subtitle}
         </p>
+        {sorted.error && (
+          <p role="alert" className={styles.hint}>
+            {text.invalidSort}
+          </p>
+        )}
         {choices.length === 0 ? (
           <p className={styles.empty}>{text.empty}</p>
         ) : (

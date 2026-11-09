@@ -28,8 +28,9 @@ export interface ComparisonAvailability {
 
 /**
  * Raw values for the US10-2 comparison sorts (S3-T33): lowest price, highest rating and earliest
- * availability. `null` means the value is missing and should sort last; the rating uses the shown
- * two-decimal score so ties match what the student sees.
+ * availability. `null` means the value is missing and should sort last. Price is numeric baht;
+ * sorting converts it to integer satang. Rating retains the canonical API number before display
+ * formatting, and availability is a UTC instant in milliseconds.
  */
 export interface ComparisonSortValues {
   price: number | null;
@@ -77,7 +78,7 @@ export function buildTutorComparisonEntry(
     nextAvailability: nextSlot && { startAtUtc: nextSlot.startAtUtc, endAtUtc: nextSlot.endAtUtc },
     sort: {
       price: pricePerHour,
-      rating: rating.state === 'rated' && rating.score !== null ? Number(rating.score) : null,
+      rating: rating.state === 'rated' ? tutor.ratingAverage : null,
       availability: Number.isFinite(startAt) ? startAt : null,
     },
   };
