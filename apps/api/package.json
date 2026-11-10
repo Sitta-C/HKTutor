@@ -54,6 +54,7 @@
     "db:reconcile:review-ratings": "ts-node -r tsconfig-paths/register scripts/reconcile-review-ratings.ts",
     "db:verify:review-ratings": "ts-node -r tsconfig-paths/register scripts/verify-review-ratings.ts",
     "db:verify:rating-regression": "ts-node -r tsconfig-paths/register scripts/verify-rating-regression.ts",
+    "db:verify:comparison-visibility": "ts-node -r tsconfig-paths/register scripts/verify-comparison-visibility.ts",
     "db:verify:coupons": "node scripts/verify-coupon-database.mjs"
   },
   "dependencies": {
