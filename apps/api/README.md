@@ -2494,3 +2494,43 @@ intercepts every API read with the card's fixtures (two courses for one tutor, a
 experience with no future slot, a tutor hidden after selection and a course removed after selection)
 and asserts page text, accessible names and the request log on desktop, tablet and mobile
 Chromium. It does not certify a live database-backed journey; the verifier above covers that side.
+
+## Tutor comparison sort QA (S3-T35)
+
+S3-T35 is the US10-2 regression suite for comparison sorting (S3-T33) and its Priority Tabs
+(S3-T34). It changes no production code and needs no database: at most three tutors are sorted in
+the browser, from the same public detail and availability reads covered in S3-T32.
+
+### Acceptance wording difference
+
+The backlog sheet's US10-2 criterion says that for `sort='unknown'` "the API rejects the value".
+The sheet's own note and the S3-T33 card make sorting client-side with no backend sort call, so the
+browser validates the value instead. Only `lowest_price`, `highest_rating` and
+`earliest_availability` are accepted. Anything else, including an ambiguous repeated
+`comparisonSort` URL value, shows "Invalid comparison sort. Showing lowest price first." and sorts
+by lowest price without changing the selection. The sheet is not edited.
+
+### Coverage
+
+| Requirement                                                                    | Tests                                                                                                     |
+| ------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------- |
+| Card fixture A 450/4.8/sooner, B 350/4.4/later, C no rating or slot            | web `tutor-comparison-sort-qa.test.ts` (real pipeline), `tutor-comparison-sort-qa.spec.ts`                |
+| 350 before 450; prices compared as numbers, never as text                      | web `tutor-comparison-sort-qa.test.ts`, `tutor-comparison-sort.test.ts` (satang)                          |
+| Highest rating first on unrounded values; New tutor last                       | web `tutor-comparison-sort-qa.test.ts`, `tutor-comparison-sort.test.ts`                                   |
+| Future slots first; no slot or a started slot last; one instant in two offsets | web `tutor-comparison-sort-qa.test.ts`, `tutor-comparison-sort.test.ts`                                   |
+| Ties and all-missing values keep selection order                               | web `tutor-comparison-sort-qa.test.ts`, `tutor-comparison-sort-qa.spec.ts`                                |
+| Invalid sort shows a message and falls back to lowest price                    | web `tutor-comparison-sort-qa.test.ts`, `tutor-comparison-sort-qa.spec.ts`, `tutor-comparison-ui.spec.ts` |
+| Every column's six values and name move together after each change             | web `tutor-comparison-sort-qa.spec.ts` (2 and 3 tutors, every priority repeatedly)                        |
+| No selection loss, array mutation or extra reads while sorting                 | web `tutor-comparison-sort-qa.test.ts`, `tutor-comparison-sort-qa.spec.ts`, `tutor-comparison-ui.spec.ts` |
+| Sorting repeatedly while a tutor reloads keeps the finished column whole       | web `tutor-comparison-sort-qa.spec.ts`, `tutor-comparison-ui.spec.ts` (S3-T34 pending retry)              |
+| URL history, keyboard and announcements for the Priority Tabs                  | web `tutor-comparison-ui.spec.ts` (S3-T34), `tutor-comparison-sort-qa.spec.ts` (announcement)             |
+
+### Verification
+
+Run the pure tests with `pnpm --filter @hktutor/web test` and the browser suite with
+`pnpm --filter @hktutor/web test:e2e tutor-comparison-sort-qa.spec.ts`. The pure tests build each
+column from API-shaped detail and slot data through `buildComparisonColumn`,
+`buildTutorComparisonView` and `sortTutorComparisonView`, so they cover the values a student sees
+rather than hand-built sort keys. Making ties ignore selection order fails three of them. The
+browser suite intercepts every API read and checks, after each change, every column's name, price,
+subject, rating, review count, experience and next slot on desktop, tablet and mobile Chromium.
