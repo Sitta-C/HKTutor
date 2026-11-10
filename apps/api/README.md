@@ -2534,3 +2534,46 @@ column from API-shaped detail and slot data through `buildComparisonColumn`,
 rather than hand-built sort keys. Making ties ignore selection order fails three of them. The
 browser suite intercepts every API read and checks, after each change, every column's name, price,
 subject, rating, review count, experience and next slot on desktop, tablet and mobile Chromium.
+
+## Tutor comparison responsive E2E (S3-T36)
+
+S3-T36 runs the US10-2 comparison journey in the browser at the card's three viewports, keyboard
+only. It changes no production code. The suite is
+`apps/web/e2e/tutor-comparison-responsive.spec.ts`; each existing Playwright project is resized to
+the card's size, keeping that project's device settings:
+
+| Project           | Viewport   | Device settings           |
+| ----------------- | ---------- | ------------------------- |
+| `chromium`        | 1440 × 900 | Desktop Chrome            |
+| `tablet-chromium` | 768 × 1024 | Desktop Chrome with touch |
+| `mobile-chromium` | 390 × 844  | Pixel 7 (mobile, touch)   |
+
+### What it checks
+
+- The journey: select two tutors, open the comparison, add a third, have a fourth refused and
+  announced, remove one, then sort by lowest price, highest rating and earliest availability.
+- Every control is reached with real Tab or Shift+Tab presses and used with Enter, Space, the arrow
+  keys or Escape. Each focused control (a radio's label for the priorities) must be
+  `:focus-visible` with an outline of at least 2px.
+- After each step: column order, each cell's `headers` association with its row and column header,
+  each tutor's own values, no page-level horizontal scroll and the popup inside the viewport. At
+  390px the table scrolls sideways inside the popup.
+- Long English and Thai names and subjects wrap inside their own cells (no cell with
+  `scrollWidth > clientWidth`), with New tutor and no-slot labels in both languages.
+- A tutor hidden (404) between selection and comparison shows no stale name or link, and retrying
+  one network error by keyboard keeps the other selections and the 3/3 count.
+
+Removing the search card's `:focus-visible` outline makes all four desktop tests fail.
+
+### Running it and the evidence
+
+`pnpm --filter @hktutor/web test:e2e tutor-comparison-responsive.spec.ts` runs all three
+projects. Screenshots are written to each test's Playwright output folder; they are evidence only,
+and every test passes or fails on its assertions. A curated set is kept in
+`ui-design/review-evidence/s3-t36/`: for each viewport, three tutors compared
+(`*-2-compare-three.png`), the result sorted by highest rating (`*-3-sorted-highest_rating.png`)
+and Thai long text (`*-4-long-text-th.png`).
+
+Limits: every API read is intercepted, so this does not certify a live database-backed journey
+(S3-T32's `db:verify:comparison-visibility` covers the public reads). Only the repository's
+Chromium projects were run; Firefox and WebKit were not. No external service is contacted.
