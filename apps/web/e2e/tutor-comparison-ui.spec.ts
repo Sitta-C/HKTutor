@@ -1,5 +1,7 @@
 import { expect, test } from '@playwright/test';
 
+import { parseTutorSearchSession } from '@/components/tutors/tutor-search-session';
+
 import type { ComparisonSort } from '@/components/tutors/tutor-comparison-sort';
 import type { PublicTutorDetail, TutorSearchResult } from '@/lib/api/types';
 import type { Page } from '@playwright/test';
@@ -24,6 +26,7 @@ const courses: TutorSearchResult[] = Array.from({ length: 12 }, (_, index) => ({
 async function mockComparison(page: Page, language: 'en' | 'th' = 'en') {
   const state = {
     failSearch: false,
+    totalCourses: 12,
     hidden: false,
     unavailableCourse: false,
     failDetail: false,
@@ -36,6 +39,7 @@ async function mockComparison(page: Page, language: 'en' | 'th' = 'en') {
     laterSecondSlot: false,
   };
   const calls: string[] = [];
+  const searchQueries: string[] = [];
   const availabilityFrom: string[] = [];
   const unexpected: string[] = [];
   let release = () => {};
@@ -61,17 +65,18 @@ async function mockComparison(page: Page, language: 'en' | 'th' = 'en') {
       });
     }
     if (path === '/tutors') {
+      searchQueries.push(url.search);
       if (state.failSearch) {
         return route.fulfill({ status: 500, json: { message: 'Unavailable' } });
       }
       const number = Number(url.searchParams.get('page') ?? 1);
       return route.fulfill({
         json: {
-          items: courses.slice((number - 1) * 10, number * 10),
+          items: courses.slice(0, state.totalCourses).slice((number - 1) * 10, number * 10),
           page: number,
           pageSize: 10,
-          total: 12,
-          totalPages: 2,
+          total: state.totalCourses,
+          totalPages: Math.ceil(state.totalCourses / 10),
         },
       });
     }
@@ -151,7 +156,7 @@ async function mockComparison(page: Page, language: 'en' | 'th' = 'en') {
     unexpected.push(path);
     return route.fulfill({ status: 500, json: { message: 'Unexpected request' } });
   });
-  return { state, calls, availabilityFrom, unexpected, release };
+  return { state, calls, searchQueries, availabilityFrom, unexpected, release };
 }
 
 const pocket = (page: Page) => page.locator('[data-comparison-button]');
@@ -514,12 +519,12 @@ test('selection boundaries, same-tutor replacement, persisted search selection a
   await page.locator('#tutor-search-ranking').selectOption('lowest_price');
   await expect(choose(page, 2)).toHaveAttribute('aria-pressed', 'true');
   await page.reload();
-  await expect(pocket(page)).toHaveAccessibleName('Tutor comparison (0/3)');
+  await expect(pocket(page)).toHaveAccessibleName('Tutor comparison (2/3)');
   await choose(page, 0).click();
   await page.locator('article').first().getByRole('link', { name: 'View times' }).click();
   await expect(page).toHaveURL(/\/tutors\/shared-tutor/);
   await page.goBack();
-  await expect(pocket(page)).toHaveAccessibleName('Tutor comparison (0/3)');
+  await expect(pocket(page)).toHaveAccessibleName('Tutor comparison (3/3)');
   expect(unexpected).toEqual([]);
 });
 
@@ -589,6 +594,8 @@ test('a timed-out public read becomes retryable without losing the selection', a
     await choose(page, 2).click();
     await pocket(page).click();
     await expect.poll(() => calls.includes('/tutors/shared-tutor')).toBe(true);
+    // Finish the unblocked column before advancing fake time past both request timeouts.
+    await expect(panel(page).locator('[data-comparison-column="ready"]')).toHaveCount(1);
     await page.clock.fastForward(16_000);
     await expect(panel(page).locator('[data-comparison-column="error"]').first()).toBeVisible();
     await expect(pocket(page)).toHaveAccessibleName('Tutor comparison (2/3)');
@@ -804,7 +811,7 @@ for (const count of [2, 3]) {
     await page.keyboard.press('Enter');
     await expect(page).toHaveURL(/\/tutors\/shared-tutor\?listingId=course-1$/);
     await page.goBack();
-    await expect(pocket(page)).toHaveAccessibleName('Tutor comparison (0/3)');
+    await expect(pocket(page)).toHaveAccessibleName(`Tutor comparison (${count - 1}/3)`);
   });
 }
 
@@ -874,4 +881,163 @@ test('captured UTC from remains shared through an individual retry and refreshes
   await pocket(page).click();
   await expect(panel(page).locator('[data-comparison-column="ready"]')).toHaveCount(2);
   expect(availabilityFrom.slice(-2)).toEqual([reopened.toISOString(), reopened.toISOString()]);
+});
+
+test('session restores selections, draft/applied filters, ranking, page and scroll after profile and reload', async ({
+  page,
+  context,
+}, testInfo) => {
+  if (testInfo.project.name === 'mobile-chromium') {
+    await page.setViewportSize({ width: 320, height: 900 });
+  }
+  const { state, searchQueries } = await mockComparison(page);
+  await page.goto('/tutors?comparisonSort=highest_rating');
+  await expect(page.locator('article')).toHaveCount(10);
+  const showFilters = page.getByRole('button', { name: 'Show filters', exact: true });
+  if (await showFilters.isVisible()) {
+    await showFilters.click();
+  }
+  await page.locator('#tutor-search-subject').selectOption('Mathematics');
+  await page.locator('#tutor-search-grade').selectOption('Grade 10');
+  await page.locator('#tutor-search-max-price').fill('600');
+  await page.locator('#tutor-search-min-rating').selectOption('4');
+  await page.getByRole('button', { name: 'Apply filters', exact: true }).click();
+  await expect(page.locator('article')).toHaveCount(10);
+  await page.locator('#tutor-search-ranking').selectOption('lowest_price');
+  await expect(page.locator('article')).toHaveCount(10);
+  await choose(page, 0).click();
+  await choose(page, 2).click();
+  await page.getByRole('button', { name: 'Next', exact: true }).click();
+  await expect(page.locator('article')).toHaveCount(2);
+  await choose(page, 1).click();
+  if (await showFilters.isVisible()) {
+    await showFilters.click();
+  }
+  await page.locator('#tutor-search-max-price').fill('750');
+  const profile = page
+    .locator('article')
+    .last()
+    .getByRole('link', { name: 'View times', exact: true });
+  await profile.scrollIntoViewIfNeeded();
+  await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+  await expect.poll(() => page.evaluate(() => scrollY)).toBeGreaterThan(0);
+  await profile.click();
+  await expect(page).toHaveURL(/\/tutors\/tutor-11/);
+  const saved = parseTutorSearchSession(
+    await page.evaluate(() => sessionStorage.getItem('hktutor-tutor-search-v1')),
+  );
+  if (!saved) {
+    throw new Error('Expected a valid saved search session');
+  }
+  expect(saved.form.maxPrice).toBe('750');
+  expect(saved.query.maxPrice).toBe(600);
+  expect(saved.query.page).toBe(2);
+  expect(saved.choices).toEqual([
+    { tutorId: 'shared-tutor', listingId: 'course-0' },
+    { tutorId: 'tutor-2', listingId: 'course-2' },
+    { tutorId: 'tutor-11', listingId: 'course-11' },
+  ]);
+  state.hidden = true;
+  const readsBeforeReturn = searchQueries.length;
+  await page.goBack();
+  await expect(page.locator('article')).toHaveCount(2);
+  await expect(page.locator('#tutor-search-max-price')).toHaveValue('750');
+  await expect(page.locator('#tutor-search-subject')).toHaveValue('Mathematics');
+  await expect(page.locator('#tutor-search-grade')).toHaveValue('Grade 10');
+  await expect(page.locator('#tutor-search-min-rating')).toHaveValue('4');
+  await expect(page.locator('#tutor-search-ranking')).toHaveValue('lowest_price');
+  await expect(pocket(page)).toHaveAccessibleName('Tutor comparison (3/3)');
+  await expect(choose(page, 1)).toHaveAttribute('aria-pressed', 'true');
+  await expect(panel(page)).not.toBeVisible();
+  await expect.poll(() => page.evaluate(() => scrollY)).toBeCloseTo(saved.scrollY, 0);
+  expect(searchQueries.length).toBeGreaterThan(readsBeforeReturn);
+  expect(Object.fromEntries(new URLSearchParams(searchQueries.at(-1)))).toMatchObject({
+    subject: 'Mathematics',
+    grade: 'Grade 10',
+    maxPrice: '600',
+    minimumRating: '4',
+    priority: 'lowest_price',
+    page: '2',
+    pageSize: '10',
+  });
+  await page.screenshot({ path: testInfo.outputPath('search-session-restored.png') });
+  await page.reload();
+  await expect(page.locator('article')).toHaveCount(2);
+  await expect(page.locator('#tutor-search-max-price')).toHaveValue('750');
+  await expect(pocket(page)).toHaveAccessibleName('Tutor comparison (3/3)');
+  await expect.poll(() => page.evaluate(() => scrollY)).toBeCloseTo(saved.scrollY, 0);
+  await pocket(page).click();
+  await expect(panel(page).locator('[data-comparison-column="unavailable"]')).toHaveCount(1);
+  await expect(panel(page).locator('[data-comparison-column="ready"]')).toHaveCount(2);
+  await expect(panel(page)).not.toContainText('Teacher Anan');
+  await panel(page).getByRole('button', { name: 'Clear selection', exact: true }).click();
+  await page.keyboard.press('Escape');
+  await page.reload();
+  await expect(pocket(page)).toHaveAccessibleName('Tutor comparison (0/3)');
+  await expect(page.locator('#tutor-search-max-price')).toHaveValue('750');
+  await expect(page.locator('article')).toHaveCount(2);
+  const fresh = await context.newPage();
+  await mockComparison(fresh);
+  await fresh.goto('/tutors');
+  await expect(pocket(fresh)).toHaveAccessibleName('Tutor comparison (0/3)');
+  await expect(fresh.locator('#tutor-search-max-price')).toHaveValue('');
+  await expect(fresh.locator('article')).toHaveCount(10);
+  await fresh.close();
+});
+
+test('blocked session storage leaves search and comparison usable', async ({ page }) => {
+  const errors: string[] = [];
+  page.on('pageerror', (error) => errors.push(error.message));
+  await mockComparison(page);
+  await page.addInitScript(() =>
+    Object.defineProperty(window, 'sessionStorage', {
+      get() {
+        throw new DOMException('Blocked', 'SecurityError');
+      },
+    }),
+  );
+  await page.goto('/tutors');
+  await choose(page, 0).click();
+  await choose(page, 2).click();
+  await pocket(page).click();
+  await expect(panel(page).locator('[data-comparison-column="ready"]')).toHaveCount(2);
+  await page.keyboard.press('Escape');
+  await page.reload();
+  await expect(page.locator('article')).toHaveCount(10);
+  await expect(pocket(page)).toHaveAccessibleName('Tutor comparison (0/3)');
+  expect(errors).toEqual([]);
+});
+
+test('restoring an obsolete result page falls back to the current last page', async ({ page }) => {
+  const { state, searchQueries } = await mockComparison(page);
+  await page.goto('/tutors');
+  await page.getByRole('button', { name: 'Next', exact: true }).click();
+  await expect(page.locator('article')).toHaveCount(2);
+  await choose(page, 0).click();
+  await page.locator('article').first().getByRole('link', { name: 'View times' }).click();
+  await expect(page).toHaveURL(/\/tutors\/tutor-10/);
+  state.totalCourses = 10;
+  await page.goBack();
+  await expect(page.locator('article')).toHaveCount(10);
+  expect(searchQueries.slice(-2).map((query) => new URLSearchParams(query).get('page'))).toEqual([
+    '2',
+    '1',
+  ]);
+  await expect(pocket(page)).toHaveAccessibleName('Tutor comparison (1/3)');
+  await page.reload();
+  await expect(page.locator('article')).toHaveCount(10);
+  expect(new URLSearchParams(searchQueries.at(-1)).get('page')).toBe('1');
+});
+
+test('corrupt session data starts a usable fresh search', async ({ page }) => {
+  await mockComparison(page);
+  await page.goto('/tutors');
+  await choose(page, 0).click();
+  // Seed after the previous document's pagehide save, before the next app reads storage.
+  await page.addInitScript(() => sessionStorage.setItem('hktutor-tutor-search-v1', '{broken'));
+  await page.reload();
+  await expect(page.locator('article')).toHaveCount(10);
+  await expect(pocket(page)).toHaveAccessibleName('Tutor comparison (0/3)');
+  await choose(page, 0).click();
+  await expect(pocket(page)).toHaveAccessibleName('Tutor comparison (1/3)');
 });

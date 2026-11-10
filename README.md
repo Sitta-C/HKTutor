@@ -50,8 +50,14 @@ remain protected.
 Tutor search also supports selecting up to three tutors with one course each. A bottom-centered
 **Compact Dock** with a Balance icon, bilingual guidance and selected count opens their comparison
 directly in a Course Tabs popup, with current public price, subject,
-rating, review count, experience and next availability. Selections survive search changes in memory;
-they reset on reload/navigation away. Each open rechecks public visibility, and missing courses are
+rating, review count, experience and next availability. A versioned `sessionStorage` record retains
+selected tutor/course IDs, draft filters, applied search conditions/ranking/page, filter-panel state
+and page scroll within the browser tab's session. Returning from a profile or reloading fetches fresh
+results with the applied conditions, restores the unsent draft separately and restores scroll after
+results/catalogs load. If the saved page no longer exists, search uses the current last page. No names,
+public result payloads, prices or ratings are cached as tutor data. Blocked/full storage falls back to
+in-memory use; malformed or unsupported stored state starts a fresh search. Clearing the comparison
+also clears its saved IDs. Each popup open rechecks public visibility, and missing courses are
 not replaced automatically. This uses the existing public APIs and adds no database migration.
 The dock stays centered while scrolling/resizing, respects the visible viewport and bottom safe
 area, and reserves space above it for the popup. It remains available with zero/one selection for
@@ -81,6 +87,7 @@ search ranking.
 See [S3-T33 verification](tests/s3-t33-qa.md) for the sorting contract and actual check results.
 See [S3-T34 verification](tests/s3-t34-qa.md) for the selector and history checks.
 See [S3-T30 verification](tests/s3-t30-qa.md) for the completed popup requirements and remaining verification limits.
+See [search-session verification](tests/tutor-search-session-qa.md) for returning to the same search context.
 
 See [S3-T03 verification](apps/web/e2e/chat-realtime-verification.md) for recorded commands/results
 and the opted-in two-session browser suite against a disposable PostgreSQL database.

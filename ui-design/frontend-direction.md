@@ -185,8 +185,17 @@ its mint top edge, blue grade tabs, six aligned rows, yellow prices and Margin S
 - Each search row can select its course; count unique tutors, at most three. Selecting another
   course of the same tutor replaces that tutor's course in place, even at the limit. Selected rows
   stay removable. Keep the existing view-times link and all search/filter/ranking behavior.
-- Keep selections in memory across filtering, sorting, pagination and failed searches. Clear them
-  when leaving/reloading the search page. No browser storage, comparison database or URL handoff.
+- Updated by user request on 2026-11-10: retain selected tutor/course IDs in versioned
+  `sessionStorage` for the current tab's page session, including profile round trips and reloads.
+  Also retain draft filter inputs separately from the applied query, search ranking/page, filter-panel
+  expansion and document scroll. Fetch current results on return; never persist public tutor names,
+  result payloads, prices or ratings. Clear selection also clears saved IDs. Invalid stored state
+  starts fresh; blocked/full storage falls back to the existing in-memory flow. No comparison
+  database or URL selection handoff.
+- Restore scroll only after fresh results and catalogs establish page height, clamping to the available
+  height. User interaction cancels a pending restore. Capture position before profile navigation and
+  debounce scroll writes. If the old result page no longer exists, fetch the current last page. Keep
+  the comparison popup closed on return, with its selected count ready to use.
 - Keep the dock centered during scrolling, resize and visual-viewport changes; it is not draggable.
   Use native Enter/Space activation. Reserve bottom space in search content so final actions and
   pagination can be scrolled above the dock. Preserve native page/table touch scrolling.
