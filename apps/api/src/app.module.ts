@@ -13,6 +13,7 @@ import { AuthModule } from '@modules/auth/auth.module';
 import { AvatarsModule } from '@modules/avatars/avatars.module';
 import { BookingsModule } from '@modules/bookings/bookings.module';
 import { ConversationsModule } from '@modules/conversations/conversations.module';
+import { CouponsModule } from '@modules/coupons/coupons.module';
 import { HealthModule } from '@modules/health/health.module';
 import { NotificationsModule } from '@modules/notifications/notifications.module';
 import { PaymentsModule } from '@modules/payments/payments.module';
@@ -39,6 +40,7 @@ import { TutorsModule } from '@modules/tutors/tutors.module';
     StorageModule,
     BookingsModule,
     ConversationsModule,
+    CouponsModule,
     HealthModule,
     NotificationsModule,
     PaymentsModule,

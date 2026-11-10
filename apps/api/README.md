@@ -2416,6 +2416,111 @@ consume/release retries, zero settlement, append-only/JSON/privacy constraints, 
 transaction rollback, RLS/grants and preservation of existing payment/reschedule indexes.
 See [S3-DB02 evidence](../../tests/s3-db02-qa.md) for actual commands/results and limitations.
 
+## Admin coupon APIs (S3-T21)
+
+Both routes require a Bearer access JWT backed by an active session, a verified active account,
+the current privacy consent and the database-backed ADMIN role. `JwtAuthGuard` runs before
+`RolesGuard`. Responses use `Cache-Control: no-store`; failures follow the existing
+`{ statusCode, error, message, code }` envelope. Missing/invalid/revoked credentials return 401;
+wrong roles or missing/outdated consent return 403. No caller-supplied identity is accepted.
+
+### Create
+
+`POST /api/v1/admin/coupons` returns 201 with the coupon metadata below.
+
+```json
+{
+  "code": "WELCOME10",
+  "percent": 10,
+  "expiresAt": "2026-11-30T16:59:59.000Z",
+  "maxUses": 100,
+  "active": true
+}
+```
+
+- `code` is trimmed and ASCII lowercase letters are uppercased before checking
+  `[A-Z0-9_-]{3,32}`. Non-ASCII codes are rejected. The existing CITEXT unique index protects
+  concurrent creation: `welcome10` conflicts with `WELCOME10`, returning 409 `COUPON_CODE_EXISTS`.
+- `percent` is a JSON integer 1–100; `maxUses` is a JSON integer 1–2147483647. Strings, fractions,
+  nulls and unknown fields fail with 400 `VALIDATION_FAILED`.
+- `expiresAt` is a valid, full UTC ISO 8601 instant ending in `Z`, with seconds and optionally
+  1–3 fractional digits. It must be strictly later than the server time, rechecked after acquiring
+  a transaction connection. Date-only values, offsets and excess precision are rejected. Convert
+  Bangkok inputs to UTC before submission: 2026-11-30 23:59:59 Bangkok is the example above.
+  Expiry is exclusive: `now >= expiresAt` means expired.
+- `active` is an optional JSON boolean, default true; explicit false is retained. This task
+  adds no update, delete or toggle route.
+
+The service sets transaction-local `hktutor.audit_actor_user_id` from `CurrentUser`. DB02's insert
+trigger creates exactly one append-only `AuditLog` with `action: coupon.create`, `entityType: Coupon`,
+the new coupon ID and safe `afterData: { percent, maxUses, active }`. Coupon and audit commit or
+roll back together; pool connections cannot retain the actor context. This uses the implemented
+DB02 action name **coupon.create**, replacing the card's planned **COUPON_CREATED** spelling;
+it does not add a second audit or reuse `TutorDocumentAudit`. Audit failures remain generic 500
+errors and are not mistaken for a coupon code collision. No new migration is needed.
+
+### List and capacity
+
+`GET /api/v1/admin/coupons?limit=20&cursor=<opaque>` returns `{ items, nextCursor }`.
+Limit is 1–50, default 20; the exclusive, validated base64url cursor is at most 512 characters.
+Unknown query parameters, malformed/repeated values and invalid cursors return 400.
+Ordering is `createdAt DESC, id DESC`, including ties; empty/end pages return `items: []` and
+`nextCursor: null`. Each item has exactly:
+
+```json
+{
+  "id": "66666666-6666-4666-8666-666666666666",
+  "code": "WELCOME10",
+  "percent": 10,
+  "expiresAt": "2026-11-30T16:59:59.000Z",
+  "maxUses": 100,
+  "active": true,
+  "consumedUses": 0,
+  "reservedUses": 0,
+  "availableUses": 100,
+  "createdAt": "2026-11-10T11:00:00.000Z",
+  "updatedAt": "2026-11-10T11:00:00.000Z"
+}
+```
+
+`consumedUses` counts `CouponUse`; `reservedUses` counts only `RESERVED` reservations.
+Released/consumed reservations do not count again. Uncertain payment outcomes stay reserved,
+regardless of an elapsed reservation timestamp. `availableUses = maxUses - consumedUses - reservedUses`.
+The page and counts share a repeatable-read snapshot. Inactive, expired and exhausted coupons
+remain in the admin list: `active` is the stored flag and capacity is not an eligibility promise.
+Availability for future coupon application requires `active && now < expiresAt && availableUses > 0`;
+booking/student applicability and payment orchestration belong to T25/T26. Responses expose no
+student redemption history, audit actors, private contact data or payment-provider fields.
+
+### Verification
+
+Focused unit/HTTP checks are in `test/unit/coupons` and `test/coupons.e2e-spec.ts`.
+The HTTP suite runs real guards, validation and service code with mocked persistence. The separate
+`pnpm db:verify:admin-coupons` runner uses real PostgreSQL, real signed JWTs and the HTTP routes for
+the duplicate-code race, safe listing and persisted session revocation; it also verifies audit
+rollback, equal-time keyset pagination and real reservation/release/consumption counts.
+
+The runner requires explicit opt-in, a loopback-only URL, a `hktutor_*_test`/`hktutor-*-test`
+database name, no URL options/fragments and all committed migrations. It does not load `.env`,
+migrate or seed. Synthetic append-only evidence is retained, so discard its disposable database.
+It runs separately from `pnpm check`.
+
+```bash
+# Use a NEW isolated container, never the shared/demo database.
+docker run --detach --name hktutor-s3-t21-test \
+  --publish 127.0.0.1:55451:5432 \
+  --env POSTGRES_USER=postgres --env POSTGRES_PASSWORD=disposable-local-only \
+  --env POSTGRES_DB=hktutor_coupon_api_test postgres:17-alpine
+docker exec hktutor-s3-t21-test pg_isready -U postgres -d hktutor_coupon_api_test
+export DATABASE_URL='postgresql://postgres:disposable-local-only@127.0.0.1:55451/hktutor_coupon_api_test'
+pnpm db:migrate:deploy
+HKTUTOR_ALLOW_DISPOSABLE_DB_VERIFY=1 pnpm db:verify:admin-coupons
+docker rm --force --volumes hktutor-s3-t21-test
+unset DATABASE_URL
+```
+
+See [S3-T21 evidence](../../tests/s3-t21-qa.md) for actual commands and results.
+
 ## Tutor comparison QA (S3-T32)
 
 S3-T32 is the US10-1 regression suite for the tutor comparison built in S3-T29 to S3-T31 and
