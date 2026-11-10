@@ -1,6 +1,9 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { loadComparisonColumn } from '@/components/tutors/tutor-comparison-data';
+import {
+  createComparisonDataStore,
+  loadComparisonColumn,
+} from '@/components/tutors/tutor-comparison-data';
 import {
   buildComparisonColumn,
   comparisonDockPosition,
@@ -106,6 +109,7 @@ describe('public comparison data', () => {
       [
         slot('2026-11-10T03:00:00.000Z', '2026-11-10T04:00:00.000Z'),
         slot('2026-11-06T03:00:00.000Z', '2026-11-06T04:00:00.000Z'),
+        slot('2026-11-07T00:00:00.000Z', '2026-11-07T01:00:00.000Z'),
         slot('invalid', 'invalid'),
         slot('2026-11-07T03:00:00.000Z', '2026-11-07T02:00:00.000Z'),
         early,
@@ -119,14 +123,18 @@ describe('public comparison data', () => {
     vi.mocked(getPublicTutor).mockResolvedValueOnce(detail);
     vi.mocked(getPublicTutorAvailability).mockResolvedValueOnce([]);
     const signal = new AbortController().signal;
-    expect(await loadComparisonColumn(choice, signal)).toMatchObject({ state: 'ready' });
+    expect(await loadComparisonColumn(choice, signal, now)).toMatchObject({ state: 'ready' });
     expect(getPublicTutor).toHaveBeenLastCalledWith(choice.tutorId, { signal });
-    expect(getPublicTutorAvailability).toHaveBeenLastCalledWith(choice.tutorId, {}, { signal });
+    expect(getPublicTutorAvailability).toHaveBeenLastCalledWith(
+      choice.tutorId,
+      { from: new Date(now).toISOString() },
+      { signal },
+    );
   });
 
   it('does not fetch availability or substitute a different offering for a missing course', async () => {
     vi.mocked(getPublicTutor).mockResolvedValueOnce({ ...detail, listings: [] });
-    expect(await loadComparisonColumn(choice, new AbortController().signal)).toEqual({
+    expect(await loadComparisonColumn(choice, new AbortController().signal, now)).toEqual({
       choice,
       state: 'unavailable',
     });
@@ -138,7 +146,7 @@ describe('public comparison data', () => {
     async (status) => {
       vi.mocked(getPublicTutor).mockRejectedValueOnce(new ApiError('Unavailable', status));
       vi.mocked(getPublicTutorAvailability).mockResolvedValueOnce([]);
-      expect(await loadComparisonColumn(choice, new AbortController().signal)).toEqual({
+      expect(await loadComparisonColumn(choice, new AbortController().signal, now)).toEqual({
         choice,
         state: status === 500 ? 'error' : 'unavailable',
       });
@@ -210,3 +218,186 @@ describe('comparison dock geometry', () => {
     expect(point.y).toBeGreaterThanOrEqual(viewport.top + 12);
   });
 });
+
+describe('independent comparison reads (S3-T30)', () => {
+  let store = createComparisonDataStore();
+  const second = { tutorId: 'tutor-2', listingId: 'course-2' };
+  const secondDetail: PublicTutorDetail = {
+    ...detail,
+    tutor: { ...detail.tutor, tutorId: second.tutorId },
+    listings: [
+      {
+        ...detail.listings[0],
+        listingId: second.listingId,
+        subject: 'Science',
+        grade: 'Grade 10',
+        pricePerHour: 600,
+        description: '',
+      },
+    ],
+  };
+  const flush = () => vi.advanceTimersByTimeAsync(0);
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(now);
+    store = createComparisonDataStore();
+    vi.mocked(getPublicTutorAvailability).mockResolvedValue([]);
+  });
+  afterEach(() => {
+    store.clear();
+    vi.useRealTimers();
+  });
+
+  it('shows a ready column while another is pending, using the same captured UTC reference', async () => {
+    const pending = deferred<PublicTutorDetail>();
+    vi.mocked(getPublicTutor).mockImplementation((id) =>
+      id === choice.tutorId ? pending.promise : Promise.resolve(secondDetail),
+    );
+    store.reconcile(true, 1, now, [choice, second]);
+    await flush();
+    expect(store.getSnapshot().columns.map((column) => column.state)).toEqual(['loading', 'ready']);
+    vi.setSystemTime(now + 10_000);
+    pending.resolve(detail);
+    await flush();
+    expect(store.getSnapshot().columns.map((column) => column.state)).toEqual(['ready', 'ready']);
+    expect(vi.mocked(getPublicTutorAvailability).mock.calls.map((call) => call[1])).toEqual([
+      { from: new Date(now).toISOString() },
+      { from: new Date(now).toISOString() },
+    ]);
+  });
+
+  it('retries only the failed tutor, rejects duplicate retries and keeps ready data', async () => {
+    vi.mocked(getPublicTutor).mockImplementation((id) =>
+      id === choice.tutorId
+        ? Promise.reject(new ApiError('Failure', 500))
+        : Promise.resolve(secondDetail),
+    );
+    store.reconcile(true, 1, now, [choice, second]);
+    await flush();
+    const ready = store.getSnapshot().columns[1];
+    const pending = deferred<PublicTutorDetail>();
+    vi.mocked(getPublicTutor).mockReturnValue(pending.promise);
+    vi.setSystemTime(now + 5_000);
+    store.retry(choice);
+    store.retry(choice);
+    store.retry(second);
+    expect(getPublicTutor).toHaveBeenCalledTimes(3);
+    expect(store.getSnapshot().columns[1]).toBe(ready);
+    expect(store.getSnapshot().columns[0]?.state).toBe('loading');
+    pending.resolve(detail);
+    await flush();
+    expect(store.getSnapshot().columns[0]?.state).toBe('ready');
+    expect(store.getSnapshot().columns[1]).toBe(ready);
+    expect(getPublicTutorAvailability).toHaveBeenLastCalledWith(
+      choice.tutorId,
+      { from: new Date(now).toISOString() },
+      expect.anything(),
+    );
+  });
+
+  it('keeps another failed column and supports independent concurrent retries', async () => {
+    vi.mocked(getPublicTutor).mockRejectedValue(new ApiError('Failure', 500));
+    store.reconcile(true, 1, now, [choice, second]);
+    await flush();
+    const failed = store.getSnapshot().columns[1];
+    const firstRetry = deferred<PublicTutorDetail>();
+    const secondRetry = deferred<PublicTutorDetail>();
+    vi.mocked(getPublicTutor).mockImplementation((id) =>
+      id === choice.tutorId ? firstRetry.promise : secondRetry.promise,
+    );
+    store.retry(choice);
+    expect(store.getSnapshot().columns[1]).toBe(failed);
+    store.retry(second);
+    const signals = vi
+      .mocked(getPublicTutor)
+      .mock.calls.slice(-2)
+      .map((call) => call[1]?.signal);
+    expect(signals[0]).not.toBe(signals[1]);
+    secondRetry.resolve(secondDetail);
+    await flush();
+    expect(store.getSnapshot().columns.map((column) => column.state)).toEqual(['loading', 'ready']);
+    firstRetry.resolve(detail);
+    await flush();
+    expect(store.getSnapshot().columns.every((column) => column.state === 'ready')).toBe(true);
+  });
+
+  it('times out only the slow column and discards its late response after a successful retry', async () => {
+    const pending = deferred<PublicTutorDetail>();
+    vi.mocked(getPublicTutor).mockImplementation((id) =>
+      id === choice.tutorId ? pending.promise : Promise.resolve(secondDetail),
+    );
+    store.reconcile(true, 1, now, [choice, second]);
+    await flush();
+    const slowSignal = vi.mocked(getPublicTutor).mock.calls[0]?.[1]?.signal;
+    await vi.advanceTimersByTimeAsync(15_000);
+    expect(slowSignal?.aborted).toBe(true);
+    expect(store.getSnapshot().columns.map((column) => column.state)).toEqual(['error', 'ready']);
+    vi.mocked(getPublicTutor).mockResolvedValue({
+      ...detail,
+      tutor: { ...detail.tutor, displayName: 'Fresh profile' },
+    });
+    store.retry(choice);
+    await flush();
+    const fresh = store.getSnapshot();
+    pending.resolve(detail);
+    await flush();
+    expect(store.getSnapshot()).toBe(fresh);
+    expect(getPublicTutorAvailability).toHaveBeenCalledTimes(2);
+  });
+
+  it.each(['close', 'remove', 'replace', 'reopen'] as const)(
+    'discards late responses after %s',
+    async (action) => {
+      const pending = deferred<PublicTutorDetail>();
+      vi.mocked(getPublicTutor)
+        .mockReturnValueOnce(pending.promise)
+        .mockResolvedValue(secondDetail);
+      store.reconcile(true, 1, now, [choice]);
+      const signal = vi.mocked(getPublicTutor).mock.calls[0]?.[1]?.signal;
+      const replacement = { ...choice, listingId: 'replacement' };
+      if (action === 'close') {
+        store.reconcile(false, 1, now, [choice]);
+      } else if (action === 'remove') {
+        store.reconcile(true, 1, now, []);
+      } else if (action === 'replace') {
+        store.reconcile(true, 1, now, [replacement]);
+      } else {
+        store.reconcile(true, 2, now + 1000, [second]);
+      }
+      await flush();
+      const current = store.getSnapshot();
+      expect(signal?.aborted).toBe(true);
+      pending.resolve(detail);
+      await flush();
+      expect(store.getSnapshot()).toBe(current);
+      expect(getPublicTutorAvailability).toHaveBeenCalledTimes(action === 'reopen' ? 1 : 0);
+      if (action === 'reopen') {
+        expect(getPublicTutorAvailability).toHaveBeenLastCalledWith(
+          second.tutorId,
+          { from: new Date(now + 1000).toISOString() },
+          expect.anything(),
+        );
+      }
+    },
+  );
+
+  it('never requests availability or exposes an unverified profile', async () => {
+    const unverified = structuredClone(detail);
+    // Deliberately violate the verified-only wire type to exercise runtime public-data guards.
+    Reflect.set(unverified.tutor, 'verificationStatus', 'PENDING');
+    vi.mocked(getPublicTutor).mockResolvedValue(unverified);
+    expect(await loadComparisonColumn(choice, new AbortController().signal, now)).toEqual({
+      choice,
+      state: 'unavailable',
+    });
+    expect(getPublicTutorAvailability).not.toHaveBeenCalled();
+  });
+});
+
+function deferred<T>(): { promise: Promise<T>; resolve: (value: T) => void } {
+  let resolve: (value: T) => void = () => {};
+  const promise = new Promise<T>((done) => {
+    resolve = done;
+  });
+  return { promise, resolve };
+}

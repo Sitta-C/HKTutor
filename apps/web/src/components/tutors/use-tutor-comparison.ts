@@ -5,7 +5,7 @@ import { useCallback, useRef, useState } from 'react';
 import { toggleComparisonChoice } from '@/components/tutors/tutor-comparison-model';
 
 import type { ComparisonChoice } from '@/components/tutors/tutor-comparison-model';
-import type { TutorSearchResult } from '@/lib/api/types';
+import type { TutorComparisonSelection, TutorSearchResult } from '@/lib/api/types';
 
 export interface ComparisonFlight {
   id: number;
@@ -24,14 +24,18 @@ export interface TutorComparisonController {
   finishFlight: (id: number) => void;
 }
 
-export function useTutorComparison(): TutorComparisonController {
-  const [choices, setChoices] = useState<ComparisonChoice[]>([]);
+export function useTutorComparison(
+  initialChoices: TutorComparisonSelection[] = [],
+): TutorComparisonController {
+  const [choices, setChoices] = useState<ComparisonChoice[]>(() =>
+    initialChoices.map((choice) => ({ ...choice, displayName: '' })),
+  );
   const [flights, setFlights] = useState<ComparisonFlight[]>([]);
   const [notice, setNotice] = useState<{
     action: 'chosen' | 'removed' | 'cleared';
     name: string;
   }>();
-  const current = useRef<ComparisonChoice[]>([]);
+  const current = useRef(choices);
   const sequence = useRef(0);
 
   const remove = useCallback((tutorId: string) => {

@@ -177,16 +177,30 @@ their existing presentation; retries remain explicit, with no automatic loop.
 
 Selected on 2026-11-09: use **Compact Dock**, replacing the corner notebook button. Center one
 white paper bar at the bottom of the visible viewport, with a deep student-mint left edge and **Balance**
-icon, bilingual title/helper and yellow selected-count tag (`0/3`–`3/3`). Make the whole bar one
+icon, bilingual title/helper and yellow selected-count tag (`1/3`–`3/3`). Make the whole bar one
 button, up to 440px wide with 12px side clearance, 14px corners, 12px vertical padding and a minimum
 60px height. Keep a 16px bottom gap plus the device safe area. The **Course Tabs** popup retains
 its mint top edge, blue grade tabs, six aligned rows, yellow prices and Margin Score-style averages.
 
+- Updated by user request on 2026-11-10: show the dock only after at least one tutor is selected.
+  At zero selections keep the search-row selection controls and inline guidance, with no dock or
+  comparison popup. A restored nonempty selection shows the dock with its popup initially closed.
+  Removing the final tutor or clearing closes the popup, unmounts the dock and focuses the search
+  results heading without changing scroll. Keep selection announcements mounted when the dock hides.
 - Each search row can select its course; count unique tutors, at most three. Selecting another
   course of the same tutor replaces that tutor's course in place, even at the limit. Selected rows
   stay removable. Keep the existing view-times link and all search/filter/ranking behavior.
-- Keep selections in memory across filtering, sorting, pagination and failed searches. Clear them
-  when leaving/reloading the search page. No browser storage, comparison database or URL handoff.
+- Updated by user request on 2026-11-10: retain selected tutor/course IDs in versioned
+  `sessionStorage` for the current tab's page session, including profile round trips and reloads.
+  Also retain draft filter inputs separately from the applied query, search ranking/page, filter-panel
+  expansion and document scroll. Fetch current results on return; never persist public tutor names,
+  result payloads, prices or ratings. Clear selection also clears saved IDs. Invalid stored state
+  starts fresh; blocked/full storage falls back to the existing in-memory flow. No comparison
+  database or URL selection handoff.
+- Restore scroll only after fresh results and catalogs establish page height, clamping to the available
+  height. User interaction cancels a pending restore. Capture position before profile navigation and
+  debounce scroll writes. If the old result page no longer exists, fetch the current last page. Keep
+  the comparison popup closed on return, with its selected count ready to use.
 - Keep the dock centered during scrolling, resize and visual-viewport changes; it is not draggable.
   Use native Enter/Space activation. Reserve bottom space in search content so final actions and
   pagination can be scrolled above the dock. Preserve native page/table touch scrolling.
@@ -195,16 +209,24 @@ its mint top edge, blue grade tabs, six aligned rows, yellow prices and Margin S
   when selections or the page disappear.
 - Clicking the dock opens comparison immediately: price, subject/grade, average, review count,
   experience and next availability in matching rows. There is no second Compare button or separate
-  route. At zero/one selection, show honest empty/add-one guidance; do not disable access to removal.
+  route. With one selection, show add-one guidance and allow inspection/removal.
 - Use a non-modal dialog without a dark overlay. Keep it inside the viewport and anchor its opening
   to the button. Close with its labeled control, Escape or an outside click. Return focus after
-  explicit close; removing/clearing keeps focus on the popup close control. On narrow screens the
+  explicit close; removing a tutor while others remain keeps focus on the popup close control.
+  Removing the last tutor or clearing returns focus to the results heading. On narrow screens the
   comparison table scrolls horizontally, retaining row labels and tutor headers. Fit the popup
   above the dock, with a 12px gap; its table scrolls vertically when height is limited.
 - Revalidate through the existing public profile and availability APIs on each open. Never substitute
   another offering for a hidden course. Hide unavailable columns' old names and values, provide
-  retry for read failures, and discard responses after close/removal/replacement. Availability uses
-  the public future-slot contract and Bangkok display, without changing the profile page's range.
+  per-tutor retry for read failures, and discard responses after close/removal/replacement. Load
+  columns independently so ready tutors remain usable during another tutor's load or retry. Ready
+  headers reuse the public Verified badge and link the tutor name to the selected listing's profile.
+  Keep explicit row/column header associations through sorting and selection edits.
+- Capture one UTC reference when opening; reuse it for availability `from`, future-slot filtering,
+  sorting and individual retries in that cycle. Reopening refreshes it. The API still clamps reads
+  to its current time; this does not promise a transactional snapshot. Use Bangkok display without
+  changing the public profile page's range. Retrying moves focus to the stable close control before
+  replacing its button; retain other columns, priority, selections and table scroll.
 
 ### Comparison sorting — Priority Tabs (S3-T34)
 

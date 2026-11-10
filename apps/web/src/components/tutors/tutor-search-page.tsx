@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 
 import { DashboardIcon } from '@/components/dashboard/dashboard-icon';
 import { ProfileAvatar } from '@/components/profile/profile-avatar';
@@ -19,8 +19,10 @@ import {
   tutorRatingOptions,
   validateTutorSearch,
 } from '@/components/tutors/tutor-search-model';
+import { readTutorSearchSession } from '@/components/tutors/tutor-search-session';
 import { TutorVerificationBadge } from '@/components/tutors/tutor-verification-badge';
 import { useTutorComparison } from '@/components/tutors/use-tutor-comparison';
+import { useTutorSearchSession } from '@/components/tutors/use-tutor-search-session';
 import {
   NotebookHeading,
   PaperCard,
@@ -68,26 +70,43 @@ const initialPagination: Pick<TutorSearchResponse, 'page' | 'pageSize' | 'total'
   totalPages: 0,
 };
 
+const subscribeClient = () => () => {};
+const clientSnapshot = () => true;
+const serverSnapshot = () => false;
+
 export default function TutorSearchPage() {
+  const mounted = useSyncExternalStore(subscribeClient, clientSnapshot, serverSnapshot);
+  const { language } = useLanguage();
+  return mounted ? (
+    <TutorSearchSessionPage />
+  ) : (
+    <NotebookLoadingRegion label={tutorSearchCopy[language].loading} presentation="text" />
+  );
+}
+
+function TutorSearchSessionPage() {
   const { language } = useLanguage();
   const text = tutorSearchCopy[language];
-  const comparison = useTutorComparison();
+  const [initialSession] = useState(readTutorSearchSession);
+  const comparison = useTutorComparison(initialSession.choices);
   const comparisonText = tutorComparisonCopy[language];
-  const [form, setForm] = useState<TutorSearchForm>(initialTutorSearchForm);
+  const [form, setForm] = useState<TutorSearchForm>(initialSession.form);
   const [subjects, setSubjects] = useState<SubjectOption[]>([]);
   const [gradeLevels, setGradeLevels] = useState<GradeLevelOption[]>([]);
   const [catalogLoading, setCatalogLoading] = useState(true);
   const [catalogError, setCatalogError] = useState(false);
   const [results, setResults] = useState<TutorSearchResult[]>([]);
   const [pagination, setPagination] = useState(initialPagination);
-  const [activeQuery, setActiveQuery] = useState<TutorSearchQuery>({
-    page: 1,
-    pageSize: TUTOR_SEARCH_PAGE_SIZE,
-  });
+  const [activeQuery, setActiveQuery] = useState<TutorSearchQuery>(initialSession.query);
   const [status, setStatus] = useState<SearchStatus>('loading');
   const [hasSearchError, setHasSearchError] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<TutorSearchErrors>({});
-  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [filtersOpen, setFiltersOpen] = useState(initialSession.filtersOpen);
+  const session = useMemo(
+    () => ({ form, query: activeQuery, choices: comparison.choices, filtersOpen }),
+    [form, activeQuery, comparison.choices, filtersOpen],
+  );
+  useTutorSearchSession(session, initialSession.scrollY, status === 'success' && !catalogLoading);
   const filterToggle = useRef<HTMLButtonElement>(null);
   const requestId = useRef(0);
   const controller = useRef<AbortController | null>(null);
@@ -133,8 +152,15 @@ export default function TutorSearchPage() {
     setActiveQuery(paginatedQuery);
 
     try {
-      const response = await searchTutors(paginatedQuery, { signal: nextController.signal });
+      let response = await searchTutors(paginatedQuery, { signal: nextController.signal });
       if (currentRequest !== requestId.current) return;
+      const lastPage = Math.max(1, response.totalPages);
+      if (paginatedQuery.page > lastPage) {
+        const correctedQuery = { ...paginatedQuery, page: lastPage };
+        setActiveQuery(correctedQuery);
+        response = await searchTutors(correctedQuery, { signal: nextController.signal });
+        if (currentRequest !== requestId.current) return;
+      }
       setResults(response.items);
       setPagination({
         page: response.page,
@@ -157,7 +183,7 @@ export default function TutorSearchPage() {
     const loadInitialResults = async () => {
       await Promise.resolve();
       if (active) {
-        await executeSearch({ page: 1, pageSize: TUTOR_SEARCH_PAGE_SIZE });
+        await executeSearch(initialSession.query);
       }
     };
 
@@ -167,7 +193,7 @@ export default function TutorSearchPage() {
       requestId.current += 1;
       controller.current?.abort();
     };
-  }, [executeSearch]);
+  }, [executeSearch, initialSession.query]);
 
   const updateField = <Key extends keyof TutorSearchForm>(
     key: Key,
@@ -458,7 +484,10 @@ export default function TutorSearchPage() {
           <p className={styles.resultNote}>{text.cardNote}</p>
         </PaperCard>
       </div>
-      <TutorComparisonPocket controller={comparison} />
+      <TutorComparisonPocket
+        controller={comparison}
+        onEmpty={() => resultsHeading.current?.focus({ preventScroll: true })}
+      />
     </div>
   );
 }

@@ -50,12 +50,22 @@ remain protected.
 Tutor search also supports selecting up to three tutors with one course each. A bottom-centered
 **Compact Dock** with a Balance icon, bilingual guidance and selected count opens their comparison
 directly in a Course Tabs popup, with current public price, subject,
-rating, review count, experience and next availability. Selections survive search changes in memory;
-they reset on reload/navigation away. Each open rechecks public visibility, and missing courses are
+rating, review count, experience and next availability. A versioned `sessionStorage` record retains
+selected tutor/course IDs, draft filters, applied search conditions/ranking/page, filter-panel state
+and page scroll within the browser tab's session. Returning from a profile or reloading fetches fresh
+results with the applied conditions, restores the unsent draft separately and restores scroll after
+results/catalogs load. If the saved page no longer exists, search uses the current last page. No names,
+public result payloads, prices or ratings are cached as tutor data. Blocked/full storage falls back to
+in-memory use; malformed or unsupported stored state starts a fresh search. Clearing the comparison
+also clears its saved IDs. Each popup open rechecks public visibility, and missing courses are
 not replaced automatically. This uses the existing public APIs and adds no database migration.
 The dock stays centered while scrolling/resizing, respects the visible viewport and bottom safe
-area, and reserves space above it for the popup. It remains available with zero/one selection for
-guidance; Enter/Space opens it and Escape restores focus. Search content has bottom clearance so
+area, and reserves space above it for the popup. The dock appears only with at least one selected
+tutor, including a selection restored from `sessionStorage`. With one tutor it prompts for one more
+and still opens for inspection/removal. With zero selections only the search-row controls and inline
+guidance remain. Removing the final tutor or clearing selection closes the popup, removes the dock
+and focuses the search-results heading; ordinary close/Escape returns focus to the visible dock.
+Enter/Space opens it. Search content has bottom clearance so
 the dock does not prevent access to the final course or pagination.
 The popup renders an allow-listed view model (S3-T31) keyed by stable tutor IDs; bio, course
 description and other public fields stay out, and malformed values show as unavailable.
@@ -64,8 +74,14 @@ accepts only `lowest_price`, `highest_rating` or `earliest_availability`; unknow
 values show a bilingual validation message in the popup and fall back to lowest price. This query
 does not store or restore selections. Sorts move whole tutor/course columns, compare integer satang,
 canonical API rating numbers or future UTC instants, and put missing values last. Ties retain the
-original selection index, with tutor ID as a fallback when the index is absent. Each public-data
-refresh captures one current time and applies the same sort again without changing selected courses.
+original selection index, with tutor ID as a fallback when the index is absent. Each popup opening
+captures one UTC reference for future-slot filtering and sorting. Public availability requests pass
+that reference as `from`, including individual retries; reopening captures a fresh reference. The API
+still enforces its own current-time lower bound, so these reads are not a transactional snapshot.
+Columns load independently with their own timeout. Retry refetches only the failed tutor, preserving
+other columns, selected courses and table scroll. Ready headers include the existing Verified badge
+and a keyboard-accessible profile link retaining the selected listing; unavailable headers expose
+neither stale identity nor a profile link. Table cells explicitly reference their row and tutor headers.
 The popup's bilingual **Priority Tabs** selector (S3-T34) switches those three priorities locally.
 It updates only `comparisonSort` through native browser history, preserving other query parameters,
 selected courses, focus, table scroll and retry state. Back/Forward restores the priority without
@@ -74,6 +90,9 @@ two selections or until some public comparison data is ready. This does not chan
 search ranking.
 See [S3-T33 verification](tests/s3-t33-qa.md) for the sorting contract and actual check results.
 See [S3-T34 verification](tests/s3-t34-qa.md) for the selector and history checks.
+See [S3-T30 verification](tests/s3-t30-qa.md) for the completed popup requirements and remaining verification limits.
+See [search-session verification](tests/tutor-search-session-qa.md) for returning to the same search context.
+See [Dock visibility verification](tests/comparison-dock-visibility-qa.md) for selection-driven visibility and focus.
 
 See [S3-T03 verification](apps/web/e2e/chat-realtime-verification.md) for recorded commands/results
 and the opted-in two-session browser suite against a disposable PostgreSQL database.
