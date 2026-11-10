@@ -1,25 +1,24 @@
 .root {
+  display: flex;
   flex: none;
   min-width: 0;
-  margin: 0 18px 13px;
-  padding: 0;
+  gap: 14px;
+  align-items: center;
+  margin: 0 16px 9px;
+  padding: 0 0 0 6px;
   border: 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--color-paper-edge) 60%, var(--color-paper));
 }
-
-.root legend {
-  margin-bottom: 7px;
-  padding: 0;
-  color: var(--color-student-deep);
-  font-size: 12px;
-  font-weight: 500;
+.label {
+  flex: none;
+  color: var(--color-notebook-muted-deep);
+  font-size: 11px;
 }
-
 .options {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 5px;
+  display: flex;
+  min-width: 0;
+  gap: 7px;
 }
-
 .option {
   position: relative;
   display: flex;
@@ -28,18 +27,15 @@
   gap: 6px;
   align-items: center;
   justify-content: center;
-  padding: 7px;
-  border: 1px solid var(--color-paper-edge);
-  border-bottom-width: 3px;
-  border-radius: 7px 7px 0 0;
-  background: var(--color-paper);
+  margin-bottom: -1px;
+  padding: 7px 12px;
+  border-bottom: 1px solid transparent;
+  background: transparent;
   color: var(--color-notebook-muted-deep);
   font-size: 12px;
-  text-align: center;
-  overflow-wrap: anywhere;
+  white-space: nowrap;
   cursor: pointer;
 }
-
 .option input {
   position: absolute;
   width: 1px;
@@ -48,52 +44,65 @@
   overflow: hidden;
   clip-path: inset(50%);
 }
-
 .option svg,
 .currency {
   flex: none;
-  width: 16px;
-  height: 16px;
+  width: 15px;
+  height: 15px;
 }
-
+.currency {
+  text-align: center;
+}
 .option:has(input:checked) {
-  border-bottom-color: var(--color-student-deep);
-  background: color-mix(in srgb, var(--color-sticky-green) 45%, var(--color-paper));
-  color: var(--color-student-deep);
-  font-weight: 600;
+  border-bottom-color: color-mix(in srgb, var(--color-notebook-ink) 30%, var(--color-paper-edge));
+  background: var(--color-sticky-yellow);
+  color: var(--color-notebook-ink);
 }
-
+.option:has(input:checked)::after {
+  position: absolute;
+  inset: 3px -2px 4px;
+  border: 1px solid color-mix(in srgb, var(--color-paper-edge) 80%, transparent);
+  transform: rotate(-1.4deg);
+  content: '';
+  pointer-events: none;
+}
 .option:has(input:focus-visible) {
   outline: 2px solid var(--color-student-deep);
   outline-offset: 3px;
 }
-
 .root:disabled .option {
   opacity: 0.5;
   cursor: not-allowed;
 }
-
-.hint {
-  margin: 5px 0 0;
-  color: var(--color-notebook-muted-deep);
-  font-size: 11px;
+.shortLabel {
+  display: none;
 }
 
 @media (max-width: 700px) {
   .root {
-    margin-right: 12px;
-    margin-left: 12px;
+    margin: 0 10px 8px;
+    padding: 0;
+  }
+  .label {
+    display: none;
+  }
+  .options {
+    flex: 1;
+    gap: 5px;
+  }
+  .option {
+    flex: 1;
+    gap: 5px;
+    padding: 6px 5px;
+    font-size: 11px;
   }
 }
 
 @media (max-width: 470px) {
-  .options {
-    grid-template-columns: 1fr;
+  .fullLabel {
+    display: none;
   }
-
-  .option {
-    justify-content: flex-start;
-    border-radius: 7px;
-    text-align: left;
+  .shortLabel {
+    display: inline;
   }
 }

@@ -48,8 +48,8 @@ availability overlap filter to include carry-over slots without loading past his
 remain protected.
 
 Tutor search also supports selecting up to three tutors with one course each. A bottom-centered
-**Compact Dock** with a Balance icon, bilingual guidance and selected count opens their comparison
-directly in a Course Tabs popup, with current public price, subject,
+**Foldout Folio** paper dock with overlapping course slips, bilingual guidance and a yellow count
+tag opens their comparison directly in a foldout popup, with current public price, subject,
 rating, review count, experience and next availability. A versioned `sessionStorage` record retains
 selected tutor/course IDs, draft filters, applied search conditions/ranking/page, filter-panel state
 and page scroll within the browser tab's session. Returning from a profile or reloading fetches fresh
@@ -67,6 +67,11 @@ guidance remain. Removing the final tutor or clearing selection closes the popup
 and focuses the search-results heading; ordinary close/Escape returns focus to the visible dock.
 Enter/Space opens it. Search content has bottom clearance so
 the dock does not prevent access to the final course or pagination.
+The compact popup keeps all six attribute rows visible without vertical table scrolling at
+320×640 in Thai and English. Subject/grade appears only in its row, and the rating scale sits
+beside the score. Paper priority flags stay in one row; the active choice is yellow. Mobile keeps
+native horizontal table scrolling and sticky row labels. On unusually short viewports or with
+long content, only the outer dialog scrolls vertically so the table rows remain together.
 The popup renders an allow-listed view model (S3-T31) keyed by stable tutor IDs; bio, course
 description and other public fields stay out, and malformed values show as unavailable.
 Comparison columns default to `lowest_price` (S3-T33). The optional `/tutors?comparisonSort=` query
@@ -82,7 +87,7 @@ Columns load independently with their own timeout. Retry refetches only the fail
 other columns, selected courses and table scroll. Ready headers include the existing Verified badge
 and a keyboard-accessible profile link retaining the selected listing; unavailable headers expose
 neither stale identity nor a profile link. Table cells explicitly reference their row and tutor headers.
-The popup's bilingual **Priority Tabs** selector (S3-T34) switches those three priorities locally.
+The popup's bilingual paper priority selector (S3-T34) switches those three priorities locally.
 It updates only `comparisonSort` through native browser history, preserving other query parameters,
 selected courses, focus, table scroll and retry state. Back/Forward restores the priority without
 reloading selections or requesting public data solely to sort. Controls are disabled for fewer than

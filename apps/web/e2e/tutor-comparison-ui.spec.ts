@@ -716,6 +716,83 @@ test('Compact Dock stays centered through scroll/resize with keyboard activation
   await page.screenshot({ path: testInfo.outputPath('compact-dock-mobile.png') });
 });
 
+for (const language of ['en', 'th'] as const) {
+  test(`Foldout Folio shows all six rows without vertical scrolling in ${language}`, async ({
+    page,
+  }, testInfo) => {
+    if (testInfo.project.name === 'mobile-chromium') {
+      await page.setViewportSize({ width: 320, height: 640 });
+    }
+    await mockComparison(page, language);
+    await page.goto('/tutors');
+    for (const index of [0, 2, 3]) {
+      await page
+        .locator('article')
+        .nth(index)
+        .getByRole('button', { name: /^(Select to compare|เลือกเปรียบเทียบ):/ })
+        .click();
+    }
+    await pocket(page).click();
+    await expect(panel(page).locator('[data-comparison-column="ready"]')).toHaveCount(3);
+    await expect(panel(page).getByRole('rowheader')).toHaveCount(6);
+    const layout = async () =>
+      panel(page).evaluate((element) => {
+        const table = element.querySelector<HTMLElement>('[data-comparison-scroll]');
+        const selector = element.querySelector('fieldset');
+        const radios = Array.from(element.querySelectorAll('label'));
+        return {
+          panelOverflow: element.scrollHeight - element.clientHeight,
+          tableOverflow: table ? table.scrollHeight - table.clientHeight : Number.POSITIVE_INFINITY,
+          tableWidth: table ? table.scrollWidth - table.clientWidth : 0,
+          bottom: element.getBoundingClientRect().bottom,
+          priorityHeight: selector?.getBoundingClientRect().height ?? 0,
+          radioTops: radios.map((radio) => Math.round(radio.getBoundingClientRect().top)),
+        };
+      });
+    await expect.poll(async () => (await layout()).panelOverflow).toBeLessThanOrEqual(1);
+    expect((await layout()).tableOverflow).toBeLessThanOrEqual(1);
+    expect((await layout()).priorityHeight).toBeLessThanOrEqual(48);
+    expect(new Set((await layout()).radioTops).size).toBe(1);
+    const dock = await pocket(page).boundingBox();
+    expect((await layout()).bottom).toBeLessThanOrEqual((dock?.y ?? 0) - 11);
+    if (testInfo.project.name === 'mobile-chromium') {
+      expect((await layout()).tableWidth).toBeGreaterThan(0);
+    }
+    const scroll = panel(page).locator('[data-comparison-scroll]');
+    const before = await scroll.evaluate((element) => {
+      element.scrollLeft = element.scrollWidth - element.clientWidth;
+      return element.scrollLeft;
+    });
+    await priorityLabel(page, 'highest_rating').click();
+    expect(await scroll.evaluate((element) => element.scrollLeft)).toBe(before);
+    expect((await layout()).tableOverflow).toBeLessThanOrEqual(1);
+    await page.screenshot({ path: testInfo.outputPath(`foldout-folio-${language}.png`) });
+  });
+}
+
+test('short viewports scroll the whole folio while keeping every table row together', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 320, height: 400 });
+  await mockComparison(page);
+  await page.goto('/tutors');
+  for (const index of [0, 2, 3]) {
+    await choose(page, index).click();
+  }
+  await pocket(page).click();
+  await expect(panel(page).locator('[data-comparison-column="ready"]')).toHaveCount(3);
+  const table = panel(page).locator('[data-comparison-scroll]');
+  expect(await table.evaluate((element) => element.scrollHeight - element.clientHeight)).toBe(0);
+  await panel(page).evaluate((element) => {
+    element.scrollTop = element.scrollHeight;
+  });
+  await expect(panel(page).getByRole('button', { name: 'Clear selection' })).toBeInViewport();
+  await page.keyboard.press('Escape');
+  await expect(pocket(page)).toBeFocused();
+  await pocket(page).click();
+  await expect(panel(page).getByRole('button', { name: 'Close comparison' })).toBeInViewport();
+});
+
 test('compares only allow-listed public values and shows malformed ones as unavailable (S3-T31)', async ({
   page,
 }) => {

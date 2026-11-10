@@ -1,6 +1,6 @@
 # HKTutor frontend direction — Notebook Focus
 
-Updated 2026-11-09. This describes the implemented Notebook Focus direction and component
+Updated 2026-11-10. This describes the implemented Notebook Focus direction and component
 patterns in this repository. Maintainers review changes to shared design conventions through the
 normal PR process; this guide does not assert team approval of decisions from an individual chat.
 Read it as implementation context before UI work. The current task's explicit requirements take
@@ -173,14 +173,23 @@ their existing presentation; retries remain explicit, with no automatic loop.
   availability formatting. Keep explicit null-rating/no-availability states and unavailable result
   counts until a successful response; zero belongs only to successful empty results.
 
-## Tutor comparison — Compact Dock / Course Tabs popup
+## Tutor comparison — Foldout Folio
 
-Selected on 2026-11-09: use **Compact Dock**, replacing the corner notebook button. Center one
-white paper bar at the bottom of the visible viewport, with a deep student-mint left edge and **Balance**
-icon, bilingual title/helper and yellow selected-count tag (`1/3`–`3/3`). Make the whole bar one
-button, up to 440px wide with 12px side clearance, 14px corners, 12px vertical padding and a minimum
-60px height. Keep a 16px bottom gap plus the device safe area. The **Course Tabs** popup retains
-its mint top edge, blue grade tabs, six aligned rows, yellow prices and Margin Score-style averages.
+Selected and refined on 2026-11-10: **Foldout Folio** replaces the Compact Dock / Priority Tabs
+appearance. Center one compact layered paper dock at the bottom of the visible viewport, up to
+352px wide with 12px side clearance, 3px corners, a 62px minimum height and a 16px bottom gap plus
+the device safe area. Use a thin binding margin, a folded lower-right corner, overlapping blue
+course slips and a taped yellow selected-count tag (`1/3`–`3/3`). Keep the entire dock one button;
+its count remains the target for selection flights. Restored/unknown or unavailable tutor identities
+use selection ordinals until current public names are available.
+
+The popup is one warm foldout sheet up to 720px wide, with a small mint Balance bookmark beside
+the bilingual heading instead of a continuous green edge. Use subtle vertical paper creases,
+a punched binding margin, compact blue tutor initials, the existing Verified badge/profile links,
+yellow price notes and Margin Score-style averages. Show subject/grade only in its attribute row,
+and put the rating scale beside the score. Preserve all six aligned attribute rows and semantic
+header associations. These styles stay scoped to comparison; search results and shared primitives
+remain unchanged.
 
 - Updated by user request on 2026-11-10: show the dock only after at least one tutor is selected.
   At zero selections keep the search-row selection controls and inline guidance, with no dock or
@@ -214,8 +223,11 @@ its mint top edge, blue grade tabs, six aligned rows, yellow prices and Margin S
   to the button. Close with its labeled control, Escape or an outside click. Return focus after
   explicit close; removing a tutor while others remain keeps focus on the popup close control.
   Removing the last tutor or clearing returns focus to the results heading. On narrow screens the
-  comparison table scrolls horizontally, retaining row labels and tutor headers. Fit the popup
-  above the dock, with a 12px gap; its table scrolls vertically when height is limited.
+  comparison table scrolls horizontally with sticky row labels and keyboard access. Fit the popup
+  above the dock with a 12px gap. Keep the table at its natural height: all six rows fit without
+  vertical scrolling at 320×640 in Thai and English. Unusually short viewports, zoomed text or
+  long content may scroll the entire outer dialog, never a separate vertically scrolling table.
+  Reopening starts at the heading; sorting retains the horizontal reading position.
 - Revalidate through the existing public profile and availability APIs on each open. Never substitute
   another offering for a hidden course. Hide unavailable columns' old names and values, provide
   per-tutor retry for read failures, and discard responses after close/removal/replacement. Load
@@ -228,12 +240,14 @@ its mint top edge, blue grade tabs, six aligned rows, yellow prices and Margin S
   changing the public profile page's range. Retrying moves focus to the stable close control before
   replacing its button; retain other columns, priority, selections and table scroll.
 
-### Comparison sorting — Priority Tabs (S3-T34)
+### Comparison sorting — paper priority flags (S3-T34)
 
-Selected on 2026-11-09: place **Priority Tabs** between the popup introduction and the table. Use
-three native radios for lowest price, highest rating and earliest availability, with a mint wash
-and a solid bottom edge on the checked option. Keep the existing Course Tabs paper, blue grade tabs,
-yellow prices and six aligned attribute rows. Stack the three 44px controls on narrow screens.
+Foldout Folio keeps the three native radios for lowest price, highest rating and earliest
+availability in one compact 44px row above the table. Mark the checked option with a yellow paper
+flag and a lightly offset frame, keeping text upright. Do not restore large stacked mint controls.
+Use short visible labels at narrow widths while retaining full translated accessible names and
+the selected-tutors-only hint for assistive technology. Keep the six attribute rows, blue grade
+tabs and yellow prices.
 
 - Translate labels and the selected-tutors-only hint in Thai/English. Keep native radio keyboard
   behavior and visible focus; announce the current priority through a polite live region.
