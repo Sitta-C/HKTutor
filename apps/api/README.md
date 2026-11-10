@@ -2415,3 +2415,82 @@ contention for capacity/student/booking/maxUses races, repeatable-read safety, r
 consume/release retries, zero settlement, append-only/JSON/privacy constraints, audit failure and
 transaction rollback, RLS/grants and preservation of existing payment/reschedule indexes.
 See [S3-DB02 evidence](../../tests/s3-db02-qa.md) for actual commands/results and limitations.
+
+## Tutor comparison QA (S3-T32)
+
+S3-T32 is the US10-1 regression suite for the tutor comparison built in S3-T29 to S3-T31 and
+polished in S3-T34 and the Foldout Folio change. It changes no production code. The comparison has
+no table or endpoint of its own: for each selected tutor it reads only the public
+`GET /api/v1/tutors/:tutorId` and `GET /api/v1/tutors/:tutorId/availability`, keyed by the selected
+tutor and listing.
+
+### Acceptance wording difference
+
+The backlog sheet's US10-1 criterion and the S3-T29 card say Compare is disabled below two tutors,
+behind a separate `/tutors/compare` page. The later S3-T30 card replaced that design: there is no
+compare page or second Compare step, and zero or one selections show guidance in the existing popup.
+S3-T32 tests that approved behaviour. With no selection there is no dock. With one, the dock says
+"Select one more tutor to compare.", the popup shows a single column and the comparison priorities
+stay disabled until a second tutor is chosen. A fourth tutor cannot be selected. The sheet is not
+edited.
+
+### Coverage
+
+| Requirement                                                                   | Tests                                                                                                                                |
+| ----------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| 0/1 guidance, 2/3 enabled, a fourth refused, removal 3→2→1, announced count   | web `tutor-comparison-qa.test.ts`, `tutor-comparison-qa.spec.ts` (keyboard), `tutor-comparison.test.ts`                              |
+| One tutor counted once across listings; the course swaps in place             | web `tutor-comparison-qa.test.ts`, `tutor-comparison-qa.spec.ts`, `tutor-comparison.test.ts`                                         |
+| Malformed or duplicate restored selections start a fresh search               | web `tutor-comparison-qa.test.ts`; the sort URL is covered by `comparison-sort-query.test.ts` and `tutor-comparison-sort.test.ts`    |
+| Six aligned attributes for 2 and 3 tutors, with header associations           | web `tutor-comparison-qa.spec.ts`, `tutor-comparison-ui.spec.ts` (S3-T30)                                                            |
+| Price and subject from the selected listing, never another listing            | `db:verify:comparison-visibility` check 1, web `tutor-comparison-qa.spec.ts`, `tutor-comparison-view-model.test.ts`                  |
+| New tutor `null`/0, invalid experience, no future slot; no fake 0.00 or slot  | `db:verify:comparison-visibility` check 3, web `tutor-comparison-qa.spec.ts`, `tutor-comparison-view-model.test.ts`                  |
+| Only allow-listed public fields; no private profile reads                     | `db:verify:comparison-visibility` checks 1–2, web `tutor-comparison-qa.spec.ts` (request log), `tutor-comparison-view-model.test.ts` |
+| A tutor hidden after selection answers 404 and shows no cached search data    | `db:verify:comparison-visibility` check 4, web `tutor-comparison-qa.spec.ts`                                                         |
+| A selected listing removed after selection is unavailable, with no substitute | `db:verify:comparison-visibility` check 5, web `tutor-comparison-qa.spec.ts`                                                         |
+| Retrying one failed tutor keeps the others; profile links keep the listing    | web `tutor-comparison-qa.spec.ts`, `tutor-comparison.test.ts` (S3-T30 retries)                                                       |
+
+### Verification
+
+`pnpm --filter @hktutor/api db:verify:comparison-visibility` runs the real public detail,
+availability and search services against PostgreSQL. Neither root `pnpm check` nor `pnpm test` runs
+it. It uses the same approval flag and loopback-only URL gates as the verifiers above and removes
+its fixtures in `finally`. From the repository root:
+
+```bash
+nvm use 24.19.0
+pnpm install --frozen-lockfile
+docker run --detach --name hktutor-comparison-visibility-test \
+  --publish 127.0.0.1:55443:5432 \
+  --env POSTGRES_USER=postgres --env POSTGRES_PASSWORD=disposable-local-only \
+  --env POSTGRES_DB=hktutor_comparison_visibility_test postgres:17-alpine
+# Wait until this reports that PostgreSQL is accepting connections.
+docker exec hktutor-comparison-visibility-test pg_isready -U postgres -d hktutor_comparison_visibility_test
+export DATABASE_URL='postgresql://postgres:disposable-local-only@127.0.0.1:55443/hktutor_comparison_visibility_test'
+pnpm db:generate
+pnpm --filter @hktutor/api db:migrate:deploy
+HKTUTOR_ALLOW_DISPOSABLE_DB_VERIFY=1 pnpm --filter @hktutor/api db:verify:comparison-visibility
+# Discard this example's container and its anonymous data volume, including after a failed run.
+docker rm --force --volumes hktutor-comparison-visibility-test
+unset DATABASE_URL
+```
+
+The 5 checks cover:
+
+- Detail returns only the allow-listed tutor and listing fields (no email or legal names), and each
+  of a tutor's two listings keeps its own price, subject and grade, matching its search row.
+- Availability returns only future free slots as `{id, startAtUtc, endAtUtc}`: a pending booking,
+  a past slot and a deleted slot are hidden, and a canceled booking frees its slot.
+- A new tutor reads as `null`/0 with 0 years, no future slot is `[]`, and a tutor without published
+  listings has an empty list.
+- A tutor that becomes UNVERIFIED, PENDING, REJECTED, SUSPENDED or DELETED after selection answers
+  404 on both reads and leaves search.
+- An archived or deleted selected listing drops out of detail and search while the tutor stays
+  public, and the tutor's other listing comes back unchanged rather than as a substitute.
+
+Removing `publicTutorWhere` from the public availability read makes the fourth check fail.
+
+The browser suite is `pnpm --filter @hktutor/web test:e2e tutor-comparison-qa.spec.ts`. It
+intercepts every API read with the card's fixtures (two courses for one tutor, a new tutor, invalid
+experience with no future slot, a tutor hidden after selection and a course removed after selection)
+and asserts page text, accessible names and the request log on desktop, tablet and mobile
+Chromium. It does not certify a live database-backed journey; the verifier above covers that side.
