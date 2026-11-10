@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import {
   Suspense,
@@ -21,20 +22,20 @@ import {
 import { ComparisonSortSelector } from '@/components/tutors/comparison-sort-selector';
 import { formatPublicTutorSlot } from '@/components/tutors/public-tutor-detail-model';
 import { tutorComparisonCopy } from '@/components/tutors/tutor-comparison-copy';
-import { loadComparisonColumn } from '@/components/tutors/tutor-comparison-data';
 import { sortTutorComparisonView } from '@/components/tutors/tutor-comparison-sort';
 import {
   COMPARISON_ATTRIBUTES,
   buildTutorComparisonView,
 } from '@/components/tutors/tutor-comparison-view-model';
+import { TutorVerificationBadge } from '@/components/tutors/tutor-verification-badge';
 import { placeComparisonPanel, useComparisonDock } from '@/components/tutors/use-comparison-dock';
+import { useTutorComparisonData } from '@/components/tutors/use-tutor-comparison-data';
 import { NotebookLoadingRegion } from '@/components/ui/notebook-loading';
 import { useLanguage } from '@/lib/i18n';
 
 import styles from './tutor-comparison-pocket.module.css';
 
 import type { TutorComparisonCopy } from '@/components/tutors/tutor-comparison-copy';
-import type { ComparisonColumn } from '@/components/tutors/tutor-comparison-model';
 import type { ComparisonSort } from '@/components/tutors/tutor-comparison-sort';
 import type {
   ComparisonAttribute,
@@ -71,19 +72,8 @@ function FloatingPocket({ controller }: { controller: TutorComparisonController 
   const { language } = useLanguage();
   const text = tutorComparisonCopy[language];
   const { choices, flights, notice, remove, clear, finishFlight } = controller;
-  const [dialog, setDialog] = useState({ open: false, cycle: 0 });
-  const [retry, setRetry] = useState(0);
-  const [loaded, setLoaded] = useState<{
-    cycle: number;
-    retry: number;
-    columns: ComparisonColumn[];
-    now: number;
-  }>({
-    cycle: 0,
-    retry: 0,
-    columns: [],
-    now: 0,
-  });
+  const [dialog, setDialog] = useState({ open: false, cycle: 0, now: 0 });
+  const { columns, retry } = useTutorComparisonData(choices, dialog);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDialogElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
@@ -92,24 +82,11 @@ function FloatingPocket({ controller }: { controller: TutorComparisonController 
   const columnPositions = useRef(new Map<string, number>());
   const columnLayout = useRef({ selection: '', width: 0 });
   const id = useId();
-  const key = `${dialog.cycle}:${retry}:${choices.map((choice) => `${choice.tutorId}/${choice.listingId}`).join(',')}`;
-  // Unchanged columns stay steady during edits; every open/retry starts a fresh public read.
-  const columns: ComparisonColumn[] = choices.map((choice) => {
-    const existing =
-      loaded.cycle === dialog.cycle && loaded.retry === retry
-        ? loaded.columns.find(
-            (column) =>
-              column.choice.tutorId === choice.tutorId &&
-              column.choice.listingId === choice.listingId,
-          )
-        : undefined;
-    return existing ?? { choice, state: 'loading' };
-  });
   // Cells render only the allow-listed public view, never the raw profile/listing responses.
   const sorted = sortTutorComparisonView(
     buildTutorComparisonView(columns),
     comparisonSortQueryValue(searchParams),
-    loaded.now,
+    dialog.now,
   );
   const view = sorted.columns;
   const changeSort = (sort: ComparisonSort): void => {
@@ -126,32 +103,10 @@ function FloatingPocket({ controller }: { controller: TutorComparisonController 
   }, []);
   const toggle = useCallback(() => {
     restoreFocus.current = true;
-    setDialog((current) => ({ open: !current.open, cycle: current.cycle + 1 }));
+    const now = Date.now();
+    setDialog((current) => ({ open: !current.open, cycle: current.cycle + 1, now }));
   }, []);
   useComparisonDock(buttonRef, panelRef);
-
-  useEffect(() => {
-    if (!dialog.open || choices.length === 0) {
-      return;
-    }
-    let active = true;
-    const abort = new AbortController();
-    // A timed-out read becomes a retryable error; closing or changing selection discards it.
-    const timeout = window.setTimeout(() => abort.abort(), 15_000);
-    void Promise.all(choices.map((choice) => loadComparisonColumn(choice, abort.signal))).then(
-      (next) => {
-        window.clearTimeout(timeout);
-        if (active) {
-          setLoaded({ cycle: dialog.cycle, retry, columns: next, now: Date.now() });
-        }
-      },
-    );
-    return () => {
-      active = false;
-      window.clearTimeout(timeout);
-      abort.abort();
-    };
-  }, [dialog.open, dialog.cycle, retry, choices, key]);
 
   useLayoutEffect(() => {
     const panel = panelRef.current;
@@ -274,7 +229,7 @@ function FloatingPocket({ controller }: { controller: TutorComparisonController 
     }
     columnPositions.current = next;
     columnLayout.current = { selection, width };
-  }, [dialog.open, choices, loaded]);
+  }, [dialog.open, choices, view]);
 
   const arrive = useCallback(
     (flightId: number) => {
@@ -397,6 +352,7 @@ function FloatingPocket({ controller }: { controller: TutorComparisonController 
                   {view.map((column) => (
                     <th
                       key={column.tutorId}
+                      id={`${id}-tutor-${encodeURIComponent(column.tutorId)}`}
                       scope="col"
                       data-comparison-column={column.state}
                       data-tutor-column={column.tutorId}
@@ -423,7 +379,20 @@ function FloatingPocket({ controller }: { controller: TutorComparisonController 
                             {initials(column.entry.displayName)}
                           </span>
                           <div>
-                            <strong className={styles.name}>{column.entry.displayName}</strong>
+                            <Link
+                              className={styles.name}
+                              href={`/tutors/${encodeURIComponent(column.tutorId)}?${new URLSearchParams({ listingId: column.listingId })}`}
+                              prefetch={false}
+                              aria-label={`${text.profile}: ${column.entry.displayName}`}
+                            >
+                              {column.entry.displayName}
+                            </Link>
+                            <TutorVerificationBadge
+                              status="VERIFIED"
+                              language={language}
+                              audience="public"
+                              compact
+                            />
                             <small className={styles.subject}>
                               {column.entry.subject ?? text.missing}
                             </small>
@@ -433,7 +402,10 @@ function FloatingPocket({ controller }: { controller: TutorComparisonController 
                         <ColumnStatus
                           column={column}
                           text={text}
-                          retry={() => setRetry((value) => value + 1)}
+                          retry={() => {
+                            closeRef.current?.focus({ preventScroll: true });
+                            retry({ tutorId: column.tutorId, listingId: column.listingId });
+                          }}
                         />
                       )}
                     </th>
@@ -443,9 +415,15 @@ function FloatingPocket({ controller }: { controller: TutorComparisonController 
               <tbody>
                 {COMPARISON_ATTRIBUTES.map((attribute) => (
                   <tr key={attribute}>
-                    <th scope="row">{text[attribute]}</th>
+                    <th id={`${id}-attribute-${attribute}`} scope="row">
+                      {text[attribute]}
+                    </th>
                     {view.map((column) => (
-                      <td key={column.tutorId} data-tutor-column={column.tutorId}>
+                      <td
+                        key={column.tutorId}
+                        headers={`${id}-attribute-${attribute} ${id}-tutor-${encodeURIComponent(column.tutorId)}`}
+                        data-tutor-column={column.tutorId}
+                      >
                         <ComparisonValue
                           column={column}
                           attribute={attribute}

@@ -65,7 +65,7 @@ export function buildComparisonColumn(
   const nextSlot = slots.reduce<PublicAvailabilitySlot | null>((earliest, slot) => {
     const start = Date.parse(slot.startAtUtc);
     const end = Date.parse(slot.endAtUtc);
-    if (!Number.isFinite(start) || !Number.isFinite(end) || start < now || end <= start) {
+    if (!Number.isFinite(start) || !Number.isFinite(end) || start <= now || end <= start) {
       return earliest;
     }
     return earliest === null || start < Date.parse(earliest.startAtUtc) ? slot : earliest;

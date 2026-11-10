@@ -203,8 +203,15 @@ its mint top edge, blue grade tabs, six aligned rows, yellow prices and Margin S
   above the dock, with a 12px gap; its table scrolls vertically when height is limited.
 - Revalidate through the existing public profile and availability APIs on each open. Never substitute
   another offering for a hidden course. Hide unavailable columns' old names and values, provide
-  retry for read failures, and discard responses after close/removal/replacement. Availability uses
-  the public future-slot contract and Bangkok display, without changing the profile page's range.
+  per-tutor retry for read failures, and discard responses after close/removal/replacement. Load
+  columns independently so ready tutors remain usable during another tutor's load or retry. Ready
+  headers reuse the public Verified badge and link the tutor name to the selected listing's profile.
+  Keep explicit row/column header associations through sorting and selection edits.
+- Capture one UTC reference when opening; reuse it for availability `from`, future-slot filtering,
+  sorting and individual retries in that cycle. Reopening refreshes it. The API still clamps reads
+  to its current time; this does not promise a transactional snapshot. Use Bangkok display without
+  changing the public profile page's range. Retrying moves focus to the stable close control before
+  replacing its button; retain other columns, priority, selections and table scroll.
 
 ### Comparison sorting — Priority Tabs (S3-T34)
 

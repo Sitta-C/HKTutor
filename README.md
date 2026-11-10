@@ -64,8 +64,14 @@ accepts only `lowest_price`, `highest_rating` or `earliest_availability`; unknow
 values show a bilingual validation message in the popup and fall back to lowest price. This query
 does not store or restore selections. Sorts move whole tutor/course columns, compare integer satang,
 canonical API rating numbers or future UTC instants, and put missing values last. Ties retain the
-original selection index, with tutor ID as a fallback when the index is absent. Each public-data
-refresh captures one current time and applies the same sort again without changing selected courses.
+original selection index, with tutor ID as a fallback when the index is absent. Each popup opening
+captures one UTC reference for future-slot filtering and sorting. Public availability requests pass
+that reference as `from`, including individual retries; reopening captures a fresh reference. The API
+still enforces its own current-time lower bound, so these reads are not a transactional snapshot.
+Columns load independently with their own timeout. Retry refetches only the failed tutor, preserving
+other columns, selected courses and table scroll. Ready headers include the existing Verified badge
+and a keyboard-accessible profile link retaining the selected listing; unavailable headers expose
+neither stale identity nor a profile link. Table cells explicitly reference their row and tutor headers.
 The popup's bilingual **Priority Tabs** selector (S3-T34) switches those three priorities locally.
 It updates only `comparisonSort` through native browser history, preserving other query parameters,
 selected courses, focus, table scroll and retry state. Back/Forward restores the priority without
@@ -74,6 +80,7 @@ two selections or until some public comparison data is ready. This does not chan
 search ranking.
 See [S3-T33 verification](tests/s3-t33-qa.md) for the sorting contract and actual check results.
 See [S3-T34 verification](tests/s3-t34-qa.md) for the selector and history checks.
+See [S3-T30 verification](tests/s3-t30-qa.md) for the completed popup requirements and remaining verification limits.
 
 See [S3-T03 verification](apps/web/e2e/chat-realtime-verification.md) for recorded commands/results
 and the opted-in two-session browser suite against a disposable PostgreSQL database.

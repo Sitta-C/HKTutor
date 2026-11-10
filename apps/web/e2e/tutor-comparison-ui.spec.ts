@@ -29,11 +29,14 @@ async function mockComparison(page: Page, language: 'en' | 'th' = 'en') {
     failDetail: false,
     malformedPrice: false,
     slow: false,
+    slowAll: false,
+    unverified: false,
     sharedPrice: 425,
     secondRating: 4.33,
     laterSecondSlot: false,
   };
   const calls: string[] = [];
+  const availabilityFrom: string[] = [];
   const unexpected: string[] = [];
   let release = () => {};
   const gate = new Promise<void>((resolve) => {
@@ -76,7 +79,10 @@ async function mockComparison(page: Page, language: 'en' | 'th' = 'en') {
     const tutor = courses.find((course) => course.tutorId === match?.[1]);
     if (tutor && match) {
       calls.push(path);
-      if (state.slow && tutor.tutorId === 'shared-tutor') {
+      if (match[2]) {
+        availabilityFrom.push(url.searchParams.get('from') ?? '');
+      }
+      if (state.slowAll || (state.slow && tutor.tutorId === 'shared-tutor')) {
         await gate;
       }
       if (state.hidden && tutor.tutorId === 'shared-tutor') {
@@ -135,12 +141,17 @@ async function mockComparison(page: Page, language: 'en' | 'th' = 'en') {
                         : course.pricePerHour,
                 })),
       };
-      return route.fulfill({ json: detail });
+      return route.fulfill({
+        json:
+          state.unverified && tutor.tutorId === 'shared-tutor'
+            ? { ...detail, tutor: { ...detail.tutor, verificationStatus: 'PENDING' } }
+            : detail,
+      });
     }
     unexpected.push(path);
     return route.fulfill({ status: 500, json: { message: 'Unexpected request' } });
   });
-  return { state, calls, unexpected, release };
+  return { state, calls, availabilityFrom, unexpected, release };
 }
 
 const pocket = (page: Page) => page.locator('[data-comparison-button]');
@@ -300,18 +311,34 @@ test('Priority Tabs keep errors and selected priority across a pending retry (S3
     await priorityLabel(page, 'highest_rating').click();
     await expect(panel(page).getByRole('button', { name: 'Try again' })).toBeVisible();
     expect(calls).toEqual(reads);
+    const scroll = panel(page).locator('[data-comparison-scroll]');
+    const left = await scroll.evaluate((element) => {
+      element.scrollLeft = element.scrollWidth - element.clientWidth;
+      return element.scrollLeft;
+    });
     state.failDetail = false;
     state.slow = true;
     await panel(page).getByRole('button', { name: 'Try again' }).click();
+    expect(await scroll.evaluate((element) => element.scrollLeft)).toBe(left);
     const priority = panel(page).getByRole('radio', { name: 'Highest rating', exact: true });
-    await expect(priority).toBeDisabled();
+    await expect(priority).toBeEnabled();
+    await expect(panel(page).locator('[data-comparison-column="ready"]')).toHaveCount(1);
+    await expect(panel(page).getByRole('button', { name: 'Close comparison' })).toBeFocused();
+    await expect.poll(() => calls.length).toBe(reads.length + 1);
+    expect(calls.slice(reads.length)).toEqual(['/tutors/shared-tutor']);
     await expect(priority).toBeChecked();
     await expect(pocket(page)).toHaveAccessibleName('Tutor comparison (2/3)');
     state.slow = false;
     release();
     await expect(priority).toBeEnabled();
     await expect(priority).toBeChecked();
+    await expect(panel(page).locator('[data-comparison-column="ready"]')).toHaveCount(2);
     await expectColumnOrder(page, ['tutor-2', 'shared-tutor']);
+    expect(calls.slice(reads.length)).toEqual([
+      '/tutors/shared-tutor',
+      '/tutors/shared-tutor/availability',
+    ]);
+    expect(await scroll.evaluate((element) => element.scrollLeft)).toBe(left);
   } finally {
     release();
   }
@@ -321,7 +348,7 @@ test('Priority Tabs have translated labels and stay disabled until data loads (S
   page,
 }) => {
   const { state, release } = await mockComparison(page, 'th');
-  state.slow = true;
+  state.slowAll = true;
   try {
     await page.goto('/tutors');
     for (const index of [0, 2]) {
@@ -341,7 +368,7 @@ test('Priority Tabs have translated labels and stay disabled until data loads (S
     await expect(
       panel(page).getByRole('radio', { name: 'เวลาว่างเร็วสุด', exact: true }),
     ).toBeDisabled();
-    state.slow = false;
+    state.slowAll = false;
     release();
     await expect(lowest).toBeEnabled();
     await priorityLabel(page, 'earliest_availability').click();
@@ -540,7 +567,8 @@ test('a removed tutor cannot return through a delayed old response', async ({ pa
     await choose(page, 0).click();
     await choose(page, 2).click();
     await pocket(page).click();
-    await expect(panel(page).locator('[data-comparison-column="loading"]')).toHaveCount(2);
+    await expect(panel(page).locator('[data-comparison-column="ready"]')).toHaveCount(1);
+    await expect(panel(page).locator('[data-comparison-column="loading"]')).toHaveCount(1);
     await panel(page).getByRole('button', { name: 'Remove tutor: 1', exact: true }).click();
     await expect(panel(page).locator('[data-comparison-column="ready"]')).toHaveCount(1);
     release();
@@ -698,4 +726,152 @@ test('compares only allow-listed public values and shows malformed ones as unava
     .evaluateAll((cells) => cells.map((cell) => cell.getAttribute('data-tutor-column')));
   expect(headers).toEqual(['shared-tutor', 'tutor-2']);
   expect(unexpected).toEqual([]);
+});
+
+for (const count of [2, 3]) {
+  test(`six attributes and accessible headers stay associated for ${count} tutors (S3-T30)`, async ({
+    page,
+  }, testInfo) => {
+    if (testInfo.project.name === 'mobile-chromium') {
+      await page.setViewportSize({ width: 320, height: 900 });
+    }
+    await mockComparison(page);
+    await page.goto('/tutors');
+    for (const index of count === 3 ? [1, 2, 3] : [1, 2]) {
+      await choose(page, index).click();
+    }
+    await pocket(page).click();
+    await expect(panel(page).locator('[data-comparison-column="ready"]')).toHaveCount(count);
+    const table = panel(page).getByRole('table');
+    await expect(table).toHaveAccessibleName(
+      'Compare price, subject, rating, reviews, experience and next availability',
+    );
+    await expect(table.getByRole('rowheader')).toHaveText([
+      'Price / hour',
+      'Subject',
+      'Average rating',
+      'Review count',
+      'Experience',
+      'Next availability',
+    ]);
+    const cells = table.locator('tbody [data-tutor-column="shared-tutor"]');
+    await expect(cells.nth(0)).toContainText('425 ฿');
+    await expect(cells.nth(1)).toHaveText('ScienceGrade 10');
+    await expect(cells.nth(2)).toContainText('4.33');
+    await expect(cells.nth(3)).toHaveText('2');
+    await expect(cells.nth(4)).toHaveText('5 years');
+    await expect(cells.nth(5)).toContainText('10:00');
+    const links = panel(page).getByRole('link', { name: /^View tutor profile:/ });
+    await expect(links).toHaveCount(count);
+    const link = panel(page).getByRole('link', {
+      name: 'View tutor profile: Teacher Anan',
+      exact: true,
+    });
+    await expect(link).toHaveAttribute('href', '/tutors/shared-tutor?listingId=course-1');
+    await expect(panel(page).locator('[data-tutor-verification="VERIFIED"]')).toHaveCount(count);
+    const checkHeaders = async () => {
+      expect(
+        await table.locator('tbody td').evaluateAll((elements) =>
+          elements.every((cell) => {
+            const ids = cell.getAttribute('headers')?.split(' ') ?? [];
+            const row = document.getElementById(ids[0] ?? '');
+            const column = document.getElementById(ids[1] ?? '');
+            return (
+              ids.length === 2 &&
+              row?.getAttribute('scope') === 'row' &&
+              row.parentElement === cell.parentElement &&
+              column?.getAttribute('scope') === 'col' &&
+              column.getAttribute('data-tutor-column') === cell.getAttribute('data-tutor-column')
+            );
+          }),
+        ),
+      ).toBe(true);
+    };
+    await checkHeaders();
+    await priorityLabel(page, 'highest_rating').click();
+    await checkHeaders();
+    await panel(page)
+      .getByRole('button', {
+        name: `Remove tutor: Teacher ${count === 3 ? '3' : '2'}`,
+        exact: true,
+      })
+      .click();
+    await expect(table.locator('thead [data-tutor-column]')).toHaveCount(count - 1);
+    await checkHeaders();
+    await expect(panel(page).getByRole('button', { name: 'Close comparison' })).toBeFocused();
+    await page.screenshot({ path: testInfo.outputPath(`s3-t30-attributes-${count}.png`) });
+    await link.focus();
+    await page.keyboard.press('Enter');
+    await expect(page).toHaveURL(/\/tutors\/shared-tutor\?listingId=course-1$/);
+    await page.goBack();
+    await expect(pocket(page)).toHaveAccessibleName('Tutor comparison (0/3)');
+  });
+}
+
+test('partial loading leaves ready tutors usable and hides revoked public identities (S3-T30)', async ({
+  page,
+}, testInfo) => {
+  const { state, release, calls } = await mockComparison(page);
+  state.slow = true;
+  try {
+    await page.goto('/tutors');
+    for (const index of [0, 2, 3]) {
+      await choose(page, index).click();
+    }
+    await pocket(page).click();
+    await expect(panel(page).locator('[data-comparison-column="ready"]')).toHaveCount(2);
+    await expect(panel(page).locator('[data-comparison-column="loading"]')).toHaveCount(1);
+    await expect(panel(page).getByRole('link')).toHaveCount(2);
+    await expect(panel(page).locator('[data-tutor-verification="VERIFIED"]')).toHaveCount(2);
+    await expect(panel(page)).not.toContainText('Teacher Anan');
+    await expect(panel(page)).toContainText('New tutor');
+    await expect(panel(page)).toContainText('No future slots');
+    await page.screenshot({ path: testInfo.outputPath('s3-t30-partial-loading.png') });
+    state.slow = false;
+    release();
+    await expect(panel(page).locator('[data-comparison-column="ready"]')).toHaveCount(3);
+    await page.keyboard.press('Escape');
+    await expect(panel(page)).not.toBeVisible();
+    state.unverified = true;
+    const availabilityReads = calls.filter(
+      (path) => path === '/tutors/shared-tutor/availability',
+    ).length;
+    await pocket(page).click();
+    await expect(panel(page).locator('[data-comparison-column="unavailable"]')).toHaveCount(1);
+    await expect(panel(page).getByRole('link', { name: /Teacher Anan/ })).toHaveCount(0);
+    await expect(panel(page)).not.toContainText('Teacher Anan');
+    expect(calls.filter((path) => path === '/tutors/shared-tutor/availability')).toHaveLength(
+      availabilityReads,
+    );
+  } finally {
+    release();
+  }
+});
+
+test('captured UTC from remains shared through an individual retry and refreshes on reopening (S3-T30)', async ({
+  page,
+}) => {
+  const captured = new Date('2026-11-10T03:00:00.000Z');
+  await page.clock.install({ time: captured });
+  await page.clock.setFixedTime(captured);
+  const { state, availabilityFrom } = await mockComparison(page);
+  state.failDetail = true;
+  await page.goto('/tutors');
+  await choose(page, 0).click();
+  await choose(page, 2).click();
+  await pocket(page).click();
+  await expect(panel(page).getByRole('button', { name: 'Try again' })).toBeVisible();
+  await expect(panel(page).locator('[data-comparison-column="ready"]')).toHaveCount(1);
+  await page.clock.setFixedTime(new Date(captured.getTime() + 60_000));
+  state.failDetail = false;
+  await panel(page).getByRole('button', { name: 'Try again' }).click();
+  await expect(panel(page).locator('[data-comparison-column="ready"]')).toHaveCount(2);
+  expect(availabilityFrom).toEqual([captured.toISOString(), captured.toISOString()]);
+  await page.keyboard.press('Escape');
+  await expect(panel(page)).not.toBeVisible();
+  const reopened = new Date(captured.getTime() + 120_000);
+  await page.clock.setFixedTime(reopened);
+  await pocket(page).click();
+  await expect(panel(page).locator('[data-comparison-column="ready"]')).toHaveCount(2);
+  expect(availabilityFrom.slice(-2)).toEqual([reopened.toISOString(), reopened.toISOString()]);
 });

@@ -263,6 +263,15 @@
   font-weight: 600;
   letter-spacing: -0.2px;
 }
+.name:hover {
+  color: var(--color-student-deep);
+  text-decoration: underline;
+}
+.name:focus-visible {
+  border-radius: 3px;
+  outline: 2px solid var(--color-student-deep);
+  outline-offset: 3px;
+}
 .subject {
   display: block;
   margin-top: 5px;
