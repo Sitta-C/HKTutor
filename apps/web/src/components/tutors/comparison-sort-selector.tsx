@@ -26,7 +26,10 @@ export function ComparisonSortSelector({
   const id = useId();
   return (
     <fieldset className={styles.root} disabled={disabled} aria-describedby={`${id}-hint`}>
-      <legend>{text.sortBy}</legend>
+      <legend className="sr-only">{text.sortBy}</legend>
+      <span className={styles.label} aria-hidden="true">
+        {text.sortBy}
+      </span>
       <div className={styles.options}>
         {PRIORITIES.map((priority) => (
           <label key={priority} className={styles.option}>
@@ -34,6 +37,7 @@ export function ComparisonSortSelector({
               type="radio"
               name={`${id}-sort`}
               value={priority}
+              aria-label={text[priority]}
               checked={sort === priority}
               onChange={() => onChange(priority)}
               onClick={() => {
@@ -50,11 +54,14 @@ export function ComparisonSortSelector({
             ) : (
               <DashboardIcon name={priority === 'highest_rating' ? 'star' : 'calendar'} />
             )}
-            <span>{text[priority]}</span>
+            <span className={styles.fullLabel}>{text[priority]}</span>
+            <span className={styles.shortLabel} aria-hidden="true">
+              {text[`${priority}_short`]}
+            </span>
           </label>
         ))}
       </div>
-      <p id={`${id}-hint`} className={styles.hint}>
+      <p id={`${id}-hint`} className="sr-only">
         {text.sortHint}
       </p>
     </fieldset>

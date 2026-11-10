@@ -85,24 +85,32 @@ or started another search. Validation, empty results and catalog errors do not r
 control toggles that course; choosing a different course of the same tutor replaces it without
 moving the tutor's position. At the limit, new tutors are disabled while removal/replacement remain
 available. Search pagination, filters, ranking and read failures preserve the in-memory selection.
-Reloading or leaving the page starts a new selection.
+Selections and search state survive reloads/profile round trips within the current browser tab's
+session; only tutor/course IDs are persisted, not names, prices or ratings.
 
-The chosen **Compact Dock** design replaces the corner Notebook Ledger button. One white paper bar
-is fixed at the bottom center of the visual viewport, with a deep mint left edge and Balance icon,
-bilingual title/helper and yellow `0/3`–`3/3` count tag. It is up to 440px wide with 12px side
-clearance, 14px corners and a 60px minimum height. Guidance adapts to zero/one/two/three selections.
-The whole bar opens the Course Tabs popup, including empty/add-one guidance at zero/one selection.
-It is no longer draggable or moved by arrow keys; native Enter/Space activates it.
+The chosen **Foldout Folio** design refines Compact Dock into a layered paper button with a binding
+margin, folded corner, overlapping blue course slips and a taped yellow `1/3`–`3/3` count tag. It is
+fixed at the bottom center of the visual viewport, up to 352px wide with 12px side clearance, 3px
+corners and a 62px minimum height. Its bilingual guidance adapts to one/two/three selections and
+whether comparison is open. It appears only with a nonempty selection; clearing/removing the last
+tutor unmounts it and restores focus to the search-results heading. It is not draggable or moved
+by arrow keys; native Enter/Space opens comparison directly.
 
 The dock is repositioned on resize, visual-viewport scroll/resize and changes to its rendered size,
 including translated helper wrapping. Its 16px bottom gap is increased by the device safe-area inset.
 Search content reserves bottom clearance for final course actions and pagination. The popup fits
-above the dock with a 12px gap and scrolls its table when height is limited. Selection tokens fly to
+above the dock with a 12px gap. Selection tokens fly to
 the count tag; its count settles on arrival. Reduced motion skips flights and transitions.
 
 The non-modal popup directly shows all six attributes in aligned table rows. There is no intermediate
-selection-list screen, Compare CTA or `/tutors/compare` route. It supports zero/one selections, removal,
-clear, outside-click/Escape close, explicit focus restoration, and native table scrolling on mobile.
+selection-list screen, Compare CTA or `/tutors/compare` route. It supports one selection, removal,
+clear, outside-click/Escape close, explicit focus restoration, and native horizontal table scrolling
+on mobile. Its small mint Balance bookmark replaces the green edge; blue tutor initials and the
+existing public Verified badge/profile links sit above six compact attribute rows. Subject/grade
+is shown once, and the rating scale sits beside the score. Punched row labels remain sticky while
+paper creases separate columns. At 320×640 all six rows fit without vertical scrolling in Thai and
+English. Only the outer dialog can scroll on unusually short viewports or for long content; the
+table stays at its natural height. Reopening resets outer scrolling to show the heading.
 
 Each open fetches `GET /tutors/:tutorId` and `GET /tutors/:tutorId/availability` for at most three
 selected tutors through the existing same-origin client. The selected listing must still be present
@@ -111,7 +119,8 @@ is displayed in Bangkok time. Raw review averages remain server owned; the share
 formats the returned average and preserves null/zero-review states. A missing tutor/course exposes
 no stale column metadata. Other read failures offer retry; reads time out after 15 seconds and are
 aborted/discarded on close, selection change or unmount. No new HTTP endpoint, URL selection format,
-storage table or browser persistence is introduced. The other public tutor page requests are unchanged.
+storage table is introduced. The tab-scoped ID/search-state restoration does not cache public tutor
+responses. The other public tutor page requests are unchanged.
 
 ### Comparison view model (S3-T31)
 
@@ -132,17 +141,18 @@ render from the existing public responses; there is still no comparison table or
 ### Comparison sort selector (S3-T34)
 
 The selected **Priority Tabs** design adds three labeled native radios above the table: lowest price,
-highest rating and earliest availability. A mint wash, heavier bottom border and checked radio state
-identify the current choice; keyboard focus outlines the whole label. Each option has a 44px minimum
-target. Below 470px the options stack, while the existing six-row comparison keeps native horizontal
-scrolling and sticky row labels. Labels, guidance and the polite current-sort announcement are
-translated in Thai/English.
+highest rating and earliest availability. Foldout Folio presents the checked option as a yellow
+paper flag with an offset frame; native checked state and label-wide keyboard focus remain.
+Each option has a 44px minimum target and the three controls stay in one row. Below 470px visible
+labels shorten while accessible names stay complete. The six-row comparison keeps native horizontal
+scrolling and sticky row labels. Labels, assistive guidance and the polite current-sort announcement
+are translated in Thai/English.
 
 The client reads `comparisonSort` with `useSearchParams` behind a Suspense boundary. Native
 `history.pushState` updates that parameter without navigation or a public read; Back/Forward uses
 the same existing sorter. All other parameters and the URL fragment are retained, including repeated
 unrelated parameters and any supplied tutor/course IDs or selection order metadata. They do not
-restore selections; reload/navigation away still clears the in-memory selection. The search page
+restore selections; tab-scoped session state restores the selected IDs separately. The search page
 no longer needs server query props for comparison sorting.
 
 Missing priorities default to lowest price. Unknown, empty or repeated values retain the validation

@@ -24,7 +24,7 @@ export function placeComparisonPanel(button: HTMLElement, panel: HTMLElement): v
   const viewport = comparisonViewport();
   const rect = button.getBoundingClientRect();
   panel.style.maxWidth = `${Math.max(120, viewport.width - 24)}px`;
-  // Reserve the dock and its gap so the table scrolls above the entry point.
+  // Keep all table rows together. Only the outer dialog can scroll on unusually short viewports.
   panel.style.maxHeight = `${Math.max(140, rect.top - viewport.top - 24)}px`;
   const point = comparisonPanelPosition(
     rect,
@@ -47,7 +47,7 @@ export function useComparisonDock(
     }
     const fit = () => {
       const viewport = comparisonViewport();
-      button.style.width = `${Math.max(0, Math.min(440, viewport.width - 24))}px`;
+      button.style.width = `${Math.max(0, Math.min(352, viewport.width - 24))}px`;
       const safeBottom = Number.parseFloat(getComputedStyle(button).marginBottom) || 0;
       const point = comparisonDockPosition(
         { width: button.offsetWidth, height: button.offsetHeight },

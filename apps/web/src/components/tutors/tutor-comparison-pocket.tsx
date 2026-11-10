@@ -141,6 +141,7 @@ function FloatingPocket({ controller, onEmpty }: ComparisonPocketProps) {
         { duration: reduced ? 0 : 360, easing: 'cubic-bezier(.16, 1, .3, 1)' },
       );
       closeRef.current?.focus({ preventScroll: true });
+      panel.scrollTop = 0;
       const scroll = panel.querySelector<HTMLElement>('[data-comparison-scroll]');
       if (scroll) {
         scroll.scrollTop = 0;
@@ -278,8 +279,19 @@ function FloatingPocket({ controller, onEmpty }: ComparisonPocketProps) {
         data-comparison-button
         onClick={toggle}
       >
-        <span className={styles.glyph}>
-          <DashboardIcon name="compare" />
+        <span className={styles.courseSlips} aria-hidden="true">
+          {choices.map((choice, index) => {
+            const column = view.find((item) => item.tutorId === choice.tutorId);
+            return (
+              <span key={choice.tutorId}>
+                {column?.state === 'ready'
+                  ? initials(column.entry.displayName)
+                  : choice.displayName && !column
+                    ? initials(choice.displayName)
+                    : index + 1}
+              </span>
+            );
+          })}
         </span>
         <span className={styles.dockCopy}>
           <span className={styles.dockTitle}>{text.title}</span>
@@ -288,7 +300,10 @@ function FloatingPocket({ controller, onEmpty }: ComparisonPocketProps) {
               ? text.guide
               : choices.length === 1
                 ? text.oneMore
-                : text.dockSelected.replace('{count}', String(choices.length))}
+                : (dialog.open ? text.dockOpen : text.dockSelected).replace(
+                    '{count}',
+                    String(choices.length),
+                  )}
           </span>
         </span>
         <span ref={badgeRef} className={styles.badge} aria-hidden="true">
@@ -308,8 +323,12 @@ function FloatingPocket({ controller, onEmpty }: ComparisonPocketProps) {
         data-comparison-panel
       >
         <div className={styles.header}>
+          <span className={styles.bookmark} aria-hidden="true">
+            <DashboardIcon name="compare" />
+          </span>
           <h2 id={`${id}-title`}>
-            {text.title} <span>{choices.length}/3</span>
+            <span className={styles.eyebrow}>{text.selectedCourses}</span>
+            {text.title}
           </h2>
           <button
             ref={closeRef}
@@ -321,7 +340,7 @@ function FloatingPocket({ controller, onEmpty }: ComparisonPocketProps) {
             <DashboardIcon name="close" />
           </button>
         </div>
-        <p id={`${id}-hint`} className={styles.hint}>
+        <p id={`${id}-hint`} className="sr-only">
           {choices.length === 1
             ? `${text.oneMore} ${text.subtitle}`
             : choices.length === 0
@@ -351,12 +370,18 @@ function FloatingPocket({ controller, onEmpty }: ComparisonPocketProps) {
         {choices.length === 0 ? (
           <p className={styles.empty}>{text.empty}</p>
         ) : (
-          <div className={styles.scroll} data-comparison-scroll>
-            <table className={styles.table} style={{ minWidth: 104 + choices.length * 150 }}>
+          <div
+            className={styles.scroll}
+            data-comparison-scroll
+            role="region"
+            aria-label={text.table}
+            tabIndex={0}
+          >
+            <table className={styles.table} style={{ minWidth: 98 + choices.length * 184 }}>
               <caption className="sr-only">{text.table}</caption>
               <thead>
                 <tr>
-                  <th scope="col">{text.course}</th>
+                  <th scope="col">{text.tutor}</th>
                   {view.map((column) => (
                     <th
                       key={column.tutorId}
@@ -365,13 +390,34 @@ function FloatingPocket({ controller, onEmpty }: ComparisonPocketProps) {
                       data-comparison-column={column.state}
                       data-tutor-column={column.tutorId}
                     >
-                      <div className={styles.columnTop}>
-                        <span className={styles.grade}>
-                          {column.state === 'ready' ? (column.entry.grade ?? '—') : '—'}
-                        </span>
+                      <div className={styles.columnHeader}>
+                        {column.state === 'ready' ? (
+                          <div className={styles.columnIdentity}>
+                            <span className={styles.avatar} aria-hidden="true">
+                              {initials(column.entry.displayName)}
+                            </span>
+                            <Link
+                              className={styles.name}
+                              href={`/tutors/${encodeURIComponent(column.tutorId)}?${new URLSearchParams({ listingId: column.listingId })}`}
+                              prefetch={false}
+                              aria-label={`${text.profile}: ${column.entry.displayName}`}
+                            >
+                              {column.entry.displayName}
+                            </Link>
+                          </div>
+                        ) : (
+                          <ColumnStatus
+                            column={column}
+                            text={text}
+                            retry={() => {
+                              closeRef.current?.focus({ preventScroll: true });
+                              retry({ tutorId: column.tutorId, listingId: column.listingId });
+                            }}
+                          />
+                        )}
                         <button
                           type="button"
-                          className={styles.iconButton}
+                          className={`${styles.iconButton} ${styles.remove}`}
                           aria-label={`${text.remove}: ${column.state === 'ready' ? column.entry.displayName : column.position + 1}`}
                           onClick={() => {
                             if (choices.length === 1) {
@@ -386,40 +432,15 @@ function FloatingPocket({ controller, onEmpty }: ComparisonPocketProps) {
                           <DashboardIcon name="close" />
                         </button>
                       </div>
-                      {column.state === 'ready' ? (
-                        <div className={styles.columnIdentity}>
-                          <span className={styles.avatar} aria-hidden="true">
-                            {initials(column.entry.displayName)}
-                          </span>
-                          <div>
-                            <Link
-                              className={styles.name}
-                              href={`/tutors/${encodeURIComponent(column.tutorId)}?${new URLSearchParams({ listingId: column.listingId })}`}
-                              prefetch={false}
-                              aria-label={`${text.profile}: ${column.entry.displayName}`}
-                            >
-                              {column.entry.displayName}
-                            </Link>
-                            <TutorVerificationBadge
-                              status="VERIFIED"
-                              language={language}
-                              audience="public"
-                              compact
-                            />
-                            <small className={styles.subject}>
-                              {column.entry.subject ?? text.missing}
-                            </small>
-                          </div>
+                      {column.state === 'ready' && (
+                        <div className={styles.verification}>
+                          <TutorVerificationBadge
+                            status="VERIFIED"
+                            language={language}
+                            audience="public"
+                            compact
+                          />
                         </div>
-                      ) : (
-                        <ColumnStatus
-                          column={column}
-                          text={text}
-                          retry={() => {
-                            closeRef.current?.focus({ preventScroll: true });
-                            retry({ tutorId: column.tutorId, listingId: column.listingId });
-                          }}
-                        />
                       )}
                     </th>
                   ))}
@@ -464,7 +485,13 @@ function FloatingPocket({ controller, onEmpty }: ComparisonPocketProps) {
           >
             {text.clear}
           </button>
-          {choices.length > 0 && <span className={styles.scrollHint}>{text.scroll} ↔</span>}
+          <span className={styles.footerNote}>
+            {text.timezone}
+            <span className={styles.scrollHint} aria-label={text.scroll}>
+              {' · '}
+              {text.scrollCompact} →
+            </span>
+          </span>
         </div>
       </dialog>
       {flights.map((flight) => (
@@ -535,16 +562,16 @@ function ComparisonValue({
       return entry.subject === null ? (
         missing
       ) : (
-        <>
+        <span className={styles.subjectValue}>
           {entry.subject}
-          {entry.grade !== null && <small>{entry.grade}</small>}
-        </>
+          {entry.grade !== null && <small className={styles.grade}>{entry.grade}</small>}
+        </span>
       );
     case 'rating':
       return rating.state === 'rated' ? (
         <>
           <strong className={styles.score}>{rating.score}</strong>
-          <small>/ 5</small>
+          <small className={styles.ratingScale}>/ 5</small>
         </>
       ) : (
         <span className={styles.muted}>
