@@ -484,7 +484,10 @@ function TutorSearchSessionPage() {
           <p className={styles.resultNote}>{text.cardNote}</p>
         </PaperCard>
       </div>
-      <TutorComparisonPocket controller={comparison} />
+      <TutorComparisonPocket
+        controller={comparison}
+        onEmpty={() => resultsHeading.current?.focus({ preventScroll: true })}
+      />
     </div>
   );
 }

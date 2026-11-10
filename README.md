@@ -60,8 +60,12 @@ in-memory use; malformed or unsupported stored state starts a fresh search. Clea
 also clears its saved IDs. Each popup open rechecks public visibility, and missing courses are
 not replaced automatically. This uses the existing public APIs and adds no database migration.
 The dock stays centered while scrolling/resizing, respects the visible viewport and bottom safe
-area, and reserves space above it for the popup. It remains available with zero/one selection for
-guidance; Enter/Space opens it and Escape restores focus. Search content has bottom clearance so
+area, and reserves space above it for the popup. The dock appears only with at least one selected
+tutor, including a selection restored from `sessionStorage`. With one tutor it prompts for one more
+and still opens for inspection/removal. With zero selections only the search-row controls and inline
+guidance remain. Removing the final tutor or clearing selection closes the popup, removes the dock
+and focuses the search-results heading; ordinary close/Escape returns focus to the visible dock.
+Enter/Space opens it. Search content has bottom clearance so
 the dock does not prevent access to the final course or pagination.
 The popup renders an allow-listed view model (S3-T31) keyed by stable tutor IDs; bio, course
 description and other public fields stay out, and malformed values show as unavailable.
@@ -88,6 +92,7 @@ See [S3-T33 verification](tests/s3-t33-qa.md) for the sorting contract and actua
 See [S3-T34 verification](tests/s3-t34-qa.md) for the selector and history checks.
 See [S3-T30 verification](tests/s3-t30-qa.md) for the completed popup requirements and remaining verification limits.
 See [search-session verification](tests/tutor-search-session-qa.md) for returning to the same search context.
+See [Dock visibility verification](tests/comparison-dock-visibility-qa.md) for selection-driven visibility and focus.
 
 See [S3-T03 verification](apps/web/e2e/chat-realtime-verification.md) for recorded commands/results
 and the opted-in two-session browser suite against a disposable PostgreSQL database.

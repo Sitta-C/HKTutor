@@ -467,7 +467,7 @@ test('selection boundaries, same-tutor replacement, persisted search selection a
   const { state, unexpected } = await mockComparison(page);
   await page.goto('/tutors');
   await expect(page.locator('article')).toHaveCount(10);
-  await expect(pocket(page)).toHaveAccessibleName('Tutor comparison (0/3)');
+  await expect(pocket(page)).toHaveCount(0);
   await choose(page, 0).click();
   await choose(page, 1).click();
   await expect(pocket(page)).toHaveAccessibleName('Tutor comparison (1/3)');
@@ -560,7 +560,9 @@ test('revalidates public visibility, rejects missing courses and retries real lo
   expect(calls.length).toBeGreaterThan(reads);
   await panel(page).getByRole('button', { name: 'Clear selection' }).click();
   await expect(panel(page).locator('table')).toHaveCount(0);
-  await expect(panel(page)).toContainText('Select a course');
+  await expect(panel(page)).toHaveCount(0);
+  await expect(pocket(page)).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: /matching courses/ })).toBeFocused();
   expect(unexpected).toEqual([]);
 });
 
@@ -617,8 +619,11 @@ test('Compact Dock stays centered through scroll/resize with keyboard activation
   await mockComparison(page, 'th');
   await page.emulateMedia({ reducedMotion: 'no-preference' });
   await page.goto('/tutors');
-  await expect(pocket(page)).toContainText('เลือกติวเตอร์ 2–3 คนเพื่อเปรียบเทียบ');
-  await expect(pocket(page)).toContainText('0/3');
+  await expect(page.locator('article')).toHaveCount(10);
+  await expect(pocket(page)).toHaveCount(0);
+  await expect(page.locator('#tutor-comparison-guide')).toContainText(
+    'เลือกติวเตอร์ 2–3 คนเพื่อเปรียบเทียบ',
+  );
   const readDockGeometry = () =>
     pocket(page).evaluate((element) => {
       const rect = element.getBoundingClientRect();
@@ -641,18 +646,18 @@ test('Compact Dock stays centered through scroll/resize with keyboard activation
     expect(geometry.bottom).toBeLessThanOrEqual(geometry.viewportBottom - 15);
     return geometry;
   };
-  await dockGeometry();
-  await pocket(page).focus();
-  await page.keyboard.press('Enter');
-  await expect(panel(page)).toBeVisible();
-  await expect(panel(page)).toContainText('เลือกคอร์สที่สนใจ');
-  await page.keyboard.press('Escape');
-  await expect(pocket(page)).toBeFocused();
   await page
     .locator('article')
     .nth(0)
     .getByRole('button', { name: /^เลือกเปรียบเทียบ:/ })
     .click();
+  await dockGeometry();
+  await pocket(page).focus();
+  await page.keyboard.press('Enter');
+  await expect(panel(page)).toBeVisible();
+  await expect(panel(page)).toContainText('เลือกเพิ่มอีก 1 คนเพื่อเทียบกัน');
+  await page.keyboard.press('Escape');
+  await expect(pocket(page)).toBeFocused();
   await expect(pocket(page)).toContainText('เลือกเพิ่มอีก 1 คนเพื่อเทียบกัน');
   await page
     .locator('article')
@@ -973,13 +978,13 @@ test('session restores selections, draft/applied filters, ranking, page and scro
   await panel(page).getByRole('button', { name: 'Clear selection', exact: true }).click();
   await page.keyboard.press('Escape');
   await page.reload();
-  await expect(pocket(page)).toHaveAccessibleName('Tutor comparison (0/3)');
+  await expect(pocket(page)).toHaveCount(0);
   await expect(page.locator('#tutor-search-max-price')).toHaveValue('750');
   await expect(page.locator('article')).toHaveCount(2);
   const fresh = await context.newPage();
   await mockComparison(fresh);
   await fresh.goto('/tutors');
-  await expect(pocket(fresh)).toHaveAccessibleName('Tutor comparison (0/3)');
+  await expect(pocket(fresh)).toHaveCount(0);
   await expect(fresh.locator('#tutor-search-max-price')).toHaveValue('');
   await expect(fresh.locator('article')).toHaveCount(10);
   await fresh.close();
@@ -1004,7 +1009,7 @@ test('blocked session storage leaves search and comparison usable', async ({ pag
   await page.keyboard.press('Escape');
   await page.reload();
   await expect(page.locator('article')).toHaveCount(10);
-  await expect(pocket(page)).toHaveAccessibleName('Tutor comparison (0/3)');
+  await expect(pocket(page)).toHaveCount(0);
   expect(errors).toEqual([]);
 });
 
@@ -1037,7 +1042,99 @@ test('corrupt session data starts a usable fresh search', async ({ page }) => {
   await page.addInitScript(() => sessionStorage.setItem('hktutor-tutor-search-v1', '{broken'));
   await page.reload();
   await expect(page.locator('article')).toHaveCount(10);
-  await expect(pocket(page)).toHaveAccessibleName('Tutor comparison (0/3)');
+  await expect(pocket(page)).toHaveCount(0);
   await choose(page, 0).click();
   await expect(pocket(page)).toHaveAccessibleName('Tutor comparison (1/3)');
+});
+
+test('Dock appears after selection and disappears with useful focus after final removal or clear', async ({
+  page,
+}, testInfo) => {
+  await mockComparison(page);
+  await page.goto('/tutors');
+  await expect(page.locator('article')).toHaveCount(10);
+  const heading = page.getByRole('heading', { name: /matching courses/ });
+  const status = page.locator('[data-comparison-selection-status]');
+  await expect(pocket(page)).toHaveCount(0);
+  await expect(panel(page)).toHaveCount(0);
+  await expect(page.locator('#tutor-comparison-guide')).toHaveText('Select 2–3 tutors to compare.');
+  await choose(page, 0).focus();
+  await page.keyboard.press('Enter');
+  await expect(pocket(page)).toHaveAccessibleName('Tutor comparison (1/3)');
+  await expect(pocket(page)).toContainText('Select one more tutor to compare.');
+  await expect(panel(page)).not.toBeVisible();
+  await pocket(page).focus();
+  await page.keyboard.press('Enter');
+  await expect(panel(page).locator('[data-comparison-column="ready"]')).toHaveCount(1);
+  await expect(
+    panel(page).getByRole('radio', { name: 'Lowest price', exact: true }),
+  ).toBeDisabled();
+  await panel(page)
+    .getByRole('button', { name: 'Remove tutor: Teacher Anan', exact: true })
+    .focus();
+  await page.keyboard.press('Enter');
+  await expect(pocket(page)).toHaveCount(0);
+  await expect(panel(page)).toHaveCount(0);
+  await expect(heading).toBeFocused();
+  await expect(status).toContainText('Removed');
+  await expect(status).toContainText('0/3');
+  await page.screenshot({ path: testInfo.outputPath('comparison-dock-hidden.png') });
+  await choose(page, 0).click();
+  await choose(page, 2).click();
+  await expect(pocket(page)).toHaveAccessibleName('Tutor comparison (2/3)');
+  await pocket(page).click();
+  await expect(panel(page).locator('[data-comparison-column="ready"]')).toHaveCount(2);
+  await panel(page).getByRole('button', { name: 'Clear selection', exact: true }).focus();
+  await page.keyboard.press('Space');
+  await expect(pocket(page)).toHaveCount(0);
+  await expect(panel(page)).toHaveCount(0);
+  await expect(heading).toBeFocused();
+  await expect(status).toContainText('Selection cleared');
+  await expect
+    .poll(
+      async () =>
+        parseTutorSearchSession(
+          await page.evaluate(() => sessionStorage.getItem('hktutor-tutor-search-v1')),
+        )?.choices,
+    )
+    .toEqual([]);
+  await page.reload();
+  await expect(page.locator('article')).toHaveCount(10);
+  await expect(pocket(page)).toHaveCount(0);
+  await choose(page, 2).click();
+  await page.reload();
+  await expect(pocket(page)).toHaveAccessibleName('Tutor comparison (1/3)');
+  await expect(panel(page)).not.toBeVisible();
+  await expect(choose(page, 2)).toHaveAttribute('aria-pressed', 'true');
+  await page.screenshot({ path: testInfo.outputPath('comparison-dock-one-selected.png') });
+  await choose(page, 2).click();
+  await expect(pocket(page)).toHaveCount(0);
+  await expect(choose(page, 2)).toBeFocused();
+});
+
+test('last pending tutor removal cancels the old popup before a new selection', async ({
+  page,
+}) => {
+  const { state, release } = await mockComparison(page);
+  state.slow = true;
+  try {
+    await page.goto('/tutors');
+    await choose(page, 0).click();
+    await pocket(page).click();
+    await expect(panel(page).locator('[data-comparison-column="loading"]')).toHaveCount(1);
+    await panel(page).getByRole('button', { name: 'Remove tutor: 1', exact: true }).click();
+    await expect(pocket(page)).toHaveCount(0);
+    await expect(panel(page)).toHaveCount(0);
+    await expect(page.getByRole('heading', { name: /matching courses/ })).toBeFocused();
+    state.slow = false;
+    release();
+    await choose(page, 2).click();
+    await expect(panel(page)).not.toBeVisible();
+    await pocket(page).click();
+    await expect(panel(page).locator('[data-comparison-column="ready"]')).toHaveCount(1);
+    await expect(panel(page)).toContainText('Teacher 2');
+    await expect(panel(page)).not.toContainText('Teacher Anan');
+  } finally {
+    release();
+  }
 });

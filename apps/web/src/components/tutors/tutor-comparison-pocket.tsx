@@ -51,27 +51,40 @@ const subscribeClient = () => () => {};
 const clientSnapshot = () => true;
 const serverSnapshot = () => false;
 
-export function TutorComparisonPocket({
-  controller,
-}: {
+type ComparisonPocketProps = {
   controller: TutorComparisonController;
-}): ReactNode {
+  onEmpty: () => void;
+};
+
+export function TutorComparisonPocket({ controller, onEmpty }: ComparisonPocketProps): ReactNode {
   const mounted = useSyncExternalStore(subscribeClient, clientSnapshot, serverSnapshot);
+  const { language } = useLanguage();
+  const text = tutorComparisonCopy[language];
+  const { choices, notice } = controller;
   return mounted
     ? createPortal(
-        <Suspense fallback={null}>
-          <FloatingPocket controller={controller} />
-        </Suspense>,
+        <>
+          <p role="status" aria-live="polite" className="sr-only" data-comparison-selection-status>
+            {notice
+              ? `${text[notice.action]} ${notice.name}. ${choices.length}/3. ${choices.length === 3 ? text.limit : text.guide}`
+              : ''}
+          </p>
+          {choices.length > 0 && (
+            <Suspense fallback={null}>
+              <FloatingPocket controller={controller} onEmpty={onEmpty} />
+            </Suspense>
+          )}
+        </>,
         document.body,
       )
     : null;
 }
 
-function FloatingPocket({ controller }: { controller: TutorComparisonController }) {
+function FloatingPocket({ controller, onEmpty }: ComparisonPocketProps) {
   const searchParams = useSearchParams();
   const { language } = useLanguage();
   const text = tutorComparisonCopy[language];
-  const { choices, flights, notice, remove, clear, finishFlight } = controller;
+  const { choices, flights, remove, clear, finishFlight } = controller;
   const [dialog, setDialog] = useState({ open: false, cycle: 0, now: 0 });
   const { columns, retry } = useTutorComparisonData(choices, dialog);
   const buttonRef = useRef<HTMLButtonElement>(null);
@@ -282,11 +295,6 @@ function FloatingPocket({ controller }: { controller: TutorComparisonController 
           {count}/3
         </span>
       </button>
-      <p role="status" aria-live="polite" className="sr-only">
-        {notice
-          ? `${text[notice.action]} ${notice.name}. ${choices.length}/3. ${choices.length === 3 ? text.limit : text.guide}`
-          : ''}
-      </p>
       <dialog
         ref={panelRef}
         id={`${id}-panel`}
@@ -366,8 +374,13 @@ function FloatingPocket({ controller }: { controller: TutorComparisonController 
                           className={styles.iconButton}
                           aria-label={`${text.remove}: ${column.state === 'ready' ? column.entry.displayName : column.position + 1}`}
                           onClick={() => {
+                            if (choices.length === 1) {
+                              panelRef.current?.close();
+                              onEmpty();
+                            } else {
+                              closeRef.current?.focus({ preventScroll: true });
+                            }
                             remove(column.tutorId);
-                            closeRef.current?.focus({ preventScroll: true });
                           }}
                         >
                           <DashboardIcon name="close" />
@@ -444,8 +457,9 @@ function FloatingPocket({ controller }: { controller: TutorComparisonController 
             className={styles.clear}
             disabled={choices.length === 0}
             onClick={() => {
+              panelRef.current?.close();
+              onEmpty();
               clear();
-              closeRef.current?.focus({ preventScroll: true });
             }}
           >
             {text.clear}
