@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 
+import { BrandLogo } from '@/components/brand/brand-logo';
 import { DashboardIcon } from '@/components/dashboard/dashboard-icon';
 import { DashboardNotificationMenu } from '@/components/dashboard/dashboard-notification-menu';
 import PrivacyNoticeModal from '@/components/privacy-notice-modal';
@@ -286,17 +287,19 @@ export function DashboardShell({
               <button
                 type="button"
                 onClick={toggleSidebar}
-                className="group inline-flex h-12 w-12 items-center justify-center rounded-xl border border-notebook-ink bg-notebook-ink text-xs font-black tracking-tight text-paper shadow-[0_3px_0_#57534e] transition hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-notebook-ink/30 focus-visible:ring-offset-2"
+                className="group inline-flex h-12 w-12 items-center justify-center rounded-xl border border-paper-edge bg-paper text-notebook-ink shadow-sm transition hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-notebook-ink/30 focus-visible:ring-offset-2"
                 aria-label={copy.dashboard.sidebar.openSidebar}
                 aria-controls="dashboard-sidebar"
                 aria-expanded="false"
                 title={copy.dashboard.sidebar.openSidebar}
               >
-                <span className="group-hover:hidden">HK</span>
+                <span className="group-hover:hidden">
+                  <BrandLogo iconOnly />
+                </span>
                 <span className="hidden space-y-1 group-hover:block" aria-hidden="true">
-                  <i className="block h-0.5 w-5 rounded-full bg-paper" />
-                  <i className="block h-0.5 w-4 rounded-full bg-paper" />
-                  <i className="block h-0.5 w-5 rounded-full bg-paper" />
+                  <i className="block h-0.5 w-5 rounded-full bg-notebook-ink" />
+                  <i className="block h-0.5 w-4 rounded-full bg-notebook-ink" />
+                  <i className="block h-0.5 w-5 rounded-full bg-notebook-ink" />
                 </span>
               </button>
             ) : (
@@ -311,10 +314,7 @@ export function DashboardShell({
                   }}
                 >
                   <WashiTape tone="yellow" className="-top-2 left-1/2 h-3 w-14 -translate-x-1/2" />
-                  <span className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-notebook-ink bg-notebook-ink text-xs font-black tracking-tight text-paper shadow-[0_3px_0_#57534e]">
-                    HK
-                  </span>
-                  <span className="font-note text-3xl font-bold tracking-normal">HKTutor</span>
+                  <BrandLogo />
                 </Link>
                 <button
                   ref={sidebarCloseButtonRef}

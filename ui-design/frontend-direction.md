@@ -1,6 +1,6 @@
 # HKTutor frontend direction — Notebook Focus
 
-Updated 2026-11-10. This describes the implemented Notebook Focus direction and component
+Updated 2026-11-11. This describes the implemented Notebook Focus direction and component
 patterns in this repository. Maintainers review changes to shared design conventions through the
 normal PR process; this guide does not assert team approval of decisions from an individual chat.
 Read it as implementation context before UI work. The current task's explicit requirements take
@@ -21,6 +21,11 @@ See [implemented frontend behavior](implemented-behavior.md) for detailed intera
   every metric. Counts should be easier to scan than supporting timezone information.
 - Creative details are welcome; they should remain readable, consistent, and lightweight.
   Reuse or extend a component when the same pattern recurs rather than duplicating its markup.
+- The **Open Chapter** logo was selected on 2026-11-11: the blue open notebook with an amber
+  bookmark and Caveat wordmark. Use `components/brand/brand-logo.tsx` for full and compact marks,
+  including sidebar states and privacy notices. The Latin wordmark keeps Caveat in both UI
+  languages. `public/brand/open-chapter.svg` is the shared artwork; browser and Apple touch icons
+  are derived from it. Keep ordinary brand mentions and copyright text as text.
 - Loading follows the implemented hierarchy: use `NotebookLoading` sticky notes only while a page
   or all primary dashboard content is unavailable. Keep the dashboard shell visible during content
   loading. Use `NotebookLoadingRegion` skeletons or compact text for lists, timetable changes, tutor
