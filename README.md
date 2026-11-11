@@ -347,6 +347,12 @@ adding edit/delete/toggle routes or changing booking/payment behavior. See
 
 ## Checks
 
+The existing `pnpm db:seed` includes Sprint 3 review, coupon, report and reminder fixtures.
+See the [DB04 fixture/test guide](tests/s3-db04-qa.md) for semantic case keys, clocks, expected
+results and the disposable-only `pnpm db:verify:sprint3-fixtures` check. Synthetic provider IDs
+are stubs; fixture users cannot password-login. Re-seeding preserves DB04 state rather than
+resetting tests; start with a fresh disposable database for independent mutable tests.
+
 ```bash
 pnpm check
 ```

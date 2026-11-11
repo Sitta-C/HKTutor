@@ -2774,3 +2774,25 @@ and Thai long text (`*-4-long-text-th.png`).
 Limits: every API read is intercepted, so this does not certify a live database-backed journey
 (S3-T32's `db:verify:comparison-visibility` covers the public reads). Only the repository's
 Chromium projects were run; Firefox and WebKit were not. No external service is contacted.
+
+## Sprint 3 deterministic fixtures (S3-DB04)
+
+`pnpm db:seed` keeps the existing combined entry point and now calls `seedSprint3Fixtures` after
+Sprint 2. DB04 includes 61 bookings across isolated review/report/coupon/reminder groups, 12
+coupons, real review aggregates, the 905.00 THB report ledger, provider-stub and zero settlements,
+and 29 reminder scenarios with injected clocks. No new migration, API or seed configuration is
+introduced. Synthetic `.invalid` users have no passwords; provider IDs are explicitly test stubs.
+
+Read the [fixture inventory, expected results, examples and QA evidence](../../tests/s3-db04-qa.md)
+before writing consuming tests. Pure unit tests import `buildSprint3Fixtures` without a database;
+integration tests use the same combined `runSeed(prisma, now)` on a fresh disposable DB. Existing
+DB04 rows are not reset: repeated seeds preserve live reviews, attempts, reservations, consumption
+and original time windows. The legacy Sprint 2 ended demo class is also preserved when provider or
+coupon evidence exists, in addition to the existing reviewed-class protection.
+
+`pnpm db:verify:sprint3-fixtures` is separate from `pnpm check`. It refuses remote/non-test targets,
+requires `HKTUTOR_ALLOW_DISPOSABLE_DB_VERIFY=1`, explicit loopback `DATABASE_URL` without options,
+all migrations applied and zero initial users. It never loads `.env`, migrates or calls Omise.
+It invokes the combined seed, verifies raw PostgreSQL totals and existing service reads, tests
+real reminder writes and compares full fixture snapshots after repeated/next-day seeding. It
+retains synthetic append-only evidence: discard the owned disposable database afterwards.
