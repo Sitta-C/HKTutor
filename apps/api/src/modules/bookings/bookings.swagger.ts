@@ -21,6 +21,9 @@ import { AttendanceStatus, BookingStatus } from '@generated/prisma/enums';
 import { JWT_BEARER_AUTH } from '@modules/auth/auth.swagger';
 import {
   BookingClassDetailDto,
+  BookingCouponCodeDto,
+  BookingCouponOperationResponseDto,
+  BookingCouponQuoteResponseDto,
   BookingDetailResponseDto,
   BookingMeetingLinkDto,
   BookingQuoteResponseDto,
@@ -456,6 +459,285 @@ export function GetMyBookingDoc(): MethodDecorator {
           error: 'Not Found',
           message: 'Resource not found',
           statusCode: 404,
+        },
+        type: 'object',
+      },
+    }),
+  );
+}
+
+export function QuoteBookingCouponDoc(): MethodDecorator {
+  return applyDecorators(
+    ApiExtraModels(BookingCouponQuoteResponseDto),
+    ApiOperation({
+      summary: 'Preview a coupon discount quote for an unpaid student booking',
+      description:
+        'Read-only preview calculating authoritative subtotal, Decimal discount (HALF_UP 2 places), and net amount without reserving capacity or writing database state. Requires CONFIRMED and UNPAID booking with no payment in progress.',
+    }),
+    ApiBearerAuth(JWT_BEARER_AUTH),
+    ApiBody({ required: true, type: BookingCouponCodeDto }),
+    ApiOkResponse({
+      description: 'The coupon preview was quoted successfully',
+      schema: {
+        example: {
+          bookingId: '11111111-1111-4111-8111-111111111111',
+          coupon: {
+            code: 'WELCOME10',
+            id: '66666666-6666-4666-8666-666666666666',
+            percent: 10,
+          },
+          currency: 'THB',
+          discountAmount: '45.00',
+          netAmount: '405.00',
+          quotedAt: '2026-11-10T11:00:00.000Z',
+          subtotalAmount: '450.00',
+        },
+        allOf: [{ $ref: getSchemaPath(BookingCouponQuoteResponseDto) }],
+        type: 'object',
+      },
+    }),
+    ApiBadRequestResponse({
+      description: 'bookingId is not a valid UUID, or the request body failed validation',
+      schema: {
+        example: {
+          code: 'VALIDATION_FAILED',
+          error: 'Bad Request',
+          message: ['code must match /^[A-Z0-9_-]{3,32}$/'],
+          statusCode: 400,
+        },
+        type: 'object',
+      },
+    }),
+    ApiUnauthorizedResponse({
+      description: 'The access token or backing session is missing, invalid, or expired',
+      schema: {
+        example: {
+          code: 'UNAUTHENTICATED',
+          error: 'Unauthorized',
+          message: 'Invalid or expired authentication token',
+          statusCode: 401,
+        },
+        type: 'object',
+      },
+    }),
+    ApiForbiddenResponse({
+      description: 'Wrong role or the booking belongs to another student',
+      schema: {
+        example: {
+          code: 'BOOKING_NOT_OWNED',
+          error: 'Forbidden',
+          message: 'This booking belongs to another student',
+          statusCode: 403,
+        },
+        type: 'object',
+      },
+    }),
+    ApiNotFoundResponse({
+      description: 'The booking or coupon does not exist',
+      schema: {
+        example: {
+          code: 'COUPON_NOT_FOUND',
+          error: 'Not Found',
+          message: 'Coupon not found',
+          statusCode: 404,
+        },
+        type: 'object',
+      },
+    }),
+    ApiConflictResponse({
+      description:
+        'The coupon is inactive, expired, exhausted, or already used, or the booking is not payable, payment is in progress, or net amount is unsupported',
+      schema: {
+        example: {
+          code: 'COUPON_EXPIRED',
+          error: 'Conflict',
+          message: 'Coupon has expired',
+          statusCode: 409,
+        },
+        type: 'object',
+      },
+    }),
+  );
+}
+
+export function ApplyBookingCouponDoc(): MethodDecorator {
+  return applyDecorators(
+    ApiExtraModels(BookingCouponOperationResponseDto),
+    ApiOperation({
+      summary: 'Apply or replace a coupon on an unpaid student booking',
+      description:
+        'Atomically applies or replaces a coupon snapshot and calculated discount in a transaction with row locks. Applying the same code again returns 200 unchanged. Preserves previous snapshot on failure.',
+    }),
+    ApiBearerAuth(JWT_BEARER_AUTH),
+    ApiBody({ required: true, type: BookingCouponCodeDto }),
+    ApiOkResponse({
+      description: 'The coupon was applied or replaced successfully',
+      schema: {
+        example: {
+          bookingId: '11111111-1111-4111-8111-111111111111',
+          coupon: {
+            code: 'WELCOME10',
+            id: '66666666-6666-4666-8666-666666666666',
+            percent: 10,
+          },
+          currency: 'THB',
+          discountAmount: '45.00',
+          netAmount: '405.00',
+          paymentPending: false,
+          paymentStatus: 'UNPAID',
+          subtotalAmount: '450.00',
+        },
+        allOf: [{ $ref: getSchemaPath(BookingCouponOperationResponseDto) }],
+        type: 'object',
+      },
+    }),
+    ApiBadRequestResponse({
+      description: 'bookingId is not a valid UUID, or the request body failed validation',
+      schema: {
+        example: {
+          code: 'VALIDATION_FAILED',
+          error: 'Bad Request',
+          message: ['code must match /^[A-Z0-9_-]{3,32}$/'],
+          statusCode: 400,
+        },
+        type: 'object',
+      },
+    }),
+    ApiUnauthorizedResponse({
+      description: 'The access token or backing session is missing, invalid, or expired',
+      schema: {
+        example: {
+          code: 'UNAUTHENTICATED',
+          error: 'Unauthorized',
+          message: 'Invalid or expired authentication token',
+          statusCode: 401,
+        },
+        type: 'object',
+      },
+    }),
+    ApiForbiddenResponse({
+      description: 'Wrong role or the booking belongs to another student',
+      schema: {
+        example: {
+          code: 'BOOKING_NOT_OWNED',
+          error: 'Forbidden',
+          message: 'This booking belongs to another student',
+          statusCode: 403,
+        },
+        type: 'object',
+      },
+    }),
+    ApiNotFoundResponse({
+      description: 'The booking or coupon does not exist',
+      schema: {
+        example: {
+          code: 'COUPON_NOT_FOUND',
+          error: 'Not Found',
+          message: 'Coupon not found',
+          statusCode: 404,
+        },
+        type: 'object',
+      },
+    }),
+    ApiConflictResponse({
+      description:
+        'The coupon is inactive, expired, exhausted, or already used, or the booking is not payable, payment is in progress, or net amount is unsupported',
+      schema: {
+        example: {
+          code: 'PAYMENT_IN_PROGRESS',
+          error: 'Conflict',
+          message: 'A payment is currently in progress',
+          statusCode: 409,
+        },
+        type: 'object',
+      },
+    }),
+  );
+}
+
+export function RemoveBookingCouponDoc(): MethodDecorator {
+  return applyDecorators(
+    ApiExtraModels(BookingCouponOperationResponseDto),
+    ApiOperation({
+      summary: 'Remove an applied coupon from an unpaid student booking',
+      description:
+        'Atomically clears the applied coupon snapshot, restoring netAmount = subtotalAmount and discountAmount = 0.00. Empty request body and query. Already removed returns 200 unchanged.',
+    }),
+    ApiBearerAuth(JWT_BEARER_AUTH),
+    ApiOkResponse({
+      description: 'The coupon was removed successfully, or was already removed',
+      schema: {
+        example: {
+          bookingId: '11111111-1111-4111-8111-111111111111',
+          coupon: null,
+          currency: 'THB',
+          discountAmount: '0.00',
+          netAmount: '450.00',
+          paymentPending: false,
+          paymentStatus: 'UNPAID',
+          subtotalAmount: '450.00',
+        },
+        allOf: [{ $ref: getSchemaPath(BookingCouponOperationResponseDto) }],
+        type: 'object',
+      },
+    }),
+    ApiBadRequestResponse({
+      description: 'bookingId is not a valid UUID, or unexpected body/query was provided',
+      schema: {
+        example: {
+          code: 'VALIDATION_FAILED',
+          error: 'Bad Request',
+          message: 'Coupon removal accepts an empty body only',
+          statusCode: 400,
+        },
+        type: 'object',
+      },
+    }),
+    ApiUnauthorizedResponse({
+      description: 'The access token or backing session is missing, invalid, or expired',
+      schema: {
+        example: {
+          code: 'UNAUTHENTICATED',
+          error: 'Unauthorized',
+          message: 'Invalid or expired authentication token',
+          statusCode: 401,
+        },
+        type: 'object',
+      },
+    }),
+    ApiForbiddenResponse({
+      description: 'Wrong role or the booking belongs to another student',
+      schema: {
+        example: {
+          code: 'BOOKING_NOT_OWNED',
+          error: 'Forbidden',
+          message: 'This booking belongs to another student',
+          statusCode: 403,
+        },
+        type: 'object',
+      },
+    }),
+    ApiNotFoundResponse({
+      description: 'The booking does not exist',
+      schema: {
+        example: {
+          code: 'BOOKING_NOT_FOUND',
+          error: 'Not Found',
+          message: 'Booking not found',
+          statusCode: 404,
+        },
+        type: 'object',
+      },
+    }),
+    ApiConflictResponse({
+      description:
+        'The booking is not payable, payment is in progress, or restored amount is unsupported',
+      schema: {
+        example: {
+          code: 'PAYMENT_AMOUNT_UNSUPPORTED',
+          error: 'Conflict',
+          message: 'PromptPay supports THB 20.00–150,000.00',
+          statusCode: 409,
         },
         type: 'object',
       },
