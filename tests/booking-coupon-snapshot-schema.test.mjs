@@ -1,9 +1,27 @@
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import fs from 'node:fs/promises';
 import test from 'node:test';
 
 const migration =
   'apps/api/prisma/migrations/20261111120000_add_booking_coupon_snapshots/migration.sql';
+
+test('DB03 retry correction preserves the applied migration and changes only its guard function', async () => {
+  const original = await fs.readFile(migration);
+  assert.equal(
+    createHash('sha256').update(original).digest('hex'),
+    '7b523caf8347cef3c4cd4a8ee6ade160bb1026bbaf9d332d699984c7e090a639',
+    'The original DB03 migration has already been applied on dev',
+  );
+  const correction = await fs.readFile(
+    'apps/api/prisma/migrations/20261111160000_preserve_coupon_reservation_retries/migration.sql',
+    'utf8',
+  );
+  assert.match(correction, /^BEGIN;/);
+  assert.match(correction, /COMMIT;\s*$/);
+  assert.match(correction, /CREATE OR REPLACE FUNCTION "guard_reservation_price_snapshot"/);
+  assert.doesNotMatch(correction, /\b(ALTER|DROP|INSERT|UPDATE|DELETE|TRUNCATE)\b/);
+});
 
 test('DB03 adds nullable coupon evidence without rebuilding existing monetary columns or indexes', async () => {
   const schema = await fs.readFile('apps/api/prisma/schema.prisma', 'utf8');

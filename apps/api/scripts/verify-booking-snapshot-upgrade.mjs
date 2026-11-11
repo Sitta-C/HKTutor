@@ -7,6 +7,7 @@ import pg from 'pg';
 import { disposableDatabaseUrl } from './verify-review-database.mjs';
 
 const MIGRATION = '20261111120000_add_booking_coupon_snapshots';
+const RETRY_MIGRATION = '20261111160000_preserve_coupon_reservation_retries';
 const NOW = '2030-01-01T00:00:00.000Z';
 const { Pool, DatabaseError } = pg;
 
@@ -141,8 +142,9 @@ async function main() {
       .filter((entry) => entry.isDirectory())
       .map((entry) => entry.name)
       .sort();
-    assert.equal(names.at(-1), MIGRATION, 'Update the harness when adding later migrations');
-    for (const name of names.filter((name) => name !== MIGRATION)) {
+    assert.equal(names.at(-1), RETRY_MIGRATION, 'Update the harness when adding later migrations');
+    assert.ok(names.includes(MIGRATION));
+    for (const name of names.filter((name) => name < MIGRATION)) {
       await pool.query(await readFile(new URL(`${name}/migration.sql`, root), 'utf8'));
     }
     for (const [id, role] of [
@@ -423,6 +425,122 @@ async function main() {
     );
     process.stdout.write(
       '450/450/0 settles with one matching CouponUse and no provider attempt; forged receipts rejected.\n',
+    );
+
+    // Reproduce the review's released-operation replay on the already-applied DB03 version.
+    const retryCoupon = await coupon(10);
+    const retryBooking = await booking();
+    await apply(retryBooking, retryCoupon);
+    const retryAttempt = await attempt(retryBooking);
+    const retryId = randomUUID();
+    async function retryReservation(overrides = {}, client = pool) {
+      const input = {
+        id: retryId,
+        coupon: retryCoupon.id,
+        booking: retryBooking,
+        student,
+        attempt: retryAttempt,
+        discount: '45.00',
+        ...overrides,
+      };
+      return client.query(
+        `INSERT INTO "CouponReservation" (id,"couponId","bookingId","studentUserId","paymentAttemptId","discountAmount","createdAt")
+         VALUES ($1,$2,$3,$4,$5,$6,$7) ON CONFLICT (id) DO NOTHING RETURNING id`,
+        [input.id, input.coupon, input.booking, input.student, input.attempt, input.discount, NOW],
+      );
+    }
+    async function retryEvidence() {
+      return (
+        await pool.query(
+          `SELECT
+         (SELECT to_jsonb(r) FROM "CouponReservation" r WHERE id=$1) AS reservation,
+         (SELECT to_jsonb(a) FROM "PaymentAttempt" a WHERE id=$2) AS attempt,
+         (SELECT to_jsonb(b) FROM "Booking" b WHERE id=$3) AS booking,
+         (SELECT jsonb_agg(to_jsonb(l) ORDER BY id) FROM "AuditLog" l WHERE "entityId"=$1) AS audit,
+         (SELECT count(*)::int FROM "CouponUse" WHERE "bookingId"=$3) AS uses`,
+          [retryId, retryAttempt, retryBooking],
+        )
+      ).rows[0];
+    }
+    assert.equal((await retryReservation()).rowCount, 1);
+    await transaction(async (client) => {
+      await client.query(`UPDATE "PaymentAttempt" SET status='FAILED' WHERE id=$1`, [retryAttempt]);
+      await client.query(
+        `UPDATE "CouponReservation" SET status='RELEASED',"releasedAt"=$2 WHERE id=$1`,
+        [retryId, NOW],
+      );
+    });
+    assert.equal((await retryReservation()).rowCount, 0);
+    await pool.query(
+      `UPDATE "Booking" SET "subtotalAmount"=500,"discountAmount"=50,"netAmount"=450 WHERE id=$1`,
+      [retryBooking],
+    );
+    await rejected(() => retryReservation());
+    process.stdout.write(
+      'Reproduced original DB03 rejection of a canonical released retry after repricing.\n',
+    );
+
+    const beforeCorrection = await retryEvidence();
+    await pool.query(await readFile(new URL(`${RETRY_MIGRATION}/migration.sql`, root), 'utf8'));
+    assert.deepEqual(await retryEvidence(), beforeCorrection);
+    assert.equal((await retryReservation()).rowCount, 0);
+    assert.deepEqual(await retryEvidence(), beforeCorrection);
+
+    const replacementCoupon = await coupon(20);
+    await apply(retryBooking, replacementCoupon);
+    const afterReplacement = await retryEvidence();
+    assert.equal((await retryReservation()).rowCount, 0);
+    const concurrentRetries = await Promise.all([retryReservation(), retryReservation()]);
+    assert.deepEqual(
+      concurrentRetries.map((result) => result.rowCount),
+      [0, 0],
+    );
+    assert.deepEqual(await retryEvidence(), afterReplacement);
+    assert.equal(afterReplacement.reservation.status, 'RELEASED');
+    assert.equal(afterReplacement.attempt.status, 'FAILED');
+    assert.equal(afterReplacement.attempt.amount, 405);
+    assert.equal(afterReplacement.uses, 0);
+    assert.equal(afterReplacement.audit.length, 2);
+
+    // Same ID never authorizes changed immutable input; a fresh ID still checks current pricing.
+    for (const overrides of [
+      { discount: '44.00' },
+      { coupon: replacementCoupon.id },
+      { booking: unsupported },
+      { student: tutor },
+      { attempt: randomUUID() },
+    ]) {
+      await rejected(() => retryReservation(overrides));
+    }
+    await rejected(() => retryReservation({ id: randomUUID() }));
+    await rejected(() =>
+      retryReservation({ id: randomUUID(), coupon: replacementCoupon.id, discount: '100.00' }),
+    );
+    assert.deepEqual(await retryEvidence(), afterReplacement);
+    const replacementAttempt = await attempt(retryBooking);
+    const freshReservation = randomUUID();
+    assert.equal(
+      (
+        await retryReservation({
+          id: freshReservation,
+          coupon: replacementCoupon.id,
+          attempt: replacementAttempt,
+          discount: '100.00',
+        })
+      ).rowCount,
+      1,
+    );
+    assert.equal(
+      (await pool.query(`SELECT status FROM "CouponReservation" WHERE id=$1`, [freshReservation]))
+        .rows[0].status,
+      'RESERVED',
+    );
+    // A historical retry also cannot duplicate the current reservation or its audit event.
+    const withFreshReservation = await retryEvidence();
+    assert.equal((await retryReservation()).rowCount, 0);
+    assert.deepEqual(await retryEvidence(), withFreshReservation);
+    process.stdout.write(
+      'Forward correction: released retries survive repricing/coupon replacement, concurrent replays are no-ops, mismatched identities and stale new claims fail.\n',
     );
 
     const raced = await booking();

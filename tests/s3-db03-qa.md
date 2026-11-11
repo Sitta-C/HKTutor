@@ -101,3 +101,47 @@ successfully, and a subsequent `pnpm db:migrate:status` exited successfully with
 
 No seed, reset, disposable verifier or provider-charge operation was run against dev. The database
 verification evidence above remains from the isolated disposable PostgreSQL databases.
+
+## PR review correction: canonical retries after repricing
+
+The [P2 review](https://github.com/Sitta-C/HKTutor/pull/162#discussion_r4535158591) identified a
+released-operation retry incorrectly checked against current Booking pricing. The original applied
+DB03 SQL is unchanged (SHA-256
+`7b523caf8347cef3c4cd4a8ee6ade160bb1026bbaf9d332d699984c7e090a639`). The new forward migration
+`20261111160000_preserve_coupon_reservation_retries` replaces only
+`guard_reservation_price_snapshot`; it changes no stored evidence, columns, indexes or locks.
+
+The guard validates identical immutable input against the canonical reservation before checking
+current pricing for a new claim. It returns NEW so PostgreSQL still performs normal
+`ON CONFLICT (id) DO NOTHING` handling. DB02's existing guard retains its booking → coupon locks
+and rejects operation-ID reuse with different immutable input. No terminal row is overwritten.
+
+The upgrade verifier now runs both versions: original DB03 reproduces `23514` after a released
+10% reservation's booking changes from 450/45/405 to 500/50/450. The forward correction then
+allows the same original operation as a zero-row no-op. Replacing the coupon with 20% also
+preserves the retry. Concurrent retries return zero inserted rows, preserving complete reservation,
+attempt, booking and audit evidence with no CouponUse. Changed amount/coupon/booking/student/attempt
+inputs are rejected. Fresh stale claims are rejected; a fresh current-price claim succeeds, and
+the historical retry remains a no-op even while that newer reservation is active.
+
+Actual correction verification on 2026-11-11:
+
+- `pnpm db:verify:booking-snapshots`: all upgrade, original-failure reproduction, corrected retry,
+  invalid-input, settlement and amount-contention checks passed on PostgreSQL 17 Alpine.
+- Clean `pnpm db:migrate:deploy` applied all 27 migrations to a separate empty disposable database.
+- `pnpm db:verify:coupons` and `pnpm db:verify:payments` passed against that database, including
+  capacity/reuse/rollback checks and eight payment/cancellation races (stubbed Omise).
+- `pnpm verify:workspace`: 136 passed, including a checksum contract for the applied SQL and a
+  forward-migration contract ensuring the correction changes only the guard function.
+- `pnpm check`: passed formatting, all workspace lint, 1,614 API tests, 725 web tests and API/web
+  builds. No Prisma model or HTTP/wire contract changed in this correction.
+- `pnpm --filter @hktutor/api test:e2e --runInBand`: 25 suites / 664 passed.
+
+Disposable targets were `hktutor_snapshot_retry_test` and `hktutor_snapshot_retry_deploy_test` in
+the task-created `hktutor-s3-db03-retry-test` container at `127.0.0.1:55454`. No shared/dev target
+was used for synthetic verification.
+
+Using the user's existing authorization for this dev database, `pnpm db:migrate:status` identified
+only `20261111160000_preserve_coupon_reservation_retries` as pending. `pnpm db:migrate:deploy`
+applied it successfully; a final status reported all 27 migrations up to date. No seed, reset,
+synthetic verification or provider operation was run on dev.

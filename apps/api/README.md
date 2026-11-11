@@ -2450,6 +2450,14 @@ amount to immutable CouponUse; all-null legacy reservations retain their existin
 Writers must keep the existing booking → coupon → attempt lock order. The payment service's
 conditional claim now compares the whole pricing/coupon snapshot, including same-net changes.
 
+`20261111160000_preserve_coupon_reservation_retries` corrects the reservation guard without
+rewriting the already-applied DB03 migration. An identical stable-operation retry is checked against
+the original reservation before current booking pricing is considered. After failure/release and
+repricing or coupon replacement, `INSERT ... ON CONFLICT (id) DO NOTHING` still inserts zero rows
+and preserves the original terminal state, timestamps, discount and audit evidence. Reusing an ID
+with changed immutable input is rejected; a new ID still requires the current booking/attempt
+snapshot. The existing DB02 guard continues to serialize booking → coupon writes before this check.
+
 New zero pricing requires a 100% coupon. Existing zero history can still change non-pricing
 fields. A zero paid booking requires `paymentReference = coupon:<CouponUse.id>`, the matching
 student/booking/coupon/discount evidence and no provider attempt. A deferred constraint checks
@@ -2475,6 +2483,9 @@ mock/PromptPay/discount/zero/canceled/rescheduled evidence, then executes DB03. 
 original Booking/PaymentAttempt field and existing indexes/checks, validates snapshots and
 settlement, and observes real row-lock contention. Append-only evidence stays in that disposable
 database; discard the container afterwards. It runs separately from `pnpm check`.
+The runner also reproduces the released-retry failure on original DB03, applies the forward
+correction, and verifies identical/concurrent retries after repricing and coupon replacement,
+rejection of changed immutable input and stale new claims, and successful current-price claims.
 
 ```bash
 docker run --detach --name hktutor-s3-db03-test \
@@ -2493,6 +2504,8 @@ Apply the new additive migration through the normal reviewed deployment workflow
 deploying the new API. Roll back application code without removing committed snapshot/evidence
 columns. Database/provider-backed coupon journeys, new endpoints and their full API authorization
 matrix remain T25/T26/T28; this verification does not certify live Omise behavior.
+Databases with the original DB03 already applied must also apply the forward retry correction;
+the correction changes only the trigger function, without rewriting any evidence rows.
 See [S3-DB03 evidence](../../tests/s3-db03-qa.md) for actual commands/results.
 
 ## Admin coupon APIs (S3-T21)
