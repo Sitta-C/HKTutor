@@ -17,7 +17,7 @@ import {
 
 import { UuidParamPipe } from '@common/pipes/uuid-param.pipe';
 import { Role } from '@generated/prisma/client';
-import { CurrentUser } from '@modules/auth/auth.decorator';
+import { CurrentUser, RequireCurrentConsent } from '@modules/auth/auth.decorator';
 import { JwtAuthGuard } from '@modules/auth/auth.guard';
 import { RequireOwnership } from '@modules/auth/ownership.decorator';
 import { ResourceOwnershipGuard } from '@modules/auth/ownership.guard';
@@ -189,6 +189,7 @@ export class BookingsController {
 
   @Post('me/:bookingId/coupon-quote')
   @HttpCode(HttpStatus.OK)
+  @RequireCurrentConsent()
   @Header('Cache-Control', 'no-store')
   @QuoteBookingCouponDoc()
   @Roles(Role.STUDENT)
@@ -205,6 +206,7 @@ export class BookingsController {
 
   @Put('me/:bookingId/coupon')
   @HttpCode(HttpStatus.OK)
+  @RequireCurrentConsent()
   @Header('Cache-Control', 'no-store')
   @ApplyBookingCouponDoc()
   @Roles(Role.STUDENT)
@@ -221,6 +223,7 @@ export class BookingsController {
 
   @Delete('me/:bookingId/coupon')
   @HttpCode(HttpStatus.OK)
+  @RequireCurrentConsent()
   @Header('Cache-Control', 'no-store')
   @RemoveBookingCouponDoc()
   @Roles(Role.STUDENT)

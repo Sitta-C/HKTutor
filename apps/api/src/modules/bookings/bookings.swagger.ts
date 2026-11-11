@@ -521,7 +521,8 @@ export function QuoteBookingCouponDoc(): MethodDecorator {
       },
     }),
     ApiForbiddenResponse({
-      description: 'Wrong role or the booking belongs to another student',
+      description:
+        'Wrong role, booking belongs to another student, or privacy policy consent is missing/outdated',
       schema: {
         example: {
           code: 'BOOKING_NOT_OWNED',
@@ -616,7 +617,8 @@ export function ApplyBookingCouponDoc(): MethodDecorator {
       },
     }),
     ApiForbiddenResponse({
-      description: 'Wrong role or the booking belongs to another student',
+      description:
+        'Wrong role, booking belongs to another student, or privacy policy consent is missing/outdated',
       schema: {
         example: {
           code: 'BOOKING_NOT_OWNED',
@@ -706,7 +708,8 @@ export function RemoveBookingCouponDoc(): MethodDecorator {
       },
     }),
     ApiForbiddenResponse({
-      description: 'Wrong role or the booking belongs to another student',
+      description:
+        'Wrong role, booking belongs to another student, or privacy policy consent is missing/outdated',
       schema: {
         example: {
           code: 'BOOKING_NOT_OWNED',

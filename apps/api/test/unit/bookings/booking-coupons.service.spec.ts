@@ -56,8 +56,23 @@ describe('BookingCouponsService', () => {
   });
 
   describe('assertSupportedPaymentAmount', () => {
-    it('accepts zero net amount for approved full-coupon settlement', () => {
-      expect(() => assertSupportedPaymentAmount(new Prisma.Decimal(0))).not.toThrow();
+    it('accepts zero net amount for approved full-coupon settlement (percent === 100)', () => {
+      expect(() => assertSupportedPaymentAmount(new Prisma.Decimal(0), 100)).not.toThrow();
+    });
+
+    it('rejects zero net amount when coupon is not 100%', () => {
+      expect(() => assertSupportedPaymentAmount(new Prisma.Decimal(0), 99)).toThrow(
+        new ConflictException({
+          code: 'PAYMENT_AMOUNT_UNSUPPORTED',
+          message: 'PromptPay supports THB 20.00–150,000.00',
+        }),
+      );
+      expect(() => assertSupportedPaymentAmount(new Prisma.Decimal(0), null)).toThrow(
+        new ConflictException({
+          code: 'PAYMENT_AMOUNT_UNSUPPORTED',
+          message: 'PromptPay supports THB 20.00–150,000.00',
+        }),
+      );
     });
 
     it('accepts valid amounts within THB 20.00 to 150,000.00', () => {
@@ -182,6 +197,10 @@ describe('BookingCouponsService', () => {
 
     function baseCouponRow(overrides: Partial<Record<string, unknown>> = {}) {
       return {
+        _count: {
+          reservations: 0,
+          uses: 0,
+        },
         active: true,
         code: 'WELCOME10',
         expiresAt: new Date(Date.now() + 86400000),
@@ -469,9 +488,7 @@ describe('BookingCouponsService', () => {
         const {
           mockBookingFindUnique,
           mockCouponFindUnique,
-          mockCouponReservationCount,
           mockCouponReservationFindFirst,
-          mockCouponUseCount,
           mockCouponUseFindUnique,
           mockPaymentAttemptFindFirst,
           prisma,
@@ -479,10 +496,10 @@ describe('BookingCouponsService', () => {
         mockBookingFindUnique.mockResolvedValue(baseBookingRow());
         mockPaymentAttemptFindFirst.mockResolvedValue(null);
         mockCouponReservationFindFirst.mockResolvedValue(null);
-        mockCouponFindUnique.mockResolvedValue(baseCouponRow({ maxUses: 10 }));
+        mockCouponFindUnique.mockResolvedValue(
+          baseCouponRow({ maxUses: 10, _count: { reservations: 2, uses: 8 } }),
+        );
         mockCouponUseFindUnique.mockResolvedValue(null);
-        mockCouponUseCount.mockResolvedValue(8);
-        mockCouponReservationCount.mockResolvedValue(2); // 8 + 2 = 10 (exhausted)
 
         const service = new BookingCouponsService(prisma);
         await expect(
@@ -520,6 +537,27 @@ describe('BookingCouponsService', () => {
         const service = new BookingCouponsService(prisma);
         await expect(
           service.quoteCoupon(bookingId, studentUserId, { code: 'WELCOME85' }),
+        ).rejects.toThrow(
+          new ConflictException({
+            code: 'PAYMENT_AMOUNT_UNSUPPORTED',
+            message: 'PromptPay supports THB 20.00–150,000.00',
+          }),
+        );
+      });
+
+      it('rejects rounding-induced zero net amount for non-100% coupon with 409 PAYMENT_AMOUNT_UNSUPPORTED', async () => {
+        const { mockBookingFindUnique, mockCouponFindUnique, mockPaymentAttemptFindFirst, prisma } =
+          createMockPrisma();
+
+        mockBookingFindUnique.mockResolvedValue(
+          baseBookingRow({ subtotalAmount: new Prisma.Decimal('0.50') }),
+        );
+        mockPaymentAttemptFindFirst.mockResolvedValue(null);
+        mockCouponFindUnique.mockResolvedValue(baseCouponRow({ percent: 99 }));
+
+        const service = new BookingCouponsService(prisma);
+        await expect(
+          service.quoteCoupon(bookingId, studentUserId, { code: 'WELCOME99' }),
         ).rejects.toThrow(
           new ConflictException({
             code: 'PAYMENT_AMOUNT_UNSUPPORTED',
@@ -753,6 +791,53 @@ describe('BookingCouponsService', () => {
           discountAmount: '450.00',
           netAmount: '0.00',
         });
+      });
+
+      it('rejects rounding-induced zero net amount for non-100% coupon with 409 PAYMENT_AMOUNT_UNSUPPORTED before write', async () => {
+        const {
+          mockBookingFindUnique,
+          mockBookingUpdate,
+          mockCouponFindUnique,
+          mockPaymentAttemptFindFirst,
+          prisma,
+        } = createMockPrisma();
+
+        mockBookingFindUnique.mockResolvedValue(
+          baseBookingRow({ subtotalAmount: new Prisma.Decimal('0.50') }),
+        );
+        mockPaymentAttemptFindFirst.mockResolvedValue(null);
+        mockCouponFindUnique.mockResolvedValue(baseCouponRow({ percent: 99 }));
+
+        const service = new BookingCouponsService(prisma);
+        await expect(
+          service.applyCoupon(bookingId, studentUserId, { code: 'WELCOME99' }),
+        ).rejects.toThrow(
+          new ConflictException({
+            code: 'PAYMENT_AMOUNT_UNSUPPORTED',
+            message: 'PromptPay supports THB 20.00–150,000.00',
+          }),
+        );
+        expect(mockBookingUpdate).not.toHaveBeenCalled();
+      });
+
+      it('throws 409 COUPON_EXHAUSTED when coupon maxUses is reached in apply', async () => {
+        const { mockBookingFindUnique, mockCouponFindUnique, mockPaymentAttemptFindFirst, prisma } =
+          createMockPrisma();
+        mockBookingFindUnique.mockResolvedValue(baseBookingRow());
+        mockPaymentAttemptFindFirst.mockResolvedValue(null);
+        mockCouponFindUnique.mockResolvedValue(
+          baseCouponRow({ maxUses: 10, _count: { reservations: 4, uses: 6 } }),
+        );
+
+        const service = new BookingCouponsService(prisma);
+        await expect(
+          service.applyCoupon(bookingId, studentUserId, { code: 'WELCOME10' }),
+        ).rejects.toThrow(
+          new ConflictException({
+            code: 'COUPON_EXHAUSTED',
+            message: 'Coupon usage limit reached',
+          }),
+        );
       });
     });
 

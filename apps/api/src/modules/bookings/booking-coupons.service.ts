@@ -45,6 +45,12 @@ const couponEligibilitySelect = {
   id: true,
   maxUses: true,
   percent: true,
+  _count: {
+    select: {
+      uses: true,
+      reservations: { where: { status: CouponReservationStatus.RESERVED } },
+    },
+  },
 } satisfies Prisma.CouponSelect;
 
 type CouponRecord = Prisma.CouponGetPayload<{ select: typeof couponEligibilitySelect }>;
@@ -64,9 +70,18 @@ export function calculateCouponDiscount(
   return { discountAmount, netAmount };
 }
 
-export function assertSupportedPaymentAmount(netAmount: Prisma.Decimal): void {
+export function assertSupportedPaymentAmount(
+  netAmount: Prisma.Decimal,
+  percent?: number | null,
+): void {
   if (netAmount.equals(0)) {
-    return;
+    if (percent === 100) {
+      return;
+    }
+    throw new ConflictException({
+      code: 'PAYMENT_AMOUNT_UNSUPPORTED',
+      message: 'PromptPay supports THB 20.00–150,000.00',
+    });
   }
   const subunits = netAmount.mul(100);
   if (!subunits.isInteger() || subunits.lt(2000) || subunits.gt(15_000_000)) {
@@ -195,15 +210,8 @@ async function validateCouponEligibility(
     });
   }
 
-  const consumedUses = await database.couponUse.count({
-    where: { couponId: coupon.id },
-  });
-  const reservedUses = await database.couponReservation.count({
-    where: {
-      couponId: coupon.id,
-      status: CouponReservationStatus.RESERVED,
-    },
-  });
+  const consumedUses = coupon._count.uses;
+  const reservedUses = coupon._count.reservations;
   if (consumedUses + reservedUses >= coupon.maxUses) {
     throw new ConflictException({
       code: 'COUPON_EXHAUSTED',
@@ -256,7 +264,7 @@ export class BookingCouponsService {
       booking.subtotalAmount,
       coupon.percent,
     );
-    assertSupportedPaymentAmount(netAmount);
+    assertSupportedPaymentAmount(netAmount, coupon.percent);
 
     return {
       bookingId: booking.id,
@@ -315,7 +323,7 @@ export class BookingCouponsService {
         booking.subtotalAmount,
         coupon.percent,
       );
-      assertSupportedPaymentAmount(netAmount);
+      assertSupportedPaymentAmount(netAmount, coupon.percent);
 
       if (
         booking.appliedCouponId === coupon.id &&

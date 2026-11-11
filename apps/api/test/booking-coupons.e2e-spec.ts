@@ -5,6 +5,7 @@ import { configureApplication } from '@app/app.setup';
 import { AccountStatus, Prisma, Role } from '@generated/prisma/client';
 import { BookingStatus, PaymentStatus } from '@generated/prisma/enums';
 import { PrismaService } from '@infrastructure/database/prisma.service';
+import { CURRENT_PRIVACY_POLICY_VERSION } from '@modules/auth/auth.constants';
 import { JwtAuthGuard } from '@modules/auth/auth.guard';
 import { JwtTokenService } from '@modules/auth/jwt.service';
 import { ResourceOwnershipGuard } from '@modules/auth/ownership.guard';
@@ -102,7 +103,14 @@ describe('Booking coupons HTTP contract (e2e)', () => {
     authenticate(Role.STUDENT);
   });
 
-  function authenticate(role: Role = Role.STUDENT, userId = STUDENT_ID): void {
+  function authenticate(
+    role: Role = Role.STUDENT,
+    userId = STUDENT_ID,
+    consentOverrides: Partial<{
+      consentAcceptedAt: Date | null;
+      policyVersion: string | null;
+    }> = {},
+  ): void {
     verifyAccessToken.mockReturnValue({ sid: 'session-id', sub: userId });
     authSessionFindUnique.mockResolvedValue({
       expiresAt: new Date(Date.now() + 60_000),
@@ -110,11 +118,14 @@ describe('Booking coupons HTTP contract (e2e)', () => {
       revokedAt: null,
       user: {
         accountStatus: AccountStatus.ACTIVE,
+        consentAcceptedAt: new Date(),
         deletedAt: null,
         email: 'student@example.com',
         emailVerifiedAt: new Date(),
         id: userId,
+        policyVersion: CURRENT_PRIVACY_POLICY_VERSION,
         role,
+        ...consentOverrides,
       },
       userId,
     });
@@ -141,6 +152,10 @@ describe('Booking coupons HTTP contract (e2e)', () => {
 
   function mockCoupon(overrides: Partial<Record<string, unknown>> = {}) {
     return {
+      _count: {
+        reservations: 0,
+        uses: 0,
+      },
       active: true,
       code: 'WELCOME10',
       expiresAt: new Date(Date.now() + 86400000),
@@ -305,6 +320,96 @@ describe('Booking coupons HTTP contract (e2e)', () => {
         statusCode: 409,
       });
     });
+
+    it('rejects quote request with 403 when privacy consent was never accepted', async () => {
+      authenticate(Role.STUDENT, STUDENT_ID, { consentAcceptedAt: null });
+
+      const response = await request(app.getHttpServer())
+        .post(`${BASE_URL}/coupon-quote`)
+        .set('Authorization', 'Bearer signed-token')
+        .send({ code: 'WELCOME10' })
+        .expect(403);
+
+      expect(response.body).toMatchObject({
+        statusCode: 403,
+      });
+    });
+
+    it('rejects quote request with 403 when privacy policyVersion is outdated', async () => {
+      authenticate(Role.STUDENT, STUDENT_ID, { policyVersion: '2025-01-01' });
+
+      const response = await request(app.getHttpServer())
+        .post(`${BASE_URL}/coupon-quote`)
+        .set('Authorization', 'Bearer signed-token')
+        .send({ code: 'WELCOME10' })
+        .expect(403);
+
+      expect(response.body).toMatchObject({
+        statusCode: 403,
+      });
+    });
+
+    it('returns 409 PAYMENT_AMOUNT_UNSUPPORTED when rounding produces net 0.00 for non-100% coupon', async () => {
+      // 0.50 subtotal with 99% discount rounds HALF_UP to 0.50 discount -> net 0.00, which is invalid without 100% coupon
+      bookingFindUnique.mockResolvedValue(
+        mockBooking({ subtotalAmount: new Prisma.Decimal('0.50') }),
+      );
+      paymentAttemptFindFirst.mockResolvedValue(null);
+      couponReservationFindFirst.mockResolvedValue(null);
+      couponFindUnique.mockResolvedValue(mockCoupon({ percent: 99 }));
+      couponUseFindUnique.mockResolvedValue(null);
+
+      const response = await request(app.getHttpServer())
+        .post(`${BASE_URL}/coupon-quote`)
+        .set('Authorization', 'Bearer signed-token')
+        .send({ code: 'WELCOME99' })
+        .expect(409);
+
+      expect(response.body).toMatchObject({
+        code: 'PAYMENT_AMOUNT_UNSUPPORTED',
+        statusCode: 409,
+      });
+    });
+
+    it('returns 200 with net 0.00 for valid 100% coupon', async () => {
+      bookingFindUnique.mockResolvedValue(mockBooking());
+      paymentAttemptFindFirst.mockResolvedValue(null);
+      couponReservationFindFirst.mockResolvedValue(null);
+      couponFindUnique.mockResolvedValue(mockCoupon({ code: 'FREE100', percent: 100 }));
+      couponUseFindUnique.mockResolvedValue(null);
+
+      const response = await request(app.getHttpServer())
+        .post(`${BASE_URL}/coupon-quote`)
+        .set('Authorization', 'Bearer signed-token')
+        .send({ code: 'FREE100' })
+        .expect(200);
+
+      expect(response.body).toMatchObject({
+        discountAmount: '450.00',
+        netAmount: '0.00',
+      });
+    });
+
+    it('returns 409 COUPON_EXHAUSTED when coupon maxUses is reached in single _count read', async () => {
+      bookingFindUnique.mockResolvedValue(mockBooking());
+      paymentAttemptFindFirst.mockResolvedValue(null);
+      couponReservationFindFirst.mockResolvedValue(null);
+      couponFindUnique.mockResolvedValue(
+        mockCoupon({ maxUses: 10, _count: { reservations: 2, uses: 8 } }),
+      );
+      couponUseFindUnique.mockResolvedValue(null);
+
+      const response = await request(app.getHttpServer())
+        .post(`${BASE_URL}/coupon-quote`)
+        .set('Authorization', 'Bearer signed-token')
+        .send({ code: 'WELCOME10' })
+        .expect(409);
+
+      expect(response.body).toMatchObject({
+        code: 'COUPON_EXHAUSTED',
+        statusCode: 409,
+      });
+    });
   });
 
   describe('PUT /api/v1/bookings/me/:bookingId/coupon', () => {
@@ -405,6 +510,84 @@ describe('Booking coupons HTTP contract (e2e)', () => {
         statusCode: 409,
       });
     });
+
+    it('rejects apply request with 403 when privacy consent was never accepted', async () => {
+      authenticate(Role.STUDENT, STUDENT_ID, { consentAcceptedAt: null });
+
+      const response = await request(app.getHttpServer())
+        .put(`${BASE_URL}/coupon`)
+        .set('Authorization', 'Bearer signed-token')
+        .send({ code: 'WELCOME10' })
+        .expect(403);
+
+      expect(response.body).toMatchObject({
+        statusCode: 403,
+      });
+    });
+
+    it('rejects apply request with 403 when privacy policyVersion is outdated', async () => {
+      authenticate(Role.STUDENT, STUDENT_ID, { policyVersion: '2025-01-01' });
+
+      const response = await request(app.getHttpServer())
+        .put(`${BASE_URL}/coupon`)
+        .set('Authorization', 'Bearer signed-token')
+        .send({ code: 'WELCOME10' })
+        .expect(403);
+
+      expect(response.body).toMatchObject({
+        statusCode: 403,
+      });
+    });
+
+    it('returns 409 PAYMENT_AMOUNT_UNSUPPORTED when rounding produces net 0.00 for non-100% coupon before write', async () => {
+      bookingFindUnique.mockResolvedValue(
+        mockBooking({ subtotalAmount: new Prisma.Decimal('0.50') }),
+      );
+      paymentAttemptFindFirst.mockResolvedValue(null);
+      couponReservationFindFirst.mockResolvedValue(null);
+      couponFindUnique.mockResolvedValue(mockCoupon({ percent: 99 }));
+      couponUseFindUnique.mockResolvedValue(null);
+
+      const response = await request(app.getHttpServer())
+        .put(`${BASE_URL}/coupon`)
+        .set('Authorization', 'Bearer signed-token')
+        .send({ code: 'WELCOME99' })
+        .expect(409);
+
+      expect(response.body).toMatchObject({
+        code: 'PAYMENT_AMOUNT_UNSUPPORTED',
+        statusCode: 409,
+      });
+      expect(bookingUpdate).not.toHaveBeenCalled();
+    });
+
+    it('applies a 100% coupon successfully yielding net 0.00', async () => {
+      bookingFindUnique.mockResolvedValue(mockBooking());
+      paymentAttemptFindFirst.mockResolvedValue(null);
+      couponReservationFindFirst.mockResolvedValue(null);
+      couponFindUnique.mockResolvedValue(mockCoupon({ code: 'FREE100', percent: 100 }));
+      couponUseFindUnique.mockResolvedValue(null);
+      bookingUpdate.mockResolvedValue(
+        mockBooking({
+          appliedCouponCode: 'FREE100',
+          appliedCouponId: COUPON_ID,
+          appliedCouponPercent: 100,
+          discountAmount: new Prisma.Decimal(450),
+          netAmount: new Prisma.Decimal(0),
+        }),
+      );
+
+      const response = await request(app.getHttpServer())
+        .put(`${BASE_URL}/coupon`)
+        .set('Authorization', 'Bearer signed-token')
+        .send({ code: 'FREE100' })
+        .expect(200);
+
+      expect(response.body).toMatchObject({
+        discountAmount: '450.00',
+        netAmount: '0.00',
+      });
+    });
   });
 
   describe('DELETE /api/v1/bookings/me/:bookingId/coupon', () => {
@@ -468,6 +651,32 @@ describe('Booking coupons HTTP contract (e2e)', () => {
       expect(response.body).toMatchObject({
         code: 'VALIDATION_FAILED',
         statusCode: 400,
+      });
+    });
+
+    it('rejects remove request with 403 when privacy consent was never accepted', async () => {
+      authenticate(Role.STUDENT, STUDENT_ID, { consentAcceptedAt: null });
+
+      const response = await request(app.getHttpServer())
+        .delete(`${BASE_URL}/coupon`)
+        .set('Authorization', 'Bearer signed-token')
+        .expect(403);
+
+      expect(response.body).toMatchObject({
+        statusCode: 403,
+      });
+    });
+
+    it('rejects remove request with 403 when privacy policyVersion is outdated', async () => {
+      authenticate(Role.STUDENT, STUDENT_ID, { policyVersion: '2025-01-01' });
+
+      const response = await request(app.getHttpServer())
+        .delete(`${BASE_URL}/coupon`)
+        .set('Authorization', 'Bearer signed-token')
+        .expect(403);
+
+      expect(response.body).toMatchObject({
+        statusCode: 403,
       });
     });
   });

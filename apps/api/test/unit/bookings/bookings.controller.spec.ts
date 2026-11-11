@@ -5,6 +5,7 @@ import { API_GLOBAL_PREFIX } from '@app/app.setup';
 import { Role } from '@generated/prisma/client';
 import { AttendanceStatus, BookingStatus } from '@generated/prisma/enums';
 import { PrismaService } from '@infrastructure/database/prisma.service';
+import { REQUIRE_CURRENT_CONSENT_KEY } from '@modules/auth/auth.decorator';
 import { JWT_BEARER_AUTH } from '@modules/auth/auth.swagger';
 import { OWNERSHIP_KEY } from '@modules/auth/ownership.decorator';
 import { ROLES_KEY } from '@modules/auth/roles.decorator';
@@ -260,23 +261,30 @@ describe('BookingsController', () => {
     ['getCouponQuote', 'quote coupon endpoint'],
     ['applyCoupon', 'apply coupon endpoint'],
     ['removeCoupon', 'remove coupon endpoint'],
-  ])('restricts the %s (%s) to students and enforces booking ownership', (methodName) => {
-    const handler = Object.getOwnPropertyDescriptor(BookingsController.prototype, methodName)
-      ?.value as object | undefined;
-    const roles = handler
-      ? (Reflect.getMetadata(ROLES_KEY, handler) as Role[] | undefined)
-      : undefined;
-    const ownership = handler
-      ? (Reflect.getMetadata(OWNERSHIP_KEY, handler) as OwnershipRule | undefined)
-      : undefined;
+  ])(
+    'restricts the %s (%s) to students, enforces current consent, and checks booking ownership',
+    (methodName) => {
+      const handler = Object.getOwnPropertyDescriptor(BookingsController.prototype, methodName)
+        ?.value as object | undefined;
+      const roles = handler
+        ? (Reflect.getMetadata(ROLES_KEY, handler) as Role[] | undefined)
+        : undefined;
+      const ownership = handler
+        ? (Reflect.getMetadata(OWNERSHIP_KEY, handler) as OwnershipRule | undefined)
+        : undefined;
+      const consent = handler
+        ? (Reflect.getMetadata(REQUIRE_CURRENT_CONSENT_KEY, handler) as boolean | undefined)
+        : undefined;
 
-    expect(roles).toEqual([Role.STUDENT]);
-    expect(ownership).toEqual({
-      errors: STUDENT_BOOKING_OWNERSHIP_ERRORS,
-      idParam: 'bookingId',
-      resource: 'booking',
-    });
-  });
+      expect(roles).toEqual([Role.STUDENT]);
+      expect(consent).toBe(true);
+      expect(ownership).toEqual({
+        errors: STUDENT_BOOKING_OWNERSHIP_ERRORS,
+        idParam: 'bookingId',
+        resource: 'booking',
+      });
+    },
+  );
 
   it('derives tutorUserId for listing assigned bookings from the authenticated user, not the query', async () => {
     const getTutorBookings = jest.fn();
