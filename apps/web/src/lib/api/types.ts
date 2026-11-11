@@ -1,5 +1,32 @@
 export type UserRole = 'STUDENT' | 'TUTOR' | 'ADMIN';
 
+export interface AdminCoupon {
+  id: string;
+  code: string;
+  percent: number;
+  expiresAt: string;
+  maxUses: number;
+  active: boolean;
+  consumedUses: number;
+  reservedUses: number;
+  availableUses: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AdminCouponList {
+  items: AdminCoupon[];
+  nextCursor: string | null;
+}
+
+export interface CreateAdminCouponPayload {
+  code: string;
+  percent: number;
+  expiresAt: string;
+  maxUses: number;
+  active: boolean;
+}
+
 export interface Avatar {
   url: string;
   expiresAt: string;
