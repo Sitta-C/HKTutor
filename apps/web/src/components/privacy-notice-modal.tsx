@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from 'react';
 
+import { BrandLogo } from '@/components/brand/brand-logo';
 import { NotebookButton, WashiTape } from '@/components/ui/notebook';
 import { NotebookMetadata } from '@/components/ui/notebook-metadata';
 import { useLanguage } from '@/lib/i18n';
@@ -36,7 +37,7 @@ export default function PrivacyNoticeModal({ open, onClose }: PrivacyNoticeModal
       <WashiTape tone="yellow" className="left-1/2 top-0 z-20 -translate-x-1/2 -translate-y-1/2" />
       <div className="sticky top-0 z-10 flex items-start justify-between gap-5 rounded-t-[1.5rem] border-b border-paper-edge bg-paper px-6 py-5 sm:px-8">
         <div>
-          <p className="font-note text-xl font-semibold text-amber-700">HKTutor</p>
+          <BrandLogo size="sm" />
           <h2 id="privacy-notice-title" className="mt-1 text-2xl font-bold tracking-[-0.04em]">
             {notice.title}
           </h2>

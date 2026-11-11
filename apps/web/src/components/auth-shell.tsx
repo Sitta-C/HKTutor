@@ -64,7 +64,7 @@ export default function AuthShell({ page, children }: { page: AuthPage; children
     <NotebookPage className="relative flex flex-col overflow-hidden">
       <BackgroundArtwork />
 
-      <header className="relative z-10 flex items-start justify-between px-5 py-6 sm:px-8 sm:py-8 lg:px-16 lg:py-9">
+      <header className="relative z-10 flex flex-wrap items-start justify-between gap-y-4 px-5 py-6 sm:px-8 sm:py-8 lg:px-16 lg:py-9">
         <div>
           <BrandMark />
           <div className="mt-5 hidden w-44 border-t border-dashed border-stone-400 pt-3 text-sm sm:block">
@@ -78,13 +78,14 @@ export default function AuthShell({ page, children }: { page: AuthPage; children
           </div>
         </div>
 
-        <nav className="flex items-center gap-4 text-sm sm:gap-7 lg:gap-10">
-          <LanguageSwitch />
+        <nav className="ml-auto flex shrink-0 items-center gap-1 text-sm sm:gap-7 lg:gap-10">
+          <LanguageSwitch className="max-[380px]:px-1.5" />
           <Link
             href={navHref}
             className={notebookButtonClass({
               tone: 'secondary',
-              className: 'border-amber-200 bg-sticky-yellow sm:px-6',
+              className:
+                'whitespace-nowrap border-amber-200 bg-sticky-yellow max-[380px]:px-3 sm:px-6',
             })}
           >
             {isLogin ? navCopy.nav : page === 'recovery' ? copy.shell.register.nav : navCopy.cta}

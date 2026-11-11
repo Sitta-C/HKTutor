@@ -2,12 +2,12 @@
 
 import Link from 'next/link';
 
+import { BrandLogo } from '@/components/brand/brand-logo';
 import { ArrowIcon, BrandMark, LanguageSwitch, PublicFooter } from '@/components/public/public-ui';
 import {
   GraphPaper,
   NotebookPage,
   PaperCard,
-  StatusBadge,
   StickyNote,
   WashiTape,
   notebookButtonClass,
@@ -94,11 +94,11 @@ export default function AboutMePage() {
           <PaperCard className="relative mx-auto w-full max-w-[520px] rotate-1 p-5 sm:p-7 lg:mx-0">
             <WashiTape tone="yellow" className="left-1/2 top-0 -translate-x-1/2 -translate-y-1/2" />
             <GraphPaper className="p-5 sm:p-6">
-              <div className="flex items-center justify-between gap-4 border-b-2 border-notebook-ink pb-3">
+              <div className="flex flex-wrap items-center justify-between gap-4 border-b-2 border-notebook-ink pb-3">
                 <p className="font-note text-2xl font-semibold text-notebook-ink">
                   {aboutCopy.nav}
                 </p>
-                <StatusBadge tone="student">HKTutor</StatusBadge>
+                <BrandLogo size="sm" />
               </div>
               <div className="mt-3 divide-y divide-blue-200/70">
                 {principles.map((principle) => (
