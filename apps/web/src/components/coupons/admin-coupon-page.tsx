@@ -118,6 +118,7 @@ function CouponWorkspace() {
       <div className="grid grid-cols-[minmax(0,21rem)_minmax(0,1fr)] items-start gap-6 @max-[850px]/coupons:grid-cols-1">
         <CouponCreateForm
           copy={copy}
+          language={language}
           onCreated={created}
           onReconciled={() => void load()}
           onDenied={setDenied}

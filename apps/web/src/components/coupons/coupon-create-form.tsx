@@ -13,10 +13,12 @@ import { DashboardIcon } from '@/components/dashboard/dashboard-icon';
 import { notebookInputClass } from '@/components/ui/notebook';
 import { useNotebookToast } from '@/components/ui/notebook-toast';
 import { createAdminCoupon, listAdminCoupons } from '@/lib/api/coupons';
+import { formatBangkokDateTime } from '@/lib/date-time';
 
 import type { CouponCopy } from '@/components/coupons/coupon-copy';
 import type { CouponDraft, CouponErrors, CouponField } from '@/components/coupons/coupon-model';
 import type { AdminCoupon } from '@/lib/api/types';
+import type { Language } from '@/lib/i18n';
 import type { FormEvent } from 'react';
 
 type Phase = 'idle' | 'saving' | 'uncertain' | 'checking';
@@ -24,11 +26,13 @@ type Notice = 'success' | 'invalid' | 'uncertain' | 'checkFailed' | 'found' | 'a
 
 export function CouponCreateForm({
   copy,
+  language,
   onCreated,
   onReconciled,
   onDenied,
 }: {
   copy: CouponCopy;
+  language: Language;
   onCreated: (coupon: AdminCoupon) => void;
   onReconciled: () => void;
   onDenied: (kind: 'unauthorized' | 'forbidden') => void;
@@ -37,6 +41,7 @@ export function CouponCreateForm({
   const [errors, setErrors] = useState<CouponErrors>({});
   const [phase, setPhase] = useState<Phase>('idle');
   const [notice, setNotice] = useState<Notice>(null);
+  const [recoveredCoupon, setRecoveredCoupon] = useState<AdminCoupon | null>(null);
   const formRef = useRef<HTMLFormElement>(null);
   const statusRef = useRef<HTMLParagraphElement>(null);
   const lifetime = useRef<AbortController | null>(null);
@@ -61,6 +66,7 @@ export function CouponCreateForm({
   }
 
   function update<K extends keyof CouponDraft>(field: K, value: CouponDraft[K]): void {
+    setRecoveredCoupon(null);
     setDraft((current) => ({ ...current, [field]: value }));
     setErrors((current) => ({
       ...current,
@@ -74,6 +80,7 @@ export function CouponCreateForm({
     if (busy.current || phase !== 'idle') {
       return;
     }
+    setRecoveredCoupon(null);
     const result = validateCouponDraft(draft, Date.now());
     if (result.errors) {
       setErrors(result.errors);
@@ -133,6 +140,7 @@ export function CouponCreateForm({
     }
     busy.current = true;
     setPhase('checking');
+    setRecoveredCoupon(null);
     try {
       const signal = AbortSignal.any([controller.signal, AbortSignal.timeout(30_000)]);
       const found = await reconcileCouponCode(
@@ -146,6 +154,7 @@ export function CouponCreateForm({
       setPhase('idle');
       setNotice(found ? 'found' : 'absent');
       setErrors(found ? { code: 'duplicate' } : {});
+      setRecoveredCoupon(found);
       onReconciled();
       if (found) {
         focusError({ code: 'duplicate' });
@@ -332,7 +341,7 @@ export function CouponCreateForm({
         </fieldset>
         <button
           type="submit"
-          className="mt-[1.3rem] inline-flex min-h-12 w-full items-center justify-between gap-2.5 rounded-md border border-admin-deep bg-admin-deep px-4 py-2.5 text-sm font-bold text-paper shadow-[0_2px_0_var(--color-paper-edge)] transition-colors hover:bg-admin focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-admin-deep disabled:cursor-not-allowed disabled:opacity-60"
+          className="mt-[1.3rem] inline-flex min-h-12 w-full items-center justify-between gap-2.5 rounded-md border border-amber-800 bg-amber-800 px-4 py-2.5 text-sm font-bold text-paper shadow-[0_2px_0_var(--color-paper-edge)] transition-colors hover:bg-amber-900 focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-admin-deep disabled:cursor-not-allowed disabled:opacity-60"
           disabled={locked}
         >
           {phase === 'saving' ? copy.creating : copy.create}
@@ -352,6 +361,45 @@ export function CouponCreateForm({
         >
           {copy[notice]}
         </p>
+      )}
+      {recoveredCoupon && (
+        <section
+          className="mt-4 border-t border-paper-edge pt-4"
+          aria-labelledby="coupon-recovery-heading"
+        >
+          <h3 id="coupon-recovery-heading" className="text-sm font-bold">
+            {copy.recoveredTitle}
+          </h3>
+          <p className="mt-2 font-bold wrap-anywhere">
+            {recoveredCoupon.code} · {recoveredCoupon.percent}%
+          </p>
+          <dl className="mt-3 grid grid-cols-2 gap-3 text-sm">
+            {(['consumedUses', 'reservedUses', 'availableUses', 'maxUses'] as const).map(
+              (field, index) => (
+                <div key={field}>
+                  <dt className="text-xs text-notebook-muted-deep">
+                    {[copy.used, copy.reserved, copy.available, copy.limit][index]}
+                  </dt>
+                  <dd className="font-semibold tabular-nums wrap-anywhere">
+                    {recoveredCoupon[field].toLocaleString(language === 'th' ? 'th-TH' : 'en-US')}
+                  </dd>
+                </div>
+              ),
+            )}
+            <div className="col-span-full">
+              <dt className="text-xs text-notebook-muted-deep">{copy.expiry}</dt>
+              <dd>
+                <time dateTime={recoveredCoupon.expiresAt}>
+                  {formatBangkokDateTime(recoveredCoupon.expiresAt, language)}
+                </time>
+              </dd>
+            </div>
+            <div className="col-span-full">
+              <dt className="text-xs text-notebook-muted-deep">{copy.activation}</dt>
+              <dd>{recoveredCoupon.active ? copy.enabled : copy.statuses.inactive}</dd>
+            </div>
+          </dl>
+        </section>
       )}
       {(phase === 'uncertain' || phase === 'checking') && (
         <button

@@ -86,3 +86,46 @@ checks assert no page-width overflow, usable input dimensions and keyboard focus
 zero uncaught browser errors in the screenshot journeys. The existing body font is local Bai
 Jamjuree; an earlier development run temporarily fell back for Google-hosted note fonts because of
 network access, without changing app source. No Safari/Firefox or physical-device run is claimed.
+
+## PR #163 review follow-up (2026-11-11)
+
+- [P2: primary-button contrast](https://github.com/Sitta-C/HKTutor/pull/163#discussion_r4535381547):
+  the creation button now uses Tailwind `amber-800` with `amber-900` on hover and the existing
+  paper-colored text. A browser regression calculates WCAG contrast from computed colors converted
+  to sRGB and requires at least 4.5:1. Normal contrast is checked on all three Chromium projects;
+  hover contrast is checked when the device reports hover support. Touch-only projects retain the
+  normal state, matching Tailwind's hover media query.
+- [P3: inspect the recovered coupon](https://github.com/Sitta-C/HKTutor/pull/163#discussion_r4535405756):
+  reconciliation retains the actual matching API record and displays a read-only summary directly
+  below its notice. The summary includes code, percent, consumed/reserved/available/maximum uses,
+  Bangkok expiry and stored activation in both languages. It remains visible when the match is on
+  a later page and refreshing page one fails. Editing the form clears the summary; the user's draft
+  values remain intact. Finding an existing code does not claim that the failed request created it.
+- New regressions use 20 recent rows followed by a matching 21st coupon with values different from
+  the submitted draft. They verify the returned details, retained draft, single POST and a failed
+  first-page refresh in Thai and English. Screenshots wait for the transient toast to disappear.
+
+The production build passed, and the web unit run passed all 49 files / 763 tests. Browser evidence
+uses a separate production server at `http://localhost:3002`, with the same intercepted API fixtures
+and no database/provider writes. An earlier browser attempt lost the development server during a
+concurrent build (`ERR_CONNECTION_REFUSED`); browser verification was restarted after the build
+completed. No application workaround or unrelated configuration change was introduced.
+
+Additional recovered-summary captures are named `recovery-{project}-{language}.png` under
+`ui-design/review-evidence/s3-t22/`, for `chromium`, `tablet-chromium`, `mobile-chromium` and `en`/`th`.
+The existing six responsive page screenshots are regenerated to show the updated button.
+
+Review verification results:
+
+| Command                                                                    | Actual result                                                               |
+| -------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| `pnpm --filter @hktutor/web test`                                          | 49 files, 763 tests passed                                                  |
+| `pnpm --filter @hktutor/web lint`                                          | Passed; focused E2E-file lint also passed after the hover/toast corrections |
+| `pnpm --filter @hktutor/web build`                                         | Passed; coupon route generated successfully                                 |
+| `pnpm --filter @hktutor/web test:e2e admin-coupons-ui.spec.ts --workers=2` | 63 tests passed across all three Chromium projects (2.5 minutes)            |
+
+The browser command above ran with `PLAYWRIGHT_BASE_URL=http://localhost:3002` after starting the
+completed production build with `pnpm exec next start --port 3002` from `apps/web`.
+After narrowing the recovery screenshot to its summary region, the six bilingual recovery cases
+were rerun with `--grep '21st coupon'` and all passed. Prettier checks passed for all five changed
+source, test and documentation files.

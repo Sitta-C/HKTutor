@@ -47,8 +47,10 @@ export const couponCopy = {
     checking: 'Checking creation result…',
     checkFailed:
       'Could not finish checking all coupons. Keep checking before trying to create again.',
-    found:
-      'A coupon with this code exists. The register has been refreshed; check its details before changing the code.',
+    found: 'A coupon with this code exists. Review its details below before choosing another code.',
+    recoveredTitle: 'Existing coupon',
+    activation: 'Activation',
+    enabled: 'Active',
     absent: 'This code was not found after checking the list. You can retry creating the coupon.',
     back: 'Back to dashboard',
     errors: {
@@ -108,7 +110,10 @@ export const couponCopy = {
     check: 'ตรวจสอบผลการสร้าง',
     checking: 'กำลังตรวจสอบผลการสร้าง…',
     checkFailed: 'ยังตรวจสอบคูปองทั้งหมดไม่สำเร็จ กรุณาตรวจสอบอีกครั้งก่อนลองสร้างใหม่',
-    found: 'พบคูปองรหัสนี้แล้ว โหลดทะเบียนใหม่แล้ว กรุณาตรวจสอบรายละเอียดก่อนเปลี่ยนรหัส',
+    found: 'พบคูปองรหัสนี้แล้ว กรุณาตรวจสอบรายละเอียดด้านล่างก่อนใช้รหัสอื่น',
+    recoveredTitle: 'คูปองที่พบ',
+    activation: 'การเปิดใช้งาน',
+    enabled: 'เปิดใช้งาน',
     absent: 'ตรวจสอบรายการแล้วไม่พบรหัสนี้ สามารถลองสร้างคูปองอีกครั้งได้',
     back: 'กลับแดชบอร์ด',
     errors: {

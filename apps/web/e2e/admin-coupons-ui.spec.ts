@@ -318,6 +318,152 @@ test('an absent code after a full recovery scan permits a manual retry', async (
   expect(posts).toBe(1);
 });
 
+test('the primary creation button meets text contrast in normal and hover states', async ({
+  page,
+}) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await setup(page, async (route) => {
+    await route.fulfill({ json: { items: [], nextCursor: null } });
+  });
+  const button = page.getByRole('button', { name: 'Create coupon', exact: true });
+  const contrast = () =>
+    button.evaluate((element) => {
+      const style = getComputedStyle(element);
+      const canvas = document.createElement('canvas');
+      canvas.width = 1;
+      canvas.height = 1;
+      const context = canvas.getContext('2d');
+      if (!context) {
+        throw new Error('Expected a canvas context for sRGB color conversion');
+      }
+      const luminance = (color: string): number => {
+        context.fillStyle = color;
+        context.fillRect(0, 0, 1, 1);
+        const [red = 0, green = 0, blue = 0] = Array.from(context.getImageData(0, 0, 1, 1).data)
+          .slice(0, 3)
+          .map((value) => {
+            const channel = value / 255;
+            return channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
+          });
+        return red * 0.2126 + green * 0.7152 + blue * 0.0722;
+      };
+      const foreground = luminance(style.color);
+      const background = luminance(style.backgroundColor);
+      return {
+        color: style.color,
+        background: style.backgroundColor,
+        ratio:
+          (Math.max(foreground, background) + 0.05) / (Math.min(foreground, background) + 0.05),
+      };
+    });
+  const normal = await contrast();
+  expect(normal.ratio).toBeGreaterThanOrEqual(4.5);
+  if (await page.evaluate(() => matchMedia('(hover: hover)').matches)) {
+    await button.hover();
+    await expect.poll(async () => (await contrast()).background).not.toBe(normal.background);
+    expect((await contrast()).ratio).toBeGreaterThanOrEqual(4.5);
+  }
+});
+
+for (const language of ['en', 'th']) {
+  test(`recovery displays the 21st coupon even when first-page refresh fails (${language})`, async ({
+    page,
+  }, testInfo) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    let mode: 'initial' | 'checking' | 'refresh' = 'initial';
+    let posts = 0;
+    const recent = Array.from({ length: 20 }, (_, index) => ({
+      ...first,
+      id: `recent-${index}`,
+      code: `RECENT_${index}`,
+    }));
+    const recovered: AdminCoupon = {
+      ...first,
+      id: 'old-coupon',
+      code: 'RECOVER_10',
+      percent: 35,
+      consumedUses: 11,
+      reservedUses: 7,
+      availableUses: 82,
+      active: false,
+    };
+    await setup(
+      page,
+      async (route, url) => {
+        if (route.request().method() === 'POST') {
+          posts += 1;
+          mode = 'checking';
+          await route.abort('failed');
+        } else if (mode === 'refresh') {
+          await route.fulfill({ status: 503, json: { message: 'offline' } });
+        } else if (url.searchParams.has('cursor')) {
+          mode = 'refresh';
+          await route.fulfill({ json: { items: [recovered], nextCursor: null } });
+        } else {
+          await route.fulfill({ json: { items: recent, nextCursor: 'page-2' } });
+        }
+      },
+      'ADMIN',
+      language,
+    );
+    const register = page.getByRole('region', {
+      name: language === 'th' ? 'ทะเบียนคูปอง' : 'Coupon register',
+      exact: true,
+    });
+    await expect(register.getByRole('listitem')).toHaveCount(20);
+    await page.locator('#coupon-code').fill('recover_10');
+    await page.locator('#coupon-percent').fill('10');
+    await page.locator('#coupon-maxUses').fill('100');
+    await page.locator('#coupon-date').fill('2026-11-30');
+    await page.locator('#coupon-time').fill('23:59');
+    await page
+      .getByRole('button', {
+        name: language === 'th' ? 'สร้างคูปอง' : 'Create coupon',
+        exact: true,
+      })
+      .click();
+    await page
+      .getByRole('button', {
+        name: language === 'th' ? 'ตรวจสอบผลการสร้าง' : 'Check creation result',
+        exact: true,
+      })
+      .click();
+    const match = page.getByRole('region', {
+      name: language === 'th' ? 'คูปองที่พบ' : 'Existing coupon',
+      exact: true,
+    });
+    await expect(match).toBeVisible();
+    await expect(match.getByText('RECOVER_10 · 35%', { exact: true })).toBeVisible();
+    expect(await match.locator('dd').allTextContents()).toEqual(
+      expect.arrayContaining(['11', '7', '82', '100']),
+    );
+    await expect(match.locator('time')).toHaveAttribute('datetime', recovered.expiresAt);
+    await expect(
+      match.getByText(language === 'th' ? 'ปิดใช้งาน' : 'Inactive', { exact: true }),
+    ).toBeVisible();
+    await expect(register.getByRole('alert')).toBeVisible();
+    await expect(register.getByRole('listitem')).toHaveCount(20);
+    await expect(register.getByText('RECOVER_10', { exact: true })).toHaveCount(0);
+    expect(posts).toBe(1);
+    const output = path.resolve('..', '..', 'ui-design', 'review-evidence', 's3-t22');
+    await mkdir(output, { recursive: true });
+    await expect(page.locator('[data-notebook-toast]')).toHaveCount(0);
+    await match.scrollIntoViewIfNeeded();
+    await match.screenshot({
+      path: path.join(output, `recovery-${testInfo.project.name}-${language}.png`),
+    });
+    await page.locator('#coupon-code').fill('ANOTHER10');
+    await expect(match).toHaveCount(0);
+    await expect(page.locator('#coupon-percent')).toHaveValue('10');
+    await expect(
+      page.getByRole('button', {
+        name: language === 'th' ? 'สร้างคูปอง' : 'Create coupon',
+        exact: true,
+      }),
+    ).toBeEnabled();
+  });
+}
+
 test('paginates with real counts, retains rows on failure, and retries the failed page', async ({
   page,
 }) => {
