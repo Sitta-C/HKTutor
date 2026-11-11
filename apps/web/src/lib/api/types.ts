@@ -308,7 +308,19 @@ export interface BookingResponse {
 
 export type PaymentStatus = 'UNPAID' | 'PAID';
 
+export interface BookingCouponSnapshot {
+  id: string;
+  code: string;
+  percent: number;
+}
+
 export interface PromptPayPayment {
+  // Optional during API-first rollout of the additive DB03 response fields.
+  subtotalAmount?: string;
+  discountAmount?: string;
+  netAmount?: string;
+  currency?: string;
+  coupon?: BookingCouponSnapshot | null;
   bookingId: string;
   paymentStatus: PaymentStatus;
   paymentPending: boolean;
@@ -319,6 +331,7 @@ export interface PromptPayPayment {
     status: 'CREATING' | 'PENDING' | 'SUCCESSFUL' | 'FAILED' | 'EXPIRED';
     amount: string;
     currency: string;
+    coupon?: BookingCouponSnapshot | null;
     chargeId: string | null;
     qrCodeUrl: string | null;
     expiresAt: string | null;
@@ -327,6 +340,7 @@ export interface PromptPayPayment {
 }
 
 export interface BookingView {
+  coupon?: BookingCouponSnapshot | null;
   id: string;
   status: BookingStatus;
   tutor: BookingQuoteTutor;
@@ -421,6 +435,7 @@ export interface MyBookingsQuery {
 }
 
 export interface TutorBookingView {
+  coupon?: BookingCouponSnapshot | null;
   id: string;
   status: BookingStatus;
   paymentStatus: PaymentStatus;

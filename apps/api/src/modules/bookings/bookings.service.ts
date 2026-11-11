@@ -38,6 +38,7 @@ import {
   TutorBookingActionResponseDto,
   TutorBookingsResponseDto,
 } from '@modules/bookings/bookings.dto';
+import { couponSnapshot, couponSnapshotSelect } from '@modules/coupons/coupon-snapshot';
 import { NotificationEventsService } from '@modules/notifications/notification-events.service';
 import {
   isPublicTutorVerificationStatus,
@@ -572,6 +573,7 @@ export class BookingsService {
           createdAt: true,
           currency: true,
           discountAmount: true,
+          ...couponSnapshotSelect,
           id: true,
           listing: {
             select: {
@@ -605,6 +607,7 @@ export class BookingsService {
         createdAt: booking.createdAt.toISOString(),
         currency: booking.currency,
         discountAmount: booking.discountAmount.toFixed(2),
+        coupon: couponSnapshot(booking),
         id: booking.id,
         listing: {
           description: booking.listing.description,
@@ -643,6 +646,7 @@ export class BookingsService {
         createdAt: true,
         currency: true,
         discountAmount: true,
+        ...couponSnapshotSelect,
         id: true,
         listing: {
           select: {
@@ -676,6 +680,7 @@ export class BookingsService {
       createdAt: booking.createdAt.toISOString(),
       currency: booking.currency,
       discountAmount: booking.discountAmount.toFixed(2),
+      coupon: couponSnapshot(booking),
       id: booking.id,
       listing: {
         description: booking.listing.description,
@@ -739,6 +744,7 @@ export class BookingsService {
           createdAt: true,
           currency: true,
           discountAmount: true,
+          ...couponSnapshotSelect,
           id: true,
           listing: {
             select: {
@@ -769,6 +775,7 @@ export class BookingsService {
         createdAt: booking.createdAt.toISOString(),
         currency: booking.currency,
         discountAmount: booking.discountAmount.toFixed(2),
+        coupon: couponSnapshot(booking),
         id: booking.id,
         listing: {
           description: booking.listing.description,

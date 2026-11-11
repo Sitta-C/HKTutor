@@ -15,6 +15,7 @@ import {
 } from 'class-validator';
 
 import { AttendanceStatus, BookingStatus, PaymentStatus } from '@generated/prisma/enums';
+import { CouponSnapshotDto } from '@modules/coupons/coupons.swagger';
 import { SaveStudentProfileDto } from '@modules/profiles/profiles.dto';
 
 const trimString = ({ value }: { value: unknown }): unknown =>
@@ -209,6 +210,13 @@ export class BookingViewDto {
   @ApiProperty({ example: '450.00' })
   netAmount!: string;
 
+  @ApiProperty({
+    type: CouponSnapshotDto,
+    nullable: true,
+    description: 'Stored coupon snapshot; null for legacy bookings.',
+  })
+  coupon!: CouponSnapshotDto | null;
+
   @ApiProperty({ example: 'THB' })
   currency!: string;
 
@@ -234,7 +242,8 @@ export class BookingViewDto {
   @ApiProperty({
     type: String,
     nullable: true,
-    description: 'Omise test charge ID; legacy mock references remain separate.',
+    description:
+      'Omise test charge ID or coupon:<useId> for a full coupon settlement; legacy mock references remain separate.',
   })
   paymentReference!: string | null;
 
@@ -312,6 +321,13 @@ export class TutorBookingViewDto {
 
   @ApiProperty({ example: '450.00' })
   netAmount!: string;
+
+  @ApiProperty({
+    type: CouponSnapshotDto,
+    nullable: true,
+    description: 'Stored coupon snapshot; null for legacy bookings.',
+  })
+  coupon!: CouponSnapshotDto | null;
 
   @ApiProperty({ example: 'THB' })
   currency!: string;

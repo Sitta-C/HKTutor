@@ -43,7 +43,8 @@
     "db:reconcile:review-ratings": "pnpm --filter @hktutor/api db:reconcile:review-ratings",
     "db:verify:review-ratings": "pnpm --filter @hktutor/api db:verify:review-ratings",
     "db:verify:coupons": "pnpm --filter @hktutor/api db:verify:coupons",
-    "db:verify:admin-coupons": "pnpm --filter @hktutor/api db:verify:admin-coupons"
+    "db:verify:admin-coupons": "pnpm --filter @hktutor/api db:verify:admin-coupons",
+    "db:verify:booking-snapshots": "pnpm --filter @hktutor/api db:verify:booking-snapshots"
   },
   "devDependencies": {
     "@hktutor/eslint-config": "workspace:*",

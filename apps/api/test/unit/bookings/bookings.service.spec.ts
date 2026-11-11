@@ -1162,6 +1162,7 @@ describe('BookingsService', () => {
           createdAt: row.createdAt.toISOString(),
           currency: 'THB',
           discountAmount: '0.00',
+          coupon: null,
           id: row.id,
           listing: {
             description: 'One-on-one algebra and calculus tutoring.',
@@ -1365,6 +1366,7 @@ describe('BookingsService', () => {
         createdAt: row.createdAt.toISOString(),
         currency: 'THB',
         discountAmount: '0.00',
+        coupon: null,
         id: row.id,
         listing: {
           description: 'One-on-one algebra and calculus tutoring.',
@@ -1389,6 +1391,36 @@ describe('BookingsService', () => {
         tutor: { displayName: 'Anan Suksawat', tutorId: row.tutorProfile.userId },
         updatedAt: row.updatedAt.toISOString(),
       });
+    });
+
+    it('maps stored coupon evidence without loading mutable coupon data', async () => {
+      const { studentUserId, bookingId } = createTestData();
+      mockPrismaService.booking.findFirst.mockResolvedValue(
+        mockBookingRow({
+          id: bookingId,
+          appliedCouponId: 'coupon-id',
+          appliedCouponCode: 'ORIGINAL10',
+          appliedCouponPercent: 10,
+          discountAmount: new Prisma.Decimal(45),
+          netAmount: new Prisma.Decimal(405),
+        }),
+      );
+      const result = await service.getMyBookingById({ bookingId, studentUserId });
+      expect(result).toMatchObject({
+        subtotalAmount: '450.00',
+        discountAmount: '45.00',
+        netAmount: '405.00',
+        coupon: { id: 'coupon-id', code: 'ORIGINAL10', percent: 10 },
+      });
+      expect(mockPrismaService.booking.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({
+          select: expect.objectContaining({
+            appliedCouponId: true,
+            appliedCouponCode: true,
+            appliedCouponPercent: true,
+          }) as unknown,
+        }),
+      );
     });
 
     it('selects and reports the payment fields of a paid booking', async () => {

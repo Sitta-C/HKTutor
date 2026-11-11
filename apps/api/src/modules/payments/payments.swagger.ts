@@ -15,6 +15,7 @@ import {
 } from '@nestjs/swagger';
 
 import { JWT_BEARER_AUTH } from '@modules/auth/auth.swagger';
+import { CouponSnapshotDto } from '@modules/coupons/coupons.swagger';
 
 class PaymentAttemptDto {
   @ApiProperty({ format: 'uuid' }) id!: string;
@@ -22,6 +23,7 @@ class PaymentAttemptDto {
   status!: string;
   @ApiProperty({ example: '450.00' }) amount!: string;
   @ApiProperty({ example: 'THB' }) currency!: string;
+  @ApiProperty({ type: CouponSnapshotDto, nullable: true }) coupon!: CouponSnapshotDto | null;
   @ApiProperty({ type: String, nullable: true }) chargeId!: string | null;
   @ApiProperty({
     type: String,
@@ -34,6 +36,11 @@ class PaymentAttemptDto {
 }
 
 export class PaymentResponseDto {
+  @ApiProperty({ example: '450.00' }) subtotalAmount!: string;
+  @ApiProperty({ example: '45.00' }) discountAmount!: string;
+  @ApiProperty({ example: '405.00' }) netAmount!: string;
+  @ApiProperty({ example: 'THB' }) currency!: string;
+  @ApiProperty({ type: CouponSnapshotDto, nullable: true }) coupon!: CouponSnapshotDto | null;
   @ApiProperty({ format: 'uuid' }) bookingId!: string;
   @ApiProperty({ enum: ['UNPAID', 'PAID'] }) paymentStatus!: 'UNPAID' | 'PAID';
   @ApiProperty() paymentPending!: boolean;
@@ -51,7 +58,7 @@ export function StudentPaymentDoc(create: boolean): MethodDecorator {
         ? 'Create or resume a test PromptPay payment'
         : 'Reconcile and read the latest payment',
       description:
-        'Student owner only. Amount and currency come from the booking. One active attempt per booking. Unknown creation outcomes remain locked until recovered. Reads independently retrieve the Omise charge; they never create a charge. Test mode only.',
+        'Student owner only. Amount and currency come from the booking. One active attempt per booking. Unknown creation outcomes remain locked until recovered. Reads independently retrieve the Omise charge; they never create a charge. Test mode only. Responses include stored booking amounts and immutable coupon snapshots. Fresh coupon payment creation requires the T26 reservation/consumption flow and currently returns 409; status reads remain available.',
     }),
     ApiOkResponse({ type: PaymentResponseDto }),
     ApiBadRequestResponse({ description: 'Invalid booking UUID or nonempty payment request body' }),
