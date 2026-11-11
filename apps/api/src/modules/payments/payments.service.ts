@@ -16,6 +16,7 @@ import {
   OmiseRequestRejected,
   OmiseService,
 } from '@infrastructure/payments/omise.service';
+import { couponSnapshot, couponSnapshotSelect } from '@modules/coupons/coupon-snapshot';
 
 import type { PaymentAttempt } from '@generated/prisma/client';
 import type { OmiseCharge } from '@infrastructure/payments/omise.service';
@@ -29,6 +30,9 @@ const bookingSelect = {
   paymentStatus: true,
   paymentPending: true,
   netAmount: true,
+  subtotalAmount: true,
+  discountAmount: true,
+  ...couponSnapshotSelect,
   currency: true,
   paidAt: true,
   mockReference: true,
@@ -55,7 +59,8 @@ export class PaymentsService {
     if (booking.paymentStatus === 'PAID' || booking.paymentPending) {
       return this.getStatus(bookingId, studentUserId);
     }
-    if (booking.status !== 'CONFIRMED') {
+    // Coupon charges require T26's atomic capacity reservation and consumption flow.
+    if (booking.status !== 'CONFIRMED' || booking.appliedCouponId) {
       throw conflict();
     }
     const subunits = booking.netAmount.mul(100);
@@ -78,6 +83,11 @@ export class PaymentsService {
           paymentStatus: 'UNPAID',
           paymentPending: false,
           netAmount: booking.netAmount,
+          subtotalAmount: booking.subtotalAmount,
+          discountAmount: booking.discountAmount,
+          appliedCouponId: booking.appliedCouponId,
+          appliedCouponCode: booking.appliedCouponCode,
+          appliedCouponPercent: booking.appliedCouponPercent,
           currency: 'THB',
         },
         data: { paymentPending: true },
@@ -86,7 +96,15 @@ export class PaymentsService {
         return null;
       }
       return tx.paymentAttempt.create({
-        data: { id, bookingId, amount: booking.netAmount, currency: 'THB' },
+        data: {
+          id,
+          bookingId,
+          amount: booking.netAmount,
+          currency: 'THB',
+          appliedCouponId: booking.appliedCouponId,
+          appliedCouponCode: booking.appliedCouponCode,
+          appliedCouponPercent: booking.appliedCouponPercent,
+        },
       });
     });
     if (!attempt) {
@@ -243,8 +261,12 @@ export class PaymentsService {
     });
   }
 
-  private async ownedBooking(bookingId: string, studentUserId: string) {
-    const booking = await this.prisma.booking.findUnique({
+  private async ownedBooking(
+    bookingId: string,
+    studentUserId: string,
+    database: Pick<Prisma.TransactionClient, 'booking'> = this.prisma,
+  ) {
+    const booking = await database.booking.findUnique({
       where: { id: bookingId },
       select: bookingSelect,
     });
@@ -258,19 +280,29 @@ export class PaymentsService {
   }
 
   private async response(bookingId: string, studentUserId: string): Promise<PaymentResponseDto> {
-    const booking = await this.ownedBooking(bookingId, studentUserId);
-    const attempt = await this.prisma.paymentAttempt.findFirst({
-      where: { bookingId },
-      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
-    });
-    return {
-      bookingId,
-      paymentStatus: booking.paymentStatus,
-      paymentPending: booking.paymentPending,
-      paidAt: booking.paidAt?.toISOString() ?? null,
-      reference: booking.paymentReference ?? booking.mockReference,
-      attempt: attempt ? this.attemptResponse(attempt) : null,
-    };
+    return this.prisma.$transaction(
+      async (tx) => {
+        const booking = await this.ownedBooking(bookingId, studentUserId, tx);
+        const attempt = await tx.paymentAttempt.findFirst({
+          where: { bookingId },
+          orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        });
+        return {
+          bookingId,
+          subtotalAmount: booking.subtotalAmount.toFixed(2),
+          discountAmount: booking.discountAmount.toFixed(2),
+          netAmount: booking.netAmount.toFixed(2),
+          currency: booking.currency,
+          coupon: couponSnapshot(booking),
+          paymentStatus: booking.paymentStatus,
+          paymentPending: booking.paymentPending,
+          paidAt: booking.paidAt?.toISOString() ?? null,
+          reference: booking.paymentReference ?? booking.mockReference,
+          attempt: attempt ? this.attemptResponse(attempt) : null,
+        };
+      },
+      { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead },
+    );
   }
 
   private attemptResponse(attempt: PaymentAttempt) {
@@ -278,6 +310,7 @@ export class PaymentsService {
       id: attempt.id,
       status: attempt.status,
       amount: attempt.amount.toFixed(2),
+      coupon: couponSnapshot(attempt),
       currency: attempt.currency,
       chargeId: attempt.chargeId,
       qrCodeUrl: attempt.status === 'PENDING' ? attempt.qrCodeUrl : null,

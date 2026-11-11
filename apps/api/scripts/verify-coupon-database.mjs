@@ -48,7 +48,7 @@ async function main() {
     return row.id;
   }
 
-  async function booking(student = students[0], zero = false) {
+  async function booking(student = students[0], zeroCoupon = null) {
     const id = randomUUID();
     const slot = randomUUID();
     slotSequence += 1;
@@ -59,8 +59,16 @@ async function main() {
     );
     await pool.query(
       `INSERT INTO "Booking" ("id", "studentUserId", "tutorProfileId", "listingId", "slotId", "status", "subtotalAmount", "discountAmount", "netAmount", "updatedAt") VALUES ($1, $2, $3, $4, $5, 'confirmed', 100, $6, $7, $8)`,
-      [id, student, tutor, listing, slot, zero ? 100 : 0, zero ? 0 : 100, NOW],
+      [id, student, tutor, listing, slot, 0, 100, NOW],
     );
+    if (zeroCoupon) {
+      await pool.query(
+        `UPDATE "Booking" b SET "appliedCouponId"=c.id,"appliedCouponCode"=c.code::text,
+         "appliedCouponPercent"=c.percent,"discountAmount"=100,"netAmount"=0
+         FROM "Coupon" c WHERE b.id=$1 AND c.id=$2`,
+        [id, zeroCoupon],
+      );
+    }
     return { id, student };
   }
 
@@ -318,7 +326,7 @@ async function main() {
           retryAttempt,
           wrongBooking.id,
         ]),
-      '23503',
+      '23514',
     );
     process.stdout.write(
       'Identity, state, terminal-provider evidence, retry and permanent claim checks passed.\n',
@@ -415,8 +423,8 @@ async function main() {
       'Observed capacity, stale snapshot, student claim, booking claim and maxUses races passed.\n',
     );
 
-    const zeroCoupon = await coupon(1);
-    const zero = await booking(students[9], true);
+    const zeroCoupon = await coupon(1, { percent: 100 });
+    const zero = await booking(students[9], zeroCoupon);
     const zeroId = await reserve(zeroCoupon, zero, null, {
       status: 'CONSUMED',
       consumedAt: NOW,

@@ -14,6 +14,16 @@ import {
 
 import { JWT_BEARER_AUTH } from '@modules/auth/auth.swagger';
 
+export class CouponSnapshotDto {
+  @ApiProperty({ format: 'uuid' }) id!: string;
+  @ApiProperty({
+    example: 'WELCOME10',
+    description: 'Code stored when applied, not the live code.',
+  })
+  code!: string;
+  @ApiProperty({ minimum: 1, maximum: 100, example: 10 }) percent!: number;
+}
+
 export class CouponDto {
   @ApiProperty({ format: 'uuid' }) id!: string;
   @ApiProperty({ example: 'WELCOME10' }) code!: string;

@@ -25,6 +25,11 @@ const booking = () => ({
   paymentStatus: 'UNPAID',
   paymentPending: false,
   netAmount: new Prisma.Decimal('450.00'),
+  subtotalAmount: new Prisma.Decimal('450.00'),
+  discountAmount: new Prisma.Decimal(0),
+  appliedCouponId: null,
+  appliedCouponCode: null,
+  appliedCouponPercent: null,
   currency: 'THB',
   paidAt: null,
   mockReference: null,
@@ -34,6 +39,9 @@ const attempt = (): PaymentAttempt => ({
   id: ATTEMPT_ID,
   bookingId: BOOKING_ID,
   amount: new Prisma.Decimal('450.00'),
+  appliedCouponId: null,
+  appliedCouponCode: null,
+  appliedCouponPercent: null,
   currency: 'THB',
   status: 'CREATING',
   chargeId: null,
@@ -115,6 +123,11 @@ describe('PaymentsService', () => {
         paymentStatus: 'UNPAID',
         paymentPending: false,
         netAmount: new Prisma.Decimal('450.00'),
+        subtotalAmount: new Prisma.Decimal('450.00'),
+        discountAmount: new Prisma.Decimal(0),
+        appliedCouponId: null,
+        appliedCouponCode: null,
+        appliedCouponPercent: null,
         currency: 'THB',
       },
       data: { paymentPending: true },
@@ -127,6 +140,39 @@ describe('PaymentsService', () => {
         data: expect.objectContaining({ status: 'PENDING', chargeId: CHARGE_ID }) as unknown,
       }),
     );
+  });
+
+  it('returns the same stored money and coupon snapshot on status reads', async () => {
+    db.booking.findUnique.mockResolvedValue({
+      ...booking(),
+      appliedCouponId: STUDENT_ID,
+      appliedCouponCode: 'ORIGINAL10',
+      appliedCouponPercent: 10,
+      discountAmount: new Prisma.Decimal(45),
+      netAmount: new Prisma.Decimal(405),
+    });
+    const result = await service.getStatus(BOOKING_ID, STUDENT_ID);
+    expect(result).toMatchObject({
+      subtotalAmount: '450.00',
+      discountAmount: '45.00',
+      netAmount: '405.00',
+      currency: 'THB',
+      coupon: { id: STUDENT_ID, code: 'ORIGINAL10', percent: 10 },
+    });
+  });
+
+  it('blocks fresh coupon charges until the atomic reservation flow is installed', async () => {
+    db.booking.findUnique.mockResolvedValue({ ...booking(), appliedCouponId: STUDENT_ID });
+    await expect(service.create(BOOKING_ID, STUDENT_ID)).rejects.toThrow(ConflictException);
+    expect(transaction).not.toHaveBeenCalled();
+    expect(omise.createCharge).not.toHaveBeenCalled();
+  });
+
+  it('rejects a stale pricing claim before contacting the provider', async () => {
+    db.booking.updateMany.mockResolvedValue({ count: 0 });
+    await expect(service.create(BOOKING_ID, STUDENT_ID)).rejects.toThrow(ConflictException);
+    expect(db.paymentAttempt.create).not.toHaveBeenCalled();
+    expect(omise.createCharge).not.toHaveBeenCalled();
   });
 
   it('does not call Omise when ownership or booking state is invalid', async () => {

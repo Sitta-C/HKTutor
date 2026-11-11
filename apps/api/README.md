@@ -2416,6 +2416,98 @@ consume/release retries, zero settlement, append-only/JSON/privacy constraints, 
 transaction rollback, RLS/grants and preservation of existing payment/reschedule indexes.
 See [S3-DB02 evidence](../../tests/s3-db02-qa.md) for actual commands/results and limitations.
 
+## Booking coupon snapshots (S3-DB03)
+
+`20261111120000_add_booking_coupon_snapshots` adds nullable `appliedCouponId`,
+`appliedCouponCode` and `appliedCouponPercent` to Booking and PaymentAttempt. The FK restricts
+coupon deletion; the code/percent are stored evidence. Changing a live Coupon never changes a
+booking or an attempt's snapshot. No original column is recreated and no row is backfilled from
+a current listing or coupon: historical amounts, paid flags, timestamps, references, active
+attempts, cancellations and reschedules are retained exactly. Legacy coupon/discount evidence
+with no association continues to read as `coupon: null`.
+
+Booking list/detail (student and tutor) now return `coupon: { id, code, percent } | null`.
+Payment create/current responses additionally return stored `subtotalAmount`, `discountAmount`,
+`netAmount`, `currency` and `coupon`; the attempt has its own `amount`, `currency` and `coupon`.
+Payment response reads use one repeatable-read transaction. Money remains fixed-decimal strings;
+these fields never use live listing prices or the live Coupon relation. The web wire types keep
+the additive fields optional during API-first rollout. Existing pre-booking quote/create flows
+are unchanged; booking coupon quote/apply/remove endpoints belong to T25.
+
+The existing nonnegative/balance/THB checks already imply `0 <= discount <= subtotal`.
+The new checks require all three coupon fields together, percent 1–100, canonical code and
+`discount = round(subtotal * percent / 100, 2)`. At application, code/percent must match the
+coupon under a row lock. Role, consent, ownership, active/expiry and applicability checks remain
+the responsibility of the T25 API. Removing a coupon must clear all three fields and restore
+the undiscounted amounts in the same conditional update.
+
+Pricing/coupon changes fail while the prior booking is payment-pending/paid, an active attempt
+or reservation exists, or CouponUse exists. Attempts lock the booking and must copy its exact
+amount/currency/snapshot; those attempt fields cannot subsequently change. Legacy failed attempts
+retain their original amounts even if the unpaid booking is repriced later. New snapshot-bearing
+reservations must match the booking discount and their attempt. DB02 continues to copy that exact
+amount to immutable CouponUse; all-null legacy reservations retain their existing DB02 contract.
+Writers must keep the existing booking → coupon → attempt lock order. The payment service's
+conditional claim now compares the whole pricing/coupon snapshot, including same-net changes.
+
+`20261111160000_preserve_coupon_reservation_retries` corrects the reservation guard without
+rewriting the already-applied DB03 migration. An identical stable-operation retry is checked against
+the original reservation before current booking pricing is considered. After failure/release and
+repricing or coupon replacement, `INSERT ... ON CONFLICT (id) DO NOTHING` still inserts zero rows
+and preserves the original terminal state, timestamps, discount and audit evidence. Reusing an ID
+with changed immutable input is rejected; a new ID still requires the current booking/attempt
+snapshot. The existing DB02 guard continues to serialize booking → coupon writes before this check.
+
+New zero pricing requires a 100% coupon. Existing zero history can still change non-pricing
+fields. A zero paid booking requires `paymentReference = coupon:<CouponUse.id>`, the matching
+student/booking/coupon/discount evidence and no provider attempt. A deferred constraint checks
+the receipt at commit so Booking and consumption can be written in either order in one
+transaction. Positive coupon settlement requires matching consumption and a successful matching
+attempt. The unique payment-reference index remains in force. Provider attempts retain the
+existing THB 20.00–150,000.00 range; no zero Omise attempt is fabricated.
+
+This is the persistence/response foundation for T25/T26. Until T26 installs the atomic
+reserve/consume/release orchestration, fresh payment creation for a booking with an applied
+coupon returns 409 `PAYMENT_STATE_CONFLICT` before creating an attempt or contacting Omise.
+Current-status reads remain available. This prevents a discounted charge from bypassing capacity
+and consumption. `/mock-payment` remains retired with 410. No provider charge is replayed by
+the migration or verifier.
+
+### Disposable upgrade verification
+
+`pnpm db:verify:booking-snapshots` requires `HKTUTOR_ALLOW_DISPOSABLE_DB_VERIFY=1`, an explicit
+loopback URL with a `hktutor_*_test`/`hktutor-*-test` name, no URL options/fragments, and an
+**empty** public schema. It refuses an existing database and never loads `.env`, resets data or
+calls Omise. It replays the committed migrations through DB02, creates synthetic legacy
+mock/PromptPay/discount/zero/canceled/rescheduled evidence, then executes DB03. It compares every
+original Booking/PaymentAttempt field and existing indexes/checks, validates snapshots and
+settlement, and observes real row-lock contention. Append-only evidence stays in that disposable
+database; discard the container afterwards. It runs separately from `pnpm check`.
+The runner also reproduces the released-retry failure on original DB03, applies the forward
+correction, and verifies identical/concurrent retries after repricing and coupon replacement,
+rejection of changed immutable input and stale new claims, and successful current-price claims.
+
+```bash
+docker run --detach --name hktutor-s3-db03-test \
+  --publish 127.0.0.1:55453:5432 \
+  --env POSTGRES_USER=postgres --env POSTGRES_PASSWORD=disposable-local-only \
+  --env POSTGRES_DB=hktutor_booking_snapshot_test postgres:17-alpine
+docker exec hktutor-s3-db03-test pg_isready -U postgres -d hktutor_booking_snapshot_test
+# This runner itself tests the upgrade: do NOT migrate or seed this empty database first.
+HKTUTOR_ALLOW_DISPOSABLE_DB_VERIFY=1 \
+  DATABASE_URL='postgresql://postgres:disposable-local-only@127.0.0.1:55453/hktutor_booking_snapshot_test' \
+  pnpm db:verify:booking-snapshots
+docker rm --force --volumes hktutor-s3-db03-test
+```
+
+Apply the new additive migration through the normal reviewed deployment workflow **before**
+deploying the new API. Roll back application code without removing committed snapshot/evidence
+columns. Database/provider-backed coupon journeys, new endpoints and their full API authorization
+matrix remain T25/T26/T28; this verification does not certify live Omise behavior.
+Databases with the original DB03 already applied must also apply the forward retry correction;
+the correction changes only the trigger function, without rewriting any evidence rows.
+See [S3-DB03 evidence](../../tests/s3-db03-qa.md) for actual commands/results.
+
 ## Admin coupon APIs (S3-T21)
 
 Both routes require a Bearer access JWT backed by an active session, a verified active account,

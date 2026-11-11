@@ -138,6 +138,12 @@ charges and cancellation until Omise confirms a terminal result. The previous mo
 endpoint returns `410 Gone`; existing mock-paid demo bookings remain readable. See the
 [PromptPay setup and recovery runbook](apps/api/README.md#promptpay-test-payments).
 
+S3-DB03 adds nullable, immutable coupon evidence to bookings and payment attempts while preserving
+historical amounts and receipts. Booking reads and current-payment responses expose stored coupon
+snapshots; applying/quoting coupons and atomic discounted payment orchestration remain T25/T26.
+See the [snapshot migration and upgrade runbook](apps/api/README.md#booking-coupon-snapshots-s3-db03)
+and [verification evidence](tests/s3-db03-qa.md).
+
 See [frontend direction](ui-design/frontend-direction.md) for the Notebook Focus patterns and
 [implemented frontend behavior](ui-design/implemented-behavior.md) for interaction, loading,
 responsive layout, and accessibility details.

@@ -313,41 +313,45 @@ model TeachingListing {
 }
 
 model Booking {
-  id                 String              @id @default(uuid()) @db.Uuid
-  studentUserId      String              @db.Uuid
-  tutorProfileId     String              @db.Uuid
-  listingId          String              @db.Uuid
-  slotId             String              @db.Uuid
-  status             BookingStatus       @default(PENDING)
-  subtotalAmount     Decimal             @db.Decimal(10, 2)
-  discountAmount     Decimal             @default(0) @db.Decimal(10, 2)
-  netAmount          Decimal             @db.Decimal(10, 2)
-  currency           String              @default("THB") @db.Char(3)
-  paymentStatus      PaymentStatus       @default(UNPAID)
-  mockReference      String?             @unique
-  paymentReference   String?             @unique
-  paymentPending     Boolean             @default(false)
-  paidAt             DateTime?           @db.Timestamptz(3)
-  meetingUrl         String?
-  attendance         AttendanceStatus?
-  attendanceMarkedAt DateTime?           @db.Timestamptz(3)
-  canceledById       String?             @db.Uuid
-  cancellationReason String?
-  canceledAt         DateTime?           @db.Timestamptz(3)
+  id                   String              @id @default(uuid()) @db.Uuid
+  studentUserId        String              @db.Uuid
+  tutorProfileId       String              @db.Uuid
+  listingId            String              @db.Uuid
+  slotId               String              @db.Uuid
+  status               BookingStatus       @default(PENDING)
+  subtotalAmount       Decimal             @db.Decimal(10, 2)
+  discountAmount       Decimal             @default(0) @db.Decimal(10, 2)
+  netAmount            Decimal             @db.Decimal(10, 2)
+  appliedCouponId      String?             @db.Uuid
+  appliedCouponCode    String?             @db.VarChar(32)
+  appliedCouponPercent Int?
+  appliedCoupon        Coupon?             @relation("BookingAppliedCoupon", fields: [appliedCouponId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  currency             String              @default("THB") @db.Char(3)
+  paymentStatus        PaymentStatus       @default(UNPAID)
+  mockReference        String?             @unique
+  paymentReference     String?             @unique
+  paymentPending       Boolean             @default(false)
+  paidAt               DateTime?           @db.Timestamptz(3)
+  meetingUrl           String?
+  attendance           AttendanceStatus?
+  attendanceMarkedAt   DateTime?           @db.Timestamptz(3)
+  canceledById         String?             @db.Uuid
+  cancellationReason   String?
+  canceledAt           DateTime?           @db.Timestamptz(3)
   /// A partial index on createdAt for PENDING bookings is migration-managed.
-  createdAt          DateTime            @default(now()) @db.Timestamptz(3)
-  updatedAt          DateTime            @updatedAt @db.Timestamptz(3)
-  student            User                @relation("BookingStudent", fields: [studentUserId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  canceledBy         User?               @relation("BookingCanceledBy", fields: [canceledById], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  tutorProfile       TutorProfile        @relation(fields: [tutorProfileId], references: [userId], onDelete: Restrict, onUpdate: Cascade)
-  listing            TeachingListing     @relation(fields: [listingId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  slot               AvailabilitySlot    @relation(fields: [slotId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  rescheduleRequests RescheduleRequest[]
-  notifications      Notification[]
-  paymentAttempts    PaymentAttempt[]
-  review             Review?
-  couponUse          CouponUse?
-  couponReservations CouponReservation[]
+  createdAt            DateTime            @default(now()) @db.Timestamptz(3)
+  updatedAt            DateTime            @updatedAt @db.Timestamptz(3)
+  student              User                @relation("BookingStudent", fields: [studentUserId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  canceledBy           User?               @relation("BookingCanceledBy", fields: [canceledById], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  tutorProfile         TutorProfile        @relation(fields: [tutorProfileId], references: [userId], onDelete: Restrict, onUpdate: Cascade)
+  listing              TeachingListing     @relation(fields: [listingId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  slot                 AvailabilitySlot    @relation(fields: [slotId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  rescheduleRequests   RescheduleRequest[]
+  notifications        Notification[]
+  paymentAttempts      PaymentAttempt[]
+  review               Review?
+  couponUse            CouponUse?
+  couponReservations   CouponReservation[]
 
   @@unique([id, studentUserId], map: "Booking_coupon_identity_key")
   /// Composite target for the Review evidence foreign key.
@@ -393,7 +397,11 @@ model PaymentAttempt {
   updatedAt   DateTime             @updatedAt @db.Timestamptz(3)
   booking     Booking              @relation(fields: [bookingId], references: [id], onDelete: Restrict, onUpdate: Cascade)
 
-  couponReservation CouponReservation?
+  appliedCouponId      String?            @db.Uuid
+  appliedCouponCode    String?            @db.VarChar(32)
+  appliedCouponPercent Int?
+  appliedCoupon        Coupon?            @relation("AttemptAppliedCoupon", fields: [appliedCouponId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  couponReservation    CouponReservation?
 
   @@unique([id, bookingId], map: "PaymentAttempt_coupon_identity_key")
   @@index([bookingId, createdAt])
@@ -477,16 +485,18 @@ model Message {
 
 /// Capacity is checked under a forced coupon-row write; no client-maintained usage counter.
 model Coupon {
-  id           String              @id @default(uuid()) @db.Uuid
-  code         String              @unique @db.Citext
-  percent      Int
-  expiresAt    DateTime            @db.Timestamptz(3)
-  maxUses      Int
-  active       Boolean             @default(true)
-  createdAt    DateTime            @default(now()) @db.Timestamptz(3)
-  updatedAt    DateTime            @updatedAt @db.Timestamptz(3)
-  uses         CouponUse[]
-  reservations CouponReservation[]
+  id              String              @id @default(uuid()) @db.Uuid
+  code            String              @unique @db.Citext
+  percent         Int
+  expiresAt       DateTime            @db.Timestamptz(3)
+  maxUses         Int
+  active          Boolean             @default(true)
+  createdAt       DateTime            @default(now()) @db.Timestamptz(3)
+  updatedAt       DateTime            @updatedAt @db.Timestamptz(3)
+  bookings        Booking[]           @relation("BookingAppliedCoupon")
+  paymentAttempts PaymentAttempt[]    @relation("AttemptAppliedCoupon")
+  uses            CouponUse[]
+  reservations    CouponReservation[]
 
   @@index([createdAt(sort: Desc), id(sort: Desc)], map: "Coupon_createdAt_id_idx")
 }
