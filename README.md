@@ -322,7 +322,7 @@ is `pnpm --filter @hktutor/api db:verify:search-ratings`, also outside `pnpm che
 
 S3-DB02 adds Coupon, CouponReservation, CouponUse and minimal append-only AuditLog persistence.
 Database triggers serialize claims, enforce capacity and create consumption/audit evidence atomically.
-Coupon UI/application flows and Booking/payment snapshot changes remain subsequent scopes. See the
+Coupon application flows and Booking/payment snapshot changes remain subsequent scopes. See the
 [coupon persistence contract and disposable verifier](apps/api/README.md#coupon-persistence-s3-db02).
 
 S3-T21 adds ADMIN-only `POST/GET /api/v1/admin/coupons` with current-consent checks, normalized
@@ -331,6 +331,13 @@ counts. No additional migration is required beyond S3-DB02. See the
 [admin coupon contract](apps/api/README.md#admin-coupon-apis-s3-t21) and
 [`tests/s3-t21-qa.md`](tests/s3-t21-qa.md) for verification. The coupon UI and booking/payment
 application remain separate tasks.
+
+S3-T22 adds `/dashboard/coupons`, a private noindex ADMIN workspace for creating percentage coupons
+and paging through their expiry, stored activation state and consumed/reserved/available capacity.
+The form accepts Bangkok date/time and sends UTC, preserves input on errors and checks the coupon
+register before allowing retries after an uncertain creation. It uses the existing T21 APIs without
+adding edit/delete/toggle routes or changing booking/payment behavior. See
+[`tests/s3-t22-qa.md`](tests/s3-t22-qa.md) for coverage, commands and screenshot evidence.
 
 ## Checks
 
