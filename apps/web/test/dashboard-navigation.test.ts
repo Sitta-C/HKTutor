@@ -55,6 +55,7 @@ describe('dashboard role navigation', () => {
     ]);
     expect(getDashboardNavItems('ADMIN', translations.en).map((item) => item.id)).toEqual([
       'dashboard',
+      'coupons',
       'privacy',
     ]);
   });

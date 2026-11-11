@@ -124,6 +124,12 @@ export function getDashboardNavItems(role: UserRole, copy: Translation): Dashboa
       label: copy.dashboard.common.eyebrow,
     },
     {
+      id: 'coupons',
+      href: '/dashboard/coupons',
+      icon: 'stamp',
+      label: navCopy.coupons,
+    },
+    {
       id: 'privacy',
       href: '#privacy',
       icon: 'shield',
@@ -150,6 +156,9 @@ export function getUserInitial(user: Pick<AuthUser, 'email' | 'displayName'>): s
 }
 
 export function isDashboardNavActive(itemId: string, pathname: string): boolean {
+  if (itemId === 'coupons') {
+    return pathname === '/dashboard/coupons';
+  }
   if (itemId === 'dashboard') return pathname === '/dashboard';
   if (itemId === 'tutors') return pathname === '/tutors' || pathname.startsWith('/tutors/');
   if (itemId === 'profile') return pathname === '/dashboard/profile';
