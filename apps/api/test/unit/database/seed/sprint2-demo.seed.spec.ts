@@ -19,9 +19,12 @@ const student = { studentUserId: 'student-user-id' };
 /** 01:30 on 18 October in Bangkok, which is still 17 October in UTC. */
 const NOW = new Date('2026-10-17T18:30:00.000Z');
 
-function createClient(heldSlotIds: string[] = [], reviewedClass = false) {
+function createClient(heldSlotIds: string[] = [], reviewedClass = false, paymentEvidence = false) {
   const findFirst = jest.fn((args: Prisma.BookingFindFirstArgs) => {
     if (args.where?.id === SPRINT2_DEMO_IDS.endedClassBooking && reviewedClass) {
+      return Promise.resolve({ id: SPRINT2_DEMO_IDS.endedClassBooking });
+    }
+    if (args.where?.id === SPRINT2_DEMO_IDS.endedClassBooking && paymentEvidence && args.where.OR) {
       return Promise.resolve({ id: SPRINT2_DEMO_IDS.endedClassBooking });
     }
     const slotId = args.where?.slotId;
@@ -128,5 +131,14 @@ describe('seedSprint2Demo', () => {
   it('uses only DEMO- payment data', () => {
     expect(SPRINT2_DEMO_PAYMENT_REFERENCE).toMatch(/^DEMO-/);
     expect(SPRINT2_DEMO_MEETING_URL).toMatch(/^https:\/\/meet\.example\.com\//);
+  });
+
+  it('preserves an ended class with provider or coupon evidence on re-seed', async () => {
+    const { client, slotUpsert, bookingUpsert } = createClient([], false, true);
+    await seedSprint2Demo(client, foundation, student, NOW);
+    expect(slotUpsert.mock.calls.map(([args]) => args.where.id)).not.toContain(
+      SPRINT2_DEMO_IDS.endedClassSlot,
+    );
+    expect(bookingUpsert).not.toHaveBeenCalled();
   });
 });

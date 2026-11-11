@@ -44,7 +44,8 @@
     "db:verify:review-ratings": "pnpm --filter @hktutor/api db:verify:review-ratings",
     "db:verify:coupons": "pnpm --filter @hktutor/api db:verify:coupons",
     "db:verify:admin-coupons": "pnpm --filter @hktutor/api db:verify:admin-coupons",
-    "db:verify:booking-snapshots": "pnpm --filter @hktutor/api db:verify:booking-snapshots"
+    "db:verify:booking-snapshots": "pnpm --filter @hktutor/api db:verify:booking-snapshots",
+    "db:verify:sprint3-fixtures": "pnpm --filter @hktutor/api db:verify:sprint3-fixtures"
   },
   "devDependencies": {
     "@hktutor/eslint-config": "workspace:*",

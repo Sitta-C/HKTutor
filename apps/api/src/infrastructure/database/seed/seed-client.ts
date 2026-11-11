@@ -11,10 +11,18 @@ export type SeedTransactionClient = Pick<
   | 'availabilitySlot'
   | 'booking'
   | 'review'
+  | 'coupon'
+  | 'couponReservation'
+  | 'paymentAttempt'
+  | 'rescheduleRequest'
+  | 'notification'
   | '$queryRaw'
 >;
 
 export interface SeedDatabaseClient {
   $queryRawUnsafe<T = unknown>(query: string): Promise<T>;
-  $transaction<T>(operation: (client: SeedTransactionClient) => Promise<T>): Promise<T>;
+  $transaction<T>(
+    operation: (client: SeedTransactionClient) => Promise<T>,
+    options?: { timeout: number },
+  ): Promise<T>;
 }
