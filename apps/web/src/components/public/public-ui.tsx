@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 
+import { BrandLogo } from '@/components/brand/brand-logo';
 import { formatBangkokYear } from '@/lib/date-time';
 import { useLanguage } from '@/lib/i18n';
 
@@ -30,12 +31,9 @@ export function BrandMark({ className }: { className?: string }) {
   return (
     <Link
       href="/"
-      className={`inline-flex items-center gap-2 rounded-lg text-[1.45rem] font-black tracking-[-0.08em] text-notebook-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-notebook-ink/30 focus-visible:ring-offset-4 ${className ?? ''}`}
+      className={`inline-flex shrink-0 items-center rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-notebook-ink/30 focus-visible:ring-offset-4 ${className ?? ''}`}
     >
-      <span className="flex h-8 w-8 -rotate-3 items-center justify-center rounded-md bg-notebook-ink text-[0.65rem] font-bold tracking-[-0.04em] text-paper shadow-[2px_2px_0_#fca5a5]">
-        HK
-      </span>
-      <span>HKTutor</span>
+      <BrandLogo />
     </Link>
   );
 }

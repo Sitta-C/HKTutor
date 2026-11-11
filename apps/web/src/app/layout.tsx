@@ -57,7 +57,8 @@ export const metadata: Metadata = {
   },
   description: 'HKTutor Platform',
   icons: {
-    icon: '/favicon.ico', // TODO: might have to change for actual logo
+    icon: { url: '/brand/open-chapter.svg', type: 'image/svg+xml', sizes: 'any' },
+    apple: { url: '/apple-icon.png', type: 'image/png', sizes: '180x180' },
   },
 };
 

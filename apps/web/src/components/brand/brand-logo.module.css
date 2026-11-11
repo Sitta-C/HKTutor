@@ -1,0 +1,49 @@
+.logo {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 0.45rem;
+  color: var(--color-notebook-ink);
+  vertical-align: middle;
+}
+
+.mark {
+  display: block;
+  flex-shrink: 0;
+  width: 2.25rem;
+  height: 2.25rem;
+}
+
+.wordmark {
+  /* The Latin brand keeps the approved lettering when the UI switches to Thai. */
+  font-family: var(--font-caveat), cursive;
+  font-size: 2.25rem;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.035em;
+  white-space: nowrap;
+}
+
+.sm {
+  gap: 0.35rem;
+}
+
+.sm .mark {
+  width: 1.5rem;
+  height: 1.5rem;
+}
+
+.sm .wordmark {
+  font-size: 1.625rem;
+}
+
+@media (max-width: 380px) {
+  .md .mark {
+    width: 1.75rem;
+    height: 1.75rem;
+  }
+
+  .md .wordmark {
+    font-size: 1.875rem;
+  }
+}
