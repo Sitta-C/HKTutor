@@ -5,15 +5,21 @@ import { API_GLOBAL_PREFIX } from '@app/app.setup';
 import { Role } from '@generated/prisma/client';
 import { AttendanceStatus, BookingStatus } from '@generated/prisma/enums';
 import { PrismaService } from '@infrastructure/database/prisma.service';
+import { REQUIRE_CURRENT_CONSENT_KEY } from '@modules/auth/auth.decorator';
 import { JWT_BEARER_AUTH } from '@modules/auth/auth.swagger';
 import { OWNERSHIP_KEY } from '@modules/auth/ownership.decorator';
 import { ROLES_KEY } from '@modules/auth/roles.decorator';
 import { BookingsController } from '@modules/bookings/bookings.controller';
+import { STUDENT_BOOKING_OWNERSHIP_ERRORS } from '@modules/bookings/bookings.service';
 
 import type { AuthenticatedUser } from '@modules/auth/auth.guard';
 import type { OwnershipRule } from '@modules/auth/ownership.decorator';
+import type { BookingCouponsService } from '@modules/bookings/booking-coupons.service';
 import type {
   BookingClassDetailDto,
+  BookingCouponCodeDto,
+  BookingCouponOperationResponseDto,
+  BookingCouponQuoteResponseDto,
   BookingDetailResponseDto,
   BookingMeetingLinkDto,
   BookingQuoteResponseDto,
@@ -158,8 +164,127 @@ describe('BookingsController', () => {
       : undefined;
 
     expect(roles).toEqual([Role.STUDENT]);
-    expect(ownership).toEqual({ resource: 'booking', idParam: 'bookingId' });
+    expect(ownership).toEqual({
+      errors: STUDENT_BOOKING_OWNERSHIP_ERRORS,
+      idParam: 'bookingId',
+      resource: 'booking',
+    });
   });
+
+  it('delegates coupon quote requests to BookingCouponsService with studentUserId', async () => {
+    const quoteCoupon = jest.fn();
+    const bookingCouponsService = { quoteCoupon } as unknown as BookingCouponsService;
+    const controller = new BookingsController(
+      {} as unknown as BookingsService,
+      bookingCouponsService,
+    );
+    const user: AuthenticatedUser = {
+      email: 'student@example.com',
+      id: '70e1232d-3c06-4d5d-b3d2-6026df5ff315',
+      role: Role.STUDENT,
+      sessionId: 'session-1',
+    };
+    const bookingId = '3c54a0d6-e3f3-4a38-bd55-3b4011ee31ae';
+    const dto: BookingCouponCodeDto = { code: 'WELCOME10' };
+    const expected = {} as BookingCouponQuoteResponseDto;
+    quoteCoupon.mockResolvedValue(expected);
+
+    const result = await controller.getCouponQuote(bookingId, user, dto, {});
+
+    expect(quoteCoupon).toHaveBeenCalledWith(bookingId, user.id, dto);
+    expect(result).toBe(expected);
+
+    await expect(
+      controller.getCouponQuote(bookingId, user, dto, { extra: 'param' }),
+    ).rejects.toThrow('Unexpected query parameters');
+  });
+
+  it('delegates coupon apply requests to BookingCouponsService with studentUserId', async () => {
+    const applyCoupon = jest.fn();
+    const bookingCouponsService = { applyCoupon } as unknown as BookingCouponsService;
+    const controller = new BookingsController(
+      {} as unknown as BookingsService,
+      bookingCouponsService,
+    );
+    const user: AuthenticatedUser = {
+      email: 'student@example.com',
+      id: '70e1232d-3c06-4d5d-b3d2-6026df5ff315',
+      role: Role.STUDENT,
+      sessionId: 'session-1',
+    };
+    const bookingId = '3c54a0d6-e3f3-4a38-bd55-3b4011ee31ae';
+    const dto: BookingCouponCodeDto = { code: 'WELCOME10' };
+    const expected = {} as BookingCouponOperationResponseDto;
+    applyCoupon.mockResolvedValue(expected);
+
+    const result = await controller.applyCoupon(bookingId, user, dto, {});
+
+    expect(applyCoupon).toHaveBeenCalledWith(bookingId, user.id, dto);
+    expect(result).toBe(expected);
+
+    await expect(controller.applyCoupon(bookingId, user, dto, { extra: 'param' })).rejects.toThrow(
+      'Unexpected query parameters',
+    );
+  });
+
+  it('delegates coupon removal requests to BookingCouponsService with studentUserId', async () => {
+    const removeCoupon = jest.fn();
+    const bookingCouponsService = { removeCoupon } as unknown as BookingCouponsService;
+    const controller = new BookingsController(
+      {} as unknown as BookingsService,
+      bookingCouponsService,
+    );
+    const user: AuthenticatedUser = {
+      email: 'student@example.com',
+      id: '70e1232d-3c06-4d5d-b3d2-6026df5ff315',
+      role: Role.STUDENT,
+      sessionId: 'session-1',
+    };
+    const bookingId = '3c54a0d6-e3f3-4a38-bd55-3b4011ee31ae';
+    const expected = {} as BookingCouponOperationResponseDto;
+    removeCoupon.mockResolvedValue(expected);
+
+    const result = await controller.removeCoupon(bookingId, user, undefined, {});
+
+    expect(removeCoupon).toHaveBeenCalledWith(bookingId, user.id);
+    expect(result).toBe(expected);
+
+    await expect(controller.removeCoupon(bookingId, user, { notEmpty: true }, {})).rejects.toThrow(
+      'Coupon removal accepts an empty body only',
+    );
+    await expect(
+      controller.removeCoupon(bookingId, user, undefined, { extra: 'param' }),
+    ).rejects.toThrow('Unexpected query parameters');
+  });
+
+  it.each([
+    ['getCouponQuote', 'quote coupon endpoint'],
+    ['applyCoupon', 'apply coupon endpoint'],
+    ['removeCoupon', 'remove coupon endpoint'],
+  ])(
+    'restricts the %s (%s) to students, enforces current consent, and checks booking ownership',
+    (methodName) => {
+      const handler = Object.getOwnPropertyDescriptor(BookingsController.prototype, methodName)
+        ?.value as object | undefined;
+      const roles = handler
+        ? (Reflect.getMetadata(ROLES_KEY, handler) as Role[] | undefined)
+        : undefined;
+      const ownership = handler
+        ? (Reflect.getMetadata(OWNERSHIP_KEY, handler) as OwnershipRule | undefined)
+        : undefined;
+      const consent = handler
+        ? (Reflect.getMetadata(REQUIRE_CURRENT_CONSENT_KEY, handler) as boolean | undefined)
+        : undefined;
+
+      expect(roles).toEqual([Role.STUDENT]);
+      expect(consent).toBe(true);
+      expect(ownership).toEqual({
+        errors: STUDENT_BOOKING_OWNERSHIP_ERRORS,
+        idParam: 'bookingId',
+        resource: 'booking',
+      });
+    },
+  );
 
   it('derives tutorUserId for listing assigned bookings from the authenticated user, not the query', async () => {
     const getTutorBookings = jest.fn();
@@ -816,5 +941,75 @@ describe('BookingsController OpenAPI contract', () => {
       properties: { idempotentReplay: { type: 'boolean' } },
       required: expect.arrayContaining(['idempotentReplay']) as unknown,
     });
+  });
+
+  it('publishes the coupon-quote contract', () => {
+    const operation =
+      document.paths[`/${API_GLOBAL_PREFIX}/bookings/me/{bookingId}/coupon-quote`]?.post;
+
+    expect(operation?.summary).toBe(
+      'Preview a coupon discount quote for an unpaid student booking',
+    );
+    expect(operation?.responses['200']).toMatchObject({
+      content: {
+        'application/json': {
+          schema: {
+            allOf: [{ $ref: '#/components/schemas/BookingCouponQuoteResponseDto' }],
+          },
+        },
+      },
+    });
+    for (const status of ['400', '401', '403', '404', '409']) {
+      expect(operation?.responses[status]).toBeDefined();
+    }
+    expect(operation?.security).toEqual([{ [JWT_BEARER_AUTH]: [] }]);
+    expect(operation?.parameters).toEqual(
+      expect.arrayContaining([expect.objectContaining({ name: 'bookingId', required: true })]),
+    );
+  });
+
+  it('publishes the apply-coupon contract', () => {
+    const operation = document.paths[`/${API_GLOBAL_PREFIX}/bookings/me/{bookingId}/coupon`]?.put;
+
+    expect(operation?.summary).toBe('Apply or replace a coupon on an unpaid student booking');
+    expect(operation?.responses['200']).toMatchObject({
+      content: {
+        'application/json': {
+          schema: {
+            allOf: [{ $ref: '#/components/schemas/BookingCouponOperationResponseDto' }],
+          },
+        },
+      },
+    });
+    for (const status of ['400', '401', '403', '404', '409']) {
+      expect(operation?.responses[status]).toBeDefined();
+    }
+    expect(operation?.security).toEqual([{ [JWT_BEARER_AUTH]: [] }]);
+    expect(operation?.parameters).toEqual(
+      expect.arrayContaining([expect.objectContaining({ name: 'bookingId', required: true })]),
+    );
+  });
+
+  it('publishes the remove-coupon contract', () => {
+    const operation =
+      document.paths[`/${API_GLOBAL_PREFIX}/bookings/me/{bookingId}/coupon`]?.delete;
+
+    expect(operation?.summary).toBe('Remove an applied coupon from an unpaid student booking');
+    expect(operation?.responses['200']).toMatchObject({
+      content: {
+        'application/json': {
+          schema: {
+            allOf: [{ $ref: '#/components/schemas/BookingCouponOperationResponseDto' }],
+          },
+        },
+      },
+    });
+    for (const status of ['400', '401', '403', '404', '409']) {
+      expect(operation?.responses[status]).toBeDefined();
+    }
+    expect(operation?.security).toEqual([{ [JWT_BEARER_AUTH]: [] }]);
+    expect(operation?.parameters).toEqual(
+      expect.arrayContaining([expect.objectContaining({ name: 'bookingId', required: true })]),
+    );
   });
 });
