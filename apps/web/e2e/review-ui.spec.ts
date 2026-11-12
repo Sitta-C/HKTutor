@@ -26,6 +26,7 @@ async function setup(
     status: options.status ?? 'COMPLETED',
     review: options.review ?? null,
     posts: [] as unknown[],
+    bookingCalls: 0,
     getReviewCalls: 0,
     getReviewStatus: options.getReviewStatus ?? 200,
     postStatus: options.postStatus,
@@ -99,6 +100,7 @@ async function setup(
       });
     }
     if (path === `/bookings/me/${BOOKING_ID}`) {
+      state.bookingCalls += 1;
       return route.fulfill({
         json: {
           id: BOOKING_ID,
@@ -259,6 +261,8 @@ test('shows validation errors for missing ratings and feedback on submit, then s
   await expect(page.getByText(text.savedTitle, { exact: true })).toBeVisible();
   await expect(page.getByText('Great class, very clear explanations.')).toBeVisible();
   await expect(page.getByText('4.67 / 5')).toBeVisible();
+  expect(state.bookingCalls).toBeGreaterThan(1);
+  expect(state.getReviewCalls).toBeGreaterThan(1);
   expect(state.posts).toEqual([
     {
       clarity: 5,

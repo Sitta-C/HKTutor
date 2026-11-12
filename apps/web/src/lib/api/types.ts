@@ -432,6 +432,17 @@ export interface BookingReviewResult {
   review: BookingReview | null;
 }
 
+export interface PublicTutorReview extends BookingReview {
+  author: {
+    displayName: string;
+  };
+}
+
+export interface TutorReviewsResponse {
+  items: PublicTutorReview[];
+  nextCursor: string | null;
+}
+
 export interface CreateBookingReviewPayload {
   clarity: number;
   punctuality: number;
