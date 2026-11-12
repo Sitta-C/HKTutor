@@ -343,10 +343,10 @@ Database triggers serialize claims, enforce capacity and create consumption/audi
 Coupon application flows and Booking/payment snapshot changes remain subsequent scopes. See the
 [coupon persistence contract and disposable verifier](apps/api/README.md#coupon-persistence-s3-db02).
 
-S3-T21 adds ADMIN-only `POST/GET /api/v1/admin/coupons` with current-consent checks, normalized
-case-insensitive codes, actor-bound atomic creation audit, cursor pagination and live capacity
-counts. No additional migration is required beyond S3-DB02. See the
-[admin coupon contract](apps/api/README.md#admin-coupon-apis-s3-t21) and
+S3-T21 adds ADMIN-only `POST/GET /api/v1/admin/coupons` with normalized case-insensitive codes,
+actor-bound atomic creation audit, cursor pagination and live capacity counts. Administrators do
+not need privacy consent for these routes. No additional migration is required beyond S3-DB02.
+See the [admin coupon contract](apps/api/README.md#admin-coupon-apis-s3-t21) and
 [`tests/s3-t21-qa.md`](tests/s3-t21-qa.md) for verification. The coupon UI and booking/payment
 application remain separate tasks.
 
@@ -354,8 +354,15 @@ S3-T22 adds `/dashboard/coupons`, a private noindex ADMIN workspace for creating
 and paging through their expiry, stored activation state and consumed/reserved/available capacity.
 The form accepts Bangkok date/time and sends UTC, preserves input on errors and checks the coupon
 register before allowing retries after an uncertain creation. It uses the existing T21 APIs without
-adding edit/delete/toggle routes or changing booking/payment behavior. See
+adding edit/delete routes or changing booking/payment behavior. A later change adds
+`PATCH /api/v1/admin/coupons/:couponId/activation` and Activate/Deactivate controls; activation is
+the only change allowed after creation. See
 [`tests/s3-t22-qa.md`](tests/s3-t22-qa.md) for coverage, commands and screenshot evidence.
+
+S3-T23 collects the coupon rules, audit behavior, approved PromptPay coupon decisions and US9-1
+traceability in the
+[coupon rules reference](apps/api/README.md#coupon-rules-and-audit-reference-s3-t23). See
+[`tests/s3-t23-qa.md`](tests/s3-t23-qa.md) for verification.
 
 ## Checks
 
@@ -469,6 +476,7 @@ change, multi-factor authentication, and session-management UI are intentionally
 this small demo. Password recovery is available through `/forgot-password` and `/reset-password`.
 
 Sprint 2 adds tutor qualification review and verified-only publishing, ranked discovery, chat with
-read receipts, booking confirmation, mock payment, meeting links, attendance, cancellation,
-rescheduling and in-app notifications, all connected to their production APIs. Reviews, coupons,
-tutor comparison, reminders and real-time chat are Sprint 3 work.
+read receipts, booking confirmation, payment (originally a mock payment, now PromptPay Test Mode),
+meeting links, attendance, cancellation, rescheduling and in-app notifications, all connected to
+their production APIs. Reviews, coupons, tutor comparison, reminders and real-time chat are
+Sprint 3 work.

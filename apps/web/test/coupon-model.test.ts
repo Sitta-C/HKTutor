@@ -83,6 +83,16 @@ describe('admin coupon form contract', () => {
       'future',
     );
   });
+  it('requires a Bangkok time instead of guessing an end-of-day expiry for a date alone', () => {
+    const result = validateCouponDraft({ ...draft, time: '' }, now);
+    expect(result.errors?.expiry).toBe('expiry');
+    expect(result.payload).toBeUndefined();
+  });
+  it('sends Bangkok 23:59 as the matching UTC instant', () => {
+    expect(validateCouponDraft({ ...draft, time: '23:59' }, now).payload?.expiresAt).toBe(
+      '2026-11-12T16:59:00.000Z',
+    );
+  });
   it('associates server validation with fields without exposing raw messages', () => {
     expect(
       getCouponServerErrors(

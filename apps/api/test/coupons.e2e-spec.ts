@@ -2,6 +2,7 @@ import { Test } from '@nestjs/testing';
 import request from 'supertest';
 
 import { configureApplication } from '@app/app.setup';
+import { Prisma } from '@generated/prisma/client';
 import { AccountStatus, Role } from '@generated/prisma/enums';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import { CURRENT_PRIVACY_POLICY_VERSION } from '@modules/auth/auth.constants';
@@ -10,6 +11,7 @@ import { JwtTokenService } from '@modules/auth/jwt.service';
 import { RolesGuard } from '@modules/auth/roles.guard';
 import { CouponsController } from '@modules/coupons/coupons.controller';
 import { CouponsService } from '@modules/coupons/coupons.service';
+import { COUPON_CODE_EXISTS_EXAMPLE } from '@modules/coupons/coupons.swagger';
 
 import type { INestApplication } from '@nestjs/common';
 import type { App } from 'supertest/types';
@@ -20,6 +22,20 @@ const ACTIVATION_URL = `${URL}/${COUPON_ID}/activation`;
 const ACTOR = '10000000-0000-4000-8000-000000000001';
 const NOW = new Date('2030-01-01T00:00:00.000Z');
 const BODY = { code: 'WELCOME10', percent: 10, maxUses: 1, expiresAt: '2031-01-01T00:00:00.000Z' };
+/** The only fields a coupon response may carry; audit and redemption internals stay private. */
+const COUPON_RESPONSE_KEYS = [
+  'active',
+  'availableUses',
+  'code',
+  'consumedUses',
+  'createdAt',
+  'expiresAt',
+  'id',
+  'maxUses',
+  'percent',
+  'reservedUses',
+  'updatedAt',
+];
 
 describe('Admin coupons HTTP contract (real guards, validation and service; mocked database)', () => {
   let app: INestApplication<App>;
@@ -257,6 +273,55 @@ describe('Admin coupons HTTP contract (real guards, validation and service; mock
       expect(db.$queryRaw).toHaveBeenCalledWith(expect.anything(), ACTOR);
     },
   );
+
+  it('returns the documented 409 envelope for a case-insensitive duplicate code', async () => {
+    db.coupon.create.mockRejectedValue(
+      new Prisma.PrismaClientKnownRequestError('duplicate', {
+        clientVersion: '7.10.0',
+        code: 'P2002',
+        meta: { target: ['code'] },
+      }),
+    );
+    const response = await request(app.getHttpServer())
+      .post(URL)
+      .auth('test', { type: 'bearer' })
+      .send({ ...BODY, code: 'welcome10' })
+      .expect(409)
+      .expect('Cache-Control', 'no-store');
+    expect(response.body as unknown).toEqual(COUPON_CODE_EXISTS_EXAMPLE);
+    expect(db.coupon.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ code: 'WELCOME10' }) as unknown }),
+    );
+  });
+
+  it('keeps audit and redemption internals out of create, list and activation responses', async () => {
+    const created = await request(app.getHttpServer())
+      .post(URL)
+      .auth('test', { type: 'bearer' })
+      .send(BODY)
+      .expect(201);
+    expect(Object.keys(created.body as object).sort()).toEqual(COUPON_RESPONSE_KEYS);
+
+    db.coupon.findMany.mockResolvedValue([await db.coupon.findUnique()]);
+    const listed = await request(app.getHttpServer())
+      .get(URL)
+      .auth('test', { type: 'bearer' })
+      .expect(200);
+    const page = listed.body as { items: object[]; nextCursor: string | null };
+    expect(Object.keys(page).sort()).toEqual(['items', 'nextCursor']);
+    expect(page.items).toHaveLength(1);
+    expect(Object.keys(page.items[0] ?? {}).sort()).toEqual(COUPON_RESPONSE_KEYS);
+
+    const activated = await request(app.getHttpServer())
+      .patch(ACTIVATION_URL)
+      .auth('test', { type: 'bearer' })
+      .send({ active: false })
+      .expect(200);
+    expect(Object.keys(activated.body as object).sort()).toEqual(COUPON_RESPONSE_KEYS);
+    for (const body of [created.body, listed.body, activated.body] as unknown[]) {
+      expect(JSON.stringify(body)).not.toMatch(/actor|audit|operationKey|student|reservation/i);
+    }
+  });
 
   it('preserves false and the maximum Postgres usage limit', async () => {
     const response = await request(app.getHttpServer())

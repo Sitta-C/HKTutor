@@ -2720,6 +2720,94 @@ routes. T25 is now present in the base branch; a combined T25/T26 HTTP journey r
 integration coverage. Live Omise account configuration and actual callback delivery still require a separate
 Test Mode rehearsal.
 
+## Coupon rules and audit reference (S3-T23)
+
+This section collects the US9-1 coupon rules in one place. It adds no route, field or migration.
+The detailed contracts remain in [persistence](#coupon-persistence-s3-db02),
+[admin APIs](#admin-coupon-apis-s3-t21) and
+[payment orchestration](#coupon-payment-orchestration-s3-t26). Swagger (`coupons.swagger.ts`)
+publishes the same rules, examples and 409 body. `test/unit/coupons/coupons.swagger.spec.ts`
+checks that it matches the DTO validation and response.
+
+### Coupon rules
+
+| Rule          | Contract                                                                                                  |
+| ------------- | --------------------------------------------------------------------------------------------------------- |
+| Type          | Percentage only. There are no fixed-amount or other coupon types.                                         |
+| `code`        | Trimmed and ASCII a–z uppercased, then 3–32 of `A-Z`, `0-9`, `_`, `-`. Non-ASCII is rejected.             |
+| Uniqueness    | CITEXT unique index; `welcome10` and `WELCOME10` collide, returning 409 `COUPON_CODE_EXISTS`.             |
+| `percent`     | JSON integer 1–100 inclusive. 0, -10, 120, fractions and strings return 400.                              |
+| `maxUses`     | JSON integer 1–2147483647. 0 returns 400.                                                                 |
+| `active`      | Optional JSON boolean, default true. Only the activation route changes it later.                          |
+| `expiresAt`   | Full UTC instant ending in `Z`, at most millisecond precision, strictly future when created.              |
+| Expiry        | Exclusive: usable only while `now < expiresAt`; `now >= expiresAt` is expired.                            |
+| Bangkok input | The admin UI needs a Bangkok date and HH:mm time and sends UTC. A date alone is never read as end of day. |
+| Capacity      | `availableUses = maxUses - consumedUses - reservedUses`.                                                  |
+| Eligibility   | `active && now < expiresAt && availableUses > 0`, plus T25/T26 booking and student checks.                |
+| Changes       | No edit or delete route. Code, percent, expiry and maxUses are fixed once created.                        |
+
+`consumedUses` counts immutable `CouponUse` rows. A consumed use is never refunded or decremented,
+including after cancellation. `reservedUses` counts only `RESERVED` claims, including uncertain
+payment outcomes. Released claims do not count.
+
+Duplicate-code response:
+
+```json
+{
+  "statusCode": 409,
+  "error": "Conflict",
+  "code": "COUPON_CODE_EXISTS",
+  "message": "A coupon with this code already exists"
+}
+```
+
+### Audit
+
+Before S3-DB02 there was no general AuditLog table. DB02 adds a minimal append-only `AuditLog`:
+
+- **Creation.** `POST /admin/coupons` sets the actor from the JWT `CurrentUser`. The DB02 insert
+  trigger writes one `coupon.create` row in the same transaction as the coupon. `afterData` is
+  exactly `{ percent, maxUses, active }`, with no payment credentials or student PII. The unique
+  `coupon.create:<couponId>` operation key means a retry cannot add a second row. If the audit
+  write fails, the coupon insert rolls back.
+- **Activation.** Each real change writes one `coupon.active_change` row with
+  `{ active }` before and after data and the authenticated actor.
+- **Payments (S3-T26).** `coupon.reserve`, `coupon.consume` and `coupon.release` rows use the
+  reservation ID as `entityId`. `afterData` is only `{ status, discountAmount }` and `beforeData`
+  is at most `{ status: "RESERVED" }`. They never store raw webhook payloads, provider tokens,
+  secrets or QR URLs.
+- **Responses.** Create, list and activation responses return only coupon metadata and counts.
+  They never include audit rows, actors, operation keys or redemption history.
+
+### Approved PromptPay coupon decisions
+
+These product decisions replace the backlog's earlier mock-payment wording.
+`/api/v1/bookings/me/:bookingId/mock-payment` stays retired with 410 and is not restored.
+
+- **Reservation.** Starting a PromptPay Test Mode charge reserves one use. The use stays reserved
+  while the charge is active or its outcome is uncertain, even after the QR expires locally.
+- **Consumption.** A use is consumed only after verified provider success. The booking is paid in
+  the same transaction.
+- **Release.** A use is released only after a definitive no-charge rejection, or after the
+  provider confirms FAILED or EXPIRED.
+- **Zero payment.** A 100% coupon with net 0.00 settles at once with no Omise call and no
+  PaymentAttempt. The receipt is `coupon:<CouponUse.id>`.
+- **Amount cutoff.** A positive net must be THB 20.00–150,000.00. A net between 0 and 20.00, or a
+  zero net without a 100% coupon, returns 409 `PAYMENT_AMOUNT_UNSUPPORTED`.
+- **Expiry cutoff.** Expiry and activation are checked when the use is reserved. A QR already
+  reserved is honored after the coupon expires or is deactivated.
+
+### Traceability
+
+| Card    | Scope                                                       | Evidence                                                                                                               |
+| ------- | ----------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| US9-1   | Admin creates and manages percentage coupons                | The rows below                                                                                                         |
+| S3-DB02 | Coupon, reservation and use tables; creation/payment audit  | `pnpm db:verify:coupons`; [S3-DB02 QA](../../tests/s3-db02-qa.md)                                                      |
+| S3-T21  | Admin create/list API, normalization, uniqueness and expiry | `test/coupons.e2e-spec.ts`, `test/unit/coupons`, `pnpm db:verify:admin-coupons`; [S3-T21 QA](../../tests/s3-t21-qa.md) |
+| S3-T22  | Admin coupon UI with Bangkok-to-UTC expiry input            | `apps/web/test/coupon-model.test.ts`, `apps/web/e2e/admin-coupons-ui.spec.ts`; [S3-T22 QA](../../tests/s3-t22-qa.md)   |
+| S3-T23  | This reference, Swagger and audit checks                    | [S3-T23 QA](../../tests/s3-t23-qa.md)                                                                                  |
+| S3-T24  | Authorization, boundary, expiry and duplicate-code tests    | Allow 1/100; reject 0/-10/120 and maxUses 0; `welcome10` vs `WELCOME10` in `test/coupons.e2e-spec.ts`                  |
+
 ## Tutor comparison QA (S3-T32)
 
 S3-T32 is the US10-1 regression suite for the tutor comparison built in S3-T29 to S3-T31 and
