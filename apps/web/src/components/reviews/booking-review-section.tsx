@@ -18,10 +18,12 @@ import type { BookingReview, BookingStatus } from '@/lib/api/types';
 export function BookingReviewSection({
   bookingId,
   status,
+  onReviewSaved,
   onRequiresBookingRefresh,
 }: {
   bookingId: string;
   status: BookingStatus;
+  onReviewSaved: () => void;
   onRequiresBookingRefresh: () => void;
 }) {
   const { language } = useLanguage();
@@ -146,13 +148,14 @@ export function BookingReviewSection({
           <ReviewForm
             bookingId={bookingId}
             onSaved={(saved) => {
-              // Show the response immediately, then confirm against the canonical GET. A
-              // successful review does not change the booking's own status, so there is nothing
-              // for the parent to refresh here; unmounting this section via a full booking
-              // reload would only discard this state and flash the whole card.
+              // Show the response immediately, then refresh both canonical resources. The booking
+              // read remains the source of completion state, while the review read resolves the
+              // saved payload. Public tutor reads use no-store requests and therefore observe the
+              // transactionally refreshed aggregate the next time search/detail is requested.
               setReview(saved);
               setLockMessage(undefined);
               setReconcileNote(undefined);
+              onReviewSaved();
               void load();
             }}
             onOutcome={handleOutcome}

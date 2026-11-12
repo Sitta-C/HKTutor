@@ -7,6 +7,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { conversationCopy } from '@/components/conversations/conversation-copy';
 import { DashboardIcon } from '@/components/dashboard/dashboard-icon';
 import { ProfileAvatar } from '@/components/profile/profile-avatar';
+import { PublicTutorReviews } from '@/components/reviews/public-tutor-reviews';
 import { PublicTutorCourseRuler } from '@/components/tutors/public-tutor-course-ruler';
 import { publicTutorDetailCopy } from '@/components/tutors/public-tutor-detail-copy';
 import {
@@ -127,6 +128,9 @@ export default function PublicTutorAvailabilityPage({ tutorId }: { tutorId: stri
     },
     [effectiveListingId, tutorId],
   );
+  const handleTutorUnavailable = useCallback((caught: ApiError): void => {
+    setError(caught);
+  }, []);
   useEffect(() => {
     if (focusSelectedCourseRef.current && coursePage === selectedCoursePage) {
       selectedCourseButtonRef.current?.focus();
@@ -454,6 +458,12 @@ export default function PublicTutorAvailabilityPage({ tutorId }: { tutorId: stri
           <p className={styles.padFooter}>{detailText.availabilityNote}</p>
         </PaperCard>
       </div>
+      <PublicTutorReviews
+        key={tutorId}
+        language={language}
+        onTutorUnavailable={handleTutorUnavailable}
+        tutorId={tutorId}
+      />
       <p className={styles.continueHint}>{detailText.continueHint}</p>
     </div>
   );
