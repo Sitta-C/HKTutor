@@ -14,6 +14,7 @@ import { JwtAuthGuard } from '@modules/auth/auth.guard';
 import { JwtTokenService } from '@modules/auth/jwt.service';
 import { ResourceOwnershipGuard } from '@modules/auth/ownership.guard';
 import { RolesGuard } from '@modules/auth/roles.guard';
+import { BookingCouponsService } from '@modules/bookings/booking-coupons.service';
 import { BookingsController } from '@modules/bookings/bookings.controller';
 import { BookingsService } from '@modules/bookings/bookings.service';
 import { NotificationEventsService } from '@modules/notifications/notification-events.service';
@@ -83,6 +84,7 @@ describe('Meeting links and participant class details (S2-T32)', () => {
       controllers: [BookingsController],
       providers: [
         BookingsService,
+        { provide: BookingCouponsService, useValue: {} },
         JwtAuthGuard,
         ResourceOwnershipGuard,
         RolesGuard,

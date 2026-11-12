@@ -269,6 +269,71 @@ export class BookingDetailResponseDto extends BookingViewDto {
   updatedAt!: string;
 }
 
+export class BookingCouponCodeDto {
+  @ApiProperty({
+    description: 'Normalized uppercase coupon code (letters, digits, underscore, hyphen).',
+    example: 'WELCOME10',
+    pattern: '^[A-Z0-9_-]{3,32}$',
+  })
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string'
+      ? value.trim().replace(/[a-z]/g, (letter) => letter.toUpperCase())
+      : value,
+  )
+  @IsString()
+  @Matches(/^[A-Z0-9_-]{3,32}$/)
+  code!: string;
+}
+
+export class BookingCouponQuoteResponseDto {
+  @ApiProperty({ example: '11111111-1111-4111-8111-111111111111' })
+  bookingId!: string;
+
+  @ApiProperty({ type: CouponSnapshotDto })
+  coupon!: CouponSnapshotDto;
+
+  @ApiProperty({ example: '450.00' })
+  subtotalAmount!: string;
+
+  @ApiProperty({ example: '45.00' })
+  discountAmount!: string;
+
+  @ApiProperty({ example: '405.00' })
+  netAmount!: string;
+
+  @ApiProperty({ example: 'THB' })
+  currency!: string;
+
+  @ApiProperty({ example: '2026-11-10T11:00:00.000Z' })
+  quotedAt!: string;
+}
+
+export class BookingCouponOperationResponseDto {
+  @ApiProperty({ example: '11111111-1111-4111-8111-111111111111' })
+  bookingId!: string;
+
+  @ApiProperty({ type: CouponSnapshotDto, nullable: true })
+  coupon!: CouponSnapshotDto | null;
+
+  @ApiProperty({ example: '450.00' })
+  subtotalAmount!: string;
+
+  @ApiProperty({ example: '45.00' })
+  discountAmount!: string;
+
+  @ApiProperty({ example: '405.00' })
+  netAmount!: string;
+
+  @ApiProperty({ example: 'THB' })
+  currency!: string;
+
+  @ApiProperty({ enum: PaymentStatus, example: PaymentStatus.UNPAID })
+  paymentStatus!: PaymentStatus;
+
+  @ApiProperty({ example: false })
+  paymentPending!: boolean;
+}
+
 export class GetTutorBookingsQueryDto extends BookingsPaginationQueryDto {
   @ApiPropertyOptional({ enum: BookingStatus, example: BookingStatus.CONFIRMED })
   @IsOptional()

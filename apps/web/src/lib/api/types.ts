@@ -341,6 +341,35 @@ export interface BookingCouponSnapshot {
   percent: number;
 }
 
+export interface BookingCouponQuotePayload {
+  code: string;
+}
+
+export interface BookingCouponQuoteResponse {
+  bookingId: string;
+  coupon: BookingCouponSnapshot;
+  subtotalAmount: string;
+  discountAmount: string;
+  netAmount: string;
+  currency: string;
+  quotedAt: string;
+}
+
+export interface ApplyCouponPayload {
+  code: string;
+}
+
+export interface BookingCouponOperationResponse {
+  bookingId: string;
+  coupon: BookingCouponSnapshot | null;
+  subtotalAmount: string;
+  discountAmount: string;
+  netAmount: string;
+  currency: string;
+  paymentStatus: PaymentStatus;
+  paymentPending: boolean;
+}
+
 export interface PromptPayPayment {
   // Optional during API-first rollout of the additive DB03 response fields.
   subtotalAmount?: string;

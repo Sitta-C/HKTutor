@@ -1,8 +1,11 @@
 import {
+  BadRequestException,
   Body,
   Controller,
+  Delete,
   Get,
   GoneException,
+  Header,
   HttpCode,
   HttpStatus,
   Param,
@@ -14,14 +17,18 @@ import {
 
 import { UuidParamPipe } from '@common/pipes/uuid-param.pipe';
 import { Role } from '@generated/prisma/client';
-import { CurrentUser } from '@modules/auth/auth.decorator';
+import { CurrentUser, RequireCurrentConsent } from '@modules/auth/auth.decorator';
 import { JwtAuthGuard } from '@modules/auth/auth.guard';
 import { RequireOwnership } from '@modules/auth/ownership.decorator';
 import { ResourceOwnershipGuard } from '@modules/auth/ownership.guard';
 import { Roles } from '@modules/auth/roles.decorator';
 import { RolesGuard } from '@modules/auth/roles.guard';
+import { BookingCouponsService } from '@modules/bookings/booking-coupons.service';
 import {
   BookingClassDetailDto,
+  BookingCouponCodeDto,
+  BookingCouponOperationResponseDto,
+  BookingCouponQuoteResponseDto,
   BookingDetailResponseDto,
   BookingMeetingLinkDto,
   BookingQuoteResponseDto,
@@ -49,6 +56,7 @@ import {
   BookingsService,
 } from '@modules/bookings/bookings.service';
 import {
+  ApplyBookingCouponDoc,
   BookingsControllerDoc,
   CancelBookingDoc,
   ConfirmTutorBookingDoc,
@@ -59,13 +67,25 @@ import {
   GetMyBookingDoc,
   GetMyBookingsDoc,
   GetTutorBookingsDoc,
+  QuoteBookingCouponDoc,
   RejectTutorBookingDoc,
+  RemoveBookingCouponDoc,
   UpdateAttendanceDoc,
   UpdateMeetingLinkDoc,
 } from '@modules/bookings/bookings.swagger';
 
 import type { AuthenticatedUser } from '@modules/auth/auth.guard';
 import type { OwnershipRule } from '@modules/auth/ownership.decorator';
+
+function assertEmptyQuery(query: Record<string, unknown>): void {
+  if (query !== undefined && Object.keys(query).length !== 0) {
+    throw new BadRequestException('Unexpected query parameters');
+  }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
 
 /**
  * The S2-T01 card answers a wrong tutor with 403 instead of the ownership-safe 404 the guard uses
@@ -77,12 +97,13 @@ const TUTOR_BOOKING_ACTION_OWNERSHIP = {
   resource: 'booking',
 } as const satisfies OwnershipRule;
 
-/** The S2-T04 card answers a wrong student with 403, so this route declares its own bodies too. */
-const STUDENT_BOOKING_PAYMENT_OWNERSHIP = {
+/** The S2-T04 and S3-T25 cards answer a wrong student with 403, so these routes declare their own bodies too. */
+const STUDENT_BOOKING_OWNERSHIP = {
   errors: STUDENT_BOOKING_OWNERSHIP_ERRORS,
   idParam: 'bookingId',
   resource: 'booking',
 } as const satisfies OwnershipRule;
+const STUDENT_BOOKING_PAYMENT_OWNERSHIP = STUDENT_BOOKING_OWNERSHIP;
 
 /** The class-details endpoint answers authenticated non-participants with 403 rather than 404. */
 const CLASS_DETAIL_BOOKING_OWNERSHIP = {
@@ -101,7 +122,10 @@ const CANCEL_BOOKING_OWNERSHIP = {
 @Controller('bookings')
 @UseGuards(JwtAuthGuard, RolesGuard, ResourceOwnershipGuard)
 export class BookingsController {
-  constructor(private readonly bookingsService: BookingsService) {}
+  constructor(
+    private readonly bookingsService: BookingsService,
+    private readonly bookingCouponsService: BookingCouponsService,
+  ) {}
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
@@ -147,17 +171,74 @@ export class BookingsController {
 
   @Get('me/:bookingId')
   @HttpCode(HttpStatus.OK)
+  @Header('Cache-Control', 'no-store')
   @GetMyBookingDoc()
   @Roles(Role.STUDENT)
-  @RequireOwnership({ resource: 'booking', idParam: 'bookingId' })
+  @RequireOwnership(STUDENT_BOOKING_OWNERSHIP)
   async getMyBookingById(
-    @Param('bookingId') bookingId: string,
+    @Param('bookingId', UuidParamPipe) bookingId: string,
     @CurrentUser() user: AuthenticatedUser,
+    @Query() query: Record<string, unknown> = {},
   ): Promise<BookingDetailResponseDto> {
+    assertEmptyQuery(query);
     return this.bookingsService.getMyBookingById({
       bookingId,
       studentUserId: user.id,
     });
+  }
+
+  @Post('me/:bookingId/coupon-quote')
+  @HttpCode(HttpStatus.OK)
+  @RequireCurrentConsent()
+  @Header('Cache-Control', 'no-store')
+  @QuoteBookingCouponDoc()
+  @Roles(Role.STUDENT)
+  @RequireOwnership(STUDENT_BOOKING_OWNERSHIP)
+  async getCouponQuote(
+    @Param('bookingId', UuidParamPipe) bookingId: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: BookingCouponCodeDto,
+    @Query() query: Record<string, unknown> = {},
+  ): Promise<BookingCouponQuoteResponseDto> {
+    assertEmptyQuery(query);
+    return this.bookingCouponsService.quoteCoupon(bookingId, user.id, dto);
+  }
+
+  @Put('me/:bookingId/coupon')
+  @HttpCode(HttpStatus.OK)
+  @RequireCurrentConsent()
+  @Header('Cache-Control', 'no-store')
+  @ApplyBookingCouponDoc()
+  @Roles(Role.STUDENT)
+  @RequireOwnership(STUDENT_BOOKING_OWNERSHIP)
+  async applyCoupon(
+    @Param('bookingId', UuidParamPipe) bookingId: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: BookingCouponCodeDto,
+    @Query() query: Record<string, unknown> = {},
+  ): Promise<BookingCouponOperationResponseDto> {
+    assertEmptyQuery(query);
+    return this.bookingCouponsService.applyCoupon(bookingId, user.id, dto);
+  }
+
+  @Delete('me/:bookingId/coupon')
+  @HttpCode(HttpStatus.OK)
+  @RequireCurrentConsent()
+  @Header('Cache-Control', 'no-store')
+  @RemoveBookingCouponDoc()
+  @Roles(Role.STUDENT)
+  @RequireOwnership(STUDENT_BOOKING_OWNERSHIP)
+  async removeCoupon(
+    @Param('bookingId', UuidParamPipe) bookingId: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() body: unknown = undefined,
+    @Query() query: Record<string, unknown> = {},
+  ): Promise<BookingCouponOperationResponseDto> {
+    if (body !== undefined && (!isRecord(body) || Object.keys(body).length !== 0)) {
+      throw new BadRequestException('Coupon removal accepts an empty body only');
+    }
+    assertEmptyQuery(query);
+    return this.bookingCouponsService.removeCoupon(bookingId, user.id);
   }
 
   @Post('me/:bookingId/mock-payment')
