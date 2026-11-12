@@ -359,6 +359,10 @@ adding edit/delete/toggle routes or changing booking/payment behavior. See
 
 ## Checks
 
+Sprint 3 database concurrency and query-plan checks run with the disposable-only
+`pnpm db:verify:sprint3-concurrency`. See [DB05 cases, file/call map and results](tests/s3-db05-qa.md)
+for the exact database name, prerequisites, real lock/rollback evidence and query-index migration.
+
 The existing `pnpm db:seed` includes Sprint 3 review, coupon, report and reminder fixtures.
 See the [DB04 fixture/test guide](tests/s3-db04-qa.md) for semantic case keys, clocks, expected
 results and the disposable-only `pnpm db:verify:sprint3-fixtures` check. Synthetic provider IDs

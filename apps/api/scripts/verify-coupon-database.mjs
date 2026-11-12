@@ -419,6 +419,40 @@ async function main() {
       null,
     );
     assert.deepEqual(await counts(free), { used: 0, reserved: 1 });
+    for (const winner of ['CONSUMED', 'RELEASED']) {
+      const terminalCoupon = await coupon(1);
+      const terminalBooking = await booking(students[10]);
+      const terminalAttempt = await attempt(terminalBooking);
+      const claim = await reserve(terminalCoupon, terminalBooking, terminalAttempt);
+      await terminal(terminalAttempt, winner === 'CONSUMED' ? 'SUCCESSFUL' : 'FAILED');
+      await race(
+        (client) => transition(claim, winner, client),
+        (client) => transition(claim, winner === 'CONSUMED' ? 'RELEASED' : 'CONSUMED', client),
+        '23514',
+      );
+      assert.deepEqual(await counts(terminalCoupon), {
+        used: winner === 'CONSUMED' ? 1 : 0,
+        reserved: 0,
+      });
+      const terminalAudit = await pool.query(
+        'SELECT action, count(*)::int AS n FROM "AuditLog" WHERE "entityId"=$1 GROUP BY action ORDER BY action',
+        [claim],
+      );
+      assert.deepEqual(terminalAudit.rows, [
+        { action: winner === 'CONSUMED' ? 'coupon.consume' : 'coupon.release', n: 1 },
+        { action: 'coupon.reserve', n: 1 },
+      ]);
+      const retryBooking = await booking(students[11]);
+      const retryAttempt = await attempt(retryBooking);
+      if (winner === 'CONSUMED') {
+        await rejected(() => reserve(terminalCoupon, retryBooking, retryAttempt), '23514');
+      } else {
+        await reserve(terminalCoupon, retryBooking, retryAttempt);
+      }
+    }
+    process.stdout.write(
+      'Observed consume/release races: one terminal state; only RELEASED frees capacity.\n',
+    );
     process.stdout.write(
       'Observed capacity, stale snapshot, student claim, booking claim and maxUses races passed.\n',
     );

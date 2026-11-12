@@ -268,6 +268,7 @@ model AvailabilitySlot {
   reschedulesRequested RescheduleRequest[] @relation("RescheduleRequestedSlot")
 
   @@index([tutorProfileId, startAtUtc], map: "AvailabilitySlot_tutorProfileId_startAtUtc_idx")
+  @@index([startAtUtc, id], map: "AvailabilitySlot_startAtUtc_id_idx")
 }
 
 model Subject {
@@ -485,6 +486,7 @@ model Message {
 
 /// Capacity is checked under a forced coupon-row write; no client-maintained usage counter.
 model Coupon {
+  /// Coupon_code_text_idx is migration-managed for normalized Prisma text-equality lookups.
   id              String              @id @default(uuid()) @db.Uuid
   code            String              @unique @db.Citext
   percent         Int
