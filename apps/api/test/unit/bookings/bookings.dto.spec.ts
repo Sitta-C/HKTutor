@@ -3,6 +3,7 @@ import { validate } from 'class-validator';
 
 import { AttendanceStatus } from '@generated/prisma/enums';
 import {
+  BookingCouponCodeDto,
   CancelBookingDto,
   ConfirmBookingDto,
   MAX_BOOKINGS_PAGE_SIZE,
@@ -239,6 +240,39 @@ describe('update attendance DTO', () => {
     [{}, 'an object'],
   ])('rejects invalid attendance %p (%s)', async (attendance) => {
     const dto = plainToInstance(UpdateAttendanceDto, { attendance });
+    expect(await validate(dto)).not.toHaveLength(0);
+  });
+});
+
+describe('booking coupon code DTO', () => {
+  it.each(['WELCOME10', 'PROMO_2026', 'DISCOUNT-50', 'ABC'])(
+    'accepts valid coupon code %s',
+    async (code) => {
+      const dto = plainToInstance(BookingCouponCodeDto, { code });
+      await expect(validate(dto)).resolves.toHaveLength(0);
+      expect(dto.code).toBe(code);
+    },
+  );
+
+  it('normalizes lowercase letters to uppercase and trims whitespace', async () => {
+    const dto = plainToInstance(BookingCouponCodeDto, { code: '  welcome10  ' });
+    await expect(validate(dto)).resolves.toHaveLength(0);
+    expect(dto.code).toBe('WELCOME10');
+  });
+
+  it.each([
+    ['', 'empty string'],
+    ['   ', 'whitespace only'],
+    ['AB', 'too short (<3 chars)'],
+    ['A'.repeat(33), 'too long (>32 chars)'],
+    ['HELLO WORLD', 'contains spaces'],
+    ['COUPON@10', 'contains invalid symbols'],
+    [123, 'a number'],
+    [null, 'null'],
+    [undefined, 'undefined'],
+    [{}, 'an object'],
+  ])('rejects invalid coupon code %p (%s)', async (code) => {
+    const dto = plainToInstance(BookingCouponCodeDto, { code });
     expect(await validate(dto)).not.toHaveLength(0);
   });
 });

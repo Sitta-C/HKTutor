@@ -21,6 +21,7 @@ import { EmailFlowService } from '@modules/auth/email-flow.service';
 import { JwtTokenService } from '@modules/auth/jwt.service';
 import { ResourceOwnershipGuard } from '@modules/auth/ownership.guard';
 import { RolesGuard } from '@modules/auth/roles.guard';
+import { BookingCouponsService } from '@modules/bookings/booking-coupons.service';
 import { BookingsController } from '@modules/bookings/bookings.controller';
 import { BookingsService } from '@modules/bookings/bookings.service';
 import { ProfilesController } from '@modules/profiles/profiles.controller';
@@ -119,6 +120,7 @@ describe('End-to-End User Flow Verification (Student & Tutor)', () => {
         RolesGuard,
         ResourceOwnershipGuard,
         { provide: BookingsService, useValue: bookingsService },
+        { provide: BookingCouponsService, useValue: {} },
         { provide: ProfilesService, useValue: profilesService },
         { provide: TutorAvailabilityService, useValue: tutorsService },
         { provide: TutorDirectoryService, useValue: tutorsService },

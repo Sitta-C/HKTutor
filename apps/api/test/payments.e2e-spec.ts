@@ -13,6 +13,7 @@ import { JwtAuthGuard } from '@modules/auth/auth.guard';
 import { JwtTokenService } from '@modules/auth/jwt.service';
 import { ResourceOwnershipGuard } from '@modules/auth/ownership.guard';
 import { RolesGuard } from '@modules/auth/roles.guard';
+import { BookingCouponsService } from '@modules/bookings/booking-coupons.service';
 import { BookingsController } from '@modules/bookings/bookings.controller';
 import { BookingsService } from '@modules/bookings/bookings.service';
 import { OmiseWebhookController, PaymentsController } from '@modules/payments/payments.controller';
@@ -39,6 +40,7 @@ describe('PromptPay HTTP contract', () => {
       providers: [
         { provide: PaymentsService, useValue: payments },
         { provide: BookingsService, useValue: {} },
+        { provide: BookingCouponsService, useValue: {} },
         {
           provide: ConfigService,
           useValue: new ConfigService({
