@@ -329,6 +329,15 @@ rounded cache, and seeds real reviewed classes for two search fixtures. Its real
 is `pnpm --filter @hktutor/api db:verify:search-ratings`, also outside `pnpm check`; see
 [search review ratings](apps/api/README.md#tutor-search-review-ratings-s3-t19).
 
+Students can review their own completed booking from its detail page. The form reads completion from
+the canonical booking response, reads the saved review through the private review endpoint, and
+refreshes both resources after submission. Public tutor detail pages list verified tutors' reviews
+20 at a time through the opaque review cursor. Public feedback is rendered as text, exposes no
+booking identifier or private student fields, and a review-list 404 hides a tutor that lost public
+eligibility during the read. Tutor search and detail requests use `no-store`, so returning to those
+surfaces reads the transactionally updated review aggregate rather than cached tutor data. See
+[review integration evidence](tests/review-integration-qa.md).
+
 S3-DB02 adds Coupon, CouponReservation, CouponUse and minimal append-only AuditLog persistence.
 Database triggers serialize claims, enforce capacity and create consumption/audit evidence atomically.
 Coupon application flows and Booking/payment snapshot changes remain subsequent scopes. See the

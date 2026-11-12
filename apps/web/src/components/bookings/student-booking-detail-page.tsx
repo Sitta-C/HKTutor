@@ -85,6 +85,15 @@ export default function StudentBookingDetailPage({ bookingId }: { bookingId: str
     },
     [bookingRevision],
   );
+  const refreshBookingAfterReview = useCallback((): void => {
+    void getMyBooking(bookingId)
+      .then((result) => {
+        setBooking((current) => (current?.id === result.id ? result : current));
+      })
+      .catch(() => {
+        // The saved review stays visible. A later page reload will retry the canonical booking read.
+      });
+  }, [bookingId]);
 
   return (
     <div className={styles.page}>
@@ -244,6 +253,7 @@ export default function StudentBookingDetailPage({ bookingId }: { bookingId: str
               key={`${booking.id}:${booking.status}`}
               bookingId={booking.id}
               status={booking.status}
+              onReviewSaved={refreshBookingAfterReview}
               onRequiresBookingRefresh={() => {
                 setIsLoading(true);
                 setReloadKey((value) => value + 1);

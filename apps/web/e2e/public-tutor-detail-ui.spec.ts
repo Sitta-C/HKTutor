@@ -1,6 +1,10 @@
 import { expect, test } from '@playwright/test';
 
-import type { PublicAvailabilitySlot, PublicTutorDetail } from '@/lib/api/types';
+import type {
+  PublicAvailabilitySlot,
+  PublicTutorDetail,
+  TutorReviewsResponse,
+} from '@/lib/api/types';
 import type { Page } from '@playwright/test';
 
 // Preview fixtures only; every API request is intercepted, including auth and destination pages.
@@ -45,11 +49,16 @@ async function mockDetail(
     data?: PublicTutorDetail;
     availability?: PublicAvailabilitySlot[];
     gate?: Promise<void>;
+    reviewResponses?: TutorReviewsResponse[];
+    reviewStatus?: number;
     status?: number;
   } = {},
 ) {
   const calls: URL[] = [];
+  const reviewCalls: URL[] = [];
   const unexpected: string[] = [];
+  let activeDetail = options.data ?? detail;
+  let activeReviews = options.reviewResponses?.[0] ?? { items: [], nextCursor: null };
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.clock.install({ time: new Date('2026-10-07T00:00:00Z') });
   await page.clock.setFixedTime(new Date('2026-10-07T00:00:00Z'));
@@ -118,6 +127,20 @@ async function mockDetail(
         },
       });
     }
+    if (path === '/tutors/tutor-anna/reviews') {
+      reviewCalls.push(url);
+      if (options.reviewStatus) {
+        return route.fulfill({
+          status: options.reviewStatus,
+          json: { message: 'Tutor not found' },
+        });
+      }
+      const response =
+        url.searchParams.has('cursor') && options.reviewResponses?.[1]
+          ? options.reviewResponses[1]
+          : activeReviews;
+      return route.fulfill({ json: response });
+    }
     if (path === '/tutors/tutor-anna' || path === '/tutors/tutor-anna/availability') {
       calls.push(url);
       await options.gate;
@@ -125,9 +148,7 @@ async function mockDetail(
         return route.fulfill({ status: options.status, json: { message: 'Preview error' } });
       }
       return route.fulfill({
-        json: path.endsWith('/availability')
-          ? (options.availability ?? slots)
-          : (options.data ?? detail),
+        json: path.endsWith('/availability') ? (options.availability ?? slots) : activeDetail,
       });
     }
     // Navigation assertions do not submit a booking; quotes and unrelated pages stay isolated.
@@ -137,7 +158,17 @@ async function mockDetail(
     unexpected.push(`${route.request().method()} ${path}`);
     return route.fulfill({ status: 500, json: { message: 'Unexpected preview request' } });
   });
-  return { calls, unexpected };
+  return {
+    calls,
+    reviewCalls,
+    unexpected,
+    setDetailData: (next: PublicTutorDetail) => {
+      activeDetail = next;
+    },
+    setReviewResponse: (next: TutorReviewsResponse) => {
+      activeReviews = next;
+    },
+  };
 }
 
 async function noOverflow(page: Page) {
@@ -635,6 +666,107 @@ test('long public text and many loaded days fit without trimming content', async
   ).toBeVisible();
   await noOverflow(page);
   await page.screenshot({ path: testInfo.outputPath('detail-long-text.png'), fullPage: true });
+});
+
+test('public reviews render feedback as text and append the next cursor page', async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 900 });
+  const longNickname = 'M'.repeat(60);
+  const markup =
+    '<img data-public-review-probe src="/missing" onerror="document.body.dataset.reviewExecuted=1">';
+  const { reviewCalls } = await mockDetail(page, {
+    reviewResponses: [
+      {
+        items: [
+          {
+            id: 'review-1',
+            author: { displayName: longNickname },
+            clarity: 5,
+            punctuality: 4,
+            preparation: 5,
+            overallRating: 4.67,
+            feedback: markup,
+            createdAt: '2026-11-10T18:00:00.000Z',
+          },
+        ],
+        nextCursor: 'cursor/with+symbols=',
+      },
+      {
+        items: [
+          {
+            id: 'review-2',
+            author: { displayName: 'A student' },
+            clarity: 4,
+            punctuality: 4,
+            preparation: 4,
+            overallRating: 4,
+            feedback: 'Patient and well prepared.',
+            createdAt: '2026-11-09T18:00:00.000Z',
+          },
+        ],
+        nextCursor: null,
+      },
+    ],
+  });
+
+  await page.goto('/tutors/tutor-anna');
+  await expect(page.getByRole('heading', { name: 'Student reviews' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: longNickname, exact: true })).toBeVisible();
+  await expect(page.getByText(markup, { exact: true })).toBeVisible();
+  await expect(
+    page.locator('img[data-public-review-probe], body[data-review-executed]'),
+  ).toHaveCount(0);
+  await page.getByRole('button', { name: 'Load more reviews' }).click();
+  await expect(page.getByText('Patient and well prepared.', { exact: true })).toBeVisible();
+  await noOverflow(page);
+
+  const initialCalls = reviewCalls.filter((url) => !url.searchParams.has('cursor'));
+  const nextCalls = reviewCalls.filter((url) => url.searchParams.has('cursor'));
+  expect(initialCalls.length).toBeGreaterThan(0);
+  expect(initialCalls.every((url) => url.searchParams.get('limit') === '20')).toBe(true);
+  expect(nextCalls).toHaveLength(1);
+  expect(nextCalls[0]?.searchParams.get('cursor')).toBe('cursor/with+symbols=');
+});
+
+test('reload reads fresh public review and aggregate rating state', async ({ page }) => {
+  const { setDetailData, setReviewResponse } = await mockDetail(page);
+
+  await page.goto('/tutors/tutor-anna');
+  await expect(page.getByRole('heading', { name: 'Teacher Anna', exact: true })).toBeVisible();
+  await expect(page.getByText('Fresh after submission', { exact: true })).toHaveCount(0);
+  setDetailData({
+    ...detail,
+    tutor: { ...detail.tutor, ratingAverage: 4.83, reviewCount: 25 },
+  });
+  setReviewResponse({
+    items: [
+      {
+        id: 'fresh-review',
+        author: { displayName: 'Nan' },
+        clarity: 5,
+        punctuality: 5,
+        preparation: 5,
+        overallRating: 5,
+        feedback: 'Fresh after submission',
+        createdAt: '2026-11-12T08:00:00.000Z',
+      },
+    ],
+    nextCursor: null,
+  });
+  await page.reload();
+  await expect(page.getByText('Fresh after submission', { exact: true })).toBeVisible();
+  await expect(page.locator('[data-tutor-rating="rated"]').first()).toContainText('4.83');
+  await expect(page.locator('[data-tutor-rating="rated"]').first()).toContainText('25 reviews');
+});
+
+test('a reviews 404 hides a tutor that lost public eligibility during the read', async ({
+  page,
+}) => {
+  await mockDetail(page, { reviewStatus: 404 });
+  await page.goto('/tutors/tutor-anna');
+  await expect(page.locator('main').getByRole('alert')).toContainText(
+    'This tutor is not publicly available.',
+  );
+  await expect(page.getByRole('heading', { name: 'Teacher Anna', exact: true })).toHaveCount(0);
 });
 
 for (const verificationStatus of ['UNVERIFIED', 'PENDING', 'REJECTED', 'APPROVED']) {

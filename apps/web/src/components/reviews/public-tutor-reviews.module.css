@@ -1,0 +1,132 @@
+.card.card {
+  min-width: 0;
+  margin-top: 34px;
+  border-radius: 8px;
+  padding: 20px;
+  box-shadow: var(--shadow-paper);
+}
+.card::after {
+  display: none;
+}
+.heading,
+.reviewHeader {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px 18px;
+}
+.heading {
+  padding-bottom: 14px;
+  border-bottom: 1px dashed var(--color-paper-edge);
+}
+.heading h2 {
+  font-family: var(--font-note);
+  font-size: 20px;
+  font-weight: 600;
+}
+.heading p,
+.heading > span,
+.review time,
+.empty,
+.moreError {
+  color: var(--color-notebook-muted-deep);
+  font-size: 12px;
+  line-height: 1.7;
+}
+.heading > span {
+  border-radius: 999px;
+  padding: 4px 9px;
+  background: var(--color-sticky-blue);
+  color: var(--color-tutor-deep);
+  font-weight: 700;
+}
+.list {
+  list-style: none;
+}
+.review {
+  padding: 20px 0;
+}
+.review + .review {
+  border-top: 1px dashed var(--color-paper-edge);
+}
+.reviewHeader > div {
+  min-width: 0;
+}
+.review h3 {
+  font-size: 15px;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+.overall {
+  color: var(--color-notebook-ink);
+  font-size: 18px;
+  font-variant-numeric: tabular-nums;
+}
+.feedback {
+  margin-top: 14px;
+  font-size: 15px;
+  line-height: 1.7;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.dimensions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 14px;
+}
+.dimensions > div {
+  min-width: 0;
+  border-left: 2px solid var(--color-sticky-blue);
+  padding-left: 8px;
+}
+.dimensions dt {
+  color: var(--color-notebook-muted-deep);
+  font-size: 11px;
+}
+.dimensions dd {
+  margin-top: 2px;
+  font-size: 14px;
+  font-weight: 700;
+}
+.empty,
+.error {
+  padding: 24px 0 4px;
+}
+.error {
+  color: var(--color-red-800);
+  font-size: 13px;
+}
+.error button {
+  min-height: 44px;
+  margin-top: 6px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.moreError {
+  color: var(--color-red-800);
+}
+.actions {
+  display: flex;
+  justify-content: center;
+  padding-top: 4px;
+}
+
+@media (max-width: 600px) {
+  .card.card {
+    padding: 18px 16px;
+  }
+  .reviewHeader {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .dimensions {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
