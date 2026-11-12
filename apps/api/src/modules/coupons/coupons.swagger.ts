@@ -6,6 +6,7 @@ import {
   ApiCreatedResponse,
   ApiForbiddenResponse,
   ApiOkResponse,
+  ApiNotFoundResponse,
   ApiOperation,
   ApiProperty,
   ApiTags,
@@ -53,7 +54,9 @@ function couponAuthDocs(): MethodDecorator {
     ApiUnauthorizedResponse({
       description: 'Missing, invalid, expired or revoked access session.',
     }),
-    ApiForbiddenResponse({ description: 'ADMIN role and current privacy consent required.' }),
+    ApiForbiddenResponse({
+      description: 'ADMIN role required. Privacy consent is not required for administrators.',
+    }),
   );
 }
 
@@ -65,7 +68,7 @@ export function CreateCouponDoc(): MethodDecorator {
       description:
         'Trims and uppercases the code. Numeric fields must be JSON integers. UTC expiry must be ' +
         'strictly future. active defaults to true. The coupon and one actor-bound coupon.create ' +
-        'audit event commit atomically through the DB02 trigger. No edit/delete/toggle route.',
+        'audit event commit atomically through the DB02 trigger. Activation can be changed through the dedicated activation route. No pricing edit/delete route.',
     }),
     ApiCreatedResponse({ type: CouponDto }),
     ApiBadRequestResponse({
@@ -88,5 +91,22 @@ export function ListCouponsDoc(): MethodDecorator {
     }),
     ApiOkResponse({ type: CouponListDto }),
     ApiBadRequestResponse({ description: 'VALIDATION_FAILED: invalid/unknown query or cursor.' }),
+  );
+}
+
+export function SetCouponActivationDoc(): MethodDecorator {
+  return applyDecorators(
+    couponAuthDocs(),
+    ApiOperation({
+      summary: 'Set coupon activation (ADMIN only)',
+      description:
+        'Accepts only { active: boolean }. Serializes writes and atomically records a coupon.active_change audit for actual changes. Repeating the current state is a no-op. Returns current metadata/capacity. Expiry, pricing, consumed uses and payment reservations are unchanged; a reserved QR remains honored. Activation alone does not make an expired/exhausted coupon usable. Requires the activation-audit migration; no admin privacy consent required.',
+    }),
+    ApiOkResponse({ type: CouponDto }),
+    ApiBadRequestResponse({
+      description:
+        'INVALID_UUID or VALIDATION_FAILED: required JSON boolean active; no extra fields.',
+    }),
+    ApiNotFoundResponse({ description: 'Coupon not found.' }),
   );
 }

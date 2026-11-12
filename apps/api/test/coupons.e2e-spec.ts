@@ -15,6 +15,8 @@ import type { INestApplication } from '@nestjs/common';
 import type { App } from 'supertest/types';
 
 const URL = '/api/v1/admin/coupons';
+const COUPON_ID = '60000000-0000-4000-8000-000000000001';
+const ACTIVATION_URL = `${URL}/${COUPON_ID}/activation`;
 const ACTOR = '10000000-0000-4000-8000-000000000001';
 const NOW = new Date('2030-01-01T00:00:00.000Z');
 const BODY = { code: 'WELCOME10', percent: 10, maxUses: 1, expiresAt: '2031-01-01T00:00:00.000Z' };
@@ -23,7 +25,11 @@ describe('Admin coupons HTTP contract (real guards, validation and service; mock
   let app: INestApplication<App>;
   const verifyAccessToken = jest.fn();
   const session = jest.fn();
-  const db = { coupon: { create: jest.fn(), findMany: jest.fn() }, $queryRaw: jest.fn() };
+  const db = {
+    coupon: { create: jest.fn(), findMany: jest.fn(), findUnique: jest.fn(), update: jest.fn() },
+    auditLog: { create: jest.fn() },
+    $queryRaw: jest.fn(),
+  };
   const transaction = jest.fn();
 
   beforeAll(async () => {
@@ -60,6 +66,19 @@ describe('Admin coupons HTTP contract (real guards, validation and service; mock
       }),
     );
     db.coupon.findMany.mockResolvedValue([]);
+    const coupon = {
+      ...BODY,
+      id: COUPON_ID,
+      active: true,
+      expiresAt: new Date(BODY.expiresAt),
+      createdAt: NOW,
+      updatedAt: NOW,
+      _count: { uses: 0, reservations: 0 },
+    };
+    db.coupon.findUnique.mockResolvedValue(coupon);
+    db.coupon.update.mockImplementation(({ data }: { data: { active: boolean } }) =>
+      Promise.resolve({ ...coupon, active: data.active }),
+    );
   });
   afterEach(() => jest.restoreAllMocks());
 
@@ -69,8 +88,13 @@ describe('Admin coupons HTTP contract (real guards, validation and service; mock
     expect(transaction).not.toHaveBeenCalled();
   });
 
+  it('requires authentication for activation', async () => {
+    await request(app.getHttpServer()).patch(ACTIVATION_URL).send({ active: true }).expect(401);
+    expect(transaction).not.toHaveBeenCalled();
+  });
+
   it.each([Role.STUDENT, Role.TUTOR])('rejects %s before persistence', async (role) => {
-    authenticate({ role });
+    authenticate({ role, consentAcceptedAt: null, policyVersion: null });
     for (const method of ['post', 'get'] as const) {
       await request(app.getHttpServer())
         [method](URL)
@@ -78,6 +102,11 @@ describe('Admin coupons HTTP contract (real guards, validation and service; mock
         .send(BODY)
         .expect(403);
     }
+    await request(app.getHttpServer())
+      .patch(ACTIVATION_URL)
+      .auth('test', { type: 'bearer' })
+      .send({ active: true })
+      .expect(403);
     expect(transaction).not.toHaveBeenCalled();
   });
 
@@ -101,23 +130,108 @@ describe('Admin coupons HTTP contract (real guards, validation and service; mock
         .send(BODY)
         .expect(401);
     }
+    await request(app.getHttpServer())
+      .patch(ACTIVATION_URL)
+      .auth('test', { type: 'bearer' })
+      .send({ active: true })
+      .expect(401);
     expect(transaction).not.toHaveBeenCalled();
   });
 
-  it.each([{ consentAcceptedAt: null }, { policyVersion: 'old-policy' }])(
-    'requires current consent %p',
-    async (fields) => {
-      authenticate(fields);
-      for (const method of ['post', 'get'] as const) {
-        await request(app.getHttpServer())
-          [method](URL)
-          .auth('test', { type: 'bearer' })
-          .send(BODY)
-          .expect(403);
-      }
-      expect(transaction).not.toHaveBeenCalled();
-    },
-  );
+  it.each([
+    { consentAcceptedAt: null, policyVersion: null },
+    { consentAcceptedAt: null },
+    { policyVersion: null },
+    { policyVersion: 'old-policy' },
+  ])('allows an admin to create and list without current consent %p', async (fields) => {
+    authenticate(fields);
+    await request(app.getHttpServer())
+      .post(URL)
+      .auth('test', { type: 'bearer' })
+      .send(BODY)
+      .expect(201)
+      .expect('Cache-Control', 'no-store');
+    expect(db.$queryRaw).toHaveBeenCalledWith(expect.anything(), ACTOR);
+    await request(app.getHttpServer())
+      .get(URL)
+      .auth('test', { type: 'bearer' })
+      .expect(200)
+      .expect('Cache-Control', 'no-store');
+    await request(app.getHttpServer())
+      .patch(ACTIVATION_URL)
+      .auth('test', { type: 'bearer' })
+      .send({ active: false })
+      .expect(200)
+      .expect('Cache-Control', 'no-store');
+    expect(db.auditLog.create).toHaveBeenCalled();
+    expect(db.coupon.create).toHaveBeenCalledTimes(1);
+    expect(db.coupon.findMany).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    {},
+    { active: null },
+    { active: 'true' },
+    { active: 1 },
+    { active: [] },
+    { active: true, percent: 90 },
+    { active: false, actorUserId: ACTOR },
+  ])('rejects invalid activation body %p before writes', async (body) => {
+    await request(app.getHttpServer())
+      .patch(ACTIVATION_URL)
+      .auth('test', { type: 'bearer' })
+      .send(body)
+      .expect(400);
+    expect(transaction).not.toHaveBeenCalled();
+  });
+
+  it('validates activation UUID and reports missing coupons', async () => {
+    await request(app.getHttpServer())
+      .patch(`${URL}/invalid/activation`)
+      .auth('test', { type: 'bearer' })
+      .send({ active: true })
+      .expect(400);
+    expect(transaction).not.toHaveBeenCalled();
+    db.coupon.findUnique.mockResolvedValue(null);
+    await request(app.getHttpServer())
+      .patch(ACTIVATION_URL)
+      .auth('test', { type: 'bearer' })
+      .send({ active: true })
+      .expect(404);
+    expect(db.coupon.update).not.toHaveBeenCalled();
+  });
+
+  it.each([true, false])('sets activation to %s using the authenticated actor', async (active) => {
+    if (active) {
+      db.coupon.findUnique.mockResolvedValue({
+        ...BODY,
+        id: COUPON_ID,
+        active: false,
+        expiresAt: new Date(BODY.expiresAt),
+        createdAt: NOW,
+        updatedAt: NOW,
+        _count: { uses: 0, reservations: 0 },
+      });
+    }
+    const response = await request(app.getHttpServer())
+      .patch(ACTIVATION_URL)
+      .auth('test', { type: 'bearer' })
+      .send({ active })
+      .expect(200)
+      .expect('Cache-Control', 'no-store');
+    expect(response.body as unknown).toMatchObject({
+      id: COUPON_ID,
+      active,
+      consumedUses: 0,
+      reservedUses: 0,
+      availableUses: 1,
+    });
+    expect(db.auditLog.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ actorUserId: ACTOR, afterData: { active } }) as unknown,
+      }),
+    );
+  });
 
   it.each([1, 100])(
     'creates %i percent with normalized code, safe metadata and no caching',
@@ -235,7 +349,7 @@ describe('Admin coupons HTTP contract (real guards, validation and service; mock
   });
 
   function authenticate(
-    fields: { role?: Role; consentAcceptedAt?: Date | null; policyVersion?: string } = {},
+    fields: { role?: Role; consentAcceptedAt?: Date | null; policyVersion?: string | null } = {},
   ) {
     verifyAccessToken.mockReturnValue({ sid: 'session-id', sub: ACTOR });
     const value = {

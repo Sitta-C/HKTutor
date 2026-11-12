@@ -10,7 +10,8 @@ import { getCouponRequestError, mergeCouponPages } from '@/components/coupons/co
 import { DashboardLoading } from '@/components/dashboard/dashboard-loading';
 import DashboardShell from '@/components/dashboard/dashboard-shell';
 import { NotebookPage } from '@/components/ui/notebook';
-import { listAdminCoupons } from '@/lib/api/coupons';
+import { useNotebookToast } from '@/components/ui/notebook-toast';
+import { listAdminCoupons, setAdminCouponActivation } from '@/lib/api/coupons';
 import { useAuth } from '@/lib/auth-context';
 import { useLanguage } from '@/lib/i18n';
 import { withReturnTo } from '@/lib/return-to';
@@ -45,8 +46,16 @@ function CouponWorkspace() {
   const request = useRef<AbortController | null>(null);
   const retryCursor = useRef<string | undefined>(undefined);
   const mounted = useRef(false);
+  const activationRequest = useRef<AbortController | null>(null);
+  const refreshAfterActivation = useRef(false);
+  const [changingId, setChangingId] = useState<string | null>(null);
+  const [uncertainIds, setUncertainIds] = useState<string[]>([]);
+  const toast = useNotebookToast();
 
   const readPage = useCallback((cursor?: string) => {
+    if (activationRequest.current) {
+      return Promise.resolve();
+    }
     retryCursor.current = cursor;
     request.current?.abort();
     const controller = new AbortController();
@@ -58,6 +67,9 @@ function CouponWorkspace() {
         }
         setItems((current) => (cursor ? mergeCouponPages(current, result.items) : result.items));
         setNextCursor(result.nextCursor);
+        setUncertainIds((current) =>
+          current.filter((id) => !result.items.some((item) => item.id === id)),
+        );
       })
       .catch((error: unknown) => {
         if (controller.signal.aborted || !mounted.current) {
@@ -80,6 +92,13 @@ function CouponWorkspace() {
   }, []);
 
   function load(cursor?: string): void {
+    if (activationRequest.current) {
+      // Creation/reconciliation can finish while PATCH owns the register. Refresh afterward.
+      if (!cursor) {
+        refreshAfterActivation.current = true;
+      }
+      return;
+    }
     setLoading(!cursor);
     setLoadingMore(Boolean(cursor));
     setFailed(false);
@@ -92,8 +111,57 @@ function CouponWorkspace() {
     return () => {
       mounted.current = false;
       request.current?.abort();
+      activationRequest.current?.abort();
+      refreshAfterActivation.current = false;
     };
   }, [readPage]);
+
+  async function changeActivation(coupon: AdminCoupon): Promise<void> {
+    if (activationRequest.current || uncertainIds.includes(coupon.id)) {
+      return;
+    }
+    // Stop older list results from overwriting the authoritative PATCH response.
+    request.current?.abort();
+    setLoading(false);
+    setLoadingMore(false);
+    const controller = new AbortController();
+    activationRequest.current = controller;
+    setChangingId(coupon.id);
+    try {
+      const updated = await setAdminCouponActivation(
+        coupon.id,
+        { active: !coupon.active },
+        controller.signal,
+      );
+      if (controller.signal.aborted || !mounted.current) {
+        return;
+      }
+      setItems((current) => current.map((item) => (item.id === updated.id ? updated : item)));
+      toast.success(updated.active ? copy.activated : copy.deactivated);
+    } catch (error) {
+      if (controller.signal.aborted || !mounted.current) {
+        return;
+      }
+      const kind = getCouponRequestError(error);
+      if (kind === 'unauthorized' || kind === 'forbidden') {
+        refreshAfterActivation.current = false;
+        setDenied(kind);
+        setItems([]);
+      } else {
+        setUncertainIds((current) => [...current.filter((id) => id !== coupon.id), coupon.id]);
+        toast.error(copy.activationUncertain);
+      }
+    } finally {
+      activationRequest.current = null;
+      if (!controller.signal.aborted && mounted.current) {
+        setChangingId(null);
+        if (refreshAfterActivation.current) {
+          refreshAfterActivation.current = false;
+          load();
+        }
+      }
+    }
+  }
 
   function created(coupon: AdminCoupon): void {
     // Cancel older pagination/initial reads before refetching the authoritative first page.
@@ -129,6 +197,9 @@ function CouponWorkspace() {
           language={language}
           loading={loading}
           loadingMore={loadingMore}
+          changingId={changingId}
+          uncertainIds={uncertainIds}
+          onActivationChange={(coupon) => void changeActivation(coupon)}
           failed={failed}
           nextCursor={nextCursor}
           onMore={() => {

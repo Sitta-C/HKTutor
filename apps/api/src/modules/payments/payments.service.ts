@@ -39,6 +39,12 @@ const bookingSelect = {
   paymentReference: true,
 } satisfies Prisma.BookingSelect;
 
+type PaymentBooking = Prisma.BookingGetPayload<{ select: typeof bookingSelect }>;
+
+function domainConflict(code: string, message: string): ConflictException {
+  return new ConflictException({ code, message });
+}
+
 function conflict(): ConflictException {
   return new ConflictException({
     code: 'PAYMENT_STATE_CONFLICT',
@@ -54,50 +60,56 @@ export class PaymentsService {
   ) {}
 
   async create(bookingId: string, studentUserId: string): Promise<PaymentResponseDto> {
-    this.omise.assertEnabled();
-    const booking = await this.ownedBooking(bookingId, studentUserId);
-    if (booking.paymentStatus === 'PAID' || booking.paymentPending) {
-      return this.getStatus(bookingId, studentUserId);
-    }
-    // Coupon charges require T26's atomic capacity reservation and consumption flow.
-    if (booking.status !== 'CONFIRMED' || booking.appliedCouponId) {
-      throw conflict();
-    }
-    const subunits = booking.netAmount.mul(100);
-    if (
-      booking.currency !== 'THB' ||
-      !subunits.isInteger() ||
-      subunits.lt(2000) ||
-      subunits.gt(15_000_000)
-    ) {
-      throw new ConflictException('PromptPay supports THB 20.00–150,000.00');
-    }
-    const id = randomUUID();
-    const attempt = await this.prisma.$transaction(async (tx) => {
-      // This row update serializes creation with cancellation and other payment claims.
-      const claim = await tx.booking.updateMany({
-        where: {
-          id: bookingId,
-          studentUserId,
-          status: 'CONFIRMED',
-          paymentStatus: 'UNPAID',
-          paymentPending: false,
-          netAmount: booking.netAmount,
-          subtotalAmount: booking.subtotalAmount,
-          discountAmount: booking.discountAmount,
-          appliedCouponId: booking.appliedCouponId,
-          appliedCouponCode: booking.appliedCouponCode,
-          appliedCouponPercent: booking.appliedCouponPercent,
-          currency: 'THB',
-        },
-        data: { paymentPending: true },
-      });
-      if (claim.count !== 1) {
+    const attempt = await this.transaction(async (tx) => {
+      await tx.$queryRaw`SELECT "id" FROM "Booking" WHERE "id" = ${bookingId}::uuid FOR UPDATE`;
+      const booking = await this.ownedBooking(bookingId, studentUserId, tx);
+      if (booking.paymentStatus === 'PAID' || booking.paymentPending) {
         return null;
       }
-      return tx.paymentAttempt.create({
+      if (booking.status !== 'CONFIRMED') {
+        throw domainConflict('BOOKING_NOT_PAYABLE', 'Only confirmed unpaid bookings are payable');
+      }
+      const subunits = booking.netAmount.mul(100);
+      const zero = subunits.isZero();
+      if (
+        booking.currency !== 'THB' ||
+        !subunits.isInteger() ||
+        (!zero && (subunits.lt(2000) || subunits.gt(15_000_000))) ||
+        (zero && (!booking.appliedCouponId || booking.appliedCouponPercent !== 100))
+      ) {
+        throw domainConflict('PAYMENT_AMOUNT_UNSUPPORTED', 'Unsupported payment amount');
+      }
+      await this.validateCoupon(tx, booking);
+      await tx.$queryRaw`SELECT set_config('hktutor.audit_actor_user_id', ${studentUserId}, true)`;
+      if (zero && booking.appliedCouponId) {
+        const now = new Date();
+        const reservation = await tx.couponReservation.create({
+          data: {
+            couponId: booking.appliedCouponId,
+            bookingId,
+            studentUserId,
+            discountAmount: booking.discountAmount,
+            status: 'CONSUMED',
+            createdAt: now,
+            consumedAt: now,
+          },
+        });
+        await tx.booking.update({
+          where: { id: bookingId },
+          data: {
+            paymentStatus: 'PAID',
+            paidAt: now,
+            paymentReference: `coupon:${reservation.id}`,
+          },
+        });
+        return null;
+      }
+      // Check configuration before claiming capacity; no provider HTTP runs in this transaction.
+      this.omise.assertEnabled();
+      await tx.booking.update({ where: { id: bookingId }, data: { paymentPending: true } });
+      const created = await tx.paymentAttempt.create({
         data: {
-          id,
+          id: randomUUID(),
           bookingId,
           amount: booking.netAmount,
           currency: 'THB',
@@ -106,30 +118,40 @@ export class PaymentsService {
           appliedCouponPercent: booking.appliedCouponPercent,
         },
       });
+      if (booking.appliedCouponId) {
+        await tx.couponReservation.create({
+          data: {
+            couponId: booking.appliedCouponId,
+            bookingId,
+            studentUserId,
+            paymentAttemptId: created.id,
+            discountAmount: booking.discountAmount,
+          },
+        });
+      }
+      return created;
     });
     if (!attempt) {
-      const current = await this.ownedBooking(bookingId, studentUserId);
-      if (current.paymentPending || current.paymentStatus === 'PAID') {
-        return this.getStatus(bookingId, studentUserId);
-      }
-      throw conflict();
+      return this.getStatus(bookingId, studentUserId);
     }
     try {
       const charge = await this.omise.createCharge({
-        amount: subunits.toNumber(),
-        attemptId: id,
+        amount: attempt.amount.mul(100).toNumber(),
+        attemptId: attempt.id,
         bookingId,
         expiresAt: new Date(Date.now() + 15 * 60_000),
       });
       await this.applyCharge(charge, attempt.id);
     } catch (error) {
       if (error instanceof OmiseRequestRejected) {
-        await this.prisma.$transaction(async (tx) => {
+        await this.transaction(async (tx) => {
+          await this.lockAttemptBooking(tx, attempt);
           const failed = await tx.paymentAttempt.updateMany({
-            where: { id, status: 'CREATING' },
+            where: { id: attempt.id, status: 'CREATING' },
             data: { status: 'FAILED', failureCode: 'provider_rejected' },
           });
           if (failed.count === 1) {
+            await this.finishReservation(tx, attempt, false);
             await tx.booking.updateMany({
               where: { id: bookingId, paymentStatus: 'UNPAID' },
               data: { paymentPending: false },
@@ -199,9 +221,15 @@ export class PaymentsService {
     if (charge.attemptId !== expectedAttemptId) {
       throw new ConflictException('Charge belongs to a different payment attempt');
     }
-    await this.prisma.$transaction(async (tx) => {
-      await tx.$queryRaw`SELECT "id" FROM "Booking" WHERE "id" = ${charge.bookingId}::uuid FOR UPDATE`;
-      const attempt = await tx.paymentAttempt.findUnique({ where: { id: charge.attemptId } });
+    const expected = await this.prisma.paymentAttempt.findUnique({
+      where: { id: expectedAttemptId },
+    });
+    if (!expected || expected.bookingId !== charge.bookingId) {
+      throw conflict();
+    }
+    await this.transaction(async (tx) => {
+      const booking = await this.lockAttemptBooking(tx, expected);
+      const attempt = await tx.paymentAttempt.findUnique({ where: { id: expectedAttemptId } });
       if (
         !attempt ||
         attempt.bookingId !== charge.bookingId ||
@@ -213,6 +241,15 @@ export class PaymentsService {
       }
       if (!ACTIVE_STATUSES.some((status) => status === attempt.status)) {
         return;
+      }
+      if (
+        !booking.netAmount.equals(attempt.amount) ||
+        booking.currency !== attempt.currency ||
+        booking.appliedCouponId !== attempt.appliedCouponId ||
+        booking.appliedCouponCode !== attempt.appliedCouponCode ||
+        booking.appliedCouponPercent !== attempt.appliedCouponPercent
+      ) {
+        throw conflict();
       }
       const status =
         charge.status === 'successful'
@@ -236,6 +273,7 @@ export class PaymentsService {
       if (status === 'PENDING') {
         return;
       }
+      await this.finishReservation(tx, attempt, status === 'SUCCESSFUL');
       const updated = await tx.booking.updateMany({
         where: {
           id: attempt.bookingId,
@@ -259,6 +297,131 @@ export class PaymentsService {
         throw conflict();
       }
     });
+  }
+
+  /** Lock order is shared with the database guards: booking -> coupon -> reservation/attempt. */
+  private async lockAttemptBooking(
+    tx: Prisma.TransactionClient,
+    attempt: PaymentAttempt,
+  ): Promise<PaymentBooking> {
+    await tx.$queryRaw`SELECT "id" FROM "Booking" WHERE "id" = ${attempt.bookingId}::uuid FOR UPDATE`;
+    if (attempt.appliedCouponId) {
+      await tx.$executeRaw`UPDATE "Coupon" SET "id" = "id" WHERE "id" = ${attempt.appliedCouponId}::uuid`;
+    }
+    const booking = await tx.booking.findUnique({
+      where: { id: attempt.bookingId },
+      select: bookingSelect,
+    });
+    if (!booking) {
+      throw conflict();
+    }
+    return booking;
+  }
+
+  private async validateCoupon(
+    tx: Prisma.TransactionClient,
+    booking: PaymentBooking,
+  ): Promise<void> {
+    if (!booking.appliedCouponId) {
+      return;
+    }
+    // A forced write also invalidates older repeatable-read writers using the same capacity.
+    await tx.$executeRaw`UPDATE "Coupon" SET "id" = "id" WHERE "id" = ${booking.appliedCouponId}::uuid`;
+    const coupon = await tx.coupon.findUnique({
+      where: { id: booking.appliedCouponId },
+      select: { code: true, percent: true, active: true, expiresAt: true, maxUses: true },
+    });
+    if (!coupon) {
+      throw conflict();
+    }
+    if (!coupon.active) {
+      throw domainConflict('COUPON_INACTIVE', 'Coupon is inactive');
+    }
+    if (coupon.expiresAt.getTime() <= Date.now()) {
+      throw domainConflict('COUPON_EXPIRED', 'Coupon has expired');
+    }
+    const discount = booking.subtotalAmount
+      .mul(coupon.percent)
+      .div(100)
+      .toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP);
+    if (
+      coupon.code !== booking.appliedCouponCode ||
+      coupon.percent !== booking.appliedCouponPercent ||
+      !discount.equals(booking.discountAmount) ||
+      !booking.subtotalAmount.minus(discount).equals(booking.netAmount)
+    ) {
+      throw conflict();
+    }
+    const claimed = await tx.couponReservation.findFirst({
+      where: {
+        couponId: booking.appliedCouponId,
+        studentUserId: booking.studentUserId,
+        status: { in: ['RESERVED', 'CONSUMED'] },
+      },
+      select: { id: true },
+    });
+    const used = await tx.couponUse.findUnique({
+      where: {
+        couponId_studentUserId: {
+          couponId: booking.appliedCouponId,
+          studentUserId: booking.studentUserId,
+        },
+      },
+      select: { id: true },
+    });
+    if (claimed || used) {
+      throw domainConflict('COUPON_ALREADY_USED', 'Coupon is already claimed by this student');
+    }
+    const consumed = await tx.couponUse.count({ where: { couponId: booking.appliedCouponId } });
+    const reserved = await tx.couponReservation.count({
+      where: { couponId: booking.appliedCouponId, status: 'RESERVED' },
+    });
+    if (consumed + reserved >= coupon.maxUses) {
+      throw domainConflict('COUPON_EXHAUSTED', 'Coupon capacity is exhausted');
+    }
+  }
+
+  private async finishReservation(
+    tx: Prisma.TransactionClient,
+    attempt: PaymentAttempt,
+    successful: boolean,
+  ): Promise<void> {
+    if (!attempt.appliedCouponId) {
+      return;
+    }
+    const reservation = await tx.couponReservation.findUnique({
+      where: { paymentAttemptId: attempt.id },
+    });
+    if (
+      !reservation ||
+      reservation.status !== 'RESERVED' ||
+      reservation.couponId !== attempt.appliedCouponId
+    ) {
+      throw conflict();
+    }
+    const now = new Date(Math.max(Date.now(), reservation.createdAt.getTime()));
+    await tx.couponReservation.update({
+      where: { id: reservation.id },
+      data: successful
+        ? { status: 'CONSUMED', consumedAt: now }
+        : { status: 'RELEASED', releasedAt: now },
+    });
+  }
+
+  private async transaction<T>(run: (tx: Prisma.TransactionClient) => Promise<T>): Promise<T> {
+    for (let retry = 0; ; retry += 1) {
+      try {
+        return await this.prisma.$transaction(run);
+      } catch (error) {
+        if (
+          !(error instanceof Prisma.PrismaClientKnownRequestError) ||
+          error.code !== 'P2034' ||
+          retry >= 2
+        ) {
+          throw error;
+        }
+      }
+    }
   }
 
   private async ownedBooking(
@@ -298,7 +461,10 @@ export class PaymentsService {
           paymentPending: booking.paymentPending,
           paidAt: booking.paidAt?.toISOString() ?? null,
           reference: booking.paymentReference ?? booking.mockReference,
-          attempt: attempt ? this.attemptResponse(attempt) : null,
+          attempt:
+            attempt && !booking.paymentReference?.startsWith('coupon:')
+              ? this.attemptResponse(attempt)
+              : null,
         };
       },
       { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead },

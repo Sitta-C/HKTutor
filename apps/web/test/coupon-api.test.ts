@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { authenticatedFetch } from '@/lib/api/client';
-import { createAdminCoupon, listAdminCoupons } from '@/lib/api/coupons';
+import { createAdminCoupon, listAdminCoupons, setAdminCouponActivation } from '@/lib/api/coupons';
 
 vi.mock('@/lib/api/client', () => ({ authenticatedFetch: vi.fn() }));
 
@@ -21,6 +21,15 @@ describe('admin coupon API', () => {
     await listAdminCoupons(undefined, controller.signal);
     const last = vi.mocked(authenticatedFetch).mock.lastCall;
     expect(last?.[1]?.signal?.aborted).toBe(true);
+  });
+  it('sets the desired activation with an encoded ID and only a boolean body', async () => {
+    const controller = new AbortController();
+    await setAdminCouponActivation('coupon/id', { active: false }, controller.signal);
+    expect(authenticatedFetch).toHaveBeenCalledWith('/admin/coupons/coupon%2Fid/activation', {
+      method: 'PATCH',
+      body: JSON.stringify({ active: false }),
+      signal: expect.any(AbortSignal),
+    });
   });
   it('posts the exact JSON contract and preserves the active=false choice', async () => {
     const payload = {

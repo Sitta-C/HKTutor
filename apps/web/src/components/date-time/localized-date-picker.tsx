@@ -20,6 +20,12 @@ import type { DateTimeLanguage } from '@/lib/date-time';
 
 interface LocalizedDatePickerProps {
   value: string;
+  id?: string;
+  placeholder?: string;
+  disabled?: boolean;
+  invalid?: boolean;
+  describedBy?: string;
+  className?: string;
   name?: string;
   min?: string;
   language: DateTimeLanguage;
@@ -33,6 +39,12 @@ interface LocalizedDatePickerProps {
 export function LocalizedDatePicker({
   value,
   name = 'date',
+  id,
+  placeholder,
+  disabled = false,
+  invalid = false,
+  describedBy,
+  className,
   min,
   language,
   label,
@@ -47,9 +59,12 @@ export function LocalizedDatePicker({
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const activeDayRef = useRef<HTMLButtonElement>(null);
-  const [isOpen, setIsOpen] = useState(false);
-  const [viewMonth, setViewMonth] = useState(() => startOfIsoMonth(value));
-  const [activeDate, setActiveDate] = useState(value);
+  const [requestedOpen, setIsOpen] = useState(false);
+  const isOpen = requestedOpen && !disabled;
+  const [viewMonth, setViewMonth] = useState(() =>
+    startOfIsoMonth(value || min || getBangkokToday()),
+  );
+  const [activeDate, setActiveDate] = useState(value || min || getBangkokToday());
 
   const days = useMemo(() => getCalendarMonthDays(viewMonth), [viewMonth]);
   const weekdayLabels = useMemo(() => getCalendarWeekdayLabels(language), [language]);
@@ -74,7 +89,8 @@ export function LocalizedDatePicker({
   }, [isOpen]);
 
   const openCalendar = () => {
-    const nextActiveDate = min && value < min ? min : value;
+    const selectedDate = value || min || getBangkokToday();
+    const nextActiveDate = min && selectedDate < min ? min : selectedDate;
     setActiveDate(nextActiveDate);
     setViewMonth(startOfIsoMonth(nextActiveDate));
     setIsOpen(true);
@@ -143,10 +159,14 @@ export function LocalizedDatePicker({
       <input type="hidden" name={name} value={value} />
       <button
         ref={triggerRef}
+        id={id}
         type="button"
+        disabled={disabled}
+        data-invalid={invalid || undefined}
+        aria-describedby={describedBy}
         className={notebookInputClass({
-          className:
-            'flex cursor-pointer items-center justify-between gap-3 text-left focus:border-tutor focus:ring-sticky-blue/70',
+          error: invalid,
+          className: `flex cursor-pointer items-center justify-between gap-3 text-left focus:border-tutor focus:ring-sticky-blue/70 ${className ?? ''}`,
         })}
         aria-labelledby={`${labelId} ${valueId}`}
         aria-haspopup="dialog"
@@ -154,7 +174,9 @@ export function LocalizedDatePicker({
         aria-controls={dialogId}
         onClick={() => (isOpen ? closeCalendar() : openCalendar())}
       >
-        <span id={valueId}>{formatCalendarDate(value, language)}</span>
+        <span id={valueId}>
+          {value ? formatCalendarDate(value, language) : (placeholder ?? label)}
+        </span>
         <CalendarIcon />
       </button>
 

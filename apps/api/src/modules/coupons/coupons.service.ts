@@ -1,4 +1,11 @@
-import { BadRequestException, ConflictException, Injectable } from '@nestjs/common';
+import { randomUUID } from 'node:crypto';
+
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 
 import { Prisma } from '@generated/prisma/client';
 import { CouponReservationStatus } from '@generated/prisma/enums';
@@ -109,6 +116,40 @@ export class CouponsService {
       }
       throw error;
     }
+  }
+
+  async setActivation(actorUserId: string, couponId: string, active: boolean): Promise<CouponDto> {
+    return this.prisma.$transaction(async (tx) => {
+      // Serialize desired-state writes with each other and the payment capacity claim.
+      await tx.$queryRaw`SELECT "id" FROM "Coupon" WHERE "id" = ${couponId}::uuid FOR UPDATE`;
+      const before = await tx.coupon.findUnique({ where: { id: couponId }, select: couponSelect });
+      if (!before) {
+        throw new NotFoundException('Coupon not found');
+      }
+      if (before.active === active) {
+        return toCouponDto(before);
+      }
+      const coupon = await tx.coupon.update({
+        where: { id: couponId },
+        data: { active },
+        select: couponSelect,
+      });
+      const auditId = randomUUID();
+      await tx.auditLog.create({
+        data: {
+          id: auditId,
+          actorUserId,
+          action: 'coupon.active_change',
+          entityType: 'Coupon',
+          entityId: couponId,
+          beforeData: { active: before.active },
+          afterData: { active },
+          operationKey: `coupon.active_change:${auditId}`,
+        },
+        select: { id: true },
+      });
+      return toCouponDto(coupon);
+    });
   }
 
   async list(query: ListCouponsQueryDto): Promise<CouponListDto> {

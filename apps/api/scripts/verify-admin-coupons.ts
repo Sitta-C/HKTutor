@@ -16,7 +16,6 @@ import {
   Role,
 } from '@generated/prisma/client';
 import { PrismaService } from '@infrastructure/database/prisma.service';
-import { CURRENT_PRIVACY_POLICY_VERSION } from '@modules/auth/auth.constants';
 import { JwtAuthGuard } from '@modules/auth/auth.guard';
 import { JwtTokenService } from '@modules/auth/jwt.service';
 import { RolesGuard } from '@modules/auth/roles.guard';
@@ -82,8 +81,6 @@ async function verify(): Promise<void> {
         email: `coupon-admin-${actor}@example.test`,
         role: Role.ADMIN,
         emailVerifiedAt: new Date(),
-        consentAcceptedAt: new Date(),
-        policyVersion: CURRENT_PRIVACY_POLICY_VERSION,
       },
     });
     const session = await prisma.authSession.create({
@@ -294,8 +291,125 @@ async function verify(): Promise<void> {
       'real reserve/release/consume counts match the safe HTTP response without double-counting',
     );
 
+    const activationUrl = `${URL}/${coupon.id}/activation`;
+    const claimsBefore = await prisma.couponReservation.findMany({
+      where: { couponId: coupon.id },
+      orderBy: { id: 'asc' },
+    });
+    const usesBefore = await prisma.couponUse.findMany({ where: { couponId: coupon.id } });
+    const firstChanges = await Promise.all([
+      request(server).patch(activationUrl).auth(token, { type: 'bearer' }).send({ active: false }),
+      request(server).patch(activationUrl).auth(token, { type: 'bearer' }).send({ active: false }),
+    ]);
+    assert.ok(firstChanges.every((item) => item.status === 200));
+    assert.equal(
+      await prisma.auditLog.count({
+        where: { entityId: coupon.id, action: 'coupon.active_change' },
+      }),
+      1,
+    );
+    for (const active of [true, true, false]) {
+      const result = await request(server)
+        .patch(activationUrl)
+        .auth(token, { type: 'bearer' })
+        .send({ active })
+        .expect(200)
+        .expect('Cache-Control', 'no-store');
+      assert.equal((result.body as { active: boolean }).active, active);
+      const data = result.body as {
+        consumedUses: number;
+        reservedUses: number;
+        availableUses: number;
+      };
+      assert.deepEqual([data.consumedUses, data.reservedUses, data.availableUses], [1, 1, 8]);
+    }
+    const activationAudits = await prisma.auditLog.findMany({
+      where: { entityId: coupon.id, action: 'coupon.active_change' },
+      orderBy: { createdAt: 'asc' },
+    });
+    assert.equal(activationAudits.length, 3);
+    assert.ok(
+      activationAudits.every(
+        (audit) =>
+          audit.actorUserId === actor && audit.operationKey === `coupon.active_change:${audit.id}`,
+      ),
+    );
+    assert.deepEqual(
+      activationAudits.map((audit) => [audit.beforeData, audit.afterData]),
+      [
+        [{ active: true }, { active: false }],
+        [{ active: false }, { active: true }],
+        [{ active: true }, { active: false }],
+      ],
+    );
+    assert.deepEqual(
+      await prisma.couponReservation.findMany({
+        where: { couponId: coupon.id },
+        orderBy: { id: 'asc' },
+      }),
+      claimsBefore,
+    );
+    assert.deepEqual(
+      await prisma.couponUse.findMany({ where: { couponId: coupon.id } }),
+      usesBefore,
+    );
+    const afterActivation = await prisma.coupon.findUniqueOrThrow({ where: { id: coupon.id } });
+    assert.deepEqual(
+      [
+        afterActivation.code,
+        afterActivation.percent,
+        afterActivation.maxUses,
+        afterActivation.expiresAt,
+      ],
+      [coupon.code, coupon.percent, coupon.maxUses, coupon.expiresAt],
+    );
+    pass(
+      'activation races/retries write one audit per actual change, preserving pricing, expiry and all usage/reservations',
+    );
+
+    await assert.rejects(service.setActivation(randomUUID(), coupon.id, true));
+    assert.deepEqual(
+      await prisma.coupon.findUniqueOrThrow({ where: { id: coupon.id } }),
+      afterActivation,
+    );
+    assert.equal(
+      await prisma.auditLog.count({
+        where: { entityId: coupon.id, action: 'coupon.active_change' },
+      }),
+      3,
+    );
+    pass('activation audit FK failure rolls back status and timestamp with no partial audit');
+
+    const malformedAuditId = randomUUID();
+    await assert.rejects(
+      prisma.auditLog.create({
+        data: {
+          id: malformedAuditId,
+          actorUserId: actor,
+          action: 'coupon.active_change',
+          entityType: 'Coupon',
+          entityId: coupon.id,
+          operationKey: `coupon.active_change:${malformedAuditId}`,
+          beforeData: { active: false },
+          afterData: { active: true, secret: 'disallowed' },
+        },
+      }),
+    );
+    await assert.rejects(
+      prisma.auditLog.update({
+        where: { id: activationAudits[0]?.id ?? '' },
+        data: { actorUserId: actor },
+      }),
+    );
+    pass('activation audit JSON stays allow-listed and evidence remains append-only');
+
     await prisma.authSession.update({ where: { id: session.id }, data: { revokedAt: new Date() } });
     await request(server).get(URL).auth(token, { type: 'bearer' }).expect(401);
+    await request(server)
+      .patch(activationUrl)
+      .auth(token, { type: 'bearer' })
+      .send({ active: true })
+      .expect(401);
     pass('revoked persisted session is rejected by the actual JWT guard');
     process.stdout.write(`${passed} admin coupon database checks passed.\n`);
   } finally {

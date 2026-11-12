@@ -26,7 +26,11 @@ const row = {
 
 describe('CouponsService', () => {
   let service: CouponsService;
-  const db = { coupon: { create: jest.fn(), findMany: jest.fn() }, $queryRaw: jest.fn() };
+  const db = {
+    coupon: { create: jest.fn(), findMany: jest.fn(), findUnique: jest.fn(), update: jest.fn() },
+    auditLog: { create: jest.fn() },
+    $queryRaw: jest.fn(),
+  };
   const transaction = jest.fn();
 
   beforeEach(async () => {
@@ -35,6 +39,8 @@ describe('CouponsService', () => {
     transaction.mockImplementation((run: (tx: typeof db) => Promise<unknown>) => run(db));
     db.coupon.create.mockResolvedValue({ ...row, _count: { uses: 0, reservations: 0 } });
     db.coupon.findMany.mockResolvedValue([row]);
+    db.coupon.findUnique.mockResolvedValue(row);
+    db.coupon.update.mockResolvedValue({ ...row, active: false });
     const module = await Test.createTestingModule({
       providers: [
         CouponsService,
@@ -130,6 +136,54 @@ describe('CouponsService', () => {
     } else {
       await expect(outcome).rejects.toBe(failure);
     }
+  });
+
+  it('changes only activation and atomically binds minimal audit evidence to the actor', async () => {
+    const result = await service.setActivation(ACTOR, ID, false);
+    expect(db.coupon.update).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: ID }, data: { active: false } }),
+    );
+    expect(db.auditLog.create).toHaveBeenCalledWith({
+      data: {
+        id: expect.any(String) as unknown,
+        actorUserId: ACTOR,
+        action: 'coupon.active_change',
+        entityType: 'Coupon',
+        entityId: ID,
+        beforeData: { active: true },
+        afterData: { active: false },
+        operationKey: expect.stringMatching(/^coupon\.active_change:/) as unknown,
+      },
+      select: { id: true },
+    });
+    expect(result).toMatchObject({
+      active: false,
+      consumedUses: 2,
+      reservedUses: 3,
+      availableUses: 5,
+      percent: 10,
+    });
+    expect(db.$queryRaw.mock.invocationCallOrder[0]).toBeLessThan(
+      db.coupon.update.mock.invocationCallOrder[0] ?? 0,
+    );
+  });
+
+  it('returns the existing state on retries without updating or writing another audit', async () => {
+    await service.setActivation(ACTOR, ID, true);
+    expect(db.coupon.update).not.toHaveBeenCalled();
+    expect(db.auditLog.create).not.toHaveBeenCalled();
+  });
+
+  it('returns 404 for a missing coupon without writes', async () => {
+    db.coupon.findUnique.mockResolvedValue(null);
+    await expect(service.setActivation(ACTOR, ID, false)).rejects.toMatchObject({ status: 404 });
+    expect(db.coupon.update).not.toHaveBeenCalled();
+  });
+
+  it('propagates an activation audit failure so the transaction rolls back', async () => {
+    const failure = new Error('audit unavailable');
+    db.auditLog.create.mockRejectedValue(failure);
+    await expect(service.setActivation(ACTOR, ID, false)).rejects.toBe(failure);
   });
 
   it('returns only safe metadata and counts from a repeatable-read snapshot', async () => {

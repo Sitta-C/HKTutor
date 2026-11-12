@@ -22,6 +22,9 @@ export function CouponList({
   onMore,
   onRefresh,
   onRetry,
+  changingId,
+  uncertainIds,
+  onActivationChange,
 }: {
   items: AdminCoupon[];
   copy: CouponCopy;
@@ -33,6 +36,9 @@ export function CouponList({
   onMore: () => void;
   onRefresh: () => void;
   onRetry: () => void;
+  changingId: string | null;
+  uncertainIds: string[];
+  onActivationChange: (coupon: AdminCoupon) => void;
 }) {
   const [now, setNow] = useState(() => Date.now());
   const statusClasses = {
@@ -69,11 +75,14 @@ export function CouponList({
           <p className="mt-[0.4rem] text-[0.8rem] leading-[1.7] text-notebook-muted-deep @max-[550px]/coupons:max-w-[24ch]">
             {copy.listIntro}
           </p>
+          <p className="mt-2 max-w-[65ch] text-xs leading-[1.7] text-notebook-muted-deep">
+            {copy.activationHint}
+          </p>
         </div>
         <button
           type="button"
           className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-md border border-paper-edge bg-paper p-2.5 text-notebook-ink transition-colors hover:bg-paper-deep focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-admin-deep disabled:cursor-not-allowed disabled:opacity-60"
-          disabled={loading || loadingMore}
+          disabled={loading || loadingMore || changingId !== null}
           aria-label={copy.refresh}
           onClick={onRefresh}
         >
@@ -133,6 +142,29 @@ export function CouponList({
                 ),
               )}
             </dl>
+            <div className="mt-4 flex flex-wrap items-center gap-3">
+              <button
+                type="button"
+                aria-label={`${coupon.active ? copy.deactivate : copy.activate} ${coupon.code}`}
+                aria-busy={changingId === coupon.id}
+                disabled={
+                  loading || loadingMore || changingId !== null || uncertainIds.includes(coupon.id)
+                }
+                onClick={() => onActivationChange(coupon)}
+                className="inline-flex min-h-11 items-center justify-center rounded-md border border-paper-edge bg-paper px-4 py-2 text-sm font-bold text-notebook-ink transition-colors hover:bg-paper-deep focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-admin-deep disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {changingId === coupon.id
+                  ? copy.changingActivation
+                  : coupon.active
+                    ? copy.deactivate
+                    : copy.activate}
+              </button>
+              {uncertainIds.includes(coupon.id) && (
+                <p role="alert" className="text-sm leading-[1.7] text-red-800">
+                  {copy.activationUncertain}
+                </p>
+              )}
+            </div>
           </li>
         ))}
       </ul>
@@ -142,7 +174,7 @@ export function CouponList({
           <button
             className="mt-3 inline-flex min-h-11 items-center justify-center gap-2.5 rounded-md border border-paper-edge bg-paper px-4 py-2.5 text-sm font-bold text-notebook-ink transition-colors hover:bg-paper-deep focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-admin-deep disabled:cursor-not-allowed disabled:opacity-60"
             type="button"
-            disabled={loading || loadingMore}
+            disabled={loading || loadingMore || changingId !== null}
             onClick={onRetry}
           >
             {copy.retry}
@@ -153,7 +185,7 @@ export function CouponList({
         <button
           className="mx-auto my-5 flex min-h-11 items-center justify-center gap-2.5 rounded-md border border-paper-edge bg-paper px-4 py-2.5 text-sm font-bold text-notebook-ink transition-colors hover:bg-paper-deep focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-admin-deep disabled:cursor-not-allowed disabled:opacity-60"
           type="button"
-          disabled={loading || loadingMore}
+          disabled={loading || loadingMore || changingId !== null}
           onClick={onMore}
         >
           {loadingMore ? copy.loadingMore : copy.more}

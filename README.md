@@ -140,8 +140,11 @@ endpoint returns `410 Gone`; existing mock-paid demo bookings remain readable. S
 
 S3-DB03 adds nullable, immutable coupon evidence to bookings and payment attempts while preserving
 historical amounts and receipts. Booking reads and current-payment responses expose stored coupon
-snapshots; applying/quoting coupons and atomic discounted payment orchestration remain T25/T26.
-See the [snapshot migration and upgrade runbook](apps/api/README.md#booking-coupon-snapshots-s3-db03)
+snapshots; S3-T25 provides coupon quote/apply/remove APIs. S3-T26 adds atomic coupon capacity reservation,
+verified payment consumption and zero-net settlement through the existing payment routes.
+See the [coupon payment contract](apps/api/README.md#coupon-payment-orchestration-s3-t26),
+[S3-T26 verification](tests/s3-t26-qa.md), and the
+[snapshot migration and upgrade runbook](apps/api/README.md#booking-coupon-snapshots-s3-db03)
 and [verification evidence](tests/s3-db03-qa.md).
 
 See [frontend direction](ui-design/frontend-direction.md) for the Notebook Focus patterns and

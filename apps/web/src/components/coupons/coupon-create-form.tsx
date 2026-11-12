@@ -10,10 +10,12 @@ import {
   validateCouponDraft,
 } from '@/components/coupons/coupon-model';
 import { DashboardIcon } from '@/components/dashboard/dashboard-icon';
+import { LocalizedDatePicker } from '@/components/date-time/localized-date-picker';
+import { TimeWheelPicker } from '@/components/date-time/time-wheel-picker';
 import { notebookInputClass } from '@/components/ui/notebook';
 import { useNotebookToast } from '@/components/ui/notebook-toast';
 import { createAdminCoupon, listAdminCoupons } from '@/lib/api/coupons';
-import { formatBangkokDateTime } from '@/lib/date-time';
+import { formatBangkokDateTime, getBangkokToday } from '@/lib/date-time';
 
 import type { CouponCopy } from '@/components/coupons/coupon-copy';
 import type { CouponDraft, CouponErrors, CouponField } from '@/components/coupons/coupon-model';
@@ -60,7 +62,7 @@ export function CouponCreateForm({
     // Wait for the saving fieldset to be enabled before restoring focus after an API error.
     requestAnimationFrame(() => {
       formRef.current
-        ?.querySelector<HTMLInputElement>(`[name="${field === 'expiry' ? 'date' : field}"]`)
+        ?.querySelector<HTMLElement>(field === 'expiry' ? '#coupon-date' : `[name="${field}"]`)
         ?.focus();
     });
   }
@@ -291,33 +293,38 @@ export function CouponCreateForm({
               {fieldError('maxUses')}
             </div>
           </div>
-          <div className={pairClass}>
-            <div>
-              <label className={labelClass} htmlFor="coupon-date">
-                {copy.date}
-              </label>
-              <input
-                id="coupon-date"
-                name="date"
-                type="date"
-                value={draft.date}
-                {...fieldProps('expiry')}
-                onChange={(event) => update('date', event.target.value)}
-              />
-            </div>
-            <div>
-              <label className={labelClass} htmlFor="coupon-time">
-                {copy.time}
-              </label>
-              <input
-                id="coupon-time"
-                name="time"
-                type="time"
-                value={draft.time}
-                {...fieldProps('expiry')}
-                onChange={(event) => update('time', event.target.value)}
-              />
-            </div>
+          <div className="grid min-w-0 gap-3 @max-[850px]/coupons:col-span-full">
+            <LocalizedDatePicker
+              id="coupon-date"
+              name="date"
+              label={copy.date}
+              placeholder={copy.chooseDate}
+              value={draft.date}
+              onChange={(value) => update('date', value)}
+              min={getBangkokToday()}
+              language={language}
+              calendarLabel={copy.calendarLabel}
+              previousMonthLabel={copy.previousMonth}
+              nextMonthLabel={copy.nextMonth}
+              disabled={locked}
+              invalid={Boolean(errors.expiry)}
+              describedBy={`coupon-expiry-hint${errors.expiry ? ' coupon-expiry-error' : ''}`}
+              className="text-base! focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-admin-deep"
+            />
+            <TimeWheelPicker
+              id="coupon-time"
+              name="time"
+              label={copy.time}
+              placeholder={copy.chooseTime}
+              value={draft.time}
+              onChange={(value) => update('time', value)}
+              hourLabel={copy.hour}
+              minuteLabel={copy.minute}
+              disabled={locked}
+              invalid={Boolean(errors.expiry)}
+              describedBy={`coupon-expiry-hint${errors.expiry ? ' coupon-expiry-error' : ''}`}
+              className="text-base! focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-admin-deep"
+            />
           </div>
           <div className="@max-[850px]/coupons:col-span-full">
             <p id="coupon-expiry-hint" className={hintClass}>
