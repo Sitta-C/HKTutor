@@ -147,6 +147,25 @@ async function verify(): Promise<void> {
     pass(
       'second combined seed preserves every DB04 row, audit, timestamp and non-fixture sentinel',
     );
+    // S3-T23: the DB02 trigger writes exactly one safe creation audit per coupon, and a repeated
+    // seed (an idempotent create retry) must not add another one.
+    const creationAudits = await prisma.auditLog.findMany({
+      where: { action: 'coupon.create', entityId: { in: fixtures.coupons.map((row) => row.id) } },
+      select: { entityId: true, entityType: true, operationKey: true, afterData: true },
+      orderBy: { entityId: 'asc' },
+    });
+    assert.deepEqual(
+      creationAudits,
+      [...fixtures.coupons]
+        .sort((a, b) => a.id.localeCompare(b.id))
+        .map((row) => ({
+          entityId: row.id,
+          entityType: 'Coupon',
+          operationKey: `coupon.create:${row.id}`,
+          afterData: { percent: row.percent, maxUses: row.maxUses, active: row.active },
+        })),
+    );
+    pass('each fixture coupon has exactly one safe coupon.create audit after a repeated seed');
 
     const directory = new TutorDirectoryService(prisma);
     for (const [group, average, count] of [
