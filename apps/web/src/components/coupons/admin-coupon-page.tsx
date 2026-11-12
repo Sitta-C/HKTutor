@@ -47,6 +47,7 @@ function CouponWorkspace() {
   const retryCursor = useRef<string | undefined>(undefined);
   const mounted = useRef(false);
   const activationRequest = useRef<AbortController | null>(null);
+  const refreshAfterActivation = useRef(false);
   const [changingId, setChangingId] = useState<string | null>(null);
   const [uncertainIds, setUncertainIds] = useState<string[]>([]);
   const toast = useNotebookToast();
@@ -92,6 +93,10 @@ function CouponWorkspace() {
 
   function load(cursor?: string): void {
     if (activationRequest.current) {
+      // Creation/reconciliation can finish while PATCH owns the register. Refresh afterward.
+      if (!cursor) {
+        refreshAfterActivation.current = true;
+      }
       return;
     }
     setLoading(!cursor);
@@ -107,6 +112,7 @@ function CouponWorkspace() {
       mounted.current = false;
       request.current?.abort();
       activationRequest.current?.abort();
+      refreshAfterActivation.current = false;
     };
   }, [readPage]);
 
@@ -138,6 +144,7 @@ function CouponWorkspace() {
       }
       const kind = getCouponRequestError(error);
       if (kind === 'unauthorized' || kind === 'forbidden') {
+        refreshAfterActivation.current = false;
         setDenied(kind);
         setItems([]);
       } else {
@@ -148,6 +155,10 @@ function CouponWorkspace() {
       activationRequest.current = null;
       if (!controller.signal.aborted && mounted.current) {
         setChangingId(null);
+        if (refreshAfterActivation.current) {
+          refreshAfterActivation.current = false;
+          load();
+        }
       }
     }
   }

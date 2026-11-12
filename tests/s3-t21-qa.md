@@ -144,3 +144,27 @@ migration was pending, and the existing audit table contained one row. The addit
 was then applied successfully. No existing coupon was activated or deactivated during rollout.
 The user's Safari no longer had the localhost coupon tab open at the final browser inspection;
 interactive activation was verified through the automated browser suite instead.
+
+### PR #167 review corrections (2026-11-12)
+
+The register now queues a first-page refresh requested by coupon creation/reconciliation during
+an activation PATCH and runs it after that request finishes. This restores authoritative rows
+and pagination without overlapping the PATCH. A failed queued refresh retains the confirmed
+creation and offers first-page retry; an uncertain PATCH is reconciled by the queued read.
+An activation 401/403 cancels the queued refresh and clears coupon data. Unmount also clears it.
+
+Activate/Deactivate now use notebook ink on paper, matching the other register buttons. The
+existing contrast test covers creation and both activation controls in normal and supported hover
+states, requiring at least 4.5:1. Before the fix, Chromium reproduced the missing pagination button
+after concurrent creation and measured the activation text at 3.902:1.
+
+Verification after the corrections:
+
+- Focused new refresh/contrast browser cases: 18 passed across all three viewport projects.
+- Full `admin-coupons-ui.spec.ts`: 102 passed across desktop, tablet and mobile Chromium,
+  including queued refresh success, uncertain activation, failed refresh/retry and concurrent
+  creation followed by activation 401/403.
+- Web unit suite: 49 files / 764 tests passed.
+- Web lint, production build, changed-file Prettier and `git diff --check`: passed.
+- Browser screenshots were inspected; API requests use fixtures and no real coupon, database
+  or Omise state was changed. This correction changes only web code, browser tests and this record.

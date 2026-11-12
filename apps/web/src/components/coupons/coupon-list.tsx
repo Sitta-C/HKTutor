@@ -151,7 +151,7 @@ export function CouponList({
                   loading || loadingMore || changingId !== null || uncertainIds.includes(coupon.id)
                 }
                 onClick={() => onActivationChange(coupon)}
-                className="inline-flex min-h-11 items-center justify-center rounded-md border border-paper-edge bg-paper px-4 py-2 text-sm font-bold text-admin-deep transition-colors hover:bg-paper-deep focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-admin-deep disabled:cursor-not-allowed disabled:opacity-60"
+                className="inline-flex min-h-11 items-center justify-center rounded-md border border-paper-edge bg-paper px-4 py-2 text-sm font-bold text-notebook-ink transition-colors hover:bg-paper-deep focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-admin-deep disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {changingId === coupon.id
                   ? copy.changingActivation

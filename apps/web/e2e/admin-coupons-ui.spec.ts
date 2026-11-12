@@ -388,14 +388,30 @@ test('uncertain activation requires a successful refresh before another change',
 
 for (const status of [401, 403]) {
   test(`activation ${status} clears coupon data and retains access recovery`, async ({ page }) => {
-    await setup(page, async (route) => {
-      await route.fulfill(
-        route.request().method() === 'PATCH'
-          ? { status, json: { message: 'access denied' } }
-          : { json: { items: [{ ...first, active: false }], nextCursor: null } },
-      );
+    let reads = 0;
+    let release: (() => void) | undefined;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
     });
-    await page.getByRole('button', { name: `Activate ${first.code}`, exact: true }).click();
+    await setup(page, async (route) => {
+      if (route.request().method() === 'PATCH') {
+        await gate;
+        await route.fulfill({ status, json: { message: 'access denied' } });
+      } else if (route.request().method() === 'POST') {
+        await route.fulfill({ status: 201, json: { ...first, id: 'new-coupon', code: 'NEW_10' } });
+      } else {
+        reads += 1;
+        await route.fulfill({ json: { items: [{ ...first, active: false }], nextCursor: null } });
+      }
+    });
+    await fillForm(page);
+    const initialReads = reads;
+    const activate = page.getByRole('button', { name: `Activate ${first.code}`, exact: true });
+    await activate.click();
+    await expect(activate).toHaveAttribute('aria-busy', 'true');
+    await page.getByRole('button', { name: 'Create coupon', exact: true }).click();
+    await expect(page.getByRole('heading', { name: 'NEW_10', exact: true })).toBeVisible();
+    release?.();
     await expect(page.getByRole('heading', { name: first.code, exact: true })).toHaveCount(0);
     await expect(
       page.getByRole('button', { name: `Activate ${first.code}`, exact: true }),
@@ -406,6 +422,8 @@ for (const status of [401, 403]) {
         exact: true,
       }),
     ).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'NEW_10', exact: true })).toHaveCount(0);
+    expect(reads).toBe(initialReads);
   });
 }
 
@@ -626,52 +644,128 @@ test('an absent code after a full recovery scan permits a manual retry', async (
   expect(posts).toBe(1);
 });
 
-test('the primary creation button meets text contrast in normal and hover states', async ({
-  page,
-}) => {
-  await page.emulateMedia({ reducedMotion: 'reduce' });
-  await setup(page, async (route) => {
-    await route.fulfill({ json: { items: [], nextCursor: null } });
-  });
-  const button = page.getByRole('button', { name: 'Create coupon', exact: true });
-  const contrast = () =>
-    button.evaluate((element) => {
-      const style = getComputedStyle(element);
-      const canvas = document.createElement('canvas');
-      canvas.width = 1;
-      canvas.height = 1;
-      const context = canvas.getContext('2d');
-      if (!context) {
-        throw new Error('Expected a canvas context for sRGB color conversion');
-      }
-      const luminance = (color: string): number => {
-        context.fillStyle = color;
-        context.fillRect(0, 0, 1, 1);
-        const [red = 0, green = 0, blue = 0] = Array.from(context.getImageData(0, 0, 1, 1).data)
-          .slice(0, 3)
-          .map((value) => {
-            const channel = value / 255;
-            return channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
-          });
-        return red * 0.2126 + green * 0.7152 + blue * 0.0722;
-      };
-      const foreground = luminance(style.color);
-      const background = luminance(style.backgroundColor);
-      return {
-        color: style.color,
-        background: style.backgroundColor,
-        ratio:
-          (Math.max(foreground, background) + 0.05) / (Math.min(foreground, background) + 0.05),
-      };
+for (const control of ['Create coupon', 'Activate STUDY20', 'Deactivate WELCOME10']) {
+  test(`the ${control} button meets text contrast in normal and hover states`, async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await setup(page, async (route) => {
+      await route.fulfill({ json: { items: examples.slice(0, 2), nextCursor: null } });
     });
-  const normal = await contrast();
-  expect(normal.ratio).toBeGreaterThanOrEqual(4.5);
-  if (await page.evaluate(() => matchMedia('(hover: hover)').matches)) {
-    await button.hover();
-    await expect.poll(async () => (await contrast()).background).not.toBe(normal.background);
-    expect((await contrast()).ratio).toBeGreaterThanOrEqual(4.5);
-  }
-});
+    const button = page.getByRole('button', { name: control, exact: true });
+    const contrast = () =>
+      button.evaluate((element) => {
+        const style = getComputedStyle(element);
+        const canvas = document.createElement('canvas');
+        canvas.width = 1;
+        canvas.height = 1;
+        const context = canvas.getContext('2d');
+        if (!context) {
+          throw new Error('Expected a canvas context for sRGB color conversion');
+        }
+        const luminance = (color: string): number => {
+          context.fillStyle = color;
+          context.fillRect(0, 0, 1, 1);
+          const [red = 0, green = 0, blue = 0] = Array.from(context.getImageData(0, 0, 1, 1).data)
+            .slice(0, 3)
+            .map((value) => {
+              const channel = value / 255;
+              return channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
+            });
+          return red * 0.2126 + green * 0.7152 + blue * 0.0722;
+        };
+        const foreground = luminance(style.color);
+        const background = luminance(style.backgroundColor);
+        return {
+          color: style.color,
+          background: style.backgroundColor,
+          ratio:
+            (Math.max(foreground, background) + 0.05) / (Math.min(foreground, background) + 0.05),
+        };
+      });
+    const normal = await contrast();
+    expect(normal.ratio).toBeGreaterThanOrEqual(4.5);
+    if (await page.evaluate(() => matchMedia('(hover: hover)').matches)) {
+      await button.hover();
+      await expect.poll(async () => (await contrast()).background).not.toBe(normal.background);
+      expect((await contrast()).ratio).toBeGreaterThanOrEqual(4.5);
+    }
+  });
+}
+
+for (const outcome of ['success', 'uncertain', 'refresh failure'] as const) {
+  test(`creation during activation queues register refresh and preserves pagination (${outcome})`, async ({
+    page,
+  }) => {
+    let created = false;
+    let activationFinished = false;
+    let reads = 0;
+    let initialReads = 0;
+    let release: (() => void) | undefined;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const newCoupon = { ...first, id: 'new-coupon', code: 'NEW_10' };
+    await setup(page, async (route, url) => {
+      if (route.request().method() === 'PATCH') {
+        await gate;
+        activationFinished = true;
+        if (outcome === 'uncertain') {
+          await route.abort('failed');
+        } else {
+          await route.fulfill({ json: { ...first, active: false } });
+        }
+      } else if (route.request().method() === 'POST') {
+        created = true;
+        await route.fulfill({ status: 201, json: newCoupon });
+      } else {
+        reads += 1;
+        if (created) {
+          expect(activationFinished).toBe(true);
+        }
+        if (outcome === 'refresh failure' && created && reads === initialReads + 1) {
+          await route.fulfill({ status: 503, json: { message: 'offline' } });
+        } else {
+          await route.fulfill({
+            json: {
+              items: url.searchParams.has('cursor')
+                ? [examples[1]]
+                : created
+                  ? [newCoupon, { ...first, active: false }]
+                  : [first],
+              nextCursor: url.searchParams.has('cursor') ? null : 'older-coupons',
+            },
+          });
+        }
+      }
+    });
+    const list = page.getByRole('region', { name: 'Coupon register', exact: true });
+    const more = list.getByRole('button', { name: 'Load more coupons', exact: true });
+    await expect(more).toBeVisible();
+    await fillForm(page);
+    initialReads = reads;
+    const deactivate = list.getByRole('button', { name: 'Deactivate WELCOME10', exact: true });
+    await deactivate.click();
+    await expect(deactivate).toHaveAttribute('aria-busy', 'true');
+    await page.getByRole('button', { name: 'Create coupon', exact: true }).click();
+    await expect(list.getByRole('heading', { name: 'NEW_10', exact: true })).toBeVisible();
+    expect(reads).toBe(initialReads);
+    release?.();
+    if (outcome === 'refresh failure') {
+      await expect(list.getByRole('alert')).toHaveText('Could not load coupons. Please try again.');
+      await expect(list.getByRole('heading', { name: 'NEW_10', exact: true })).toBeVisible();
+      await list.getByRole('button', { name: 'Try again', exact: true }).click();
+    }
+    await expect(more).toBeEnabled();
+    await expect(
+      list.getByRole('button', { name: 'Activate WELCOME10', exact: true }),
+    ).toBeEnabled();
+    expect(reads).toBe(initialReads + (outcome === 'refresh failure' ? 2 : 1));
+    await more.click();
+    await expect(list.getByRole('heading', { name: 'STUDY20', exact: true })).toBeVisible();
+    await expect(list.getByRole('listitem')).toHaveCount(3);
+    await expect(list.getByRole('heading', { name: 'NEW_10', exact: true })).toHaveCount(1);
+    await expect(more).toHaveCount(0);
+  });
+}
 
 for (const language of ['en', 'th']) {
   test(`recovery displays the 21st coupon even when first-page refresh fails (${language})`, async ({
