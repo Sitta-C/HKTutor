@@ -69,7 +69,17 @@ const charge = (): OmiseCharge => ({
 describe('PaymentsService', () => {
   let service: PaymentsService;
   const db = {
-    booking: { findUnique: jest.fn(), updateMany: jest.fn() },
+    booking: { findUnique: jest.fn(), updateMany: jest.fn(), update: jest.fn() },
+    coupon: { findUnique: jest.fn() },
+    couponReservation: {
+      create: jest.fn(),
+      findFirst: jest.fn(),
+      findUnique: jest.fn(),
+      count: jest.fn(),
+      update: jest.fn(),
+    },
+    couponUse: { findUnique: jest.fn(), count: jest.fn() },
+    $executeRaw: jest.fn(),
     paymentAttempt: {
       create: jest.fn(),
       findFirst: jest.fn(),
@@ -115,21 +125,8 @@ describe('PaymentsService', () => {
 
   it('claims the booking atomically and charges only the stored amount', async () => {
     await service.create(BOOKING_ID, STUDENT_ID);
-    expect(db.booking.updateMany).toHaveBeenCalledWith({
-      where: {
-        id: BOOKING_ID,
-        studentUserId: STUDENT_ID,
-        status: 'CONFIRMED',
-        paymentStatus: 'UNPAID',
-        paymentPending: false,
-        netAmount: new Prisma.Decimal('450.00'),
-        subtotalAmount: new Prisma.Decimal('450.00'),
-        discountAmount: new Prisma.Decimal(0),
-        appliedCouponId: null,
-        appliedCouponCode: null,
-        appliedCouponPercent: null,
-        currency: 'THB',
-      },
+    expect(db.booking.update).toHaveBeenCalledWith({
+      where: { id: BOOKING_ID },
       data: { paymentPending: true },
     });
     expect(omise.createCharge).toHaveBeenCalledWith(
@@ -161,17 +158,9 @@ describe('PaymentsService', () => {
     });
   });
 
-  it('blocks fresh coupon charges until the atomic reservation flow is installed', async () => {
+  it('rejects a missing applied coupon', async () => {
     db.booking.findUnique.mockResolvedValue({ ...booking(), appliedCouponId: STUDENT_ID });
     await expect(service.create(BOOKING_ID, STUDENT_ID)).rejects.toThrow(ConflictException);
-    expect(transaction).not.toHaveBeenCalled();
-    expect(omise.createCharge).not.toHaveBeenCalled();
-  });
-
-  it('rejects a stale pricing claim before contacting the provider', async () => {
-    db.booking.updateMany.mockResolvedValue({ count: 0 });
-    await expect(service.create(BOOKING_ID, STUDENT_ID)).rejects.toThrow(ConflictException);
-    expect(db.paymentAttempt.create).not.toHaveBeenCalled();
     expect(omise.createCharge).not.toHaveBeenCalled();
   });
 
@@ -192,15 +181,11 @@ describe('PaymentsService', () => {
         netAmount: new Prisma.Decimal(amount),
       });
       await expect(service.create(BOOKING_ID, STUDENT_ID)).rejects.toThrow(ConflictException);
-      expect(transaction).not.toHaveBeenCalled();
     },
   );
 
-  it('losing a concurrent claim resumes the existing attempt without creating another charge', async () => {
-    db.booking.updateMany.mockResolvedValueOnce({ count: 0 });
-    db.booking.findUnique
-      .mockResolvedValueOnce(booking())
-      .mockResolvedValue({ ...booking(), paymentPending: true });
+  it('resumes an existing active attempt without creating another charge', async () => {
+    db.booking.findUnique.mockResolvedValue({ ...booking(), paymentPending: true });
     db.paymentAttempt.findFirst.mockResolvedValue({
       ...attempt(),
       status: 'PENDING',
@@ -216,7 +201,7 @@ describe('PaymentsService', () => {
     await expect(service.create(BOOKING_ID, STUDENT_ID)).rejects.toThrow(
       ServiceUnavailableException,
     );
-    expect(db.booking.updateMany).toHaveBeenCalledTimes(1);
+    expect(db.booking.update).toHaveBeenCalledTimes(1);
     expect(db.paymentAttempt.updateMany).not.toHaveBeenCalled();
     db.paymentAttempt.findFirst.mockResolvedValue(attempt());
     omise.findCharge.mockResolvedValueOnce(charge());

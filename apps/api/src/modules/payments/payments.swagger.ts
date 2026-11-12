@@ -58,16 +58,18 @@ export function StudentPaymentDoc(create: boolean): MethodDecorator {
         ? 'Create or resume a test PromptPay payment'
         : 'Reconcile and read the latest payment',
       description:
-        'Student owner only. Amount and currency come from the booking. One active attempt per booking. Unknown creation outcomes remain locked until recovered. Reads independently retrieve the Omise charge; they never create a charge. Test mode only. Responses include stored booking amounts and immutable coupon snapshots. Fresh coupon payment creation requires the T26 reservation/consumption flow and currently returns 409; status reads remain available.',
+        'Student owner only. Amount and currency come from the booking. One active attempt per booking. Unknown creation outcomes remain locked until recovered. Reads independently retrieve the Omise charge; they never create a charge. Test mode only. Responses include stored booking amounts and immutable coupon snapshots. Applied coupons are revalidated and reserved atomically before a provider call. Verified success consumes the reservation together with the paid receipt; confirmed failure/expiry releases it. Uncertain outcomes retain capacity. A valid full coupon settles zero net without provider configuration, charge or attempt, with reference coupon:<useId>. Reserved coupons remain honored after expiry. Current privacy consent is required.',
     }),
     ApiOkResponse({ type: PaymentResponseDto }),
     ApiBadRequestResponse({ description: 'Invalid booking UUID or nonempty payment request body' }),
     ApiUnauthorizedResponse({ description: 'Authentication required' }),
-    ApiForbiddenResponse({ description: 'Wrong role or booking owner' }),
+    ApiForbiddenResponse({
+      description: 'Wrong role, booking owner or missing/outdated privacy consent',
+    }),
     ApiNotFoundResponse({ description: 'Booking not found' }),
     ApiConflictResponse({
       description:
-        'Booking is not payable, amount is outside PromptPay limits, or charge data does not match',
+        'BOOKING_NOT_PAYABLE, PAYMENT_STATE_CONFLICT (stale quote or mismatched snapshot), COUPON_EXPIRED, COUPON_INACTIVE, COUPON_EXHAUSTED, COUPON_ALREADY_USED, PAYMENT_AMOUNT_UNSUPPORTED (positive net outside THB 20–150000), or mismatched charge',
     }),
     ApiServiceUnavailableResponse({
       description:
@@ -92,7 +94,7 @@ export function OmiseWebhookDoc(): MethodDecorator {
     ApiOperation({
       summary: 'Receive signed Omise test charge events',
       description:
-        'Requires Omise-Signature and Omise-Signature-Timestamp headers over the raw body. Retrieves the charge independently. Duplicate/out-of-order events cannot downgrade terminal payments. Configure this HTTPS URL on the Omise Test Dashboard.',
+        'Requires Omise-Signature and Omise-Signature-Timestamp headers over the raw body. Retrieves the charge independently. Verified success atomically commits the paid booking, successful attempt, consumed reservation and trigger-generated CouponUse/audit. Confirmed failure/expiry releases capacity. Duplicate/out-of-order events cannot downgrade terminal payments or duplicate evidence. Configure this HTTPS URL on the Omise Test Dashboard.',
     }),
     ApiOkResponse({ description: 'Event processed or unrelated event ignored' }),
     ApiUnauthorizedResponse({

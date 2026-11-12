@@ -790,7 +790,8 @@ Live keys and live-mode charge/event responses are rejected.
 | POST   | `/api/v1/payments/omise/webhook`                    | Signed test events; no user JWT. Verify signature and retrieve the charge before applying it. |
 | POST   | `/api/v1/bookings/me/:bookingId/mock-payment`       | Retired: 410 for an authenticated student owner. Never writes payment state.                  |
 
-Student endpoints require JWT, STUDENT role and booking ownership, in that order. They return
+Student endpoints require JWT with current privacy consent, STUDENT role and booking ownership,
+in that order. They return
 401 unauthenticated, 403 wrong role/owner, 404 missing booking, 400 invalid UUID/nonempty create
 body, 409 non-payable state/unsupported amount/mismatched charge, and 503 unavailable or uncertain
 provider result. Responses use `Cache-Control: no-store`.
@@ -2466,12 +2467,10 @@ transaction. Positive coupon settlement requires matching consumption and a succ
 attempt. The unique payment-reference index remains in force. Provider attempts retain the
 existing THB 20.00–150,000.00 range; no zero Omise attempt is fabricated.
 
-This is the persistence/response foundation for T25/T26. Until T26 installs the atomic
-reserve/consume/release orchestration, fresh payment creation for a booking with an applied
-coupon returns 409 `PAYMENT_STATE_CONFLICT` before creating an attempt or contacting Omise.
-Current-status reads remain available. This prevents a discounted charge from bypassing capacity
-and consumption. `/mock-payment` remains retired with 410. No provider charge is replayed by
-the migration or verifier.
+S3-T26 now uses this foundation to reserve capacity, settle or release atomically; see the
+[coupon payment contract](#coupon-payment-orchestration-s3-t26). T25 quote/apply/remove endpoints
+remain separate. `/mock-payment` remains retired with 410. No provider charge is replayed by
+the migration or snapshot verifier.
 
 ### Disposable upgrade verification
 
@@ -2612,6 +2611,78 @@ unset DATABASE_URL
 ```
 
 See [S3-T21 evidence](../../tests/s3-t21-qa.md) for actual commands and results.
+
+## Coupon payment orchestration (S3-T26)
+
+This extends the three existing PromptPay routes; it adds no migration or new response fields.
+Apply DB02 and both DB03 migrations before deploying the API. The checkout's booking coupon
+snapshots are the authoritative input; T25 quote/apply/remove HTTP routes and the T27 UI are
+separate work. The POST accepts an absent body or `{}` only, never an amount, code, currency or
+identity from the client. GET current accepts no query parameters. Both student routes require
+current consent and return `Cache-Control: no-store`. The existing signed webhook has no JWT.
+
+### Claim and settlement
+
+- A transaction locks the booking first, then forces a coupon row update before inspecting
+  reservation/attempt evidence. It reads the booking again under the lock, checks CONFIRMED/UNPAID,
+  current active/exclusive expiry, exact applied code/percent and HALF_UP Decimal discount math,
+  student reuse and `CouponUse + RESERVED < maxUses`. Same-student active claims also block reuse.
+  No live listing price is consulted. Coupon changes after application require a fresh quote.
+- Positive THB net must be 20.00–150000.00 inclusive. The transaction claims `paymentPending`,
+  creates the frozen PaymentAttempt and its RESERVED CouponReservation together. The Omise POST
+  happens only after commit. A concurrent retry reuses the active attempt; a paid retry returns
+  the stored receipt. Database serialization/deadlock failures retry the entire transaction at
+  most twice; provider HTTP POST is never retried automatically.
+- Timeout, 5xx, malformed results and absent charge-history matches retain CREATING and capacity.
+  Current reads recover by `metadata.attemptId` after 15 seconds. Neither local QR expiry nor a
+  503 releases capacity. A definitive no-charge rejection persists FAILED, releases the reservation
+  and clears paymentPending atomically. Provider-confirmed FAILED/EXPIRED does the same.
+- Signed webhook/current retrieval checks charge ID, amount, currency, test mode, PromptPay method,
+  captured status and attempt/booking metadata. Reconciliation locks booking → coupon before
+  updating the attempt. SUCCESSFUL, CONSUMED (trigger-generated CouponUse/audit) and Booking PAID
+  commit together. Expiry/deactivation after reservation does not invalidate that QR. Duplicate or
+  older signals cannot downgrade terminal attempts or duplicate evidence; consumed uses are never
+  refunded. A failed database write rolls the entire settlement back for safe reconciliation.
+- A valid full coupon with net 0 uses the same POST, consumes immediately and writes PAID/paidAt
+  and `paymentReference = coupon:<CouponUse.id>` in one transaction. No provider configuration,
+  HTTP call, QR or PaymentAttempt is needed; the receipt returns `attempt: null`. An old failed
+  attempt, if pricing changed after its release, remains historical and is not shown as that
+  zero receipt's attempt. Zero retries return the same receipt. Paid cancellation remains denied.
+
+Domain 409 codes include `BOOKING_NOT_PAYABLE`, `PAYMENT_AMOUNT_UNSUPPORTED`, `COUPON_INACTIVE`,
+`COUPON_EXPIRED`, `COUPON_EXHAUSTED`, `COUPON_ALREADY_USED` and `PAYMENT_STATE_CONFLICT` for a
+stale quote/snapshot. Charge mismatches return 409. Invalid provider data/verification uncertainty
+returns 503 without releasing evidence. Existing authentication/validation/ownership envelopes
+remain; unexpected persistence failures return generic 500, never provider payloads or secrets.
+
+### Verification
+
+`pnpm db:verify:coupon-payments` runs real PostgreSQL transactions and the real Omise adapter with
+a deterministic in-process HTTP stub. Webhooks pass through real raw-body HMAC verification;
+student HTTP checks use real signed JWTs and persisted sessions. No Omise account is contacted.
+The runner requires explicit opt-in, loopback-only URL, `hktutor_*_test`/`hktutor-*-test` name,
+no URL options/fragments and all committed migrations. It does not load `.env`, migrate or seed.
+It retains synthetic append-only evidence, so run it only in a new isolated database and discard
+that database afterward. It is deliberately outside `pnpm check`.
+
+```bash
+docker run --detach --name hktutor-s3-t26-test \
+  --publish 127.0.0.1:55456:5432 \
+  --env POSTGRES_USER=postgres --env POSTGRES_PASSWORD=disposable-local-only \
+  --env POSTGRES_DB=hktutor_coupon_payment_test postgres:17-alpine
+docker exec hktutor-s3-t26-test pg_isready -U postgres -d hktutor_coupon_payment_test
+export DATABASE_URL='postgresql://postgres:disposable-local-only@127.0.0.1:55456/hktutor_coupon_payment_test'
+pnpm db:migrate:deploy
+HKTUTOR_ALLOW_DISPOSABLE_DB_VERIFY=1 pnpm db:verify:coupon-payments
+docker rm --force --volumes hktutor-s3-t26-test
+unset DATABASE_URL
+```
+
+See [S3-T26 QA evidence](../../tests/s3-t26-qa.md) for actual commands/results and limits. This
+checkout has no T25 apply/remove routes, so their races use the real guarded booking-pricing
+writes, not mocked success or nonexistent HTTP endpoints. Test that HTTP integration after T25
+lands. Live Omise account configuration and actual callback delivery still require a separate
+Test Mode rehearsal.
 
 ## Tutor comparison QA (S3-T32)
 

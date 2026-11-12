@@ -7,6 +7,7 @@ import {
   HttpCode,
   Param,
   Post,
+  Query,
   Req,
   UseGuards,
 } from '@nestjs/common';
@@ -14,7 +15,7 @@ import {
 import { UuidParamPipe } from '@common/pipes/uuid-param.pipe';
 import { Role } from '@generated/prisma/enums';
 import { isRecord, OmiseService } from '@infrastructure/payments/omise.service';
-import { CurrentUser } from '@modules/auth/auth.decorator';
+import { CurrentUser, RequireCurrentConsent } from '@modules/auth/auth.decorator';
 import { JwtAuthGuard } from '@modules/auth/auth.guard';
 import { RequireOwnership } from '@modules/auth/ownership.decorator';
 import { ResourceOwnershipGuard } from '@modules/auth/ownership.guard';
@@ -48,6 +49,7 @@ export class PaymentsController {
   @HttpCode(200)
   @Header('Cache-Control', 'no-store')
   @StudentPaymentDoc(true)
+  @RequireCurrentConsent()
   create(
     @Param('bookingId', UuidParamPipe) bookingId: string,
     @CurrentUser() user: AuthenticatedUser,
@@ -62,10 +64,15 @@ export class PaymentsController {
   @Get('current')
   @Header('Cache-Control', 'no-store')
   @StudentPaymentDoc(false)
+  @RequireCurrentConsent()
   current(
     @Param('bookingId', UuidParamPipe) bookingId: string,
     @CurrentUser() user: AuthenticatedUser,
+    @Query() query: Record<string, unknown>,
   ): Promise<PaymentResponseDto> {
+    if (Object.keys(query).length !== 0) {
+      throw new BadRequestException('Payment status accepts no query parameters');
+    }
     return this.payments.getStatus(bookingId, user.id);
   }
 }

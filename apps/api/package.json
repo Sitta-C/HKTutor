@@ -58,7 +58,8 @@
     "db:verify:coupons": "node scripts/verify-coupon-database.mjs",
     "db:verify:admin-coupons": "ts-node -r tsconfig-paths/register scripts/verify-admin-coupons.ts",
     "db:verify:booking-snapshots": "node scripts/verify-booking-snapshot-upgrade.mjs",
-    "db:verify:sprint3-fixtures": "ts-node -r tsconfig-paths/register scripts/verify-sprint3-fixtures.ts"
+    "db:verify:sprint3-fixtures": "ts-node -r tsconfig-paths/register scripts/verify-sprint3-fixtures.ts",
+    "db:verify:coupon-payments": "ts-node -r tsconfig-paths/register scripts/verify-coupon-payments.ts"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",

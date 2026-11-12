@@ -9,6 +9,7 @@ import { PaymentsConfigService } from '@config/payments.config';
 import { AccountStatus, Role } from '@generated/prisma/enums';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import { OmiseService } from '@infrastructure/payments/omise.service';
+import { CURRENT_PRIVACY_POLICY_VERSION } from '@modules/auth/auth.constants';
 import { JwtAuthGuard } from '@modules/auth/auth.guard';
 import { JwtTokenService } from '@modules/auth/jwt.service';
 import { ResourceOwnershipGuard } from '@modules/auth/ownership.guard';
@@ -142,6 +143,14 @@ describe('PromptPay HTTP contract', () => {
     expect(payments.create).not.toHaveBeenCalled();
   });
 
+  it('rejects status query parameters without reconciling', async () => {
+    await request(app.getHttpServer())
+      .get(`${BASE}/current?amount=1`)
+      .auth('test', { type: 'bearer' })
+      .expect(400);
+    expect(payments.getStatus).not.toHaveBeenCalled();
+  });
+
   it('retires the old mock-payment endpoint with no payment write', async () => {
     await request(app.getHttpServer())
       .post(`/api/v1/bookings/me/${BOOKING_ID}/mock-payment`)
@@ -177,6 +186,53 @@ describe('PromptPay HTTP contract', () => {
     expect(payments.webhook).not.toHaveBeenCalled();
   });
 
+  it.each([null, 'old-policy'])('requires current consent (%s)', async (policyVersion) => {
+    session.mockResolvedValue({
+      id: 'session-id',
+      userId: STUDENT_ID,
+      expiresAt: new Date(Date.now() + 60000),
+      revokedAt: null,
+      user: {
+        id: STUDENT_ID,
+        role: Role.STUDENT,
+        emailVerifiedAt: new Date(),
+        accountStatus: AccountStatus.ACTIVE,
+        deletedAt: null,
+        consentAcceptedAt: policyVersion ? new Date() : null,
+        policyVersion,
+      },
+    });
+    for (const method of ['post', 'get'] as const) {
+      await request(app.getHttpServer())
+        [method](`${BASE}/${method === 'post' ? 'promptpay' : 'current'}`)
+        .auth('test', { type: 'bearer' })
+        .expect(403);
+    }
+    expect(payments.create).not.toHaveBeenCalled();
+    expect(payments.getStatus).not.toHaveBeenCalled();
+  });
+
+  it('rejects a stale signature before reaching payment persistence', async () => {
+    const body = JSON.stringify({
+      object: 'event',
+      livemode: false,
+      key: 'charge.complete',
+      data: { id: 'chrg_test_example123' },
+    });
+    const timestamp = String(Math.floor(Date.now() / 1000) - 301);
+    const signature = createHmac('sha256', Buffer.from(SECRET, 'base64'))
+      .update(`${timestamp}.${body}`)
+      .digest('hex');
+    await request(app.getHttpServer())
+      .post('/api/v1/payments/omise/webhook')
+      .set('Content-Type', 'application/json')
+      .set('Omise-Signature-Timestamp', timestamp)
+      .set('Omise-Signature', signature)
+      .send(body)
+      .expect(401);
+    expect(payments.webhook).not.toHaveBeenCalled();
+  });
+
   function authenticate(role: Role): void {
     verifyAccessToken.mockReturnValue({ sid: 'session-id', sub: STUDENT_ID });
     session.mockResolvedValue({
@@ -185,6 +241,8 @@ describe('PromptPay HTTP contract', () => {
       revokedAt: null,
       user: {
         accountStatus: AccountStatus.ACTIVE,
+        consentAcceptedAt: new Date(),
+        policyVersion: CURRENT_PRIVACY_POLICY_VERSION,
         deletedAt: null,
         email: 'student@example.test',
         emailVerifiedAt: new Date(),

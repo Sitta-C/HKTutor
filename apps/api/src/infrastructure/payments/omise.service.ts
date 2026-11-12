@@ -1,6 +1,11 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 
-import { Injectable, ServiceUnavailableException, UnauthorizedException } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  ServiceUnavailableException,
+  UnauthorizedException,
+} from '@nestjs/common';
 
 import { isUuid } from '@common/pipes/uuid-param.pipe';
 import { PaymentsConfigService } from '@config/payments.config';
@@ -37,6 +42,15 @@ function dateOrNull(value: unknown): Date | null {
 }
 
 function parseCharge(value: unknown): OmiseCharge {
+  if (
+    isRecord(value) &&
+    (value['livemode'] === true ||
+      (isRecord(value['source']) &&
+        typeof value['source']['type'] === 'string' &&
+        value['source']['type'] !== 'promptpay'))
+  ) {
+    throw new ConflictException('Charge is not a test PromptPay payment');
+  }
   if (
     !isRecord(value) ||
     value['object'] !== 'charge' ||
@@ -126,7 +140,11 @@ export class OmiseService {
     if (!/^chrg_test_[A-Za-z0-9]+$/.test(chargeId)) {
       throw new ServiceUnavailableException('Invalid test charge identifier');
     }
-    return parseCharge(await this.request(`/charges/${encodeURIComponent(chargeId)}`));
+    const charge = parseCharge(await this.request(`/charges/${encodeURIComponent(chargeId)}`));
+    if (charge.id !== chargeId) {
+      throw new ConflictException('Retrieved charge identifier does not match');
+    }
+    return charge;
   }
 
   /** Recover a POST whose response was lost. Absence never authorizes another POST. */

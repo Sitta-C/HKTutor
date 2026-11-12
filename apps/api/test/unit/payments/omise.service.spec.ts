@@ -1,6 +1,10 @@
 import { createHmac } from 'node:crypto';
 
-import { ServiceUnavailableException, UnauthorizedException } from '@nestjs/common';
+import {
+  ConflictException,
+  ServiceUnavailableException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
 import { PaymentsConfigService, validatePaymentsEnvironment } from '@config/payments.config';
@@ -70,8 +74,6 @@ describe('Omise test gateway', () => {
   });
 
   it.each([
-    { livemode: true },
-    { source: { type: 'card' } },
     { paid: false, status: 'successful', paid_at: '2030-01-01T00:00:00Z' },
     { metadata: { bookingId: 'invalid', attemptId: ATTEMPT_ID } },
     {
@@ -83,6 +85,21 @@ describe('Omise test gateway', () => {
   ])('rejects unsafe or inconsistent provider data: %j', async (change) => {
     fetchMock.mockResolvedValue(new Response(JSON.stringify({ ...charge(), ...change })));
     await expect(service.retrieveCharge(CHARGE_ID)).rejects.toThrow(ServiceUnavailableException);
+  });
+
+  it.each([{ livemode: true }, { source: { type: 'card' } }])(
+    'rejects a conflicting provider mode/method: %j',
+    async (change) => {
+      fetchMock.mockResolvedValue(new Response(JSON.stringify({ ...charge(), ...change })));
+      await expect(service.retrieveCharge(CHARGE_ID)).rejects.toThrow(ConflictException);
+    },
+  );
+
+  it('rejects a retrieved charge with a different identifier', async () => {
+    fetchMock.mockResolvedValue(
+      new Response(JSON.stringify({ ...charge(), id: 'chrg_test_other' })),
+    );
+    await expect(service.retrieveCharge(CHARGE_ID)).rejects.toThrow(ConflictException);
   });
 
   it('distinguishes a definitive rejection from an uncertain network outcome and never retries POST', async () => {
