@@ -669,6 +669,8 @@ test('long public text and many loaded days fit without trimming content', async
 });
 
 test('public reviews render feedback as text and append the next cursor page', async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 900 });
+  const longNickname = 'M'.repeat(60);
   const markup =
     '<img data-public-review-probe src="/missing" onerror="document.body.dataset.reviewExecuted=1">';
   const { reviewCalls } = await mockDetail(page, {
@@ -677,7 +679,7 @@ test('public reviews render feedback as text and append the next cursor page', a
         items: [
           {
             id: 'review-1',
-            author: { displayName: 'Mint' },
+            author: { displayName: longNickname },
             clarity: 5,
             punctuality: 4,
             preparation: 5,
@@ -708,6 +710,7 @@ test('public reviews render feedback as text and append the next cursor page', a
 
   await page.goto('/tutors/tutor-anna');
   await expect(page.getByRole('heading', { name: 'Student reviews' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: longNickname, exact: true })).toBeVisible();
   await expect(page.getByText(markup, { exact: true })).toBeVisible();
   await expect(
     page.locator('img[data-public-review-probe], body[data-review-executed]'),

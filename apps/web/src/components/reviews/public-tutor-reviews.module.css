@@ -50,12 +50,16 @@
 .review + .review {
   border-top: 1px dashed var(--color-paper-edge);
 }
+.reviewHeader > div {
+  min-width: 0;
+}
 .review h3 {
   font-size: 15px;
   font-weight: 700;
+  overflow-wrap: anywhere;
 }
 .overall {
-  color: var(--color-student-deep);
+  color: var(--color-notebook-ink);
   font-size: 18px;
   font-variant-numeric: tabular-nums;
 }
