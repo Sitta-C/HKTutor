@@ -2,9 +2,12 @@ import assert from 'node:assert/strict';
 import { createHmac, randomBytes, randomUUID } from 'node:crypto';
 import { readdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
+import { setTimeout } from 'node:timers/promises';
 
+import { HttpException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Test } from '@nestjs/testing';
+import { Pool } from 'pg';
 import request from 'supertest';
 
 import { configureApplication } from '@app/app.setup';
@@ -18,6 +21,7 @@ import { JwtAuthGuard } from '@modules/auth/auth.guard';
 import { JwtTokenService } from '@modules/auth/jwt.service';
 import { ResourceOwnershipGuard } from '@modules/auth/ownership.guard';
 import { RolesGuard } from '@modules/auth/roles.guard';
+import { BookingCouponsService } from '@modules/bookings/booking-coupons.service';
 import { BookingsService } from '@modules/bookings/bookings.service';
 import { NotificationEventsService } from '@modules/notifications/notification-events.service';
 import { OmiseWebhookController, PaymentsController } from '@modules/payments/payments.controller';
@@ -69,6 +73,12 @@ async function verify(): Promise<void> {
     OMISE_WEBHOOK_SECRET: webhookSecret,
   });
   const prisma = new PrismaService(config);
+  const control = new Pool({
+    connectionString: databaseUrl,
+    max: 2,
+    connectionTimeoutMillis: 5000,
+    statement_timeout: 10_000,
+  });
   const tokens = new JwtTokenService(new AuthConfigService(config));
   const omise = new OmiseService(new PaymentsConfigService(config));
   const payments = new PaymentsService(prisma, omise);
@@ -147,6 +157,71 @@ async function verify(): Promise<void> {
   const listingId = randomUUID();
   const studentIds: string[] = [];
   let sequence = 0;
+  // A Promise.all alone does not establish overlap: observe every contender waiting in PostgreSQL.
+  async function contend<T>(
+    table: 'Booking' | 'Coupon',
+    id: string,
+    operations: (() => Promise<T>)[],
+  ): Promise<PromiseSettledResult<T>[]> {
+    const lock = await control.connect();
+    let pending: Promise<PromiseSettledResult<T>[]> | undefined;
+    try {
+      await lock.query('BEGIN');
+      await lock.query(`SELECT id FROM "${table}" WHERE id=$1::uuid FOR UPDATE`, [id]);
+      const pid = (await lock.query<{ pid: number }>('SELECT pg_backend_pid() AS pid')).rows[0]
+        ?.pid;
+      assert.ok(pid);
+      pending = Promise.allSettled(
+        operations.map((operation) => Promise.resolve().then(operation)),
+      );
+      const deadline = Date.now() + 3000;
+      for (;;) {
+        const waiting = await control.query<{ count: number }>(
+          `
+          WITH RECURSIVE blocked(pid) AS (
+            SELECT pid FROM pg_stat_activity WHERE $1::int=ANY(pg_blocking_pids(pid))
+            UNION SELECT a.pid FROM pg_stat_activity a JOIN blocked b ON b.pid=ANY(pg_blocking_pids(a.pid))
+          ) SELECT count(DISTINCT pid)::int AS count FROM blocked`,
+          [pid],
+        );
+        if ((waiting.rows[0]?.count ?? 0) >= operations.length) {
+          break;
+        }
+        assert.ok(
+          Date.now() < deadline,
+          `Expected ${operations.length} real PostgreSQL lock waiters on ${table}`,
+        );
+        await setTimeout(10);
+      }
+      process.stdout.write(
+        `PASS [observed PostgreSQL locks] ${operations.length} contenders on ${table}\n`,
+      );
+    } finally {
+      try {
+        await lock.query('ROLLBACK');
+      } finally {
+        lock.release();
+        await pending;
+      }
+    }
+    assert.ok(pending);
+    return pending;
+  }
+  async function state(id: string) {
+    return {
+      booking: await prisma.booking.findUniqueOrThrow({ where: { id } }),
+      attempts: await prisma.paymentAttempt.findMany({
+        where: { bookingId: id },
+        orderBy: { id: 'asc' },
+      }),
+      reservations: await prisma.couponReservation.findMany({
+        where: { bookingId: id },
+        orderBy: { id: 'asc' },
+      }),
+      uses: await prisma.couponUse.findMany({ where: { bookingId: id }, orderBy: { id: 'asc' } }),
+      audit: await prisma.auditLog.findMany({ orderBy: { id: 'asc' } }),
+    };
+  }
   async function coupon(percent = 10, maxUses = 1): Promise<Coupon> {
     return prisma.coupon.create({
       data: {
@@ -245,11 +320,35 @@ async function verify(): Promise<void> {
       .expect(status);
   }
   async function evidence(id: string, status: 'RESERVED' | 'CONSUMED' | 'RELEASED'): Promise<void> {
+    const booking = await prisma.booking.findUniqueOrThrow({ where: { id } });
+    assert.ok(booking.subtotalAmount.minus(booking.discountAmount).equals(booking.netAmount));
+    assert.equal(booking.paymentStatus, status === 'CONSUMED' ? 'PAID' : 'UNPAID');
+    assert.equal(booking.paymentPending, status === 'RESERVED');
     const reservation = await prisma.couponReservation.findFirstOrThrow({
       where: { bookingId: id },
       orderBy: { createdAt: 'desc' },
     });
     assert.equal(reservation.status, status);
+    assert.ok(reservation.discountAmount.equals(booking.discountAmount));
+    const attempt = reservation.paymentAttemptId
+      ? await prisma.paymentAttempt.findUniqueOrThrow({
+          where: { id: reservation.paymentAttemptId },
+        })
+      : null;
+    if (attempt) {
+      assert.ok(attempt.amount.equals(booking.netAmount));
+      assert.equal(attempt.currency, booking.currency);
+      assert.equal(attempt.appliedCouponId, booking.appliedCouponId);
+      assert.ok(
+        status === 'CONSUMED'
+          ? attempt.status === 'SUCCESSFUL'
+          : status === 'RESERVED'
+            ? ['CREATING', 'PENDING'].includes(attempt.status)
+            : ['FAILED', 'EXPIRED'].includes(attempt.status),
+      );
+    } else {
+      assert.equal(booking.netAmount.toFixed(2), '0.00');
+    }
     assert.equal(
       await prisma.couponUse.count({ where: { bookingId: id } }),
       status === 'CONSUMED' ? 1 : 0,
@@ -293,6 +392,7 @@ async function verify(): Promise<void> {
     configureApplication(app);
     await app.init();
     const bookings = new BookingsService(prisma, new NotificationEventsService());
+    const bookingCoupons = new BookingCouponsService(prisma);
     await prisma.user.create({
       data: { id: tutorId, email: `${tutorId}@example.test`, role: 'TUTOR' },
     });
@@ -323,13 +423,27 @@ async function verify(): Promise<void> {
     const a = await fixture(final);
     const b = await fixture(final);
     const beforeRace = creates;
-    const race = await Promise.allSettled([
-      payments.create(a.id, a.studentId),
-      payments.create(b.id, b.studentId),
+    const race = await contend('Coupon', final.id, [
+      () => payments.create(a.id, a.studentId),
+      () => payments.create(b.id, b.studentId),
     ]);
     assert.equal(race.filter((item) => item.status === 'fulfilled').length, 1);
     assert.equal(creates, beforeRace + 1);
     const winner = race[0]?.status === 'fulfilled' ? a : b;
+    const loser = winner.id === a.id ? b : a;
+    const losingResult = race.find((item) => item.status === 'rejected');
+    assert.ok(losingResult?.status === 'rejected');
+    assert.ok(
+      losingResult.reason instanceof HttpException && losingResult.reason.getStatus() === 409,
+    );
+    const loserState = await state(loser.id);
+    assert.equal(loserState.booking.paymentPending, false);
+    assert.equal(loserState.booking.paymentStatus, 'UNPAID');
+    assert.equal(loserState.booking.netAmount.toFixed(2), '405.00');
+    assert.equal(
+      loserState.attempts.length + loserState.reservations.length + loserState.uses.length,
+      0,
+    );
     await evidence(winner.id, 'RESERVED');
     await payments.create(winner.id, winner.studentId);
     assert.equal(creates, beforeRace + 1);
@@ -345,11 +459,12 @@ async function verify(): Promise<void> {
       data: { expiresAt: new Date(0), active: false },
     });
     paid(latest(winner.id));
-    await Promise.all([
-      event(latest(winner.id)),
-      event(latest(winner.id)),
-      payments.getStatus(winner.id, winner.studentId),
+    const settlement = await contend('Booking', winner.id, [
+      () => event(latest(winner.id)),
+      () => event(latest(winner.id)),
+      () => payments.getStatus(winner.id, winner.studentId).then(() => undefined),
     ]);
+    assert.ok(settlement.every((item) => item.status === 'fulfilled'));
     await evidence(winner.id, 'CONSUMED');
     assert.equal((await payments.create(winner.id, winner.studentId)).paymentStatus, 'PAID');
     latest(winner.id).status = 'failed';
@@ -432,10 +547,15 @@ async function verify(): Promise<void> {
       new OmiseService(new PaymentsConfigService(new ConfigService({}))),
     );
     const beforeZero = creates;
-    const receipts = await Promise.all([
-      disabled.create(zero.id, zero.studentId),
-      disabled.create(zero.id, zero.studentId),
+    const zeroResults = await contend('Booking', zero.id, [
+      () => disabled.create(zero.id, zero.studentId),
+      () => disabled.create(zero.id, zero.studentId),
     ]);
+    const receipts = zeroResults.map((item) => {
+      assert.equal(item.status, 'fulfilled');
+      assert.ok(item.status === 'fulfilled');
+      return item.value;
+    });
     assert.ok(receipts.every((item) => item.paymentStatus === 'PAID' && item.attempt === null));
     assert.equal(receipts[0]?.reference, receipts[1]?.reference);
     assert.match(receipts[0]?.reference ?? '', /^coupon:/);
@@ -495,7 +615,9 @@ async function verify(): Promise<void> {
     await prisma.$executeRawUnsafe(
       'CREATE TRIGGER coupon_payment_rollback_probe AFTER UPDATE ON "Booking" FOR EACH ROW EXECUTE FUNCTION coupon_payment_rollback_probe()',
     );
+    const beforeRollback = await state(rollback.id);
     await event(latest(rollback.id), 500);
+    assert.deepEqual(await state(rollback.id), beforeRollback);
     await evidence(rollback.id, 'RESERVED');
     assert.equal(
       (await prisma.paymentAttempt.findFirstOrThrow({ where: { bookingId: rollback.id } })).status,
@@ -543,14 +665,23 @@ async function verify(): Promise<void> {
 
     for (let index = 0; index < 4; index += 1) {
       const f = await fixture(await coupon());
-      await Promise.allSettled([
-        payments.create(f.id, f.studentId),
-        bookings.cancelBooking({
-          bookingId: f.id,
-          userId: f.studentId,
-          reason: 'concurrent cancellation',
-        }),
+      const racing = await contend('Booking', f.id, [
+        () => payments.create(f.id, f.studentId).then(() => undefined),
+        () =>
+          bookings
+            .cancelBooking({
+              bookingId: f.id,
+              userId: f.studentId,
+              reason: 'concurrent cancellation',
+            })
+            .then(() => undefined),
       ]);
+      assert.equal(racing.filter((item) => item.status === 'fulfilled').length, 1);
+      for (const result of racing) {
+        if (result.status === 'rejected') {
+          assert.ok(result.reason instanceof HttpException && result.reason.getStatus() === 409);
+        }
+      }
       const b = await prisma.booking.findUniqueOrThrow({ where: { id: f.id } });
       const reservations = await prisma.couponReservation.count({ where: { bookingId: f.id } });
       assert.ok(
@@ -565,21 +696,20 @@ async function verify(): Promise<void> {
         const initialCoupon = action === 'apply' ? undefined : await coupon();
         const nextCoupon = action === 'remove' ? undefined : await coupon(20);
         const f = await fixture(initialCoupon);
-        const discount = new Prisma.Decimal('450.00').mul(nextCoupon?.percent ?? 0).div(100);
-        const results = await Promise.allSettled([
-          payments.create(f.id, f.studentId),
-          prisma.booking.update({
-            where: { id: f.id },
-            data: {
-              appliedCouponId: nextCoupon?.id ?? null,
-              appliedCouponCode: nextCoupon?.code ?? null,
-              appliedCouponPercent: nextCoupon?.percent ?? null,
-              discountAmount: discount,
-              netAmount: new Prisma.Decimal('450.00').minus(discount),
-            },
-          }),
+        const results = await contend('Booking', f.id, [
+          () => payments.create(f.id, f.studentId).then(() => undefined),
+          () =>
+            (nextCoupon
+              ? bookingCoupons.applyCoupon(f.id, f.studentId, { code: nextCoupon.code })
+              : bookingCoupons.removeCoupon(f.id, f.studentId)
+            ).then(() => undefined),
         ]);
         assert.equal(results[0]?.status, 'fulfilled');
+        for (const result of results) {
+          if (result.status === 'rejected') {
+            assert.ok(result.reason instanceof HttpException && result.reason.getStatus() === 409);
+          }
+        }
         const stored = await prisma.booking.findUniqueOrThrow({ where: { id: f.id } });
         const a = await prisma.paymentAttempt.findFirstOrThrow({ where: { bookingId: f.id } });
         assert.equal(a.amount.toFixed(2), stored.netAmount.toFixed(2));
@@ -592,7 +722,7 @@ async function verify(): Promise<void> {
       }
     }
     pass(
-      'nine apply/remove/replace database-write races keep attempt, amount and reservation aligned',
+      'nine T25 apply/remove/replace service races with T26 QR create keep attempt, amount and reservation aligned',
     );
 
     const zeroRollback = await fixture(await coupon(100));
@@ -602,7 +732,9 @@ async function verify(): Promise<void> {
     await prisma.$executeRawUnsafe(
       'CREATE TRIGGER coupon_payment_rollback_probe AFTER UPDATE ON "Booking" FOR EACH ROW EXECUTE FUNCTION coupon_payment_rollback_probe()',
     );
+    const beforeZeroRollback = await state(zeroRollback.id);
     await assert.rejects(disabled.create(zeroRollback.id, zeroRollback.studentId));
+    assert.deepEqual(await state(zeroRollback.id), beforeZeroRollback);
     assert.equal(
       (await prisma.booking.findUniqueOrThrow({ where: { id: zeroRollback.id } })).paymentStatus,
       'UNPAID',
@@ -617,6 +749,53 @@ async function verify(): Promise<void> {
     await disabled.create(zeroRollback.id, zeroRollback.studentId);
     await evidence(zeroRollback.id, 'CONSUMED');
     pass('zero settlement rollback removes all consumption evidence, retry settles once');
+
+    for (const sqlState of ['40001', '40P01']) {
+      for (const failures of [2, 3]) {
+        const retryFixture = await fixture(await coupon());
+        await prisma.$executeRawUnsafe('CREATE SEQUENCE db05_retry_counter');
+        await prisma.$executeRawUnsafe(`CREATE FUNCTION db05_retry_probe() RETURNS trigger LANGUAGE plpgsql AS $$
+          BEGIN IF NEW.id='${retryFixture.id}'::uuid AND NEW."paymentPending" AND NOT OLD."paymentPending"
+            AND nextval('db05_retry_counter')<=${failures} THEN
+            RAISE EXCEPTION USING ERRCODE='${sqlState}', MESSAGE='DB05 injected transaction retry';
+          END IF; RETURN NEW; END $$`);
+        await prisma.$executeRawUnsafe(
+          'CREATE TRIGGER db05_retry_probe BEFORE UPDATE ON "Booking" FOR EACH ROW EXECUTE FUNCTION db05_retry_probe()',
+        );
+        try {
+          const before = await state(retryFixture.id);
+          const providerBefore = creates;
+          if (failures === 2) {
+            await payments.create(retryFixture.id, retryFixture.studentId);
+            assert.equal(creates, providerBefore + 1);
+            await evidence(retryFixture.id, 'RESERVED');
+          } else {
+            await assert.rejects(
+              payments.create(retryFixture.id, retryFixture.studentId),
+              (error: unknown) =>
+                error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2034',
+            );
+            assert.deepEqual(await state(retryFixture.id), before);
+            assert.equal(creates, providerBefore);
+          }
+          const counter = await prisma.$queryRaw<
+            { value: number }[]
+          >`SELECT last_value::int AS value FROM db05_retry_counter`;
+          assert.equal(
+            counter[0]?.value,
+            3,
+            'Initial attempt plus at most two full transaction retries',
+          );
+        } finally {
+          await prisma.$executeRawUnsafe('DROP TRIGGER db05_retry_probe ON "Booking"');
+          await prisma.$executeRawUnsafe('DROP FUNCTION db05_retry_probe()');
+          await prisma.$executeRawUnsafe('DROP SEQUENCE db05_retry_counter');
+        }
+      }
+      pass(
+        `SQLSTATE ${sqlState} maps to P2034: two whole-transaction retries, one provider call after success, no state after exhaustion`,
+      );
+    }
 
     const base = `/api/v1/bookings/me/${zero.id}/payments`;
     await request(app.getHttpServer()).post(`${base}/promptpay`).expect(401);
@@ -647,12 +826,21 @@ async function verify(): Promise<void> {
     process.stdout.write(`${checks} coupon payment checks passed. No live provider contacted.\n`);
   } finally {
     globalThis.fetch = originalFetch;
-    await prisma.$executeRawUnsafe(
-      'DROP TRIGGER IF EXISTS coupon_payment_rollback_probe ON "Booking"',
-    );
-    await prisma.$executeRawUnsafe('DROP FUNCTION IF EXISTS coupon_payment_rollback_probe()');
-    await app?.close();
-    await prisma.$disconnect();
+    try {
+      await prisma.$executeRawUnsafe(
+        'DROP TRIGGER IF EXISTS coupon_payment_rollback_probe ON "Booking"',
+      );
+      await prisma.$executeRawUnsafe('DROP FUNCTION IF EXISTS coupon_payment_rollback_probe()');
+      await prisma.$executeRawUnsafe('DROP TRIGGER IF EXISTS db05_retry_probe ON "Booking"');
+      await prisma.$executeRawUnsafe('DROP FUNCTION IF EXISTS db05_retry_probe()');
+      await prisma.$executeRawUnsafe('DROP SEQUENCE IF EXISTS db05_retry_counter');
+    } finally {
+      try {
+        await app?.close();
+      } finally {
+        await Promise.all([prisma.$disconnect(), control.end()]);
+      }
+    }
   }
 }
 

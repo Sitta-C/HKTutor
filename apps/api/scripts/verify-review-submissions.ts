@@ -64,7 +64,10 @@ function disposableDatabaseUrl(): string {
   }
   assert.ok(['postgres:', 'postgresql:'].includes(url.protocol), 'PostgreSQL required');
   assert.ok(['127.0.0.1', 'localhost', '[::1]'].includes(url.hostname), 'Loopback required');
-  assert.equal(url.pathname, '/' + DATABASE_NAME, 'Dedicated S3-T15 test database required');
+  assert.ok(
+    [`/${DATABASE_NAME}`, '/hktutor_s3_db05_test'].includes(url.pathname),
+    'Dedicated S3-T15 or DB05 test database required',
+  );
   assert.ok(!url.search && !url.hash, 'URL options and fragments are refused');
   return value;
 }
@@ -133,7 +136,7 @@ async function verify(): Promise<void> {
     `;
     assert.deepEqual(
       target,
-      [{ database: DATABASE_NAME, schema: 'public' }],
+      [{ database: new URL(databaseUrl).pathname.slice(1), schema: 'public' }],
       'Unexpected database or schema',
     );
     const migrations = (

@@ -46,7 +46,8 @@
     "db:verify:admin-coupons": "pnpm --filter @hktutor/api db:verify:admin-coupons",
     "db:verify:booking-snapshots": "pnpm --filter @hktutor/api db:verify:booking-snapshots",
     "db:verify:sprint3-fixtures": "pnpm --filter @hktutor/api db:verify:sprint3-fixtures",
-    "db:verify:coupon-payments": "pnpm --filter @hktutor/api db:verify:coupon-payments"
+    "db:verify:coupon-payments": "pnpm --filter @hktutor/api db:verify:coupon-payments",
+    "db:verify:sprint3-concurrency": "pnpm --filter @hktutor/api db:verify:sprint3-concurrency"
   },
   "devDependencies": {
     "@hktutor/eslint-config": "workspace:*",

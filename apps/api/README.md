@@ -2903,3 +2903,24 @@ all migrations applied and zero initial users. It never loads `.env`, migrates o
 It invokes the combined seed, verifies raw PostgreSQL totals and existing service reads, tests
 real reminder writes and compares full fixture snapshots after repeated/next-day seeding. It
 retains synthetic append-only evidence: discard the owned disposable database afterwards.
+
+## Sprint 3 concurrency and query plans (S3-DB05)
+
+`pnpm db:verify:sprint3-concurrency` runs the existing review HTTP/SQL and coupon SQL/payment
+verifiers, then representative EXPLAIN checks, on one fresh disposable database. It requires
+`HKTUTOR_ALLOW_DISPOSABLE_DB_VERIFY=1`, an explicit loopback URL without options/fragments and
+exact database name `hktutor_s3_db05_test`, all committed migrations and zero initial users.
+It never loads `.env`, migrates or calls live Omise. Each child runs sequentially and failure
+stops the command; append-only evidence remains until its owned disposable database is discarded.
+
+The payment runner now observes all contenders in PostgreSQL blocker chains before releasing
+held row locks. It integrates actual T25 apply/remove/replace services with QR creation, checks
+losing-side/full transaction evidence, both consume/release directions and retry limits for
+PostgreSQL 40001/40P01 mapped to Prisma P2034. Existing provider/auth guards remain covered.
+
+`20261112170000_add_sprint3_query_indexes` adds `Coupon_code_text_idx` for normalized Prisma
+code equality and `AvailabilitySlot_startAtUtc_id_idx` for global reminder windows. Measured
+EXPLAIN plans justified both; the existing CITEXT unique key and all partial claim indexes remain.
+Only indexes/schema metadata and verification change; there is no new API, DTO or UI behavior.
+
+See the [DB05 file/call map, cases, plans and runnable evidence](../../tests/s3-db05-qa.md).
