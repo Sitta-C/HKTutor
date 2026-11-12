@@ -8,6 +8,7 @@ import type {
   PublicAvailabilitySlot,
   PublicTutorDetail,
   SubjectOption,
+  TutorReviewsResponse,
   TutorSearchQuery,
   TutorSearchResponse,
 } from '@/lib/api/types';
@@ -70,6 +71,22 @@ export function getPublicTutorAvailability(
   const queryString = params.toString();
   return apiFetch<PublicAvailabilitySlot[]>(
     `/tutors/${encodeURIComponent(tutorId)}/availability${queryString ? `?${queryString}` : ''}`,
+    requestInit,
+  );
+}
+
+export function getPublicTutorReviews(
+  tutorId: string,
+  query: { cursor?: string; limit?: number } = {},
+  requestInit: Pick<RequestInit, 'signal'> = {},
+): Promise<TutorReviewsResponse> {
+  const params = new URLSearchParams();
+  if (query.limit !== undefined) params.set('limit', String(query.limit));
+  if (query.cursor !== undefined) params.set('cursor', query.cursor);
+
+  const queryString = params.toString();
+  return apiFetch<TutorReviewsResponse>(
+    `/tutors/${encodeURIComponent(tutorId)}/reviews${queryString ? `?${queryString}` : ''}`,
     requestInit,
   );
 }
