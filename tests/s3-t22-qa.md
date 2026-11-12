@@ -129,3 +129,44 @@ completed production build with `pnpm exec next start --port 3002` from `apps/we
 After narrowing the recovery screenshot to its summary region, the six bilingual recovery cases
 were rerun with `--grep '21st coupon'` and all passed. Prettier checks passed for all five changed
 source, test and documentation files.
+
+## Shared coupon expiry pickers (2026-11-12)
+
+Coupon creation now reuses `LocalizedDatePicker` and `TimeWheelPicker` from tutor availability.
+Date and time stack at the form's full width so the seven-column calendar fits narrow screens.
+The shared controls accept optional trigger IDs, placeholders, disabled/error styling and error
+associations; existing availability callers retain their defaults. Empty dates open at Bangkok
+today without silently selecting it, and both fields reset to empty after successful creation.
+The calendar blocks earlier dates; existing validation still rejects a missing/past expiry instant.
+Thai shows Buddhist years and English Gregorian years, while the draft stores ISO dates and
+24-hour times and the existing Bangkok-to-UTC conversion constructs `expiresAt`.
+
+Validation focuses the date trigger and links both triggers to the expiry explanation/error.
+Buttons use error styling and `aria-describedby`; they do not use unsupported `aria-invalid`.
+The existing calendar keyboard controls, time-wheel wrap/scroll/drag behavior, Enter/Escape and
+focus restoration remain available. Pending/uncertain submissions disable both controls.
+
+Browser tests now choose actual calendar cells and time-wheel values rather than filling native
+inputs. New bilingual tests cover empty validation, past-day disabling, Buddhist/Gregorian years,
+calendar Escape, minute 59→00 wrap, focus, clearing after success, UTC payload and no horizontal
+overflow at 1440, 768 and 320px. Screenshots now go to each test's output directory, preserving
+historical curated review images. API calls are intercepted; no real coupon is created.
+
+Verification:
+
+- Web unit suite: 49 files / 763 tests passed. The command
+  `pnpm --filter @hktutor/web test -- coupon-model.test.ts date-time.test.ts` ran the full suite.
+- `pnpm --filter @hktutor/web lint` and `pnpm --filter @hktutor/web build`: passed.
+- `pnpm --filter @hktutor/web test:e2e admin-coupons-ui.spec.ts --workers=2 --output=/tmp/hktutor-coupon-picker-results`:
+  all 69 tests passed across desktop, tablet and mobile Chromium.
+- `pnpm --filter @hktutor/web test:e2e availability-ui.spec.ts --grep 'vertical wheels|touch gestures|outside clicks|creates an overnight|rejects reversed' --workers=2 --output=/tmp/hktutor-availability-picker-results`:
+  14 passed; the desktop-only project skips the touch-only test by design.
+- Safari manual check: shared calendar opens, Escape restores focus without choosing a date,
+  and the time picker opens with separate hour/minute wheels. Existing draft fields were retained;
+  no live coupon was submitted.
+- Formatting and `git diff --check`: passed.
+
+Early test assertions were updated for Thai weekday labels and button-based field errors.
+Concurrent browser runs initially collided in Playwright's default artifact directory; final
+runs use distinct output directories and passed without those artifact errors. No API or database
+behavior was changed by this picker update.

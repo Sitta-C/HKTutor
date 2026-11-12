@@ -19,6 +19,10 @@ export interface AdminCouponList {
   nextCursor: string | null;
 }
 
+export interface SetCouponActivationPayload {
+  active: boolean;
+}
+
 export interface CreateAdminCouponPayload {
   code: string;
   percent: number;

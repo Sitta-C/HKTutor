@@ -2509,11 +2509,14 @@ See [S3-DB03 evidence](../../tests/s3-db03-qa.md) for actual commands/results.
 
 ## Admin coupon APIs (S3-T21)
 
-Both routes require a Bearer access JWT backed by an active session, a verified active account,
-the current privacy consent and the database-backed ADMIN role. `JwtAuthGuard` runs before
-`RolesGuard`. Responses use `Cache-Control: no-store`; failures follow the existing
+All admin coupon routes require a Bearer access JWT backed by an active session, a verified active account
+and the database-backed ADMIN role. Administrators do not require privacy consent to use admin
+coupon tools; missing or outdated consent does not block creation, listing or activation. No consent checkbox
+or consent record backfill is needed. This follows the existing admin qualification-review access
+policy. `JwtAuthGuard` runs before `RolesGuard`; Student/Tutor consent rules remain unchanged.
+Responses use `Cache-Control: no-store`; failures follow the existing
 `{ statusCode, error, message, code }` envelope. Missing/invalid/revoked credentials return 401;
-wrong roles or missing/outdated consent return 403. No caller-supplied identity is accepted.
+wrong roles return 403. No caller-supplied identity is accepted.
 
 ### Create
 
@@ -2539,8 +2542,9 @@ wrong roles or missing/outdated consent return 403. No caller-supplied identity 
   a transaction connection. Date-only values, offsets and excess precision are rejected. Convert
   Bangkok inputs to UTC before submission: 2026-11-30 23:59:59 Bangkok is the example above.
   Expiry is exclusive: `now >= expiresAt` means expired.
-- `active` is an optional JSON boolean, default true; explicit false is retained. This task
-  adds no update, delete or toggle route.
+- `active` is an optional JSON boolean, default true; explicit false is retained. Activation can
+  subsequently be changed through the dedicated route below. No price/code/expiry editing or
+  deletion route is provided.
 
 The service sets transaction-local `hktutor.audit_actor_user_id` from `CurrentUser`. DB02's insert
 trigger creates exactly one append-only `AuditLog` with `action: coupon.create`, `entityType: Coupon`,
@@ -2549,6 +2553,38 @@ roll back together; pool connections cannot retain the actor context. This uses 
 DB02 action name **coupon.create**, replacing the card's planned **COUPON_CREATED** spelling;
 it does not add a second audit or reuse `TutorDocumentAudit`. Audit failures remain generic 500
 errors and are not mistaken for a coupon code collision. No new migration is needed.
+
+### Activation
+
+`PATCH /api/v1/admin/coupons/:couponId/activation` accepts exactly `{ "active": true }` or
+`{ "active": false }` and returns 200 with the same current metadata/capacity shape as listing.
+It requires an active, verified ADMIN session, without privacy consent. Missing/invalid/revoked
+sessions return 401, other roles 403, malformed UUID or missing/null/nonboolean/extra body fields
+400 and a missing coupon 404. Successful responses use `Cache-Control: no-store`.
+
+The request specifies the desired state; it never blindly flips a bit. The service locks the
+coupon row, writes only `active` and the normal `updatedAt`, and writes an actor-bound
+`coupon.active_change` audit in the same transaction. A repeated current state returns the
+existing record without changing its timestamp or adding an audit. Concurrent writes serialize
+with one another and payment capacity claims. Pricing, expiry, maxUses, CouponUse and all
+reservation evidence remain unchanged. Activation does not renew an expired/exhausted coupon.
+Deactivation prevents new claims, while previously reserved QR payments remain honored.
+
+Apply `20261112120000_add_coupon_activation_audit` before deploying this API/UI extension.
+The forward migration extends only the two AuditLog check constraints: existing creation and
+reserve/consume/release rules remain intact. New activation events contain exactly
+`beforeData: { active }` and `afterData: { active }` with different booleans, a nonnull authenticated
+actor, `entityType: Coupon`, the coupon ID and a unique `coupon.active_change:<AuditLog.id>` key.
+Using the event ID allows repeated state changes without altering old operation keys. Audit
+append-only protections remain. No existing rows or coupon amounts are rewritten, and Prisma
+model fields do not change. Activation audit failure rolls back the status change, including
+when the old database has not received this migration; the API never commits an unaudited change.
+
+The coupon register displays Activate/Deactivate per row in Thai/English. It updates badges/counts
+only from a successful PATCH response, blocks duplicate actions and overlapping list reads, and
+retains the current list/selection order. After an uncertain result, that coupon's control remains
+blocked with refresh guidance until a successful authoritative list read. A failed refresh cannot
+clear this gate; 401/403 removes coupon data and returns the existing access recovery view.
 
 ### List and capacity
 
@@ -2679,9 +2715,9 @@ unset DATABASE_URL
 ```
 
 See [S3-T26 QA evidence](../../tests/s3-t26-qa.md) for actual commands/results and limits. This
-checkout has no T25 apply/remove routes, so their races use the real guarded booking-pricing
-writes, not mocked success or nonexistent HTTP endpoints. Test that HTTP integration after T25
-lands. Live Omise account configuration and actual callback delivery still require a separate
+verifier races the real guarded booking-pricing writes rather than the T25 apply/remove HTTP
+routes. T25 is now present in the base branch; a combined T25/T26 HTTP journey remains additional
+integration coverage. Live Omise account configuration and actual callback delivery still require a separate
 Test Mode rehearsal.
 
 ## Tutor comparison QA (S3-T32)

@@ -24,6 +24,12 @@ function twoDigits(value: number): string {
 export function TimeWheelPicker({
   value,
   name,
+  id,
+  placeholder,
+  disabled = false,
+  invalid = false,
+  describedBy,
+  className,
   label,
   hourLabel,
   minuteLabel,
@@ -31,6 +37,12 @@ export function TimeWheelPicker({
 }: {
   value: string;
   name: string;
+  id?: string;
+  placeholder?: string;
+  disabled?: boolean;
+  invalid?: boolean;
+  describedBy?: string;
+  className?: string;
   label: string;
   hourLabel: string;
   minuteLabel: string;
@@ -43,7 +55,8 @@ export function TimeWheelPicker({
   const triggerRef = useRef<HTMLButtonElement>(null);
   const hourRef = useRef<HTMLDivElement>(null);
   const minuteRef = useRef<HTMLDivElement>(null);
-  const [isOpen, setIsOpen] = useState(false);
+  const [requestedOpen, setIsOpen] = useState(false);
+  const isOpen = requestedOpen && !disabled;
   const hour = Number(value.slice(0, 2));
   const minute = Number(value.slice(3, 5));
   const changeHour = useCallback(
@@ -103,17 +116,21 @@ export function TimeWheelPicker({
       <input type="hidden" name={name} value={value} />
       <button
         ref={triggerRef}
+        id={id}
         type="button"
+        disabled={disabled}
+        data-invalid={invalid || undefined}
+        aria-describedby={describedBy}
         className={notebookInputClass({
-          className:
-            'flex cursor-pointer items-center justify-between gap-3 text-left tabular-nums focus:border-tutor focus:ring-sticky-blue/70',
+          error: invalid,
+          className: `flex cursor-pointer items-center justify-between gap-3 text-left tabular-nums focus:border-tutor focus:ring-sticky-blue/70 ${className ?? ''}`,
         })}
         aria-labelledby={`${labelId} ${valueId}`}
         aria-expanded={isOpen}
         aria-controls={panelId}
         onClick={() => (isOpen ? closePicker() : setIsOpen(true))}
       >
-        <span id={valueId}>{value}</span>
+        <span id={valueId}>{value || placeholder || label}</span>
         <span aria-hidden="true" className={`${styles.chevron} ${isOpen ? styles.rotated : ''}`}>
           ⌄
         </span>

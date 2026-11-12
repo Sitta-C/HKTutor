@@ -55,6 +55,12 @@ export class CreateCouponDto {
   active?: boolean;
 }
 
+export class SetCouponActivationDto {
+  @ApiProperty({ description: 'Desired activation state. Does not change expiry or capacity.' })
+  @IsBoolean()
+  active!: boolean;
+}
+
 export class ListCouponsQueryDto {
   @ApiPropertyOptional({ maxLength: MAX_COUPON_CURSOR_LENGTH })
   @ValidateIf((_object, value: unknown) => value !== undefined)
