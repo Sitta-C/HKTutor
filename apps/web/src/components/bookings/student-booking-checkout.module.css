@@ -1,0 +1,35 @@
+.columns {
+  display: grid;
+  grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
+}
+.amountColumn {
+  min-width: 0;
+  padding: 22px 22px 0 0;
+}
+.amounts {
+  margin-bottom: 22px;
+}
+.amounts > dl {
+  margin-top: 0;
+}
+.total > div {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  margin-bottom: 0;
+}
+.help {
+  margin: 7px 0 16px;
+  font-size: 12px;
+  color: var(--color-notebook-muted);
+}
+@container (max-width: 600px) {
+  .columns {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .amountColumn {
+    padding: 0 0 18px;
+  }
+}

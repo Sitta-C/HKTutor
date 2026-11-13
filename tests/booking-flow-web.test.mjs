@@ -20,7 +20,7 @@ test('defines the finalized S1-T24 booking client contracts for S1-T25', async (
   assert.match(client, /authenticatedFetch<BookingResponse>\('\/bookings'/);
   assert.match(client, /getMyBookings\(queryInput: MyBookingsQuery/);
   assert.ok(client.includes('authenticatedFetch<MyBookingsResponse>(`/bookings/me'));
-  assert.match(client, /getMyBooking\(bookingId: string\)/);
+  assert.match(client, /getMyBooking\(bookingId: string, signal\?: AbortSignal\)/);
   assert.match(client, /createBookingOnce/);
 
   for (const field of [

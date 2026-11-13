@@ -4,18 +4,14 @@ import Link from 'next/link';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { BookingCancellation } from '@/components/bookings/booking-cancellation';
-import {
-  BookingDocketAmounts,
-  BookingDocketStatus,
-  BookingDocketSummary,
-  BookingDocketTotal,
-} from '@/components/bookings/booking-docket';
+import { BookingDocketStatus, BookingDocketSummary } from '@/components/bookings/booking-docket';
 import { bookingRequestCopy } from '@/components/bookings/booking-request-copy';
 import { getBookingErrorMessage } from '@/components/bookings/booking-ui';
 import { ClassDetailsPanel } from '@/components/bookings/class-details-panel';
-import { PromptPayPaymentPanel } from '@/components/bookings/promptpay-payment-panel';
 import { RescheduleRequestPanel } from '@/components/bookings/reschedule-request-panel';
+import { StudentBookingCheckout } from '@/components/bookings/student-booking-checkout';
 import { studentBookingsCopy } from '@/components/bookings/student-bookings-copy';
+import { updateCheckoutSubmission } from '@/components/bookings/use-booking-checkout';
 import { DashboardIcon } from '@/components/dashboard/dashboard-icon';
 import { BookingReviewSection } from '@/components/reviews/booking-review-section';
 import { NotebookHeading, PaperCard } from '@/components/ui/notebook';
@@ -40,7 +36,8 @@ export default function StudentBookingDetailPage({ bookingId }: { bookingId: str
   const [bookingRevision, setBookingRevision] = useState(0);
   const [rescheduleBusy, setRescheduleBusy] = useState(false);
   const [cancellationBusy, setCancellationBusy] = useState(false);
-  const [paymentBusy, setPaymentBusy] = useState(false);
+  const [paymentSubmission, setPaymentSubmission] = useState<symbol | null>(null);
+  const paymentBusy = paymentSubmission !== null;
   const [rescheduleStale, setRescheduleStale] = useState(false);
   const [cancellationStale, setCancellationStale] = useState(false);
   const [rescheduleOutcome, setRescheduleOutcome] = useState<RescheduleRequestStatus | null>(null);
@@ -48,6 +45,9 @@ export default function StudentBookingDetailPage({ bookingId }: { bookingId: str
   const restoreClassroomRefreshFocusRef = useRef(false);
   const isCurrentBookingLoaded = loadedBookingId === bookingId;
   const loading = isLoading || !isCurrentBookingLoaded;
+  const handlePaymentSubmittingChange = useCallback((busy: boolean, token: symbol): void => {
+    setPaymentSubmission((current) => updateCheckoutSubmission(current, busy, token));
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -156,31 +156,15 @@ export default function StudentBookingDetailPage({ bookingId }: { bookingId: str
                     : pageText.otherNotice}
               </p>
 
-              <div className={styles.paymentColumns}>
-                <div className={styles.amountColumn}>
-                  <div className={styles.detailAmounts}>
-                    <BookingDocketAmounts amounts={booking} text={text} />
-                  </div>
-
-                  <div className={styles.detailTotal}>
-                    <BookingDocketTotal
-                      amount={booking.netAmount}
-                      currency={booking.currency}
-                      label={pageText.amount}
-                    />
-                  </div>
-                </div>
-
-                <PromptPayPaymentPanel
-                  key={`${booking.id}:${booking.slot.id}`}
-                  booking={booking}
-                  disabled={
-                    rescheduleBusy || rescheduleStale || cancellationBusy || cancellationStale
-                  }
-                  onSubmittingChange={setPaymentBusy}
-                  onBookingChange={handlePaymentBookingChange}
-                />
-              </div>
+              <StudentBookingCheckout
+                key={`${booking.id}:${booking.slot.id}`}
+                booking={booking}
+                disabled={
+                  rescheduleBusy || rescheduleStale || cancellationBusy || cancellationStale
+                }
+                onSubmittingChange={handlePaymentSubmittingChange}
+                onBookingChange={handlePaymentBookingChange}
+              />
             </div>
             <div className={styles.detailActions}>
               <RescheduleRequestPanel
