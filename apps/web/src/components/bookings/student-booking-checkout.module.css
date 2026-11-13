@@ -1,10 +1,12 @@
 .columns {
   display: grid;
-  grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 1fr);
+  align-items: start;
+  gap: 24px;
 }
 .amountColumn {
   min-width: 0;
-  padding: 22px 22px 0 0;
+  padding: 10px 0 0;
 }
 .amounts {
   margin-bottom: 22px;
@@ -28,8 +30,9 @@
 @container (max-width: 600px) {
   .columns {
     grid-template-columns: minmax(0, 1fr);
+    gap: 16px;
   }
   .amountColumn {
-    padding: 0 0 18px;
+    padding: 0;
   }
 }

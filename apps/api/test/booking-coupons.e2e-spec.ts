@@ -142,6 +142,7 @@ describe('Booking coupons HTTP contract (e2e)', () => {
       netAmount: new Prisma.Decimal(450),
       paymentPending: false,
       paymentStatus: PaymentStatus.UNPAID,
+      slot: { startAtUtc: new Date(Date.now() + 24 * 3_600_000) },
       status: BookingStatus.CONFIRMED,
       studentUserId: STUDENT_ID,
       subtotalAmount: new Prisma.Decimal(450),

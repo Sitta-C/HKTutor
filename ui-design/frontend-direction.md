@@ -1,6 +1,6 @@
 # HKTutor frontend direction — Notebook Focus
 
-Updated 2026-11-11. This describes the implemented Notebook Focus direction and component
+Updated 2026-11-13. This describes the implemented Notebook Focus direction and component
 patterns in this repository. Maintainers review changes to shared design conventions through the
 normal PR process; this guide does not assert team approval of decisions from an individual chat.
 Read it as implementation context before UI work. The current task's explicit requirements take
@@ -512,13 +512,20 @@ student/tutor button review and three-direction preview.
   column; other actions wrap labels inside narrow containers. No API, payload, permissions,
   data, pricing, scheduling or publication-rule changes belong to this update.
 
-## Student PromptPay test payment — Payment Slip
+## Student PromptPay test payment — Decision Slip
 
-The student booking detail retains the Payment Slip layout beside the persisted amount breakdown,
-across a dashed seam that stacks below 600px. Use the existing mint ticket action and separate
-paid/unpaid tag. The panel now creates/resumes an Omise PromptPay test QR rather than accepting a
-demo reference. Keep the test-mode notice, Thai/English copy, Bangkok receipt/expiry times and
-keyboard-operable actions. Display QR and captured status only from API responses. Reconcile on
+The user selected **Decision Slip** on 2026-11-13 after reviewing it on the actual checkout.
+Keep the coupon/amount breakdown on the left and one content-sized payment paper on the right,
+stacking below the amounts when the containing paper is at most 600px. The paper has a compact
+heading tab, separate paid/unpaid tag, plain deadline metadata, a readable status heading and a
+dashed footer for actions. Keep the test-mode note quiet beneath the actions. Closed-window text
+is neutral; in-progress payments use a warm clock cue. Retain the same panel for the paid receipt.
+Create/retry QR and full-coupon settlement use the shared student `NotebookAction` Ink Ticket with
+a right icon stub and perforated seam. Keep deadline labels on their own line above the timestamp,
+without a middle-dot text separator.
+Manual payment refresh remains a quiet text action. The panel creates/resumes an Omise PromptPay
+test QR rather than accepting a demo reference. Keep the test-mode notice, Thai/English copy,
+Bangkok receipt/expiry times and keyboard-operable actions. Display QR and captured status only from API responses. Reconcile on
 reload and poll while active, pausing in hidden tabs. Failed/expired attempts permit a new QR;
 uncertain results require a successful status read before another creation. Active/uncertain
 payments block cancellation. Existing mock-paid receipts remain readable; the old mock endpoint

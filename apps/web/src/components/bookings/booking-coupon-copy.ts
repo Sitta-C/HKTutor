@@ -23,6 +23,7 @@ export const bookingCouponCopy = {
     unsupported: 'ยอดนี้ชำระไม่ได้ PromptPay รองรับ 20–150,000 บาท หรือยอด 0 บาทจากคูปอง 100%',
     conflict: 'ข้อมูลการจองหรือคูปองเปลี่ยนแล้ว ตรวจสถานะล่าสุดก่อนใช้หรือถอดคูปองอีกครั้ง',
     notPayable: 'การจองนี้ไม่เปิดให้ใช้คูปองหรือชำระเงินแล้ว กรุณาตรวจสถานะล่าสุด',
+    deadlinePassed: 'เริ่มเรียนแล้ว ไม่สามารถใช้คูปองหรือเริ่มชำระเงินใหม่ได้',
     session: 'เซสชันหมดอายุ กรุณาเข้าสู่ระบบอีกครั้ง',
     forbidden: 'คุณไม่มีสิทธิ์ทำรายการกับการจองนี้ กรุณาตรวจสถานะล่าสุด',
     missing: 'ไม่พบการจองนี้แล้ว กรุณาตรวจสถานะล่าสุด',
@@ -53,6 +54,7 @@ export const bookingCouponCopy = {
     conflict:
       'The booking or coupon has changed. Check the latest status before applying or removing it.',
     notPayable: 'This booking no longer allows coupons or payment. Check the latest status.',
+    deadlinePassed: 'The lesson has started. Coupons and new payments are closed.',
     session: 'Your session has expired. Sign in again.',
     forbidden: 'You cannot change this booking. Check the latest status.',
     missing: 'This booking is no longer available. Check the latest status.',

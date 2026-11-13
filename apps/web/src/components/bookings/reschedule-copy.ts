@@ -34,8 +34,10 @@ export const rescheduleCopy = {
     cutoff:
       'Requests and approvals require at least 24 hours before the current class. A pending request can still be rejected or withdrawn.',
     ineligible: 'Only a confirmed booking can be rescheduled.',
+    paymentInProgress:
+      'Check the existing payment result before approving a reschedule. The original class time is unchanged.',
     approvalUnavailable:
-      'Approval is unavailable. The booking or target may have changed, or the cutoff has passed. You can still reject this request.',
+      'Approval is unavailable while payment is in progress, after the cutoff, or if the booking or target changed. You can still reject this request.',
     collision:
       'The target is no longer available. Refresh before choosing another slot or reviewing this request.',
     targetPast:
@@ -83,8 +85,10 @@ export const rescheduleCopy = {
     cutoff:
       'ต้องส่งคำขอและอนุมัติอย่างน้อย 24 ชั่วโมงก่อนคลาสเดิม คำขอที่รอตอบรับยังปฏิเสธหรือถอนได้',
     ineligible: 'เลื่อนเวลาได้เฉพาะการจองที่ยืนยันแล้ว',
+    paymentInProgress:
+      'กรุณาตรวจผลชำระเงินเดิมก่อนอนุมัติเลื่อนเวลา เวลาเรียนเดิมยังไม่เปลี่ยนแปลง',
     approvalUnavailable:
-      'ยังอนุมัติไม่ได้ การจองหรือเวลาใหม่อาจเปลี่ยนไป หรือพ้นเวลาที่กำหนด คุณยังปฏิเสธคำขอได้',
+      'ยังอนุมัติไม่ได้ระหว่างรอผลชำระเงิน เมื่อพ้นกำหนด หรือเมื่อการจองและเวลาใหม่เปลี่ยนแปลง คุณยังปฏิเสธคำขอได้',
     collision: 'เวลาใหม่ไม่ว่างแล้ว กรุณารีเฟรชก่อนเลือกเวลาอื่นหรือพิจารณาคำขอ',
     targetPast: 'เวลาที่ขอเริ่มไปแล้ว กรุณารีเฟรชเพื่อตรวจสอบคำขอและรายการที่ยังทำได้',
     conflict: 'การจองหรือคำขอเปลี่ยนไปจากการทำรายการอื่น กรุณารีเฟรชก่อนทำต่อ',

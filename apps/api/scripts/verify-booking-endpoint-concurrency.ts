@@ -15,6 +15,7 @@ import {
 } from '@generated/prisma/enums';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import { JwtTokenService } from '@modules/auth/jwt.service';
+import { PAYMENT_DEADLINE_MS } from '@modules/bookings/booking-payment-policy';
 
 import type { INestApplication } from '@nestjs/common';
 import type { App } from 'supertest/types';
@@ -322,7 +323,7 @@ async function runRejectRollbackCheck(
     'Rollback Reject',
   );
 
-  const startAtUtc = new Date(Date.now() + 4 * 60 * 60 * 1000);
+  const startAtUtc = new Date(Date.now() + PAYMENT_DEADLINE_MS + 4 * 60 * 60 * 1000);
   const endAtUtc = new Date(startAtUtc.getTime() + 60 * 60 * 1000);
   await prisma.availabilitySlot.upsert({
     where: { id: ids.rejectRollbackSlot },
@@ -412,7 +413,8 @@ async function runConcurrencyCheck(
     ),
   ]);
 
-  const startAtUtc = new Date(Date.now() + 60 * 60 * 1000);
+  // Keep the contested slot payable; otherwise both requests fail before testing contention.
+  const startAtUtc = new Date(Date.now() + PAYMENT_DEADLINE_MS + 2 * 60 * 60 * 1000);
   const endAtUtc = new Date(startAtUtc.getTime() + 60 * 60 * 1000);
   await prisma.availabilitySlot.upsert({
     where: { id: ids.raceSlot },
@@ -504,7 +506,7 @@ async function runRetiredMockPaymentChecks(
     'retired-payment-other@hktutor.invalid',
     'Other Payment Student',
   );
-  const startAtUtc = new Date(Date.now() + 6 * 60 * 60 * 1000);
+  const startAtUtc = new Date(Date.now() + PAYMENT_DEADLINE_MS + 6 * 60 * 60 * 1000);
   await prisma.availabilitySlot.create({
     data: {
       id: ids.paymentSlot,
