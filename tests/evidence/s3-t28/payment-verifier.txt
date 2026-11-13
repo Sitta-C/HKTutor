@@ -1,0 +1,46 @@
+PASS [observed PostgreSQL locks] 2/2 operations waiting on Coupon
+PASS [observed PostgreSQL locks] 3/3 operations waiting on Booking
+PASS [PostgreSQL + signed HTTP + stub provider] final-use race, one QR, duplicate/current replay, reserved expiry/deactivation honored, late failure no-op
+PASS [PostgreSQL + signed HTTP + stub provider] same-student reuse blocked before provider
+PASS [observed PostgreSQL locks] 2/2 operations waiting on Coupon
+PASS [PostgreSQL + signed HTTP + stub provider] same student/two bookings race: one claim, loser COUPON_ALREADY_USED, one use after success
+PASS [observed PostgreSQL locks] 3/3 operations waiting on Booking
+PASS [observed PostgreSQL locks] 3/3 operations waiting on Booking
+PASS [PostgreSQL + signed HTTP + stub provider] failed/expired callback+current replay releases once; fresh retry revalidates coupon expiry without writes
+PASS [PostgreSQL + signed HTTP + stub provider] timeout/503 retain reservation, metadata recovery never POSTs, confirmed expiry releases and retries
+PASS [PostgreSQL + signed HTTP + stub provider] definitive no-charge rejection and verified failure release atomically
+PASS [observed PostgreSQL locks] 2/2 operations waiting on Booking
+PASS [PostgreSQL + signed HTTP + stub provider] concurrent zero settlement, one receipt/use/audit, no configuration or charge, paid cancellation denied
+PASS [PostgreSQL + signed HTTP + stub provider] 19.99/20.00/150000.00/150000.01 and discounted subminimum amount before reservation/provider
+PASS [PostgreSQL + signed HTTP + stub provider] inactive/expired and stale applied percentage/code rejected with no claim
+PASS [PostgreSQL + signed HTTP + stub provider] database failure rolls back booking/attempt/use/audit, signed retry settles once
+PASS [PostgreSQL + signed HTTP + stub provider] claim committed before HTTP: pending provider freezes coupon removal and cancellation
+PASS [observed PostgreSQL locks] 2/2 operations waiting on Booking
+PASS [observed PostgreSQL locks] 2/2 operations waiting on Booking
+PASS [observed PostgreSQL locks] 2/2 operations waiting on Booking
+PASS [observed PostgreSQL locks] 2/2 operations waiting on Booking
+PASS [PostgreSQL + signed HTTP + stub provider] four concurrent payment/cancellation races preserve claim and state
+PASS [observed PostgreSQL locks] 2/2 operations waiting on Booking
+PASS [observed PostgreSQL locks] 2/2 operations waiting on Booking
+PASS [observed PostgreSQL locks] 2/2 operations waiting on Booking
+PASS [observed PostgreSQL locks] 2/2 operations waiting on Booking
+PASS [observed PostgreSQL locks] 2/2 operations waiting on Booking
+PASS [observed PostgreSQL locks] 2/2 operations waiting on Booking
+PASS [observed PostgreSQL locks] 2/2 operations waiting on Booking
+PASS [observed PostgreSQL locks] 2/2 operations waiting on Booking
+PASS [observed PostgreSQL locks] 2/2 operations waiting on Booking
+PASS [PostgreSQL + signed HTTP + stub provider] nine T25 apply/remove/replace service races with T26 QR create keep attempt, amount and reservation aligned
+PASS [observed PostgreSQL locks] 2/3 operations waiting on Booking
+PASS [observed PostgreSQL locks] 3/3 operations waiting on Booking
+PASS [observed PostgreSQL locks] 3/3 operations waiting on Booking
+PASS [PostgreSQL + signed HTTP + stub provider] verified success races cancellation/apply/remove: paid/use/attempt atomic, fixed QR amount, no refunded use
+PASS [PostgreSQL + signed HTTP + stub provider] T25 apply -> T26 QR -> signed success -> repeat receipt via HTTP; legacy receipt preserved and mock write 410
+PASS [PostgreSQL + signed HTTP + stub provider] zero settlement rollback removes all consumption evidence, retry settles once
+PASS [PostgreSQL + signed HTTP + stub provider] SQLSTATE 40001 maps to P2034: two whole-transaction retries, one provider call after success, no state after exhaustion
+PASS [PostgreSQL + signed HTTP + stub provider] SQLSTATE 40P01 maps to P2034: two whole-transaction retries, one provider call after success, no state after exhaustion
+PASS [PostgreSQL + signed HTTP + stub provider] real JWT/session/consent, empty-body validation, no-store and invalid HMAC before provider access
+EVIDENCE {"label":"final-use winner","paymentStatus":"PAID","paymentPending":false,"subtotal":"450.00","discount":"45.00","net":"405.00","attemptStatus":"SUCCESSFUL","attempts":1,"reserved":0,"consumed":1,"uses":1,"consumeAudits":1,"providerCreates":1,"receiptKind":"test charge"}
+EVIDENCE {"label":"final-use loser","paymentStatus":"UNPAID","paymentPending":false,"subtotal":"450.00","discount":"45.00","net":"405.00","attemptStatus":null,"attempts":0,"reserved":0,"consumed":0,"uses":0,"consumeAudits":0,"providerCreates":0,"receiptKind":null}
+EVIDENCE {"label":"zero settlement","paymentStatus":"PAID","paymentPending":false,"subtotal":"450.00","discount":"450.00","net":"0.00","attemptStatus":null,"attempts":0,"reserved":0,"consumed":1,"uses":1,"consumeAudits":1,"providerCreates":0,"receiptKind":"coupon"}
+EVIDENCE {"label":"HTTP discounted journey","paymentStatus":"PAID","paymentPending":false,"subtotal":"450.00","discount":"45.00","net":"405.00","attemptStatus":"SUCCESSFUL","attempts":1,"reserved":0,"consumed":1,"uses":1,"consumeAudits":1,"providerCreates":1,"receiptKind":"test charge"}
+19 coupon payment checks passed. No live provider contacted.

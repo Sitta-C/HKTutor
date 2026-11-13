@@ -22,6 +22,7 @@ import { JwtTokenService } from '@modules/auth/jwt.service';
 import { ResourceOwnershipGuard } from '@modules/auth/ownership.guard';
 import { RolesGuard } from '@modules/auth/roles.guard';
 import { BookingCouponsService } from '@modules/bookings/booking-coupons.service';
+import { BookingsController } from '@modules/bookings/bookings.controller';
 import { BookingsService } from '@modules/bookings/bookings.service';
 import { NotificationEventsService } from '@modules/notifications/notification-events.service';
 import { OmiseWebhookController, PaymentsController } from '@modules/payments/payments.controller';
@@ -82,6 +83,8 @@ async function verify(): Promise<void> {
   const tokens = new JwtTokenService(new AuthConfigService(config));
   const omise = new OmiseService(new PaymentsConfigService(config));
   const payments = new PaymentsService(prisma, omise);
+  const bookings = new BookingsService(prisma, new NotificationEventsService());
+  const bookingCoupons = new BookingCouponsService(prisma);
   const charges = new Map<string, StubCharge>();
   const originalFetch = globalThis.fetch;
   let creates = 0;
@@ -162,6 +165,7 @@ async function verify(): Promise<void> {
     table: 'Booking' | 'Coupon',
     id: string,
     operations: (() => Promise<T>)[],
+    expectedWaiters = operations.length,
   ): Promise<PromiseSettledResult<T>[]> {
     const lock = await control.connect();
     let pending: Promise<PromiseSettledResult<T>[]> | undefined;
@@ -184,17 +188,17 @@ async function verify(): Promise<void> {
           ) SELECT count(DISTINCT pid)::int AS count FROM blocked`,
           [pid],
         );
-        if ((waiting.rows[0]?.count ?? 0) >= operations.length) {
+        if ((waiting.rows[0]?.count ?? 0) >= expectedWaiters) {
           break;
         }
         assert.ok(
           Date.now() < deadline,
-          `Expected ${operations.length} real PostgreSQL lock waiters on ${table}`,
+          `Expected ${expectedWaiters} real PostgreSQL lock waiters on ${table}`,
         );
         await setTimeout(10);
       }
       process.stdout.write(
-        `PASS [observed PostgreSQL locks] ${operations.length} contenders on ${table}\n`,
+        `PASS [observed PostgreSQL locks] ${expectedWaiters}/${operations.length} operations waiting on ${table}\n`,
       );
     } finally {
       try {
@@ -377,8 +381,10 @@ async function verify(): Promise<void> {
       }
     }
     const module = await Test.createTestingModule({
-      controllers: [PaymentsController, OmiseWebhookController],
+      controllers: [BookingsController, PaymentsController, OmiseWebhookController],
       providers: [
+        { provide: BookingsService, useValue: bookings },
+        { provide: BookingCouponsService, useValue: bookingCoupons },
         { provide: PaymentsService, useValue: payments },
         { provide: OmiseService, useValue: omise },
         { provide: PrismaService, useValue: prisma },
@@ -391,8 +397,6 @@ async function verify(): Promise<void> {
     app = module.createNestApplication({ rawBody: true });
     configureApplication(app);
     await app.init();
-    const bookings = new BookingsService(prisma, new NotificationEventsService());
-    const bookingCoupons = new BookingCouponsService(prisma);
     await prisma.user.create({
       data: { id: tutorId, email: `${tutorId}@example.test`, role: 'TUTOR' },
     });
@@ -445,6 +449,14 @@ async function verify(): Promise<void> {
       0,
     );
     await evidence(winner.id, 'RESERVED');
+    assert.equal(
+      await prisma.couponReservation.count({ where: { couponId: final.id, status: 'RESERVED' } }),
+      1,
+    );
+    assert.equal(
+      await prisma.paymentAttempt.count({ where: { bookingId: { in: [a.id, b.id] } } }),
+      1,
+    );
     await payments.create(winner.id, winner.studentId);
     assert.equal(creates, beforeRace + 1);
     await assert.rejects(
@@ -485,6 +497,85 @@ async function verify(): Promise<void> {
     assert.equal(creates, beforeReuse);
     pass('same-student reuse blocked before provider');
 
+    // Capacity is deliberately > 1: it is the student claim, not exhaustion, that must win.
+    const studentCoupon = await coupon(10, 5);
+    const studentFirst = await fixture(studentCoupon);
+    const studentSecond = await fixture(studentCoupon, '450.00', studentFirst.studentId);
+    const beforeStudentRace = creates;
+    const studentRace = await contend('Coupon', studentCoupon.id, [
+      () => payments.create(studentFirst.id, studentFirst.studentId),
+      () => payments.create(studentSecond.id, studentSecond.studentId),
+    ]);
+    assert.equal(studentRace.filter((item) => item.status === 'fulfilled').length, 1);
+    const studentLoser = studentRace.find((item) => item.status === 'rejected');
+    assert.ok(studentLoser?.status === 'rejected');
+    assert.ok(studentLoser.reason instanceof HttpException);
+    assert.equal(studentLoser.reason.getStatus(), 409);
+    assert.deepEqual(studentLoser.reason.getResponse(), {
+      code: 'COUPON_ALREADY_USED',
+      message: 'Coupon is already claimed by this student',
+    });
+    assert.equal(creates, beforeStudentRace + 1);
+    assert.equal(
+      await prisma.couponReservation.count({ where: { couponId: studentCoupon.id } }),
+      1,
+    );
+    assert.equal(await prisma.couponUse.count({ where: { couponId: studentCoupon.id } }), 0);
+    const studentWinner = studentRace[0]?.status === 'fulfilled' ? studentFirst : studentSecond;
+    const studentRejected = studentWinner.id === studentFirst.id ? studentSecond : studentFirst;
+    const rejectedState = await state(studentRejected.id);
+    assert.equal(rejectedState.booking.paymentPending, false);
+    assert.equal(
+      rejectedState.attempts.length + rejectedState.reservations.length + rejectedState.uses.length,
+      0,
+    );
+    paid(latest(studentWinner.id));
+    await event(latest(studentWinner.id));
+    const afterStudentPaid = await state(studentRejected.id);
+    await assert.rejects(
+      payments.create(studentRejected.id, studentRejected.studentId),
+      (error: unknown) => error instanceof HttpException && error.getStatus() === 409,
+    );
+    assert.deepEqual(await state(studentRejected.id), afterStudentPaid);
+    await evidence(studentWinner.id, 'CONSUMED');
+    assert.equal(creates, beforeStudentRace + 1);
+    pass(
+      'same student/two bookings race: one claim, loser COUPON_ALREADY_USED, one use after success',
+    );
+
+    for (const terminal of ['failed', 'expired'] as const) {
+      const expiringCoupon = await coupon();
+      const f = await fixture(expiringCoupon);
+      await payments.create(f.id, f.studentId);
+      await prisma.coupon.update({
+        where: { id: expiringCoupon.id },
+        data: { expiresAt: new Date(0) },
+      });
+      latest(f.id).status = terminal;
+      const releases = await contend('Booking', f.id, [
+        () => event(latest(f.id)),
+        () => event(latest(f.id)),
+        () => payments.getStatus(f.id, f.studentId).then(() => undefined),
+      ]);
+      assert.ok(releases.every((item) => item.status === 'fulfilled'));
+      await evidence(f.id, 'RELEASED');
+      const released = await state(f.id);
+      const beforeRetry = creates;
+      await assert.rejects(
+        payments.create(f.id, f.studentId),
+        (error: unknown) =>
+          error instanceof HttpException &&
+          error.getStatus() === 409 &&
+          JSON.stringify(error.getResponse()).includes('COUPON_EXPIRED'),
+      );
+      await event(latest(f.id));
+      assert.deepEqual(await state(f.id), released);
+      assert.equal(creates, beforeRetry);
+    }
+    pass(
+      'failed/expired callback+current replay releases once; fresh retry revalidates coupon expiry without writes',
+    );
+
     const uncertain = await fixture(await coupon());
     mode = 'timeout';
     await assert.rejects(payments.create(uncertain.id, uncertain.studentId));
@@ -499,6 +590,8 @@ async function verify(): Promise<void> {
     const beforeRecovery = creates;
     mode = 'unavailable';
     await assert.rejects(payments.getStatus(uncertain.id, uncertain.studentId));
+    await assert.rejects(payments.create(uncertain.id, uncertain.studentId));
+    assert.equal(creates, beforeRecovery);
     await evidence(uncertain.id, 'RESERVED');
     mode = 'normal';
     const lost = latest(uncertain.id);
@@ -513,10 +606,15 @@ async function verify(): Promise<void> {
       true,
     );
     charges.set(lost.id, lost);
+    lost.expires_at = new Date(0).toISOString();
     assert.equal(
       (await payments.getStatus(uncertain.id, uncertain.studentId)).attempt?.status,
       'PENDING',
     );
+    assert.equal(creates, beforeRecovery);
+    // An elapsed QR deadline is not provider confirmation of expiry.
+    await payments.create(uncertain.id, uncertain.studentId);
+    await evidence(uncertain.id, 'RESERVED');
     assert.equal(creates, beforeRecovery);
     latest(uncertain.id).status = 'expired';
     await payments.getStatus(uncertain.id, uncertain.studentId);
@@ -725,6 +823,128 @@ async function verify(): Promise<void> {
       'nine T25 apply/remove/replace service races with T26 QR create keep attempt, amount and reservation aligned',
     );
 
+    for (const action of ['cancel', 'apply', 'remove'] as const) {
+      const f = await fixture(await coupon());
+      const replacement = await coupon(20);
+      await payments.create(f.id, f.studentId);
+      const original = await prisma.booking.findUniqueOrThrow({ where: { id: f.id } });
+      assert.ok(original.appliedCouponId);
+      paid(latest(f.id));
+      const results = await contend(
+        'Booking',
+        f.id,
+        [
+          () => event(latest(f.id)),
+          () => payments.getStatus(f.id, f.studentId).then(() => undefined),
+          () =>
+            (action === 'cancel'
+              ? bookings.cancelBooking({
+                  bookingId: f.id,
+                  userId: f.studentId,
+                  reason: 'success race',
+                })
+              : action === 'apply'
+                ? bookingCoupons.applyCoupon(f.id, f.studentId, { code: replacement.code })
+                : bookingCoupons.removeCoupon(f.id, f.studentId)
+            ).then(() => undefined),
+        ],
+        action === 'cancel' ? 2 : 3,
+      ); // Cancellation rejects the active payment before acquiring a lock.
+      assert.equal(results[0]?.status, 'fulfilled');
+      assert.equal(results[1]?.status, 'fulfilled');
+      const mutation = results[2];
+      assert.ok(mutation?.status === 'rejected');
+      assert.ok(mutation.reason instanceof HttpException && mutation.reason.getStatus() === 409);
+      await evidence(f.id, 'CONSUMED');
+      const stored = await prisma.booking.findUniqueOrThrow({ where: { id: f.id } });
+      assert.equal(stored.status, 'CONFIRMED');
+      assert.equal(stored.netAmount.toFixed(2), original.netAmount.toFixed(2));
+      assert.equal(stored.appliedCouponId, original.appliedCouponId);
+      assert.equal(latest(f.id).amount, 40500);
+      assert.equal(
+        await prisma.couponReservation.count({ where: { couponId: replacement.id } }),
+        0,
+      );
+      assert.equal(
+        await prisma.couponUse.count({ where: { couponId: original.appliedCouponId } }),
+        1,
+      );
+    }
+    pass(
+      'verified success races cancellation/apply/remove: paid/use/attempt atomic, fixed QR amount, no refunded use',
+    );
+
+    // Integrate actual T25/T26 HTTP controllers rather than manufacturing an applied snapshot.
+    const journey = await fixture();
+    const journeyCoupon = await coupon();
+    const journeyBase = `/api/v1/bookings/me/${journey.id}`;
+    await request(app.getHttpServer())
+      .put(`${journeyBase}/coupon`)
+      .auth(journey.token, { type: 'bearer' })
+      .send({ code: journeyCoupon.code.toLowerCase() })
+      .expect(200)
+      .expect(({ body }: { body: unknown }) => {
+        assert.ok(typeof body === 'object' && body !== null && 'netAmount' in body);
+        assert.equal(body.netAmount, '405.00');
+      });
+    const beforeJourney = creates;
+    await request(app.getHttpServer())
+      .post(`${journeyBase}/payments/promptpay`)
+      .auth(journey.token, { type: 'bearer' })
+      .send({})
+      .expect(200);
+    await request(app.getHttpServer())
+      .delete(`${journeyBase}/coupon`)
+      .auth(journey.token, { type: 'bearer' })
+      .expect(409);
+    paid(latest(journey.id));
+    await event(latest(journey.id));
+    for (const method of ['get', 'post'] as const) {
+      await request(app.getHttpServer())
+        [method](`${journeyBase}/payments/${method === 'get' ? 'current' : 'promptpay'}`)
+        .auth(journey.token, { type: 'bearer' })
+        .expect(200)
+        .expect(({ body }: { body: unknown }) => {
+          assert.ok(
+            typeof body === 'object' &&
+              body !== null &&
+              'paymentStatus' in body &&
+              'netAmount' in body &&
+              'reference' in body,
+          );
+          assert.equal(body.paymentStatus, 'PAID');
+          assert.equal(body.netAmount, '405.00');
+          assert.equal(body.reference, latest(journey.id).id);
+        });
+    }
+    assert.equal(creates, beforeJourney + 1);
+    await evidence(journey.id, 'CONSUMED');
+    await request(app.getHttpServer())
+      .post(`${journeyBase}/mock-payment`)
+      .auth(journey.token, { type: 'bearer' })
+      .send({})
+      .expect(410);
+    const legacy = await fixture();
+    const legacyAt = new Date('2026-10-01T00:00:00Z');
+    await prisma.booking.update({
+      where: { id: legacy.id },
+      data: {
+        paymentStatus: 'PAID',
+        paidAt: legacyAt,
+        mockReference: `LEGACY-${legacy.id}`,
+      },
+    });
+    const legacyBefore = await state(legacy.id);
+    const legacyReceipt = await payments.create(legacy.id, legacy.studentId);
+    assert.equal(legacyReceipt.reference, `LEGACY-${legacy.id}`);
+    assert.equal(legacyReceipt.paidAt, legacyAt.toISOString());
+    assert.equal(legacyReceipt.attempt, null);
+    assert.equal(creates, beforeJourney + 1);
+    assert.deepEqual(await state(legacy.id), legacyBefore);
+    pass(
+      'T25 apply -> T26 QR -> signed success -> repeat receipt via HTTP; legacy receipt preserved and mock write 410',
+    );
+
     const zeroRollback = await fixture(await coupon(100));
     await prisma.$executeRawUnsafe(
       `CREATE FUNCTION coupon_payment_rollback_probe() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW."id" = '${zeroRollback.id}'::uuid AND NEW."paymentStatus" = 'paid' THEN RAISE EXCEPTION 'intentional zero rollback'; END IF; RETURN NEW; END $$`,
@@ -823,6 +1043,41 @@ async function verify(): Promise<void> {
     pass(
       'real JWT/session/consent, empty-body validation, no-store and invalid HMAC before provider access',
     );
+    for (const [label, id] of [
+      ['final-use winner', winner.id],
+      ['final-use loser', loser.id],
+      ['zero settlement', zero.id],
+      ['HTTP discounted journey', journey.id],
+    ] as const) {
+      const snapshot = await state(id);
+      const receipt = await payments.getStatus(id, snapshot.booking.studentUserId);
+      const reservationIds = snapshot.reservations.map((row) => row.id);
+      process.stdout.write(
+        `EVIDENCE ${JSON.stringify({
+          label,
+          paymentStatus: receipt.paymentStatus,
+          paymentPending: receipt.paymentPending,
+          subtotal: receipt.subtotalAmount,
+          discount: receipt.discountAmount,
+          net: receipt.netAmount,
+          attemptStatus: receipt.attempt?.status ?? null,
+          attempts: snapshot.attempts.length,
+          reserved: snapshot.reservations.filter((row) => row.status === 'RESERVED').length,
+          consumed: snapshot.reservations.filter((row) => row.status === 'CONSUMED').length,
+          uses: snapshot.uses.length,
+          consumeAudits: snapshot.audit.filter(
+            (row) => row.action === 'coupon.consume' && reservationIds.includes(row.entityId),
+          ).length,
+          providerCreates: [...charges.values()].filter((row) => row.metadata.bookingId === id)
+            .length,
+          receiptKind: receipt.reference?.startsWith('coupon:')
+            ? 'coupon'
+            : receipt.reference
+              ? 'test charge'
+              : null,
+        })}\n`,
+      );
+    }
     process.stdout.write(`${checks} coupon payment checks passed. No live provider contacted.\n`);
   } finally {
     globalThis.fetch = originalFetch;
