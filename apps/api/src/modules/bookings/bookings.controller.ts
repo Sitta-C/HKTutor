@@ -15,6 +15,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 
+import { assertEmptyBody } from '@common/pipes/empty-body';
 import { UuidParamPipe } from '@common/pipes/uuid-param.pipe';
 import { Role } from '@generated/prisma/client';
 import { CurrentUser, RequireCurrentConsent } from '@modules/auth/auth.decorator';
@@ -81,10 +82,6 @@ function assertEmptyQuery(query: Record<string, unknown>): void {
   if (query !== undefined && Object.keys(query).length !== 0) {
     throw new BadRequestException('Unexpected query parameters');
   }
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 /**
@@ -234,9 +231,7 @@ export class BookingsController {
     @Body() body: unknown = undefined,
     @Query() query: Record<string, unknown> = {},
   ): Promise<BookingCouponOperationResponseDto> {
-    if (body !== undefined && (!isRecord(body) || Object.keys(body).length !== 0)) {
-      throw new BadRequestException('Coupon removal accepts an empty body only');
-    }
+    assertEmptyBody(body, 'Coupon removal accepts an empty body only');
     assertEmptyQuery(query);
     return this.bookingCouponsService.removeCoupon(bookingId, user.id);
   }

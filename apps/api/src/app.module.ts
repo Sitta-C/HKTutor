@@ -19,6 +19,7 @@ import { NotificationsModule } from '@modules/notifications/notifications.module
 import { PaymentsModule } from '@modules/payments/payments.module';
 import { ProfilesModule } from '@modules/profiles/profiles.module';
 import { QualificationDocumentsModule } from '@modules/qualification-documents/qualification-documents.module';
+import { ReportsModule } from '@modules/reports/reports.module';
 import { RescheduleRequestsModule } from '@modules/reschedule-requests/reschedule-requests.module';
 import { ReviewsModule } from '@modules/reviews/reviews.module';
 import { TutorsModule } from '@modules/tutors/tutors.module';
@@ -48,6 +49,7 @@ import { TutorsModule } from '@modules/tutors/tutors.module';
     AvatarsModule,
     ProfilesModule,
     QualificationDocumentsModule,
+    ReportsModule,
     RescheduleRequestsModule,
     ReviewsModule,
     TutorsModule,
