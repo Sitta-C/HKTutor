@@ -158,6 +158,11 @@ the integrated coupon-to-receipt HTTP journey. Bilingual browser tests cover los
 recovery without a second charge. See [S3-T28 QA evidence](tests/s3-t28-qa.md) for commands,
 exact persisted counts, zero settlement and the 905.00 THB report fixture check.
 
+Tutors can view the authoritative all-time report at the private, noindex `/dashboard/reports`
+route and in the tutor dashboard. It shows all five booking statuses, paid completed net revenue,
+and the completed ÷ (completed + canceled) rate; these values come from the report endpoint rather
+than a paginated booking page.
+
 See [frontend direction](ui-design/frontend-direction.md) for the Notebook Focus patterns and
 [implemented frontend behavior](ui-design/implemented-behavior.md) for interaction, loading,
 responsive layout, and accessibility details.

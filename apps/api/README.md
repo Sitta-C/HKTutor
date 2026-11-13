@@ -3115,3 +3115,8 @@ Verification:
 pnpm --filter @hktutor/api test --runInBand reports
 pnpm --filter @hktutor/api test:e2e --runInBand --runTestsByPath test/reports.e2e-spec.ts
 ```
+
+The web client exposes this contract to tutors at the private, noindex
+`/dashboard/reports` route and as an independently loaded report section on `/dashboard`. It never
+derives all-time values from the paginated dashboard booking reads. The received-revenue card is
+the paid, completed net total above and stays distinct from monthly confirmed booked value.
