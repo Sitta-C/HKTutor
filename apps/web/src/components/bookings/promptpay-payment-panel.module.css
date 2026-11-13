@@ -123,7 +123,7 @@
   background: color-mix(in srgb, var(--color-student) 10%, var(--color-paper));
   font-size: 13px;
 }
-@media (max-width: 600px) {
+@container (max-width: 600px) {
   .panel {
     border-left: 0;
     border-top: 1px dashed var(--color-paper-edge);

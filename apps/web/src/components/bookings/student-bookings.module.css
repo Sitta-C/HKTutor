@@ -358,7 +358,7 @@
   padding: 22px 22px 0 0;
 }
 
-@media (max-width: 600px) {
+@container (max-width: 600px) {
   .paymentColumns {
     grid-template-columns: minmax(0, 1fr);
   }

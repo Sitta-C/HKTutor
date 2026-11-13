@@ -4,12 +4,7 @@ import Link from 'next/link';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { BookingCancellation } from '@/components/bookings/booking-cancellation';
-import {
-  BookingDocketAmounts,
-  BookingDocketStatus,
-  BookingDocketSummary,
-  BookingDocketTotal,
-} from '@/components/bookings/booking-docket';
+import { BookingDocketStatus, BookingDocketSummary } from '@/components/bookings/booking-docket';
 import { bookingRequestCopy } from '@/components/bookings/booking-request-copy';
 import { getBookingErrorMessage } from '@/components/bookings/booking-ui';
 import { ClassDetailsPanel } from '@/components/bookings/class-details-panel';
@@ -156,31 +151,15 @@ export default function StudentBookingDetailPage({ bookingId }: { bookingId: str
                     : pageText.otherNotice}
               </p>
 
-              <div className={styles.paymentColumns}>
-                <div className={styles.amountColumn}>
-                  <div className={styles.detailAmounts}>
-                    <BookingDocketAmounts amounts={booking} text={text} />
-                  </div>
-
-                  <div className={styles.detailTotal}>
-                    <BookingDocketTotal
-                      amount={booking.netAmount}
-                      currency={booking.currency}
-                      label={pageText.amount}
-                    />
-                  </div>
-                </div>
-
-                <PromptPayPaymentPanel
-                  key={`${booking.id}:${booking.slot.id}`}
-                  booking={booking}
-                  disabled={
-                    rescheduleBusy || rescheduleStale || cancellationBusy || cancellationStale
-                  }
-                  onSubmittingChange={setPaymentBusy}
-                  onBookingChange={handlePaymentBookingChange}
-                />
-              </div>
+              <PromptPayPaymentPanel
+                key={`${booking.id}:${booking.slot.id}`}
+                booking={booking}
+                disabled={
+                  rescheduleBusy || rescheduleStale || cancellationBusy || cancellationStale
+                }
+                onSubmittingChange={setPaymentBusy}
+                onBookingChange={handlePaymentBookingChange}
+              />
             </div>
             <div className={styles.detailActions}>
               <RescheduleRequestPanel

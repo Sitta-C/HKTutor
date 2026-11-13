@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
+  applyBookingCoupon,
   cancelBooking,
   confirmTutorBooking,
   createBooking,
@@ -12,6 +13,7 @@ import {
   getMyBookings,
   getTutorBookings,
   rejectTutorBooking,
+  removeBookingCoupon,
 } from '@/lib/api/bookings';
 import { clearAccessToken } from '@/lib/api/client';
 
@@ -36,6 +38,34 @@ describe('student PromptPay client', () => {
     vi.restoreAllMocks();
   });
 
+  it('applies only a code and removes it without client pricing or a request body', async () => {
+    const result = {
+      bookingId: 'booking/1',
+      coupon: { id: 'coupon', code: 'WELCOME10', percent: 10 },
+      subtotalAmount: '450.00',
+      discountAmount: '45.00',
+      netAmount: '405.00',
+    };
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse(result))
+      .mockResolvedValueOnce(jsonResponse({ ...result, coupon: null, netAmount: '450.00' }));
+    await expect(applyBookingCoupon('booking/1', 'WELCOME10')).resolves.toEqual(result);
+    await removeBookingCoupon('booking/1');
+    expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/v1/bookings/me/booking%2F1/coupon');
+    expect(fetchMock.mock.calls[0]?.[1]).toMatchObject({
+      method: 'PUT',
+      body: JSON.stringify({ code: 'WELCOME10' }),
+    });
+    expect(fetchMock.mock.calls[1]?.[1]?.method).toBe('DELETE');
+    expect(fetchMock.mock.calls[1]?.[1]?.body).toBeUndefined();
+  });
+
+  it('never retries uncertain coupon changes', async () => {
+    fetchMock.mockRejectedValueOnce(new TypeError('lost response'));
+    await expect(applyBookingCoupon('booking', 'WELCOME10')).rejects.toThrow('lost response');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
   it('creates a payment using the encoded booking ID without sending a client amount', async () => {
     const result = { bookingId: 'booking id/1', paymentStatus: 'UNPAID', paymentPending: true };
     fetchMock.mockResolvedValueOnce(jsonResponse(result));
@@ -56,6 +86,16 @@ describe('student PromptPay client', () => {
     expect(fetchMock).toHaveBeenCalledWith(
       '/api/v1/bookings/me/booking%2F1/payments/current',
       expect.objectContaining({ cache: 'no-store', signal: controller.signal }),
+    );
+  });
+
+  it('cancels a superseded booking refresh with the same signal as the payment read', async () => {
+    const controller = new AbortController();
+    fetchMock.mockResolvedValueOnce(jsonResponse({ id: 'booking/1' }));
+    await getMyBooking('booking/1', controller.signal);
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/v1/bookings/me/booking%2F1',
+      expect.objectContaining({ signal: controller.signal }),
     );
   });
 

@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test';
 
+import { bookingCouponCopy } from '@/components/bookings/booking-coupon-copy';
 import { classDetailsCopy } from '@/components/bookings/class-details-copy';
 
 import type { BookingDetail, BookingStatus, PromptPayPayment } from '@/lib/api/types';
@@ -43,15 +44,23 @@ async function mockPayments(
     language?: 'th' | 'en';
     status?: BookingStatus;
     paymentGate?: Promise<void>;
+    couponGate?: Promise<void>;
+    booking?: BookingDetail;
   } = {},
 ) {
   const state = {
-    booking: { ...BOOKING, status: options.status ?? BOOKING.status },
+    booking: {
+      ...(options.booking ?? BOOKING),
+      status: options.status ?? options.booking?.status ?? BOOKING.status,
+    },
     failure: null as { status: number; code: string } | null,
     loseResponse: false,
     failRefresh: false,
     failPaymentRead: false,
     posts: 0,
+    couponRequests: [] as { method: string; body: unknown }[],
+    couponFailure: null as { status: number; code: string } | null,
+    loseCouponResponse: false,
     current: {
       bookingId: BOOKING.id,
       paymentStatus: 'UNPAID',
@@ -159,9 +168,52 @@ async function mockPayments(
         json: state.failPaymentRead ? { message: 'Unavailable' } : state.current,
       });
     }
+    if (path === '/bookings/me/mock-payment-booking/coupon') {
+      state.couponRequests.push({ method: request.method(), body: request.postDataJSON() });
+      await options.couponGate;
+      if (state.couponFailure) {
+        return route.fulfill({ status: state.couponFailure.status, json: state.couponFailure });
+      }
+      const remove = request.method() === 'DELETE';
+      const full = request.postDataJSON()?.code === 'FULL100';
+      state.booking = {
+        ...state.booking,
+        coupon: remove
+          ? null
+          : {
+              id: 'coupon-preview',
+              code: full ? 'FULL100' : 'WELCOME10',
+              percent: full ? 100 : 10,
+            },
+        discountAmount: remove ? '0.00' : full ? '450.00' : '45.00',
+        netAmount: remove ? '450.00' : full ? '0.00' : '405.00',
+      };
+      if (state.loseCouponResponse) {
+        return route.abort('failed');
+      }
+      return route.fulfill({ json: { ...state.booking, bookingId: state.booking.id } });
+    }
     if (path === '/bookings/me/mock-payment-booking/payments/promptpay') {
       state.posts += 1;
       await options.paymentGate;
+      if (state.booking.netAmount === '0.00') {
+        state.booking = {
+          ...state.booking,
+          paymentStatus: 'PAID',
+          paymentPending: false,
+          paidAt: PAID_AT,
+          paymentReference: 'coupon:zero-receipt',
+        };
+        state.current = {
+          ...state.current,
+          paymentStatus: 'PAID',
+          paymentPending: false,
+          reference: 'coupon:zero-receipt',
+          paidAt: PAID_AT,
+          attempt: null,
+        };
+        return route.fulfill({ json: state.current });
+      }
       state.booking = { ...state.booking, paymentPending: true };
       state.current = {
         ...state.current,
@@ -169,7 +221,7 @@ async function mockPayments(
         attempt: {
           id: `attempt-${state.posts}`,
           status: state.loseResponse ? 'CREATING' : 'PENDING',
-          amount: BOOKING.netAmount,
+          amount: state.booking.netAmount,
           currency: 'THB',
           chargeId: state.loseResponse ? null : `chrg_test_example${state.posts}`,
           qrCodeUrl: state.loseResponse ? null : 'https://api.omise.co/test-qr.svg',
@@ -327,3 +379,229 @@ test('status read errors block creation until a successful refresh', async ({ pa
   await expect(page.getByRole('button', { name: 'Create test QR', exact: true })).toBeEnabled();
   expect(state.posts).toBe(0);
 });
+
+const COUPON_BOOKING: BookingDetail = {
+  ...BOOKING,
+  subtotalAmount: '450.00',
+  discountAmount: '0.00',
+  netAmount: '450.00',
+  coupon: null,
+};
+
+for (const language of ['th', 'en'] as const) {
+  test(`${language}: Receipt Strip applies and removes a persisted server-priced coupon`, async ({
+    page,
+  }) => {
+    const state = await mockPayments(page, { language, booking: COUPON_BOOKING });
+    const text = bookingCouponCopy[language];
+    await page.goto(DETAIL_PATH);
+    const strip = page.getByRole('region', { name: text.title });
+    const input = strip.getByRole('textbox', { name: text.title });
+    await expect(input).toBeEnabled();
+    await input.fill('  welcome10  ');
+    await strip.getByRole('button', { name: text.apply, exact: true }).click();
+    await expect(strip.getByText('WELCOME10', { exact: true })).toBeVisible();
+    await expect(strip.getByRole('button', { name: text.remove })).toBeEnabled();
+    await expect(page.getByText('405.00', { exact: false })).toBeVisible();
+    expect(state.couponRequests).toEqual([{ method: 'PUT', body: { code: 'WELCOME10' } }]);
+    await page.reload();
+    await expect(strip.getByText('WELCOME10', { exact: true })).toBeVisible();
+    await strip
+      .locator('..')
+      .locator('..')
+      .screenshot({
+        path: `/tmp/hktutor-coupon-applied-${language}-${test.info().project.name}.png`,
+      });
+    await strip.getByRole('button', { name: text.remove }).click();
+    await expect(input).toBeEnabled();
+    await expect(input).toBeFocused();
+    await expect(page.getByText('450.00', { exact: false }).last()).toBeVisible();
+    expect(state.booking.netAmount).toBe('450.00');
+    expect(state.couponRequests[1]).toEqual({ method: 'DELETE', body: null });
+    expect(state.unexpected).toEqual([]);
+    await page.setViewportSize({ width: 320, height: 800 });
+    await expect(input).toBeVisible();
+    expect(
+      await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+    ).toBe(true);
+    await page.screenshot({
+      path: `/tmp/hktutor-coupon-${language}-${test.info().project.name}.png`,
+      fullPage: true,
+    });
+  });
+}
+
+test('coupon validation and explicit domain errors preserve amounts and allow correction', async ({
+  page,
+}) => {
+  const state = await mockPayments(page, { booking: COUPON_BOOKING });
+  await page.goto(DETAIL_PATH);
+  const strip = page.getByRole('region', { name: 'Discount code' });
+  const input = strip.getByRole('textbox');
+  await expect(input).toBeEnabled();
+  await input.fill('ß10');
+  await strip.getByRole('button', { name: 'Apply code' }).click();
+  await expect(strip.getByRole('alert')).toHaveText(bookingCouponCopy.en.invalid);
+  expect(state.couponRequests).toHaveLength(0);
+  for (const [code, message] of [
+    ['COUPON_EXPIRED', bookingCouponCopy.en.expired],
+    ['COUPON_EXHAUSTED', bookingCouponCopy.en.exhausted],
+    ['COUPON_ALREADY_USED', bookingCouponCopy.en.alreadyUsed],
+  ] as const) {
+    state.couponFailure = { status: 409, code };
+    await input.fill('WELCOME10');
+    await strip.getByRole('button', { name: 'Apply code' }).click();
+    await expect(strip.getByRole('alert')).toHaveText(message);
+    await expect(input).toBeEnabled();
+    expect(state.booking.netAmount).toBe('450.00');
+    await expect(page.getByRole('button', { name: 'Create test QR', exact: true })).toBeEnabled();
+  }
+});
+
+test('coupon writes and QR creation cannot overlap', async ({ page }) => {
+  let release: (() => void) | undefined;
+  const couponGate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const state = await mockPayments(page, { booking: COUPON_BOOKING, couponGate });
+  await page.goto(DETAIL_PATH);
+  await page.getByRole('textbox', { name: 'Discount code' }).fill('WELCOME10');
+  const apply = page.getByRole('button', { name: 'Apply code', exact: true });
+  await expect(apply).toBeEnabled();
+  await apply.click();
+  await expect(page.getByRole('button', { name: 'Applying…', exact: true })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Processing…', exact: true })).toBeDisabled();
+  expect(state.posts).toBe(0);
+  expect(state.couponRequests).toHaveLength(1);
+  release?.();
+  await expect(page.getByRole('button', { name: 'Remove coupon', exact: true })).toBeEnabled();
+  await page.getByRole('button', { name: 'Create test QR', exact: true }).click();
+  await expect(page.getByRole('img', { name: 'PromptPay QR for test payment' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Remove coupon', exact: true })).toBeDisabled();
+  await page.reload();
+  await expect(page.getByRole('button', { name: 'Remove coupon', exact: true })).toBeDisabled();
+  expect(state.posts).toBe(1);
+  expect(state.current.attempt?.amount).toBe('405.00');
+});
+
+test('a lost apply response locks checkout until a read recovers the persisted coupon', async ({
+  page,
+}) => {
+  const state = await mockPayments(page, { booking: COUPON_BOOKING });
+  state.loseCouponResponse = true;
+  await page.goto(DETAIL_PATH);
+  const input = page.getByRole('textbox', { name: 'Discount code' });
+  await expect(input).toBeEnabled();
+  await input.fill('WELCOME10');
+  await page.getByRole('button', { name: 'Apply code', exact: true }).click();
+  await expect(
+    page.getByRole('alert').filter({ hasText: bookingCouponCopy.en.uncertain }),
+  ).toBeVisible();
+  await expect(input).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Create test QR', exact: true })).toBeDisabled();
+  expect(state.posts).toBe(0);
+  await page.getByRole('button', { name: 'Check payment status', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Remove coupon', exact: true })).toBeEnabled();
+  await expect(page.getByText('405.00', { exact: false })).toBeVisible();
+  expect(state.couponRequests).toHaveLength(1);
+});
+
+test('100% coupon settles once without a QR and restores the zero-value receipt', async ({
+  page,
+}) => {
+  const state = await mockPayments(page, { booking: COUPON_BOOKING });
+  await page.goto(DETAIL_PATH);
+  const input = page.getByRole('textbox', { name: 'Discount code' });
+  await expect(input).toBeEnabled();
+  await input.fill('FULL100');
+  await page.getByRole('button', { name: 'Apply code', exact: true }).click();
+  await page.getByRole('button', { name: 'Confirm THB 0.00', exact: true }).click();
+  await expect(page.getByText('coupon:zero-receipt', { exact: true })).toBeVisible();
+  await expect(page.getByRole('img', { name: 'PromptPay QR for test payment' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Remove coupon' })).toHaveCount(0);
+  expect(state.posts).toBe(1);
+  expect(state.booking.netAmount).toBe('0.00');
+  await page.reload();
+  await expect(page.getByText('coupon:zero-receipt', { exact: true })).toBeVisible();
+  expect(state.posts).toBe(1);
+});
+
+test('a failed remove preserves the applied coupon and requires a status read', async ({
+  page,
+}) => {
+  const state = await mockPayments(page, {
+    booking: {
+      ...COUPON_BOOKING,
+      coupon: { id: 'coupon', code: 'WELCOME10', percent: 10 },
+      netAmount: '405.00',
+      discountAmount: '45.00',
+    },
+  });
+  await page.goto(DETAIL_PATH);
+  const remove = page.getByRole('button', { name: 'Remove coupon', exact: true });
+  await expect(remove).toBeEnabled();
+  state.couponFailure = { status: 500, code: 'INTERNAL_ERROR' };
+  await remove.click();
+  await expect(remove).toBeDisabled();
+  await expect(page.getByText('WELCOME10', { exact: true })).toBeVisible();
+  await expect(page.getByText('405.00', { exact: false })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Create test QR', exact: true })).toBeDisabled();
+  await page.getByRole('button', { name: 'Check payment status', exact: true }).click();
+  await expect(remove).toBeEnabled();
+  expect(state.posts).toBe(0);
+});
+
+test('a successful apply keeps its returned amounts when the follow-up read fails', async ({
+  page,
+}) => {
+  const state = await mockPayments(page, { booking: COUPON_BOOKING });
+  await page.goto(DETAIL_PATH);
+  const input = page.getByRole('textbox', { name: 'Discount code' });
+  await expect(input).toBeEnabled();
+  state.failRefresh = true;
+  await input.fill('WELCOME10');
+  await page.getByRole('button', { name: 'Apply code', exact: true }).click();
+  await expect(page.getByText('405.00', { exact: false })).toBeVisible();
+  await expect(
+    page.getByRole('alert').filter({ hasText: 'Payment status is uncertain' }),
+  ).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Remove coupon' })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Create test QR', exact: true })).toBeDisabled();
+  state.failRefresh = false;
+  await page.getByRole('button', { name: 'Check payment status', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Remove coupon' })).toBeEnabled();
+  expect(state.couponRequests).toHaveLength(1);
+});
+
+for (const [status, code, message] of [
+  [403, 'BOOKING_NOT_OWNED', bookingCouponCopy.en.forbidden],
+  [404, 'BOOKING_NOT_FOUND', bookingCouponCopy.en.missing],
+  [409, 'PAYMENT_STATE_CONFLICT', bookingCouponCopy.en.conflict],
+] as const) {
+  test(`${code}: a rejected coupon change locks checkout and preserves amounts`, async ({
+    page,
+  }) => {
+    const state = await mockPayments(page, { booking: COUPON_BOOKING });
+    state.couponFailure = { status, code };
+    await page.goto(DETAIL_PATH);
+    const input = page.getByRole('textbox', { name: 'Discount code' });
+    await expect(input).toBeEnabled();
+    await input.fill('WELCOME10');
+    await page.getByRole('button', { name: 'Apply code', exact: true }).click();
+    await expect(page.getByRole('alert').filter({ hasText: message })).toBeVisible();
+    await expect(input).toBeDisabled();
+    await expect(page.getByRole('button', { name: 'Create test QR', exact: true })).toBeDisabled();
+    expect(state.booking.netAmount).toBe('450.00');
+    expect(state.posts).toBe(0);
+  });
+}
+
+for (const status of ['PENDING', 'CANCELED', 'COMPLETED'] as const) {
+  test(`${status}: ineligible bookings never expose coupon editing`, async ({ page }) => {
+    await mockPayments(page, { booking: COUPON_BOOKING, status });
+    await page.goto(DETAIL_PATH);
+    await expect(page.getByRole('heading', { name: 'Pay with PromptPay' })).toBeVisible();
+    await expect(page.getByRole('textbox', { name: 'Discount code' })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Apply code', exact: true })).toHaveCount(0);
+  });
+}
