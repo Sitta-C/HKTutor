@@ -104,9 +104,12 @@ export function DeleteAvatarDoc(): MethodDecorator {
   );
 }
 
+export function PublicTutorAvatarsControllerDoc(): ClassDecorator {
+  return applyDecorators(ApiTags('avatars'));
+}
+
 export function GetPublicTutorAvatarDoc(): MethodDecorator {
   return applyDecorators(
-    ApiTags('avatars'),
     ApiOperation({
       summary: 'Get an avatar URL for a publicly visible verified tutor',
       description:

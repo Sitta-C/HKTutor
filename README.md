@@ -157,11 +157,17 @@ terminal release replay/expiry revalidation, successful-payment versus coupon/ca
 the integrated coupon-to-receipt HTTP journey. Bilingual browser tests cover lost-response/503
 recovery without a second charge. See [S3-T28 QA evidence](tests/s3-t28-qa.md) for commands,
 exact persisted counts, zero settlement and the 905.00 THB report fixture check.
+The [tutor report contract](apps/api/README.md#report-contract-definitions-and-fixture-reconciliation-s3-t12)
+defines each field, the finalized denominator and HALF_UP rounding, and reconciles the 905.00 THB
+Swagger example against the seeded bookings ([S3-T12 evidence](tests/s3-t12-qa.md)).
 
 Tutors can view the authoritative all-time report at the private, noindex `/dashboard/reports`
 route and in the tutor dashboard. It shows all five booking statuses, paid completed net revenue,
 and the completed ÷ (completed + canceled) rate; these values come from the report endpoint rather
 than a paginated booking page.
+S3-T11 checks the report against real PostgreSQL rows, covering arithmetic, discounted revenue,
+HALF_UP rounding, empty ledgers and role/ownership access; see
+[S3-T11 QA evidence](tests/s3-t11-qa.md).
 
 See [frontend direction](ui-design/frontend-direction.md) for the Notebook Focus patterns and
 [implemented frontend behavior](ui-design/implemented-behavior.md) for interaction, loading,
@@ -216,6 +222,9 @@ UI must be ported into `apps/web`; do not import or iframe the prototype HTML.
 
 Public auth endpoints are rate-limited. Access tokens are held in browser memory; they are not
 written to local storage. Refresh-token rotation detects reuse and revokes the affected session.
+`pnpm db:verify:sprint3-security` re-checks these session rules together with consent, ownership,
+socket isolation, stored-markup handling and race-sensitive writes across all features; see
+[S3-T38 evidence](tests/s3-t38-qa.md).
 
 ### Email resend behavior
 
@@ -399,6 +408,11 @@ Sprint 3 database concurrency and query-plan checks run with the disposable-only
 `pnpm db:verify:sprint3-concurrency`. See [DB05 cases, file/call map and results](tests/s3-db05-qa.md)
 for the exact database name, prerequisites, real lock/rollback evidence and query-index migration.
 
+The final Sprint 3 journey (discovery and comparison data, live chat, coupon PromptPay payment,
+reminders, class, review and tutor report, plus cancellation and reschedule regressions) runs
+end-to-end against PostgreSQL with `pnpm db:verify:sprint3-flow`; see
+[S3-T37 evidence](tests/s3-t37-qa.md).
+
 S3-DB06 rehearses clean migration/seed/startup and an upgrade from the Sprint 2 + PromptPay schema.
 `pnpm db:verify:sprint3-final` checks migration file checksums, reuses fixture/admin-audit verifiers
 and boots the full API for a real health request. It requires a new, migrated, explicitly opted-in
@@ -418,6 +432,9 @@ pnpm check
 This generates Prisma Client, runs formatting checks, lint, unit tests, and production builds. It
 does not apply migrations, seed a database, or send email. The repository contract checks are kept
 as an optional maintenance command and can be run with `pnpm verify:workspace`.
+
+Sprint 3 handover: [story-to-test traceability for all nine Sprint 3 stories, resolved
+acceptance wording, the Sprint 3 verifier index and known issues](tests/s3-t39-qa.md).
 
 Docker images can be validated with `docker compose config` after required environment values are
 set. Compose publishes Next.js on port 3000; the app forwards same-origin `/api/v1` requests to the

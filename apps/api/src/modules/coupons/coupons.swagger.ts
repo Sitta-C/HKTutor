@@ -89,9 +89,13 @@ export const COUPON_CODE_EXISTS_EXAMPLE = {
   message: 'A coupon with this code already exists',
 } as const;
 
+/** One class-level tag per controller: method-level tags would add a duplicate, auto-named group. */
+export function CouponsControllerDoc(): ClassDecorator {
+  return applyDecorators(ApiTags('coupons'));
+}
+
 function couponAuthDocs(): MethodDecorator {
   return applyDecorators(
-    ApiTags('Admin coupons'),
     ApiBearerAuth(JWT_BEARER_AUTH),
     ApiUnauthorizedResponse({
       description: 'Missing, invalid, expired or revoked access session.',
