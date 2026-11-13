@@ -350,6 +350,7 @@ export class BookingsService {
         const slot = rows[0];
         this.assertBookableSlot(slot);
         const { amounts, listing } = await this.validateBookingSelection(tx, input, slot, 'create');
+        // Validation awaits database reads; the lesson may have started while they were pending.
         assertBeforePaymentDeadline(slot.startAtUtc);
 
         const booking = await tx.booking.create({
@@ -365,6 +366,8 @@ export class BookingsService {
             tutorProfileId: slot.tutorProfileId,
           },
         });
+
+        assertBeforePaymentDeadline(slot.startAtUtc);
 
         await this.notificationEvents.write(tx, {
           actorUserId: input.studentUserId,
@@ -450,9 +453,6 @@ export class BookingsService {
     }
     if (slot.deletedAt) {
       throw new ConflictException('The selected slot is no longer available.');
-    }
-    if (slot.startAtUtc.getTime() <= Date.now()) {
-      throw new ConflictException('The selected slot has already started or is in the past.');
     }
     assertBeforePaymentDeadline(slot.startAtUtc);
   }
@@ -874,6 +874,11 @@ export class BookingsService {
 
         if (transition.count !== 1) {
           throw bookingTransitionConflict();
+        }
+        if (data.status === BookingStatus.CONFIRMED) {
+          // UPDATE may have waited for a booking/slot lock after its time bound was captured.
+          // Recheck while holding those locks so crossing the deadline rolls back the write.
+          assertBeforePaymentDeadline(booking.slot.startAtUtc);
         }
 
         const updated = await tx.booking.findUniqueOrThrow({

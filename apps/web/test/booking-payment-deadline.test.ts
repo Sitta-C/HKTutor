@@ -4,7 +4,7 @@ import { bookingPaymentDeadline, hasPaymentDeadlinePassed } from '@/lib/booking-
 
 describe('booking payment deadline', () => {
   const start = '2026-11-15T18:00:00+07:00';
-  const deadline = Date.parse('2026-11-15T14:00:00+07:00');
+  const deadline = Date.parse(start);
 
   it('uses the same instant for Bangkok and UTC timestamps', () => {
     expect(bookingPaymentDeadline(start)).toBe(deadline);

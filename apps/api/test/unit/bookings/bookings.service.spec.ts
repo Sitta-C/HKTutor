@@ -432,7 +432,10 @@ describe('BookingsService', () => {
       };
 
       await expect(service.create(input)).rejects.toThrow(
-        new ConflictException('The selected slot has already started or is in the past.'),
+        new ConflictException({
+          code: 'BOOKING_PAYMENT_DEADLINE_PASSED',
+          message: 'Payment must be completed before the lesson starts',
+        }),
       );
     });
 
@@ -1005,7 +1008,10 @@ describe('BookingsService', () => {
       });
 
       await expect(service.getQuote({ listingId, slotId, studentUserId })).rejects.toThrow(
-        new ConflictException('The selected slot has already started or is in the past.'),
+        new ConflictException({
+          code: 'BOOKING_PAYMENT_DEADLINE_PASSED',
+          message: 'Payment must be completed before the lesson starts',
+        }),
       );
       expect(mockPrismaService.booking.findFirst).not.toHaveBeenCalled();
     });
@@ -1744,7 +1750,7 @@ describe('BookingsService', () => {
         const { bookingId, tutorUserId } = createTestData();
         mockPrismaService.booking.findUnique.mockResolvedValue({
           ...pendingBooking(tutorUserId),
-          slot: { startAtUtc: new Date(Date.now() + 4 * 3_600_000 + margin) },
+          slot: { startAtUtc: new Date(Date.now() + margin) },
         });
         await expect(service.confirmTutorBooking({ bookingId, tutorUserId })).rejects.toMatchObject(
           {
@@ -1879,6 +1885,28 @@ describe('BookingsService', () => {
           data: expect.objectContaining({ cancellationReason: 'Rejected by the tutor' }) as unknown,
         }),
       );
+    });
+
+    it('rolls back confirmation when the lesson starts while UPDATE waits for a lock', async () => {
+      jest.useFakeTimers().setSystemTime(new Date('2026-11-15T10:00:00Z'));
+      try {
+        const { bookingId, tutorUserId, slotId } = createTestData();
+        mockPrismaService.booking.findUnique.mockResolvedValue({
+          ...pendingBooking(tutorUserId),
+          slot: { startAtUtc: new Date(Date.now() + 1) },
+        });
+        const { updateMany, findUniqueOrThrow } = stubTransition({ bookingId, slotId });
+        updateMany.mockImplementation(() => {
+          jest.setSystemTime(new Date(Date.now() + 2));
+          return Promise.resolve({ count: 1 });
+        });
+        await expect(service.confirmTutorBooking({ bookingId, tutorUserId })).rejects.toMatchObject(
+          { response: { code: 'BOOKING_PAYMENT_DEADLINE_PASSED' } },
+        );
+        expect(findUniqueOrThrow).not.toHaveBeenCalled();
+      } finally {
+        jest.useRealTimers();
+      }
     });
 
     it('confirms a pending booking and keeps the slot reserved', async () => {

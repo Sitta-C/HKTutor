@@ -17,7 +17,7 @@ import type { BookingDetail, PaymentStatus } from '@/lib/api/types';
 const COPY = {
   th: {
     title: 'ชำระด้วย PromptPay',
-    deadline: 'ต้องชำระเงินก่อนเวลาเริ่มเรียน 4 ชั่วโมง · เส้นตาย:',
+    deadline: 'ต้องชำระเงินก่อนเริ่มเรียน · เส้นตาย:',
     deadlinePassed: 'พ้นเส้นตายชำระเงินแล้ว ไม่สามารถเริ่มชำระเงินใหม่ได้',
     paid: 'ชำระแล้ว',
     unpaid: 'ยังไม่ชำระ',
@@ -30,6 +30,7 @@ const COPY = {
     error: 'ยังยืนยันสถานะไม่ได้ กรุณาตรวจสถานะอีกครั้งก่อนทำรายการต่อ',
     qrError: 'โหลดรูป QR ไม่สำเร็จ กรุณาตรวจสถานะอีกครั้ง',
     pending: 'รอผลชำระเงิน ระบบจะตรวจสถานะให้อัตโนมัติ',
+    pendingClosed: 'เริ่มเรียนแล้ว QR ปิดรับชำระเงิน ระบบกำลังตรวจผลรายการเดิม กรุณารอและตรวจสถานะ',
     creating: 'กำลังตรวจสอบรายการกับผู้ให้บริการ กรุณารอและตรวจสถานะ ห้ามสร้างรายการซ้ำ',
     uncertain: 'หากสถานะนี้ค้างอยู่ ให้ผู้ดูแลตรวจรายการใน Omise ก่อนปลดล็อกการชำระเงิน',
     FAILED: 'การชำระเงินไม่สำเร็จ สามารถสร้าง QR ใหม่ได้',
@@ -47,7 +48,7 @@ const COPY = {
   },
   en: {
     title: 'Pay with PromptPay',
-    deadline: 'Pay before the deadline, 4 hours before the lesson starts:',
+    deadline: 'Pay before the lesson starts:',
     deadlinePassed: 'The payment deadline has passed. New payments are closed.',
     paid: 'Paid',
     unpaid: 'Unpaid',
@@ -60,6 +61,8 @@ const COPY = {
     error: 'Payment status is uncertain. Check the status again before continuing.',
     qrError: 'Could not load the QR image. Check the payment status again.',
     pending: 'Waiting for payment. Status updates automatically.',
+    pendingClosed:
+      'The lesson has started and the QR is closed. Checking the existing payment result; wait and check status.',
     creating: 'Checking this attempt with the provider. Wait and check status before continuing.',
     uncertain:
       'If this status persists, ask an administrator to verify the Omise charge before unlocking payment.',
@@ -161,7 +164,11 @@ export function PromptPayPaymentPanel({
       ) : pending ? (
         <>
           <p role="status" className={styles.notice}>
-            {attempt?.status === 'CREATING' ? text.creating : text.pending}
+            {checkout.deadlinePassed
+              ? text.pendingClosed
+              : attempt?.status === 'CREATING'
+                ? text.creating
+                : text.pending}
           </p>
           {qrUrl && attempt?.expiresAt && (
             <PromptPayQr

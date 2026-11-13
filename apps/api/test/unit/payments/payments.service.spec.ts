@@ -142,11 +142,11 @@ describe('PaymentsService', () => {
   });
 
   it.each([0, -1, -4 * 3_600_000])(
-    'refuses new charges at or after the 4h deadline (remaining margin %d ms)',
+    'refuses new charges at or after the lesson-start deadline (remaining margin %d ms)',
     async (margin) => {
       db.booking.findUnique.mockResolvedValue({
         ...booking(),
-        slot: { startAtUtc: new Date(Date.now() + 4 * 3_600_000 + margin) },
+        slot: { startAtUtc: new Date(Date.now() + margin) },
       });
       await expect(service.create(BOOKING_ID, STUDENT_ID)).rejects.toMatchObject({
         response: { code: 'BOOKING_PAYMENT_DEADLINE_PASSED' },
@@ -160,7 +160,7 @@ describe('PaymentsService', () => {
     const deadline = new Date(Date.now() + 1);
     db.booking.findUnique.mockResolvedValue({
       ...booking(),
-      slot: { startAtUtc: new Date(deadline.getTime() + 4 * 3_600_000) },
+      slot: { startAtUtc: new Date(deadline.getTime()) },
     });
     await service.create(BOOKING_ID, STUDENT_ID);
     expect(omise.createCharge).toHaveBeenCalledWith(
@@ -174,7 +174,7 @@ describe('PaymentsService', () => {
       netAmount: new Prisma.Decimal(0),
       appliedCouponId: ATTEMPT_ID,
       appliedCouponPercent: 100,
-      slot: { startAtUtc: new Date(Date.now() + 4 * 3_600_000) },
+      slot: { startAtUtc: new Date(Date.now()) },
     });
     await expect(service.create(BOOKING_ID, STUDENT_ID)).rejects.toMatchObject({
       response: { code: 'BOOKING_PAYMENT_DEADLINE_PASSED' },
@@ -188,7 +188,7 @@ describe('PaymentsService', () => {
     const create = db.paymentAttempt.create.getMockImplementation();
     db.booking.findUnique.mockResolvedValue({
       ...booking(),
-      slot: { startAtUtc: new Date(Date.now() + 4 * 3_600_000 + 1) },
+      slot: { startAtUtc: new Date(Date.now() + 1) },
     });
     db.paymentAttempt.create.mockImplementation((...args: unknown[]) => {
       const result: unknown = create?.(...args);

@@ -7,7 +7,7 @@ export function assertBeforePaymentDeadline(startAtUtc: Date, now = Date.now()):
   if (now >= bookingPaymentDeadline(startAtUtc).getTime()) {
     throw new ConflictException({
       code: 'BOOKING_PAYMENT_DEADLINE_PASSED',
-      message: 'Payment must be completed before the deadline, 4 hours before the lesson starts',
+      message: 'Payment must be completed before the lesson starts',
     });
   }
 }

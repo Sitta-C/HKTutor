@@ -145,6 +145,7 @@ export class TutorAvailabilityService {
         deletedAt: null,
         startAtUtc: {
           gte: from,
+          gt: now,
           ...(query.to !== undefined && { lt: query.to }),
         },
         tutorProfileId: tutorId,

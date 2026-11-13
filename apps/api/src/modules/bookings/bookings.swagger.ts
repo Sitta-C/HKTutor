@@ -55,7 +55,7 @@ export function CreateBookingDoc(): MethodDecorator {
     ApiOperation({
       summary: 'Create booking',
       description:
-        'STUDENT with a completed profile only. The listing must be published by a VERIFIED tutor and the slot must start more than 4 hours from now and belong to that tutor with no pending or confirmed booking. Amounts are derived on the server. The booking starts PENDING, reserves the slot atomically, and notifies the tutor (BOOKING_CREATED).',
+        'STUDENT with a completed profile only. The listing must be published by a VERIFIED tutor and the slot must be a future slot of that tutor with no pending or confirmed booking. Amounts are derived on the server. The booking starts PENDING, reserves the slot atomically, and notifies the tutor (BOOKING_CREATED).',
     }),
     ApiBearerAuth(JWT_BEARER_AUTH),
     ApiCreatedResponse({
@@ -115,7 +115,7 @@ export function CreateBookingDoc(): MethodDecorator {
     }),
     ApiConflictResponse({
       description:
-        'The payment deadline (4 hours before start) has passed (BOOKING_PAYMENT_DEADLINE_PASSED), or the requested slot is already booked, has already started, or is no longer available; the listing is unpublished or its tutor does not match the slot; or the tutor is not verified',
+        'The payment deadline (lesson start) has passed (BOOKING_PAYMENT_DEADLINE_PASSED), or the requested slot is already booked, has already started, or is no longer available; the listing is unpublished or its tutor does not match the slot; or the tutor is not verified',
       schema: {
         example: {
           code: 'CONFLICT',
@@ -472,7 +472,7 @@ export function QuoteBookingCouponDoc(): MethodDecorator {
     ApiOperation({
       summary: 'Preview a coupon discount quote for an unpaid student booking',
       description:
-        'Read-only preview calculating authoritative subtotal, Decimal discount (HALF_UP 2 places), and net amount without reserving capacity or writing database state. Requires CONFIRMED and UNPAID booking with no payment in progress, strictly before startAtUtc minus 4 hours (409 BOOKING_PAYMENT_DEADLINE_PASSED otherwise).',
+        'Read-only preview calculating authoritative subtotal, Decimal discount (HALF_UP 2 places), and net amount without reserving capacity or writing database state. Requires CONFIRMED and UNPAID booking with no payment in progress, strictly before startAtUtc (409 BOOKING_PAYMENT_DEADLINE_PASSED otherwise).',
     }),
     ApiBearerAuth(JWT_BEARER_AUTH),
     ApiBody({ required: true, type: BookingCouponCodeDto }),
@@ -547,7 +547,7 @@ export function QuoteBookingCouponDoc(): MethodDecorator {
     }),
     ApiConflictResponse({
       description:
-        'The payment deadline (4 hours before start) has passed (BOOKING_PAYMENT_DEADLINE_PASSED), the coupon is inactive, expired, exhausted, or already used, or the booking is not payable, payment is in progress, or net amount is unsupported',
+        'The payment deadline (lesson start) has passed (BOOKING_PAYMENT_DEADLINE_PASSED), the coupon is inactive, expired, exhausted, or already used, or the booking is not payable, payment is in progress, or net amount is unsupported',
       schema: {
         example: {
           code: 'COUPON_EXPIRED',
@@ -643,7 +643,7 @@ export function ApplyBookingCouponDoc(): MethodDecorator {
     }),
     ApiConflictResponse({
       description:
-        'The payment deadline (4 hours before start) has passed (BOOKING_PAYMENT_DEADLINE_PASSED), the coupon is inactive, expired, exhausted, or already used, or the booking is not payable, payment is in progress, or net amount is unsupported',
+        'The payment deadline (lesson start) has passed (BOOKING_PAYMENT_DEADLINE_PASSED), the coupon is inactive, expired, exhausted, or already used, or the booking is not payable, payment is in progress, or net amount is unsupported',
       schema: {
         example: {
           code: 'PAYMENT_IN_PROGRESS',
@@ -908,7 +908,7 @@ function tutorBookingActionErrorResponses(): MethodDecorator[] {
     }),
     ApiConflictResponse({
       description:
-        'For confirmation only: the 4-hour payment deadline has passed (BOOKING_PAYMENT_DEADLINE_PASSED). Otherwise the booking is no longer pending (already confirmed, canceled, completed or expired), or a concurrent confirm/reject won the transition',
+        'For confirmation only: the lesson-start payment deadline has passed (BOOKING_PAYMENT_DEADLINE_PASSED). Otherwise the booking is no longer pending (already confirmed, canceled, completed or expired), or a concurrent confirm/reject won the transition',
       schema: {
         example: {
           code: 'BOOKING_NOT_PENDING',
@@ -928,7 +928,7 @@ export function ConfirmTutorBookingDoc(): MethodDecorator {
     ApiOperation({
       summary: "Confirm one of the authenticated tutor's pending bookings",
       description:
-        'PENDING moves to CONFIRMED and the student is notified (BOOKING_CONFIRMED). CONFIRMED is not terminal: it later becomes COMPLETED when attendance is recorded, CANCELED by a participant cancellation, or moves slot through an approved reschedule. Confirmation requires now to be strictly before startAtUtc minus 4 hours (409 BOOKING_PAYMENT_DEADLINE_PASSED otherwise). Any non-pending booking returns 409.',
+        'PENDING moves to CONFIRMED and the student is notified (BOOKING_CONFIRMED). CONFIRMED is not terminal: it later becomes COMPLETED when attendance is recorded, CANCELED by a participant cancellation, or moves slot through an approved reschedule. Confirmation requires now to be strictly before startAtUtc (409 BOOKING_PAYMENT_DEADLINE_PASSED otherwise). Any non-pending booking returns 409.',
     }),
     ApiBearerAuth(JWT_BEARER_AUTH),
     ApiBody({ required: false, type: ConfirmBookingDto }),

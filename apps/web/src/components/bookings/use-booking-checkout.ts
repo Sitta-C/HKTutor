@@ -6,6 +6,7 @@ import { bookingCouponCopy } from '@/components/bookings/booking-coupon-copy';
 import {
   getBookingCouponFailure,
   hasActiveBookingPayment,
+  isBookingDeadlineRejection,
   isCouponPaymentRejection,
   isFullCouponSettlement,
 } from '@/components/bookings/booking-coupon-model';
@@ -85,6 +86,8 @@ export function useBookingCheckout({
   const [operation, setOperation] = useState<CheckoutOperation | null>(null);
   const [checkedAt, setCheckedAt] = useState(0);
   const [reload, setReload] = useState(0);
+  const [serverClosedWindow, setServerClosedWindow] = useState<string | null>(null);
+  const windowKey = `${booking.id}:${booking.slot.startAtUtc}`;
   const gate = useRef<symbol | null>(null);
   const writeToken = useRef<symbol | null>(null);
   const mounted = useRef(false);
@@ -177,7 +180,10 @@ export function useBookingCheckout({
   }, [booking.id, disabled, commitSnapshot, reload]);
 
   const pending = hasActiveBookingPayment(booking, payment);
-  const { deadlinePassed, deadlineAt } = useBookingPaymentDeadline(booking.slot.startAtUtc);
+  const { deadlinePassed: localDeadlinePassed, deadlineAt } = useBookingPaymentDeadline(
+    booking.slot.startAtUtc,
+  );
+  const deadlinePassed = localDeadlinePassed || serverClosedWindow === windowKey;
   const paid = booking.paymentStatus === 'PAID' || payment?.paymentStatus === 'PAID';
   const canMutate =
     verification === 'ready' &&
@@ -257,6 +263,7 @@ export function useBookingCheckout({
     } catch (error) {
       if (mounted.current) {
         setFailure({ error, scope: 'coupon', couponCode: booking.coupon?.code ?? null });
+        if (isBookingDeadlineRejection(error)) setServerClosedWindow(windowKey);
         if (getBookingCouponFailure(error, bookingCouponCopy[language]).requiresRefresh) {
           setVerification('failed');
         }
@@ -285,6 +292,7 @@ export function useBookingCheckout({
     } catch (error) {
       if (mounted.current) {
         setFailure({ error, scope: 'payment', couponCode: booking.coupon?.code ?? null });
+        if (isBookingDeadlineRejection(error)) setServerClosedWindow(windowKey);
         setVerification('failed');
       }
     } finally {

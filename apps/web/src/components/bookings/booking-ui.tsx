@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 
+import { isBookingDeadlineRejection } from '@/components/bookings/booking-coupon-model';
 import { PaperCard, StatusBadge, WashiTape, notebookButtonClass } from '@/components/ui/notebook';
 import { NotebookLoadingRegion } from '@/components/ui/notebook-loading';
 import { NotebookMetadata } from '@/components/ui/notebook-metadata';
@@ -77,6 +78,7 @@ export function formatMoney(amount: string, currency: string): string {
 }
 
 export function getBookingErrorMessage(error: unknown, text: BookingText): string {
+  if (isBookingDeadlineRejection(error)) return text.deadlinePassed;
   if (error instanceof ApiError) {
     if (error.status === 400) return text.validationError;
     if (error.status === 401) return text.unauthenticated;

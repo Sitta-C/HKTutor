@@ -535,7 +535,10 @@ describe('Tutor listing and availability services', () => {
         where: {
           bookings: { none: { status: { in: ['PENDING', 'CONFIRMED'] } } },
           deletedAt: null,
-          startAtUtc: { gte: new Date('2026-10-17T07:00:00.000Z') },
+          startAtUtc: {
+            gte: new Date('2026-10-17T07:00:00.000Z'),
+            gt: new Date('2026-10-17T07:00:00.000Z'),
+          },
           tutorProfileId: USER_ID,
         },
       });

@@ -109,6 +109,7 @@ export class PaymentsService {
             paymentReference: `coupon:${reservation.id}`,
           },
         });
+        assertBeforePaymentDeadline(booking.slot.startAtUtc);
         return null;
       }
       // Check configuration before claiming capacity; no provider HTTP runs in this transaction.
@@ -180,7 +181,7 @@ export class PaymentsService {
         if (deadlinePassedBeforeCharge) {
           throw domainConflict(
             'BOOKING_PAYMENT_DEADLINE_PASSED',
-            'Payment closes 4 hours before the lesson starts',
+            'Payment closes when the lesson starts',
           );
         }
         throw new ServiceUnavailableException(

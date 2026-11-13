@@ -1,4 +1,5 @@
-export const PAYMENT_DEADLINE_MS = 4 * 60 * 60 * 1000;
+// Payment and confirmation close at the lesson start, with no advance cutoff.
+export const PAYMENT_DEADLINE_MS = 0;
 
 export function bookingPaymentDeadline(startAtUtc: string): number {
   return Date.parse(startAtUtc) - PAYMENT_DEADLINE_MS;
