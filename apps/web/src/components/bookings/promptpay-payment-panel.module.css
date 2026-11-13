@@ -1,11 +1,55 @@
 .panel {
   min-width: 0;
-  padding: 22px;
-  border-left: 1px dashed var(--color-paper-edge);
-  background-image: repeating-linear-gradient(
-    transparent 0 31px,
-    color-mix(in srgb, var(--color-notebook-line) 25%, transparent) 32px
-  );
+  align-self: start;
+  border: 1px solid var(--color-paper-edge);
+  border-radius: 6px;
+  background: var(--color-paper);
+  overflow: hidden;
+  box-shadow: 0 2px 0 color-mix(in srgb, var(--color-paper-edge) 60%, transparent);
+}
+.body {
+  padding: 18px;
+}
+.deadline {
+  display: grid;
+  gap: 5px;
+  padding-bottom: 16px;
+  margin-bottom: 18px;
+  border-bottom: 1px dashed var(--color-paper-edge);
+  font-size: 12px;
+  color: var(--color-notebook-muted-deep);
+}
+.deadline strong {
+  color: var(--color-notebook-ink);
+  font-size: 14px;
+  font-weight: 600;
+}
+.stateMessage {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+.stateMessage > svg {
+  flex: 0 0 18px;
+  margin-top: 2px;
+  color: var(--color-amber-800);
+}
+.panel[data-phase='closed'] .stateMessage > svg {
+  color: var(--color-notebook-muted-deep);
+}
+.stateMessage h3 {
+  margin: 0 0 6px;
+  font-size: 14px;
+  line-height: 1.6;
+  font-weight: 600;
+}
+.actions {
+  display: grid;
+  justify-items: start;
+  gap: 14px;
+  padding: 16px 18px;
+  border-top: 1px dashed var(--color-paper-edge);
 }
 .qr {
   display: block;
@@ -36,12 +80,21 @@
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
 }
 .heading h2 {
-  font-size: 17px;
-  font-weight: 700;
+  padding: 8px 12px;
+  border-right: 1px solid var(--color-paper-edge);
+  border-bottom: 1px solid var(--color-paper-edge);
+  border-bottom-right-radius: 6px;
+  background: var(--color-paper-deep);
+  color: var(--color-student-deep);
+  font-size: 13px;
+  font-weight: 600;
+}
+.heading > .badge {
+  margin: 9px 12px 0 0;
 }
 .badge {
   padding: 3px 7px;
@@ -55,7 +108,8 @@
   color: var(--color-student-deep);
 }
 .note {
-  margin: 12px 0 18px;
+  margin: 0;
+  padding: 0 18px 16px;
   font-size: 12px;
   color: var(--color-notebook-muted);
 }
@@ -83,23 +137,19 @@
   opacity: 0.65;
 }
 .help {
-  margin: 7px 0 16px;
+  margin: 8px 0 0;
   font-size: 12px;
   color: var(--color-notebook-muted);
 }
-.ticket {
-  composes: ticket from './booking-docket.module.css';
+.createPayment {
   width: 100%;
-}
-.ticketLabel {
-  composes: ticketLabel from './booking-docket.module.css';
-}
-.ticketStub {
-  composes: ticketStub from './booking-docket.module.css';
 }
 .refresh {
   composes: link from './booking-docket.module.css';
-  margin-top: 8px;
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  margin-top: 0;
   padding: 0;
   border: 0;
   background: transparent;
@@ -136,15 +186,12 @@
   font-variant-numeric: tabular-nums;
 }
 .notice {
-  padding: 12px;
-  border-left: 2px solid var(--color-student-deep);
-  background: color-mix(in srgb, var(--color-student) 10%, var(--color-paper));
   font-size: 13px;
+  line-height: 1.8;
+  color: var(--color-notebook-muted-deep);
 }
 @container (max-width: 600px) {
   .panel {
-    border-left: 0;
-    border-top: 1px dashed var(--color-paper-edge);
-    padding: 18px 0 0;
+    margin-top: 4px;
   }
 }

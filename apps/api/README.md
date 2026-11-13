@@ -746,6 +746,41 @@ It follows the same safety rules as the other disposable verifiers (explicit opt
 `hktutor_*_test` target, no URL options, never loads `.env`, migrates or seeds, removes its own
 fixtures). Evidence and findings are in `tests/s2-t34-qa.md`.
 
+## Booking payment deadline
+
+Booking creation, tutor confirmation and new payments close at **`slot.startAtUtc`**.
+The strict UTC condition is `now < startAtUtc`; equality is closed. A lesson at 18:00 Bangkok
+can be confirmed/paid before 18:00, and its final scheduled reminder starts at 17:00.
+
+- Booking quotes/creation, confirmation, coupon quote/apply/remove and new payments (including
+  100% coupons) reject a closed window with `409 BOOKING_PAYMENT_DEADLINE_PASSED`. Confirmation
+  rechecks the clock after acquiring database write locks; crossing the deadline rolls back the
+  transition and its notification. Booking creation checks again after selection validation.
+  Coupon operations recheck after eligibility reads; apply/remove also recheck after the write
+  inside their transaction, so a write crossing lesson start rolls back its coupon and amounts.
+- The browser closes checkout at start without reload and remembers a server-confirmed deadline
+  rejection even if the client clock is slow. Active QR panels explain that the window is closed
+  while status reads continue to reconcile the existing payment.
+- New QR expiry is `min(now + 15 minutes, lesson start)`, using Omise's
+  [per-charge expiry](https://docs.omise.co/promptpay). An uncertain provider result remains locked;
+  it never authorizes another charge or a clock-only expiry. Verified success is always recorded,
+  including delayed callbacks and historical charges, rather than silently losing payment evidence.
+- The UTC `booking-payment-expiry` job runs each minute, disabled in tests. It expires due
+  `PENDING` / `CONFIRMED`, `UNPAID` bookings only without active/uncertain attempts or reserved
+  coupon capacity. Paid/completed bookings are preserved. Endpoint guards enforce the deadline
+  independently of cron timing. Existing overdue eligible requests close on the first tick.
+- Pending requests and confirmed unpaid bookings continue to reserve their original slot until
+  expiry. This can prevent another student booking that time even if the first student never pays;
+  this is an accepted product limitation. There is no additional short reservation timer or queue.
+- Reschedule requests do not reserve their target. Approval waits until an existing payment has
+  a verified terminal result (`409 PAYMENT_IN_PROGRESS` while unresolved); rejection/withdrawal
+  remain available. The original booking and QR deadline remain unchanged while approval waits.
+  A target that has started cannot be approved after payment settles; choose a different future
+  target through a new request. The existing 24-hour cutoff for the original class still applies.
+- Scheduled reminders remain **24H and 1H**, with one catch-up band on a late first run and none
+  after start. Historical 5H event labels remain readable. Completion still requires payment;
+  this change does not rewrite old completed/unpaid records or review evidence.
+
 ## PromptPay test payments
 
 This integration supports **Omise PromptPay Test Mode only**. Public-key browser SDKs and card
@@ -943,6 +978,52 @@ The runner pins JWT, Resend and Supabase settings to test-only values before `Ap
 so a local `.env` is never used, and accepts only a loopback `hktutor_*_test` database. It uses
 random fixtures and leaves them in place (qualification audit rows are append-only), so discard the
 database afterwards. Evidence is in `tests/s2-t38-qa.md`.
+
+## Sprint 3 final journey (S3-T37)
+
+`pnpm db:verify:sprint3-flow` boots the real `AppModule` with the same raw-body and cookie setup
+as `main.ts`, against a disposable PostgreSQL database. It walks two tutors, one student and one
+admin through the finished Sprint 3 product over HTTP and Socket.IO:
+
+1. registration with email verification, and an admin-created 10% coupon (case-insensitive
+   duplicate refused);
+2. two tutors through document approval and publishing;
+3. anonymous discovery returning every attribute the 2–3 tutor comparison shows: price, subject,
+   rating and count, experience and next availability. Sorting is checked, and no private field
+   may appear;
+4. live chat: `message_created` and `messages_read` reach only the other participant. A
+   non-participant, a sender echo and an admin socket are all refused;
+5. booking, confirmation, coupon quote and apply (450.00 → 45.00 → 405.00), and one PromptPay test
+   charge of 40500 satang. A forged webhook is ignored, and a signed success settles PAID without
+   a second charge on retry. The admin then sees 1 of 5 uses consumed;
+6. idempotent 1H class reminders for both parties, the meeting link, and attendance → COMPLETED;
+7. a 5/4/5 review that makes the public rating 4.67 from 1 review and ranks the tutor first by
+   rating. The feedback is kept as text;
+8. regression on the existing booking flow: coupon reuse refused, cancellation with slot release
+   and notices, rebook and reject, reschedule duplicate/reject/approve, and the retired
+   mock-payment route returning 410;
+9. the tutor report for the persisted journey (4 bookings, 405.00 THB, 1/3 = 33.33%), refused
+   for the other roles.
+
+Only Resend (verification emails captured), the Supabase Storage client (in-memory private
+bucket) and outbound Omise HTTP (in-process test-mode charges; any other host fails the run) are
+replaced.
+
+```bash
+HKTUTOR_ALLOW_DISPOSABLE_DB_VERIFY=1 \
+  DATABASE_URL='postgresql://postgres@127.0.0.1:5432/hktutor_s3_t37_test' \
+  pnpm db:verify:sprint3-flow
+```
+
+The runner accepts only the exact loopback database `hktutor_s3_t37_test`, with all migrations
+applied and no users. Before `AppModule` loads, it pins JWT, Resend, Supabase and Omise settings to
+synthetic test-mode values, so a local `.env` is never used. The reminder cron stays disabled under
+`NODE_ENV=test`; the runner calls `ReminderJobService.runOnce` itself. Qualification audit rows are
+append-only, so drop the database afterwards.
+
+This supersedes `db:verify:sprint2-flow` (S2-T38) as the end-to-end check. That older runner
+still expects the mock-payment endpoint retired by the PromptPay change, and now stops at its
+payment step with 410. Evidence is in [`tests/s3-t37-qa.md`](../../tests/s3-t37-qa.md).
 
 ## Private availability range queries
 
@@ -1163,10 +1244,10 @@ The existing S2-DB05 table and indexes are used without a schema migration. UI w
 Each list item contains exactly `id`, `eventType`, `title`, nullable `bookingId`, nullable `readAt`
 and `createdAt`. `bookingId` is link metadata; it does not grant access to the booking. Notification
 body, event key, recipient ID and related profile data are not returned. All times are UTC ISO 8601.
-The GET is read-only. A stored 1H reminder supersedes 24H reminders for the same recipient and
+The GET is read-only. A stored 1H reminder (or historical 5H reminder) supersedes 24H reminders for the same recipient and
 scheduled occurrence (booking, slot and UTC start), including a prior unpaid reminder followed by
 a paid class reminder. Superseded rows remain stored with their original read receipts but are
-excluded before pagination, unread counts and bulk read. Reading the 1H reminder never restores
+excluded before pagination, unread counts and bulk read. Reading the urgent reminder never restores
 the old 24H reminder. Other occurrences, recipients, bookings and QR prompts remain independent.
 `unreadCount` counts the entire visible caller inbox, independent of page or filter;
 the page and count use one repeatable-read snapshot.
@@ -2737,6 +2818,9 @@ no URL options/fragments and all committed migrations. It does not load `.env`, 
 It retains synthetic append-only evidence, so run it only in a new isolated database and discard
 that database afterward. It is deliberately outside `pnpm check`.
 
+The coupon verifier also delays actual apply/remove updates across lesson start and checks the
+deadline conflict plus unchanged persisted coupon, amounts and payment evidence after rollback.
+
 ```bash
 docker run --detach --name hktutor-s3-t26-test \
   --publish 127.0.0.1:55456:5432 \
@@ -3109,6 +3193,56 @@ and ledger checksums. No production migration file, API, DTO, fixture input or d
 
 Follow the [DB06 commands, file/call map, acceptance evidence and limitations](../../tests/s3-db06-qa.md).
 
+## Final security regression (S3-T38)
+
+`pnpm db:verify:sprint3-security` re-checks the authentication, privacy and authorization rules of
+every feature together. It boots the real `AppModule` (raw body, `cookie-parser`, the global
+pipe) on a loopback port and runs over HTTP and Socket.IO against PostgreSQL. The feature
+verifiers prove each rule in depth; this runner fails if a cross-feature change drops one. That
+could be a route without a guard, a consent check missing from one module, or a socket that
+outlives logout.
+
+- **Sessions:** the refresh cookie is `HttpOnly; Path=/; SameSite=Lax` and never appears in a body.
+  PostgreSQL holds only its SHA-256. Refresh rotates the cookie. Replaying an old token revokes
+  the session, including its new cookie and access token. Of five concurrent refreshes, exactly one
+  wins. Logout clears the cookie, rejects the access token and disconnects that session's live
+  socket. Refresh tokens are refused as Bearer tokens, and access tokens are refused as cookies.
+- **Email verification:** an unverified login gets 403 and no cookie. Reused and expired
+  verification tokens get 400. Resend with a ready signed verification flow (cookie plus `flowId`)
+  returns the same 200 public fields for known and unknown emails, and only the eligible account
+  receives a working replacement token. The sixth login within a minute gets 429.
+- **Authorization matrix:** 25 protected booking, coupon, payment, review, cancel, reschedule,
+  tutor-action, chat, notification, report and admin routes. Each returns 401 anonymously, and
+  403 for a foreign owner or wrong role (`BOOKING_NOT_OWNED`, `BOOKING_NOT_PARTICIPANT` or
+  `FORBIDDEN`). A body `studentUserId` gets 400. A hash of every booking row, notification read
+  state, message count and coupon count is unchanged afterwards.
+- **Consent:** with an outdated or missing policy version, coupon, payment, chat send/read, review
+  create and tutor report return 403. The profile and reschedule routes return 400
+  `PRIVACY_CONSENT_REQUIRED`. Access returns once `/auth/consent` accepts the current version, and
+  `/auth/me` stays reachable throughout.
+- **Sockets:** expired-session, refresh-token, admin and malformed credentials are refused. A
+  non-participant cannot join. Messages reach only the other participant of their own
+  conversation.
+- **Stored markup:** `<script>`/`onerror` text in chat, the tutor display name and the bio comes
+  back as exact JSON strings (`application/json`). Public tutor and `/auth/me` payloads carry no
+  private fields. The repository contract `tests/web-html-sinks.test.mjs` fails if web source adds
+  `dangerouslySetInnerHTML`, `innerHTML`, `insertAdjacentHTML`, `document.write`, `eval`,
+  `new Function` or a `javascript:` URL.
+- **Races:** four concurrent bookings of one slot produce one 201. Three concurrent confirms
+  produce one 200 and one notice. Four concurrent reviews produce one 201 and a rating count of 1.
+
+```bash
+HKTUTOR_ALLOW_DISPOSABLE_DB_VERIFY=1 \
+  DATABASE_URL='postgresql://postgres@127.0.0.1:5432/hktutor_s3_t38_test' \
+  pnpm db:verify:sprint3-security
+```
+
+The runner requires the exact loopback database `hktutor_s3_t38_test`, migrated and empty. It
+pins every secret to synthetic values before `AppModule` loads, configures no payment provider,
+and rejects any outbound request. It prints the observed matrix plus two recorded findings:
+`GET /bookings/me/:bookingId` and `GET /bookings/tutor` do not opt into the current-consent check.
+Evidence and follow-ups are in [`tests/s3-t38-qa.md`](../../tests/s3-t38-qa.md).
+
 ## Tutor Reports (S3-T09)
 
 Implements `GET /api/v1/reports/tutor/me` (`S3-T09` / `S3-T09/API-01`) in `apps/api/src/modules/reports/`.
@@ -3128,7 +3262,88 @@ pnpm --filter @hktutor/api test --runInBand reports
 pnpm --filter @hktutor/api test:e2e --runInBand --runTestsByPath test/reports.e2e-spec.ts
 ```
 
+### Report contract definitions and fixture reconciliation (S3-T12)
+
+All values are all-time and belong to the authenticated tutor only.
+
+| Field                      | Definition                                                                                                                           |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `totalBookings`            | Every booking whose `tutorProfileId` is the caller, in any status, including bookings on archived or soft-deleted listings and slots |
+| `statusCounts`             | One integer per `BookingStatus`. All five keys are always present, and they add up to `totalBookings`                                |
+| `revenue.amount`           | Sum of `netAmount` for `COMPLETED` **and** `PAID` bookings, as a two-decimal THB string (`"0.00"` when none)                         |
+| `completionRate.completed` | `statusCounts.COMPLETED`                                                                                                             |
+| `completionRate.finalized` | `COMPLETED + CANCELED`: the bookings whose outcome is settled                                                                        |
+| `completionRate.percent`   | `completed / finalized × 100`, rounded `HALF_UP` to two decimals, as a JSON number; `null` when `finalized = 0`                      |
+
+**Revenue.** `netAmount` is the price snapshot stored on the booking, after any coupon discount
+(`subtotalAmount − discountAmount`, enforced by `Booking_amount_balance_check`). Later listing
+price or coupon edits never change it. The sum uses Prisma `Decimal`, never binary floating point.
+Only one combination counts:
+
+| Status \ payment     | `UNPAID`                                  | `PAID`                                     |
+| -------------------- | ----------------------------------------- | ------------------------------------------ |
+| `COMPLETED`          | excluded (class held, money not received) | **counted**                                |
+| `CONFIRMED`          | excluded                                  | excluded (class not yet held)              |
+| `PENDING`, `EXPIRED` | excluded                                  | not possible                               |
+| `CANCELED`           | excluded                                  | not possible (`Booking_paid_status_check`) |
+
+Because a paid booking can never be canceled, there is no refund case to subtract.
+
+**Finalized denominator.** `PENDING` and `CONFIRMED` are still open, so they are left out. Counting
+them would push the rate down for a tutor with many upcoming classes. `EXPIRED` requests were never
+accepted, so they say nothing about whether the tutor delivers. Every `CANCELED` booking counts,
+whether the tutor declined a pending request or the student or tutor canceled later. All of these
+persist as the same `CANCELED` status, and the backlog example (6 / (6 + 2)) treats them alike.
+
+**Rounding.** The exact Decimal quotient is rounded once, `HALF_UP` at two decimals: 6 / 8 →
+`75`, 2 / 3 → `66.67`, 1 / 3 → `33.33`, and 1 / 32 = 3.125 → `3.13` (banker's rounding would give
+3.12). A tutor with no finalized booking gets `null`, and the web report shows it as N/A or
+ไม่มีข้อมูล instead of a made-up `0%`. The web client shows the number as returned and never
+rounds it again.
+
+**Swagger examples come from fixtures.** The 200 response publishes three named examples taken from
+`TUTOR_REPORT_EXAMPLES` in `reports.swagger.ts`. Each one is the exact report for an S3-DB04
+seeded tutor: `report905`, `reportExpired` and `reportEmpty`. The schema property examples also
+add up to the `report905` report. `test/unit/reports/report-contract.spec.ts` recomputes every
+example from the fixture bookings through `ReportsService`, so an example that drifts from the
+seed fails the unit suite. The `report905` ledger reconciles as follows:
+
+| DB04 bookings                                          |  Count | Net each |   Net total | In revenue? |
+| ------------------------------------------------------ | -----: | -------: | ----------: | ----------- |
+| `report-1` completed, paid, WELCOME10 (450.00 − 45.00) |      1 |   405.00 |      405.00 | yes         |
+| `report-2` completed, paid                             |      1 |   500.00 |      500.00 | yes         |
+| `report-3`…`report-6` completed, unpaid                |      4 |   450.00 |     1800.00 | no          |
+| `report-7`, `report-8` canceled                        |      2 |   450.00 |      900.00 | no          |
+| `report-9`…`report-11` pending                         |      3 |   450.00 |     1350.00 | no          |
+| `report-12` confirmed                                  |      1 |   450.00 |      450.00 | no          |
+| **Total**                                              | **12** |          | **5405.00** | **905.00**  |
+
+The rate is 6 completed / (6 completed + 2 canceled) = 75. Evidence is in
+[`tests/s3-t12-qa.md`](../../tests/s3-t12-qa.md).
+
 The web client exposes this contract to tutors at the private, noindex
 `/dashboard/reports` route and as an independently loaded report section on `/dashboard`. It never
 derives all-time values from the paginated dashboard booking reads. The received-revenue card is
 the paid, completed net total above and stays distinct from monthly confirmed booked value.
+
+### Database-backed report verification (S3-T11)
+
+The Jest suites above replace Prisma with mocks. `pnpm db:verify:tutor-reports` runs the real
+`ReportsController`, `JwtAuthGuard`, `RolesGuard`, consent check and global validation pipe
+against PostgreSQL rows. It seeds the S3-DB04 fixtures with `runSeed`, then adds verifier-only
+tutors for cases the fixtures do not hold. An independent row-by-row oracle
+(`expectedTutorReport`) recomputes each report from raw `Booking` rows, so a mistake in the
+grouped aggregation cannot hide on both sides of the comparison.
+
+```bash
+psql "postgresql://postgres@127.0.0.1:5432/postgres" -c 'CREATE DATABASE hktutor_s3_t11_test'
+DATABASE_URL='postgresql://postgres@127.0.0.1:5432/hktutor_s3_t11_test' pnpm db:migrate:deploy
+HKTUTOR_ALLOW_DISPOSABLE_DB_VERIFY=1 \
+  DATABASE_URL='postgresql://postgres@127.0.0.1:5432/hktutor_s3_t11_test' \
+  pnpm db:verify:tutor-reports
+```
+
+The runner accepts only the exact loopback database `hktutor_s3_t11_test` with every committed
+migration applied and no users. It never loads `.env` and uses random JWT and seed secrets that
+are not printed. It leaves its synthetic rows in place, so drop the database afterwards. Coverage
+and the latest run are recorded in [`tests/s3-t11-qa.md`](../../tests/s3-t11-qa.md).

@@ -106,11 +106,11 @@ describe('notification presentation and optimistic state', () => {
     };
     expect(refreshNotificationPage(page, fresh, false)).toEqual(fresh);
   });
-  it('discards a cached 24H reminder when a new 1H replaces it outside the fresh first page', () => {
+  it('discards a cached 24H reminder when a new 5H replaces it outside the fresh first page', () => {
     const old = { ...item, id: '24h', eventType: 'PAYMENT_REMINDER_24H' };
     const current = { ...page, items: [item, old], nextCursor: 'old-history' };
     const fresh = {
-      items: [{ ...item, id: '1h', eventType: 'PAYMENT_REMINDER_1H' }, item],
+      items: [{ ...item, id: '5h', eventType: 'PAYMENT_REMINDER_5H' }, item],
       nextCursor: 'fresh-history',
       unreadCount: 7,
     };
@@ -122,12 +122,12 @@ describe('notification presentation and optimistic state', () => {
     const qr = { ...item, id: 'qr', eventType: 'PAYMENT_QR_READY' };
     const current = { ...page, items: [item, old, qr] };
     const fresh = {
-      items: [{ ...item, id: '1h', eventType: 'PAYMENT_REMINDER_1H' }, item],
+      items: [{ ...item, id: '5h', eventType: 'PAYMENT_REMINDER_5H' }, item],
       nextCursor: 'fresh-history',
       unreadCount: 8,
     };
     expect(refreshNotificationPage(current, fresh, false).items.map(({ id }) => id)).toEqual([
-      '1h',
+      '5h',
       item.id,
       '24h',
       'qr',
@@ -188,6 +188,7 @@ describe('notification presentation and optimistic state', () => {
     }
     expect(notificationCopy[language].events.PAYMENT_REMINDER_24H).toContain('24');
     expect(notificationCopy[language].events.PAYMENT_REMINDER_1H).toContain('1');
+    expect(notificationCopy[language].events.PAYMENT_REMINDER_5H).toContain('5');
   });
   it.each(['en', 'th'] as const)(
     'presents each new QR as a payment prompt with historical wording in %s',
@@ -210,14 +211,16 @@ describe('notification presentation and optimistic state', () => {
       for (const eventType of [
         'CLASS_REMINDER_24H',
         'CLASS_REMINDER_1H',
+        'CLASS_REMINDER_5H',
         'PAYMENT_REMINDER_24H',
         'PAYMENT_REMINDER_1H',
+        'PAYMENT_REMINDER_5H',
       ] as const) {
         const reminder = { ...item, eventType, title: 'Server fallback' };
         expect(notificationTitle(reminder, language)).toBe(text.events[eventType]);
         expect(notificationDescription(reminder, language)).toBe(text.reminderDetails[eventType]);
         expect(notificationDescription(reminder, language)).toContain(
-          eventType.endsWith('24H') ? '24' : '1',
+          eventType.endsWith('24H') ? '24' : eventType.endsWith('5H') ? '5' : '1',
         );
         expect(notificationReminderKind(eventType)).toBe(
           eventType.startsWith('CLASS_') ? 'class' : 'payment',

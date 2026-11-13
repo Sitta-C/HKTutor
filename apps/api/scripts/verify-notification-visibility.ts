@@ -67,6 +67,18 @@ async function verify(): Promise<void> {
   };
   const cases = [
     { name: '24H alone', rows: [old], expected: ['old'] },
+    {
+      name: 'historical 5H still supersedes',
+      rows: [
+        old,
+        {
+          ...urgent,
+          eventType: 'PAYMENT_REMINDER_5H',
+          eventKey: urgent.eventKey.replace(':1H:', ':5H:'),
+        },
+      ],
+      expected: ['urgent'],
+    },
     { name: '1H alone', rows: [urgent], expected: ['urgent'] },
     { name: '1H supersedes 24H', rows: [old, urgent], expected: ['urgent'] },
     {

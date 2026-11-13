@@ -78,6 +78,7 @@ export function getRescheduleFailure(
   const code =
     typeof details === 'object' && details !== null && 'code' in details ? details.code : null;
   const messages: Record<string, string> = {
+    PAYMENT_IN_PROGRESS: copy.paymentInProgress,
     RESCHEDULE_CUTOFF_EXCEEDED: copy.cutoff,
     RESCHEDULE_TARGET_RESERVED: copy.collision,
     RESCHEDULE_TARGET_UNAVAILABLE: copy.collision,
