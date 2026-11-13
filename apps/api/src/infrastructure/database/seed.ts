@@ -4,6 +4,7 @@ import { seedReviewFixtures } from '@infrastructure/database/seed/review-fixture
 import { seedTutorSearchFixtures } from '@infrastructure/database/seed/search-fixtures.seed';
 import { readSeedEnvironment } from '@infrastructure/database/seed/seed-environment';
 import { seedSprint2Demo } from '@infrastructure/database/seed/sprint2-demo.seed';
+import { seedSprint3Demo } from '@infrastructure/database/seed/sprint3-demo.seed';
 import { seedSprint3Fixtures } from '@infrastructure/database/seed/sprint3-fixtures.seed';
 import { seedStudent } from '@infrastructure/database/seed/student.seed';
 import { seedTutorFoundation } from '@infrastructure/database/seed/tutor-foundation.seed';
@@ -35,6 +36,7 @@ export async function runSeed(client: SeedDatabaseClient, now: Date = new Date()
       await seedBookingFixtures(transaction, foundation);
       await seedReviewFixtures(transaction, student);
       await seedSprint2Demo(transaction, foundation, student, now);
+      await seedSprint3Demo(transaction, foundation, student, now);
       await seedSprint3Fixtures(transaction, now);
     },
     { timeout: 30_000 },
