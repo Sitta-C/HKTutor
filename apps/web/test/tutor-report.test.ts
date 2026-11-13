@@ -30,7 +30,7 @@ const report: TutorReport = {
 
 describe('tutor report presentation', () => {
   it('renders the authoritative total, all statuses, paid completed revenue and completion rate', () => {
-    const model = createTutorReportViewModel(report, reportCopy.en);
+    const model = createTutorReportViewModel(report, reportCopy.en, 'en');
     const markup = renderToStaticMarkup(
       createElement(
         'main',
@@ -42,15 +42,13 @@ describe('tutor report presentation', () => {
 
     expect(model).toMatchObject({
       totalBookings: '12',
-      revenue: 'THB 905.00',
+      revenue: 'THB\u00a0905.00',
       completionRate: '75%',
     });
     expect(model.statuses.map(({ count }) => count)).toEqual(['3', '1', '6', '2', '0']);
     expect(markup).toContain('Net amount from paid, completed bookings only.');
     expect(markup).toContain('Completed out of finalized bookings (completed &amp; canceled).');
-    expect(
-      markup.match(/rounded-2xl border border-paper-edge bg-white p-5 shadow-note/g),
-    ).toHaveLength(3);
+    expect(markup.match(/rounded-2xl border border-paper-edge bg-white p-5/g)).toHaveLength(3);
     expect(markup).not.toContain('bg-sticky-blue');
     expect(markup).not.toContain('bg-sticky-green');
     expect(markup).not.toContain('bg-sticky-yellow');
@@ -72,12 +70,27 @@ describe('tutor report presentation', () => {
         completionRate: { completed: 0, finalized: 0, percent: null },
       },
       reportCopy.th,
+      'th',
     );
 
     expect(empty.totalBookings).toBe('0');
-    expect(empty.revenue).toBe('THB 0.00');
+    expect(empty.revenue).toBe('฿0.00');
     expect(empty.completionRate).toBe('ไม่มีข้อมูล');
     expect(empty.statuses.every(({ count }) => count === '0')).toBe(true);
+  });
+
+  it('formats the fixed-decimal revenue by locale without losing precision', () => {
+    const preciseReport = {
+      ...report,
+      revenue: { amount: '9007199254740993.07', currency: 'THB' as const },
+    };
+
+    expect(createTutorReportViewModel(preciseReport, reportCopy.en, 'en').revenue).toBe(
+      'THB\u00a09,007,199,254,740,993.07',
+    );
+    expect(createTutorReportViewModel(preciseReport, reportCopy.th, 'th').revenue).toBe(
+      '฿9,007,199,254,740,993.07',
+    );
   });
 
   it('keeps loading and failed requests free of optimistic zeros and offers retry only for failures', () => {
@@ -94,10 +107,10 @@ describe('tutor report presentation', () => {
     const restricted = render({ status: 'error', failure: 'restricted' });
 
     expect(loading).toContain('Loading your all-time report');
-    expect(loading).not.toContain('THB 0.00');
+    expect(loading).not.toContain('฿0.00');
     expect(failed).toContain('We could not load your report.');
     expect(failed).toContain('Try again');
-    expect(failed).not.toContain('THB 0.00');
+    expect(failed).not.toContain('฿0.00');
     expect(restricted).toContain('available only to tutor accounts');
     expect(restricted).not.toContain('Try again');
   });

@@ -22,7 +22,7 @@ export function BookingStatusBreakdown({
   const Heading = headingLevel;
   return (
     <section
-      className="mt-5 rounded-2xl border border-paper-edge bg-white/85 p-5 shadow-note sm:p-6"
+      className="mt-5 rounded-2xl border border-paper-edge bg-white/85 p-5 sm:p-6"
       aria-labelledby="report-status-title"
     >
       <Heading id="report-status-title" className="text-lg font-bold text-notebook-ink">

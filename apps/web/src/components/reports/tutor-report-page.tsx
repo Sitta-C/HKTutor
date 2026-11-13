@@ -98,11 +98,14 @@ export function TutorReportPanel({
 
       {state.status === 'success' && (
         <div data-report-success>
-          <ReportSummaryCards copy={copy} report={createTutorReportViewModel(state.report, copy)} />
+          <ReportSummaryCards
+            copy={copy}
+            report={createTutorReportViewModel(state.report, copy, language)}
+          />
           <BookingStatusBreakdown
             copy={copy}
             headingLevel={embedded ? 'h4' : 'h2'}
-            report={createTutorReportViewModel(state.report, copy)}
+            report={createTutorReportViewModel(state.report, copy, language)}
           />
         </div>
       )}

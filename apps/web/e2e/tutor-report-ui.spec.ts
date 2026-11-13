@@ -109,7 +109,7 @@ test('private tutor report retries with keyboard focus and remains responsive', 
   await page.keyboard.press('Enter');
 
   await expect(page.getByRole('heading', { name: 'All-time report' })).toBeFocused();
-  await expect(page.getByText('THB 905.00', { exact: true })).toBeVisible();
+  await expect(page.getByText(/THB\s905\.00/, { exact: true })).toBeVisible();
   await expect(page.getByText('75%', { exact: true })).toBeVisible();
   await expect(page.getByRole('listitem')).toHaveCount(5);
   expect(request.reads()).toBeGreaterThanOrEqual(2);

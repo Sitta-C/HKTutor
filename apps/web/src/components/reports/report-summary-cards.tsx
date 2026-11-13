@@ -31,7 +31,7 @@ export function ReportSummaryCards({
       {cards.map((card) => (
         <div
           key={card.label}
-          className="min-w-0 rounded-2xl border border-paper-edge bg-white p-5 shadow-note"
+          className="min-w-0 rounded-2xl border border-paper-edge bg-white p-5"
         >
           <dt className="text-sm font-bold leading-6 text-notebook-muted-deep">{card.label}</dt>
           <dd className="mt-3 break-words text-2xl font-black tabular-nums text-notebook-ink sm:text-3xl">
