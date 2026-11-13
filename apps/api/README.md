@@ -43,7 +43,7 @@ a surviving session after that reset commits.
 ## Source layout
 
 - `src/modules/` contains runtime features: auth, avatars, bookings, health, profiles,
-  qualification-documents, and tutors.
+  qualification-documents, reports, and tutors.
 - `src/infrastructure/` contains technical adapters shared by features: database, email, and storage.
 - `src/common/` and `src/config/` contain cross-feature utilities and configuration.
 - `src/generated/` contains generated Prisma code and must not be edited manually.
@@ -3060,3 +3060,22 @@ than creating a Prisma migration ledger; the clean path separately proves actual
 and ledger checksums. No production migration file, API, DTO, fixture input or dependency changes.
 
 Follow the [DB06 commands, file/call map, acceptance evidence and limitations](../../tests/s3-db06-qa.md).
+
+## Tutor Reports (S3-T09)
+
+Implements `GET /api/v1/reports/tutor/me` (`S3-T09` / `S3-T09/API-01`) in `apps/api/src/modules/reports/`.
+
+- **Authentication and authorization**: Requires Bearer access JWT (`JwtAuthGuard`), `Role.TUTOR` (`RolesGuard`), active non-deleted verified account, and current privacy consent (`@RequireCurrentConsent()`). Tutor identity comes strictly from `@CurrentUser()`. Successful responses set `Cache-Control: no-store`.
+- **Request contract**: Accepts no query parameters and no request body (all-time MVP). Any supplied query parameter or non-empty request body is rejected with `400 VALIDATION_FAILED`.
+- **Snapshot and aggregation rules**:
+  - Executes inside a `RepeatableRead` transaction (`Prisma.TransactionIsolationLevel.RepeatableRead`), reading all bookings where `tutorProfileId = user.id` including historical bookings on archived or soft-deleted listings/slots.
+  - Returns `totalBookings`, `statusCounts` across all five `BookingStatus` keys (`PENDING`, `CONFIRMED`, `COMPLETED`, `CANCELED`, `EXPIRED`), `revenue` (`{ amount, currency: 'THB' }`), and `completionRate` (`{ completed, finalized, percent }`).
+  - `revenue.amount` sums `netAmount` using `Prisma.Decimal` only for bookings with `status = COMPLETED` and `paymentStatus = PAID`, formatted as a 2-decimal fixed string (`"0.00"` when empty). Unpaid, pending, confirmed, canceled, and expired bookings are never counted as received revenue.
+  - `completionRate.finalized = COMPLETED + CANCELED` (`EXPIRED`, `PENDING`, and `CONFIRMED` are excluded from the denominator). `percent` is `completed / finalized * 100` rounded `HALF_UP` to 2 decimal places as a JSON number, or `null` when `finalized = 0`.
+
+Verification:
+
+```bash
+pnpm --filter @hktutor/api test --runInBand reports
+pnpm --filter @hktutor/api test:e2e --runInBand --runTestsByPath test/reports.e2e-spec.ts
+```
