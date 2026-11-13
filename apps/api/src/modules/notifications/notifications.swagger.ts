@@ -32,7 +32,7 @@ export function ListNotificationsDoc(): MethodDecorator {
     ApiOperation({
       summary: 'List the current recipient inbox',
       description:
-        'Latest first by createdAt then id. Default limit 20, maximum 50. A 1H reminder supersedes 24H reminders for the same recipient and scheduled occurrence; superseded records remain stored but are excluded from items and unreadCount. unreadCount covers the entire visible caller inbox regardless of cursor/filter. GET never marks read. Timestamps are UTC ISO 8601; bookingId supplies booking-link metadata. All authenticated roles access only their own inbox.',
+        'Latest first by createdAt then id. Default limit 20, maximum 50. A 5H reminder (or historical 1H reminder) supersedes 24H reminders for the same recipient and scheduled occurrence; superseded records remain stored but are excluded from items and unreadCount. unreadCount covers the entire visible caller inbox regardless of cursor/filter. GET never marks read. Timestamps are UTC ISO 8601; bookingId supplies booking-link metadata. All authenticated roles access only their own inbox.',
     }),
     ApiOkResponse({ type: NotificationsResponseDto }),
     ApiBadRequestResponse({

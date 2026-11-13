@@ -24,7 +24,7 @@ const TUTOR_ID = '55555555-5555-4555-8555-555555555555';
 
 const START = new Date('2026-11-10T11:00:00.000Z');
 const NOW_24H = new Date('2026-11-09T11:00:00.000Z');
-const NOW_LATE = new Date('2026-11-10T10:30:00.000Z');
+const NOW_LATE = new Date('2026-11-10T06:30:00.000Z');
 const WINDOW_END = new Date('2026-11-10T11:00:00.000Z');
 
 interface BookingRow {
@@ -52,7 +52,7 @@ function bookingRow(overrides: Partial<BookingRow> = {}): BookingRow {
   };
 }
 
-function keyOf(row: BookingRow, band: '24H' | '1H', kind: 'CLASS' | 'PAYMENT'): string {
+function keyOf(row: BookingRow, band: '24H' | '5H', kind: 'CLASS' | 'PAYMENT'): string {
   return reminderEventKey(
     { id: row.id, slotId: row.slotId, startAtUtc: row.slot.startAtUtc },
     band,
@@ -246,23 +246,24 @@ describe('ReminderJobService (S3-T06)', () => {
     expect(written().every(({ bookingId }) => bookingId === BOOKING_ID)).toBe(true);
   });
 
-  it('sends one catch-up 1H band on a late first run, never the missed 24H band', async () => {
+  it('sends one catch-up 5H band on a late first run, never the missed 24H band', async () => {
     const row = bookingRow();
 
     await service.runOnce(NOW_LATE);
 
-    expect(writtenPairs()).toEqual([[STUDENT_ID, keyOf(row, '1H', 'PAYMENT')]]);
+    expect(writtenPairs()).toEqual([[STUDENT_ID, keyOf(row, '5H', 'PAYMENT')]]);
   });
 
   it.each([
     [24 * 60 * 60 * 1000 + 1, null],
     [24 * 60 * 60 * 1000, '24H'],
     [24 * 60 * 60 * 1000 - 1, '24H'],
-    [2 * 60 * 60 * 1000, '24H'],
-    [60 * 60 * 1000 + 1, '24H'],
-    [60 * 60 * 1000, '1H'],
-    [60 * 60 * 1000 - 1, '1H'],
-    [1, '1H'],
+    [6 * 60 * 60 * 1000, '24H'],
+    [5 * 60 * 60 * 1000 + 1, '24H'],
+    [5 * 60 * 60 * 1000, '5H'],
+    [5 * 60 * 60 * 1000 - 1, '5H'],
+    [4 * 60 * 60 * 1000, null],
+    [1, null],
     [0, null],
     [-1, null],
   ] as const)('re-plans a scanned row at delta %d ms into %s only', async (delta, band) => {
@@ -317,13 +318,13 @@ describe('ReminderJobService (S3-T06)', () => {
   it('keys reminders to the locked slot when the booking was rescheduled after the scan', async () => {
     const rescheduled = bookingRow({
       slotId: RESCHEDULED_SLOT_ID,
-      slot: { startAtUtc: new Date('2026-11-09T11:45:00.000Z') },
+      slot: { startAtUtc: new Date('2026-11-09T15:45:00.000Z') },
     });
     tx.booking.findUnique.mockResolvedValue(rescheduled);
 
     await service.runOnce(NOW_24H);
 
-    expect(writtenPairs()).toEqual([[STUDENT_ID, keyOf(rescheduled, '1H', 'PAYMENT')]]);
+    expect(writtenPairs()).toEqual([[STUDENT_ID, keyOf(rescheduled, '5H', 'PAYMENT')]]);
   });
 
   it('writes nothing when a reschedule moved the class out of the window after the scan', async () => {

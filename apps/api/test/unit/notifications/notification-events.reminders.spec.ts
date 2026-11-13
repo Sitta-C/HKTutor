@@ -25,7 +25,7 @@ const booking: ReminderBooking = {
   tutor: { userId: TUTOR_ID, accountStatus: AccountStatus.ACTIVE, deletedAt: null },
 };
 const NOW_24H = new Date('2026-11-09T11:00:00.000Z');
-const NOW_1H = new Date('2026-11-10T10:00:00.000Z');
+const NOW_5H = new Date('2026-11-10T06:00:00.000Z');
 
 const REMINDER_COPY_CASES: { eventType: ReminderEventType; title: string; body: string }[] = [
   {
@@ -34,19 +34,19 @@ const REMINDER_COPY_CASES: { eventType: ReminderEventType; title: string; body: 
     body: 'Your lesson starts within 24 hours.',
   },
   {
-    eventType: 'CLASS_REMINDER_1H',
-    title: 'Class starts within 1 hour',
-    body: 'Your lesson starts within 1 hour.',
+    eventType: 'CLASS_REMINDER_5H',
+    title: 'Class starts within 5 hours',
+    body: 'Your lesson starts within 5 hours.',
   },
   {
     eventType: 'PAYMENT_REMINDER_24H',
     title: 'Payment due for your class',
-    body: 'Your lesson starts within 24 hours and is still unpaid.',
+    body: 'Your lesson starts within 24 hours and is still unpaid. Payment closes 4 hours before the lesson starts.',
   },
   {
-    eventType: 'PAYMENT_REMINDER_1H',
+    eventType: 'PAYMENT_REMINDER_5H',
     title: 'Payment due for your class',
-    body: 'Your lesson starts within 1 hour and is still unpaid.',
+    body: 'Your lesson starts within 5 hours and is still unpaid. Payment closes 4 hours before the lesson starts.',
   },
 ];
 
@@ -76,7 +76,7 @@ describe('NotificationEventsService.writeReminders (S3-T06)', () => {
           : 'Payment due for your class',
         body: eventType.startsWith('CLASS')
           ? 'Your lesson starts within 24 hours.'
-          : 'Your lesson starts within 24 hours and is still unpaid.',
+          : 'Your lesson starts within 24 hours and is still unpaid. Payment closes 4 hours before the lesson starts.',
       })),
       skipDuplicates: true,
     });
@@ -88,7 +88,7 @@ describe('NotificationEventsService.writeReminders (S3-T06)', () => {
   it.each(REMINDER_COPY_CASES)(
     '$eventType uses fixed text with no names, amounts or links',
     async ({ eventType, title, body }) => {
-      const [reminder] = planReminders(booking, NOW_1H);
+      const [reminder] = planReminders(booking, NOW_5H);
       if (!reminder) throw new Error('Expected a planned reminder');
       const planned: PlannedReminder = { ...reminder, eventType };
 
@@ -112,7 +112,7 @@ describe('NotificationEventsService.writeReminders (S3-T06)', () => {
 
   it('counts only new rows when some reminders were already stored', async () => {
     createMany.mockResolvedValueOnce({ count: 1 }).mockResolvedValueOnce({ count: 0 });
-    const planned = planReminders(booking, NOW_1H);
+    const planned = planReminders(booking, NOW_5H);
 
     await expect(service.writeReminders(tx, BOOKING_ID, planned)).resolves.toBe(1);
     await expect(service.writeReminders(tx, BOOKING_ID, planned)).resolves.toBe(0);

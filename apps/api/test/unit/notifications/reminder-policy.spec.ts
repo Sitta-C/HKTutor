@@ -58,46 +58,46 @@ const REMINDER_BAND_CASES: ReminderBandCase[] = [
     expected: '24H',
   },
   {
-    name: 'a first run 2h before start sends the 24H catch-up',
+    name: 'a first run 6h before start sends the 24H catch-up',
     startAtUtc: START,
-    nowUtc: '2026-11-10T09:00:00.000Z',
-    bangkok: { startAt: START_BANGKOK, now: '2026-11-10 16:00:00.000' },
+    nowUtc: '2026-11-10T05:00:00.000Z',
+    bangkok: { startAt: START_BANGKOK, now: '2026-11-10 12:00:00.000' },
     expected: '24H',
   },
   {
-    name: '1h + 1ms before start still selects 24H',
+    name: '5h + 1ms before start still selects 24H',
     startAtUtc: START,
-    nowUtc: '2026-11-10T09:59:59.999Z',
-    bangkok: { startAt: START_BANGKOK, now: '2026-11-10 16:59:59.999' },
+    nowUtc: '2026-11-10T05:59:59.999Z',
+    bangkok: { startAt: START_BANGKOK, now: '2026-11-10 12:59:59.999' },
     expected: '24H',
   },
   {
-    name: 'exactly 1h before start selects only 1H',
+    name: 'exactly 5h before start selects only 5H',
     startAtUtc: START,
-    nowUtc: '2026-11-10T10:00:00.000Z',
-    bangkok: { startAt: START_BANGKOK, now: '2026-11-10 17:00:00.000' },
-    expected: '1H',
+    nowUtc: '2026-11-10T06:00:00.000Z',
+    bangkok: { startAt: START_BANGKOK, now: '2026-11-10 13:00:00.000' },
+    expected: '5H',
   },
   {
-    name: '1h - 1ms before start selects 1H',
+    name: '5h - 1ms before start selects 5H',
     startAtUtc: START,
-    nowUtc: '2026-11-10T10:00:00.001Z',
-    bangkok: { startAt: START_BANGKOK, now: '2026-11-10 17:00:00.001' },
-    expected: '1H',
+    nowUtc: '2026-11-10T06:00:00.001Z',
+    bangkok: { startAt: START_BANGKOK, now: '2026-11-10 13:00:00.001' },
+    expected: '5H',
   },
   {
-    name: 'a delayed run 30m before start selects 1H',
+    name: 'a delayed run 30m before start selects 5H',
     startAtUtc: START,
     nowUtc: '2026-11-10T10:30:00.000Z',
     bangkok: { startAt: START_BANGKOK, now: '2026-11-10 17:30:00.000' },
-    expected: '1H',
+    expected: '5H',
   },
   {
-    name: '1ms before start selects 1H',
+    name: '1ms before start selects 5H',
     startAtUtc: START,
     nowUtc: '2026-11-10T10:59:59.999Z',
     bangkok: { startAt: START_BANGKOK, now: '2026-11-10 17:59:59.999' },
-    expected: '1H',
+    expected: '5H',
   },
   {
     name: 'exactly at start selects nothing',
@@ -121,11 +121,11 @@ const REMINDER_BAND_CASES: ReminderBandCase[] = [
     expected: '24H',
   },
   {
-    name: 'a class at Bangkok midnight selects 1H at 23:00 Bangkok the day before',
+    name: 'a class at Bangkok midnight selects 5H at 19:00 Bangkok the day before',
     startAtUtc: MIDNIGHT_START,
-    nowUtc: '2026-11-10T16:00:00.000Z',
-    bangkok: { startAt: MIDNIGHT_START_BANGKOK, now: '2026-11-10 23:00:00.000' },
-    expected: '1H',
+    nowUtc: '2026-11-10T12:00:00.000Z',
+    bangkok: { startAt: MIDNIGHT_START_BANGKOK, now: '2026-11-10 19:00:00.000' },
+    expected: '5H',
   },
 ];
 
@@ -169,8 +169,8 @@ interface ReminderRecipientCase {
   expected: ExpectedReminder[];
 }
 
-const RUN_24H = '2026-11-10T09:00:00.000Z';
-const RUN_1H = '2026-11-10T10:30:00.000Z';
+const RUN_24H = '2026-11-10T05:00:00.000Z';
+const RUN_5H = '2026-11-10T06:30:00.000Z';
 const key = (band: ReminderBand, kind: 'CLASS' | 'PAYMENT', slotId = SLOT_ID, start = START) =>
   `reminder:${BOOKING_ID}:${slotId}:${start}:${band}:${kind}`;
 
@@ -184,11 +184,11 @@ const REMINDER_RECIPIENT_CASES: ReminderRecipientCase[] = [
     ],
   },
   {
-    name: 'confirmed and unpaid in the 1H band',
-    nowUtc: RUN_1H,
+    name: 'confirmed and unpaid in the 5H band',
+    nowUtc: RUN_5H,
     booking: {},
     expected: [
-      { userId: STUDENT_ID, eventType: 'PAYMENT_REMINDER_1H', eventKey: key('1H', 'PAYMENT') },
+      { userId: STUDENT_ID, eventType: 'PAYMENT_REMINDER_5H', eventKey: key('5H', 'PAYMENT') },
     ],
   },
   {
@@ -212,12 +212,12 @@ const REMINDER_RECIPIENT_CASES: ReminderRecipientCase[] = [
     expected: [],
   })),
   {
-    name: 'paid in the 1H band: class reminders for both participants',
-    nowUtc: RUN_1H,
+    name: 'paid in the 5H band: class reminders for both participants',
+    nowUtc: RUN_5H,
     booking: { paymentStatus: PaymentStatus.PAID },
     expected: [
-      { userId: STUDENT_ID, eventType: 'CLASS_REMINDER_1H', eventKey: key('1H', 'CLASS') },
-      { userId: TUTOR_ID, eventType: 'CLASS_REMINDER_1H', eventKey: key('1H', 'CLASS') },
+      { userId: STUDENT_ID, eventType: 'CLASS_REMINDER_5H', eventKey: key('5H', 'CLASS') },
+      { userId: TUTOR_ID, eventType: 'CLASS_REMINDER_5H', eventKey: key('5H', 'CLASS') },
     ],
   },
   {
@@ -252,13 +252,13 @@ const REMINDER_RECIPIENT_CASES: ReminderRecipientCase[] = [
   },
   {
     name: 'a confirmed booking outside both windows gets no reminders',
-    nowUtc: '2026-11-09T10:00:00.000Z',
+    nowUtc: '2026-11-09T06:00:00.000Z',
     booking: {},
     expected: [],
   },
   {
     name: 'a rescheduled booking uses the new slot and start time in its keys',
-    nowUtc: '2026-11-11T09:00:00.000Z',
+    nowUtc: '2026-11-11T05:00:00.000Z',
     booking: { slotId: RESCHEDULED_SLOT_ID, startAtUtc: RESCHEDULED_START },
     expected: [
       {
@@ -272,7 +272,7 @@ const REMINDER_RECIPIENT_CASES: ReminderRecipientCase[] = [
 
 const MINUTE_MS = 60 * 1000;
 const KEY_FORMAT =
-  /^reminder:[0-9a-f-]{36}:[0-9a-f-]{36}:\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z:(24H|1H):(CLASS|PAYMENT)$/;
+  /^reminder:[0-9a-f-]{36}:[0-9a-f-]{36}:\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z:(24H|5H):(CLASS|PAYMENT)$/;
 
 const bangkokFormat = new Intl.DateTimeFormat('en-CA', {
   timeZone: 'Asia/Bangkok',
@@ -294,6 +294,13 @@ function bangkok(utc: string): string {
 }
 
 describe('reminder policy (S3-T05 truth table)', () => {
+  it.each([1, 0, -1])('stops payment reminders at the 4h deadline (margin %d ms)', (margin) => {
+    const now = new Date(new Date(START).getTime() - 4 * 3_600_000 - margin);
+    expect(planReminders(reminderBooking(), now)).toHaveLength(margin > 0 ? 1 : 0);
+    expect(planReminders(reminderBooking({ paymentStatus: PaymentStatus.PAID }), now)).toHaveLength(
+      2,
+    );
+  });
   it.each(REMINDER_BAND_CASES)('$name', ({ startAtUtc, nowUtc, expected }) => {
     expect(selectReminderBand(new Date(startAtUtc), new Date(nowUtc))).toBe(expected);
   });
@@ -307,7 +314,7 @@ describe('reminder policy (S3-T05 truth table)', () => {
     expect(planReminders(reminderBooking(booking), new Date(nowUtc))).toEqual(expected);
   });
 
-  it('moves from none to 24H to 1H to none exactly at the boundaries, one band per run', () => {
+  it('moves from none to 24H to 5H to none exactly at the boundaries, one band per run', () => {
     const start = new Date('2026-11-10T11:00:00.000Z');
     const changes: { minutesBeforeStart: number; band: string }[] = [];
     let previous: string | undefined;
@@ -326,7 +333,7 @@ describe('reminder policy (S3-T05 truth table)', () => {
     expect(changes).toEqual([
       { minutesBeforeStart: 25 * 60, band: 'none' },
       { minutesBeforeStart: 24 * 60, band: '24H' },
-      { minutesBeforeStart: 60, band: '1H' },
+      { minutesBeforeStart: 300, band: '5H' },
       { minutesBeforeStart: 0, band: 'none' },
     ]);
   });
@@ -347,7 +354,7 @@ describe('reminder policy (S3-T05 truth table)', () => {
       slotId: RESCHEDULED_SLOT_ID,
       startAtUtc: '2026-11-11T11:00:00.000Z',
     });
-    for (const band of ['24H', '1H'] as const) {
+    for (const band of ['24H', '5H'] as const) {
       for (const kind of ['CLASS', 'PAYMENT'] as const) {
         expect(reminderEventKey(rescheduled, band, kind)).not.toBe(
           reminderEventKey(original, band, kind),
@@ -358,7 +365,7 @@ describe('reminder policy (S3-T05 truth table)', () => {
 
   it('keeps bands and kinds apart for the same booking', () => {
     const booking = reminderBooking();
-    const keys = (['24H', '1H'] as const).flatMap((band) =>
+    const keys = (['24H', '5H'] as const).flatMap((band) =>
       (['CLASS', 'PAYMENT'] as const).map((kind) => reminderEventKey(booking, band, kind)),
     );
     expect(new Set(keys).size).toBe(4);

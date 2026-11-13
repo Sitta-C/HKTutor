@@ -38,8 +38,10 @@ export const notificationCopy = {
       RESCHEDULE_WITHDRAWN: 'Reschedule withdrawn',
       CLASS_REMINDER_24H: 'Class starts within 24 hours',
       CLASS_REMINDER_1H: 'Class starts within 1 hour',
+      CLASS_REMINDER_5H: 'Class starts within 5 hours',
       PAYMENT_REMINDER_24H: 'Please pay for your lesson starting within 24 hours',
       PAYMENT_REMINDER_1H: 'Please pay for your lesson starting within 1 hour',
+      PAYMENT_REMINDER_5H: 'Please pay for your lesson starting within 5 hours',
       PAYMENT_QR_READY: 'Payment QR ready',
     },
     eventDetails: {
@@ -64,10 +66,14 @@ export const notificationCopy = {
         'When this reminder was sent, your lesson was starting within 24 hours. Open the booking for the latest schedule.',
       CLASS_REMINDER_1H:
         'When this reminder was sent, your lesson was starting within 1 hour. Open the booking for the latest schedule.',
+      CLASS_REMINDER_5H:
+        'When this reminder was sent, your lesson was starting within 5 hours. Open the booking for the latest schedule.',
       PAYMENT_REMINDER_24H:
         'When this reminder was sent, your lesson was unpaid and starting within 24 hours. Open the booking to check its current payment status.',
       PAYMENT_REMINDER_1H:
         'When this reminder was sent, your lesson was unpaid and starting within 1 hour. Open the booking to check its current payment status.',
+      PAYMENT_REMINDER_5H:
+        'When this reminder was sent, your lesson was unpaid and starting within 5 hours. Payment closes 4 hours before the lesson starts. Open the booking for its current payment status.',
     },
   },
   th: {
@@ -109,8 +115,10 @@ export const notificationCopy = {
       RESCHEDULE_WITHDRAWN: 'ถอนคำขอเลื่อนเวลาแล้ว',
       CLASS_REMINDER_24H: 'บทเรียนเริ่มภายใน 24 ชั่วโมง',
       CLASS_REMINDER_1H: 'บทเรียนเริ่มภายใน 1 ชั่วโมง',
+      CLASS_REMINDER_5H: 'บทเรียนเริ่มภายใน 5 ชั่วโมง',
       PAYMENT_REMINDER_24H: 'กรุณาชำระเงินสำหรับบทเรียนที่จะเริ่มภายใน 24 ชั่วโมง',
       PAYMENT_REMINDER_1H: 'กรุณาชำระเงินสำหรับบทเรียนที่จะเริ่มภายใน 1 ชั่วโมง',
+      PAYMENT_REMINDER_5H: 'กรุณาชำระเงินสำหรับบทเรียนที่จะเริ่มภายใน 5 ชั่วโมง',
       PAYMENT_QR_READY: 'QR ชำระเงินพร้อมแล้ว',
     },
     eventDetails: {
@@ -134,10 +142,14 @@ export const notificationCopy = {
         'ตอนส่งแจ้งเตือน บทเรียนจะเริ่มภายใน 24 ชั่วโมง เปิดการจองเพื่อตรวจสอบวันเวลาเรียนล่าสุด',
       CLASS_REMINDER_1H:
         'ตอนส่งแจ้งเตือน บทเรียนจะเริ่มภายใน 1 ชั่วโมง เปิดการจองเพื่อตรวจสอบวันเวลาเรียนล่าสุด',
+      CLASS_REMINDER_5H:
+        'ตอนส่งแจ้งเตือน บทเรียนจะเริ่มภายใน 5 ชั่วโมง เปิดการจองเพื่อตรวจสอบวันเวลาเรียนล่าสุด',
       PAYMENT_REMINDER_24H:
         'ตอนส่งแจ้งเตือน บทเรียนจะเริ่มภายใน 24 ชั่วโมงและยังไม่ได้ชำระเงิน เปิดการจองเพื่อตรวจสอบสถานะการชำระเงินล่าสุด',
       PAYMENT_REMINDER_1H:
         'ตอนส่งแจ้งเตือน บทเรียนจะเริ่มภายใน 1 ชั่วโมงและยังไม่ได้ชำระเงิน เปิดการจองเพื่อตรวจสอบสถานะการชำระเงินล่าสุด',
+      PAYMENT_REMINDER_5H:
+        'ตอนส่งแจ้งเตือน บทเรียนจะเริ่มภายใน 5 ชั่วโมงและยังไม่ได้ชำระเงิน ต้องชำระก่อนเส้นตาย 4 ชั่วโมงก่อนเริ่มเรียน เปิดการจองเพื่อตรวจสอบสถานะล่าสุด',
     },
   },
 } as const;
