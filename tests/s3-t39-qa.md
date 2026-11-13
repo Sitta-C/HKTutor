@@ -13,7 +13,8 @@ onto `a101733` without conflicts.
 
 ## 1. Final Swagger contract
 
-`GET /api/docs` is generated from the real `AppModule`. The S2-T39 contract test
+`GET /api/v1/docs` (Swagger UI, mounted under the global `api/v1` prefix) is generated from the real
+`AppModule`. The S2-T39 contract test
 (`apps/api/test/unit/api-documentation.spec.ts`) already requires the following of every mounted
 route: summary, description, tag, a 2xx response (410 for retired routes), 401 when JWT-protected,
 400/404 for path parameters, 400 for request bodies, and a description for every error. S3-T39

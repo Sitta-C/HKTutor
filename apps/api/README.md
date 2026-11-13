@@ -3013,7 +3013,7 @@ Chromium projects were run; Firefox and WebKit were not. No external service is 
 
 ## Final Swagger contract (S3-T39)
 
-Swagger UI (`/api/docs`) groups every operation under exactly one lowercase tag: `reviews`,
+Swagger UI (`/api/v1/docs`) groups every operation under exactly one lowercase tag: `reviews`,
 `payments`, `coupons`, `reports`, `avatars`, and the existing `bookings`, `tutors` and others. Sprint 3
 controllers carry a class-level tag helper (for example `ReviewsControllerDoc`). A method-level
 `@ApiTags` next to the automatic controller tag would create a duplicate group. Every 2xx response
