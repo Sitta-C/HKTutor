@@ -80,6 +80,7 @@ describe('Tutor booking confirm and reject (e2e)', () => {
   it('confirms a pending booking and keeps the slot reserved', async () => {
     authenticateAs(Role.TUTOR);
     bookingFindUnique.mockResolvedValue({
+      slot: { startAtUtc: new Date(Date.now() + 24 * 3_600_000) },
       status: BookingStatus.PENDING,
       studentUserId: STUDENT_ID,
       tutorProfileId: TUTOR_ID,
@@ -96,13 +97,19 @@ describe('Tutor booking confirm and reject (e2e)', () => {
     });
     expect(bookingUpdateMany).toHaveBeenCalledWith({
       data: { status: BookingStatus.CONFIRMED },
-      where: { id: BOOKING_ID, status: BookingStatus.PENDING, tutorProfileId: TUTOR_ID },
+      where: {
+        id: BOOKING_ID,
+        slot: { startAtUtc: { gt: expect.any(Date) as unknown } },
+        status: BookingStatus.PENDING,
+        tutorProfileId: TUTOR_ID,
+      },
     });
   });
 
   it('rejects a pending booking, stores the cancellation fields and releases the slot', async () => {
     authenticateAs(Role.TUTOR);
     bookingFindUnique.mockResolvedValue({
+      slot: { startAtUtc: new Date(Date.now() + 24 * 3_600_000) },
       status: BookingStatus.PENDING,
       studentUserId: STUDENT_ID,
       tutorProfileId: TUTOR_ID,
@@ -354,7 +361,11 @@ describe('Tutor booking confirm and reject (e2e)', () => {
         bookingFindUnique.mockResolvedValueOnce(
           outcome === 'missing'
             ? null
-            : { status: BookingStatus.PENDING, tutorProfileId: OTHER_TUTOR_ID },
+            : {
+                slot: { startAtUtc: new Date(Date.now() + 24 * 3_600_000) },
+                status: BookingStatus.PENDING,
+                tutorProfileId: OTHER_TUTOR_ID,
+              },
         );
         const response = await actionRequest(action)
           .send({})
@@ -407,6 +418,7 @@ describe('Tutor booking confirm and reject (e2e)', () => {
   function authenticateOwner(): void {
     authenticateAs(Role.TUTOR);
     bookingFindUnique.mockResolvedValue({
+      slot: { startAtUtc: new Date(Date.now() + 24 * 3_600_000) },
       status: BookingStatus.PENDING,
       studentUserId: STUDENT_ID,
       tutorProfileId: TUTOR_ID,

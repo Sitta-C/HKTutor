@@ -58,7 +58,7 @@ export function StudentPaymentDoc(create: boolean): MethodDecorator {
         ? 'Create or resume a test PromptPay payment'
         : 'Reconcile and read the latest payment',
       description:
-        'Student owner only. Amount and currency come from the booking. One active attempt per booking. Unknown creation outcomes remain locked until recovered. Reads independently retrieve the Omise charge; they never create a charge. Test mode only. Responses include stored booking amounts and immutable coupon snapshots. Applied coupons are revalidated and reserved atomically before a provider call. Verified success consumes the reservation together with the paid receipt; confirmed failure/expiry releases it. Uncertain outcomes retain capacity. A valid full coupon settles zero net without provider configuration, charge or attempt, with reference coupon:<useId>. Reserved coupons remain honored after expiry. Current privacy consent is required.',
+        'Student owner only. New payments (including zero-net coupons) require now < slot.startAtUtc minus 4 hours. QR expiry is capped at this deadline. Existing attempts remain readable/reconcilable after it; verified success is still recorded. Amount and currency come from the booking. One active attempt per booking. Unknown creation outcomes remain locked until recovered. Reads independently retrieve the Omise charge; they never create a charge. Test mode only. Responses include stored booking amounts and immutable coupon snapshots. Applied coupons are revalidated and reserved atomically before a provider call. Verified success consumes the reservation together with the paid receipt; confirmed failure/expiry releases it. Uncertain outcomes retain capacity. A valid full coupon settles zero net without provider configuration, charge or attempt, with reference coupon:<useId>. Reserved coupons remain honored after expiry. Current privacy consent is required.',
     }),
     ApiOkResponse({ type: PaymentResponseDto }),
     ApiBadRequestResponse({ description: 'Invalid booking UUID or nonempty payment request body' }),
@@ -69,7 +69,7 @@ export function StudentPaymentDoc(create: boolean): MethodDecorator {
     ApiNotFoundResponse({ description: 'Booking not found' }),
     ApiConflictResponse({
       description:
-        'BOOKING_NOT_PAYABLE, PAYMENT_STATE_CONFLICT (stale quote or mismatched snapshot), COUPON_EXPIRED, COUPON_INACTIVE, COUPON_EXHAUSTED, COUPON_ALREADY_USED, PAYMENT_AMOUNT_UNSUPPORTED (positive net outside THB 20–150000), or mismatched charge',
+        'BOOKING_PAYMENT_DEADLINE_PASSED, BOOKING_NOT_PAYABLE, PAYMENT_STATE_CONFLICT (stale quote or mismatched snapshot), COUPON_EXPIRED, COUPON_INACTIVE, COUPON_EXHAUSTED, COUPON_ALREADY_USED, PAYMENT_AMOUNT_UNSUPPORTED (positive net outside THB 20–150000), or mismatched charge',
     }),
     ApiServiceUnavailableResponse({
       description:

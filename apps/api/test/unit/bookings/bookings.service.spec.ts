@@ -94,9 +94,9 @@ describe('BookingsService', () => {
 
   const futureSlot = (slotId: string, tutorUserId: string) => ({
     deletedAt: null,
-    endAtUtc: new Date(Date.now() + 2 * 60 * 60 * 1000),
+    endAtUtc: new Date(Date.now() + 25 * 60 * 60 * 1000),
     id: slotId,
-    startAtUtc: new Date(Date.now() + 60 * 60 * 1000),
+    startAtUtc: new Date(Date.now() + 24 * 60 * 60 * 1000),
     tutorProfileId: tutorUserId,
   });
 
@@ -127,7 +127,7 @@ describe('BookingsService', () => {
       const { bookingId, listingId, slotId, studentUserId, tutorUserId } = createTestData();
       const pricePerHour = 500;
       const createdAt = new Date('2026-09-10T09:04:31.001Z');
-      const startAtUtc = new Date(Date.now() + 60 * 60 * 1000);
+      const startAtUtc = new Date(Date.now() + 24 * 60 * 60 * 1000);
       const expectedAmount = 750;
       const mockSlot = {
         ...futureSlot(slotId, tutorUserId),
@@ -492,9 +492,9 @@ describe('BookingsService', () => {
 
       const mockSlot = {
         deletedAt: new Date('2026-09-01T00:00:00Z'),
-        endAtUtc: new Date(Date.now() + 2 * 60 * 60 * 1000),
+        endAtUtc: new Date(Date.now() + 25 * 60 * 60 * 1000),
         id: slotId,
-        startAtUtc: new Date(Date.now() + 60 * 60 * 1000),
+        startAtUtc: new Date(Date.now() + 24 * 60 * 60 * 1000),
         tutorProfileId: tutorUserId,
       };
 
@@ -845,9 +845,9 @@ describe('BookingsService', () => {
   describe('getQuote', () => {
     const mockSlotResult = (slotId: string, tutorUserId: string) => ({
       deletedAt: null,
-      endAtUtc: new Date(Date.now() + 2 * 60 * 60 * 1000),
+      endAtUtc: new Date(Date.now() + 25 * 60 * 60 * 1000),
       id: slotId,
-      startAtUtc: new Date(Date.now() + 60 * 60 * 1000),
+      startAtUtc: new Date(Date.now() + 24 * 60 * 60 * 1000),
       tutorProfileId: tutorUserId,
     });
 
@@ -921,7 +921,7 @@ describe('BookingsService', () => {
 
     it('prorates the authoritative amount from the slot duration and rounds to satang', async () => {
       const { listingId, slotId, studentUserId, tutorUserId } = createTestData();
-      const startAtUtc = new Date(Date.now() + 60 * 60 * 1000);
+      const startAtUtc = new Date(Date.now() + 24 * 60 * 60 * 1000);
 
       mockPrismaService.availabilitySlot.findUnique.mockResolvedValue({
         ...mockSlotResult(slotId, tutorUserId),
@@ -1733,9 +1733,27 @@ describe('BookingsService', () => {
 
   describe('tutor confirm and reject actions', () => {
     const pendingBooking = (tutorUserId: string) => ({
+      slot: { startAtUtc: new Date(Date.now() + 24 * 3_600_000) },
       status: BookingStatus.PENDING,
       tutorProfileId: tutorUserId,
     });
+
+    it.each([0, -1, -5 * 3_600_000])(
+      'refuses confirmation at/after the payment deadline (%d)',
+      async (margin) => {
+        const { bookingId, tutorUserId } = createTestData();
+        mockPrismaService.booking.findUnique.mockResolvedValue({
+          ...pendingBooking(tutorUserId),
+          slot: { startAtUtc: new Date(Date.now() + 4 * 3_600_000 + margin) },
+        });
+        await expect(service.confirmTutorBooking({ bookingId, tutorUserId })).rejects.toMatchObject(
+          {
+            response: { code: 'BOOKING_PAYMENT_DEADLINE_PASSED' },
+          },
+        );
+        expect(mockPrismaService.$transaction).not.toHaveBeenCalled();
+      },
+    );
 
     const stubTransition = (options: {
       activeBookings?: number;
@@ -1877,7 +1895,12 @@ describe('BookingsService', () => {
       });
       expect(updateMany).toHaveBeenCalledWith({
         data: { status: BookingStatus.CONFIRMED },
-        where: { id: bookingId, status: BookingStatus.PENDING, tutorProfileId: tutorUserId },
+        where: {
+          id: bookingId,
+          status: BookingStatus.PENDING,
+          tutorProfileId: tutorUserId,
+          slot: { startAtUtc: { gt: expect.any(Date) as unknown } },
+        },
       });
     });
 

@@ -188,6 +188,7 @@ describe('BookingCouponsService', () => {
         netAmount: new Prisma.Decimal(450),
         paymentPending: false,
         paymentStatus: PaymentStatus.UNPAID,
+        slot: { startAtUtc: new Date(Date.now() + 24 * 3_600_000) },
         status: BookingStatus.CONFIRMED,
         studentUserId,
         subtotalAmount: new Prisma.Decimal(450),

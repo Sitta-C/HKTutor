@@ -16,6 +16,8 @@ import {
   OmiseRequestRejected,
   OmiseService,
 } from '@infrastructure/payments/omise.service';
+import { assertBeforePaymentDeadline } from '@modules/bookings/booking-payment-deadline';
+import { bookingPaymentDeadline } from '@modules/bookings/booking-payment-policy';
 import { couponSnapshot, couponSnapshotSelect } from '@modules/coupons/coupon-snapshot';
 import { NotificationEventsService } from '@modules/notifications/notification-events.service';
 
@@ -38,6 +40,7 @@ const bookingSelect = {
   paidAt: true,
   mockReference: true,
   paymentReference: true,
+  slot: { select: { startAtUtc: true } },
 } satisfies Prisma.BookingSelect;
 
 type PaymentBooking = Prisma.BookingGetPayload<{ select: typeof bookingSelect }>;
@@ -71,6 +74,7 @@ export class PaymentsService {
       if (booking.status !== 'CONFIRMED') {
         throw domainConflict('BOOKING_NOT_PAYABLE', 'Only confirmed unpaid bookings are payable');
       }
+      assertBeforePaymentDeadline(booking.slot.startAtUtc);
       const subunits = booking.netAmount.mul(100);
       const zero = subunits.isZero();
       if (
@@ -82,6 +86,7 @@ export class PaymentsService {
         throw domainConflict('PAYMENT_AMOUNT_UNSUPPORTED', 'Unsupported payment amount');
       }
       await this.validateCoupon(tx, booking);
+      assertBeforePaymentDeadline(booking.slot.startAtUtc);
       await tx.$queryRaw`SELECT set_config('hktutor.audit_actor_user_id', ${studentUserId}, true)`;
       if (zero && booking.appliedCouponId) {
         const now = new Date();
@@ -131,17 +136,24 @@ export class PaymentsService {
           },
         });
       }
-      return created;
+      return { ...created, deadline: bookingPaymentDeadline(booking.slot.startAtUtc) };
     });
     if (!attempt) {
       return this.getStatus(bookingId, studentUserId);
     }
+    let deadlinePassedBeforeCharge = false;
     try {
+      const expiresAt = new Date(Math.min(Date.now() + 15 * 60_000, attempt.deadline.getTime()));
+      if (expiresAt.getTime() <= Date.now()) {
+        // No provider POST has happened, so releasing this claim is definitive and safe.
+        deadlinePassedBeforeCharge = true;
+        throw new OmiseRequestRejected('Payment deadline passed before charge creation');
+      }
       const charge = await this.omise.createCharge({
         amount: attempt.amount.mul(100).toNumber(),
         attemptId: attempt.id,
         bookingId,
-        expiresAt: new Date(Date.now() + 15 * 60_000),
+        expiresAt,
       });
       await this.applyCharge(charge, attempt.id);
     } catch (error) {
@@ -150,7 +162,12 @@ export class PaymentsService {
           await this.lockAttemptBooking(tx, attempt);
           const failed = await tx.paymentAttempt.updateMany({
             where: { id: attempt.id, status: 'CREATING' },
-            data: { status: 'FAILED', failureCode: 'provider_rejected' },
+            data: {
+              status: 'FAILED',
+              failureCode: deadlinePassedBeforeCharge
+                ? 'payment_deadline_passed'
+                : 'provider_rejected',
+            },
           });
           if (failed.count === 1) {
             await this.finishReservation(tx, attempt, false);
@@ -160,6 +177,12 @@ export class PaymentsService {
             });
           }
         });
+        if (deadlinePassedBeforeCharge) {
+          throw domainConflict(
+            'BOOKING_PAYMENT_DEADLINE_PASSED',
+            'Payment closes 4 hours before the lesson starts',
+          );
+        }
         throw new ServiceUnavailableException(
           'Omise rejected the payment request; check test account configuration and retry',
         );
@@ -276,6 +299,7 @@ export class PaymentsService {
         if (
           booking.status === 'CONFIRMED' &&
           booking.paymentStatus === 'UNPAID' &&
+          bookingPaymentDeadline(booking.slot.startAtUtc).getTime() > Date.now() &&
           charge.qrCodeUrl &&
           charge.expiresAt &&
           charge.expiresAt.getTime() > Date.now()

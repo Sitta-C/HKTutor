@@ -22,6 +22,7 @@ const CHARGE_ID = 'chrg_test_example123';
 const booking = () => ({
   id: BOOKING_ID,
   studentUserId: STUDENT_ID,
+  slot: { startAtUtc: new Date(Date.now() + 24 * 3_600_000) },
   status: 'CONFIRMED',
   paymentStatus: 'UNPAID',
   paymentPending: false,
@@ -138,6 +139,98 @@ describe('PaymentsService', () => {
 
   afterEach(() => {
     jest.useRealTimers();
+  });
+
+  it.each([0, -1, -4 * 3_600_000])(
+    'refuses new charges at or after the 4h deadline (remaining margin %d ms)',
+    async (margin) => {
+      db.booking.findUnique.mockResolvedValue({
+        ...booking(),
+        slot: { startAtUtc: new Date(Date.now() + 4 * 3_600_000 + margin) },
+      });
+      await expect(service.create(BOOKING_ID, STUDENT_ID)).rejects.toMatchObject({
+        response: { code: 'BOOKING_PAYMENT_DEADLINE_PASSED' },
+      });
+      expect(omise.createCharge).not.toHaveBeenCalled();
+      expect(db.paymentAttempt.create).not.toHaveBeenCalled();
+    },
+  );
+
+  it('caps a last-minute QR at the deadline and permits creation 1ms before it', async () => {
+    const deadline = new Date(Date.now() + 1);
+    db.booking.findUnique.mockResolvedValue({
+      ...booking(),
+      slot: { startAtUtc: new Date(deadline.getTime() + 4 * 3_600_000) },
+    });
+    await service.create(BOOKING_ID, STUDENT_ID);
+    expect(omise.createCharge).toHaveBeenCalledWith(
+      expect.objectContaining({ expiresAt: deadline }),
+    );
+  });
+
+  it('does not settle a 100% coupon after the deadline', async () => {
+    db.booking.findUnique.mockResolvedValue({
+      ...booking(),
+      netAmount: new Prisma.Decimal(0),
+      appliedCouponId: ATTEMPT_ID,
+      appliedCouponPercent: 100,
+      slot: { startAtUtc: new Date(Date.now() + 4 * 3_600_000) },
+    });
+    await expect(service.create(BOOKING_ID, STUDENT_ID)).rejects.toMatchObject({
+      response: { code: 'BOOKING_PAYMENT_DEADLINE_PASSED' },
+    });
+    expect(db.couponReservation.create).not.toHaveBeenCalled();
+    expect(db.booking.update).not.toHaveBeenCalled();
+  });
+
+  it('releases a claim without a provider POST if the deadline passes before charge creation', async () => {
+    db.paymentAttempt.updateMany.mockResolvedValue({ count: 1 });
+    const create = db.paymentAttempt.create.getMockImplementation();
+    db.booking.findUnique.mockResolvedValue({
+      ...booking(),
+      slot: { startAtUtc: new Date(Date.now() + 4 * 3_600_000 + 1) },
+    });
+    db.paymentAttempt.create.mockImplementation((...args: unknown[]) => {
+      const result: unknown = create?.(...args);
+      jest.setSystemTime(new Date(Date.now() + 2));
+      return result;
+    });
+    await expect(service.create(BOOKING_ID, STUDENT_ID)).rejects.toMatchObject({
+      response: { code: 'BOOKING_PAYMENT_DEADLINE_PASSED' },
+    });
+    expect(omise.createCharge).not.toHaveBeenCalled();
+    expect(db.paymentAttempt.updateMany).toHaveBeenCalledWith({
+      where: { id: expect.any(String) as unknown, status: 'CREATING' },
+      data: { status: 'FAILED', failureCode: 'payment_deadline_passed' },
+    });
+    expect(db.booking.updateMany).toHaveBeenCalledWith({
+      where: { id: BOOKING_ID, paymentStatus: 'UNPAID' },
+      data: { paymentPending: false },
+    });
+  });
+
+  it('preserves provider-confirmed success arriving after the deadline', async () => {
+    const saved = { ...attempt(), status: 'PENDING', chargeId: CHARGE_ID };
+    db.booking.findUnique.mockResolvedValue({
+      ...booking(),
+      paymentPending: true,
+      slot: { startAtUtc: new Date(Date.now() - 3_600_000) },
+    });
+    db.paymentAttempt.findFirst.mockResolvedValue(saved);
+    db.paymentAttempt.findUnique.mockResolvedValue(saved);
+    omise.retrieveCharge.mockResolvedValue({
+      ...charge(),
+      status: 'successful',
+      paid: true,
+      paidAt: new Date(Date.now() - 6 * 3_600_000),
+    });
+    await service.getStatus(BOOKING_ID, STUDENT_ID);
+    expect(db.booking.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ paymentStatus: 'PAID' }) as unknown,
+      }),
+    );
+    expect(omise.createCharge).not.toHaveBeenCalled();
   });
 
   it('writes the payment prompt in the same transaction as a newly usable QR', async () => {

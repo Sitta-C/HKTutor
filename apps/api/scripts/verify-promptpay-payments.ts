@@ -6,6 +6,7 @@ import { Test } from '@nestjs/testing';
 
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import { OmiseRequestRejected, OmiseService } from '@infrastructure/payments/omise.service';
+import { BookingExpiryService } from '@modules/bookings/booking-expiry.service';
 import { BookingsService } from '@modules/bookings/bookings.service';
 import { NotificationEventsService } from '@modules/notifications/notification-events.service';
 import { PaymentsService } from '@modules/payments/payments.service';
@@ -83,6 +84,7 @@ async function main(): Promise<void> {
       { provide: ConfigService, useValue: new ConfigService({ DATABASE_URL: connectionString }) },
       PrismaService,
       PaymentsService,
+      BookingExpiryService,
       BookingsService,
       NotificationEventsService,
       { provide: OmiseService, useValue: omise },
@@ -167,6 +169,105 @@ async function main(): Promise<void> {
         description: 'Disposable payment test',
       },
     });
+
+    const expiry = module.get(BookingExpiryService);
+    const deadlineBookingId = await fixture();
+    const deadlineBooking = await prisma.booking.findUniqueOrThrow({
+      where: { id: deadlineBookingId },
+    });
+    const closeSlot = async (remainingMs: number) => {
+      const startAtUtc = new Date(Date.now() + remainingMs);
+      await prisma.availabilitySlot.update({
+        where: { id: deadlineBooking.slotId },
+        data: { startAtUtc, endAtUtc: new Date(startAtUtc.getTime() + 3_600_000) },
+      });
+      return startAtUtc;
+    };
+    // A last-minute QR is capped by the booking deadline, not the usual 15-minute TTL.
+    const nearStart = await closeSlot(4 * 3_600_000 + 5 * 60_000);
+    await payments.create(deadlineBookingId, studentId);
+    const nearCharge = currentCharge(deadlineBookingId);
+    assert.equal(nearCharge.expiresAt?.getTime(), nearStart.getTime() - 4 * 3_600_000);
+    await closeSlot(3 * 3_600_000);
+    await expiry.runOnce(new Date());
+    assert.equal(
+      (await prisma.booking.findUniqueOrThrow({ where: { id: deadlineBookingId } })).status,
+      'CONFIRMED',
+    );
+    // Status reads never invent another charge, even after the deadline.
+    const createsBeforeRecovery = creates;
+    await payments.create(deadlineBookingId, studentId);
+    assert.equal(creates, createsBeforeRecovery);
+    nearCharge.status = 'successful';
+    nearCharge.paid = true;
+    nearCharge.paidAt = new Date();
+    await webhook(nearCharge);
+    await expiry.runOnce(new Date());
+    assert.equal(
+      (await prisma.booking.findUniqueOrThrow({ where: { id: deadlineBookingId } })).paymentStatus,
+      'PAID',
+    );
+    // Return the slot to its own isolated range before testing another overdue booking.
+    await closeSlot(24 * 3_600_000);
+
+    const overdueId = await fixture();
+    const overdue = await prisma.booking.findUniqueOrThrow({ where: { id: overdueId } });
+    const overdueStart = new Date(Date.now() + 4 * 3_600_000 - 1000);
+    await prisma.availabilitySlot.update({
+      where: { id: overdue.slotId },
+      data: { startAtUtc: overdueStart, endAtUtc: new Date(overdueStart.getTime() + 3_600_000) },
+    });
+    const beforeClosed = creates;
+    await assert.rejects(
+      payments.create(overdueId, studentId),
+      (error: unknown) => error instanceof Error && error.message.includes('4 hours'),
+    );
+    assert.equal(creates, beforeClosed);
+    await prisma.booking.update({ where: { id: overdueId }, data: { status: 'PENDING' } });
+    const outcomes = await Promise.allSettled([
+      bookings.confirmTutorBooking({ bookingId: overdueId, tutorUserId: tutorId }),
+      expiry.runOnce(new Date()),
+    ]);
+    assert.equal(outcomes[0]?.status, 'rejected');
+    assert.equal(
+      (await prisma.booking.findUniqueOrThrow({ where: { id: overdueId } })).status,
+      'EXPIRED',
+    );
+    await prisma.availabilitySlot.update({
+      where: { id: overdue.slotId },
+      data: {
+        startAtUtc: new Date(Date.now() + 26 * 3_600_000),
+        endAtUtc: new Date(Date.now() + 27 * 3_600_000),
+      },
+    });
+
+    // Provider failure after the cutoff releases the attempt, then expires the unpaid booking.
+    const failedDeadlineId = await fixture();
+    await payments.create(failedDeadlineId, studentId);
+    const failedBooking = await prisma.booking.findUniqueOrThrow({
+      where: { id: failedDeadlineId },
+    });
+    await prisma.availabilitySlot.update({
+      where: { id: failedBooking.slotId },
+      data: { startAtUtc: overdueStart, endAtUtc: new Date(overdueStart.getTime() + 3_600_000) },
+    });
+    await expiry.runOnce(new Date());
+    assert.equal(
+      (await prisma.booking.findUniqueOrThrow({ where: { id: failedDeadlineId } })).status,
+      'CONFIRMED',
+    );
+    const failedCharge = currentCharge(failedDeadlineId);
+    failedCharge.status = 'expired';
+    await webhook(failedCharge);
+    await expiry.runOnce(new Date());
+    assert.equal(
+      (await prisma.booking.findUniqueOrThrow({ where: { id: failedDeadlineId } })).status,
+      'EXPIRED',
+    );
+    process.stdout.write(
+      'PASS 4h deadline, capped QR, confirm/expiry race, protected active payment, late success and terminal expiry\n',
+    );
+    creates = 0;
 
     const bookingId = await fixture();
     let release = () => {};

@@ -13,6 +13,7 @@ import {
   PaymentStatus,
 } from '@generated/prisma/enums';
 import { PrismaService } from '@infrastructure/database/prisma.service';
+import { assertBeforePaymentDeadline } from '@modules/bookings/booking-payment-deadline';
 import { couponSnapshot } from '@modules/coupons/coupon-snapshot';
 
 import type {
@@ -34,6 +35,7 @@ const bookingCouponSelect = {
   status: true,
   studentUserId: true,
   subtotalAmount: true,
+  slot: { select: { startAtUtc: true } },
 } satisfies Prisma.BookingSelect;
 
 type BookingRecord = Prisma.BookingGetPayload<{ select: typeof bookingCouponSelect }>;
@@ -108,6 +110,7 @@ function assertPayableBooking(booking: BookingRecord): void {
       message: 'Booking is not payable',
     });
   }
+  assertBeforePaymentDeadline(booking.slot.startAtUtc);
 }
 
 async function assertNoActivePayment(
@@ -324,6 +327,7 @@ export class BookingCouponsService {
         coupon.percent,
       );
       assertSupportedPaymentAmount(netAmount, coupon.percent);
+      assertBeforePaymentDeadline(booking.slot.startAtUtc);
 
       if (
         booking.appliedCouponId === coupon.id &&

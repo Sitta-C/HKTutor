@@ -16,6 +16,8 @@ import {
   Role,
 } from '@generated/prisma/enums';
 import { PrismaService } from '@infrastructure/database/prisma.service';
+import { assertBeforePaymentDeadline } from '@modules/bookings/booking-payment-deadline';
+import { PAYMENT_DEADLINE_MS } from '@modules/bookings/booking-payment-policy';
 import {
   BookingClassDetailDto,
   BookingDetailResponseDto,
@@ -348,6 +350,7 @@ export class BookingsService {
         const slot = rows[0];
         this.assertBookableSlot(slot);
         const { amounts, listing } = await this.validateBookingSelection(tx, input, slot, 'create');
+        assertBeforePaymentDeadline(slot.startAtUtc);
 
         const booking = await tx.booking.create({
           data: {
@@ -451,6 +454,7 @@ export class BookingsService {
     if (slot.startAtUtc.getTime() <= Date.now()) {
       throw new ConflictException('The selected slot has already started or is in the past.');
     }
+    assertBeforePaymentDeadline(slot.startAtUtc);
   }
 
   private async validateBookingSelection(
@@ -830,7 +834,12 @@ export class BookingsService {
     data: Prisma.BookingUncheckedUpdateManyInput,
   ): Promise<TutorBookingActionResponseDto> {
     const booking = await this.prisma.booking.findUnique({
-      select: { status: true, studentUserId: true, tutorProfileId: true },
+      select: {
+        status: true,
+        studentUserId: true,
+        tutorProfileId: true,
+        slot: { select: { startAtUtc: true } },
+      },
       where: { id: input.bookingId },
     });
 
@@ -843,6 +852,9 @@ export class BookingsService {
     if (booking.status !== BookingStatus.PENDING) {
       throw bookingNotPending(booking.status);
     }
+    if (data.status === BookingStatus.CONFIRMED) {
+      assertBeforePaymentDeadline(booking.slot.startAtUtc);
+    }
 
     try {
       return await this.prisma.$transaction(async (tx) => {
@@ -854,6 +866,9 @@ export class BookingsService {
             id: input.bookingId,
             status: BookingStatus.PENDING,
             tutorProfileId: input.tutorUserId,
+            ...(data.status === BookingStatus.CONFIRMED
+              ? { slot: { startAtUtc: { gt: new Date(Date.now() + PAYMENT_DEADLINE_MS) } } }
+              : {}),
           },
         });
 
