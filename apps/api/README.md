@@ -3012,3 +3012,30 @@ EXPLAIN plans justified both; the existing CITEXT unique key and all partial cla
 Only indexes/schema metadata and verification change; there is no new API, DTO or UI behavior.
 
 See the [DB05 file/call map, cases, plans and runnable evidence](../../tests/s3-db05-qa.md).
+
+## Sprint 3 final database rehearsal (S3-DB06)
+
+`pnpm db:verify:sprint3-final` is the clean seed/startup part of DB06, separate from `pnpm check`.
+It requires explicit `HKTUTOR_ALLOW_DISPOSABLE_DB_VERIFY=1`, loopback `DATABASE_URL` without
+options/fragments, exact database name `hktutor_s3_db06_test`, public schema and zero users after
+migration deploy. It compares every committed migration's SHA-256 with completed Prisma history,
+prints a migration manifest and deterministic DB04 input hash, then calls the existing fixture
+and admin coupon verifiers. Those establish seed repeatability, 905.00 report inputs, 4.33/count 2
+and null/0 reviews, reminders, zero settlement, uncertain reservations and append-only audit.
+The final runner checks persisted reminder/audit type coverage and boots the actual AppModule
+for `GET /api/v1/health`, expecting 200 and `{ database: 'connected' }`.
+
+The startup check loads AppModule only after moving into a new empty directory tree, so its two
+environment-file paths cannot read the workspace `.env`. It supplies generated JWT secrets,
+synthetic email/storage configuration and disabled Omise keys, and rejects external fetch calls.
+The full API starts with its real providers and scheduler; no provider request is stubbed as a
+successful external operation. The app and temporary directory are closed/removed in `finally`.
+
+This command does not migrate, reset a database or aggregate every DB verifier. Complete DB06 also
+runs the existing upgrade, reminder and DB05 verifiers on separate fresh targets. The upgrade
+harness now starts with the S2 + PromptPay schema and replays through all current migration SQL,
+preserving original booking/payment fields and pre-existing audit. It directly replays SQL rather
+than creating a Prisma migration ledger; the clean path separately proves actual Prisma deploy
+and ledger checksums. No production migration file, API, DTO, fixture input or dependency changes.
+
+Follow the [DB06 commands, file/call map, acceptance evidence and limitations](../../tests/s3-db06-qa.md).

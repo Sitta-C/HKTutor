@@ -370,6 +370,12 @@ Sprint 3 database concurrency and query-plan checks run with the disposable-only
 `pnpm db:verify:sprint3-concurrency`. See [DB05 cases, file/call map and results](tests/s3-db05-qa.md)
 for the exact database name, prerequisites, real lock/rollback evidence and query-index migration.
 
+S3-DB06 rehearses clean migration/seed/startup and an upgrade from the Sprint 2 + PromptPay schema.
+`pnpm db:verify:sprint3-final` checks migration file checksums, reuses fixture/admin-audit verifiers
+and boots the full API for a real health request. It requires a new, migrated, explicitly opted-in
+loopback `hktutor_s3_db06_test` database. Upgrade, reminder and DB05 checks use separate empty
+targets; follow the [complete DB06 runbook and evidence](tests/s3-db06-qa.md).
+
 The existing `pnpm db:seed` includes Sprint 3 review, coupon, report and reminder fixtures.
 See the [DB04 fixture/test guide](tests/s3-db04-qa.md) for semantic case keys, clocks, expected
 results and the disposable-only `pnpm db:verify:sprint3-fixtures` check. Synthetic provider IDs

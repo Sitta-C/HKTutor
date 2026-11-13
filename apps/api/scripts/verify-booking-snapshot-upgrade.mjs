@@ -8,6 +8,7 @@ import { disposableDatabaseUrl } from './verify-review-database.mjs';
 
 const MIGRATION = '20261111120000_add_booking_coupon_snapshots';
 const RETRY_MIGRATION = '20261111160000_preserve_coupon_reservation_retries';
+const PROMPTPAY_MIGRATION = '20261019120000_add_promptpay_payments';
 const NOW = '2030-01-01T00:00:00.000Z';
 const { Pool, DatabaseError } = pg;
 
@@ -142,9 +143,10 @@ async function main() {
       .filter((entry) => entry.isDirectory())
       .map((entry) => entry.name)
       .sort();
-    assert.equal(names.at(-1), RETRY_MIGRATION, 'Update the harness when adding later migrations');
     assert.ok(names.includes(MIGRATION));
-    for (const name of names.filter((name) => name < MIGRATION)) {
+    assert.ok(names.includes(RETRY_MIGRATION));
+    assert.ok(names.includes(PROMPTPAY_MIGRATION));
+    for (const name of names.filter((name) => name <= PROMPTPAY_MIGRATION)) {
       await pool.query(await readFile(new URL(`${name}/migration.sql`, root), 'utf8'));
     }
     for (const [id, role] of [
@@ -226,6 +228,9 @@ async function main() {
     }
     const oldBookings = await evidence('Booking');
     const oldAttempts = await evidence('PaymentAttempt');
+    const historyIds = (await pool.query('SELECT id FROM "Booking" ORDER BY id')).rows;
+    const historyAttemptIds = (await pool.query('SELECT id FROM "PaymentAttempt" ORDER BY id'))
+      .rows;
     const indexes = (
       await pool.query(
         `SELECT indexname,indexdef FROM pg_indexes WHERE schemaname='public' ORDER BY indexname`,
@@ -236,7 +241,9 @@ async function main() {
         `SELECT conname,pg_get_constraintdef(oid) AS definition FROM pg_constraint WHERE conrelid IN ('"Booking"'::regclass,'"PaymentAttempt"'::regclass) AND conname <> 'Booking_payment_fields_check' ORDER BY conname`,
       )
     ).rows;
-    await pool.query(await readFile(new URL(`${MIGRATION}/migration.sql`, root), 'utf8'));
+    for (const name of names.filter((name) => name > PROMPTPAY_MIGRATION && name <= MIGRATION)) {
+      await pool.query(await readFile(new URL(`${name}/migration.sql`, root), 'utf8'));
+    }
     assert.deepEqual(await evidence('Booking', true), oldBookings);
     assert.deepEqual(await evidence('PaymentAttempt', true), oldAttempts);
     assert.equal(
@@ -578,6 +585,47 @@ async function main() {
     }
     process.stdout.write(
       'Concurrent amount mutation waited for the payment claim and was rejected after commit.\n',
+    );
+    const beforeLatestBookings = await evidence('Booking');
+    const beforeLatestAttempts = await evidence('PaymentAttempt');
+    const beforeLatestAudit = (
+      await pool.query('SELECT to_jsonb(t)::text AS evidence FROM "AuditLog" t ORDER BY id')
+    ).rows;
+    for (const name of names.filter((name) => name > RETRY_MIGRATION)) {
+      await pool.query(await readFile(new URL(`${name}/migration.sql`, root), 'utf8'));
+    }
+    assert.deepEqual(await evidence('Booking'), beforeLatestBookings);
+    assert.deepEqual(await evidence('PaymentAttempt'), beforeLatestAttempts);
+    assert.deepEqual(
+      (await pool.query('SELECT to_jsonb(t)::text AS evidence FROM "AuditLog" t ORDER BY id')).rows,
+      beforeLatestAudit,
+    );
+    const originalBookingIds = new Set(historyIds.map(({ id }) => id));
+    const originalAttemptIds = new Set(historyAttemptIds.map(({ id }) => id));
+    const currentBookings = (
+      await pool.query(
+        "SELECT id, (to_jsonb(t) - 'appliedCouponId' - 'appliedCouponCode' - 'appliedCouponPercent')::text AS evidence FROM \"Booking\" t ORDER BY id",
+      )
+    ).rows;
+    const currentAttempts = (
+      await pool.query(
+        "SELECT id, (to_jsonb(t) - 'appliedCouponId' - 'appliedCouponCode' - 'appliedCouponPercent')::text AS evidence FROM \"PaymentAttempt\" t ORDER BY id",
+      )
+    ).rows;
+    assert.deepEqual(
+      currentBookings
+        .filter(({ id }) => originalBookingIds.has(id))
+        .map(({ evidence }) => ({ evidence })),
+      oldBookings,
+    );
+    assert.deepEqual(
+      currentAttempts
+        .filter(({ id }) => originalAttemptIds.has(id))
+        .map(({ evidence }) => ({ evidence })),
+      oldAttempts,
+    );
+    process.stdout.write(
+      `PASS DB06 S2+PromptPay to latest: ${names.length} migration files replayed; original booking/payment history and pre-existing audit unchanged.\n`,
     );
   } finally {
     await pool.end();
