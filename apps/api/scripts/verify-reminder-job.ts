@@ -253,7 +253,7 @@ async function verify(): Promise<void> {
       band: ReminderBand,
       recipients: { student?: boolean; tutor?: boolean; payment?: boolean } = {},
     ): string[] {
-      const { student = true, tutor = true, payment = true } = recipients;
+      const { payment = true, student = !payment, tutor = !payment } = recipients;
       // Independent oracle: do not let the production key builder hide a regression in itself.
       const key = (kind: ReminderKind): string =>
         `reminder:${item.id}:${item.slotId}:${item.startAtUtc.toISOString()}:${band}:${kind}`;
@@ -355,15 +355,15 @@ async function verify(): Promise<void> {
     const start = boundary.startAtUtc.getTime();
     assert.deepEqual(await run(job, start - DAY_MS - 1), outcome(0, 0, 0));
     assert.deepEqual(await stored(boundary), []);
-    assert.deepEqual(await run(job, start - DAY_MS), outcome(1, 3, 0));
+    assert.deepEqual(await run(job, start - DAY_MS), outcome(1, 1, 0));
     assert.deepEqual(await stored(boundary), planned(boundary, '24H'));
-    assert.deepEqual(await run(job, start - DAY_MS + 1), outcome(1, 0, 3));
-    assert.deepEqual(await run(job, start - HOUR_MS - 1), outcome(1, 0, 3));
-    assert.deepEqual(await run(job, start - HOUR_MS), outcome(1, 3, 0));
-    assert.deepEqual(await run(job, start - HOUR_MS + 1), outcome(1, 0, 3));
+    assert.deepEqual(await run(job, start - DAY_MS + 1), outcome(1, 0, 1));
+    assert.deepEqual(await run(job, start - HOUR_MS - 1), outcome(1, 0, 1));
+    assert.deepEqual(await run(job, start - HOUR_MS), outcome(1, 1, 0));
+    assert.deepEqual(await run(job, start - HOUR_MS + 1), outcome(1, 0, 1));
     const bothBands = [...planned(boundary, '24H'), ...planned(boundary, '1H')].sort();
     assert.deepEqual(await stored(boundary), bothBands);
-    assert.deepEqual(await run(job, start - 1), outcome(1, 0, 3));
+    assert.deepEqual(await run(job, start - 1), outcome(1, 0, 1));
     assert.deepEqual(await run(job, start), outcome(0, 0, 0));
     assert.deepEqual(await run(job, start + 1), outcome(0, 0, 0));
     assert.deepEqual(await stored(boundary), bothBands);
@@ -389,13 +389,15 @@ async function verify(): Promise<void> {
     }
     const unpaid = await booking(statusDay + 12 * HOUR_MS);
     const paid = await booking(statusDay + 14 * HOUR_MS, BookingStatus.CONFIRMED, true);
-    assert.deepEqual(await run(job, statusDay), outcome(2, 5, 0));
+    assert.deepEqual(await run(job, statusDay), outcome(2, 3, 0));
     assert.deepEqual(await stored(unpaid), planned(unpaid, '24H'));
     assert.deepEqual(await stored(paid), planned(paid, '24H', { payment: false }));
     for (const item of others) {
       assert.deepEqual(await stored(item), []);
     }
-    pass('PENDING/COMPLETED/CANCELED/EXPIRED get nothing; both participants get class reminders');
+    pass(
+      'PENDING/COMPLETED/CANCELED/EXPIRED get nothing; only paid bookings send class reminders to both participants',
+    );
 
     // 4. Suspended or deleted recipients are skipped; the other participant is still reminded.
     const suspendedDay = scenarioDay(3);
@@ -404,11 +406,8 @@ async function verify(): Promise<void> {
       where: { id: studentId },
       data: { accountStatus: AccountStatus.SUSPENDED },
     });
-    assert.deepEqual(await run(job, suspendedDay), outcome(1, 1, 0));
-    assert.deepEqual(
-      await stored(forSuspended),
-      planned(forSuspended, '24H', { student: false, payment: false }),
-    );
+    assert.deepEqual(await run(job, suspendedDay), outcome(1, 0, 0));
+    assert.deepEqual(await stored(forSuspended), []);
     await prisma.user.update({
       where: { id: studentId },
       data: { accountStatus: AccountStatus.ACTIVE },
@@ -419,18 +418,20 @@ async function verify(): Promise<void> {
       where: { id: tutorId },
       data: { accountStatus: AccountStatus.DELETED, deletedAt: new Date() },
     });
-    assert.deepEqual(await run(job, deletedDay), outcome(1, 2, 0));
+    assert.deepEqual(await run(job, deletedDay), outcome(1, 1, 0));
     assert.deepEqual(await stored(forDeleted), planned(forDeleted, '24H', { tutor: false }));
     await prisma.user.update({
       where: { id: tutorId },
       data: { accountStatus: AccountStatus.ACTIVE, deletedAt: null },
     });
-    pass('a suspended student or deleted tutor is skipped without blocking the other recipient');
+    pass(
+      'a suspended student or deleted tutor is skipped without sending unpaid tutor class reminders',
+    );
 
     // 5. A late first run sends one catch-up band, then repeats are no-ops that take no lock.
     const late = await booking(scenarioDay(5) + 12 * HOUR_MS);
     const lateNow = late.startAtUtc.getTime() - 30 * MINUTE_MS;
-    assert.deepEqual(await run(job, lateNow), outcome(1, 3, 0));
+    assert.deepEqual(await run(job, lateNow), outcome(1, 1, 0));
     assert.deepEqual(await stored(late), planned(late, '1H'));
     const before = await prisma.notification.findMany({
       where: { bookingId: late.id },
@@ -442,12 +443,12 @@ async function verify(): Promise<void> {
       await blocker.query('SELECT "id" FROM "Booking" WHERE "id" = $1 FOR UPDATE', [late.id]);
       // The interactive transaction timeout bounds a broken implementation; no clock is advanced.
       const repeat = await run(job, lateNow);
-      assert.deepEqual(repeat, outcome(1, 0, 3), 'A fully stored booking must not be locked');
+      assert.deepEqual(repeat, outcome(1, 0, 1), 'A fully stored booking must not be locked');
     } finally {
       await blocker.query('ROLLBACK');
       blocker.release();
     }
-    assert.deepEqual(await run(job, lateNow + MINUTE_MS), outcome(1, 0, 3));
+    assert.deepEqual(await run(job, lateNow + MINUTE_MS), outcome(1, 0, 1));
     assert.deepEqual(
       await prisma.notification.findMany({ where: { bookingId: late.id }, orderBy: { id: 'asc' } }),
       before,
@@ -472,7 +473,7 @@ async function verify(): Promise<void> {
           ),
         outcome(0, 0, 0),
       ),
-      outcome(2, 3, 3),
+      outcome(2, 1, 1),
     );
     await assertRows('two workers', raced, racedDay, planned(raced, '24H'));
     pass('two processes waiting on the same booking lock create each reminder once, no failures');
@@ -528,7 +529,7 @@ async function verify(): Promise<void> {
         client.query('UPDATE "Booking" SET "slotId" = $2 WHERE "id" = $1', [moving.id, newSlotId]),
       [() => run(job, rescheduleDay)],
     );
-    assert.deepEqual(afterReschedule, outcome(1, 3, 0));
+    assert.deepEqual(afterReschedule, outcome(1, 1, 0));
     const moved = { ...moving, slotId: newSlotId, startAtUtc: new Date(newStart) };
     await assertRows('reschedule commits after scan', moved, rescheduleDay, planned(moved, '1H'));
     pass('reschedule committed under the booking lock: reminders use the new slot, not the old');
@@ -543,10 +544,10 @@ async function verify(): Promise<void> {
     const nextSlotId = await slot(nextStart);
     await prisma.booking.update({ where: { id: moving.id }, data: { slotId: nextSlotId } });
     const nextOccurrence = { ...moved, slotId: nextSlotId, startAtUtc: new Date(nextStart) };
-    assert.deepEqual(await run(job, rescheduleDay), outcome(1, 3, 0));
+    assert.deepEqual(await run(job, rescheduleDay), outcome(1, 1, 0));
     const occurrences = [...planned(moved, '1H'), ...planned(nextOccurrence, '1H')].sort();
     assert.deepEqual(await stored(moving), occurrences);
-    assert.deepEqual(await run(otherJob, rescheduleDay), outcome(1, 0, 3));
+    assert.deepEqual(await run(otherJob, rescheduleDay), outcome(1, 0, 1));
     await assertRows(
       'same-band reschedule then repeat',
       nextOccurrence,
@@ -557,7 +558,7 @@ async function verify(): Promise<void> {
 
     const catchUp = await booking(scenarioDay(12) + 12 * HOUR_MS);
     const catchUpStart = catchUp.startAtUtc.getTime();
-    assert.deepEqual(await run(job, catchUpStart - 2 * HOUR_MS), outcome(1, 3, 0));
+    assert.deepEqual(await run(job, catchUpStart - 2 * HOUR_MS), outcome(1, 1, 0));
     await assertRows(
       'first run at 2h',
       catchUp,
@@ -565,7 +566,7 @@ async function verify(): Promise<void> {
       planned(catchUp, '24H'),
     );
     const restarted = (await jobFor(otherPrisma)).get(ReminderJobService);
-    assert.deepEqual(await run(restarted, catchUpStart - 30 * MINUTE_MS), outcome(1, 3, 0));
+    assert.deepEqual(await run(restarted, catchUpStart - 30 * MINUTE_MS), outcome(1, 1, 0));
     const catchUpPairs = [...planned(catchUp, '24H'), ...planned(catchUp, '1H')].sort();
     await assertRows('restart at 30m', catchUp, catchUpStart - 30 * MINUTE_MS, catchUpPairs);
 
@@ -576,15 +577,10 @@ async function verify(): Promise<void> {
     const studentReminders = studentInbox.items.filter((item) => item.bookingId === catchUp.id);
     const tutorReminders = tutorInbox.items.filter((item) => item.bookingId === catchUp.id);
     assert.deepEqual(studentReminders.map((item) => item.eventType).sort(), [
-      'CLASS_REMINDER_1H',
-      'CLASS_REMINDER_24H',
       'PAYMENT_REMINDER_1H',
       'PAYMENT_REMINDER_24H',
     ]);
-    assert.deepEqual(tutorReminders.map((item) => item.eventType).sort(), [
-      'CLASS_REMINDER_1H',
-      'CLASS_REMINDER_24H',
-    ]);
+    assert.deepEqual(tutorReminders, []);
     const unread = studentReminders[0];
     assert.ok(unread);
     assert.equal(unread.readAt, null);
@@ -594,7 +590,7 @@ async function verify(): Promise<void> {
       where: { bookingId: catchUp.id },
       orderBy: { id: 'asc' },
     });
-    assert.deepEqual(await run(restarted, catchUpStart - 29 * MINUTE_MS), outcome(1, 0, 3));
+    assert.deepEqual(await run(restarted, catchUpStart - 29 * MINUTE_MS), outcome(1, 0, 1));
     assert.deepEqual(await run(restarted, catchUpStart), outcome(0, 0, 0));
     assert.deepEqual(await run(restarted, catchUpStart + 1), outcome(0, 0, 0));
     assert.deepEqual(
@@ -634,15 +630,15 @@ async function verify(): Promise<void> {
         netAmount: '450.00',
       })),
     });
-    assert.deepEqual(await run(job, pagingDay), outcome(210, 630, 0));
+    assert.deepEqual(await run(job, pagingDay), outcome(210, 210, 0));
     const perBooking = await prisma.notification.groupBy({
       by: ['bookingId'],
       where: { booking: { slotId: { in: pagingSlots.map(({ id }) => id) } } },
       _count: { _all: true },
     });
     assert.equal(perBooking.length, 210);
-    assert.ok(perBooking.every((row) => row._count._all === 3));
-    assert.deepEqual(await run(job, pagingDay), outcome(210, 0, 630));
+    assert.ok(perBooking.every((row) => row._count._all === 1));
+    assert.deepEqual(await run(job, pagingDay), outcome(210, 0, 210));
     pass('210 bookings with tied start times page in 100s with no booking missed or repeated');
 
     // 11. A failing insert rolls back that booking only; the next run retries and succeeds.
@@ -665,9 +661,9 @@ async function verify(): Promise<void> {
       logged.push(String(message));
     };
     Logger.overrideLogger({ log: capture, warn: capture, error: capture });
-    assert.deepEqual(await run(job, failureDay), outcome(2, 3, 0, 1));
+    assert.deepEqual(await run(job, failureDay), outcome(2, 1, 0, 1));
     await assertRows(
-      'failure after payment insert rolls back all recipients',
+      'failure after payment insert rolls back the reminder',
       failing,
       failureDay,
       [],
@@ -679,7 +675,7 @@ async function verify(): Promise<void> {
       planned(healthy, '24H'),
     );
     await dropFailureProbe();
-    assert.deepEqual(await run(job, failureDay + MINUTE_MS), outcome(2, 3, 3));
+    assert.deepEqual(await run(job, failureDay + MINUTE_MS), outcome(2, 1, 1));
     await assertRows(
       'retry after insert failure',
       failing,
@@ -695,8 +691,8 @@ async function verify(): Promise<void> {
       logged[0] ?? '',
       /^Reminder booking skipped \(\w+(\/P\d{4})?\); retrying next tick$/,
     );
-    assert.equal(logged[1], 'Reminder run: scanned=2 created=3 duplicates=0 failed=1');
-    assert.equal(logged[2], 'Reminder run: scanned=2 created=3 duplicates=3 failed=0');
+    assert.equal(logged[1], 'Reminder run: scanned=2 created=1 duplicates=0 failed=1');
+    assert.equal(logged[2], 'Reminder run: scanned=2 created=1 duplicates=1 failed=0');
     assert.ok(
       logged.every((line) => !UUID_ANYWHERE.test(line)),
       'Logs carry no IDs',
@@ -748,7 +744,7 @@ async function verify(): Promise<void> {
     }
     const lateOnly = await booking(scenarioDay(scenario++) + 12 * HOUR_MS);
     const lateOnlyNow = lateOnly.startAtUtc.getTime() - 30 * MINUTE_MS;
-    assert.deepEqual(await run(restarted, lateOnlyNow), outcome(1, 3, 0));
+    assert.deepEqual(await run(restarted, lateOnlyNow), outcome(1, 1, 0));
     await assertRows(
       'restart first sees booking at 30m: 1H only',
       lateOnly,

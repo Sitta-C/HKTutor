@@ -100,6 +100,20 @@ describe('notification presentation and optimistic state', () => {
     );
   });
   it.each(['en', 'th'] as const)(
+    'presents each new QR as a payment prompt with historical wording in %s',
+    (language) => {
+      const notice = { ...item, eventType: 'PAYMENT_QR_READY', title: 'Server fallback' };
+      expect(notificationTitle(notice, language)).toBe(
+        notificationCopy[language].events.PAYMENT_QR_READY,
+      );
+      expect(notificationDescription(notice, language)).toBe(
+        notificationCopy[language].reminderDetails.PAYMENT_QR_READY,
+      );
+      expect(notificationReminderKind(notice.eventType)).toBe('payment');
+      expect(notificationBookingHref(notice.bookingId)).toBe('/dashboard/bookings/booking%2Fone');
+    },
+  );
+  it.each(['en', 'th'] as const)(
     'localizes both reminder windows in %s without trusting fallback titles',
     (language) => {
       const text = notificationCopy[language];

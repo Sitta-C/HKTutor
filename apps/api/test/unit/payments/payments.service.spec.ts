@@ -9,6 +9,7 @@ import { Test } from '@nestjs/testing';
 import { Prisma } from '@generated/prisma/client';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import { OmiseRequestRejected, OmiseService } from '@infrastructure/payments/omise.service';
+import { NotificationEventsService } from '@modules/notifications/notification-events.service';
 import { PaymentsService } from '@modules/payments/payments.service';
 
 import type { PaymentAttempt } from '@generated/prisma/client';
@@ -79,6 +80,7 @@ describe('PaymentsService', () => {
       update: jest.fn(),
     },
     couponUse: { findUnique: jest.fn(), count: jest.fn() },
+    notification: { createMany: jest.fn() },
     $executeRaw: jest.fn(),
     paymentAttempt: {
       create: jest.fn(),
@@ -92,12 +94,22 @@ describe('PaymentsService', () => {
   const transaction = jest.fn();
   const omise = {
     assertEnabled: jest.fn(),
-    createCharge: jest.fn(),
+    createCharge: jest.fn<
+      ReturnType<OmiseService['createCharge']>,
+      Parameters<OmiseService['createCharge']>
+    >(),
     retrieveCharge: jest.fn(),
     findCharge: jest.fn(),
   };
 
+  function createdAttemptId(index = 0): string {
+    const id = omise.createCharge.mock.calls[index]?.[0].attemptId;
+    if (!id) throw new Error('Expected a created charge');
+    return id;
+  }
+
   beforeEach(async () => {
+    jest.useFakeTimers().setSystemTime(new Date('2026-11-13T09:00:00.000Z'));
     jest.resetAllMocks();
     transaction.mockImplementation((run: (tx: typeof db) => Promise<unknown>) => run(db));
     db.booking.findUnique.mockResolvedValue(booking());
@@ -116,11 +128,98 @@ describe('PaymentsService', () => {
     const module = await Test.createTestingModule({
       providers: [
         PaymentsService,
+        NotificationEventsService,
         { provide: PrismaService, useValue: { ...db, $transaction: transaction } },
         { provide: OmiseService, useValue: omise },
       ],
     }).compile();
     service = module.get(PaymentsService);
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
+  it('writes the payment prompt in the same transaction as a newly usable QR', async () => {
+    await service.create(BOOKING_ID, STUDENT_ID);
+    const attemptId = createdAttemptId();
+    expect(db.notification.createMany).toHaveBeenCalledWith({
+      data: {
+        bookingId: BOOKING_ID,
+        userId: STUDENT_ID,
+        eventType: 'PAYMENT_QR_READY',
+        eventKey: `PAYMENT_QR_READY:${attemptId}`,
+        title: 'Payment QR ready',
+        body: expect.any(String) as unknown,
+      },
+      skipDuplicates: true,
+    });
+    expect(db.paymentAttempt.update.mock.invocationCallOrder[0]).toBeLessThan(
+      db.notification.createMany.mock.invocationCallOrder[0] ?? 0,
+    );
+  });
+
+  it('prompts again for a new attempt after expiry, without notifying on expiry itself', async () => {
+    await service.create(BOOKING_ID, STUDENT_ID);
+    const firstId = createdAttemptId();
+    const saved = { ...attempt(), id: firstId, status: 'PENDING', chargeId: CHARGE_ID };
+    db.paymentAttempt.findUnique.mockResolvedValue(saved);
+    db.paymentAttempt.findFirst.mockResolvedValue(saved);
+    omise.retrieveCharge.mockResolvedValue({
+      ...charge(),
+      attemptId: firstId,
+      status: 'expired',
+    });
+    await service.getStatus(BOOKING_ID, STUDENT_ID);
+    expect(db.notification.createMany).toHaveBeenCalledTimes(1);
+
+    await service.create(BOOKING_ID, STUDENT_ID);
+    const secondId = createdAttemptId(1);
+    expect(secondId).not.toBe(firstId);
+    expect(db.notification.createMany).toHaveBeenCalledTimes(2);
+    expect(db.notification.createMany).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          eventKey: `PAYMENT_QR_READY:${secondId}`,
+        }) as unknown,
+      }),
+    );
+  });
+
+  it('recovers the QR prompt on a status read after a lost create response', async () => {
+    omise.createCharge.mockRejectedValueOnce(new ServiceUnavailableException('timeout'));
+    await expect(service.create(BOOKING_ID, STUDENT_ID)).rejects.toThrow();
+    expect(db.notification.createMany).not.toHaveBeenCalled();
+    const attemptId = createdAttemptId();
+    db.paymentAttempt.findFirst.mockResolvedValue({ ...attempt(), id: attemptId });
+    omise.findCharge.mockResolvedValue({ ...charge(), attemptId });
+    await service.getStatus(BOOKING_ID, STUDENT_ID);
+    expect(db.notification.createMany).toHaveBeenCalledTimes(1);
+    expect(omise.createCharge).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    { status: 'failed' },
+    { status: 'expired' },
+    { status: 'successful', paid: true, paidAt: new Date('2026-11-13T09:00:00.000Z') },
+    { qrCodeUrl: null },
+    { expiresAt: null },
+    { expiresAt: new Date('2026-11-13T09:00:00.000Z') },
+  ])('does not prompt for a terminal or unusable QR: %j', async (change) => {
+    omise.createCharge.mockImplementation((input: { attemptId: string }) =>
+      Promise.resolve({ ...charge(), attemptId: input.attemptId, ...change }),
+    );
+    await service.create(BOOKING_ID, STUDENT_ID);
+    expect(db.notification.createMany).not.toHaveBeenCalled();
+  });
+
+  it('propagates notification failure so QR persistence can roll back and be recovered', async () => {
+    db.notification.createMany.mockRejectedValueOnce(new Error('Notification write failed'));
+    await expect(service.create(BOOKING_ID, STUDENT_ID)).rejects.toThrow(
+      'Notification write failed',
+    );
+    expect(db.paymentAttempt.update).toHaveBeenCalled();
+    expect(db.booking.updateMany).not.toHaveBeenCalled();
   });
 
   it('claims the booking atomically and charges only the stored amount', async () => {

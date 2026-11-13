@@ -82,7 +82,7 @@ async function verify(): Promise<void> {
   });
   const tokens = new JwtTokenService(new AuthConfigService(config));
   const omise = new OmiseService(new PaymentsConfigService(config));
-  const payments = new PaymentsService(prisma, omise);
+  const payments = new PaymentsService(prisma, omise, new NotificationEventsService());
   const bookings = new BookingsService(prisma, new NotificationEventsService());
   const bookingCoupons = new BookingCouponsService(prisma);
   const charges = new Map<string, StubCharge>();
@@ -643,6 +643,7 @@ async function verify(): Promise<void> {
     const disabled = new PaymentsService(
       prisma,
       new OmiseService(new PaymentsConfigService(new ConfigService({}))),
+      new NotificationEventsService(),
     );
     const beforeZero = creates;
     const zeroResults = await contend('Booking', zero.id, [

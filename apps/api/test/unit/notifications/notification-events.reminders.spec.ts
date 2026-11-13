@@ -56,13 +56,13 @@ describe('NotificationEventsService.writeReminders (S3-T06)', () => {
   const tx = { notification: { createMany } };
 
   beforeEach(() => {
-    createMany.mockReset().mockResolvedValue({ count: 3 });
+    createMany.mockReset().mockResolvedValue({ count: 1 });
   });
 
   it('writes every planned reminder in one skip-duplicates insert linked to the booking', async () => {
     const planned = planReminders(booking, NOW_24H);
 
-    await expect(service.writeReminders(tx, BOOKING_ID, planned)).resolves.toBe(3);
+    await expect(service.writeReminders(tx, BOOKING_ID, planned)).resolves.toBe(1);
 
     expect(createMany).toHaveBeenCalledTimes(1);
     expect(createMany).toHaveBeenCalledWith({
@@ -81,8 +81,6 @@ describe('NotificationEventsService.writeReminders (S3-T06)', () => {
       skipDuplicates: true,
     });
     expect(planned.map(({ userId, eventType }) => [userId, eventType])).toEqual([
-      [STUDENT_ID, 'CLASS_REMINDER_24H'],
-      [TUTOR_ID, 'CLASS_REMINDER_24H'],
       [STUDENT_ID, 'PAYMENT_REMINDER_24H'],
     ]);
   });

@@ -23,6 +23,7 @@ export function notificationReminderKind(eventType: string): 'class' | 'payment'
       return 'class';
     case 'PAYMENT_REMINDER_24H':
     case 'PAYMENT_REMINDER_1H':
+    case 'PAYMENT_QR_READY':
       return 'payment';
     default:
       return null;

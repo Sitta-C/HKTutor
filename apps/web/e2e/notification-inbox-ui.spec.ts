@@ -490,11 +490,9 @@ for (const language of ['en', 'th'] as const) {
     }, testInfo) => {
       // These are server-selected fixtures. The inbox never fetches payment state or filters history.
       const eventTypes = [
-        'CLASS_REMINDER_24H',
-        'CLASS_REMINDER_1H',
         ...(recipient === 'student-unpaid'
-          ? (['PAYMENT_REMINDER_24H', 'PAYMENT_REMINDER_1H'] as const)
-          : []),
+          ? (['PAYMENT_REMINDER_24H', 'PAYMENT_REMINDER_1H', 'PAYMENT_QR_READY'] as const)
+          : (['CLASS_REMINDER_24H', 'CLASS_REMINDER_1H'] as const)),
       ] as const;
       const { state, bell, inbox, text } = await setup(page, {
         language,

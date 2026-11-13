@@ -73,6 +73,24 @@ export type NotificationEvent = EventParticipants &
 /** Persists events only through the caller's domain transaction; it never sends externally. */
 @Injectable()
 export class NotificationEventsService {
+  /** One payment prompt per usable QR, including recovery through status reads or webhooks. */
+  async writePaymentQrReady(
+    tx: { notification: Pick<Prisma.TransactionClient['notification'], 'createMany'> },
+    payment: { bookingId: string; studentUserId: string; attemptId: string },
+  ): Promise<void> {
+    await tx.notification.createMany({
+      data: {
+        bookingId: payment.bookingId,
+        userId: payment.studentUserId,
+        eventType: 'PAYMENT_QR_READY',
+        eventKey: `PAYMENT_QR_READY:${payment.attemptId}`,
+        title: 'Payment QR ready',
+        body: 'A new payment QR was ready when this notification was sent. Open the booking to check the current payment status.',
+      },
+      skipDuplicates: true,
+    });
+  }
+
   async write(
     tx: { notification: Pick<Prisma.TransactionClient['notification'], 'createMany'> },
     event: NotificationEvent,

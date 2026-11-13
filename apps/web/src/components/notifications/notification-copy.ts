@@ -35,8 +35,11 @@ export const notificationCopy = {
       CLASS_REMINDER_1H: 'Class starts within 1 hour',
       PAYMENT_REMINDER_24H: 'Payment reminder for your class',
       PAYMENT_REMINDER_1H: 'Payment reminder for your class',
+      PAYMENT_QR_READY: 'Payment QR ready',
     },
     reminderDetails: {
+      PAYMENT_QR_READY:
+        'When this notification was sent, a new QR was ready for payment. Open the booking to check the current QR and payment status.',
       CLASS_REMINDER_24H:
         'When this reminder was sent, your lesson was starting within 24 hours. Open the booking for the latest schedule.',
       CLASS_REMINDER_1H:
@@ -83,8 +86,11 @@ export const notificationCopy = {
       CLASS_REMINDER_1H: 'บทเรียนเริ่มภายใน 1 ชั่วโมง',
       PAYMENT_REMINDER_24H: 'เตือนชำระเงินก่อนเรียน',
       PAYMENT_REMINDER_1H: 'เตือนชำระเงินก่อนเรียน',
+      PAYMENT_QR_READY: 'เตือนชำระเงินสำหรับ QR ใหม่',
     },
     reminderDetails: {
+      PAYMENT_QR_READY:
+        'ตอนส่งแจ้งเตือน QR ใหม่พร้อมให้ชำระเงินแล้ว เปิดการจองเพื่อตรวจสอบ QR และสถานะการชำระเงินล่าสุด',
       CLASS_REMINDER_24H:
         'ตอนส่งแจ้งเตือน บทเรียนจะเริ่มภายใน 24 ชั่วโมง เปิดการจองเพื่อตรวจสอบวันเวลาเรียนล่าสุด',
       CLASS_REMINDER_1H:

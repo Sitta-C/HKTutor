@@ -1201,13 +1201,14 @@ who receives them and their event keys. It is pure: no database, scheduler or Ne
 The [S3-T06](https://trello.com/c/Az3hWEVx) job runs it and writes the rows; S3-T07 shows them in
 the inbox. This task adds no endpoint, schema change, job or package.
 
-The rules follow the [S3-T05 card](https://trello.com/c/TpOuncwb) and the product decision recorded
-there on 2026-10-26, the approved interpretation of
+The time-window rules follow the [S3-T05 card](https://trello.com/c/TpOuncwb) and the product decision recorded
+there on 2026-10-26, the interpretation of
 [US3-2](https://docs.google.com/spreadsheets/d/17RMTjXa26ho7blv-TK5pbJFbHxVHJEBRPKCXk9x5AE0/edit#gid=443082416&range=A25:L25).
 Where the sheet wording differs, the card applies: each run uses one captured UTC clock, and a
 class first seen less than 24 hours ahead gets one catch-up 24H reminder. Asia/Bangkok is a fixed
 UTC+7 with no daylight saving, so "computed in Bangkok time" gives the same result; Bangkok is used
-only for display and examples. The backlog sheet is not edited by this task.
+only for display and examples. The payment lifecycle fix updates the recipient contract below:
+class reminders now require payment. The backlog sheet is not edited by this task.
 
 With `delta = startAtUtc - nowUtc` (the slot start and the job's clock):
 
@@ -1236,14 +1237,17 @@ first sees it 30 minutes ahead sends only 1H. For a class at 2026-11-10 18:00 As
 Calendar days do not matter: a class at 2026-11-11 00:00 Bangkok gets its 24H reminder from
 2026-11-10 00:00 Bangkok and its 1H reminder from 23:00.
 
-| Booking                                       | Student                                            | Tutor                   |
-| --------------------------------------------- | -------------------------------------------------- | ----------------------- |
-| `CONFIRMED`, `UNPAID`                         | `CLASS_REMINDER_<band>`, `PAYMENT_REMINDER_<band>` | `CLASS_REMINDER_<band>` |
-| `CONFIRMED`, `PAID`                           | `CLASS_REMINDER_<band>`                            | `CLASS_REMINDER_<band>` |
-| `PENDING`, `COMPLETED`, `CANCELED`, `EXPIRED` | None                                               | None                    |
+| Booking                                       | Student                   | Tutor                   |
+| --------------------------------------------- | ------------------------- | ----------------------- |
+| `CONFIRMED`, `UNPAID`                         | `PAYMENT_REMINDER_<band>` | None                    |
+| `CONFIRMED`, `PAID`                           | `CLASS_REMINDER_<band>`   | `CLASS_REMINDER_<band>` |
+| `PENDING`, `COMPLETED`, `CANCELED`, `EXPIRED` | None                      | None                    |
 
-Payment only suppresses payment reminders, never class reminders. A booking with a PromptPay charge
-in progress is still `UNPAID` and keeps its payment reminder; a reminder never creates a charge.
+Class reminders require `PAID` for both participants, matching classroom access. Payment suppresses
+future payment reminders and enables class reminders for the current band on the next job tick;
+an earlier payment reminder does not suppress the class reminders. This also includes zero-net
+coupon settlement. A booking with a PromptPay charge in progress is still `UNPAID` and keeps its
+scheduled payment reminder; a reminder never creates a charge.
 A recipient whose account is not `ACTIVE` or has `deletedAt` set is skipped, and the other
 participant is still notified.
 
@@ -1257,6 +1261,27 @@ once. The slot ID and start time make a rescheduled booking a new occurrence wit
 old occurrence's keys are never reused. The `reminder:` prefix cannot collide with S2-T28 keys
 (`<EVENT_TYPE>:<id>`). `eventType` is already free text, so the four reminder types need no
 migration.
+
+#### Payment QR prompts
+
+`PaymentsService` also writes `PAYMENT_QR_READY` through `NotificationEventsService` in the same
+transaction that persists a verified provider charge. It goes only to the booking's student when
+the booking is `CONFIRMED`, `UNPAID`, and the charge is `PENDING` with a QR URL and future expiry.
+Its key is `PAYMENT_QR_READY:<paymentAttemptId>`, using the existing `(userId, eventKey)` unique
+index. No schema migration or HTTP response change is needed.
+
+Each new usable QR, including a retry after verified expiry/failure, gets one payment prompt,
+independent of the 24H/1H windows. Resuming the same QR, polling and replayed webhooks preserve
+the original notification and read receipt. A lost create response can recover the prompt through
+the existing status-read or webhook reconciliation. Notification persistence failure rolls back
+the local charge update so reconciliation can retry; it never retries the provider charge POST.
+No prompt is written for CREATING, unusable/already elapsed QRs, terminal charges or zero-net
+coupon settlement. Provider-confirmed expiry alone sends no notification and does not expire the
+booking. Existing notifications remain historical records.
+
+These QR prompts and the scheduled time-band payment reminders are distinct events; both can
+appear when a new QR becomes available near a reminder tick. Titles and details distinguish them
+in Thai/English, and the booking link always opens current payment state rather than an old QR.
 
 Left to S3-T06: selecting `CONFIRMED` bookings whose slot starts within 24 hours, locking and
 re-reading booking, payment, slot and recipient state before inserting so payment, cancellation
@@ -1272,7 +1297,7 @@ exercise PostgreSQL or the job; those belong to S3-T06 and S3-T08.
 
 ### Scheduled reminder job (S3-T06)
 
-`ReminderJobService` in the notifications module is the only writer of the S3-T05 reminders, per
+`ReminderJobService` in the notifications module is the only writer of the S3-T05 time-band reminders, per
 the [S3-T06 card](https://trello.com/c/Az3hWEVx). It is a `@nestjs/schedule` cron named
 `class-and-payment-reminders` that ticks every minute on UTC. `waitForCompletion` stops a slow run
 from overlapping the next tick in the same process; the booking lock and the unique
