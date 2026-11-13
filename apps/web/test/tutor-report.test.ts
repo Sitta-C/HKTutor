@@ -46,7 +46,7 @@ describe('tutor report presentation', () => {
       completionRate: '75%',
     });
     expect(model.statuses.map(({ count }) => count)).toEqual(['3', '1', '6', '2', '0']);
-    expect(markup).toContain('Net amount from paid, completed bookings only.');
+    expect(markup).toContain('All-time net amount from paid, completed bookings only.');
     expect(markup).toContain('Completed out of finalized bookings (completed &amp; canceled).');
     expect(markup.match(/rounded-2xl border border-paper-edge bg-white p-5/g)).toHaveLength(3);
     expect(markup).not.toContain('bg-sticky-blue');

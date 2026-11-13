@@ -275,7 +275,7 @@ test('Notebook Focus uses existing data and keeps only contextual management lin
   await expect(main.getByRole('heading', { name: 'คอร์สของฉัน', exact: true })).toHaveCount(0);
   await expect(main.getByRole('link', { name: 'จัดการตารางว่าง' })).toHaveCount(1);
   await expect(main.getByText('เมนูลัด')).toHaveCount(0);
-  await expect(main.getByText('รายได้ที่ได้รับแล้ว', { exact: true })).toBeVisible();
+  await expect(main.getByText('รายได้ที่ได้รับในเดือนนี้', { exact: true })).toBeVisible();
   await expect(main.getByText('ความสมบูรณ์โปรไฟล์')).toHaveCount(0);
   await expect(main.getByRole('searchbox')).toHaveCount(0);
   for (const metadata of await main.locator('[data-notebook-metadata]').all()) {
