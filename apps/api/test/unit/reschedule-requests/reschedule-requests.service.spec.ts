@@ -80,6 +80,8 @@ describe('RescheduleRequestsService', () => {
     id: BOOKING_ID,
     listingId: 'listing-1',
     netAmount: new Prisma.Decimal('450.00'),
+    paymentPending: false,
+    paymentAttempts: [],
     slot: {
       endAtUtc: futureDate(50),
       id: CURRENT_SLOT_ID,
@@ -600,6 +602,21 @@ describe('RescheduleRequestsService', () => {
   });
 
   describe('approve', () => {
+    it.each([
+      { paymentPending: true, paymentAttempts: [] },
+      { paymentPending: false, paymentAttempts: [{ id: 'active-attempt' }] },
+    ])('blocks approval while payment is unresolved: %j', async (payment) => {
+      mockPrisma.rescheduleRequest.findUnique.mockResolvedValue({
+        ...mockPendingRequestForApprove(),
+        booking: mockBooking(payment),
+      });
+      await expect(service.approve(TUTOR_ID, REQUEST_ID)).rejects.toMatchObject({
+        response: { code: 'PAYMENT_IN_PROGRESS' },
+      });
+      expect(mockPrisma.rescheduleRequest.updateMany).not.toHaveBeenCalled();
+      expect(mockPrisma.booking.updateMany).not.toHaveBeenCalled();
+    });
+
     beforeEach(() => {
       mockPrisma.user.findUnique.mockResolvedValue(mockActiveUser(TUTOR_ID, Role.TUTOR));
     });

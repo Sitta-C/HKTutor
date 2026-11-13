@@ -57,12 +57,24 @@ export function isCouponPaymentRejection(error: unknown): boolean {
   return couponRejectionKey(error) !== null;
 }
 
+export function isBookingDeadlineRejection(error: unknown): boolean {
+  return (
+    error instanceof ApiError &&
+    error.status === 409 &&
+    typeof error.details === 'object' &&
+    error.details !== null &&
+    'code' in error.details &&
+    error.details.code === 'BOOKING_PAYMENT_DEADLINE_PASSED'
+  );
+}
+
 export function getBookingPaymentFailure(
   error: unknown,
   copy: BookingCouponCopy,
   fallback: string,
   hasCoupon: boolean,
 ): string {
+  if (isBookingDeadlineRejection(error)) return copy.deadlinePassed;
   const key = couponRejectionKey(error);
   if (key === null) {
     return fallback;
@@ -74,6 +86,9 @@ export function getBookingCouponFailure(
   error: unknown,
   copy: BookingCouponCopy,
 ): { message: string; requiresRefresh: boolean } {
+  if (isBookingDeadlineRejection(error)) {
+    return { message: copy.deadlinePassed, requiresRefresh: true };
+  }
   if (!(error instanceof ApiError)) {
     return { message: copy.uncertain, requiresRefresh: true };
   }

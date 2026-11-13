@@ -746,6 +746,41 @@ It follows the same safety rules as the other disposable verifiers (explicit opt
 `hktutor_*_test` target, no URL options, never loads `.env`, migrates or seeds, removes its own
 fixtures). Evidence and findings are in `tests/s2-t34-qa.md`.
 
+## Booking payment deadline
+
+Booking creation, tutor confirmation and new payments close at **`slot.startAtUtc`**.
+The strict UTC condition is `now < startAtUtc`; equality is closed. A lesson at 18:00 Bangkok
+can be confirmed/paid before 18:00, and its final scheduled reminder starts at 17:00.
+
+- Booking quotes/creation, confirmation, coupon quote/apply/remove and new payments (including
+  100% coupons) reject a closed window with `409 BOOKING_PAYMENT_DEADLINE_PASSED`. Confirmation
+  rechecks the clock after acquiring database write locks; crossing the deadline rolls back the
+  transition and its notification. Booking creation checks again after selection validation.
+  Coupon operations recheck after eligibility reads; apply/remove also recheck after the write
+  inside their transaction, so a write crossing lesson start rolls back its coupon and amounts.
+- The browser closes checkout at start without reload and remembers a server-confirmed deadline
+  rejection even if the client clock is slow. Active QR panels explain that the window is closed
+  while status reads continue to reconcile the existing payment.
+- New QR expiry is `min(now + 15 minutes, lesson start)`, using Omise's
+  [per-charge expiry](https://docs.omise.co/promptpay). An uncertain provider result remains locked;
+  it never authorizes another charge or a clock-only expiry. Verified success is always recorded,
+  including delayed callbacks and historical charges, rather than silently losing payment evidence.
+- The UTC `booking-payment-expiry` job runs each minute, disabled in tests. It expires due
+  `PENDING` / `CONFIRMED`, `UNPAID` bookings only without active/uncertain attempts or reserved
+  coupon capacity. Paid/completed bookings are preserved. Endpoint guards enforce the deadline
+  independently of cron timing. Existing overdue eligible requests close on the first tick.
+- Pending requests and confirmed unpaid bookings continue to reserve their original slot until
+  expiry. This can prevent another student booking that time even if the first student never pays;
+  this is an accepted product limitation. There is no additional short reservation timer or queue.
+- Reschedule requests do not reserve their target. Approval waits until an existing payment has
+  a verified terminal result (`409 PAYMENT_IN_PROGRESS` while unresolved); rejection/withdrawal
+  remain available. The original booking and QR deadline remain unchanged while approval waits.
+  A target that has started cannot be approved after payment settles; choose a different future
+  target through a new request. The existing 24-hour cutoff for the original class still applies.
+- Scheduled reminders remain **24H and 1H**, with one catch-up band on a late first run and none
+  after start. Historical 5H event labels remain readable. Completion still requires payment;
+  this change does not rewrite old completed/unpaid records or review evidence.
+
 ## PromptPay test payments
 
 This integration supports **Omise PromptPay Test Mode only**. Public-key browser SDKs and card
@@ -1163,10 +1198,10 @@ The existing S2-DB05 table and indexes are used without a schema migration. UI w
 Each list item contains exactly `id`, `eventType`, `title`, nullable `bookingId`, nullable `readAt`
 and `createdAt`. `bookingId` is link metadata; it does not grant access to the booking. Notification
 body, event key, recipient ID and related profile data are not returned. All times are UTC ISO 8601.
-The GET is read-only. A stored 1H reminder supersedes 24H reminders for the same recipient and
+The GET is read-only. A stored 1H reminder (or historical 5H reminder) supersedes 24H reminders for the same recipient and
 scheduled occurrence (booking, slot and UTC start), including a prior unpaid reminder followed by
 a paid class reminder. Superseded rows remain stored with their original read receipts but are
-excluded before pagination, unread counts and bulk read. Reading the 1H reminder never restores
+excluded before pagination, unread counts and bulk read. Reading the urgent reminder never restores
 the old 24H reminder. Other occurrences, recipients, bookings and QR prompts remain independent.
 `unreadCount` counts the entire visible caller inbox, independent of page or filter;
 the page and count use one repeatable-read snapshot.
@@ -2736,6 +2771,9 @@ The runner requires explicit opt-in, loopback-only URL, `hktutor_*_test`/`hktuto
 no URL options/fragments and all committed migrations. It does not load `.env`, migrate or seed.
 It retains synthetic append-only evidence, so run it only in a new isolated database and discard
 that database afterward. It is deliberately outside `pnpm check`.
+
+The coupon verifier also delays actual apply/remove updates across lesson start and checks the
+deadline conflict plus unchanged persisted coupon, amounts and payment evidence after rollback.
 
 ```bash
 docker run --detach --name hktutor-s3-t26-test \
