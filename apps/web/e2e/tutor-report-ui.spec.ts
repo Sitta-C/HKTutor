@@ -105,6 +105,9 @@ test('private tutor report retries with keyboard focus and remains responsive', 
   const retry = page.getByRole('button', { name: 'Try again' });
   await retry.focus();
   await expect(retry).toBeFocused();
+  await page.keyboard.press('Enter');
+
+  await expect(retry).toBeFocused();
   request.allowSuccess();
   await page.keyboard.press('Enter');
 
@@ -112,7 +115,7 @@ test('private tutor report retries with keyboard focus and remains responsive', 
   await expect(page.getByText(/THB\s905\.00/, { exact: true })).toBeVisible();
   await expect(page.getByText('75%', { exact: true })).toBeVisible();
   await expect(page.getByRole('listitem')).toHaveCount(5);
-  expect(request.reads()).toBeGreaterThanOrEqual(2);
+  expect(request.reads()).toBeGreaterThanOrEqual(3);
   expect(
     await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth),
   ).toBeLessThanOrEqual(1);

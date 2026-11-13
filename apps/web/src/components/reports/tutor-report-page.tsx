@@ -76,7 +76,7 @@ export function TutorReportPanel({
       {state.status === 'loading' && <NotebookLoadingRegion label={copy.loading} />}
 
       {state.status === 'error' && (
-        <PaperCard className="max-w-2xl !bg-sticky-pink/50 p-5 sm:p-6" role="alert">
+        <PaperCard className="max-w-2xl !bg-sticky-pink/50 p-5 sm:p-6" role="alert" tabIndex={-1}>
           <p className="font-bold text-red-900">
             {state.failure === 'session'
               ? copy.sessionExpired
@@ -102,6 +102,7 @@ export function TutorReportPanel({
               <p className="mt-2 text-sm leading-6 text-red-800">{copy.loadFailedHint}</p>
               <button
                 type="button"
+                data-report-retry
                 className={notebookButtonClass({ tone: 'secondary', className: 'mt-4' })}
                 onClick={onRetry}
               >
@@ -161,10 +162,17 @@ export function TutorReportView({ embedded = false }: { embedded?: boolean }) {
   }, [requestReport]);
 
   useEffect(() => {
-    if (state.status === 'success' && focusAfterRetry.current) {
-      focusAfterRetry.current = false;
-      container.current?.querySelector<HTMLElement>('[tabindex="-1"]')?.focus();
+    if (state.status === 'loading' || !focusAfterRetry.current) {
+      return;
     }
+
+    focusAfterRetry.current = false;
+    const target =
+      state.status === 'success'
+        ? container.current?.querySelector<HTMLElement>('[data-tutor-report] [tabindex="-1"]')
+        : (container.current?.querySelector<HTMLElement>('[data-report-retry]') ??
+          container.current?.querySelector<HTMLElement>('[data-tutor-report] [role="alert"]'));
+    target?.focus();
   }, [state.status]);
 
   return (
