@@ -1,33 +1,18 @@
 'use client';
 
 import Image from 'next/image';
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 
 import { bookingCouponCopy } from '@/components/bookings/booking-coupon-copy';
-import {
-  getBookingCouponFailure,
-  hasActiveBookingPayment,
-  isFullCouponSettlement,
-} from '@/components/bookings/booking-coupon-model';
-import { BookingCouponStrip } from '@/components/bookings/booking-coupon-strip';
-import { BookingDocketAmounts, BookingDocketTotal } from '@/components/bookings/booking-docket';
+import { getBookingPaymentFailure } from '@/components/bookings/booking-coupon-model';
 import { formatMoney } from '@/components/bookings/booking-ui';
-import { studentBookingsCopy } from '@/components/bookings/student-bookings-copy';
-import {
-  applyBookingCoupon,
-  createPromptPayPayment,
-  getCurrentPayment,
-  getMyBooking,
-  removeBookingCoupon,
-} from '@/lib/api/bookings';
-import { ApiError } from '@/lib/api/error';
 import { formatBangkokDateTime } from '@/lib/date-time';
 import { useLanguage } from '@/lib/i18n';
 
 import styles from './promptpay-payment-panel.module.css';
-import bookingStyles from './student-bookings.module.css';
 
-import type { BookingDetail, PaymentStatus, PromptPayPayment } from '@/lib/api/types';
+import type { BookingCheckout } from '@/components/bookings/use-booking-checkout';
+import type { BookingDetail, PaymentStatus } from '@/lib/api/types';
 
 const COPY = {
   th: {
@@ -104,355 +89,150 @@ export function PaymentStatusBadge({ status }: { status: PaymentStatus }) {
 
 export function PromptPayPaymentPanel({
   booking,
-  onBookingChange,
-  disabled = false,
-  onSubmittingChange,
+  checkout,
 }: {
   booking: BookingDetail;
-  onBookingChange: (booking: BookingDetail) => void;
-  disabled?: boolean;
-  onSubmittingChange?: (busy: boolean) => void;
+  checkout: BookingCheckout;
 }) {
-  const { language, copy } = useLanguage();
+  const { language } = useLanguage();
   const text = COPY[language];
-  const couponText = bookingCouponCopy[language];
-  const [payment, setPayment] = useState<PromptPayPayment | null>(null);
-  const [verified, setVerified] = useState(false);
-  const [error, setError] = useState(false);
+  const {
+    payment,
+    verification,
+    failure,
+    readFailed,
+    operation,
+    paid,
+    pending,
+    canPay,
+    checkedAt,
+    zeroNet,
+  } = checkout;
   const [qrError, setQrError] = useState(false);
-  const [operation, setOperation] = useState<'apply' | 'remove' | 'pay' | null>(null);
-  const [failure, setFailure] = useState<{ error: unknown; scope: 'coupon' | 'payment' } | null>(
-    null,
-  );
-  const [checkedAt, setCheckedAt] = useState(0);
-  const [reload, setReload] = useState(0);
-  const gate = useRef<symbol | null>(null);
-  const mounted = useRef(false);
   const busy = operation !== null;
-  const failureMessage = failure ? getBookingCouponFailure(failure.error, couponText) : null;
-
-  useEffect(() => {
-    mounted.current = true;
-    return () => {
-      mounted.current = false;
-    };
-  }, []);
-
-  useEffect(() => {
-    if (disabled) {
-      return;
-    }
-    let active = true;
-    let readToken: symbol | null = null;
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    const controller = new AbortController();
-    async function poll(): Promise<void> {
-      if (!active) {
-        return;
-      }
-      if (document.hidden || gate.current) {
-        timer = setTimeout(() => {
-          void poll();
-        }, 5000);
-        return;
-      }
-      const token = Symbol('payment-read');
-      readToken = token;
-      gate.current = token;
-      try {
-        const result = await getCurrentPayment(booking.id, controller.signal);
-        const nextBooking = await getMyBooking(booking.id, controller.signal);
-        if (!active) {
-          return;
-        }
-        setPayment(result);
-        setCheckedAt(Date.now());
-        setVerified(true);
-        setError(false);
-        setFailure(null);
-        onBookingChange(nextBooking);
-        if (result.paymentPending) {
-          timer = setTimeout(() => {
-            void poll();
-          }, 5000);
-        }
-      } catch {
-        if (active) {
-          setError(true);
-          setVerified(false);
-        }
-      } finally {
-        if (gate.current === token) {
-          gate.current = null;
-        }
-      }
-    }
-    void poll();
-    return () => {
-      active = false;
-      controller.abort();
-      if (gate.current === readToken) {
-        gate.current = null;
-      }
-      clearTimeout(timer);
-    };
-  }, [booking.id, disabled, onBookingChange, reload]);
-
-  async function changeCoupon(code: string | null): Promise<void> {
-    if (
-      gate.current ||
-      disabled ||
-      busy ||
-      !verified ||
-      hasActiveBookingPayment(booking, payment) ||
-      booking.status !== 'CONFIRMED' ||
-      booking.paymentStatus === 'PAID' ||
-      payment?.paymentStatus === 'PAID'
-    ) {
-      return;
-    }
-    const token = Symbol('coupon-change');
-    gate.current = token;
-    setOperation(code === null ? 'remove' : 'apply');
-    setFailure(null);
-    onSubmittingChange?.(true);
-    try {
-      const result =
-        code === null
-          ? await removeBookingCoupon(booking.id)
-          : await applyBookingCoupon(booking.id, code);
-      if (!mounted.current) {
-        return;
-      }
-      // Commit only the authoritative mutation response; never calculate a client discount.
-      onBookingChange({
-        ...booking,
-        coupon: result.coupon,
-        currency: result.currency,
-        subtotalAmount: result.subtotalAmount,
-        discountAmount: result.discountAmount,
-        netAmount: result.netAmount,
-        paymentStatus: result.paymentStatus,
-        paymentPending: result.paymentPending,
-      });
-      setVerified(false);
-      setReload((value) => value + 1);
-    } catch (caught) {
-      if (mounted.current) {
-        setFailure({ error: caught, scope: 'coupon' });
-        if (getBookingCouponFailure(caught, couponText).requiresRefresh) {
-          setVerified(false);
-          setError(true);
-        }
-      }
-    } finally {
-      if (gate.current === token) {
-        gate.current = null;
-      }
-      if (mounted.current) {
-        setOperation(null);
-        onSubmittingChange?.(false);
-      }
-    }
-  }
-
-  async function create(): Promise<void> {
-    if (
-      gate.current ||
-      disabled ||
-      busy ||
-      !verified ||
-      hasActiveBookingPayment(booking, payment) ||
-      booking.status !== 'CONFIRMED' ||
-      booking.paymentStatus === 'PAID' ||
-      payment?.paymentStatus === 'PAID'
-    ) {
-      return;
-    }
-    const token = Symbol('payment-create');
-    gate.current = token;
-    setOperation('pay');
-    setError(false);
-    setFailure(null);
-    onSubmittingChange?.(true);
-    try {
-      const result = await createPromptPayPayment(booking.id);
-      const nextBooking = await getMyBooking(booking.id);
-      if (!mounted.current) {
-        return;
-      }
-      setPayment(result);
-      setCheckedAt(Date.now());
-      setVerified(true);
-      setQrError(false);
-      onBookingChange(nextBooking);
-      setReload((value) => value + 1);
-    } catch (caught) {
-      if (mounted.current) {
-        setVerified(false);
-        setError(true);
-        setFailure({ error: caught, scope: 'payment' });
-      }
-    } finally {
-      if (gate.current === token) {
-        gate.current = null;
-      }
-      if (mounted.current) {
-        setOperation(null);
-        onSubmittingChange?.(false);
-      }
-    }
-  }
-
+  const errorMessage =
+    failure?.scope === 'payment'
+      ? getBookingPaymentFailure(
+          failure.error,
+          bookingCouponCopy[language],
+          text.error,
+          Boolean(booking.coupon),
+        )
+      : readFailed
+        ? text.error
+        : null;
   const attempt = payment?.attempt;
-  const paid = payment?.paymentStatus === 'PAID' || booking.paymentStatus === 'PAID';
-  const pending = hasActiveBookingPayment(booking, payment);
-  const canCreate = verified && !pending && !paid && booking.status === 'CONFIRMED';
-  const zeroNet = isFullCouponSettlement(booking);
   const qrUrl =
     attempt?.status === 'PENDING' && attempt.expiresAt && Date.parse(attempt.expiresAt) > checkedAt
       ? attempt.qrCodeUrl
       : null;
 
   return (
-    <div className={bookingStyles.paymentColumns}>
-      <div className={bookingStyles.amountColumn}>
-        <BookingCouponStrip
-          booking={booking}
-          disabled={disabled || busy || paid}
-          pending={pending}
-          verified={verified}
-          operation={operation}
-          error={failure?.scope === 'coupon' ? (failureMessage?.message ?? null) : null}
-          onApply={changeCoupon}
-          onRemove={() => changeCoupon(null)}
-        />
-        <div className={bookingStyles.detailAmounts}>
-          <BookingDocketAmounts
-            amounts={booking}
-            text={copy.dashboard.booking}
-            discountPercent={booking.coupon?.percent}
-          />
-        </div>
-        <div className={bookingStyles.detailTotal}>
-          <BookingDocketTotal
-            amount={booking.netAmount}
-            currency={booking.currency}
-            label={studentBookingsCopy[language].amount}
-          />
-        </div>
-        <p className={styles.help}>{couponText.authoritative}</p>
+    <section className={styles.panel} aria-labelledby="promptpay-heading" aria-busy={busy}>
+      <div className={styles.heading}>
+        <h2 id="promptpay-heading">{zeroNet && !paid ? text.zeroTitle : text.title}</h2>
+        <PaymentStatusBadge status={paid ? 'PAID' : 'UNPAID'} />
       </div>
-      <section className={styles.panel} aria-labelledby="promptpay-heading" aria-busy={busy}>
-        <div className={styles.heading}>
-          <h2 id="promptpay-heading">{zeroNet && !paid ? text.zeroTitle : text.title}</h2>
-          <PaymentStatusBadge status={paid ? 'PAID' : 'UNPAID'} />
-        </div>
-        <p className={styles.note}>{text.demo}</p>
-        {error && (
-          <p className={styles.error} role="alert">
-            {failure?.scope === 'payment' &&
-            failure.error instanceof ApiError &&
-            failure.error.status < 500
-              ? failureMessage?.message
-              : text.error}
+      <p className={styles.note}>{text.demo}</p>
+      {errorMessage && (
+        <p className={styles.error} role="alert">
+          {errorMessage}
+        </p>
+      )}
+      {verification === 'checking' && <p role="status">{text.loading}</p>}
+      {paid ? (
+        <dl className={styles.receipt}>
+          <div>
+            <dt>{text.amount}</dt>
+            <dd>{formatMoney(booking.netAmount, booking.currency)}</dd>
+          </div>
+          <div>
+            <dt>{text.reference}</dt>
+            <dd>
+              {payment?.reference ??
+                booking.paymentReference ??
+                booking.mockReference ??
+                text.noValue}
+            </dd>
+          </div>
+          <div>
+            <dt>{text.paidAt}</dt>
+            <dd>
+              {booking.paidAt ? formatBangkokDateTime(booking.paidAt, language) : text.noValue}
+            </dd>
+          </div>
+        </dl>
+      ) : pending ? (
+        <>
+          <p role="status" className={styles.notice}>
+            {attempt?.status === 'CREATING' ? text.creating : text.pending}
           </p>
-        )}
-        {!payment && !error && <p role="status">{text.loading}</p>}
-        {paid ? (
-          <dl className={styles.receipt}>
-            <div>
-              <dt>{text.amount}</dt>
-              <dd>{formatMoney(booking.netAmount, booking.currency)}</dd>
-            </div>
-            <div>
-              <dt>{text.reference}</dt>
-              <dd>
-                {payment?.reference ??
-                  booking.paymentReference ??
-                  booking.mockReference ??
-                  text.noValue}
-              </dd>
-            </div>
-            <div>
-              <dt>{text.paidAt}</dt>
-              <dd>
-                {booking.paidAt ? formatBangkokDateTime(booking.paidAt, language) : text.noValue}
-              </dd>
-            </div>
-          </dl>
-        ) : pending ? (
-          <>
+          {qrUrl && (
+            <Image
+              key={qrUrl}
+              src={qrUrl}
+              alt={text.qrAlt}
+              width={240}
+              height={240}
+              unoptimized
+              className={styles.qr}
+              onError={() => setQrError(true)}
+            />
+          )}
+          {qrError && (
+            <p role="alert" className={styles.error}>
+              {text.qrError}
+            </p>
+          )}
+          <p>
+            {text.amount}: {formatMoney(attempt?.amount ?? booking.netAmount, booking.currency)}
+          </p>
+          {attempt?.expiresAt && (
+            <p className={styles.help}>
+              {text.expires}: {formatBangkokDateTime(attempt.expiresAt, language)}
+            </p>
+          )}
+          <p className={styles.help}>{text.cancel}</p>
+          {attempt?.status === 'CREATING' && <p className={styles.help}>{text.uncertain}</p>}
+        </>
+      ) : booking.status === 'CONFIRMED' ? (
+        <>
+          {zeroNet && <p className={styles.notice}>{text.zeroNotice}</p>}
+          {(attempt?.status === 'FAILED' || attempt?.status === 'EXPIRED') && (
             <p role="status" className={styles.notice}>
-              {attempt?.status === 'CREATING' ? text.creating : text.pending}
+              {text[attempt.status]}
             </p>
-            {qrUrl && (
-              <Image
-                key={qrUrl}
-                src={qrUrl}
-                alt={text.qrAlt}
-                width={240}
-                height={240}
-                unoptimized
-                className={styles.qr}
-                onError={() => setQrError(true)}
-              />
-            )}
-            {qrError && (
-              <p role="alert" className={styles.error}>
-                {text.qrError}
-              </p>
-            )}
-            <p>
-              {text.amount}: {formatMoney(attempt?.amount ?? booking.netAmount, booking.currency)}
-            </p>
-            {attempt?.expiresAt && (
-              <p className={styles.help}>
-                {text.expires}: {formatBangkokDateTime(attempt.expiresAt, language)}
-              </p>
-            )}
-            <p className={styles.help}>{text.cancel}</p>
-            {attempt?.status === 'CREATING' && <p className={styles.help}>{text.uncertain}</p>}
-          </>
-        ) : booking.status === 'CONFIRMED' ? (
-          <>
-            {zeroNet && <p className={styles.notice}>{text.zeroNotice}</p>}
-            {(attempt?.status === 'FAILED' || attempt?.status === 'EXPIRED') && (
-              <p role="status" className={styles.notice}>
-                {text[attempt.status]}
-              </p>
-            )}
-            <button
-              type="button"
-              className={styles.ticket}
-              disabled={!canCreate || disabled || busy}
-              onClick={() => {
-                void create();
-              }}
-            >
-              <span className={styles.ticketLabel}>
-                {busy ? text.busy : zeroNet ? text.settle : attempt ? text.retry : text.create}
-              </span>
-            </button>
-          </>
-        ) : (
-          <p className={styles.notice}>
-            {booking.status === 'PENDING' ? text.unavailable : text.notPayable}
-          </p>
-        )}
-        <button
-          type="button"
-          className={styles.refresh}
-          disabled={busy || disabled}
-          onClick={() => {
-            setVerified(false);
-            setQrError(false);
-            setReload((value) => value + 1);
-          }}
-        >
-          {text.refresh}
-        </button>
-      </section>
-    </div>
+          )}
+          <button
+            type="button"
+            className={styles.ticket}
+            disabled={!canPay}
+            onClick={() => {
+              setQrError(false);
+              void checkout.createPayment();
+            }}
+          >
+            <span className={styles.ticketLabel}>
+              {busy ? text.busy : zeroNet ? text.settle : attempt ? text.retry : text.create}
+            </span>
+          </button>
+        </>
+      ) : (
+        <p className={styles.notice}>
+          {booking.status === 'PENDING' ? text.unavailable : text.notPayable}
+        </p>
+      )}
+      <button
+        type="button"
+        className={styles.refresh}
+        disabled={!checkout.canRefresh}
+        onClick={() => {
+          setQrError(false);
+          checkout.refresh();
+        }}
+      >
+        {text.refresh}
+      </button>
+    </section>
   );
 }

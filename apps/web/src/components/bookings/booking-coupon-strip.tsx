@@ -20,6 +20,7 @@ export function BookingCouponStrip({
   disabled,
   pending,
   verified,
+  verificationFailed,
   operation,
   error,
   onApply,
@@ -29,10 +30,11 @@ export function BookingCouponStrip({
   disabled: boolean;
   pending: boolean;
   verified: boolean;
+  verificationFailed: boolean;
   operation: 'apply' | 'remove' | 'pay' | null;
   error: string | null;
-  onApply: (code: string) => Promise<void>;
-  onRemove: () => Promise<void>;
+  onApply: (code: string) => Promise<boolean>;
+  onRemove: () => Promise<boolean>;
 }) {
   const { language } = useLanguage();
   const text = bookingCouponCopy[language];
@@ -40,7 +42,8 @@ export function BookingCouponStrip({
   const [code, setCode] = useState('');
   const [invalid, setInvalid] = useState(false);
   const input = useRef<HTMLInputElement>(null);
-  const hadCoupon = useRef(Boolean(booking.coupon));
+  const removeOrigin = useRef<HTMLButtonElement | null>(null);
+  const [focusRevision, setFocusRevision] = useState(0);
   const coupon = booking.coupon;
   const paid = booking.paymentStatus === 'PAID';
   const eligible = booking.status === 'CONFIRMED' && !paid;
@@ -48,13 +51,17 @@ export function BookingCouponStrip({
   const message = invalid ? text.invalid : error;
 
   useEffect(() => {
-    if (coupon) {
-      hadCoupon.current = true;
-    } else if (hadCoupon.current && !locked) {
+    const trigger = removeOrigin.current;
+    removeOrigin.current = null;
+    if (
+      trigger &&
+      !locked &&
+      !coupon &&
+      (document.activeElement === trigger || document.activeElement === document.body)
+    ) {
       input.current?.focus();
-      hadCoupon.current = false;
     }
-  }, [coupon, locked]);
+  }, [focusRevision, locked, coupon]);
 
   if (!eligible && !coupon) {
     return null;
@@ -74,6 +81,18 @@ export function BookingCouponStrip({
     await onApply(normalizeBookingCouponCode(code));
   }
 
+  async function remove(trigger: HTMLButtonElement): Promise<void> {
+    setCode('');
+    setInvalid(false);
+    const removed = await onRemove();
+    if (!removed) {
+      return;
+    }
+    // Focus after React commits the unlocked input, only for this successful remove.
+    removeOrigin.current = trigger;
+    setFocusRevision((value) => value + 1);
+  }
+
   return (
     <section className={styles.strip} aria-label={text.title} aria-busy={operation !== null}>
       {coupon ? (
@@ -85,18 +104,17 @@ export function BookingCouponStrip({
                 type="button"
                 className={styles.remove}
                 disabled={locked}
-                onClick={() => {
-                  setCode('');
-                  setInvalid(false);
-                  void onRemove();
-                }}
+                onClick={(event) => void remove(event.currentTarget)}
               >
                 {operation === 'remove' ? text.removing : text.remove}
               </button>
             )}
           </div>
           <p className={styles.help} role="status">
-            {(paid ? text.consumed : text.applied).replace('{percent}', String(coupon.percent))}
+            {(paid ? text.consumed : eligible ? text.applied : text.recorded).replace(
+              '{percent}',
+              String(coupon.percent),
+            )}
           </p>
         </div>
       ) : (
@@ -133,7 +151,7 @@ export function BookingCouponStrip({
           {message}
         </p>
       )}
-      {eligible && (pending || !verified) && (
+      {eligible && (pending || verificationFailed) && (
         <p className={styles.help}>{pending ? text.locked : text.checking}</p>
       )}
       {eligible && <p className={styles.help}>{text.usage}</p>}

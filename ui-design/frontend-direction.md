@@ -542,6 +542,15 @@ explanation. Stack the payment column below the amounts when the containing pape
 - A stored 100% coupon with net 0.00 changes the payment action to Confirm THB 0.00. It uses the
   existing PromptPay payment endpoint, and renders the returned receipt without inventing a QR.
   Keep nonzero PromptPay behavior, historical mock receipts, test-mode copy and booking actions.
+- Checkout state belongs to `use-booking-checkout`; `StudentBookingCheckout` composes the strip,
+  amounts and presentation-only payment panel with its own layout styles. Submission locks are
+  owned by request tokens and released on unmount without letting a late request unlock a new one.
+  Retain a payment-time coupon rejection after status refresh so the student can remove the invalid
+  coupon; generic payment failures must not use code-input validation copy. Initial checks show
+  loading, with recovery guidance reserved for failed verification. Only a successful removal from
+  this strip may restore input focus; failed reads and later manual refreshes do not defer that focus.
+  Ineligible unpaid history uses recorded-discount wording. Polling follows both payment and booking
+  evidence. Keep status reads before booking reads: status reconciliation can persist payment changes.
 
 ## Profile photo editor
 

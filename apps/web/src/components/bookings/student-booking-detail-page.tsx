@@ -8,9 +8,10 @@ import { BookingDocketStatus, BookingDocketSummary } from '@/components/bookings
 import { bookingRequestCopy } from '@/components/bookings/booking-request-copy';
 import { getBookingErrorMessage } from '@/components/bookings/booking-ui';
 import { ClassDetailsPanel } from '@/components/bookings/class-details-panel';
-import { PromptPayPaymentPanel } from '@/components/bookings/promptpay-payment-panel';
 import { RescheduleRequestPanel } from '@/components/bookings/reschedule-request-panel';
+import { StudentBookingCheckout } from '@/components/bookings/student-booking-checkout';
 import { studentBookingsCopy } from '@/components/bookings/student-bookings-copy';
+import { updateCheckoutSubmission } from '@/components/bookings/use-booking-checkout';
 import { DashboardIcon } from '@/components/dashboard/dashboard-icon';
 import { BookingReviewSection } from '@/components/reviews/booking-review-section';
 import { NotebookHeading, PaperCard } from '@/components/ui/notebook';
@@ -35,7 +36,8 @@ export default function StudentBookingDetailPage({ bookingId }: { bookingId: str
   const [bookingRevision, setBookingRevision] = useState(0);
   const [rescheduleBusy, setRescheduleBusy] = useState(false);
   const [cancellationBusy, setCancellationBusy] = useState(false);
-  const [paymentBusy, setPaymentBusy] = useState(false);
+  const [paymentSubmission, setPaymentSubmission] = useState<symbol | null>(null);
+  const paymentBusy = paymentSubmission !== null;
   const [rescheduleStale, setRescheduleStale] = useState(false);
   const [cancellationStale, setCancellationStale] = useState(false);
   const [rescheduleOutcome, setRescheduleOutcome] = useState<RescheduleRequestStatus | null>(null);
@@ -43,6 +45,9 @@ export default function StudentBookingDetailPage({ bookingId }: { bookingId: str
   const restoreClassroomRefreshFocusRef = useRef(false);
   const isCurrentBookingLoaded = loadedBookingId === bookingId;
   const loading = isLoading || !isCurrentBookingLoaded;
+  const handlePaymentSubmittingChange = useCallback((busy: boolean, token: symbol): void => {
+    setPaymentSubmission((current) => updateCheckoutSubmission(current, busy, token));
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -151,13 +156,13 @@ export default function StudentBookingDetailPage({ bookingId }: { bookingId: str
                     : pageText.otherNotice}
               </p>
 
-              <PromptPayPaymentPanel
+              <StudentBookingCheckout
                 key={`${booking.id}:${booking.slot.id}`}
                 booking={booking}
                 disabled={
                   rescheduleBusy || rescheduleStale || cancellationBusy || cancellationStale
                 }
-                onSubmittingChange={setPaymentBusy}
+                onSubmittingChange={handlePaymentSubmittingChange}
                 onBookingChange={handlePaymentBookingChange}
               />
             </div>

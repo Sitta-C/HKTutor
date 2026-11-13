@@ -29,6 +29,47 @@ export function isFullCouponSettlement(
   return booking.netAmount === '0.00' && booking.coupon?.percent === 100;
 }
 
+const COUPON_REJECTION_KEYS = {
+  COUPON_NOT_FOUND: 'notFound',
+  COUPON_INACTIVE: 'inactive',
+  COUPON_EXPIRED: 'expired',
+  COUPON_EXHAUSTED: 'exhausted',
+  COUPON_ALREADY_USED: 'alreadyUsed',
+  PAYMENT_AMOUNT_UNSUPPORTED: 'unsupported',
+} as const satisfies Record<string, keyof BookingCouponCopy>;
+
+function couponRejectionKey(error: unknown): keyof BookingCouponCopy | null {
+  if (!(error instanceof ApiError) || (error.status !== 404 && error.status !== 409)) {
+    return null;
+  }
+  const details = error.details;
+  const code =
+    typeof details === 'object' && details !== null && 'code' in details ? details.code : null;
+  for (const [knownCode, key] of Object.entries(COUPON_REJECTION_KEYS)) {
+    if (code === knownCode) {
+      return key;
+    }
+  }
+  return null;
+}
+
+export function isCouponPaymentRejection(error: unknown): boolean {
+  return couponRejectionKey(error) !== null;
+}
+
+export function getBookingPaymentFailure(
+  error: unknown,
+  copy: BookingCouponCopy,
+  fallback: string,
+  hasCoupon: boolean,
+): string {
+  const key = couponRejectionKey(error);
+  if (key === null) {
+    return fallback;
+  }
+  return hasCoupon ? `${copy[key]} ${copy.paymentRecovery}` : copy[key];
+}
+
 export function getBookingCouponFailure(
   error: unknown,
   copy: BookingCouponCopy,
@@ -39,21 +80,10 @@ export function getBookingCouponFailure(
   const details = error.details;
   const code =
     typeof details === 'object' && details !== null && 'code' in details ? details.code : null;
-  const couponMessages: Record<string, string> = {
-    COUPON_NOT_FOUND: copy.notFound,
-    COUPON_INACTIVE: copy.inactive,
-    COUPON_EXPIRED: copy.expired,
-    COUPON_EXHAUSTED: copy.exhausted,
-    COUPON_ALREADY_USED: copy.alreadyUsed,
-    PAYMENT_AMOUNT_UNSUPPORTED: copy.unsupported,
-  };
   // Only explicit coupon rejections leave the confirmed checkout safe to edit immediately.
-  const couponMessage =
-    typeof code === 'string' && Object.hasOwn(couponMessages, code)
-      ? couponMessages[code]
-      : undefined;
-  if (couponMessage && (error.status === 404 || error.status === 409)) {
-    return { message: couponMessage, requiresRefresh: false };
+  const key = couponRejectionKey(error);
+  if (key !== null) {
+    return { message: copy[key], requiresRefresh: false };
   }
   return {
     message:

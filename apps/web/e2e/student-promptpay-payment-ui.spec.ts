@@ -45,6 +45,7 @@ async function mockPayments(
     status?: BookingStatus;
     paymentGate?: Promise<void>;
     couponGate?: Promise<void>;
+    paymentReadGate?: Promise<void>;
     booking?: BookingDetail;
   } = {},
 ) {
@@ -58,6 +59,8 @@ async function mockPayments(
     failRefresh: false,
     failPaymentRead: false,
     posts: 0,
+    statusReads: 0,
+    bookingReads: 0,
     couponRequests: [] as { method: string; body: unknown }[],
     couponFailure: null as { status: number; code: string } | null,
     loseCouponResponse: false,
@@ -157,12 +160,15 @@ async function mockPayments(
     if (path === '/bookings/me')
       return route.fulfill({ json: { items: [state.booking], total: 1 } });
     if (path === '/bookings/me/mock-payment-booking' && request.method() === 'GET') {
+      state.bookingReads += 1;
       return route.fulfill({
         status: state.failRefresh ? 500 : 200,
         json: state.failRefresh ? { message: 'Unavailable' } : state.booking,
       });
     }
     if (path === '/bookings/me/mock-payment-booking/payments/current') {
+      state.statusReads += 1;
+      await options.paymentReadGate;
       return route.fulfill({
         status: state.failPaymentRead ? 503 : 200,
         json: state.failPaymentRead ? { message: 'Unavailable' } : state.current,
@@ -196,6 +202,9 @@ async function mockPayments(
     if (path === '/bookings/me/mock-payment-booking/payments/promptpay') {
       state.posts += 1;
       await options.paymentGate;
+      if (state.failure) {
+        return route.fulfill({ status: state.failure.status, json: state.failure });
+      }
       if (state.booking.netAmount === '0.00') {
         state.booking = {
           ...state.booking,
@@ -605,3 +614,215 @@ for (const status of ['PENDING', 'CANCELED', 'COMPLETED'] as const) {
     await expect(page.getByRole('button', { name: 'Apply code', exact: true })).toHaveCount(0);
   });
 }
+
+const APPLIED_COUPON_BOOKING: BookingDetail = {
+  ...COUPON_BOOKING,
+  coupon: { id: 'coupon-preview', code: 'WELCOME10', percent: 10 },
+  discountAmount: '45.00',
+  netAmount: '405.00',
+};
+
+test('initial verification shows loading without telling the student to repair payment status', async ({
+  page,
+}) => {
+  let release = () => {};
+  const paymentReadGate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await mockPayments(page, { booking: COUPON_BOOKING, paymentReadGate });
+  await page.goto(DETAIL_PATH);
+  const strip = page.getByRole('region', { name: 'Discount code' });
+  await expect(strip.getByRole('textbox')).toBeDisabled();
+  await expect(page.getByText('Checking payment status…', { exact: true })).toBeVisible();
+  await expect(strip.getByText(bookingCouponCopy.en.checking)).toHaveCount(0);
+  release();
+  await expect(strip.getByRole('textbox')).toBeEnabled();
+});
+
+for (const status of [400, 409] as const) {
+  test(`unmapped payment ${status} uses payment recovery rather than coupon-input instructions`, async ({
+    page,
+  }) => {
+    const state = await mockPayments(page, { booking: COUPON_BOOKING });
+    state.failure = {
+      status,
+      code: status === 400 ? 'VALIDATION_FAILED' : 'PAYMENT_STATE_CONFLICT',
+    };
+    await page.goto(DETAIL_PATH);
+    await page.getByRole('button', { name: 'Create test QR', exact: true }).click();
+    const payment = page.getByRole('region', { name: 'Pay with PromptPay', exact: true });
+    await expect(payment.getByRole('alert')).toHaveText(
+      'Payment status is uncertain. Check the status again before continuing.',
+    );
+    await expect(payment).not.toContainText(bookingCouponCopy.en.invalid);
+    await expect(page.getByRole('button', { name: 'Create test QR', exact: true })).toBeDisabled();
+    expect(state.posts).toBe(1);
+  });
+}
+
+for (const language of ['th', 'en'] as const) {
+  test(`${language}: payment coupon rejection survives refresh until the invalid coupon is removed`, async ({
+    page,
+  }) => {
+    const text = bookingCouponCopy[language];
+    const state = await mockPayments(page, { booking: APPLIED_COUPON_BOOKING, language });
+    state.failure = { status: 409, code: 'COUPON_EXPIRED' };
+    await page.goto(DETAIL_PATH);
+    const pay = page.getByRole('button', {
+      name: language === 'en' ? 'Create test QR' : 'สร้าง QR ทดสอบ',
+      exact: true,
+    });
+    const remove = page.getByRole('button', { name: text.remove, exact: true });
+    await expect(pay).toBeEnabled();
+    await pay.click();
+    const rejection = page.getByRole('alert').filter({ hasText: text.expired });
+    await expect(rejection).toHaveText(`${text.expired} ${text.paymentRecovery}`);
+    await expect(remove).toBeDisabled();
+    await page
+      .getByRole('button', {
+        name: language === 'en' ? 'Check payment status' : 'ตรวจสถานะชำระเงิน',
+        exact: true,
+      })
+      .click();
+    await expect(remove).toBeEnabled();
+    await expect(rejection).toBeVisible();
+    await expect(pay).toBeDisabled();
+    await remove.click();
+    await expect(rejection).toHaveCount(0);
+    await expect(pay).toBeEnabled();
+    expect(state.posts).toBe(1);
+  });
+}
+
+for (const source of ['booking', 'attempt'] as const) {
+  test(`${source} pending evidence keeps polling even when current.paymentPending is false`, async ({
+    page,
+  }) => {
+    const state = await mockPayments(page, { booking: APPLIED_COUPON_BOOKING });
+    if (source === 'booking') {
+      state.booking = { ...state.booking, paymentPending: true };
+    } else {
+      state.current.attempt = {
+        id: 'uncertain',
+        status: 'CREATING',
+        amount: '405.00',
+        currency: 'THB',
+        chargeId: null,
+        qrCodeUrl: null,
+        expiresAt: null,
+        failureCode: null,
+      };
+    }
+    await page.goto(DETAIL_PATH);
+    await expect(page.getByRole('button', { name: 'Remove coupon', exact: true })).toBeDisabled();
+    await expect.poll(() => state.bookingReads).toBeGreaterThanOrEqual(2);
+    await expect(page.getByText('Checking payment status…', { exact: true })).toHaveCount(0);
+    const initialReads = state.statusReads;
+    state.booking = { ...state.booking, paymentPending: false };
+    state.current = { ...state.current, attempt: null };
+    await expect.poll(() => state.statusReads, { timeout: 10_000 }).toBeGreaterThan(initialReads);
+    await expect(page.getByRole('button', { name: 'Remove coupon', exact: true })).toBeEnabled();
+  });
+}
+
+test('a failed post-remove read does not restore focus during a later manual refresh', async ({
+  page,
+}) => {
+  const state = await mockPayments(page, { booking: APPLIED_COUPON_BOOKING });
+  await page.goto(DETAIL_PATH);
+  const remove = page.getByRole('button', { name: 'Remove coupon', exact: true });
+  await expect(remove).toBeEnabled();
+  state.failRefresh = true;
+  await remove.click();
+  await expect(
+    page.getByRole('alert').filter({ hasText: 'Payment status is uncertain' }),
+  ).toBeVisible();
+  const refresh = page.getByRole('button', { name: 'Check payment status', exact: true });
+  state.failRefresh = false;
+  await refresh.click();
+  await expect(page.getByRole('textbox', { name: 'Discount code' })).toBeEnabled();
+  await expect(refresh).toBeFocused();
+});
+
+test('a remote coupon removal does not take focus from the status action', async ({ page }) => {
+  const state = await mockPayments(page, { booking: APPLIED_COUPON_BOOKING });
+  await page.goto(DETAIL_PATH);
+  await expect(page.getByRole('button', { name: 'Remove coupon', exact: true })).toBeEnabled();
+  state.booking = { ...COUPON_BOOKING };
+  const refresh = page.getByRole('button', { name: 'Check payment status', exact: true });
+  await refresh.click();
+  await expect(page.getByRole('textbox', { name: 'Discount code' })).toBeEnabled();
+  await expect(refresh).toBeFocused();
+});
+
+test('successful removal does not take focus after the student moves to another action', async ({
+  page,
+}) => {
+  let release = () => {};
+  const couponGate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await mockPayments(page, { booking: APPLIED_COUPON_BOOKING, couponGate });
+  await page.goto(DETAIL_PATH);
+  const remove = page.getByRole('button', { name: 'Remove coupon', exact: true });
+  await expect(remove).toBeEnabled();
+  await remove.click();
+  const back = page.getByRole('link', { name: 'Back to my bookings', exact: true });
+  await back.focus();
+  release();
+  await expect(page.getByRole('textbox', { name: 'Discount code' })).toBeEnabled();
+  await expect(back).toBeFocused();
+});
+
+for (const status of ['PENDING', 'CANCELED', 'COMPLETED'] as const) {
+  test(`${status}: unpaid coupon history is recorded rather than described as usable`, async ({
+    page,
+  }) => {
+    await mockPayments(page, { booking: APPLIED_COUPON_BOOKING, status });
+    await page.goto(DETAIL_PATH);
+    const strip = page.getByRole('region', { name: 'Discount code' });
+    await expect(strip).toContainText(bookingCouponCopy.en.recorded.replace('{percent}', '10'));
+    await expect(strip).not.toContainText(bookingCouponCopy.en.applied.replace('{percent}', '10'));
+    await expect(strip.getByRole('button')).toHaveCount(0);
+  });
+}
+
+test('booking reads wait for payment reconciliation to complete', async ({ page }) => {
+  const state = await mockPayments(page, { booking: COUPON_BOOKING });
+  await page.goto(DETAIL_PATH);
+  await expect(page.getByRole('textbox', { name: 'Discount code' })).toBeEnabled();
+  let release = () => {};
+  let markStarted = () => {};
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const started = new Promise<void>((resolve) => {
+    markStarted = resolve;
+  });
+  await page.route('**/api/v1/bookings/me/mock-payment-booking/payments/current', async (route) => {
+    markStarted();
+    await gate;
+    state.booking = {
+      ...state.booking,
+      paymentStatus: 'PAID',
+      paidAt: PAID_AT,
+      paymentReference: 'reconciled-receipt',
+    };
+    await route.fulfill({
+      json: {
+        ...state.current,
+        paymentStatus: 'PAID',
+        paidAt: PAID_AT,
+        reference: 'reconciled-receipt',
+      },
+    });
+  });
+  const before = state.bookingReads;
+  await page.getByRole('button', { name: 'Check payment status', exact: true }).click();
+  await started;
+  // A parallel booking request would be observable while the reconciliation is held.
+  await expect.poll(() => state.bookingReads, { timeout: 300 }).toBe(before);
+  release();
+  await expect(page.getByText('reconciled-receipt', { exact: true })).toBeVisible();
+  await expect(page.getByRole('textbox', { name: 'Discount code' })).toHaveCount(0);
+});

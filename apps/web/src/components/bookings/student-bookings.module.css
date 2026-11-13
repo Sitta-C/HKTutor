@@ -261,20 +261,6 @@
   color: var(--color-amber-800);
   border-color: color-mix(in srgb, var(--color-amber-800) 30%, var(--color-sticky-yellow));
 }
-.detailAmounts {
-  margin-bottom: 22px;
-}
-.detailAmounts > dl {
-  margin-top: 0;
-}
-.detailTotal > div {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: space-between;
-  align-items: baseline;
-  gap: 12px;
-  margin-bottom: 0;
-}
 .detailLinks {
   display: flex;
   flex-wrap: wrap;
@@ -346,24 +332,5 @@
   .page button,
   .page a {
     transition: none;
-  }
-}
-.paymentColumns {
-  display: grid;
-  grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
-}
-
-.amountColumn {
-  min-width: 0;
-  padding: 22px 22px 0 0;
-}
-
-@container (max-width: 600px) {
-  .paymentColumns {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .amountColumn {
-    padding: 0 0 18px;
   }
 }

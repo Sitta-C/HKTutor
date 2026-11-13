@@ -3,16 +3,28 @@ import { describe, expect, it } from 'vitest';
 import { bookingCouponCopy } from '@/components/bookings/booking-coupon-copy';
 import {
   getBookingCouponFailure,
+  getBookingPaymentFailure,
   hasActiveBookingPayment,
   isBookingCouponCodeValid,
   isFullCouponSettlement,
   normalizeBookingCouponCode,
 } from '@/components/bookings/booking-coupon-model';
+import { updateCheckoutSubmission } from '@/components/bookings/use-booking-checkout';
 import { ApiError } from '@/lib/api/error';
 
 import type { PromptPayPayment } from '@/lib/api/types';
 
 describe('student coupon checkout', () => {
+  it('releases an unmounted submission without allowing its late completion to unlock a new request', () => {
+    const previous = Symbol('old checkout');
+    const next = Symbol('new checkout');
+    let owner = updateCheckoutSubmission(null, true, previous);
+    owner = updateCheckoutSubmission(owner, false, previous);
+    expect(owner).toBeNull();
+    owner = updateCheckoutSubmission(owner, true, next);
+    expect(updateCheckoutSubmission(owner, false, previous)).toBe(next);
+    expect(updateCheckoutSubmission(owner, false, next)).toBeNull();
+  });
   it('normalizes ASCII codes without accepting expanded Unicode equivalents', () => {
     expect(normalizeBookingCouponCode('  welcome10\n')).toBe('WELCOME10');
     expect(isBookingCouponCodeValid('  abc_-123  ')).toBe(true);
@@ -68,6 +80,31 @@ describe('student coupon checkout', () => {
 
   for (const language of ['th', 'en'] as const) {
     const text = bookingCouponCopy[language];
+    it.each([
+      [400, 'VALIDATION_FAILED'],
+      [409, 'PAYMENT_STATE_CONFLICT'],
+      [409, 'constructor'],
+      [503, 'SERVICE_UNAVAILABLE'],
+    ])(`${language}: payment %s %s never shows coupon-input instructions`, (status, code) => {
+      expect(
+        getBookingPaymentFailure(
+          new ApiError('private', status, { code }),
+          text,
+          'payment fallback',
+          true,
+        ),
+      ).toBe('payment fallback');
+    });
+
+    it(`${language}: payment coupon errors include recovery while apply errors do not`, () => {
+      const error = new ApiError('private', 409, { code: 'COUPON_EXPIRED' });
+      expect(getBookingPaymentFailure(error, text, 'payment fallback', true)).toBe(
+        `${text.expired} ${text.paymentRecovery}`,
+      );
+      expect(getBookingCouponFailure(error, text).message).toBe(text.expired);
+      expect(text.expired).not.toMatch(/Remove|ถอด/);
+      expect(getBookingPaymentFailure(error, text, 'payment fallback', false)).toBe(text.expired);
+    });
     it.each([
       [404, 'COUPON_NOT_FOUND', text.notFound],
       [409, 'COUPON_EXPIRED', text.expired],
