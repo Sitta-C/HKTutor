@@ -503,6 +503,83 @@ database (drop, migrate, seed). Never point these commands at a database whose d
 | No open slots on Anan's profile                | The seed has not run since the slots were used; re-seed or create availability as the tutor |
 | Document upload fails                          | Supabase Storage settings or private buckets; see the API README                            |
 
+## Sprint 3 demo runbook
+
+Rehearsed from a clean environment on 2026-11-13 (S3-T40); the record, timings and findings are in
+[`tests/s3-t40-qa.md`](tests/s3-t40-qa.md). It builds on the [Sprint 2 runbook](#sprint-2-demo-runbook)
+above: prepare the environment the same way, then run the Sprint 3 script below. Use three browser
+profiles (student, tutor, admin) plus a second student window for the live-chat step.
+
+### 1. Environment and safe placeholders
+
+- Start from `.env.example`. Every secret there is a placeholder. The `SEED_*` passwords need at
+  least 10 characters, and real values never go into Git or onto a shared screen.
+- **Payments:** the API refuses to start with the example `OMISE_*` placeholders. Either set your
+  Omise **test** keys (`skey_test_…` and the Base64 webhook secret), or leave **both** empty. With
+  both empty, PromptPay QR creation returns 503 but a 100% coupon still settles at zero net, so
+  the coupon demo works without Omise.
+- `API_INTERNAL_URL` is read when `apps/web` is **built**, because Next.js fixes the `/api/v1`
+  rewrite at build time. Set it before `pnpm build`; changing it only at runtime has no effect.
+- The database time zone must be UTC (see the Sprint 2 runbook, step 1.2).
+
+### 2. Back up, migrate, seed and start
+
+```bash
+# Shared demo database only: take a restorable backup first. Use the direct connection URL.
+pg_dump --format=custom --no-owner --file="hktutor-before-s3-demo.dump" "$DATABASE_URL"
+pnpm install
+pnpm db:generate
+pnpm db:migrate:status
+pnpm db:migrate:deploy
+pnpm db:seed
+pnpm build
+pnpm --filter @hktutor/api start:prod   # port 3001
+pnpm --filter @hktutor/web start        # port 3000
+```
+
+`pnpm dev` is fine for a local demo. Preflight checks: `http://localhost:3000/api/v1/health` returns
+`{"database":"connected"}`, `/api/v1/docs` opens, and `/dashboard/reports` redirects an anonymous
+visitor to sign-in.
+
+**Rollback.** Migrations are forward-only and the seed never deletes data. To undo a failed
+upgrade, stop the API, restore the backup into an empty database
+(`pg_restore --clean --if-exists --no-owner --dbname="$DATABASE_URL" hktutor-before-s3-demo.dump`),
+then redeploy the previous web and API build. Never run `prisma migrate reset` against a shared
+database.
+
+### 3. Sprint 3 demo script
+
+The seed provides: Anan (tutor, Mathematics Grade 10, 400 THB/h, no reviews yet), Mali (4.33 from
+2 reviews) and Kiet (4.00 from 1) for comparison, a **completed, paid class from three days ago
+that Nan can review**, the Sprint 2 open slots (days +8 to +10), yesterday's paid class awaiting
+attendance, and the global coupons `WELCOME10` (10%) and `DB04_FREE100` (100%).
+
+| #   | Role    | Do                                                                                                                    | Expect                                                                                          |
+| --- | ------- | --------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| 1   | Admin   | **Coupons** → create `DEMOFREE`, 100%, 3 uses, expiry next month (Bangkok time)                                       | Listed as active, 0 of 3 used; a second `demofree` is refused as a duplicate                    |
+| 2   | Student | **Find a tutor** → Mathematics, Grade 10 → tick Anan, Mali and Kiet → **Compare**                                     | Six attributes aligned; Anan shows **New tutor**; a fourth tutor cannot be added                |
+| 3   | Student | In the comparison, sort by lowest price, then highest rating, then earliest availability                              | Order changes, selection and column alignment stay                                              |
+| 4   | Student | Message Anan; keep the conversation open in both windows                                                              | The tutor sees the message without refreshing; the read receipt reaches the student             |
+| 5   | Student | **Bookings** → the completed class from three days ago → **Write a review** (clarity, punctuality, preparation, text) | Saved once; Anan's card now shows a rating and 1 review                                         |
+| 6   | Student | Book **day +8, 17:00**                                                                                                | Pending                                                                                         |
+| 7   | Tutor   | Confirm the request                                                                                                   | Student notified                                                                                |
+| 8   | Student | Open the booking → apply `welcome10`, then replace it with `DEMOFREE`                                                 | 400.00 → 40.00 → 360.00, then 400.00 → 400.00 → **0.00**                                        |
+| 9   | Student | Confirm the zero-net payment (or use a PromptPay test QR with `WELCOME10` when Omise test keys are set)               | **Paid**; coupon use counted once (admin coupon list shows 1 of 3)                              |
+| 10  | Tutor   | Add the meeting link; record **Attended** on yesterday's class                                                        | Link visible to the student; class completed                                                    |
+| 11  | Tutor   | **Reports**                                                                                                           | Totals per status, paid completed revenue in THB and completion rate; values match the bookings |
+| 12  | Student | Bell                                                                                                                  | Booking and, within 24 hours of a paid class, class reminders                                   |
+
+Points to make while presenting: all amounts come from the server (the client never computes the
+discount), a coupon can be used once per student, a paid class cannot be canceled, and the report
+counts only paid, completed net amounts.
+
+### 4. Reset and known issues
+
+`pnpm db:seed` is safe to rerun. It never changes the review-ready class once it exists, so a
+review written during a rehearsal stays. A fully repeatable rehearsal therefore starts from a
+fresh database (create, migrate, seed). Known issues and open follow-ups are listed in the
+[S3-T39 handover](tests/s3-t39-qa.md#known-issues-and-follow-ups).
+
 ## Demo scope
 
 The local authentication implementation covers registration, verification-link resend, email
