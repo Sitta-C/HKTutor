@@ -3158,3 +3158,25 @@ The web client exposes this contract to tutors at the private, noindex
 `/dashboard/reports` route and as an independently loaded report section on `/dashboard`. It never
 derives all-time values from the paginated dashboard booking reads. The received-revenue card is
 the paid, completed net total above and stays distinct from monthly confirmed booked value.
+
+### Database-backed report verification (S3-T11)
+
+The Jest suites above replace Prisma with mocks. `pnpm db:verify:tutor-reports` runs the real
+`ReportsController`, `JwtAuthGuard`, `RolesGuard`, consent check and global validation pipe
+against PostgreSQL rows. It seeds the S3-DB04 fixtures with `runSeed`, then adds verifier-only
+tutors for cases the fixtures do not hold. An independent row-by-row oracle
+(`expectedTutorReport`) recomputes each report from raw `Booking` rows, so a mistake in the
+grouped aggregation cannot hide on both sides of the comparison.
+
+```bash
+psql "postgresql://postgres@127.0.0.1:5432/postgres" -c 'CREATE DATABASE hktutor_s3_t11_test'
+DATABASE_URL='postgresql://postgres@127.0.0.1:5432/hktutor_s3_t11_test' pnpm db:migrate:deploy
+HKTUTOR_ALLOW_DISPOSABLE_DB_VERIFY=1 \
+  DATABASE_URL='postgresql://postgres@127.0.0.1:5432/hktutor_s3_t11_test' \
+  pnpm db:verify:tutor-reports
+```
+
+The runner accepts only the exact loopback database `hktutor_s3_t11_test` with every committed
+migration applied and no users. It never loads `.env` and uses random JWT and seed secrets that
+are not printed. It leaves its synthetic rows in place, so drop the database afterwards. Coverage
+and the latest run are recorded in [`tests/s3-t11-qa.md`](../../tests/s3-t11-qa.md).
