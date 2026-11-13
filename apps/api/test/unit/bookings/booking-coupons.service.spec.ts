@@ -212,6 +212,135 @@ describe('BookingCouponsService', () => {
       };
     }
 
+    describe('lesson-start deadline across asynchronous coupon operations', () => {
+      const now = new Date('2026-11-15T10:59:59.999Z');
+      const startAtUtc = new Date('2026-11-15T11:00:00.000Z');
+      let database: ReturnType<typeof createMockPrisma>;
+      let service: BookingCouponsService;
+
+      function appliedBooking() {
+        return baseBookingRow({
+          slot: { startAtUtc },
+          appliedCouponId: couponId,
+          appliedCouponCode: 'WELCOME10',
+          appliedCouponPercent: 10,
+          discountAmount: new Prisma.Decimal(45),
+          netAmount: new Prisma.Decimal(405),
+        });
+      }
+
+      beforeEach(() => {
+        jest.useFakeTimers().setSystemTime(now);
+        database = createMockPrisma();
+        database.mockBookingFindUnique.mockResolvedValue(appliedBooking());
+        database.mockBookingUpdate.mockResolvedValue(baseBookingRow({ slot: { startAtUtc } }));
+        database.mockPaymentAttemptFindFirst.mockResolvedValue(null);
+        database.mockCouponReservationFindFirst.mockResolvedValue(null);
+        database.mockCouponFindUnique.mockResolvedValue(baseCouponRow());
+        database.mockCouponUseFindUnique.mockResolvedValue(null);
+        database.mockCouponUseCount.mockResolvedValue(0);
+        database.mockCouponReservationCount.mockResolvedValue(0);
+        service = new BookingCouponsService(database.prisma);
+      });
+
+      afterEach(() => {
+        jest.useRealTimers();
+      });
+
+      it('removes a coupon successfully one millisecond before lesson start', async () => {
+        await expect(service.removeCoupon(bookingId, studentUserId)).resolves.toMatchObject({
+          coupon: null,
+          discountAmount: '0.00',
+          netAmount: '450.00',
+        });
+        expect(database.mockBookingUpdate).toHaveBeenCalledTimes(1);
+      });
+
+      it.each([0, 1])('rejects removal %d ms after start without a write', async (offset) => {
+        jest.setSystemTime(new Date(startAtUtc.getTime() + offset));
+        await expect(service.removeCoupon(bookingId, studentUserId)).rejects.toMatchObject({
+          response: { code: 'BOOKING_PAYMENT_DEADLINE_PASSED' },
+        });
+        expect(database.mockBookingUpdate).not.toHaveBeenCalled();
+      });
+
+      it.each(['attempt', 'reservation'] as const)(
+        'rejects removal when the deadline passes during the %s read',
+        async (read) => {
+          const query =
+            read === 'attempt'
+              ? database.mockPaymentAttemptFindFirst
+              : database.mockCouponReservationFindFirst;
+          query.mockImplementation(() => {
+            jest.setSystemTime(startAtUtc);
+            return Promise.resolve(null);
+          });
+          await expect(service.removeCoupon(bookingId, studentUserId)).rejects.toMatchObject({
+            response: { code: 'BOOKING_PAYMENT_DEADLINE_PASSED' },
+          });
+          expect(database.mockBookingUpdate).not.toHaveBeenCalled();
+        },
+      );
+
+      it('also rejects an idempotent removal if its eligibility reads cross the deadline', async () => {
+        database.mockBookingFindUnique.mockResolvedValue(baseBookingRow({ slot: { startAtUtc } }));
+        database.mockPaymentAttemptFindFirst.mockImplementation(() => {
+          jest.setSystemTime(startAtUtc);
+          return Promise.resolve(null);
+        });
+        await expect(service.removeCoupon(bookingId, studentUserId)).rejects.toMatchObject({
+          response: { code: 'BOOKING_PAYMENT_DEADLINE_PASSED' },
+        });
+        expect(database.mockBookingUpdate).not.toHaveBeenCalled();
+      });
+
+      it.each(['apply', 'remove'] as const)(
+        'rejects the transaction when %s crosses the deadline while awaiting its write',
+        async (operation) => {
+          if (operation === 'apply') {
+            database.mockBookingFindUnique.mockResolvedValue(
+              baseBookingRow({ slot: { startAtUtc } }),
+            );
+          }
+          database.mockBookingUpdate.mockImplementation(() => {
+            jest.setSystemTime(new Date(startAtUtc.getTime() + 1));
+            return Promise.resolve(
+              operation === 'apply' ? appliedBooking() : baseBookingRow({ slot: { startAtUtc } }),
+            );
+          });
+          const result =
+            operation === 'apply'
+              ? service.applyCoupon(bookingId, studentUserId, { code: 'WELCOME10' })
+              : service.removeCoupon(bookingId, studentUserId);
+          await expect(result).rejects.toMatchObject({
+            response: { code: 'BOOKING_PAYMENT_DEADLINE_PASSED' },
+          });
+          expect(database.mockBookingUpdate).toHaveBeenCalledTimes(1);
+          await expect(database.mockTransaction.mock.results[0]?.value).rejects.toMatchObject({
+            response: { code: 'BOOKING_PAYMENT_DEADLINE_PASSED' },
+          });
+        },
+      );
+
+      it.each(['quote', 'apply'] as const)(
+        'rejects %s when coupon eligibility reads reach lesson start',
+        async (operation) => {
+          database.mockCouponUseFindUnique.mockImplementation(() => {
+            jest.setSystemTime(startAtUtc);
+            return Promise.resolve(null);
+          });
+          const result =
+            operation === 'quote'
+              ? service.quoteCoupon(bookingId, studentUserId, { code: 'WELCOME10' })
+              : service.applyCoupon(bookingId, studentUserId, { code: 'WELCOME10' });
+          await expect(result).rejects.toMatchObject({
+            response: { code: 'BOOKING_PAYMENT_DEADLINE_PASSED' },
+          });
+          expect(database.mockBookingUpdate).not.toHaveBeenCalled();
+        },
+      );
+    });
+
     describe('quoteCoupon', () => {
       it('calculates and returns a coupon preview without modifying database rows', async () => {
         const {

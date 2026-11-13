@@ -756,6 +756,8 @@ can be confirmed/paid before 18:00, and its final scheduled reminder starts at 1
   100% coupons) reject a closed window with `409 BOOKING_PAYMENT_DEADLINE_PASSED`. Confirmation
   rechecks the clock after acquiring database write locks; crossing the deadline rolls back the
   transition and its notification. Booking creation checks again after selection validation.
+  Coupon operations recheck after eligibility reads; apply/remove also recheck after the write
+  inside their transaction, so a write crossing lesson start rolls back its coupon and amounts.
 - The browser closes checkout at start without reload and remembers a server-confirmed deadline
   rejection even if the client clock is slow. Active QR panels explain that the window is closed
   while status reads continue to reconcile the existing payment.
@@ -2769,6 +2771,9 @@ The runner requires explicit opt-in, loopback-only URL, `hktutor_*_test`/`hktuto
 no URL options/fragments and all committed migrations. It does not load `.env`, migrate or seed.
 It retains synthetic append-only evidence, so run it only in a new isolated database and discard
 that database afterward. It is deliberately outside `pnpm check`.
+
+The coupon verifier also delays actual apply/remove updates across lesson start and checks the
+deadline conflict plus unchanged persisted coupon, amounts and payment evidence after rollback.
 
 ```bash
 docker run --detach --name hktutor-s3-t26-test \

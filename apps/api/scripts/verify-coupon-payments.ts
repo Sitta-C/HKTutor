@@ -423,6 +423,68 @@ async function verify(): Promise<void> {
       },
     });
 
+    const deadlineCoupon = await coupon(10, 100);
+    for (const operation of ['apply', 'remove'] as const) {
+      const target = await fixture(operation === 'remove' ? deadlineCoupon : undefined);
+      const original = await prisma.booking.findUniqueOrThrow({
+        where: { id: target.id },
+        include: { slot: true },
+      });
+      const startsAt = new Date(Date.now() + 2500);
+      await prisma.availabilitySlot.update({
+        where: { id: original.slotId },
+        data: { startAtUtc: startsAt, endAtUtc: new Date(startsAt.getTime() + 3_600_000) },
+      });
+      const beforeDeadlineWrite = await state(target.id);
+      try {
+        // Sequence increments survive rollback, proving the real UPDATE reached this trigger.
+        await prisma.$executeRawUnsafe('CREATE SEQUENCE coupon_deadline_write_counter');
+        await prisma.$executeRawUnsafe(`CREATE FUNCTION coupon_deadline_write_probe()
+          RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN
+          IF NEW."id" = '${target.id}'::uuid THEN
+            PERFORM nextval('coupon_deadline_write_counter');
+            PERFORM pg_sleep(GREATEST(0, EXTRACT(EPOCH FROM
+              ('${startsAt.toISOString()}'::timestamptz - clock_timestamp()))) + 0.15);
+          END IF;
+          RETURN NEW; END $$`);
+        await prisma.$executeRawUnsafe(
+          'CREATE TRIGGER coupon_deadline_write_probe AFTER UPDATE ON "Booking" FOR EACH ROW EXECUTE FUNCTION coupon_deadline_write_probe()',
+        );
+        await assert.rejects(
+          operation === 'apply'
+            ? bookingCoupons.applyCoupon(target.id, target.studentId, { code: deadlineCoupon.code })
+            : bookingCoupons.removeCoupon(target.id, target.studentId),
+          (error: unknown) => {
+            assert.ok(error instanceof HttpException);
+            assert.equal(error.getStatus(), 409);
+            const body = error.getResponse();
+            assert.ok(typeof body === 'object' && 'code' in body);
+            assert.equal(body.code, 'BOOKING_PAYMENT_DEADLINE_PASSED');
+            return true;
+          },
+        );
+        const [probe] = await prisma.$queryRaw<{ value: number; called: boolean }[]>`
+          SELECT last_value::int AS value, is_called AS called FROM coupon_deadline_write_counter`;
+        assert.ok(probe);
+        assert.equal(probe.called, true, 'The UPDATE must actually execute before the deadline');
+        assert.equal(probe.value, 1);
+        assert.deepEqual(await state(target.id), beforeDeadlineWrite);
+        pass(
+          `${operation} crossing lesson start during a real UPDATE rolls back coupon, amounts and evidence`,
+        );
+      } finally {
+        await prisma.$executeRawUnsafe(
+          'DROP TRIGGER IF EXISTS coupon_deadline_write_probe ON "Booking"',
+        );
+        await prisma.$executeRawUnsafe('DROP FUNCTION IF EXISTS coupon_deadline_write_probe()');
+        await prisma.$executeRawUnsafe('DROP SEQUENCE IF EXISTS coupon_deadline_write_counter');
+        await prisma.availabilitySlot.update({
+          where: { id: original.slotId },
+          data: { startAtUtc: original.slot.startAtUtc, endAtUtc: original.slot.endAtUtc },
+        });
+      }
+    }
+
     const final = await coupon();
     const a = await fixture(final);
     const b = await fixture(final);

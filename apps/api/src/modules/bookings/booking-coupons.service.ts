@@ -268,6 +268,7 @@ export class BookingCouponsService {
       coupon.percent,
     );
     assertSupportedPaymentAmount(netAmount, coupon.percent);
+    assertBeforePaymentDeadline(booking.slot.startAtUtc);
 
     return {
       bookingId: booking.id,
@@ -351,6 +352,7 @@ export class BookingCouponsService {
         select: bookingCouponSelect,
       });
 
+      assertBeforePaymentDeadline(booking.slot.startAtUtc);
       return toOperationDto(updated);
     });
   }
@@ -376,6 +378,8 @@ export class BookingCouponsService {
       assertPayableBooking(booking);
       await assertNoActivePayment(tx, booking);
 
+      // Eligibility reads may have crossed lesson start while the booking remained locked.
+      assertBeforePaymentDeadline(booking.slot.startAtUtc);
       if (!booking.appliedCouponId) {
         return toOperationDto(booking);
       }
@@ -395,6 +399,8 @@ export class BookingCouponsService {
         select: bookingCouponSelect,
       });
 
+      // A delayed write must fail inside the transaction so its amount changes roll back.
+      assertBeforePaymentDeadline(booking.slot.startAtUtc);
       return toOperationDto(updated);
     });
   }
