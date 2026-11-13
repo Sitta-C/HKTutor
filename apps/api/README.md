@@ -1163,7 +1163,12 @@ The existing S2-DB05 table and indexes are used without a schema migration. UI w
 Each list item contains exactly `id`, `eventType`, `title`, nullable `bookingId`, nullable `readAt`
 and `createdAt`. `bookingId` is link metadata; it does not grant access to the booking. Notification
 body, event key, recipient ID and related profile data are not returned. All times are UTC ISO 8601.
-The GET is read-only. `unreadCount` counts the entire caller inbox, independent of page or filter;
+The GET is read-only. A stored 1H reminder supersedes 24H reminders for the same recipient and
+scheduled occurrence (booking, slot and UTC start), including a prior unpaid reminder followed by
+a paid class reminder. Superseded rows remain stored with their original read receipts but are
+excluded before pagination, unread counts and bulk read. Reading the 1H reminder never restores
+the old 24H reminder. Other occurrences, recipients, bookings and QR prompts remain independent.
+`unreadCount` counts the entire visible caller inbox, independent of page or filter;
 the page and count use one repeatable-read snapshot.
 
 Items are newest first by immutable `(createdAt, id)`. Cursor timestamps must be canonical UTC
@@ -1220,8 +1225,9 @@ With `delta = startAtUtc - nowUtc` (the slot start and the job's clock):
 | 0 or less (started)     | None  |
 
 Exactly 24h selects 24H and exactly 1h selects only 1H. A run never selects both bands: a job that
-first sees a class 2h ahead sends the 24H reminder now and the 1H reminder later, and one that
-first sees it 30 minutes ahead sends only 1H. For a class at 2026-11-10 18:00 Asia/Bangkok
+first sees a class 2h ahead sends the 24H reminder now and the 1H reminder later. The 1H reminder
+then replaces the old 24H reminder in the inbox and badge, while both records remain stored.
+A first run 30 minutes ahead sends only 1H. For a class at 2026-11-10 18:00 Asia/Bangkok
 (`2026-11-10T11:00:00.000Z`):
 
 | Job run (UTC)              | Job run (Asia/Bangkok)  | Band           |

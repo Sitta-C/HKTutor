@@ -178,6 +178,8 @@ reminders to both participants. Each new usable PromptPay QR also sends the stud
 prompt, deduplicated per attempt across refreshes and webhook retries. QR expiry sends no event.
 Stored notifications remain readable. Existing unread counts, pagination and read-error recovery
 are preserved. See the [payment QR prompt contract](apps/api/README.md#payment-qr-prompts).
+When a 1-hour reminder arrives, it replaces 24-hour reminders for that same lesson occurrence in
+the inbox and unread badge. Older rows remain stored; rescheduled occurrences stay independent.
 
 Students and tutors can optionally upload, replace, or remove a profile photo during onboarding or
 from `/dashboard/profile`. JPEG, PNG, and static WebP inputs up to 2 MiB are normalized server-side.

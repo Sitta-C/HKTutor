@@ -817,6 +817,11 @@ Background refresh merges overlapping first pages into loaded history, retaining
 rows. A gap in history resets to the fresh page/cursor instead of skipping unseen notifications.
 Temporary background errors retain the last successful data with a bilingual status message.
 
+When a stored 1H reminder replaces 24H reminders for the same recipient and scheduled occurrence,
+the inbox and unread badge show only the 1H reminder. A newly received 1H reminder resets cached
+older pages through the server's cursor so superseded rows cannot be merged back into the list.
+Reading the 1H reminder does not restore the 24H reminder. Original database history is retained.
+
 This UI work uses the existing API fields and events. Notification eligibility, payment deadlines,
 QR/time-band deduplication rules and additional business events are unchanged.
 

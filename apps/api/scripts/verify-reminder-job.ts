@@ -578,7 +578,6 @@ async function verify(): Promise<void> {
     const tutorReminders = tutorInbox.items.filter((item) => item.bookingId === catchUp.id);
     assert.deepEqual(studentReminders.map((item) => item.eventType).sort(), [
       'PAYMENT_REMINDER_1H',
-      'PAYMENT_REMINDER_24H',
     ]);
     assert.deepEqual(tutorReminders, []);
     const unread = studentReminders[0];

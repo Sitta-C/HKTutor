@@ -8,6 +8,8 @@ import {
 } from '@modules/notifications/notifications.cursor';
 import { NotificationsService } from '@modules/notifications/notifications.service';
 
+import type { Prisma } from '@generated/prisma/client';
+
 const USER = '30000000-0000-4000-8000-000000000001';
 const ID = '50000000-0000-4000-8000-000000000001';
 const CREATED = new Date('2026-10-17T01:00:00.000Z');
@@ -24,14 +26,14 @@ const stored = {
 describe('NotificationsService', () => {
   const db = {
     $transaction: jest.fn(),
-    $queryRaw: jest.fn(),
+    $queryRaw: jest.fn<Promise<unknown[]>, [query: Prisma.Sql]>(),
     notification: { findMany: jest.fn(), count: jest.fn() },
   };
   let service: NotificationsService;
   beforeEach(async () => {
     jest.resetAllMocks();
     db.$transaction.mockImplementation((work: (tx: typeof db) => Promise<unknown>) => work(db));
-    db.notification.findMany.mockResolvedValue([]);
+    db.$queryRaw.mockResolvedValue([]);
     db.notification.count.mockResolvedValue(0);
     const moduleRef = await Test.createTestingModule({
       providers: [NotificationsService, { provide: PrismaService, useValue: db }],
@@ -40,12 +42,12 @@ describe('NotificationsService', () => {
   });
 
   it('limits the page, retains a timestamp tie boundary and counts all own unread rows in one snapshot', async () => {
-    db.notification.findMany.mockResolvedValue([
+    db.$queryRaw.mockResolvedValueOnce([
       { ...stored, id: '50000000-0000-4000-8000-000000000003' },
       { ...stored, id: '50000000-0000-4000-8000-000000000002' },
       stored,
     ]);
-    db.notification.count.mockResolvedValue(7);
+    db.$queryRaw.mockResolvedValueOnce([{ count: 7 }]);
     const result = await service.list(USER, { limit: 2 });
     expect(result.items.map((row) => row.id)).toEqual([
       '50000000-0000-4000-8000-000000000003',
@@ -60,7 +62,13 @@ describe('NotificationsService', () => {
     expect(db.$transaction).toHaveBeenCalledWith(expect.any(Function), {
       isolationLevel: 'RepeatableRead',
     });
-    expect(db.notification.count).toHaveBeenCalledWith({ where: { userId: USER, readAt: null } });
+    expect(db.$queryRaw).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        values: [USER],
+        sql: expect.stringContaining('AND n."readAt" IS NULL') as unknown,
+      }),
+    );
     expect(result.items[0]).not.toHaveProperty('userId');
     expect(result.items[0]).not.toHaveProperty('eventKey');
     expect(result.items[0]?.createdAt).toBe(CREATED.toISOString());
@@ -69,28 +77,24 @@ describe('NotificationsService', () => {
   it('keeps recipient and unread filters when applying both cursor columns', async () => {
     const cursor = encodeNotificationCursor({ createdAt: CREATED.toISOString(), id: ID });
     await service.list(USER, { cursor, unreadOnly: true, limit: 5 });
-    expect(db.notification.findMany).toHaveBeenCalledWith({
-      where: {
-        userId: USER,
-        readAt: null,
-        OR: [{ createdAt: { lt: CREATED } }, { createdAt: CREATED, id: { lt: ID } }],
-      },
-      select: {
-        bookingId: true,
-        createdAt: true,
-        eventType: true,
-        id: true,
-        readAt: true,
-        title: true,
-      },
-      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
-      take: 6,
-    });
+    expect(db.$queryRaw).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        values: [USER, CREATED, CREATED, ID, 6],
+        sql: expect.stringContaining('AND n."readAt" IS NULL') as unknown,
+      }),
+    );
+    const statement: unknown = db.$queryRaw.mock.calls[0]?.[0];
+    expect(statement).toEqual(
+      expect.objectContaining({
+        sql: expect.stringContaining('n."createdAt" <') as unknown,
+      }),
+    );
   });
 
   it('returns no next cursor on empty and exact-sized last pages', async () => {
     expect(await service.list(USER, {})).toEqual({ items: [], nextCursor: null, unreadCount: 0 });
-    db.notification.findMany.mockResolvedValue([stored]);
+    db.$queryRaw.mockResolvedValueOnce([stored]).mockResolvedValueOnce([{ count: 1 }]);
     const page = await service.list(USER, { limit: 1, unreadOnly: false });
     expect(page.nextCursor).toBeNull();
     expect(page.items).toHaveLength(1);

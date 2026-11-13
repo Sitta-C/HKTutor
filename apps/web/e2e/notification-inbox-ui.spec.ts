@@ -88,6 +88,7 @@ async function setup(
     listFailure: 0,
     writeFailure: 0,
     moreFailure: 0,
+    suppressedIds: new Set<string>(),
     readGate: undefined as Promise<void> | undefined,
     writeGate: undefined as Promise<void> | undefined,
     loseResponse: false,
@@ -156,7 +157,9 @@ async function setup(
       await (state.readGate ?? options.listGate);
       const more = url.searchParams.has('cursor');
       const filtered = state.items.filter(
-        (item) => url.searchParams.get('unreadOnly') !== 'true' || item.readAt === null,
+        (item) =>
+          !state.suppressedIds.has(item.id) &&
+          (url.searchParams.get('unreadOnly') !== 'true' || item.readAt === null),
       );
       const failure = state.listFailure || (more ? state.moreFailure : 0);
       return route.fulfill({
@@ -166,7 +169,9 @@ async function setup(
           : {
               items: more ? filtered.slice(3) : filtered.slice(0, 3),
               nextCursor: !more && filtered.length > 3 ? 'opaque+/=cursor' : null,
-              unreadCount: state.items.filter((item) => item.readAt === null).length,
+              unreadCount: state.items.filter(
+                (item) => item.readAt === null && !state.suppressedIds.has(item.id),
+              ).length,
             },
       });
     }
@@ -178,7 +183,10 @@ async function setup(
       }
       const all = path === '/notifications/read-all';
       const selected = state.items.filter(
-        (item) => item.readAt === null && (all || path === `/notifications/${item.id}/read`),
+        (item) =>
+          item.readAt === null &&
+          !state.suppressedIds.has(item.id) &&
+          (all || path === `/notifications/${item.id}/read`),
       );
       for (const item of selected) {
         item.readAt = READ_AT;
@@ -620,6 +628,44 @@ test('hidden tabs pause notification polling and refresh immediately on return',
     `${text.title}, ${text.unreadCount.replace('{count}', '4')}`,
   );
 });
+
+for (const language of ['en', 'th'] as const) {
+  test(`${language}: a 1H reminder replaces a loaded 24H reminder and updates the unread badge`, async ({
+    page,
+  }) => {
+    await page.clock.install();
+    const old = notice('old-24h', { eventType: 'PAYMENT_REMINDER_24H' });
+    const { state, bell, inbox, text } = await setup(page, {
+      language,
+      items: [notice('recent'), notice('read', { readAt: READ_AT }), notice('another'), old],
+    });
+    await bell.click();
+    await inbox.getByRole('button', { name: text.loadMore }).click();
+    await expect(inbox.getByRole('listitem')).toHaveCount(4);
+    await expect(inbox.getByText(text.events.PAYMENT_REMINDER_24H, { exact: true })).toBeVisible();
+    state.items.unshift(notice('new-1h', { eventType: 'PAYMENT_REMINDER_1H' }));
+    state.suppressedIds.add(old.id);
+    await page.clock.runFor(NOTIFICATION_POLL_INTERVAL_MS);
+    await expect(inbox.getByText(text.events.PAYMENT_REMINDER_24H, { exact: true })).toHaveCount(0);
+    await expect(inbox.getByText(text.events.PAYMENT_REMINDER_1H, { exact: true })).toBeVisible();
+    await expect(bell).toHaveAccessibleName(
+      `${text.title}, ${text.unreadCount.replace('{count}', '3')}`,
+    );
+    const urgent = inbox.getByRole('listitem').first();
+    await urgent.locator('summary').click();
+    await urgent.getByRole('button', { name: text.markRead, exact: true }).click();
+    await expect(urgent.getByText(text.read, { exact: true })).toBeVisible();
+    await page.clock.runFor(NOTIFICATION_POLL_INTERVAL_MS);
+    await expect(inbox.getByText(text.events.PAYMENT_REMINDER_24H, { exact: true })).toHaveCount(0);
+    await expect(bell).toHaveAccessibleName(
+      `${text.title}, ${text.unreadCount.replace('{count}', '2')}`,
+    );
+    expect(old.readAt).toBeNull();
+    expect(state.items).toContain(old);
+    await inbox.getByRole('button', { name: text.filterUnread, exact: true }).click();
+    await expect(inbox.getByRole('listitem')).toHaveCount(2);
+  });
+}
 
 test('a failed background refresh retains the inbox and recovers on the next tick', async ({
   page,

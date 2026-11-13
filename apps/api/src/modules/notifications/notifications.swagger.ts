@@ -32,7 +32,7 @@ export function ListNotificationsDoc(): MethodDecorator {
     ApiOperation({
       summary: 'List the current recipient inbox',
       description:
-        'Latest first by createdAt then id. Default limit 20, maximum 50. unreadCount covers the entire caller inbox regardless of cursor/filter. GET never marks read. Timestamps are UTC ISO 8601; bookingId supplies booking-link metadata. All authenticated roles access only their own inbox.',
+        'Latest first by createdAt then id. Default limit 20, maximum 50. A 1H reminder supersedes 24H reminders for the same recipient and scheduled occurrence; superseded records remain stored but are excluded from items and unreadCount. unreadCount covers the entire visible caller inbox regardless of cursor/filter. GET never marks read. Timestamps are UTC ISO 8601; bookingId supplies booking-link metadata. All authenticated roles access only their own inbox.',
     }),
     ApiOkResponse({ type: NotificationsResponseDto }),
     ApiBadRequestResponse({
@@ -66,7 +66,7 @@ export function MarkAllNotificationsReadDoc(): MethodDecorator {
     ApiOperation({
       summary: 'Mark all own unread notifications read',
       description:
-        'No body/query fields. Only the caller unread rows visible to this statement are updated; already-read and other recipients remain unchanged. Returns updatedCount=0 and readAt=null when nothing changed. Concurrent new events may remain unread.',
+        'No body/query fields. Only the caller unread inbox rows visible to this statement are updated; superseded 24H reminders, already-read rows and other recipients remain unchanged. Returns updatedCount=0 and readAt=null when nothing changed. Concurrent new events may remain unread.',
     }),
     ApiOkResponse({ type: NotificationsReadAllResponseDto }),
     ApiBadRequestResponse({ description: '400 VALIDATION_FAILED: unexpected body/query fields' }),

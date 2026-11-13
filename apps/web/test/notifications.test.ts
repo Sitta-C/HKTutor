@@ -106,6 +106,33 @@ describe('notification presentation and optimistic state', () => {
     };
     expect(refreshNotificationPage(page, fresh, false)).toEqual(fresh);
   });
+  it('discards a cached 24H reminder when a new 1H replaces it outside the fresh first page', () => {
+    const old = { ...item, id: '24h', eventType: 'PAYMENT_REMINDER_24H' };
+    const current = { ...page, items: [item, old], nextCursor: 'old-history' };
+    const fresh = {
+      items: [{ ...item, id: '1h', eventType: 'PAYMENT_REMINDER_1H' }, item],
+      nextCursor: 'fresh-history',
+      unreadCount: 7,
+    };
+    expect(refreshNotificationPage(current, fresh, false)).toEqual(fresh);
+    expect(refreshNotificationPage(current, fresh, true)).toEqual(fresh);
+  });
+  it('retains other bookings and QR prompts when an urgent reminder arrives', () => {
+    const old = { ...item, id: '24h', eventType: 'PAYMENT_REMINDER_24H', bookingId: 'another' };
+    const qr = { ...item, id: 'qr', eventType: 'PAYMENT_QR_READY' };
+    const current = { ...page, items: [item, old, qr] };
+    const fresh = {
+      items: [{ ...item, id: '1h', eventType: 'PAYMENT_REMINDER_1H' }, item],
+      nextCursor: 'fresh-history',
+      unreadCount: 8,
+    };
+    expect(refreshNotificationPage(current, fresh, false).items.map(({ id }) => id)).toEqual([
+      '1h',
+      item.id,
+      '24h',
+      'qr',
+    ]);
+  });
   it('keeps the server ordering when timestamps tie', () => {
     const items = [item, { ...item, id: 'second' }];
     const fresh = { items, unreadCount: 2, nextCursor: 'next' };

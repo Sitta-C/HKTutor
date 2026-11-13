@@ -56,6 +56,23 @@ export function refreshNotificationPage(
   if (!current || !fresh.items.some((item) => current.items.some(({ id }) => id === item.id))) {
     return fresh;
   }
+  // A new 1H reminder can retire an older loaded 24H row outside this first page. Re-fetch older
+  // history through the server's cursor rather than guessing which rescheduled occurrence it was.
+  const urgentReplacement = fresh.items.some(
+    (item) =>
+      (item.eventType === 'CLASS_REMINDER_1H' || item.eventType === 'PAYMENT_REMINDER_1H') &&
+      item.bookingId !== null &&
+      (!current.items.some(({ id }) => id === item.id) ||
+        fresh.unreadCount < current.unreadCount) &&
+      current.items.some(
+        (older) =>
+          older.bookingId === item.bookingId &&
+          (older.eventType === 'CLASS_REMINDER_24H' || older.eventType === 'PAYMENT_REMINDER_24H'),
+      ),
+  );
+  if (urgentReplacement) {
+    return fresh;
+  }
   const merged = mergeNotificationPage(current, fresh);
   const freshIds = new Set(fresh.items.map(({ id }) => id));
   return {
