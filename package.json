@@ -38,6 +38,7 @@
     "db:verify:meeting-links": "pnpm --filter @hktutor/api db:verify:meeting-links",
     "db:verify:attendance": "pnpm --filter @hktutor/api db:verify:attendance",
     "db:verify:sprint2-flow": "pnpm --filter @hktutor/api db:verify:sprint2-flow",
+    "db:verify:sprint3-flow": "pnpm --filter @hktutor/api db:verify:sprint3-flow",
     "db:verify:payments": "pnpm --filter @hktutor/api db:verify:payments",
     "db:verify:reviews": "pnpm --filter @hktutor/api db:verify:reviews",
     "db:reconcile:review-ratings": "pnpm --filter @hktutor/api db:reconcile:review-ratings",
