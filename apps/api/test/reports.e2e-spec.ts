@@ -3,7 +3,7 @@ import request from 'supertest';
 
 import { configureApplication } from '@app/app.setup';
 import { AccountStatus, Prisma, Role } from '@generated/prisma/client';
-import { BookingStatus } from '@generated/prisma/enums';
+import { BookingStatus, PaymentStatus } from '@generated/prisma/enums';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import { CURRENT_PRIVACY_POLICY_VERSION } from '@modules/auth/auth.constants';
 import { JwtAuthGuard } from '@modules/auth/auth.guard';
@@ -28,8 +28,6 @@ describe('Tutor Reports HTTP contract (e2e)', () => {
   const verifyAccessToken = jest.fn();
   const authSessionFindUnique = jest.fn();
   const bookingGroupBy = jest.fn();
-  const bookingAggregate = jest.fn();
-  const transaction = jest.fn();
 
   function authenticate(
     role: Role,
@@ -82,10 +80,8 @@ describe('Tutor Reports HTTP contract (e2e)', () => {
         {
           provide: PrismaService,
           useValue: {
-            $transaction: transaction,
             authSession: { findUnique: authSessionFindUnique },
             booking: {
-              aggregate: bookingAggregate,
               groupBy: bookingGroupBy,
             },
           },
@@ -106,16 +102,6 @@ describe('Tutor Reports HTTP contract (e2e)', () => {
     jest.resetAllMocks();
     authenticate(Role.TUTOR);
     bookingGroupBy.mockResolvedValue([]);
-    bookingAggregate.mockResolvedValue({ _sum: { netAmount: null } });
-    transaction.mockImplementation(
-      (work: (tx: { booking: { aggregate: jest.Mock; groupBy: jest.Mock } }) => Promise<unknown>) =>
-        work({
-          booking: {
-            aggregate: bookingAggregate,
-            groupBy: bookingGroupBy,
-          },
-        }),
-    );
   });
 
   it('returns 401 UNAUTHENTICATED when Authorization header is missing', async () => {
@@ -125,7 +111,7 @@ describe('Tutor Reports HTTP contract (e2e)', () => {
       code: 'UNAUTHENTICATED',
       statusCode: 401,
     });
-    expect(transaction).not.toHaveBeenCalled();
+    expect(bookingGroupBy).not.toHaveBeenCalled();
   });
 
   it('returns 401 UNAUTHENTICATED when token verification fails', async () => {
@@ -140,7 +126,7 @@ describe('Tutor Reports HTTP contract (e2e)', () => {
       code: 'UNAUTHENTICATED',
       statusCode: 401,
     });
-    expect(transaction).not.toHaveBeenCalled();
+    expect(bookingGroupBy).not.toHaveBeenCalled();
   });
 
   it.each([
@@ -161,7 +147,7 @@ describe('Tutor Reports HTTP contract (e2e)', () => {
       code: 'UNAUTHENTICATED',
       statusCode: 401,
     });
-    expect(transaction).not.toHaveBeenCalled();
+    expect(bookingGroupBy).not.toHaveBeenCalled();
   });
 
   it.each([
@@ -180,7 +166,7 @@ describe('Tutor Reports HTTP contract (e2e)', () => {
       message: 'Accept the current privacy notice to continue.',
       statusCode: 403,
     });
-    expect(transaction).not.toHaveBeenCalled();
+    expect(bookingGroupBy).not.toHaveBeenCalled();
   });
 
   it.each([
@@ -198,7 +184,7 @@ describe('Tutor Reports HTTP contract (e2e)', () => {
       code: 'FORBIDDEN',
       statusCode: 403,
     });
-    expect(transaction).not.toHaveBeenCalled();
+    expect(bookingGroupBy).not.toHaveBeenCalled();
   });
 
   it.each([
@@ -218,7 +204,7 @@ describe('Tutor Reports HTTP contract (e2e)', () => {
       code: 'VALIDATION_FAILED',
       statusCode: 400,
     });
-    expect(transaction).not.toHaveBeenCalled();
+    expect(bookingGroupBy).not.toHaveBeenCalled();
   });
 
   it.each([
@@ -236,19 +222,42 @@ describe('Tutor Reports HTTP contract (e2e)', () => {
       code: 'VALIDATION_FAILED',
       statusCode: 400,
     });
-    expect(transaction).not.toHaveBeenCalled();
+    expect(bookingGroupBy).not.toHaveBeenCalled();
   });
 
   it('returns 200 with Cache-Control: no-store and the 12-booking 905.00 THB / 75% report', async () => {
     bookingGroupBy.mockResolvedValue([
-      { status: BookingStatus.PENDING, _count: { _all: 3 } },
-      { status: BookingStatus.CONFIRMED, _count: { _all: 1 } },
-      { status: BookingStatus.COMPLETED, _count: { _all: 6 } },
-      { status: BookingStatus.CANCELED, _count: { _all: 2 } },
+      {
+        status: BookingStatus.PENDING,
+        paymentStatus: PaymentStatus.UNPAID,
+        _count: { _all: 3 },
+        _sum: { netAmount: new Prisma.Decimal('1350.00') },
+      },
+      {
+        status: BookingStatus.CONFIRMED,
+        paymentStatus: PaymentStatus.UNPAID,
+        _count: { _all: 1 },
+        _sum: { netAmount: new Prisma.Decimal('450.00') },
+      },
+      {
+        status: BookingStatus.COMPLETED,
+        paymentStatus: PaymentStatus.PAID,
+        _count: { _all: 2 },
+        _sum: { netAmount: new Prisma.Decimal('905.00') },
+      },
+      {
+        status: BookingStatus.COMPLETED,
+        paymentStatus: PaymentStatus.UNPAID,
+        _count: { _all: 4 },
+        _sum: { netAmount: new Prisma.Decimal('1800.00') },
+      },
+      {
+        status: BookingStatus.CANCELED,
+        paymentStatus: PaymentStatus.UNPAID,
+        _count: { _all: 2 },
+        _sum: { netAmount: new Prisma.Decimal('900.00') },
+      },
     ]);
-    bookingAggregate.mockResolvedValue({
-      _sum: { netAmount: new Prisma.Decimal('905.00') },
-    });
 
     const response = await request(app.getHttpServer())
       .get(ROUTE)
@@ -275,8 +284,11 @@ describe('Tutor Reports HTTP contract (e2e)', () => {
         percent: 75,
       },
     });
-    expect(transaction).toHaveBeenCalledWith(expect.any(Function), {
-      isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead,
+    expect(bookingGroupBy).toHaveBeenCalledWith({
+      by: ['status', 'paymentStatus'],
+      where: { tutorProfileId: TUTOR_A },
+      _count: { _all: true },
+      _sum: { netAmount: true },
     });
   });
 
@@ -309,7 +321,14 @@ describe('Tutor Reports HTTP contract (e2e)', () => {
   });
 
   it('returns 200 with null percent for expired-only bookings', async () => {
-    bookingGroupBy.mockResolvedValue([{ status: BookingStatus.EXPIRED, _count: { _all: 3 } }]);
+    bookingGroupBy.mockResolvedValue([
+      {
+        status: BookingStatus.EXPIRED,
+        paymentStatus: PaymentStatus.UNPAID,
+        _count: { _all: 3 },
+        _sum: { netAmount: new Prisma.Decimal('1350.00') },
+      },
+    ]);
 
     const response = await request(app.getHttpServer())
       .get(ROUTE)
@@ -338,30 +357,43 @@ describe('Tutor Reports HTTP contract (e2e)', () => {
     });
   });
 
-  it('isolates report queries per authenticated tutor across concurrent RepeatableRead snapshots', async () => {
-    const snapshots = new Map<
+  it('isolates concurrent report requests per authenticated tutor without cross-request query leakage', async () => {
+    const groupsByTutor = new Map<
       string,
-      {
-        statuses: Array<{ status: BookingStatus; _count: { _all: number } }>;
-        revenue: Prisma.Decimal | null;
-      }
+      Array<{
+        status: BookingStatus;
+        paymentStatus: PaymentStatus;
+        _count: { _all: number };
+        _sum: { netAmount: Prisma.Decimal | null };
+      }>
     >([
       [
         TUTOR_A,
-        {
-          statuses: [
-            { status: BookingStatus.COMPLETED, _count: { _all: 2 } },
-            { status: BookingStatus.CANCELED, _count: { _all: 1 } },
-          ],
-          revenue: new Prisma.Decimal('905.00'),
-        },
+        [
+          {
+            status: BookingStatus.COMPLETED,
+            paymentStatus: PaymentStatus.PAID,
+            _count: { _all: 2 },
+            _sum: { netAmount: new Prisma.Decimal('905.00') },
+          },
+          {
+            status: BookingStatus.CANCELED,
+            paymentStatus: PaymentStatus.UNPAID,
+            _count: { _all: 1 },
+            _sum: { netAmount: new Prisma.Decimal('450.00') },
+          },
+        ],
       ],
       [
         TUTOR_B,
-        {
-          statuses: [{ status: BookingStatus.EXPIRED, _count: { _all: 4 } }],
-          revenue: null,
-        },
+        [
+          {
+            status: BookingStatus.EXPIRED,
+            paymentStatus: PaymentStatus.UNPAID,
+            _count: { _all: 4 },
+            _sum: { netAmount: new Prisma.Decimal('1800.00') },
+          },
+        ],
       ],
     ]);
 
@@ -389,38 +421,31 @@ describe('Tutor Reports HTTP contract (e2e)', () => {
       });
     });
 
-    const txIsolationCalls: Array<{ isolationLevel?: Prisma.TransactionIsolationLevel }> = [];
-    transaction.mockImplementation(
-      async (
-        work: (tx: { booking: { aggregate: jest.Mock; groupBy: jest.Mock } }) => Promise<unknown>,
-        options: { isolationLevel?: Prisma.TransactionIsolationLevel },
-      ) => {
-        txIsolationCalls.push(options);
-        const txGroupBy = jest.fn(async ({ where }: { where: { tutorProfileId: string } }) => {
-          // Yield to overlap the two concurrent transactions.
-          await new Promise((resolve) =>
-            setTimeout(resolve, where.tutorProfileId === TUTOR_A ? 15 : 5),
-          );
-          return snapshots.get(where.tutorProfileId)?.statuses ?? [];
-        });
-        const txAggregate = jest.fn(({ where }: { where: { tutorProfileId: string } }) =>
-          Promise.resolve({
-            _sum: { netAmount: snapshots.get(where.tutorProfileId)?.revenue ?? null },
-          }),
-        );
-        return work({ booking: { aggregate: txAggregate, groupBy: txGroupBy } });
-      },
-    );
+    bookingGroupBy.mockImplementation(async ({ where }: { where: { tutorProfileId: string } }) => {
+      // Yield to overlap the two concurrent HTTP requests against the mocked Prisma boundary.
+      await new Promise((resolve) =>
+        setTimeout(resolve, where.tutorProfileId === TUTOR_A ? 15 : 5),
+      );
+      return groupsByTutor.get(where.tutorProfileId) ?? [];
+    });
 
     const [resA, resB] = await Promise.all([
       request(app.getHttpServer()).get(ROUTE).auth('token-a', { type: 'bearer' }).expect(200),
       request(app.getHttpServer()).get(ROUTE).auth('token-b', { type: 'bearer' }).expect(200),
     ]);
 
-    expect(txIsolationCalls).toEqual([
-      { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead },
-      { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead },
-    ]);
+    expect(bookingGroupBy).toHaveBeenCalledWith({
+      by: ['status', 'paymentStatus'],
+      where: { tutorProfileId: TUTOR_A },
+      _count: { _all: true },
+      _sum: { netAmount: true },
+    });
+    expect(bookingGroupBy).toHaveBeenCalledWith({
+      by: ['status', 'paymentStatus'],
+      where: { tutorProfileId: TUTOR_B },
+      _count: { _all: true },
+      _sum: { netAmount: true },
+    });
     expect(resA.body).toEqual({
       totalBookings: 3,
       statusCounts: {

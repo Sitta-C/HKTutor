@@ -12,9 +12,10 @@ import {
   UseGuards,
 } from '@nestjs/common';
 
+import { assertEmptyBody } from '@common/pipes/empty-body';
 import { UuidParamPipe } from '@common/pipes/uuid-param.pipe';
 import { Role } from '@generated/prisma/enums';
-import { isRecord, OmiseService } from '@infrastructure/payments/omise.service';
+import { OmiseService } from '@infrastructure/payments/omise.service';
 import { CurrentUser, RequireCurrentConsent } from '@modules/auth/auth.decorator';
 import { JwtAuthGuard } from '@modules/auth/auth.guard';
 import { RequireOwnership } from '@modules/auth/ownership.decorator';
@@ -55,9 +56,7 @@ export class PaymentsController {
     @CurrentUser() user: AuthenticatedUser,
     @Body() body: unknown,
   ): Promise<PaymentResponseDto> {
-    if (body !== undefined && (!isRecord(body) || Object.keys(body).length !== 0)) {
-      throw new BadRequestException('Payment creation accepts an empty body only');
-    }
+    assertEmptyBody(body, 'Payment creation accepts an empty body only');
     return this.payments.create(bookingId, user.id);
   }
 

@@ -19,56 +19,51 @@ interface SimulatedBookingRow {
 }
 
 function wireSimulatedBookings(
-  db: {
-    booking: { aggregate: jest.Mock; groupBy: jest.Mock };
-    $transaction: jest.Mock;
-  },
+  db: { booking: { groupBy: jest.Mock } },
   rows: readonly SimulatedBookingRow[],
 ): void {
   db.booking.groupBy.mockImplementation(({ where }: { where: { tutorProfileId: string } }) => {
     const owned = rows.filter((row) => row.tutorProfileId === where.tutorProfileId);
-    const counts = new Map<BookingStatus, number>();
+    const groups = new Map<
+      string,
+      {
+        status: BookingStatus;
+        paymentStatus: PaymentStatus;
+        count: number;
+        netAmount: Prisma.Decimal;
+      }
+    >();
+
     for (const row of owned) {
-      counts.set(row.status, (counts.get(row.status) ?? 0) + 1);
+      const key = `${row.status}:${row.paymentStatus}`;
+      const existing = groups.get(key);
+      if (existing) {
+        existing.count += 1;
+        existing.netAmount = existing.netAmount.plus(row.netAmount);
+      } else {
+        groups.set(key, {
+          status: row.status,
+          paymentStatus: row.paymentStatus,
+          count: 1,
+          netAmount: row.netAmount,
+        });
+      }
     }
+
     return Promise.resolve(
-      [...counts.entries()].map(([status, count]) => ({
-        _count: { _all: count },
-        status,
+      [...groups.values()].map((group) => ({
+        status: group.status,
+        paymentStatus: group.paymentStatus,
+        _count: { _all: group.count },
+        _sum: { netAmount: group.netAmount },
       })),
     );
   });
-
-  db.booking.aggregate.mockImplementation(
-    ({
-      where,
-    }: {
-      where: {
-        tutorProfileId: string;
-        status: BookingStatus;
-        paymentStatus: PaymentStatus;
-      };
-    }) => {
-      const matching = rows.filter(
-        (row) =>
-          row.tutorProfileId === where.tutorProfileId &&
-          row.status === where.status &&
-          row.paymentStatus === where.paymentStatus,
-      );
-      if (matching.length === 0) {
-        return Promise.resolve({ _sum: { netAmount: null } });
-      }
-      const sum = matching.reduce((acc, row) => acc.plus(row.netAmount), new Prisma.Decimal(0));
-      return Promise.resolve({ _sum: { netAmount: sum } });
-    },
-  );
 }
 
 describe('ReportsService', () => {
   const db = {
-    $transaction: jest.fn(),
     booking: {
-      aggregate: jest.fn(),
       groupBy: jest.fn(),
     },
   };
@@ -77,9 +72,7 @@ describe('ReportsService', () => {
 
   beforeEach(async () => {
     jest.resetAllMocks();
-    db.$transaction.mockImplementation((work: (tx: typeof db) => Promise<unknown>) => work(db));
     db.booking.groupBy.mockResolvedValue([]);
-    db.booking.aggregate.mockResolvedValue({ _sum: { netAmount: null } });
 
     const moduleRef = await Test.createTestingModule({
       providers: [ReportsService, { provide: PrismaService, useValue: db }],
@@ -88,7 +81,7 @@ describe('ReportsService', () => {
     service = moduleRef.get(ReportsService);
   });
 
-  it('aggregates the 12-booking fixture (905.00 THB discounted net, 75% completion) in a RepeatableRead snapshot', async () => {
+  it('aggregates the 12-booking fixture (905.00 THB discounted net, 75% completion) in a single groupBy query', async () => {
     const fixtures = buildSprint3Fixtures();
     const simulatedRows: SimulatedBookingRow[] = fixtures.classes.map((row) => ({
       tutorProfileId: row.tutorId,
@@ -120,20 +113,11 @@ describe('ReportsService', () => {
       },
     });
 
-    expect(db.$transaction).toHaveBeenCalledWith(expect.any(Function), {
-      isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead,
-    });
+    expect(db.booking.groupBy).toHaveBeenCalledTimes(1);
     expect(db.booking.groupBy).toHaveBeenCalledWith({
-      by: ['status'],
+      by: ['status', 'paymentStatus'],
       where: { tutorProfileId: SPRINT3_IDS.tutors.report905 },
       _count: { _all: true },
-    });
-    expect(db.booking.aggregate).toHaveBeenCalledWith({
-      where: {
-        tutorProfileId: SPRINT3_IDS.tutors.report905,
-        status: BookingStatus.COMPLETED,
-        paymentStatus: PaymentStatus.PAID,
-      },
       _sum: { netAmount: true },
     });
   });
@@ -313,6 +297,23 @@ describe('ReportsService', () => {
     });
   });
 
+  it('handles null _sum.netAmount safely on empty or driver-omitted group sums', async () => {
+    db.booking.groupBy.mockResolvedValue([
+      {
+        status: BookingStatus.COMPLETED,
+        paymentStatus: PaymentStatus.PAID,
+        _count: { _all: 1 },
+        _sum: { netAmount: null },
+      },
+    ]);
+
+    const report = await service.getTutorReport(TUTOR_A);
+
+    expect(report.revenue).toEqual({ amount: '0.00', currency: 'THB' });
+    expect(report.totalBookings).toBe(1);
+    expect(report.statusCounts.COMPLETED).toBe(1);
+  });
+
   it.each([
     { completed: 2, canceled: 1, expired: 3, expectedFinalized: 3, expectedPercent: 66.67 },
     { completed: 1, canceled: 2, expired: 0, expectedFinalized: 3, expectedPercent: 33.33 },
@@ -324,12 +325,36 @@ describe('ReportsService', () => {
     async ({ completed, canceled, expired, expectedFinalized, expectedPercent }) => {
       db.booking.groupBy.mockResolvedValue([
         ...(completed > 0
-          ? [{ status: BookingStatus.COMPLETED, _count: { _all: completed } }]
+          ? [
+              {
+                status: BookingStatus.COMPLETED,
+                paymentStatus: PaymentStatus.UNPAID,
+                _count: { _all: completed },
+                _sum: { netAmount: new Prisma.Decimal(0) },
+              },
+            ]
           : []),
-        ...(canceled > 0 ? [{ status: BookingStatus.CANCELED, _count: { _all: canceled } }] : []),
-        ...(expired > 0 ? [{ status: BookingStatus.EXPIRED, _count: { _all: expired } }] : []),
+        ...(canceled > 0
+          ? [
+              {
+                status: BookingStatus.CANCELED,
+                paymentStatus: PaymentStatus.UNPAID,
+                _count: { _all: canceled },
+                _sum: { netAmount: new Prisma.Decimal(0) },
+              },
+            ]
+          : []),
+        ...(expired > 0
+          ? [
+              {
+                status: BookingStatus.EXPIRED,
+                paymentStatus: PaymentStatus.UNPAID,
+                _count: { _all: expired },
+                _sum: { netAmount: new Prisma.Decimal(0) },
+              },
+            ]
+          : []),
       ]);
-      db.booking.aggregate.mockResolvedValue({ _sum: { netAmount: null } });
 
       const report = await service.getTutorReport(TUTOR_A);
 

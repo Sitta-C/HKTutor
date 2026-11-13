@@ -23,11 +23,13 @@ export function GetMyTutorReportDoc(): MethodDecorator {
       summary: 'Read all-time booking, completion-rate, and revenue report for the current tutor',
       description:
         'TUTOR only (verified email, active session, and current privacy consent). Aggregates all ' +
-        'bookings owned by the authenticated tutor in one RepeatableRead snapshot, including ' +
+        'bookings owned by the authenticated tutor in a single database snapshot query, including ' +
         'historical bookings on archived or deleted listings. Revenue sums netAmount with Prisma ' +
-        'Decimal strictly for PAID and COMPLETED bookings. Completion rate uses finalized = ' +
-        'COMPLETED + CANCELED (excluding EXPIRED) and rounds HALF_UP to two decimals, or returns ' +
-        'null when finalized is 0. Accepts no query parameters or request body.',
+        'Decimal strictly for PAID and COMPLETED bookings. Per S3-T09, completionRate.finalized ' +
+        'equals COMPLETED + CANCELED — counting all CANCELED bookings (both tutor rejections of ' +
+        'PENDING requests and student/tutor cancellations) while excluding EXPIRED, PENDING, and ' +
+        'CONFIRMED — and percent rounds HALF_UP to two decimals (null when finalized is 0). ' +
+        'Accepts no query parameters or request body.',
     }),
     ApiOkResponse({
       description: 'Consistent all-time tutor report snapshot (Cache-Control: no-store)',

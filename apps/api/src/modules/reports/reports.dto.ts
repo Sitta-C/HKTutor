@@ -39,7 +39,9 @@ export class TutorReportCompletionRateDto {
   completed!: number;
 
   @ApiProperty({
-    description: 'Finalized booking count (COMPLETED + CANCELED); EXPIRED is excluded.',
+    description:
+      'Finalized booking count (COMPLETED + CANCELED, including tutor declines of PENDING ' +
+      'requests and student/tutor cancellations); EXPIRED, PENDING, and CONFIRMED are excluded.',
     example: 8,
     minimum: 0,
     type: 'integer',

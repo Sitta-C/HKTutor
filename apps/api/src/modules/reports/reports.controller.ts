@@ -1,15 +1,6 @@
-import {
-  BadRequestException,
-  Body,
-  Controller,
-  Get,
-  Header,
-  HttpCode,
-  HttpStatus,
-  Query,
-  UseGuards,
-} from '@nestjs/common';
+import { Body, Controller, Get, Header, Query, UseGuards } from '@nestjs/common';
 
+import { assertEmptyBody } from '@common/pipes/empty-body';
 import { Role } from '@generated/prisma/enums';
 import { CurrentUser, RequireCurrentConsent } from '@modules/auth/auth.decorator';
 import { JwtAuthGuard } from '@modules/auth/auth.guard';
@@ -28,7 +19,6 @@ export class ReportsController {
   constructor(private readonly reports: ReportsService) {}
 
   @Get('tutor/me')
-  @HttpCode(HttpStatus.OK)
   @Roles(Role.TUTOR)
   @RequireCurrentConsent()
   @Header('Cache-Control', 'no-store')
@@ -39,16 +29,7 @@ export class ReportsController {
     @Body() body: ReportEmptyInputDto,
   ): Promise<TutorReportResponseDto> {
     void _query;
-    // Reject non-object JSON bodies (arrays/primitives) that bypass class-validator property whitelisting.
-    if (
-      body !== undefined &&
-      (typeof body !== 'object' ||
-        body === null ||
-        Array.isArray(body) ||
-        Object.keys(body).length !== 0)
-    ) {
-      throw new BadRequestException('Tutor report accepts no request body');
-    }
+    assertEmptyBody(body, 'Tutor report accepts no request body');
     return this.reports.getTutorReport(user.id);
   }
 }

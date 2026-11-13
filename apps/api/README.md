@@ -3068,10 +3068,10 @@ Implements `GET /api/v1/reports/tutor/me` (`S3-T09` / `S3-T09/API-01`) in `apps/
 - **Authentication and authorization**: Requires Bearer access JWT (`JwtAuthGuard`), `Role.TUTOR` (`RolesGuard`), active non-deleted verified account, and current privacy consent (`@RequireCurrentConsent()`). Tutor identity comes strictly from `@CurrentUser()`. Successful responses set `Cache-Control: no-store`.
 - **Request contract**: Accepts no query parameters and no request body (all-time MVP). Any supplied query parameter or non-empty request body is rejected with `400 VALIDATION_FAILED`.
 - **Snapshot and aggregation rules**:
-  - Executes inside a `RepeatableRead` transaction (`Prisma.TransactionIsolationLevel.RepeatableRead`), reading all bookings where `tutorProfileId = user.id` including historical bookings on archived or soft-deleted listings/slots.
+  - Executes a single `booking.groupBy({ by: ['status', 'paymentStatus'], ... })` statement so status counts and revenue share one consistent PostgreSQL MVCC statement snapshot without holding an interactive transaction, reading all bookings where `tutorProfileId = user.id` including historical bookings on archived or soft-deleted listings/slots.
   - Returns `totalBookings`, `statusCounts` across all five `BookingStatus` keys (`PENDING`, `CONFIRMED`, `COMPLETED`, `CANCELED`, `EXPIRED`), `revenue` (`{ amount, currency: 'THB' }`), and `completionRate` (`{ completed, finalized, percent }`).
   - `revenue.amount` sums `netAmount` using `Prisma.Decimal` only for bookings with `status = COMPLETED` and `paymentStatus = PAID`, formatted as a 2-decimal fixed string (`"0.00"` when empty). Unpaid, pending, confirmed, canceled, and expired bookings are never counted as received revenue.
-  - `completionRate.finalized = COMPLETED + CANCELED` (`EXPIRED`, `PENDING`, and `CONFIRMED` are excluded from the denominator). `percent` is `completed / finalized * 100` rounded `HALF_UP` to 2 decimal places as a JSON number, or `null` when `finalized = 0`.
+  - `completionRate.finalized = COMPLETED + CANCELED`: per `S3-T09`, this intentionally includes all `CANCELED` outcomes (both tutor rejections of `PENDING` requests and student/tutor cancellations, which persist as `BookingStatus.CANCELED`), while `EXPIRED`, `PENDING`, and `CONFIRMED` are excluded from the denominator. `percent` is `completed / finalized * 100` rounded `HALF_UP` to 2 decimal places as a JSON number, or `null` when `finalized = 0`.
 
 Verification:
 
