@@ -944,6 +944,52 @@ so a local `.env` is never used, and accepts only a loopback `hktutor_*_test` da
 random fixtures and leaves them in place (qualification audit rows are append-only), so discard the
 database afterwards. Evidence is in `tests/s2-t38-qa.md`.
 
+## Sprint 3 final journey (S3-T37)
+
+`pnpm db:verify:sprint3-flow` boots the real `AppModule` with the same raw-body and cookie setup
+as `main.ts`, against a disposable PostgreSQL database. It walks two tutors, one student and one
+admin through the finished Sprint 3 product over HTTP and Socket.IO:
+
+1. registration with email verification, and an admin-created 10% coupon (case-insensitive
+   duplicate refused);
+2. two tutors through document approval and publishing;
+3. anonymous discovery returning every attribute the 2–3 tutor comparison shows: price, subject,
+   rating and count, experience and next availability. Sorting is checked, and no private field
+   may appear;
+4. live chat: `message_created` and `messages_read` reach only the other participant. A
+   non-participant, a sender echo and an admin socket are all refused;
+5. booking, confirmation, coupon quote and apply (450.00 → 45.00 → 405.00), and one PromptPay test
+   charge of 40500 satang. A forged webhook is ignored, and a signed success settles PAID without
+   a second charge on retry. The admin then sees 1 of 5 uses consumed;
+6. idempotent 1H class reminders for both parties, the meeting link, and attendance → COMPLETED;
+7. a 5/4/5 review that makes the public rating 4.67 from 1 review and ranks the tutor first by
+   rating. The feedback is kept as text;
+8. regression on the existing booking flow: coupon reuse refused, cancellation with slot release
+   and notices, rebook and reject, reschedule duplicate/reject/approve, and the retired
+   mock-payment route returning 410;
+9. the tutor report for the persisted journey (4 bookings, 405.00 THB, 1/3 = 33.33%), refused
+   for the other roles.
+
+Only Resend (verification emails captured), the Supabase Storage client (in-memory private
+bucket) and outbound Omise HTTP (in-process test-mode charges; any other host fails the run) are
+replaced.
+
+```bash
+HKTUTOR_ALLOW_DISPOSABLE_DB_VERIFY=1 \
+  DATABASE_URL='postgresql://postgres@127.0.0.1:5432/hktutor_s3_t37_test' \
+  pnpm db:verify:sprint3-flow
+```
+
+The runner accepts only the exact loopback database `hktutor_s3_t37_test`, with all migrations
+applied and no users. Before `AppModule` loads, it pins JWT, Resend, Supabase and Omise settings to
+synthetic test-mode values, so a local `.env` is never used. The reminder cron stays disabled under
+`NODE_ENV=test`; the runner calls `ReminderJobService.runOnce` itself. Qualification audit rows are
+append-only, so drop the database afterwards.
+
+This supersedes `db:verify:sprint2-flow` (S2-T38) as the end-to-end check. That older runner
+still expects the mock-payment endpoint retired by the PromptPay change, and now stops at its
+payment step with 410. Evidence is in [`tests/s3-t37-qa.md`](../../tests/s3-t37-qa.md).
+
 ## Private availability range queries
 
 `GET /api/v1/tutors/me/availability` accepts optional UTC `from` and `to` bounds. By default it
