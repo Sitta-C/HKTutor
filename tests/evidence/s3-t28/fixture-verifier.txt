@@ -1,0 +1,43 @@
+PASS [PostgreSQL] identity collision rolls back the entire combined seed before any fixture survives
+PASS [PostgreSQL] combined runSeed creates every DB04 class
+PASS [PostgreSQL] second combined seed preserves every DB04 row, audit, timestamp and non-fixture sentinel
+PASS [PostgreSQL] each fixture coupon has exactly one safe coupon.create audit after a repeated seed
+PASS [PostgreSQL] five independent raw review totals and public detail ratings/counts
+PASS [PostgreSQL] review fixture reads through owner service and rejects another student
+PASS [PostgreSQL] isolated report ledger: 12 / 6 / 2 / 3 / 1 / 0, 905.00 THB, 75%, empty and unfinalized
+PASS [PostgreSQL] coupon capacities, releases, consumption, zero receipt, provider-minimum input and booking wire snapshot
+PASS [PostgreSQL] reminder 24h-plus-1ms-unpaid: exact recipients/types/event occurrence and repeat
+PASS [PostgreSQL] reminder 24h-plus-1ms-paid: exact recipients/types/event occurrence and repeat
+PASS [PostgreSQL] reminder 24h-unpaid: exact recipients/types/event occurrence and repeat
+PASS [PostgreSQL] reminder 24h-paid: exact recipients/types/event occurrence and repeat
+PASS [PostgreSQL] reminder 24h-minus-1ms-unpaid: exact recipients/types/event occurrence and repeat
+PASS [PostgreSQL] reminder 24h-minus-1ms-paid: exact recipients/types/event occurrence and repeat
+PASS [PostgreSQL] reminder 1h-plus-1ms-unpaid: exact recipients/types/event occurrence and repeat
+PASS [PostgreSQL] reminder 1h-plus-1ms-paid: exact recipients/types/event occurrence and repeat
+PASS [PostgreSQL] reminder 1h-unpaid: exact recipients/types/event occurrence and repeat
+PASS [PostgreSQL] reminder 1h-paid: exact recipients/types/event occurrence and repeat
+PASS [PostgreSQL] reminder 1h-minus-1ms-unpaid: exact recipients/types/event occurrence and repeat
+PASS [PostgreSQL] reminder 1h-minus-1ms-paid: exact recipients/types/event occurrence and repeat
+PASS [PostgreSQL] reminder start-minus-1ms-unpaid: exact recipients/types/event occurrence and repeat
+PASS [PostgreSQL] reminder start-minus-1ms-paid: exact recipients/types/event occurrence and repeat
+PASS [PostgreSQL] reminder start-unpaid: exact recipients/types/event occurrence and repeat
+PASS [PostgreSQL] reminder start-paid: exact recipients/types/event occurrence and repeat
+PASS [PostgreSQL] reminder start-plus-1ms-unpaid: exact recipients/types/event occurrence and repeat
+PASS [PostgreSQL] reminder start-plus-1ms-paid: exact recipients/types/event occurrence and repeat
+PASS [PostgreSQL] reminder late-first-run-2h-unpaid: exact recipients/types/event occurrence and repeat
+PASS [PostgreSQL] reminder late-first-run-2h-paid: exact recipients/types/event occurrence and repeat
+PASS [PostgreSQL] reminder skip-canceled: exact recipients/types/event occurrence and repeat
+PASS [PostgreSQL] reminder skip-pending: exact recipients/types/event occurrence and repeat
+PASS [PostgreSQL] reminder skip-completed: exact recipients/types/event occurrence and repeat
+PASS [PostgreSQL] reminder skip-expired: exact recipients/types/event occurrence and repeat
+PASS [PostgreSQL] reminder inactive-student: exact recipients/types/event occurrence and repeat
+PASS [PostgreSQL] reminder deleted-student: exact recipients/types/event occurrence and repeat
+PASS [PostgreSQL] reminder payment-pending: exact recipients/types/event occurrence and repeat
+PASS [PostgreSQL] reminder rescheduled: exact recipients/types/event occurrence and repeat
+PASS [PostgreSQL] reminder bangkok-year-midnight: exact recipients/types/event occurrence and repeat
+PASS [PostgreSQL] separate 24H/1H events, approved reschedule and Bangkok year boundary
+PASS [PostgreSQL] enclosing seed transaction rolls back without partial writes
+PASS [PostgreSQL] next-day combined seed preserves a new review, changed booking, uncertain attempt, consumed coupons and non-fixture rows
+PASS [PostgreSQL] operational Sprint 2 demo with provider evidence is not reset or moved
+PASS [PostgreSQL] seed preserves edited live prices/coupons and historical booking snapshots do not drift
+Sprint 3 fixture verification: 42 checks passed; synthetic rows retained.

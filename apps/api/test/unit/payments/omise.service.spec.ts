@@ -124,6 +124,53 @@ describe('Omise test gateway', () => {
     expect(fetchMock.mock.calls[0]?.[0]).toEqual(expect.stringContaining('/charges?'));
   });
 
+  it('matches recovery by attemptId even when another charge has the same booking', async () => {
+    fetchMock.mockResolvedValueOnce(
+      Response.json({
+        data: [
+          {
+            ...charge(),
+            id: 'chrg_test_unrelated',
+            metadata: { bookingId: BOOKING_ID, attemptId: BOOKING_ID },
+          },
+          charge(),
+        ],
+      }),
+    );
+    await expect(service.findCharge(ATTEMPT_ID, new Date())).resolves.toMatchObject({
+      id: CHARGE_ID,
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0]?.[1]?.method).toBeUndefined();
+  });
+
+  it('returns unknown for absent metadata without attempting another charge', async () => {
+    fetchMock.mockResolvedValueOnce(
+      Response.json({
+        data: [{ ...charge(), metadata: { bookingId: BOOKING_ID, attemptId: BOOKING_ID } }],
+      }),
+    );
+    await expect(service.findCharge(ATTEMPT_ID, new Date())).resolves.toBeNull();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0]?.[1]?.method).toBeUndefined();
+  });
+
+  it.each([429, 500, 503])(
+    'treats create HTTP %s as uncertain and never retries it',
+    async (status) => {
+      fetchMock.mockResolvedValueOnce(new Response('{}', { status }));
+      await expect(
+        service.createCharge({
+          amount: 40500,
+          bookingId: BOOKING_ID,
+          attemptId: ATTEMPT_ID,
+          expiresAt: new Date('2030-01-01T00:15:00Z'),
+        }),
+      ).rejects.toThrow(ServiceUnavailableException);
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    },
+  );
+
   it('verifies the exact raw body and supports dual signatures during secret rotation', () => {
     const body = Buffer.from('{ "object": "event" }');
     const timestamp = String(Math.floor(Date.now() / 1000));

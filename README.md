@@ -152,6 +152,12 @@ See the [coupon payment contract](apps/api/README.md#coupon-payment-orchestratio
 [snapshot migration and upgrade runbook](apps/api/README.md#booking-coupon-snapshots-s3-db03)
 and [verification evidence](tests/s3-db03-qa.md).
 
+S3-T28 extends the disposable PostgreSQL payment verifier with same-student active-use races,
+terminal release replay/expiry revalidation, successful-payment versus coupon/cancel races and
+the integrated coupon-to-receipt HTTP journey. Bilingual browser tests cover lost-response/503
+recovery without a second charge. See [S3-T28 QA evidence](tests/s3-t28-qa.md) for commands,
+exact persisted counts, zero settlement and the 905.00 THB report fixture check.
+
 See [frontend direction](ui-design/frontend-direction.md) for the Notebook Focus patterns and
 [implemented frontend behavior](ui-design/implemented-behavior.md) for interaction, loading,
 responsive layout, and accessibility details.

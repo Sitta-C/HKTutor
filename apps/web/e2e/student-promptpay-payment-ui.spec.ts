@@ -624,6 +624,98 @@ const APPLIED_COUPON_BOOKING: BookingDetail = {
   netAmount: '405.00',
 };
 
+for (const language of ['th', 'en'] as const) {
+  test(`${language}: T28 coupon checkout recovers a lost charge and 503 into one discounted receipt`, async ({
+    page,
+  }) => {
+    const state = await mockPayments(page, { booking: COUPON_BOOKING, language });
+    const text = bookingCouponCopy[language];
+    await page.goto(DETAIL_PATH);
+    const input = page.getByRole('textbox', { name: text.title });
+    await expect(input).toBeEnabled();
+    await input.fill('welcome10');
+    await page.getByRole('button', { name: text.apply, exact: true }).click();
+    const remove = page.getByRole('button', { name: text.remove, exact: true });
+    await expect(remove).toBeEnabled();
+    state.loseResponse = true;
+    await page
+      .getByRole('button', {
+        name: language === 'en' ? 'Create test QR' : 'สร้าง QR ทดสอบ',
+        exact: true,
+      })
+      .click();
+    const refresh = page.getByRole('button', {
+      name: language === 'en' ? 'Check payment status' : 'ตรวจสถานะชำระเงิน',
+      exact: true,
+    });
+    await expect(
+      page.getByRole('alert').filter({
+        hasText: language === 'en' ? 'Payment status is uncertain' : 'ยังยืนยันสถานะไม่ได้',
+      }),
+    ).toBeVisible();
+    await expect(remove).toBeDisabled();
+    expect(state.posts).toBe(1);
+    expect(state.current.attempt?.amount).toBe('405.00');
+    state.failPaymentRead = true;
+    await refresh.click();
+    await expect(
+      page.getByRole('alert').filter({
+        hasText: language === 'en' ? 'Payment status is uncertain' : 'ยังยืนยันสถานะไม่ได้',
+      }),
+    ).toBeVisible();
+    await expect(remove).toBeDisabled();
+    expect(state.booking.netAmount).toBe('405.00');
+    state.failPaymentRead = false;
+    await page.reload();
+    await expect(
+      page.getByText(
+        language === 'en'
+          ? 'Checking this attempt with the provider.'
+          : 'กำลังตรวจสอบรายการกับผู้ให้บริการ',
+        { exact: false },
+      ),
+    ).toBeVisible();
+    await expect(remove).toBeDisabled();
+    expect(state.posts).toBe(1);
+    const reference = 'chrg_test_t28recovered';
+    state.booking = {
+      ...state.booking,
+      paymentPending: false,
+      paymentStatus: 'PAID',
+      paidAt: PAID_AT,
+      paymentReference: reference,
+    };
+    state.current = {
+      ...state.current,
+      paymentPending: false,
+      paymentStatus: 'PAID',
+      paidAt: PAID_AT,
+      reference,
+      attempt: state.current.attempt
+        ? { ...state.current.attempt, status: 'SUCCESSFUL', chargeId: reference, qrCodeUrl: null }
+        : null,
+    };
+    await refresh.click();
+    await expect(page.getByText(reference, { exact: true })).toBeVisible();
+    await expect(page.getByText('WELCOME10', { exact: true })).toBeVisible();
+    await expect(page.getByRole('definition').filter({ hasText: '405.00' })).toBeVisible();
+    await expect(remove).toHaveCount(0);
+    await expect(page.getByRole('img', { name: /PromptPay QR|QR PromptPay/ })).toHaveCount(0);
+    await page.reload();
+    await expect(page.getByText(reference, { exact: true })).toBeVisible();
+    expect(state.posts).toBe(1);
+    expect(state.couponRequests).toEqual([{ method: 'PUT', body: { code: 'WELCOME10' } }]);
+    expect(state.unexpected).toEqual([]);
+    await page
+      .getByRole('region', {
+        name: language === 'en' ? 'Pay with PromptPay' : 'ชำระด้วย PromptPay',
+        exact: true,
+      })
+      .locator('..')
+      .screenshot({ path: test.info().outputPath('t28-discounted-receipt.png') });
+  });
+}
+
 test('initial verification shows loading without telling the student to repair payment status', async ({
   page,
 }) => {

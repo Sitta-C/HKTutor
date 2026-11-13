@@ -2714,11 +2714,16 @@ docker rm --force --volumes hktutor-s3-t26-test
 unset DATABASE_URL
 ```
 
-See [S3-T26 QA evidence](../../tests/s3-t26-qa.md) for actual commands/results and limits. This
-verifier races the real guarded booking-pricing writes rather than the T25 apply/remove HTTP
-routes. T25 is now present in the base branch; a combined T25/T26 HTTP journey remains additional
-integration coverage. Live Omise account configuration and actual callback delivery still require a separate
-Test Mode rehearsal.
+See [S3-T26 QA evidence](../../tests/s3-t26-qa.md) for the original commands/results and
+[S3-T28 QA evidence](../../tests/s3-t28-qa.md) for the expanded suite. The runner now also
+integrates the real T25 apply and rejected remove HTTP routes with T26 creation, signed success,
+current reads and paid retries. It verifies same-student simultaneous active claims, replayed
+terminal release with fresh-attempt expiry revalidation, and success racing cancellation or
+coupon apply/remove. Sanitized `EVIDENCE` lines expose only statuses, fixed-decimal amounts,
+receipt kind and exact attempt/reservation/use/audit/provider counts. The separate DB04 fixture
+verifier checks the 905.00 THB paid-completed net ledger; no report endpoint is added by T28.
+Browser coverage uses intercepted API responses and never contacts Omise. Live Test Dashboard
+configuration, actual QR delivery and external callback delivery still require a separate rehearsal.
 
 ## Coupon rules and audit reference (S3-T23)
 
