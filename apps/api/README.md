@@ -2804,14 +2804,14 @@ These product decisions replace the backlog's earlier mock-payment wording.
 
 ### Traceability
 
-| Card    | Scope                                                       | Evidence                                                                                                               |
-| ------- | ----------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| US9-1   | Admin creates and manages percentage coupons                | The rows below                                                                                                         |
-| S3-DB02 | Coupon, reservation and use tables; creation/payment audit  | `pnpm db:verify:coupons`; [S3-DB02 QA](../../tests/s3-db02-qa.md)                                                      |
-| S3-T21  | Admin create/list API, normalization, uniqueness and expiry | `test/coupons.e2e-spec.ts`, `test/unit/coupons`, `pnpm db:verify:admin-coupons`; [S3-T21 QA](../../tests/s3-t21-qa.md) |
-| S3-T22  | Admin coupon UI with Bangkok-to-UTC expiry input            | `apps/web/test/coupon-model.test.ts`, `apps/web/e2e/admin-coupons-ui.spec.ts`; [S3-T22 QA](../../tests/s3-t22-qa.md)   |
-| S3-T23  | This reference, Swagger and audit checks                    | [S3-T23 QA](../../tests/s3-t23-qa.md)                                                                                  |
-| S3-T24  | Authorization, boundary, expiry and duplicate-code tests    | Allow 1/100; reject 0/-10/120 and maxUses 0; `welcome10` vs `WELCOME10` in `test/coupons.e2e-spec.ts`                  |
+| Card    | Scope                                                       | Evidence                                                                                                                                          |
+| ------- | ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| US9-1   | Admin creates and manages percentage coupons                | The rows below                                                                                                                                    |
+| S3-DB02 | Coupon, reservation and use tables; creation/payment audit  | `pnpm db:verify:coupons`; [S3-DB02 QA](../../tests/s3-db02-qa.md)                                                                                 |
+| S3-T21  | Admin create/list API, normalization, uniqueness and expiry | `test/coupons.e2e-spec.ts`, `test/unit/coupons`, `pnpm db:verify:admin-coupons`; [S3-T21 QA](../../tests/s3-t21-qa.md)                            |
+| S3-T22  | Admin coupon UI with Bangkok-to-UTC expiry input            | `apps/web/test/coupon-model.test.ts`, `apps/web/e2e/admin-coupons-ui.spec.ts`; [S3-T22 QA](../../tests/s3-t22-qa.md)                              |
+| S3-T23  | This reference, Swagger and audit checks                    | [S3-T23 QA](../../tests/s3-t23-qa.md)                                                                                                             |
+| S3-T24  | Authorization, boundary, expiry and duplicate-code tests    | HTTP validation/guards, real PostgreSQL uniqueness/audit rollback, form models and bilingual browser tests; [S3-T24 QA](../../tests/s3-t24-qa.md) |
 
 ## Tutor comparison QA (S3-T32)
 

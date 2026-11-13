@@ -82,6 +82,9 @@ describe('admin coupon form contract', () => {
     expect(validateCouponDraft(draft, Date.parse(coupon.expiresAt) + 1).errors?.expiry).toBe(
       'future',
     );
+    expect(validateCouponDraft(draft, Date.parse(coupon.expiresAt) - 1).payload?.expiresAt).toBe(
+      coupon.expiresAt,
+    );
   });
   it('requires a Bangkok time instead of guessing an end-of-day expiry for a date alone', () => {
     const result = validateCouponDraft({ ...draft, time: '' }, now);

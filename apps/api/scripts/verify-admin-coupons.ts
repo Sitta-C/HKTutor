@@ -5,6 +5,7 @@ import { resolve } from 'node:path';
 
 import { ConfigService } from '@nestjs/config';
 import { Test } from '@nestjs/testing';
+import * as jwt from 'jsonwebtoken';
 import request from 'supertest';
 
 import { configureApplication } from '@app/app.setup';
@@ -23,6 +24,7 @@ import { RolesGuard } from '@modules/auth/roles.guard';
 import { CouponsController } from '@modules/coupons/coupons.controller';
 import { CouponsService } from '@modules/coupons/coupons.service';
 
+import type { CouponListDto } from '@modules/coupons/coupons.swagger';
 import type { INestApplication } from '@nestjs/common';
 import type { App } from 'supertest/types';
 
@@ -38,7 +40,8 @@ async function verify(): Promise<void> {
     JWT_ACCESS_SECRET: randomBytes(48).toString('hex'),
   });
   const prisma = new PrismaService(config);
-  const tokens = new JwtTokenService(new AuthConfigService(config));
+  const authConfig = new AuthConfigService(config);
+  const tokens = new JwtTokenService(authConfig);
   const service = new CouponsService(prisma);
   let app: INestApplication<App> | undefined;
   let passed = 0;
@@ -95,6 +98,53 @@ async function verify(): Promise<void> {
     await app.init();
     const server = app.getHttpServer();
     const body = { code: `${prefix}_RACE`, percent: 10, maxUses: 10, expiresAt: future };
+    const beforeDenied = [await prisma.coupon.count(), await prisma.auditLog.count()];
+    const expired = jwt.sign(
+      { jti: randomUUID(), role: Role.ADMIN, sid: session.id, type: 'access' },
+      authConfig.accessSecret,
+      {
+        audience: authConfig.audience,
+        issuer: authConfig.issuer,
+        subject: actor,
+        expiresIn: -1,
+      },
+    );
+    for (const deniedToken of [undefined, expired]) {
+      for (const method of ['post', 'get'] as const) {
+        const attempt = request(server)[method](URL);
+        if (deniedToken) {
+          attempt.auth(deniedToken, { type: 'bearer' });
+        }
+        await attempt.send(body).expect(401);
+      }
+    }
+    for (const role of [Role.STUDENT, Role.TUTOR]) {
+      const deniedUser = await prisma.user.create({
+        data: { email: `${prefix}-denied-${role}@example.test`, role, emailVerifiedAt: new Date() },
+      });
+      const deniedSession = await prisma.authSession.create({
+        data: {
+          userId: deniedUser.id,
+          refreshTokenHash: randomBytes(32).toString('hex'),
+          expiresAt: new Date(Date.now() + 3600000),
+        },
+      });
+      // Even a signed ADMIN claim cannot override the persisted account role.
+      const forgedRoleToken = tokens.signAccessToken(deniedUser.id, deniedSession.id, Role.ADMIN);
+      await request(server)
+        .post(URL)
+        .auth(forgedRoleToken, { type: 'bearer' })
+        .send({ ...body, actorUserId: actor, role: Role.ADMIN })
+        .expect(403);
+      await request(server)
+        .get(URL)
+        .auth(forgedRoleToken, { type: 'bearer' })
+        .query({ actorUserId: actor, role: Role.ADMIN })
+        .expect(403);
+    }
+    assert.deepEqual([await prisma.coupon.count(), await prisma.auditLog.count()], beforeDenied);
+    pass('missing/expired signed JWT and forged student/tutor admin identity cannot read or write');
+
     const responses = await Promise.all([
       request(server).post(URL).auth(token, { type: 'bearer' }).send(body),
       request(server)
@@ -112,12 +162,24 @@ async function verify(): Promise<void> {
       message: 'A coupon with this code already exists',
     });
     const coupon = await prisma.coupon.findUniqueOrThrow({ where: { code: body.code } });
+    assert.equal(await prisma.coupon.count({ where: { code: body.code } }), 1);
     const audits = await prisma.auditLog.findMany({ where: { entityId: coupon.id } });
     assert.equal(audits.length, 1);
     assert.equal(audits[0]?.actorUserId, actor);
     assert.equal(audits[0]?.action, 'coupon.create');
     assert.deepEqual(audits[0]?.afterData, { percent: 10, maxUses: 10, active: true });
     pass('mixed-case concurrent creation: one 201, one 409, one actor-bound safe audit');
+
+    const auditsBeforeDuplicate = await prisma.auditLog.count();
+    // Bypass controller, DTO and service normalization: PostgreSQL must enforce the invariant.
+    await assert.rejects(
+      prisma.coupon.create({ data: { ...body, code: ` \t${body.code.toLowerCase()}\n` } }),
+      (error: unknown) =>
+        !!error && typeof error === 'object' && 'code' in error && error.code === 'P2002',
+    );
+    assert.equal(await prisma.coupon.count({ where: { code: body.code } }), 1);
+    assert.equal(await prisma.auditLog.count(), auditsBeforeDuplicate);
+    pass('direct database mixed-case/whitespace duplicate is rejected without extra audit');
 
     // Force audit insertion failure for this coupon ID, without altering any migration/trigger.
     // A reserved operationKey collides with the trigger after the Coupon INSERT has begun.
@@ -139,6 +201,7 @@ async function verify(): Promise<void> {
       }),
     );
     assert.equal(await prisma.coupon.count({ where: { id: failedId } }), 0);
+    assert.equal(await prisma.auditLog.count({ where: { entityId: failedId } }), 1);
     pass('audit trigger failure rolls back the coupon insert');
 
     // An invalid audit actor causes the actual service transaction to fail its audit FK.
@@ -164,7 +227,12 @@ async function verify(): Promise<void> {
     const seen: string[] = [];
     let cursor: string | undefined;
     for (let pages = 0; pages < 100; pages += 1) {
-      const page = await service.list({ limit: 1, ...(cursor ? { cursor } : {}) });
+      const response = await request(server)
+        .get(URL)
+        .auth(token, { type: 'bearer' })
+        .query({ limit: 1, ...(cursor ? { cursor } : {}) })
+        .expect(200);
+      const page = response.body as CouponListDto;
       for (const item of page.items) {
         if (item.code.startsWith(`${prefix}_TIE`)) seen.push(item.id);
       }

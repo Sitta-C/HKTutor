@@ -577,6 +577,54 @@ test('locks duplicate submissions while saving', async ({ page }) => {
   await expect(page.getByRole('button', { name: 'Create coupon', exact: true })).toBeEnabled();
 });
 
+for (const language of ['en', 'th'] as const) {
+  test(`percent endpoints and one-use coupons preserve the draft on duplicate (${language})`, async ({
+    page,
+  }) => {
+    const payloads: unknown[] = [];
+    await setup(
+      page,
+      async (route) => {
+        if (route.request().method() === 'POST') {
+          payloads.push(route.request().postDataJSON());
+          await route.fulfill({ status: 409, json: { code: 'COUPON_CODE_EXISTS' } });
+        } else {
+          await route.fulfill({ json: { items: [], nextCursor: null } });
+        }
+      },
+      'ADMIN',
+      language,
+    );
+    await page.locator('#coupon-code').fill(' \tWelcome10 ');
+    await page.locator('#coupon-maxUses').fill('1');
+    await pickExpiry(page, '2026-11-12', '00:00', language);
+    const submit = page.getByRole('button', {
+      name: language === 'th' ? 'สร้างคูปอง' : 'Create coupon',
+      exact: true,
+    });
+    for (const percent of [1, 100]) {
+      await page.locator('#coupon-percent').fill(String(percent));
+      await submit.click();
+      await expect(page.locator('#coupon-code-error')).toBeVisible();
+      await expect(page.locator('#coupon-code')).toBeFocused();
+      await expect(page.locator('#coupon-code')).toHaveValue(' \tWelcome10 ');
+      await expect(page.locator('#coupon-percent')).toHaveValue(String(percent));
+      await expect(page.locator('#coupon-maxUses')).toHaveValue('1');
+      await expect(page.locator('#coupon-date')).toContainText(language === 'th' ? '2569' : '2026');
+      await expect(page.locator('#coupon-time')).toContainText('00:00');
+    }
+    expect(payloads).toEqual(
+      [1, 100].map((percent) => ({
+        code: 'WELCOME10',
+        percent,
+        maxUses: 1,
+        expiresAt: '2026-11-11T17:00:00.000Z',
+        active: true,
+      })),
+    );
+  });
+}
+
 test('preserves network-failed creation and reconciles later pages before allowing another POST', async ({
   page,
 }) => {
