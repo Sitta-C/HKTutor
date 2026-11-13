@@ -136,6 +136,9 @@ async function mockDashboard(
     if (path.endsWith('/conversations/unread-count')) {
       return route.fulfill({ json: { unreadCount: 0 } });
     }
+    if (path === '/notifications' && request.method() === 'GET') {
+      return json(route, { items: [], nextCursor: null, unreadCount: 0 });
+    }
     calls.push(`${request.method()} ${path}`);
     if (path === '/auth/refresh')
       return json(route, { accessToken: 'ui-test-token', user: tutorUser });
@@ -247,6 +250,18 @@ test('Notebook Focus uses existing data and keeps only contextual management lin
   ]);
   await expect(analytics.getByText('ยังไม่มีข้อมูลรีวิว', { exact: true })).toBeVisible();
   const courses = page.getByRole('region', { name: 'ภาพรวมรายคอร์ส', exact: true });
+  const allTimeReport = analytics.getByRole('heading', {
+    level: 3,
+    name: 'รายงานตลอดช่วงเวลา',
+  });
+  await expect(allTimeReport).toBeVisible();
+  await expect(analytics.getByText('บันทึกการสอน', { exact: true })).toHaveCount(0);
+  const analyticsHeadings = await analytics.getByRole('heading', { level: 3 }).allTextContents();
+  expect(analyticsHeadings.indexOf('รายงานตลอดช่วงเวลา')).toBeLessThan(
+    analyticsHeadings.indexOf('ภาพรวมรายคอร์ส'),
+  );
+  await expect(allTimeReport).toHaveCSS('font-size', '16px');
+  await expect(page.locator('#dashboard-report-title + p')).toHaveCSS('font-size', '12px');
   await expect(
     courses.getByRole('group', { name: 'วิชาของคอร์ส' }).getByRole('button'),
   ).toHaveCount(1);
@@ -273,6 +288,7 @@ test('Notebook Focus uses existing data and keeps only contextual management lin
   expect([...new Set(calls)].sort()).toEqual([
     'GET /bookings/tutor',
     'GET /profiles/me',
+    'GET /reports/tutor/me',
     'GET /tutors/me/availability',
     'GET /tutors/me/listings',
     'POST /auth/refresh',

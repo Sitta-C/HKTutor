@@ -34,28 +34,40 @@ export function TutorReportPanel({
 }) {
   const { language } = useLanguage();
   const copy = reportCopy[language];
-  const Heading = embedded ? 'h2' : 'h1';
+  const Heading = embedded ? 'h3' : 'h1';
 
   return (
     <section
-      className={
-        embedded ? 'mt-10 border-t border-dashed border-paper-edge pt-8' : 'pb-12 pt-7 sm:pt-9'
-      }
+      className={embedded ? '' : 'pb-12 pt-7 sm:pt-9'}
       aria-labelledby={embedded ? 'dashboard-report-title' : 'report-page-title'}
       data-tutor-report
     >
       <header className="mb-6">
-        <p className="text-xs font-bold uppercase tracking-[0.16em] text-tutor-deep">
-          {copy.eyebrow}
-        </p>
+        {!embedded && (
+          <p className="text-xs font-bold uppercase tracking-[0.16em] text-tutor-deep">
+            {copy.eyebrow}
+          </p>
+        )}
         <Heading
           id={embedded ? 'dashboard-report-title' : 'report-page-title'}
-          className="mt-3 text-2xl font-bold leading-tight tracking-tight text-notebook-ink sm:text-3xl"
+          className={
+            embedded
+              ? 'text-base font-bold text-notebook-ink'
+              : 'mt-3 text-2xl font-bold leading-tight tracking-tight text-notebook-ink sm:text-3xl'
+          }
           tabIndex={-1}
         >
           {copy.title}
         </Heading>
-        <p className="mt-2 text-sm leading-6 text-notebook-muted">{copy.description}</p>
+        <p
+          className={
+            embedded
+              ? 'mt-1 text-xs leading-5 text-notebook-muted'
+              : 'mt-2 text-sm leading-6 text-notebook-muted'
+          }
+        >
+          {copy.description}
+        </p>
       </header>
 
       {state.status === 'loading' && <NotebookLoadingRegion label={copy.loading} />}
@@ -89,6 +101,7 @@ export function TutorReportPanel({
           <ReportSummaryCards copy={copy} report={createTutorReportViewModel(state.report, copy)} />
           <BookingStatusBreakdown
             copy={copy}
+            headingLevel={embedded ? 'h4' : 'h2'}
             report={createTutorReportViewModel(state.report, copy)}
           />
         </div>

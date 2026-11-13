@@ -48,6 +48,18 @@ describe('tutor report presentation', () => {
     expect(model.statuses.map(({ count }) => count)).toEqual(['3', '1', '6', '2', '0']);
     expect(markup).toContain('Net amount from paid, completed bookings only.');
     expect(markup).toContain('Completed ÷ (completed + canceled).');
+    expect(
+      markup.match(/rounded-2xl border border-paper-edge bg-white p-5 shadow-note/g),
+    ).toHaveLength(3);
+    expect(markup).not.toContain('bg-sticky-blue');
+    expect(markup).not.toContain('bg-sticky-green');
+    expect(markup).not.toContain('bg-sticky-yellow');
+    expect(markup).toContain('border-amber-200 bg-amber-50 text-amber-800');
+    expect(markup).toContain('border-emerald-200 bg-emerald-50 text-emerald-800');
+    expect(markup).toContain('border-stone-200 bg-stone-100 text-stone-700');
+    expect(markup.match(/border-red-200 bg-red-50 text-red-800 before:bg-red-500/g)).toHaveLength(
+      2,
+    );
     expect(markup.match(/<li/g)).toHaveLength(5);
   });
 
@@ -88,6 +100,25 @@ describe('tutor report presentation', () => {
     expect(failed).not.toContain('THB 0.00');
     expect(restricted).toContain('available only to tutor accounts');
     expect(restricted).not.toContain('Try again');
+  });
+
+  it('uses the analytics heading hierarchy without the report eyebrow when embedded', () => {
+    const markup = renderToStaticMarkup(
+      createElement(
+        LanguageProvider,
+        null,
+        createElement(TutorReportPanel, {
+          embedded: true,
+          state: { status: 'success', report },
+          onRetry: vi.fn(),
+        }),
+      ),
+    );
+
+    expect(markup).toContain('<h3 id="dashboard-report-title"');
+    expect(markup).toContain('class="text-base font-bold text-notebook-ink"');
+    expect(markup).toContain('<h4 id="report-status-title"');
+    expect(markup).not.toContain('Teaching record');
   });
 
   it('distinguishes expired sessions and restricted roles from retryable failures', () => {

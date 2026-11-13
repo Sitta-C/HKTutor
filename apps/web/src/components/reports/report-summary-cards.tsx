@@ -13,19 +13,16 @@ export function ReportSummaryCards({
       label: copy.totalBookings,
       value: report.totalBookings,
       explanation: null,
-      className: 'border-blue-200 bg-sticky-blue/45',
     },
     {
       label: copy.revenue,
       value: report.revenue,
       explanation: copy.revenueExplanation,
-      className: 'border-emerald-200 bg-sticky-green/45',
     },
     {
       label: copy.completionRate,
       value: report.completionRate,
       explanation: copy.completionExplanation,
-      className: 'border-amber-200 bg-sticky-yellow/55',
     },
   ];
 
@@ -34,7 +31,7 @@ export function ReportSummaryCards({
       {cards.map((card) => (
         <div
           key={card.label}
-          className={`min-w-0 rounded-2xl border p-5 shadow-note ${card.className}`}
+          className="min-w-0 rounded-2xl border border-paper-edge bg-white p-5 shadow-note"
         >
           <dt className="text-sm font-bold leading-6 text-notebook-muted-deep">{card.label}</dt>
           <dd className="mt-3 break-words text-2xl font-black tabular-nums text-notebook-ink sm:text-3xl">
