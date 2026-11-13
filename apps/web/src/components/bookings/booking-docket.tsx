@@ -135,9 +135,11 @@ export function BookingDocketSummary({
 export function BookingDocketAmounts({
   amounts,
   text,
+  discountPercent,
 }: {
   amounts: Pick<BookingResponse, 'subtotalAmount' | 'discountAmount' | 'currency'>;
   text: BookingText;
+  discountPercent?: number | undefined;
 }): ReactElement {
   return (
     <dl className={styles.amounts}>
@@ -146,8 +148,14 @@ export function BookingDocketAmounts({
         <dd>{formatMoney(amounts.subtotalAmount, amounts.currency)}</dd>
       </div>
       <div>
-        <dt>{text.discount}</dt>
-        <dd>{formatMoney(amounts.discountAmount, amounts.currency)}</dd>
+        <dt>
+          {text.discount}
+          {discountPercent !== undefined ? ` ${discountPercent}%` : ''}
+        </dt>
+        <dd>
+          {discountPercent !== undefined ? '−' : ''}
+          {formatMoney(amounts.discountAmount, amounts.currency)}
+        </dd>
       </div>
     </dl>
   );

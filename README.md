@@ -142,6 +142,11 @@ S3-DB03 adds nullable, immutable coupon evidence to bookings and payment attempt
 historical amounts and receipts. Booking reads and current-payment responses expose stored coupon
 snapshots; S3-T25 provides coupon quote/apply/remove APIs. S3-T26 adds atomic coupon capacity reservation,
 verified payment consumption and zero-net settlement through the existing payment routes.
+S3-T27 adds the student **Receipt Strip** on booking detail: apply/remove a coupon, read the
+server-confirmed original/discount/net THB amounts, and confirm a 100% coupon without a QR.
+Coupon changes and payment creation share a submission gate. Active or uncertain payments lock
+coupon edits; failed or lost responses retain amounts and require status reconciliation when needed.
+The UI supports Thai/English and preserves the existing PromptPay test flow and historical receipts.
 See the [coupon payment contract](apps/api/README.md#coupon-payment-orchestration-s3-t26),
 [S3-T26 verification](tests/s3-t26-qa.md), and the
 [snapshot migration and upgrade runbook](apps/api/README.md#booking-coupon-snapshots-s3-db03)

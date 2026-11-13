@@ -4,6 +4,7 @@ import { authenticatedFetch } from '@/lib/api/client';
 
 import type {
   BookingClassDetails,
+  BookingCouponOperationResponse,
   AttendanceStatus,
   BookingDetail,
   BookingMeetingLink,
@@ -65,8 +66,28 @@ export function getMyBookings(queryInput: MyBookingsQuery = {}): Promise<MyBooki
   return authenticatedFetch<MyBookingsResponse>(`/bookings/me${query}`);
 }
 
-export function getMyBooking(bookingId: string): Promise<BookingDetail> {
-  return authenticatedFetch<BookingDetail>(`/bookings/me/${encodeURIComponent(bookingId)}`);
+export function getMyBooking(bookingId: string, signal?: AbortSignal): Promise<BookingDetail> {
+  return authenticatedFetch<BookingDetail>(`/bookings/me/${encodeURIComponent(bookingId)}`, {
+    ...(signal ? { signal } : {}),
+  });
+}
+
+export function applyBookingCoupon(
+  bookingId: string,
+  code: string,
+): Promise<BookingCouponOperationResponse> {
+  return authenticatedFetch(`/bookings/me/${encodeURIComponent(bookingId)}/coupon`, {
+    method: 'PUT',
+    body: JSON.stringify({ code }),
+    signal: AbortSignal.timeout(12_000),
+  });
+}
+
+export function removeBookingCoupon(bookingId: string): Promise<BookingCouponOperationResponse> {
+  return authenticatedFetch(`/bookings/me/${encodeURIComponent(bookingId)}/coupon`, {
+    method: 'DELETE',
+    signal: AbortSignal.timeout(12_000),
+  });
 }
 
 export function getClassDetails(bookingId: string): Promise<BookingClassDetails> {

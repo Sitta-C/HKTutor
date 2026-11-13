@@ -1,16 +1,18 @@
 'use client';
 
-import Image from 'next/image';
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 
+import { bookingCouponCopy } from '@/components/bookings/booking-coupon-copy';
+import { getBookingPaymentFailure } from '@/components/bookings/booking-coupon-model';
 import { formatMoney } from '@/components/bookings/booking-ui';
-import { createPromptPayPayment, getCurrentPayment, getMyBooking } from '@/lib/api/bookings';
+import { PromptPayQr } from '@/components/bookings/promptpay-qr';
 import { formatBangkokDateTime } from '@/lib/date-time';
 import { useLanguage } from '@/lib/i18n';
 
 import styles from './promptpay-payment-panel.module.css';
 
-import type { BookingDetail, PaymentStatus, PromptPayPayment } from '@/lib/api/types';
+import type { BookingCheckout } from '@/components/bookings/use-booking-checkout';
+import type { BookingDetail, PaymentStatus } from '@/lib/api/types';
 
 const COPY = {
   th: {
@@ -35,10 +37,11 @@ const COPY = {
     amount: 'ยอดชำระ',
     reference: 'เลขอ้างอิง',
     paidAt: 'ชำระเมื่อ',
-    expires: 'QR หมดอายุ',
-    qrAlt: 'QR PromptPay สำหรับการชำระเงินทดสอบ',
     noValue: 'ไม่มีข้อมูล',
     cancel: 'ระหว่างรอผลชำระเงินจะยังยกเลิกการจองไม่ได้',
+    zeroTitle: 'ยืนยันสิทธิ์ส่วนลด',
+    zeroNotice: 'ยอดสุทธิ 0.00 บาท ยืนยันเพื่อใช้สิทธิ์ได้โดยไม่ต้องสร้าง QR',
+    settle: 'ยืนยันยอด 0.00 บาท',
   },
   en: {
     title: 'Pay with PromptPay',
@@ -63,10 +66,11 @@ const COPY = {
     amount: 'Amount',
     reference: 'Reference',
     paidAt: 'Paid at',
-    expires: 'QR expires',
-    qrAlt: 'PromptPay QR for test payment',
     noValue: 'Unavailable',
     cancel: 'Cancellation is unavailable while payment is in progress.',
+    zeroTitle: 'Confirm coupon payment',
+    zeroNotice: 'The total is THB 0.00. Confirm to use the coupon without creating a QR.',
+    settle: 'Confirm THB 0.00',
   },
 };
 
@@ -81,152 +85,44 @@ export function PaymentStatusBadge({ status }: { status: PaymentStatus }) {
 
 export function PromptPayPaymentPanel({
   booking,
-  onBookingChange,
-  disabled = false,
-  onSubmittingChange,
+  checkout,
 }: {
   booking: BookingDetail;
-  onBookingChange: (booking: BookingDetail) => void;
-  disabled?: boolean;
-  onSubmittingChange?: (busy: boolean) => void;
+  checkout: BookingCheckout;
 }) {
   const { language } = useLanguage();
   const text = COPY[language];
-  const [payment, setPayment] = useState<PromptPayPayment | null>(null);
-  const [verified, setVerified] = useState(false);
-  const [error, setError] = useState(false);
+  const { payment, verification, failure, readFailed, operation, paid, pending, canPay, zeroNet } =
+    checkout;
   const [qrError, setQrError] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [checkedAt, setCheckedAt] = useState(0);
-  const [reload, setReload] = useState(0);
-  const gate = useRef<symbol | null>(null);
-  const mounted = useRef(false);
-
-  useEffect(() => {
-    mounted.current = true;
-    return () => {
-      mounted.current = false;
-    };
-  }, []);
-
-  useEffect(() => {
-    if (disabled) {
-      return;
-    }
-    let active = true;
-    let readToken: symbol | null = null;
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    const controller = new AbortController();
-    async function poll(): Promise<void> {
-      if (!active) {
-        return;
-      }
-      if (document.hidden || gate.current) {
-        timer = setTimeout(() => {
-          void poll();
-        }, 5000);
-        return;
-      }
-      const token = Symbol('payment-read');
-      readToken = token;
-      gate.current = token;
-      try {
-        const result = await getCurrentPayment(booking.id, controller.signal);
-        const nextBooking = await getMyBooking(booking.id);
-        if (!active) {
-          return;
-        }
-        setPayment(result);
-        setCheckedAt(Date.now());
-        setVerified(true);
-        setError(false);
-        onBookingChange(nextBooking);
-        if (result.paymentPending) {
-          timer = setTimeout(() => {
-            void poll();
-          }, 5000);
-        }
-      } catch {
-        if (active) {
-          setError(true);
-          setVerified(false);
-        }
-      } finally {
-        if (gate.current === token) {
-          gate.current = null;
-        }
-      }
-    }
-    void poll();
-    return () => {
-      active = false;
-      controller.abort();
-      if (gate.current === readToken) {
-        gate.current = null;
-      }
-      clearTimeout(timer);
-    };
-  }, [booking.id, disabled, onBookingChange, reload]);
-
-  async function create(): Promise<void> {
-    if (gate.current || disabled || busy || !verified || payment?.paymentPending) {
-      return;
-    }
-    const token = Symbol('payment-create');
-    gate.current = token;
-    setBusy(true);
-    setError(false);
-    onSubmittingChange?.(true);
-    try {
-      const result = await createPromptPayPayment(booking.id);
-      const nextBooking = await getMyBooking(booking.id);
-      if (!mounted.current) {
-        return;
-      }
-      setPayment(result);
-      setCheckedAt(Date.now());
-      setVerified(true);
-      setQrError(false);
-      onBookingChange(nextBooking);
-      setReload((value) => value + 1);
-    } catch {
-      if (mounted.current) {
-        setVerified(false);
-        setError(true);
-      }
-    } finally {
-      if (gate.current === token) {
-        gate.current = null;
-      }
-      onSubmittingChange?.(false);
-      if (mounted.current) {
-        setBusy(false);
-      }
-    }
-  }
-
+  const busy = operation !== null;
+  const errorMessage =
+    failure?.scope === 'payment'
+      ? getBookingPaymentFailure(
+          failure.error,
+          bookingCouponCopy[language],
+          text.error,
+          Boolean(booking.coupon),
+        )
+      : readFailed
+        ? text.error
+        : null;
   const attempt = payment?.attempt;
-  const paid = payment?.paymentStatus === 'PAID' || booking.paymentStatus === 'PAID';
-  const pending = payment?.paymentPending === true;
-  const canCreate = verified && !pending && !paid && booking.status === 'CONFIRMED';
-  const qrUrl =
-    attempt?.status === 'PENDING' && attempt.expiresAt && Date.parse(attempt.expiresAt) > checkedAt
-      ? attempt.qrCodeUrl
-      : null;
+  const qrUrl = attempt?.status === 'PENDING' && attempt.expiresAt ? attempt.qrCodeUrl : null;
 
   return (
     <section className={styles.panel} aria-labelledby="promptpay-heading" aria-busy={busy}>
       <div className={styles.heading}>
-        <h2 id="promptpay-heading">{text.title}</h2>
+        <h2 id="promptpay-heading">{zeroNet && !paid ? text.zeroTitle : text.title}</h2>
         <PaymentStatusBadge status={paid ? 'PAID' : 'UNPAID'} />
       </div>
       <p className={styles.note}>{text.demo}</p>
-      {error && (
+      {errorMessage && (
         <p className={styles.error} role="alert">
-          {text.error}
+          {errorMessage}
         </p>
       )}
-      {!payment && !error && <p role="status">{text.loading}</p>}
+      {verification === 'checking' && <p role="status">{text.loading}</p>}
       {paid ? (
         <dl className={styles.receipt}>
           <div>
@@ -254,15 +150,11 @@ export function PromptPayPaymentPanel({
           <p role="status" className={styles.notice}>
             {attempt?.status === 'CREATING' ? text.creating : text.pending}
           </p>
-          {qrUrl && (
-            <Image
-              key={qrUrl}
-              src={qrUrl}
-              alt={text.qrAlt}
-              width={240}
-              height={240}
-              unoptimized
-              className={styles.qr}
+          {qrUrl && attempt?.expiresAt && (
+            <PromptPayQr
+              key={`${attempt.id}:${attempt.expiresAt}`}
+              url={qrUrl}
+              expiresAt={attempt.expiresAt}
               onError={() => setQrError(true)}
             />
           )}
@@ -274,16 +166,12 @@ export function PromptPayPaymentPanel({
           <p>
             {text.amount}: {formatMoney(attempt?.amount ?? booking.netAmount, booking.currency)}
           </p>
-          {attempt?.expiresAt && (
-            <p className={styles.help}>
-              {text.expires}: {formatBangkokDateTime(attempt.expiresAt, language)}
-            </p>
-          )}
           <p className={styles.help}>{text.cancel}</p>
           {attempt?.status === 'CREATING' && <p className={styles.help}>{text.uncertain}</p>}
         </>
       ) : booking.status === 'CONFIRMED' ? (
         <>
+          {zeroNet && <p className={styles.notice}>{text.zeroNotice}</p>}
           {(attempt?.status === 'FAILED' || attempt?.status === 'EXPIRED') && (
             <p role="status" className={styles.notice}>
               {text[attempt.status]}
@@ -292,13 +180,14 @@ export function PromptPayPaymentPanel({
           <button
             type="button"
             className={styles.ticket}
-            disabled={!canCreate || disabled || busy}
+            disabled={!canPay}
             onClick={() => {
-              void create();
+              setQrError(false);
+              void checkout.createPayment();
             }}
           >
             <span className={styles.ticketLabel}>
-              {busy ? text.busy : attempt ? text.retry : text.create}
+              {busy ? text.busy : zeroNet ? text.settle : attempt ? text.retry : text.create}
             </span>
           </button>
         </>
@@ -310,10 +199,10 @@ export function PromptPayPaymentPanel({
       <button
         type="button"
         className={styles.refresh}
-        disabled={busy || disabled}
+        disabled={!checkout.canRefresh}
         onClick={() => {
           setQrError(false);
-          setReload((value) => value + 1);
+          checkout.refresh();
         }}
       >
         {text.refresh}
