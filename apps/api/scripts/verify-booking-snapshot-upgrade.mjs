@@ -8,6 +8,7 @@ import { disposableDatabaseUrl } from './verify-review-database.mjs';
 
 const MIGRATION = '20261111120000_add_booking_coupon_snapshots';
 const RETRY_MIGRATION = '20261111160000_preserve_coupon_reservation_retries';
+const PROMPTPAY_MIGRATION = '20261019120000_add_promptpay_payments';
 const NOW = '2030-01-01T00:00:00.000Z';
 const { Pool, DatabaseError } = pg;
 
@@ -118,16 +119,27 @@ async function main() {
     return a;
   }
 
-  async function evidence(table, after = false) {
-    const subtraction = after
-      ? ` - ARRAY['appliedCouponId','appliedCouponCode','appliedCouponPercent']`
-      : '';
-    // JSONB text includes all original columns, not just amounts; numeric values remain exact.
-    return (
-      await pool.query(
-        `SELECT (to_jsonb(t)${subtraction})::text AS evidence FROM "${table}" t ORDER BY id`,
+  async function evidence(table, columns, client = pool) {
+    assert.ok(['Booking', 'PaymentAttempt', 'AuditLog'].includes(table), 'Unknown evidence table');
+    const baselineColumns =
+      columns ??
+      (
+        await client.query(
+          'SELECT column_name FROM information_schema.columns WHERE table_schema=$1 AND table_name=$2 ORDER BY ordinal_position',
+          ['public', table],
+        )
+      ).rows.map(({ column_name }) => column_name);
+    assert.ok(baselineColumns.length > 0, `No baseline columns found for ${table}`);
+    const projection = baselineColumns
+      .map((column) => `"${column.replaceAll('"', '""')}"`)
+      .join(',');
+    // Project in PostgreSQL so historical Decimal values remain exact JSONB text.
+    const rows = (
+      await client.query(
+        `SELECT id, to_jsonb(t)::text AS evidence FROM (SELECT ${projection} FROM "${table}") t ORDER BY id`,
       )
     ).rows;
+    return { columns: baselineColumns, rows };
   }
 
   try {
@@ -142,9 +154,10 @@ async function main() {
       .filter((entry) => entry.isDirectory())
       .map((entry) => entry.name)
       .sort();
-    assert.equal(names.at(-1), RETRY_MIGRATION, 'Update the harness when adding later migrations');
     assert.ok(names.includes(MIGRATION));
-    for (const name of names.filter((name) => name < MIGRATION)) {
+    assert.ok(names.includes(RETRY_MIGRATION));
+    assert.ok(names.includes(PROMPTPAY_MIGRATION));
+    for (const name of names.filter((name) => name <= PROMPTPAY_MIGRATION)) {
       await pool.query(await readFile(new URL(`${name}/migration.sql`, root), 'utf8'));
     }
     for (const [id, role] of [
@@ -236,9 +249,19 @@ async function main() {
         `SELECT conname,pg_get_constraintdef(oid) AS definition FROM pg_constraint WHERE conrelid IN ('"Booking"'::regclass,'"PaymentAttempt"'::regclass) AND conname <> 'Booking_payment_fields_check' ORDER BY conname`,
       )
     ).rows;
-    await pool.query(await readFile(new URL(`${MIGRATION}/migration.sql`, root), 'utf8'));
-    assert.deepEqual(await evidence('Booking', true), oldBookings);
-    assert.deepEqual(await evidence('PaymentAttempt', true), oldAttempts);
+    for (const name of names.filter((name) => name > PROMPTPAY_MIGRATION && name <= MIGRATION)) {
+      await pool.query(await readFile(new URL(`${name}/migration.sql`, root), 'utf8'));
+    }
+    assert.deepEqual(
+      await evidence('Booking', oldBookings.columns),
+      oldBookings,
+      'Booking baseline fields changed during upgrade',
+    );
+    assert.deepEqual(
+      await evidence('PaymentAttempt', oldAttempts.columns),
+      oldAttempts,
+      'PaymentAttempt baseline fields changed during upgrade',
+    );
     assert.equal(
       (
         await pool.query(
@@ -265,6 +288,7 @@ async function main() {
         newIndexes.some(
           (row) => row.indexname === index.indexname && row.indexdef === index.indexdef,
         ),
+        `Baseline index ${index.indexname} changed between ${PROMPTPAY_MIGRATION} and ${MIGRATION}`,
       );
     }
     const newConstraints = (
@@ -277,10 +301,11 @@ async function main() {
         newConstraints.some(
           (row) => row.conname === constraint.conname && row.definition === constraint.definition,
         ),
+        `Baseline constraint ${constraint.conname} changed between ${PROMPTPAY_MIGRATION} and ${MIGRATION}`,
       );
     }
     process.stdout.write(
-      'Old-to-new upgrade: all original booking/attempt fields, indexes and money checks retained; coupon defaults null.\n',
+      'S2+PromptPay through Review/Coupon/snapshot migrations: original booking/attempt fields, indexes and constraints retained; coupon defaults null.\n',
     );
 
     const c = await coupon(10);
@@ -578,6 +603,71 @@ async function main() {
     }
     process.stdout.write(
       'Concurrent amount mutation waited for the payment claim and was rejected after commit.\n',
+    );
+    const beforeLatest = {
+      Booking: await evidence('Booking'),
+      PaymentAttempt: await evidence('PaymentAttempt'),
+      AuditLog: await evidence('AuditLog'),
+    };
+    for (const name of names.filter((name) => name > RETRY_MIGRATION)) {
+      await pool.query(await readFile(new URL(`${name}/migration.sql`, root), 'utf8'));
+    }
+    for (const [table, baseline] of Object.entries(beforeLatest)) {
+      assert.deepEqual(
+        await evidence(table, baseline.columns),
+        baseline,
+        `${table} baseline fields changed in later migrations`,
+      );
+    }
+    for (const [table, baseline] of [
+      ['Booking', oldBookings],
+      ['PaymentAttempt', oldAttempts],
+    ]) {
+      const originalIds = new Set(baseline.rows.map(({ id }) => id));
+      const current = await evidence(table, baseline.columns);
+      assert.deepEqual(
+        current.rows.filter(({ id }) => originalIds.has(id)),
+        baseline.rows,
+        `${table} historical fields changed`,
+      );
+    }
+
+    const rollbackProbe = new Error('Roll back additive-column regression probe');
+    await assert.rejects(
+      transaction(async (client) => {
+        for (const [table, baseline] of Object.entries(beforeLatest)) {
+          await client.query(`ALTER TABLE "${table}" ADD COLUMN "db06_additive_probe" text`);
+          assert.deepEqual(
+            await evidence(table, baseline.columns, client),
+            baseline,
+            `${table} additive column must preserve baseline`,
+          );
+        }
+        await client.query('UPDATE "Booking" SET "meetingUrl"=$2 WHERE id=$1', [
+          raced,
+          'https://example.invalid/db06-probe',
+        ]);
+        assert.notDeepEqual(
+          await evidence('Booking', beforeLatest.Booking.columns, client),
+          beforeLatest.Booking,
+          'A changed historical value must be detected',
+        );
+        throw rollbackProbe;
+      }),
+      (error) => error === rollbackProbe,
+    );
+    for (const [table, baseline] of Object.entries(beforeLatest)) {
+      assert.deepEqual(
+        await evidence(table, baseline.columns),
+        baseline,
+        `${table} regression probe must roll back`,
+      );
+    }
+    process.stdout.write(
+      'PASS DB06 nullable-column additions preserve baseline; historical value changes are detected; probe rolled back.\n',
+    );
+    process.stdout.write(
+      `PASS DB06 S2+PromptPay to latest: ${names.length} migration files replayed; original booking/payment history and pre-existing audit unchanged.\n`,
     );
   } finally {
     await pool.end();

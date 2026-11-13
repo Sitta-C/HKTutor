@@ -5,25 +5,10 @@ import { resolve } from 'node:path';
 
 import { Pool } from 'pg';
 
+import { disposableDatabaseUrl } from '@config/disposable-database-url';
+
 export function disposableSprint3ConcurrencyDatabaseUrl(env: NodeJS.ProcessEnv): string {
-  assert.equal(
-    env['HKTUTOR_ALLOW_DISPOSABLE_DB_VERIFY'],
-    '1',
-    'Explicit disposable opt-in required',
-  );
-  const value = env['DATABASE_URL'];
-  assert.ok(value, 'Explicit DATABASE_URL required; this runner never loads .env');
-  const url = new URL(value);
-  assert.ok(['postgres:', 'postgresql:'].includes(url.protocol));
-  assert.ok(['localhost', '127.0.0.1', '[::1]'].includes(url.hostname));
-  assert.equal(
-    url.pathname,
-    '/hktutor_s3_db05_test',
-    'Dedicated DB05 disposable database required',
-  );
-  assert.equal(url.search, '');
-  assert.equal(url.hash, '');
-  return value;
+  return disposableDatabaseUrl(env, 'hktutor_s3_db05_test');
 }
 
 async function runScript(filename: string): Promise<void> {
