@@ -156,10 +156,14 @@ export function TutorBookingCard({
             >
               {submittingDecision === 'CONFIRM' ? copy.working : copy.confirmAction}
             </NotebookAction>
-            {deadlinePassed && <p role="status">{copy.deadlinePassedHint}</p>}
           </div>
         ) : (
           <p className={styles.decided}>{copy.decidedHint}</p>
+        )}
+        {canDecide && deadlinePassed && (
+          <p className={styles.decided} role="status">
+            {copy.deadlinePassedHint}
+          </p>
         )}
       </div>
 
