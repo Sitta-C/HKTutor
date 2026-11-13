@@ -23,6 +23,7 @@ import {
   notebookActionClass,
 } from '@/components/ui/notebook-action';
 import { useAuth } from '@/lib/auth-context';
+import { useBookingPaymentDeadline } from '@/lib/use-booking-payment-deadline';
 
 import styles from './tutor-booking-inbox.module.css';
 
@@ -81,6 +82,7 @@ export function TutorBookingCard({
   const titleId = `tutor-booking-${booking.id}`;
   const isSubmitting = submittingDecision !== null;
   const isPending = isDecidableBooking(booking);
+  const { deadlinePassed } = useBookingPaymentDeadline(booking.slot.startAtUtc);
   // A stale row is locked until the inbox reloads, so one failed decision cannot be retried blindly.
   const isStale = decisionError?.requiresRefresh === true;
   const canDecide = isPending && !isStale && !cancellationRequiresRefresh;
@@ -148,12 +150,13 @@ export function TutorBookingCard({
               size="compact"
               icon={<DashboardIcon name="check" />}
               className={styles.action}
-              disabled={isSubmitting}
+              disabled={isSubmitting || deadlinePassed}
               aria-label={copy.confirmFor.replace('{student}', studentLabel)}
               onClick={() => onDecide('CONFIRM')}
             >
               {submittingDecision === 'CONFIRM' ? copy.working : copy.confirmAction}
             </NotebookAction>
+            {deadlinePassed && <p role="status">{copy.deadlinePassedHint}</p>}
           </div>
         ) : (
           <p className={styles.decided}>{copy.decidedHint}</p>

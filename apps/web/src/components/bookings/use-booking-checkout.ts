@@ -18,6 +18,7 @@ import {
 } from '@/lib/api/bookings';
 import { useLanguage } from '@/lib/i18n';
 import { notifyNotificationsChanged } from '@/lib/notification-events';
+import { useBookingPaymentDeadline } from '@/lib/use-booking-payment-deadline';
 
 import type { BookingDetail, PromptPayPayment } from '@/lib/api/types';
 
@@ -41,6 +42,8 @@ export interface BookingCheckout {
   canPay: boolean;
   canRefresh: boolean;
   zeroNet: boolean;
+  deadlinePassed: boolean;
+  deadlineAt: number;
   applyCoupon: (code: string) => Promise<boolean>;
   removeCoupon: () => Promise<boolean>;
   createPayment: () => Promise<void>;
@@ -174,6 +177,7 @@ export function useBookingCheckout({
   }, [booking.id, disabled, commitSnapshot, reload]);
 
   const pending = hasActiveBookingPayment(booking, payment);
+  const { deadlinePassed, deadlineAt } = useBookingPaymentDeadline(booking.slot.startAtUtc);
   const paid = booking.paymentStatus === 'PAID' || payment?.paymentStatus === 'PAID';
   const canMutate =
     verification === 'ready' &&
@@ -181,7 +185,8 @@ export function useBookingCheckout({
     operation === null &&
     !pending &&
     !paid &&
-    booking.status === 'CONFIRMED';
+    booking.status === 'CONFIRMED' &&
+    !deadlinePassed;
   const canPay =
     canMutate && !(failure?.scope === 'payment' && isCouponPaymentRejection(failure.error));
 
@@ -298,6 +303,8 @@ export function useBookingCheckout({
     pending,
     canMutate,
     canPay,
+    deadlinePassed,
+    deadlineAt,
     zeroNet: isFullCouponSettlement(booking),
     canRefresh: operation === null && !disabled,
     applyCoupon: (code) => changeCoupon(code),

@@ -23,8 +23,8 @@ const BOOKING: BookingDetail = {
   },
   slot: {
     id: 'preview-slot',
-    startAtUtc: '2026-10-18T11:00:00Z',
-    endAtUtc: '2026-10-18T12:30:00Z',
+    startAtUtc: '2099-10-18T11:00:00Z',
+    endAtUtc: '2099-10-18T12:30:00Z',
   },
   subtotalAmount: '735.00',
   discountAmount: '5.00',
@@ -990,5 +990,40 @@ for (const language of ['th', 'en'] as const) {
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
       true,
     );
+  });
+}
+
+for (const language of ['en', 'th'] as const) {
+  test(`${language}: payment closes at the four-hour deadline without reload`, async ({ page }) => {
+    const now = new Date('2026-11-15T07:00:00Z');
+    await page.clock.install({ time: now });
+    const state = await mockPayments(page, {
+      language,
+      booking: {
+        ...BOOKING,
+        slot: {
+          ...BOOKING.slot,
+          startAtUtc: '2026-11-15T11:00:05Z',
+          endAtUtc: '2026-11-15T12:00:05Z',
+        },
+      },
+    });
+    await page.goto(DETAIL_PATH);
+    const pay = page.getByRole('button', {
+      name: language === 'en' ? 'Create test QR' : 'สร้าง QR ทดสอบ',
+      exact: true,
+    });
+    await expect(pay).toBeEnabled();
+    await page.clock.fastForward(5000);
+    await expect(pay).toHaveCount(0);
+    await expect(
+      page.getByText(
+        language === 'en'
+          ? 'The payment deadline has passed. New payments are closed.'
+          : 'พ้นเส้นตายชำระเงินแล้ว ไม่สามารถเริ่มชำระเงินใหม่ได้',
+        { exact: true },
+      ),
+    ).toBeVisible();
+    expect(state.posts).toBe(0);
   });
 }

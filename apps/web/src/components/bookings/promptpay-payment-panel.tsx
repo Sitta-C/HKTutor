@@ -17,6 +17,8 @@ import type { BookingDetail, PaymentStatus } from '@/lib/api/types';
 const COPY = {
   th: {
     title: 'ชำระด้วย PromptPay',
+    deadline: 'ต้องชำระเงินก่อนเวลาเริ่มเรียน 4 ชั่วโมง · เส้นตาย:',
+    deadlinePassed: 'พ้นเส้นตายชำระเงินแล้ว ไม่สามารถเริ่มชำระเงินใหม่ได้',
     paid: 'ชำระแล้ว',
     unpaid: 'ยังไม่ชำระ',
     demo: 'โหมดทดสอบ ไม่มีการเรียกเก็บเงินจริง จำลองผลสำเร็จหรือล้มเหลวใน Omise Test Dashboard',
@@ -45,6 +47,8 @@ const COPY = {
   },
   en: {
     title: 'Pay with PromptPay',
+    deadline: 'Pay before the deadline, 4 hours before the lesson starts:',
+    deadlinePassed: 'The payment deadline has passed. New payments are closed.',
     paid: 'Paid',
     unpaid: 'Unpaid',
     demo: 'Test mode. No real money is collected. Simulate success or failure in the Omise Test Dashboard.',
@@ -108,7 +112,10 @@ export function PromptPayPaymentPanel({
         ? text.error
         : null;
   const attempt = payment?.attempt;
-  const qrUrl = attempt?.status === 'PENDING' && attempt.expiresAt ? attempt.qrCodeUrl : null;
+  const qrUrl =
+    attempt?.status === 'PENDING' && attempt.expiresAt && !checkout.deadlinePassed
+      ? attempt.qrCodeUrl
+      : null;
 
   return (
     <section className={styles.panel} aria-labelledby="promptpay-heading" aria-busy={busy}>
@@ -117,6 +124,12 @@ export function PromptPayPaymentPanel({
         <PaymentStatusBadge status={paid ? 'PAID' : 'UNPAID'} />
       </div>
       <p className={styles.note}>{text.demo}</p>
+      {!paid && (
+        <p className={styles.notice}>
+          {text.deadline}{' '}
+          {formatBangkokDateTime(new Date(checkout.deadlineAt).toISOString(), language)}
+        </p>
+      )}
       {errorMessage && (
         <p className={styles.error} role="alert">
           {errorMessage}
@@ -169,6 +182,8 @@ export function PromptPayPaymentPanel({
           <p className={styles.help}>{text.cancel}</p>
           {attempt?.status === 'CREATING' && <p className={styles.help}>{text.uncertain}</p>}
         </>
+      ) : checkout.deadlinePassed ? (
+        <p className={styles.notice}>{text.deadlinePassed}</p>
       ) : booking.status === 'CONFIRMED' ? (
         <>
           {zeroNet && <p className={styles.notice}>{text.zeroNotice}</p>}
