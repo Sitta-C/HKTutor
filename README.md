@@ -164,6 +164,11 @@ responsive layout, and accessibility details.
 
 The Student/Tutor notification bell uses a compact **Minimal Notes** inbox: expand one row to read
 its explanation, mark it read or open the linked booking. Expansion alone never marks it read.
+All/Unread filters use the existing server query. The bell refreshes every 30 seconds while visible,
+on focus/visibility return and after local payment changes; same-account tabs also reconcile read
+changes. Background refresh preserves loaded history when the first page overlaps it and retains
+the last successful data on a temporary error. Opening a booking starts a best-effort read receipt
+without waiting for it; a failed read write never blocks booking navigation.
 See [S3-T08 reminder QA evidence](tests/s3-t08-qa.md) for boundary, concurrency, retry and inbox checks.
 
 Class and payment reminders support the 24-hour/1-hour event types in Thai and English; their

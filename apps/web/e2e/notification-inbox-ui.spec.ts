@@ -1,6 +1,8 @@
 import { expect, test } from '@playwright/test';
 
 import { notificationCopy } from '@/components/notifications/notification-copy';
+import { NOTIFICATION_POLL_INTERVAL_MS } from '@/components/notifications/use-notification-inbox';
+import { NOTIFICATIONS_CHANGED_EVENT, notificationChannelName } from '@/lib/notification-events';
 
 import type {
   BookingClassDetails,
@@ -86,6 +88,7 @@ async function setup(
     listFailure: 0,
     writeFailure: 0,
     moreFailure: 0,
+    readGate: undefined as Promise<void> | undefined,
     writeGate: undefined as Promise<void> | undefined,
     loseResponse: false,
     reads: [] as URL[],
@@ -150,16 +153,19 @@ async function setup(
     }
     if (path === '/notifications' && request.method() === 'GET') {
       state.reads.push(url);
-      await options.listGate;
+      await (state.readGate ?? options.listGate);
       const more = url.searchParams.has('cursor');
+      const filtered = state.items.filter(
+        (item) => url.searchParams.get('unreadOnly') !== 'true' || item.readAt === null,
+      );
       const failure = state.listFailure || (more ? state.moreFailure : 0);
       return route.fulfill({
         status: failure || 200,
         json: failure
           ? { message: 'Rejected' }
           : {
-              items: more ? state.items.slice(3) : state.items.slice(0, 3),
-              nextCursor: !more && state.items.length > 3 ? 'opaque+/=cursor' : null,
+              items: more ? filtered.slice(3) : filtered.slice(0, 3),
+              nextCursor: !more && filtered.length > 3 ? 'opaque+/=cursor' : null,
               unreadCount: state.items.filter((item) => item.readAt === null).length,
             },
       });
@@ -354,21 +360,21 @@ test('mark all is optimistic, locked during save, and includes unread on later p
   state.writeGate = gate.promise;
   await inbox.getByRole('button', { name: text.markAll }).click();
   await expect(bell).toHaveAccessibleName(text.title);
-  await expect(inbox.getByText(text.unread, { exact: true })).toHaveCount(0);
+  await expect(inbox.getByRole('listitem').getByText(text.unread, { exact: true })).toHaveCount(0);
   await expect(inbox.getByRole('button', { name: text.refresh })).toBeDisabled();
   await expect(inbox.getByRole('button', { name: text.loadMore })).toBeDisabled();
-  await expect(inbox.getByRole('link').first()).toHaveAttribute('aria-disabled', 'true');
+  await expect(inbox.getByRole('link').first()).not.toHaveAttribute('aria-disabled', 'true');
   gate.resolve();
   await expect(inbox.getByRole('button', { name: text.refresh })).toBeEnabled();
   expect(state.writes).toEqual([{ path: '/notifications/read-all', method: 'POST', body: null }]);
   expect(state.items.every((item) => item.readAt === READ_AT)).toBe(true);
   await inbox.getByRole('button', { name: text.loadMore }).click();
   await expect(inbox.getByRole('listitem')).toHaveCount(4);
-  await expect(inbox.getByText(text.unread, { exact: true })).toHaveCount(0);
+  await expect(inbox.getByRole('listitem').getByText(text.unread, { exact: true })).toHaveCount(0);
 });
 
 for (const status of [403, 404, 409, 500]) {
-  test(`mark-one ${status} rolls back item and badge, blocks navigation and requires refresh`, async ({
+  test(`mark-one ${status} rolls back item and badge and requires refresh before another write`, async ({
     page,
   }) => {
     const { state, bell, inbox, text } = await setup(page);
@@ -377,7 +383,7 @@ for (const status of [403, 404, 409, 500]) {
     state.writeFailure = status;
     const first = inbox.getByRole('listitem').first();
     await first.locator('summary').click();
-    await first.getByRole('link').click();
+    await first.getByRole('button', { name: text.markRead, exact: true }).click();
     await expect(inbox.getByRole('alert')).toHaveText(
       status === 403 ? text.forbidden : status === 404 ? text.missing : text.saveFailed,
     );
@@ -404,7 +410,7 @@ test('mark-all failure restores every row and inbox-wide count', async ({ page }
   state.writeFailure = 500;
   await inbox.getByRole('button', { name: text.markAll }).click();
   await expect(inbox.getByRole('alert')).toHaveText(text.saveFailed);
-  await expect(inbox.getByText(text.unread, { exact: true })).toHaveCount(2);
+  await expect(inbox.getByRole('listitem').getByText(text.unread, { exact: true })).toHaveCount(2);
   await expect(bell).toHaveAccessibleName(
     `${text.title}, ${text.unreadCount.replace('{count}', '3')}`,
   );
@@ -481,6 +487,205 @@ test('keyboard operation, Escape focus return and outside dismissal remain avail
   await expect(inbox).toBeVisible();
   await page.mouse.click(1, 1);
   await expect(inbox).toHaveCount(0);
+});
+
+for (const language of ['en', 'th'] as const) {
+  test(`${language}: unread filter uses the server query and removes read items accessibly`, async ({
+    page,
+  }, testInfo) => {
+    const { state, bell, inbox, text } = await setup(page, { language });
+    await bell.click();
+    await inbox.getByRole('button', { name: text.loadMore }).click();
+    await expect(inbox.getByRole('listitem')).toHaveCount(4);
+    const unreadFilter = inbox.getByRole('button', { name: text.filterUnread, exact: true });
+    await unreadFilter.click();
+    await expect(unreadFilter).toHaveAttribute('aria-pressed', 'true');
+    await expect(inbox.getByRole('listitem')).toHaveCount(3);
+    expect(state.reads.at(-1)?.searchParams.get('unreadOnly')).toBe('true');
+    expect(state.reads.at(-1)?.searchParams.has('cursor')).toBe(false);
+    const first = inbox.getByRole('listitem').first();
+    await first.locator('summary').click();
+    await first.getByRole('button', { name: text.markRead, exact: true }).click();
+    await expect(inbox.getByRole('listitem')).toHaveCount(2);
+    await expect(unreadFilter).toBeFocused();
+    await expect(bell).toHaveAccessibleName(
+      `${text.title}, ${text.unreadCount.replace('{count}', '2')}`,
+    );
+    await expect(inbox.getByRole('button', { name: text.markAll })).toBeEnabled();
+    await page.screenshot({ path: testInfo.outputPath(`notifications-unread-${language}.png`) });
+    await inbox.getByRole('button', { name: text.markAll }).click();
+    await expect(inbox.getByText(text.emptyUnread, { exact: true })).toBeVisible();
+    await expect(inbox.getByRole('listitem')).toHaveCount(0);
+    await inbox.getByRole('button', { name: text.filterAll, exact: true }).click();
+    await expect(inbox.getByRole('listitem')).toHaveCount(3);
+    expect(state.reads.at(-1)?.searchParams.get('unreadOnly')).toBe('false');
+    await inbox.getByRole('button', { name: text.loadMore }).click();
+    await expect(inbox.getByRole('listitem')).toHaveCount(4);
+    await expect(inbox.getByRole('listitem').getByText(text.unread, { exact: true })).toHaveCount(
+      0,
+    );
+  });
+}
+
+for (const status of [403, 404, 409, 500]) {
+  test(`booking navigation remains available when marking read returns ${status}`, async ({
+    page,
+  }) => {
+    const { state, bell, inbox } = await setup(page);
+    await bell.click();
+    state.writeFailure = status;
+    await inbox.getByRole('listitem').first().locator('summary').click();
+    await inbox.getByRole('listitem').first().getByRole('link').click();
+    await expect(page).toHaveURL(`/dashboard/bookings/${BOOKING_ID}`);
+    await expect.poll(() => state.writes.length).toBe(1);
+    expect(state.items[0]?.readAt).toBeNull();
+    expect(state.domainWrites).toEqual([]);
+  });
+}
+
+test('a pending read receipt never delays opening the booking', async ({ page }) => {
+  const { state, bell, inbox } = await setup(page);
+  await bell.click();
+  const gate = Promise.withResolvers<void>();
+  state.writeGate = gate.promise;
+  try {
+    await inbox.getByRole('listitem').first().locator('summary').click();
+    await inbox.getByRole('listitem').first().getByRole('link').click();
+    await expect(page).toHaveURL(`/dashboard/bookings/${BOOKING_ID}`);
+    expect(state.items[0]?.readAt).toBeNull();
+  } finally {
+    gate.resolve();
+  }
+});
+
+test('visible polling updates the closed bell and preserves expanded loaded history', async ({
+  page,
+}) => {
+  await page.clock.install();
+  const { state, bell, inbox, text } = await setup(page);
+  await expect(bell).toHaveAccessibleName(
+    `${text.title}, ${text.unreadCount.replace('{count}', '3')}`,
+  );
+  state.items.unshift(
+    notice('new-arrival', {
+      eventType: 'FUTURE_EVENT',
+      title: 'New notification',
+      createdAt: '2026-10-19T00:00:00.000Z',
+    }),
+  );
+  await page.clock.runFor(NOTIFICATION_POLL_INTERVAL_MS);
+  await expect(bell).toHaveAccessibleName(
+    `${text.title}, ${text.unreadCount.replace('{count}', '4')}`,
+  );
+  await expect(inbox).toHaveCount(0);
+  await bell.click();
+  await inbox.getByRole('button', { name: text.loadMore }).click();
+  await expect(inbox.getByRole('listitem')).toHaveCount(5);
+  const old = inbox.getByRole('listitem').filter({ hasText: text.events.BOOKING_CREATED });
+  await old.locator('summary').click();
+  state.items.unshift(
+    notice('next-arrival', {
+      eventType: 'FUTURE_EVENT',
+      title: 'Another notification',
+      createdAt: '2026-10-20T00:00:00.000Z',
+    }),
+  );
+  await page.clock.runFor(NOTIFICATION_POLL_INTERVAL_MS);
+  await expect(inbox.getByRole('listitem')).toHaveCount(6);
+  await expect(old.locator('details')).toHaveAttribute('open', '');
+  expect(state.writes).toEqual([]);
+});
+
+test('hidden tabs pause notification polling and refresh immediately on return', async ({
+  page,
+}) => {
+  await page.clock.install();
+  const { state, bell, text } = await setup(page);
+  await expect(bell).toHaveAccessibleName(
+    `${text.title}, ${text.unreadCount.replace('{count}', '3')}`,
+  );
+  await page.evaluate(() => {
+    Object.defineProperty(document, 'hidden', { configurable: true, value: true });
+    document.dispatchEvent(new Event('visibilitychange'));
+  });
+  const before = state.reads.length;
+  state.items.unshift(notice('while-hidden'));
+  await page.clock.runFor(2 * NOTIFICATION_POLL_INTERVAL_MS);
+  expect(state.reads).toHaveLength(before);
+  await page.evaluate(() => {
+    Object.defineProperty(document, 'hidden', { configurable: true, value: false });
+    document.dispatchEvent(new Event('visibilitychange'));
+  });
+  await expect(bell).toHaveAccessibleName(
+    `${text.title}, ${text.unreadCount.replace('{count}', '4')}`,
+  );
+});
+
+test('a failed background refresh retains the inbox and recovers on the next tick', async ({
+  page,
+}) => {
+  await page.clock.install();
+  const { state, bell, inbox, text } = await setup(page);
+  await bell.click();
+  await expect(inbox.getByRole('listitem')).toHaveCount(3);
+  state.listFailure = 500;
+  await page.clock.runFor(NOTIFICATION_POLL_INTERVAL_MS);
+  await expect(inbox.getByText(text.syncFailed, { exact: true })).toBeVisible();
+  await expect(inbox.getByRole('listitem')).toHaveCount(3);
+  state.listFailure = 0;
+  state.items.unshift(notice('after-recovery'));
+  await page.clock.runFor(NOTIFICATION_POLL_INTERVAL_MS);
+  await expect(inbox.getByText(text.syncFailed, { exact: true })).toHaveCount(0);
+  await expect(bell).toHaveAccessibleName(
+    `${text.title}, ${text.unreadCount.replace('{count}', '4')}`,
+  );
+});
+
+test('same-account tab invalidation reconciles receipts without another write', async ({
+  page,
+}) => {
+  const { state, bell, inbox, text } = await setup(page);
+  await bell.click();
+  await expect(inbox.getByRole('listitem')).toHaveCount(3);
+  const first = state.items[0];
+  if (!first) throw new Error('Missing notification fixture');
+  first.readAt = READ_AT;
+  await page.evaluate((name) => {
+    const peer = new BroadcastChannel(name);
+    peer.postMessage('changed');
+    peer.close();
+  }, notificationChannelName('notification-user'));
+  await expect(
+    inbox.getByRole('listitem').first().getByText(text.read, { exact: true }),
+  ).toBeVisible();
+  await expect(bell).toHaveAccessibleName(
+    `${text.title}, ${text.unreadCount.replace('{count}', '2')}`,
+  );
+  expect(state.writes).toEqual([]);
+});
+
+test('marking read takes priority over a pending background request', async ({ page }) => {
+  const { state, bell, inbox, text } = await setup(page);
+  await bell.click();
+  await expect(inbox.getByRole('listitem')).toHaveCount(3);
+  const gate = Promise.withResolvers<void>();
+  state.readGate = gate.promise;
+  const before = state.reads.length;
+  await page.evaluate((name) => window.dispatchEvent(new Event(name)), NOTIFICATIONS_CHANGED_EVENT);
+  await expect.poll(() => state.reads.length).toBeGreaterThan(before);
+  try {
+    const first = inbox.getByRole('listitem').first();
+    await first.locator('summary').click();
+    await first.getByRole('button', { name: text.markRead, exact: true }).click();
+    await expect(first.getByText(text.read, { exact: true })).toBeVisible();
+    expect(state.writes).toHaveLength(1);
+  } finally {
+    state.readGate = undefined;
+    gate.resolve();
+  }
+  await expect(
+    inbox.getByRole('listitem').first().getByText(text.read, { exact: true }),
+  ).toBeVisible();
 });
 
 for (const language of ['en', 'th'] as const) {

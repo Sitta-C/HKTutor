@@ -10,6 +10,11 @@ export const notificationCopy = {
     saving: 'Saving read status…',
     loading: 'Loading notifications…',
     empty: 'No notifications yet.',
+    emptyUnread: 'No unread notifications.',
+    filterLabel: 'Filter notifications',
+    filterAll: 'All',
+    filterUnread: 'Unread',
+    syncFailed: 'Could not refresh notifications. Showing the last update.',
     caughtUp: 'All notifications read.',
     loadMore: 'Load older notifications',
     refresh: 'Refresh notifications',
@@ -33,9 +38,24 @@ export const notificationCopy = {
       RESCHEDULE_WITHDRAWN: 'Reschedule withdrawn',
       CLASS_REMINDER_24H: 'Class starts within 24 hours',
       CLASS_REMINDER_1H: 'Class starts within 1 hour',
-      PAYMENT_REMINDER_24H: 'Payment reminder for your class',
-      PAYMENT_REMINDER_1H: 'Payment reminder for your class',
+      PAYMENT_REMINDER_24H: 'Please pay for your lesson starting within 24 hours',
+      PAYMENT_REMINDER_1H: 'Please pay for your lesson starting within 1 hour',
       PAYMENT_QR_READY: 'Payment QR ready',
+    },
+    eventDetails: {
+      BOOKING_CREATED: 'You received a lesson request. Open the booking to review its details.',
+      BOOKING_CONFIRMED:
+        'Your lesson request was confirmed. Open the booking to check the schedule and current payment status.',
+      BOOKING_REJECTED: 'Your lesson request was declined. Open the booking for its details.',
+      BOOKING_CANCELED: 'The other participant canceled this booking. Open it for its details.',
+      RESCHEDULE_REQUESTED:
+        'The other participant requested a different lesson time. Open the booking to review the request and current schedule.',
+      RESCHEDULE_APPROVED:
+        'Your reschedule request was approved. Open the booking to check the latest lesson time.',
+      RESCHEDULE_REJECTED:
+        'Your reschedule request was declined. Open the booking to check its details and current schedule.',
+      RESCHEDULE_WITHDRAWN:
+        'The other participant withdrew their reschedule request. Open the booking to check the current schedule.',
     },
     reminderDetails: {
       PAYMENT_QR_READY:
@@ -61,6 +81,11 @@ export const notificationCopy = {
     saving: 'กำลังบันทึกสถานะการอ่าน…',
     loading: 'กำลังโหลดการแจ้งเตือน…',
     empty: 'ยังไม่มีการแจ้งเตือน',
+    emptyUnread: 'ไม่มีการแจ้งเตือนที่ยังไม่ได้อ่าน',
+    filterLabel: 'กรองการแจ้งเตือน',
+    filterAll: 'ทั้งหมด',
+    filterUnread: 'ยังไม่อ่าน',
+    syncFailed: 'อัปเดตการแจ้งเตือนไม่สำเร็จ กำลังแสดงข้อมูลจากครั้งล่าสุด',
     caughtUp: 'อ่านการแจ้งเตือนทั้งหมดแล้ว',
     loadMore: 'โหลดการแจ้งเตือนก่อนหน้า',
     refresh: 'โหลดการแจ้งเตือนล่าสุด',
@@ -84,9 +109,23 @@ export const notificationCopy = {
       RESCHEDULE_WITHDRAWN: 'ถอนคำขอเลื่อนเวลาแล้ว',
       CLASS_REMINDER_24H: 'บทเรียนเริ่มภายใน 24 ชั่วโมง',
       CLASS_REMINDER_1H: 'บทเรียนเริ่มภายใน 1 ชั่วโมง',
-      PAYMENT_REMINDER_24H: 'เตือนชำระเงินก่อนเรียน',
-      PAYMENT_REMINDER_1H: 'เตือนชำระเงินก่อนเรียน',
+      PAYMENT_REMINDER_24H: 'กรุณาชำระเงินสำหรับบทเรียนที่จะเริ่มภายใน 24 ชั่วโมง',
+      PAYMENT_REMINDER_1H: 'กรุณาชำระเงินสำหรับบทเรียนที่จะเริ่มภายใน 1 ชั่วโมง',
       PAYMENT_QR_READY: 'เตือนชำระเงินสำหรับ QR ใหม่',
+    },
+    eventDetails: {
+      BOOKING_CREATED: 'คุณได้รับคำขอจองบทเรียน เปิดการจองเพื่อตรวจสอบรายละเอียดคำขอ',
+      BOOKING_CONFIRMED:
+        'คำขอจองบทเรียนของคุณได้รับการยืนยันแล้ว เปิดการจองเพื่อตรวจสอบวันเวลาเรียนและสถานะการชำระเงินล่าสุด',
+      BOOKING_REJECTED: 'คำขอจองบทเรียนของคุณถูกปฏิเสธ เปิดการจองเพื่อตรวจสอบรายละเอียด',
+      BOOKING_CANCELED: 'อีกฝ่ายยกเลิกการจองนี้แล้ว เปิดการจองเพื่อตรวจสอบรายละเอียด',
+      RESCHEDULE_REQUESTED:
+        'อีกฝ่ายขอเปลี่ยนเวลาเรียน เปิดการจองเพื่อตรวจสอบคำขอและวันเวลาเรียนล่าสุด',
+      RESCHEDULE_APPROVED:
+        'คำขอเลื่อนเวลาของคุณได้รับการอนุมัติแล้ว เปิดการจองเพื่อตรวจสอบวันเวลาเรียนล่าสุด',
+      RESCHEDULE_REJECTED:
+        'คำขอเลื่อนเวลาของคุณถูกปฏิเสธ เปิดการจองเพื่อตรวจสอบรายละเอียดและวันเวลาเรียนล่าสุด',
+      RESCHEDULE_WITHDRAWN: 'อีกฝ่ายถอนคำขอเลื่อนเวลาแล้ว เปิดการจองเพื่อตรวจสอบวันเวลาเรียนล่าสุด',
     },
     reminderDetails: {
       PAYMENT_QR_READY:

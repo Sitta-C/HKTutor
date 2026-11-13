@@ -8,6 +8,7 @@ import {
   notificationReminderKind,
   notificationTitle,
   optimisticNotificationRead,
+  refreshNotificationPage,
 } from '@/components/notifications/notification-model';
 import { clearAccessToken, setAccessToken } from '@/lib/api/client';
 import { ApiError } from '@/lib/api/error';
@@ -73,6 +74,50 @@ describe('notification presentation and optimistic state', () => {
     expect(result.unreadCount).toBe(9);
     expect(result.nextCursor).toBeNull();
   });
+  it('refreshes new arrivals and overlapping read receipts without losing loaded history', () => {
+    const history = {
+      ...page,
+      items: [item, { ...item, id: 'oldest', createdAt: '2026-10-16T00:00:00.000Z' }],
+    };
+    const fresh = {
+      items: [
+        { ...item, id: 'newest', createdAt: '2026-10-18T00:00:00.000Z' },
+        { ...item, readAt },
+      ],
+      nextCursor: 'first-page-boundary',
+      unreadCount: 5,
+    };
+    const refreshed = refreshNotificationPage(history, fresh, false);
+    expect(refreshed.items.map(({ id }) => id)).toEqual(['newest', item.id, 'oldest']);
+    expect(refreshed.items[1]?.readAt).toBe(readAt);
+    expect(refreshed.nextCursor).toBe(history.nextCursor);
+    expect(refreshed.unreadCount).toBe(5);
+    expect(history.items[0]?.readAt).toBeNull();
+    expect(refreshNotificationPage(history, fresh, true).items.map(({ id }) => id)).toEqual([
+      'newest',
+      'oldest',
+    ]);
+  });
+  it('resets to a fresh cursor when new arrivals leave a gap in loaded history', () => {
+    const fresh = {
+      items: [{ ...item, id: 'unseen' }],
+      nextCursor: 'new-boundary',
+      unreadCount: 30,
+    };
+    expect(refreshNotificationPage(page, fresh, false)).toEqual(fresh);
+  });
+  it('keeps the server ordering when timestamps tie', () => {
+    const items = [item, { ...item, id: 'second' }];
+    const fresh = { items, unreadCount: 2, nextCursor: 'next' };
+    expect(refreshNotificationPage({ ...fresh, nextCursor: 'older' }, fresh, false).items).toEqual(
+      items,
+    );
+  });
+  it('removes stale filtered rows when the fresh response covers the entire inbox', () => {
+    const fresh = { items: [{ ...item, readAt }], unreadCount: 0, nextCursor: null };
+    expect(refreshNotificationPage(page, fresh, false)).toEqual(fresh);
+    expect(refreshNotificationPage(page, { ...fresh, items: [] }, true).items).toEqual([]);
+  });
   it.each([null, '', '   '])('does not invent a booking target for %s', (bookingId) => {
     expect(notificationBookingHref(bookingId)).toBeNull();
   });
@@ -98,6 +143,18 @@ describe('notification presentation and optimistic state', () => {
     expect(Object.keys(notificationCopy.th.reminderDetails)).toEqual(
       Object.keys(notificationCopy.en.reminderDetails),
     );
+    expect(Object.keys(notificationCopy.th.eventDetails)).toEqual(
+      Object.keys(notificationCopy.en.eventDetails),
+    );
+  });
+  it.each(['en', 'th'] as const)('explains each booking/reschedule event in %s', (language) => {
+    const details = notificationCopy[language].eventDetails;
+    for (const [eventType, description] of Object.entries(details)) {
+      expect(notificationDescription({ ...item, eventType }, language)).toBe(description);
+      expect(notificationReminderKind(eventType)).toBeNull();
+    }
+    expect(notificationCopy[language].events.PAYMENT_REMINDER_24H).toContain('24');
+    expect(notificationCopy[language].events.PAYMENT_REMINDER_1H).toContain('1');
   });
   it.each(['en', 'th'] as const)(
     'presents each new QR as a payment prompt with historical wording in %s',
@@ -138,7 +195,7 @@ describe('notification presentation and optimistic state', () => {
       }
     },
   );
-  it.each(['BOOKING_CONFIRMED', 'FUTURE_EVENT', 'CLASS_REMINDER_2H', 'toString', '__proto__'])(
+  it.each(['FUTURE_EVENT', 'CLASS_REMINDER_2H', 'toString', '__proto__'])(
     'uses safe generic detail copy for %s without inferring a reminder',
     (eventType) => {
       expect(notificationReminderKind(eventType)).toBeNull();
@@ -186,6 +243,13 @@ describe('notification API client', () => {
     expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/v1/notifications/notice%2Fid/read');
     expect(fetchMock.mock.calls[0]?.[1]?.method).toBe('PATCH');
     expect(fetchMock.mock.calls[0]?.[1]?.body).toBeUndefined();
+  });
+  it('passes cancellation through the existing authenticated list request', async () => {
+    const controller = new AbortController();
+    fetchMock.mockResolvedValueOnce(response({ items: [], unreadCount: 0, nextCursor: null }));
+    await getNotifications({ unreadOnly: true }, controller.signal);
+    expect(fetchMock.mock.calls[0]?.[1]?.signal).toBe(controller.signal);
+    expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/v1/notifications?unreadOnly=true');
   });
   it('marks all through POST without sending page limits or user IDs', async () => {
     fetchMock.mockResolvedValueOnce(response({ updatedCount: 0, readAt: null }));

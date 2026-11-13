@@ -17,6 +17,7 @@ import {
   removeBookingCoupon,
 } from '@/lib/api/bookings';
 import { useLanguage } from '@/lib/i18n';
+import { notifyNotificationsChanged } from '@/lib/notification-events';
 
 import type { BookingDetail, PromptPayPayment } from '@/lib/api/types';
 
@@ -84,6 +85,7 @@ export function useBookingCheckout({
   const gate = useRef<symbol | null>(null);
   const writeToken = useRef<symbol | null>(null);
   const mounted = useRef(false);
+  const paymentNotificationState = useRef<string | null>(null);
 
   useEffect(() => {
     mounted.current = true;
@@ -97,6 +99,11 @@ export function useBookingCheckout({
 
   const commitSnapshot = useCallback(
     (snapshot: Awaited<ReturnType<typeof readCheckout>>): void => {
+      const notificationState = `${snapshot.booking.id}:${snapshot.payment.paymentStatus}:${snapshot.payment.attempt?.id ?? ''}:${snapshot.payment.attempt?.status ?? ''}`;
+      if (paymentNotificationState.current !== notificationState) {
+        paymentNotificationState.current = notificationState;
+        notifyNotificationsChanged();
+      }
       setPayment(snapshot.payment);
       setCheckedAt(Date.now());
       setVerification('ready');

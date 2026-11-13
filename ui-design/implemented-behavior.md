@@ -799,6 +799,27 @@ address starts a new registration and does not change the original account. Reco
 start-new-request action. Resends submit the current flow ID; the signed HttpOnly cookie determines
 the email, and a changed flow from another tab cannot silently change the resend destination.
 
+## Notification inbox usability (2026-11-13)
+
+The Minimal Notes bell offers All/Unread filters through the existing `unreadOnly` query.
+Payment reminder headings distinguish 24-hour and 1-hour windows; booking and reschedule events
+have Thai/English explanations based on their existing event types. Expanding a row does not mark
+it read. Marking a row read removes it from the unread view and leaves keyboard focus on the
+selected filter. The booking link remains usable during read writes and after read-write errors;
+navigation starts immediately while the read receipt is best effort. The destination retains its
+own authorization and current booking-state checks.
+
+Visible tabs refresh the inbox/badge every 30 seconds and on window focus or visibility return.
+Local payment-state changes invalidate the inbox; successful read writes also invalidate peer tabs
+through a user-scoped BroadcastChannel. These signals contain no notification content and use no
+browser storage. Hidden tabs skip polling, and pending background reads yield to explicit actions.
+Background refresh merges overlapping first pages into loaded history, retaining expanded keyed
+rows. A gap in history resets to the fresh page/cursor instead of skipping unseen notifications.
+Temporary background errors retain the last successful data with a bilingual status message.
+
+This UI work uses the existing API fields and events. Notification eligibility, payment deadlines,
+QR/time-band deduplication rules and additional business events are unchanged.
+
 ## PromptPay Test Mode (2026-10-19)
 
 The student booking detail uses a PromptPay test QR panel in the existing payment column. The

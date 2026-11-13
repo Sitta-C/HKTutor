@@ -81,6 +81,31 @@
 .toolbar {
   padding: 4px 16px;
 }
+.filters {
+  display: flex;
+  gap: 8px;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--color-paper-edge);
+}
+.filter {
+  min-height: 44px;
+  padding: 6px 14px;
+  border: 1px solid transparent;
+  border-radius: 8px 8px 0 0;
+  color: var(--color-notebook-muted);
+  font-size: 13px;
+  cursor: pointer;
+}
+.filter[aria-pressed='true'] {
+  border-color: var(--color-paper-edge);
+  background: var(--color-sticky-yellow);
+  color: var(--color-notebook-ink);
+  font-weight: 600;
+}
+.filter:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
 .items {
   list-style: none;
   padding: 0;

@@ -13,7 +13,9 @@ export function notificationDescription(item: InboxNotification, language: 'en' 
   const text = notificationCopy[language];
   return Object.hasOwn(text.reminderDetails, item.eventType)
     ? text.reminderDetails[item.eventType as keyof typeof text.reminderDetails]
-    : text.detailsHint;
+    : Object.hasOwn(text.eventDetails, item.eventType)
+      ? text.eventDetails[item.eventType as keyof typeof text.eventDetails]
+      : text.detailsHint;
 }
 
 export function notificationReminderKind(eventType: string): 'class' | 'payment' | null {
@@ -43,6 +45,27 @@ export function mergeNotificationPage(
     items.set(item.id, item);
   }
   return { ...next, items: [...items.values()] };
+}
+
+/** Preserve older loaded pages only when the fresh page overlaps their known history. */
+export function refreshNotificationPage(
+  current: NotificationPage | null,
+  fresh: NotificationPage,
+  unreadOnly: boolean,
+): NotificationPage {
+  if (!current || !fresh.items.some((item) => current.items.some(({ id }) => id === item.id))) {
+    return fresh;
+  }
+  const merged = mergeNotificationPage(current, fresh);
+  const freshIds = new Set(fresh.items.map(({ id }) => id));
+  return {
+    ...merged,
+    nextCursor: fresh.nextCursor === null ? null : current.nextCursor,
+    items: [
+      ...fresh.items,
+      ...(fresh.nextCursor === null ? [] : merged.items.filter(({ id }) => !freshIds.has(id))),
+    ].filter((item) => !unreadOnly || item.readAt === null),
+  };
 }
 
 export function optimisticNotificationRead(

@@ -26,7 +26,7 @@ export function NotificationItem({
   language: 'en' | 'th';
   disabled: boolean;
   onRead: () => void;
-  onOpen: (href: string) => void;
+  onOpen: () => void;
 }) {
   const text = notificationCopy[language];
   const summary = useRef<HTMLElement>(null);
@@ -74,18 +74,7 @@ export function NotificationItem({
                 prefetch={false}
                 className={styles.bookingLink}
                 aria-label={`${text.openBooking}: ${title}`}
-                aria-disabled={disabled}
-                onClick={(event) => {
-                  if (disabled) {
-                    event.preventDefault();
-                  }
-                }}
-                onNavigate={(event) => {
-                  event.preventDefault();
-                  if (!disabled) {
-                    onOpen(href);
-                  }
-                }}
+                onNavigate={onOpen}
               >
                 {text.openBooking}
               </Link>

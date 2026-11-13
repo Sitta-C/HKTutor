@@ -1,101 +1,37 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import { DashboardIcon } from '@/components/dashboard/dashboard-icon';
 import { MarkAllReadButton } from '@/components/notifications/mark-all-read-button';
 import { notificationCopy } from '@/components/notifications/notification-copy';
 import { NotificationItem } from '@/components/notifications/notification-item';
-import {
-  mergeNotificationPage,
-  optimisticNotificationRead,
-} from '@/components/notifications/notification-model';
 import { UnreadBadge } from '@/components/notifications/unread-badge';
+import { useNotificationInbox } from '@/components/notifications/use-notification-inbox';
 import { NotebookLoadingRegion } from '@/components/ui/notebook-loading';
-import { ApiError } from '@/lib/api/error';
-import {
-  getNotifications,
-  markAllNotificationsRead,
-  markNotificationRead,
-} from '@/lib/api/notifications';
 import { useLanguage } from '@/lib/i18n';
 
 import styles from './notification.module.css';
 
-import type { NotificationPage } from '@/lib/api/types';
-
-type InboxError = 'loadFailed' | 'saveFailed' | 'forbidden' | 'missing';
-
-export function NotificationInbox({ role }: { role: 'STUDENT' | 'TUTOR' }) {
+export function NotificationInbox({ role, userId }: { role: 'STUDENT' | 'TUTOR'; userId: string }) {
   const { language } = useLanguage();
   const text = notificationCopy[language];
-  const router = useRouter();
   const [open, setOpen] = useState(false);
-  const [page, setPage] = useState<NotificationPage | null>(null);
-  const [busy, setBusy] = useState<'load' | 'more' | 'write' | null>('load');
-  const [error, setError] = useState<InboxError | null>(null);
-  const [needsRefresh, setNeedsRefresh] = useState(false);
-  const gate = useRef(false);
-  const sequence = useRef(0);
+  const {
+    page,
+    busy,
+    error,
+    needsRefresh,
+    syncFailed,
+    unreadOnly,
+    changeFilter,
+    reload,
+    markRead,
+  } = useNotificationInbox(userId);
   const container = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
   const close = useRef<HTMLButtonElement>(null);
-
-  const load = useCallback((cursor?: string): Promise<void> => {
-    if (gate.current) {
-      return Promise.resolve();
-    }
-    gate.current = true;
-    const request = ++sequence.current;
-    return getNotifications({ limit: 20, ...(cursor ? { cursor } : {}) })
-      .then((result) => {
-        if (request !== sequence.current) {
-          return;
-        }
-        setPage((current) => (cursor && current ? mergeNotificationPage(current, result) : result));
-        setNeedsRefresh(false);
-      })
-      .catch((caught: unknown) => {
-        if (request !== sequence.current) {
-          return;
-        }
-        if (caught instanceof ApiError && caught.status === 403) {
-          setPage(null);
-          setError('forbidden');
-          setNeedsRefresh(true);
-        } else {
-          setError('loadFailed');
-        }
-      })
-      .finally(() => {
-        if (request === sequence.current) {
-          gate.current = false;
-          setBusy(null);
-        }
-      });
-  }, []);
-
-  function reload(cursor?: string): void {
-    if (gate.current) {
-      return;
-    }
-    setBusy(cursor ? 'more' : 'load');
-    setError(null);
-    if (!cursor) {
-      setPage(null);
-    }
-    void load(cursor);
-  }
-
-  useEffect(() => {
-    void load();
-    return () => {
-      // Ignore old responses after unmount/account changes, including Strict Mode replays.
-      sequence.current += 1;
-      gate.current = false;
-    };
-  }, [load]);
+  const selectedFilter = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     if (!open) {
@@ -121,65 +57,9 @@ export function NotificationInbox({ role }: { role: 'STUDENT' | 'TUTOR' }) {
     };
   }, [open]);
 
-  async function markRead(notificationId: string | null): Promise<boolean> {
-    if (gate.current || !page || needsRefresh) {
-      return false;
-    }
-    if (notificationId !== null && page.items.find((item) => item.id === notificationId)?.readAt) {
-      return true;
-    }
-    gate.current = true;
-    const request = ++sequence.current;
-    const previous = page;
-    const optimistic = optimisticNotificationRead(page, notificationId, new Date().toISOString());
-    setPage(optimistic);
-    setBusy('write');
-    setError(null);
-    try {
-      const result =
-        notificationId === null
-          ? await markAllNotificationsRead()
-          : await markNotificationRead(notificationId);
-      if (request !== sequence.current) {
-        return false;
-      }
-      if (result.readAt !== null) {
-        const readAt = result.readAt;
-        setPage({
-          ...optimistic,
-          items: optimistic.items.map((item) =>
-            previous.items.some((before) => before.id === item.id && before.readAt === null) &&
-            (notificationId === null || item.id === notificationId)
-              ? { ...item, readAt }
-              : item,
-          ),
-        });
-      }
-      return true;
-    } catch (caught: unknown) {
-      if (request === sequence.current) {
-        setPage(previous);
-        // A lost response may have committed. Reconcile before allowing another mutation.
-        setNeedsRefresh(true);
-        setError(
-          caught instanceof ApiError && caught.status === 403
-            ? 'forbidden'
-            : caught instanceof ApiError && caught.status === 404
-              ? 'missing'
-              : 'saveFailed',
-        );
-      }
-      return false;
-    } finally {
-      if (request === sequence.current) {
-        gate.current = false;
-        setBusy(null);
-      }
-    }
-  }
-
   const unreadLabel = page ? text.unreadCount.replace('{count}', String(page.unreadCount)) : '';
   const disabled = busy !== null || needsRefresh;
+  const visibleItems = page?.items.filter((item) => !unreadOnly || item.readAt === null) ?? [];
 
   return (
     <div
@@ -191,6 +71,7 @@ export function NotificationInbox({ role }: { role: 'STUDENT' | 'TUTOR' }) {
         type="button"
         className={styles.trigger}
         aria-label={`${text.title}${page && page.unreadCount > 0 ? `, ${unreadLabel}` : ''}`}
+        title={syncFailed ? text.syncFailed : undefined}
         aria-expanded={open}
         aria-controls="dashboard-notifications"
         onClick={() => {
@@ -227,12 +108,30 @@ export function NotificationInbox({ role }: { role: 'STUDENT' | 'TUTOR' }) {
               <DashboardIcon name="close" />
             </button>
           </header>
+          <div className={styles.filters} role="group" aria-label={text.filterLabel}>
+            {[false, true].map((onlyUnread) => (
+              <button
+                key={String(onlyUnread)}
+                ref={onlyUnread === unreadOnly ? selectedFilter : undefined}
+                type="button"
+                className={styles.filter}
+                aria-pressed={onlyUnread === unreadOnly}
+                disabled={busy !== null && onlyUnread !== unreadOnly}
+                onClick={() => changeFilter(onlyUnread)}
+              >
+                {onlyUnread ? text.filterUnread : text.filterAll}
+              </button>
+            ))}
+          </div>
           {page && page.unreadCount > 0 && (
             <div className={styles.toolbar}>
               <MarkAllReadButton
                 label={text.markAll}
                 disabled={disabled}
-                onClick={() => void markRead(null)}
+                onClick={() => {
+                  selectedFilter.current?.focus();
+                  void markRead(null);
+                }}
               />
             </div>
           )}
@@ -242,26 +141,29 @@ export function NotificationInbox({ role }: { role: 'STUDENT' | 'TUTOR' }) {
             </div>
           ) : page ? (
             <>
-              {page.items.length ? (
+              {visibleItems.length ? (
                 <ul className={styles.items}>
-                  {page.items.map((item) => (
+                  {visibleItems.map((item) => (
                     <NotificationItem
                       key={item.id}
                       item={item}
                       language={language}
                       disabled={disabled}
-                      onRead={() => void markRead(item.id)}
-                      onOpen={async (href) => {
-                        if (await markRead(item.id)) {
-                          setOpen(false);
-                          router.push(href);
+                      onRead={() => {
+                        if (unreadOnly) {
+                          selectedFilter.current?.focus();
                         }
+                        void markRead(item.id);
+                      }}
+                      onOpen={() => {
+                        // The route key dismisses the panel after navigation; keep the Link mounted.
+                        void markRead(item.id);
                       }}
                     />
                   ))}
                 </ul>
               ) : (
-                <p className={styles.message}>{text.empty}</p>
+                <p className={styles.message}>{unreadOnly ? text.emptyUnread : text.empty}</p>
               )}
               {page.nextCursor && (
                 <div className={styles.toolbar}>
@@ -280,6 +182,11 @@ export function NotificationInbox({ role }: { role: 'STUDENT' | 'TUTOR' }) {
           {busy === 'write' && (
             <p className={styles.message} role="status">
               {text.saving}
+            </p>
+          )}
+          {syncFailed && !error && (
+            <p className={styles.message} role="status">
+              {text.syncFailed}
             </p>
           )}
           {error && (
