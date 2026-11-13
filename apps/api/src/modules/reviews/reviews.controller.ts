@@ -27,6 +27,7 @@ import {
   GetReviewDoc,
   GetReviewResponseDto,
   GetTutorReviewsDoc,
+  ReviewsControllerDoc,
   TutorReviewsResponseDto,
 } from '@modules/reviews/reviews.swagger';
 
@@ -42,6 +43,7 @@ const BOOKING_REVIEW_OWNERSHIP = {
   resource: 'booking',
 } as const satisfies OwnershipRule;
 
+@ReviewsControllerDoc()
 @Controller('bookings/me/:bookingId/reviews')
 @UseGuards(JwtAuthGuard, RolesGuard, ResourceOwnershipGuard)
 @Roles(Role.STUDENT)
@@ -63,6 +65,7 @@ export class ReviewsController {
   }
 }
 
+@ReviewsControllerDoc()
 @Controller('bookings/me/:bookingId/review')
 @UseGuards(JwtAuthGuard, RolesGuard, ResourceOwnershipGuard)
 @Roles(Role.STUDENT)
@@ -81,6 +84,7 @@ export class ReviewController {
   }
 }
 
+@ReviewsControllerDoc()
 @Controller('tutors/:tutorId/reviews')
 export class TutorReviewsController {
   constructor(private readonly reviews: ReviewsService) {}

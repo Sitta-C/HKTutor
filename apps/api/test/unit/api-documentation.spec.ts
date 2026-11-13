@@ -182,4 +182,94 @@ describe('API documentation contract (S2-T39)', () => {
       );
     });
   });
+
+  /** S3-T39: rules for the final Sprint 3 contract (see tests/s3-t39-qa.md). */
+  describe('Sprint 3 final contract', () => {
+    function operation(key: string): Operation {
+      const found = operations.find((candidate) => candidate.key === key);
+      if (!found) {
+        throw new Error(`${key} is not documented`);
+      }
+      return found.operation;
+    }
+    function statuses(key: string): string[] {
+      return Object.keys(operation(key).responses);
+    }
+
+    it('gives every operation exactly one lowercase kebab-case tag', () => {
+      expect(
+        violations((candidate) => {
+          const tags = candidate.tags ?? [];
+          return tags.length === 1 && /^[a-z]+(?:-[a-z]+)*$/.test(tags[0] ?? '')
+            ? null
+            : `tags ${JSON.stringify(tags)}`;
+        }),
+      ).toEqual([]);
+    });
+
+    it('documents a response body for every 2xx except 204 No Content', () => {
+      expect(
+        violations((candidate) => {
+          const missing = Object.entries(candidate.responses)
+            .filter(([status]) => status.startsWith('2') && status !== '204')
+            .filter(([, response]) => {
+              const content = response && 'content' in response ? response.content : undefined;
+              return !content || !Object.values(content).some((media) => media.schema);
+            })
+            .map(([status]) => status);
+          return missing.length ? `no schema for ${missing.join(', ')}` : null;
+        }),
+      ).toEqual([]);
+    });
+
+    it('US7-1: the tutor report is private and documents 400/401/403', () => {
+      expect(statuses('GET /api/v1/reports/tutor/me')).toEqual(
+        expect.arrayContaining(['200', '400', '401', '403']),
+      );
+    });
+
+    it('US8-1: review creation documents invalid, foreign, missing and duplicate cases', () => {
+      expect(statuses('POST /api/v1/bookings/me/{bookingId}/reviews')).toEqual(
+        expect.arrayContaining(['201', '400', '401', '403', '404', '409']),
+      );
+    });
+
+    it('US8-2: public tutor reads document the nullable rating and review count', () => {
+      const detail = operation('GET /api/v1/tutors/{tutorId}');
+      expect(detail.description ?? '').toBeTruthy();
+      expect(statuses('GET /api/v1/tutors/{tutorId}/reviews')).toEqual(
+        expect.arrayContaining(['200', '400', '404']),
+      );
+    });
+
+    it('US9-1: admin coupon creation documents validation, role and duplicate-code errors', () => {
+      expect(statuses('POST /api/v1/admin/coupons')).toEqual(
+        expect.arrayContaining(['201', '400', '401', '403', '409']),
+      );
+    });
+
+    it('US9-2: coupon apply and payment document the specific coupon conflicts', () => {
+      for (const key of [
+        'POST /api/v1/bookings/me/{bookingId}/coupon-quote',
+        'PUT /api/v1/bookings/me/{bookingId}/coupon',
+        'POST /api/v1/bookings/me/{bookingId}/payments/promptpay',
+      ]) {
+        expect(statuses(key)).toEqual(expect.arrayContaining(['400', '401', '403', '404', '409']));
+      }
+      const conflict = operation('POST /api/v1/bookings/me/{bookingId}/payments/promptpay')
+        .responses['409'];
+      expect(conflict && 'description' in conflict ? conflict.description : '').toMatch(
+        /COUPON_EXPIRED[\s\S]*COUPON_EXHAUSTED[\s\S]*COUPON_ALREADY_USED/,
+      );
+    });
+
+    it('US2-3: chat writes that publish socket events document consent and participant 403', () => {
+      for (const key of [
+        'POST /api/v1/conversations/{conversationId}/messages',
+        'POST /api/v1/conversations/{conversationId}/read',
+      ]) {
+        expect(statuses(key)).toEqual(expect.arrayContaining(['401', '403', '404']));
+      }
+    });
+  });
 });

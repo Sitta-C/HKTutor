@@ -25,6 +25,7 @@ import { CouponsService } from '@modules/coupons/coupons.service';
 import {
   CouponDto,
   CouponListDto,
+  CouponsControllerDoc,
   CreateCouponDoc,
   ListCouponsDoc,
   SetCouponActivationDoc,
@@ -32,6 +33,7 @@ import {
 
 import type { AuthenticatedUser } from '@modules/auth/auth.guard';
 
+@CouponsControllerDoc()
 @Controller('admin/coupons')
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(Role.ADMIN)

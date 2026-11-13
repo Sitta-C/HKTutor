@@ -53,7 +53,7 @@ export const TUTOR_REPORT_EXAMPLES = {
 } as const satisfies Record<string, { summary: string; value: TutorReportResponseDto }>;
 
 export function ReportsControllerDoc(): ClassDecorator {
-  return applyDecorators(ApiTags('Reports'));
+  return applyDecorators(ApiTags('reports'));
 }
 
 export function GetMyTutorReportDoc(): MethodDecorator {

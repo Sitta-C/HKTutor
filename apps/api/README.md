@@ -3095,6 +3095,18 @@ Limits: every API read is intercepted, so this does not certify a live database-
 (S3-T32's `db:verify:comparison-visibility` covers the public reads). Only the repository's
 Chromium projects were run; Firefox and WebKit were not. No external service is contacted.
 
+## Final Swagger contract (S3-T39)
+
+Swagger UI (`/api/v1/docs`) groups every operation under exactly one lowercase tag: `reviews`,
+`payments`, `coupons`, `reports`, `avatars`, and the existing `bookings`, `tutors` and others. Sprint 3
+controllers carry a class-level tag helper (for example `ReviewsControllerDoc`). A method-level
+`@ApiTags` next to the automatic controller tag would create a duplicate group. Every 2xx response
+except 204 documents its body, including `POST /auth/consent` and the Omise webhook
+acknowledgement. `test/unit/api-documentation.spec.ts` enforces both rules, and the status codes
+each Sprint 3 story's acceptance criteria require, alongside the S2-T39 rules. Story-to-test
+traceability, the reminder-timing and rating-rounding wording, and the handover notes are in
+[`tests/s3-t39-qa.md`](../../tests/s3-t39-qa.md).
+
 ## Sprint 3 deterministic fixtures (S3-DB04)
 
 `pnpm db:seed` keeps the existing combined entry point and now calls `seedSprint3Fixtures` after

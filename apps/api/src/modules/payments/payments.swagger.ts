@@ -49,9 +49,13 @@ export class PaymentResponseDto {
   @ApiProperty({ type: PaymentAttemptDto, nullable: true }) attempt!: PaymentAttemptDto | null;
 }
 
+/** One class-level tag per controller: method-level tags would add a duplicate, auto-named group. */
+export function PaymentsControllerDoc(): ClassDecorator {
+  return applyDecorators(ApiTags('payments'));
+}
+
 export function StudentPaymentDoc(create: boolean): MethodDecorator {
   return applyDecorators(
-    ApiTags('Payments'),
     ApiBearerAuth(JWT_BEARER_AUTH),
     ApiOperation({
       summary: create
@@ -80,7 +84,6 @@ export function StudentPaymentDoc(create: boolean): MethodDecorator {
 
 export function OmiseWebhookDoc(): MethodDecorator {
   return applyDecorators(
-    ApiTags('Payments'),
     ApiHeader({
       name: 'Omise-Signature',
       required: true,
@@ -96,7 +99,14 @@ export function OmiseWebhookDoc(): MethodDecorator {
       description:
         'Requires Omise-Signature and Omise-Signature-Timestamp headers over the raw body. Retrieves the charge independently. Verified success atomically commits the paid booking, successful attempt, consumed reservation and trigger-generated CouponUse/audit. Confirmed failure/expiry releases capacity. Duplicate/out-of-order events cannot downgrade terminal payments or duplicate evidence. Configure this HTTPS URL on the Omise Test Dashboard.',
     }),
-    ApiOkResponse({ description: 'Event processed or unrelated event ignored' }),
+    ApiOkResponse({
+      description: 'Event processed or unrelated event ignored',
+      schema: {
+        type: 'object',
+        required: ['received'],
+        properties: { received: { type: 'boolean', enum: [true] } },
+      },
+    }),
     ApiUnauthorizedResponse({
       description: 'Missing/invalid signature or timestamp older than five minutes',
     }),

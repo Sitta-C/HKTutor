@@ -26,6 +26,7 @@ import { PaymentsService } from '@modules/payments/payments.service';
 import {
   OmiseWebhookDoc,
   PaymentResponseDto,
+  PaymentsControllerDoc,
   StudentPaymentDoc,
 } from '@modules/payments/payments.swagger';
 
@@ -33,6 +34,7 @@ import type { AuthenticatedUser } from '@modules/auth/auth.guard';
 import type { RawBodyRequest } from '@nestjs/common';
 import type { Request } from 'express';
 
+@PaymentsControllerDoc()
 @Controller('bookings/me/:bookingId/payments')
 @UseGuards(JwtAuthGuard, RolesGuard, ResourceOwnershipGuard)
 @Roles(Role.STUDENT)
@@ -76,6 +78,7 @@ export class PaymentsController {
   }
 }
 
+@PaymentsControllerDoc()
 @Controller('payments/omise')
 export class OmiseWebhookController {
   constructor(
