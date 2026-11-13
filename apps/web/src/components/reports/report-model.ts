@@ -5,7 +5,7 @@ import type { ReportCopy } from '@/components/reports/report-copy';
 import type { BookingStatus, TutorReport } from '@/lib/api/types';
 import type { Language } from '@/lib/i18n';
 
-export type ReportFailure = 'session' | 'restricted' | 'failed';
+export type ReportFailure = 'session' | 'consent' | 'restricted' | 'failed';
 
 export interface TutorReportViewModel {
   totalBookings: string;
@@ -45,7 +45,11 @@ export function createTutorReportViewModel(
 export function getReportFailure(error: unknown): ReportFailure {
   if (error instanceof ApiError) {
     if (error.status === 401) return 'session';
-    if (error.status === 403) return 'restricted';
+    if (error.status === 403) {
+      return error.message === 'Accept the current privacy notice to continue.'
+        ? 'consent'
+        : 'restricted';
+    }
   }
   return 'failed';
 }

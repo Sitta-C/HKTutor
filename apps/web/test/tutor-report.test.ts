@@ -105,6 +105,7 @@ describe('tutor report presentation', () => {
     const loading = render({ status: 'loading' });
     const failed = render({ status: 'error', failure: 'failed' });
     const restricted = render({ status: 'error', failure: 'restricted' });
+    const consent = render({ status: 'error', failure: 'consent' });
 
     expect(loading).toContain('Loading your all-time report');
     expect(loading).not.toContain('฿0.00');
@@ -113,6 +114,9 @@ describe('tutor report presentation', () => {
     expect(failed).not.toContain('฿0.00');
     expect(restricted).toContain('available only to tutor accounts');
     expect(restricted).not.toContain('Try again');
+    expect(consent).toContain('Accept the current privacy notice');
+    expect(consent).toContain('/onboarding/profile?returnTo=%2Fdashboard%2Freports');
+    expect(consent).toContain('Review privacy notice');
   });
 
   it('uses the analytics heading hierarchy without the report eyebrow when embedded', () => {
@@ -137,6 +141,9 @@ describe('tutor report presentation', () => {
   it('distinguishes expired sessions and restricted roles from retryable failures', () => {
     expect(getReportFailure(new ApiError('Unauthorized', 401))).toBe('session');
     expect(getReportFailure(new ApiError('Forbidden', 403))).toBe('restricted');
+    expect(
+      getReportFailure(new ApiError('Accept the current privacy notice to continue.', 403)),
+    ).toBe('consent');
     expect(getReportFailure(new ApiError('Unavailable', 503))).toBe('failed');
     expect(getReportFailure(new TypeError('network'))).toBe('failed');
   });

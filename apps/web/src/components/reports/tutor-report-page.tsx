@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
@@ -13,6 +14,8 @@ import { PaperCard, notebookButtonClass } from '@/components/ui/notebook';
 import { NotebookLoadingRegion } from '@/components/ui/notebook-loading';
 import { getMyTutorReport } from '@/lib/api/reports';
 import { useLanguage } from '@/lib/i18n';
+import { ONBOARDING_PROFILE_PATH } from '@/lib/profile-navigation';
+import { withReturnTo } from '@/lib/return-to';
 import { useProfileSession } from '@/lib/use-profile-session';
 
 import type { ReportFailure } from '@/components/reports/report-model';
@@ -77,10 +80,23 @@ export function TutorReportPanel({
           <p className="font-bold text-red-900">
             {state.failure === 'session'
               ? copy.sessionExpired
-              : state.failure === 'restricted'
-                ? copy.restricted
-                : copy.loadFailed}
+              : state.failure === 'consent'
+                ? copy.consentRequired
+                : state.failure === 'restricted'
+                  ? copy.restricted
+                  : copy.loadFailed}
           </p>
+          {state.failure === 'consent' && (
+            <Link
+              href={withReturnTo(
+                ONBOARDING_PROFILE_PATH,
+                embedded ? '/dashboard' : '/dashboard/reports',
+              )}
+              className={notebookButtonClass({ tone: 'secondary', className: 'mt-4' })}
+            >
+              {copy.reviewConsent}
+            </Link>
+          )}
           {state.failure === 'failed' && (
             <>
               <p className="mt-2 text-sm leading-6 text-red-800">{copy.loadFailedHint}</p>
