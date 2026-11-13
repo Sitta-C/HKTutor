@@ -693,6 +693,55 @@ for (const language of ['en', 'th'] as const) {
   });
 }
 
+for (const language of ['en', 'th'] as const) {
+  test(`${language}: lesson-start notice stays below readable decision buttons`, async ({
+    page,
+  }, testInfo) => {
+    await page.addInitScript(() => localStorage.setItem('hktutor-language', 'en'));
+    await page.clock.install({ time: new Date('2026-11-14T04:59:00Z') });
+    const booking = {
+      ...pendingBooking(requestedBookings[0]),
+      slot: {
+        id: 'deadline-slot',
+        startAtUtc: '2026-11-14T05:00:00Z',
+        endAtUtc: '2026-11-14T06:00:00Z',
+      },
+    };
+    await openMockInbox(page, [booking]);
+    if (language === 'th') {
+      await page.getByRole('button', { name: 'Switch language to Thai' }).click();
+    }
+    const row = page.getByRole('article', { name: 'Mali' });
+    const confirm = row.getByRole('button', {
+      name: language === 'th' ? 'ยืนยันการจองจาก Mali' : 'Confirm the booking from Mali',
+      exact: true,
+    });
+    const reject = row.getByRole('button', {
+      name: language === 'th' ? 'ปฏิเสธการจองจาก Mali' : 'Reject the booking from Mali',
+      exact: true,
+    });
+    await expect(confirm).toBeEnabled();
+    await page.clock.fastForward(60_000);
+    await expect(confirm).toBeDisabled();
+    await expect(reject).toBeEnabled();
+    const notice = row
+      .getByRole('status')
+      .filter({ hasText: language === 'th' ? 'เริ่มเรียนแล้ว' : 'lesson has started' });
+    await expect(notice).toContainText(language === 'th' ? 'เริ่มเรียนแล้ว' : 'lesson has started');
+    const noticeBounds = await notice.boundingBox();
+    for (const action of [confirm, reject]) {
+      const bounds = await action.boundingBox();
+      expect(bounds).not.toBeNull();
+      expect(noticeBounds).not.toBeNull();
+      expect(noticeBounds?.y).toBeGreaterThanOrEqual((bounds?.y ?? 0) + (bounds?.height ?? 0));
+      expect(await action.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(
+        true,
+      );
+    }
+    await row.screenshot({ path: testInfo.outputPath(`deadline-actions-${language}.png`) });
+  });
+}
+
 async function openMockInbox(
   page: Page,
   bookings: InboxBooking[],

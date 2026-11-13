@@ -142,7 +142,7 @@ export function GetCurrentRescheduleRequestDoc(): MethodDecorator {
       summary: 'Get current pending reschedule request and allowed actions for a booking',
       description:
         'CREATE includes the exact 24-hour boundary. APPROVE is returned only while the ' +
-        'booking and target are eligible. Pending requests can still be rejected or withdrawn ' +
+        'booking and target are eligible and no payment is unresolved. Pending requests can still be rejected or withdrawn ' +
         'by the appropriate participant when approval is unavailable.',
     }),
     ApiBearerAuth(JWT_BEARER_AUTH),
@@ -243,7 +243,7 @@ export function ApproveRescheduleRequestDoc(): MethodDecorator {
       description:
         'Locks the booking, re-reads the request, then locks and revalidates the target before ' +
         'closing the request and swapping slots in one transaction. Exactly 24 hours before ' +
-        'the current class is allowed. A target deleted while waiting for the lock returns 409.',
+        'the current class is allowed. Unresolved payments return 409 PAYMENT_IN_PROGRESS without changing the original booking or request. A target deleted while waiting for the lock returns 409.',
     }),
     ApiBearerAuth(JWT_BEARER_AUTH),
     ApiParam({
@@ -329,7 +329,7 @@ export function ApproveRescheduleRequestDoc(): MethodDecorator {
     }),
     ApiConflictResponse({
       description:
-        'Request not pending, target slot reserved/unavailable, cutoff passed, or race condition',
+        'Payment is unresolved (PAYMENT_IN_PROGRESS), request not pending, target slot reserved/unavailable, cutoff passed, or race condition',
       schema: {
         example: {
           code: 'RESCHEDULE_TARGET_RESERVED',

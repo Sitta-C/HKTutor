@@ -93,6 +93,30 @@ describe('tutor report presentation', () => {
     );
   });
 
+  // S3-T11: the API owns HALF_UP rounding; the page must show its value without re-rounding.
+  it.each([
+    [{ completed: 1, finalized: 32, percent: 3.13 }, '3.13%'],
+    [{ completed: 2, finalized: 3, percent: 66.67 }, '66.67%'],
+    [{ completed: 1, finalized: 3, percent: 33.33 }, '33.33%'],
+    [{ completed: 4, finalized: 5, percent: 80 }, '80%'],
+    [{ completed: 3, finalized: 3, percent: 100 }, '100%'],
+    [{ completed: 0, finalized: 2, percent: 0 }, '0%'],
+  ])('shows the API completion rate %o as %s in both languages', (completionRate, expected) => {
+    const rated = { ...report, completionRate };
+
+    expect(createTutorReportViewModel(rated, reportCopy.en, 'en').completionRate).toBe(expected);
+    expect(createTutorReportViewModel(rated, reportCopy.th, 'th').completionRate).toBe(expected);
+  });
+
+  it('shows N/A in English for a null rate instead of a fabricated 0%', () => {
+    const unfinalized = {
+      ...report,
+      completionRate: { completed: 0, finalized: 0, percent: null },
+    };
+
+    expect(createTutorReportViewModel(unfinalized, reportCopy.en, 'en').completionRate).toBe('N/A');
+  });
+
   it('keeps loading and failed requests free of optimistic zeros and offers retry only for failures', () => {
     const render = (state: TutorReportPanelState) =>
       renderToStaticMarkup(

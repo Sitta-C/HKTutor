@@ -131,7 +131,7 @@ rendered only from the status the API returns, and a 403, 404, or 409 answer loc
 refresh so the inbox never shows an optimistic status the server did not persist.
 
 Students and tutors see paid/unpaid status on booking rows. Classroom links and attendance
-recording require payment first, even when a booking is confirmed or already completed. Confirmed, unpaid bookings support Omise
+recording require payment first, even when a booking is confirmed or already completed. Payment closes when the lesson starts; new requests and tutor confirmation must also precede that deadline. Unpaid requests without active payments expire automatically. Confirmed, unpaid bookings within this window support Omise
 PromptPay **Test Mode**: create or resume a QR, receive a signed webhook, and reconcile status
 through the API. No real money is collected. An active or uncertain attempt blocks duplicate
 charges and cancellation until Omise confirms a terminal result. The previous mock-payment
@@ -165,6 +165,9 @@ Tutors can view the authoritative all-time report at the private, noindex `/dash
 route and in the tutor dashboard. It shows all five booking statuses, paid completed net revenue,
 and the completed ÷ (completed + canceled) rate; these values come from the report endpoint rather
 than a paginated booking page.
+S3-T11 checks the report against real PostgreSQL rows, covering arithmetic, discounted revenue,
+HALF_UP rounding, empty ledgers and role/ownership access; see
+[S3-T11 QA evidence](tests/s3-t11-qa.md).
 
 See [frontend direction](ui-design/frontend-direction.md) for the Notebook Focus patterns and
 [implemented frontend behavior](ui-design/implemented-behavior.md) for interaction, loading,

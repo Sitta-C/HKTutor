@@ -40,6 +40,8 @@ function bookingFixture(status: BookingStatus = BookingStatus.CONFIRMED) {
     id: BOOKING_ID,
     listingId: 'a22c4b4d-4f8e-4de6-9b3d-faae7db5eb6d',
     netAmount: new Prisma.Decimal('450.00'),
+    paymentPending: false,
+    paymentAttempts: [],
     slot: {
       startAtUtc: new Date('2026-10-16T12:00:00Z'),
       endAtUtc: new Date('2026-10-16T13:00:00Z'),
@@ -238,6 +240,25 @@ describe('Reschedule API regressions (HTTP with isolated persistence)', () => {
       expect(booking.slotId).toBe(ORIGINAL_SLOT_ID);
     },
   );
+
+  it('keeps approval paused during payment, while rejection and withdrawal remain available', async () => {
+    booking.paymentPending = true;
+    authenticateAs(TUTOR_ID, Role.TUTOR);
+    const current = await authorized('get', `${CREATE_URL}/current`).expect(200);
+    expect(current.body).toMatchObject({ allowedActions: ['REJECT'] });
+    const response = await authorized('post', `${REQUEST_URL}/approve`).expect(409);
+    expect(response.body).toMatchObject({ code: 'PAYMENT_IN_PROGRESS' });
+    expect(requestUpdateMany).not.toHaveBeenCalled();
+    expect(bookingUpdateMany).not.toHaveBeenCalled();
+    expect(booking.slotId).toBe(ORIGINAL_SLOT_ID);
+    authenticateAs(STUDENT_ID, Role.STUDENT);
+    const requester = await authorized('get', `${CREATE_URL}/current`).expect(200);
+    expect(requester.body).toMatchObject({ allowedActions: ['WITHDRAW'] });
+    booking.paymentPending = false;
+    authenticateAs(TUTOR_ID, Role.TUTOR);
+    const settled = await authorized('get', `${CREATE_URL}/current`).expect(200);
+    expect(settled.body).toMatchObject({ allowedActions: ['APPROVE', 'REJECT'] });
+  });
 
   it('returns 409 if target deletion commits between request lookup and slot lock', async () => {
     authenticateAs(TUTOR_ID, Role.TUTOR);

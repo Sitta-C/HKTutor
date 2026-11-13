@@ -94,9 +94,9 @@ describe('BookingsService', () => {
 
   const futureSlot = (slotId: string, tutorUserId: string) => ({
     deletedAt: null,
-    endAtUtc: new Date(Date.now() + 2 * 60 * 60 * 1000),
+    endAtUtc: new Date(Date.now() + 25 * 60 * 60 * 1000),
     id: slotId,
-    startAtUtc: new Date(Date.now() + 60 * 60 * 1000),
+    startAtUtc: new Date(Date.now() + 24 * 60 * 60 * 1000),
     tutorProfileId: tutorUserId,
   });
 
@@ -127,7 +127,7 @@ describe('BookingsService', () => {
       const { bookingId, listingId, slotId, studentUserId, tutorUserId } = createTestData();
       const pricePerHour = 500;
       const createdAt = new Date('2026-09-10T09:04:31.001Z');
-      const startAtUtc = new Date(Date.now() + 60 * 60 * 1000);
+      const startAtUtc = new Date(Date.now() + 24 * 60 * 60 * 1000);
       const expectedAmount = 750;
       const mockSlot = {
         ...futureSlot(slotId, tutorUserId),
@@ -432,7 +432,10 @@ describe('BookingsService', () => {
       };
 
       await expect(service.create(input)).rejects.toThrow(
-        new ConflictException('The selected slot has already started or is in the past.'),
+        new ConflictException({
+          code: 'BOOKING_PAYMENT_DEADLINE_PASSED',
+          message: 'Payment must be completed before the lesson starts',
+        }),
       );
     });
 
@@ -492,9 +495,9 @@ describe('BookingsService', () => {
 
       const mockSlot = {
         deletedAt: new Date('2026-09-01T00:00:00Z'),
-        endAtUtc: new Date(Date.now() + 2 * 60 * 60 * 1000),
+        endAtUtc: new Date(Date.now() + 25 * 60 * 60 * 1000),
         id: slotId,
-        startAtUtc: new Date(Date.now() + 60 * 60 * 1000),
+        startAtUtc: new Date(Date.now() + 24 * 60 * 60 * 1000),
         tutorProfileId: tutorUserId,
       };
 
@@ -845,9 +848,9 @@ describe('BookingsService', () => {
   describe('getQuote', () => {
     const mockSlotResult = (slotId: string, tutorUserId: string) => ({
       deletedAt: null,
-      endAtUtc: new Date(Date.now() + 2 * 60 * 60 * 1000),
+      endAtUtc: new Date(Date.now() + 25 * 60 * 60 * 1000),
       id: slotId,
-      startAtUtc: new Date(Date.now() + 60 * 60 * 1000),
+      startAtUtc: new Date(Date.now() + 24 * 60 * 60 * 1000),
       tutorProfileId: tutorUserId,
     });
 
@@ -921,7 +924,7 @@ describe('BookingsService', () => {
 
     it('prorates the authoritative amount from the slot duration and rounds to satang', async () => {
       const { listingId, slotId, studentUserId, tutorUserId } = createTestData();
-      const startAtUtc = new Date(Date.now() + 60 * 60 * 1000);
+      const startAtUtc = new Date(Date.now() + 24 * 60 * 60 * 1000);
 
       mockPrismaService.availabilitySlot.findUnique.mockResolvedValue({
         ...mockSlotResult(slotId, tutorUserId),
@@ -1005,7 +1008,10 @@ describe('BookingsService', () => {
       });
 
       await expect(service.getQuote({ listingId, slotId, studentUserId })).rejects.toThrow(
-        new ConflictException('The selected slot has already started or is in the past.'),
+        new ConflictException({
+          code: 'BOOKING_PAYMENT_DEADLINE_PASSED',
+          message: 'Payment must be completed before the lesson starts',
+        }),
       );
       expect(mockPrismaService.booking.findFirst).not.toHaveBeenCalled();
     });
@@ -1733,9 +1739,27 @@ describe('BookingsService', () => {
 
   describe('tutor confirm and reject actions', () => {
     const pendingBooking = (tutorUserId: string) => ({
+      slot: { startAtUtc: new Date(Date.now() + 24 * 3_600_000) },
       status: BookingStatus.PENDING,
       tutorProfileId: tutorUserId,
     });
+
+    it.each([0, -1, -5 * 3_600_000])(
+      'refuses confirmation at/after the payment deadline (%d)',
+      async (margin) => {
+        const { bookingId, tutorUserId } = createTestData();
+        mockPrismaService.booking.findUnique.mockResolvedValue({
+          ...pendingBooking(tutorUserId),
+          slot: { startAtUtc: new Date(Date.now() + margin) },
+        });
+        await expect(service.confirmTutorBooking({ bookingId, tutorUserId })).rejects.toMatchObject(
+          {
+            response: { code: 'BOOKING_PAYMENT_DEADLINE_PASSED' },
+          },
+        );
+        expect(mockPrismaService.$transaction).not.toHaveBeenCalled();
+      },
+    );
 
     const stubTransition = (options: {
       activeBookings?: number;
@@ -1863,6 +1887,28 @@ describe('BookingsService', () => {
       );
     });
 
+    it('rolls back confirmation when the lesson starts while UPDATE waits for a lock', async () => {
+      jest.useFakeTimers().setSystemTime(new Date('2026-11-15T10:00:00Z'));
+      try {
+        const { bookingId, tutorUserId, slotId } = createTestData();
+        mockPrismaService.booking.findUnique.mockResolvedValue({
+          ...pendingBooking(tutorUserId),
+          slot: { startAtUtc: new Date(Date.now() + 1) },
+        });
+        const { updateMany, findUniqueOrThrow } = stubTransition({ bookingId, slotId });
+        updateMany.mockImplementation(() => {
+          jest.setSystemTime(new Date(Date.now() + 2));
+          return Promise.resolve({ count: 1 });
+        });
+        await expect(service.confirmTutorBooking({ bookingId, tutorUserId })).rejects.toMatchObject(
+          { response: { code: 'BOOKING_PAYMENT_DEADLINE_PASSED' } },
+        );
+        expect(findUniqueOrThrow).not.toHaveBeenCalled();
+      } finally {
+        jest.useRealTimers();
+      }
+    });
+
     it('confirms a pending booking and keeps the slot reserved', async () => {
       const { bookingId, slotId, tutorUserId } = createTestData();
 
@@ -1877,7 +1923,12 @@ describe('BookingsService', () => {
       });
       expect(updateMany).toHaveBeenCalledWith({
         data: { status: BookingStatus.CONFIRMED },
-        where: { id: bookingId, status: BookingStatus.PENDING, tutorProfileId: tutorUserId },
+        where: {
+          id: bookingId,
+          status: BookingStatus.PENDING,
+          tutorProfileId: tutorUserId,
+          slot: { startAtUtc: { gt: expect.any(Date) as unknown } },
+        },
       });
     });
 
