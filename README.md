@@ -162,6 +162,9 @@ Tutors can view the authoritative all-time report at the private, noindex `/dash
 route and in the tutor dashboard. It shows all five booking statuses, paid completed net revenue,
 and the completed ÷ (completed + canceled) rate; these values come from the report endpoint rather
 than a paginated booking page.
+S3-T11 checks the report against real PostgreSQL rows, covering arithmetic, discounted revenue,
+HALF_UP rounding, empty ledgers and role/ownership access; see
+[S3-T11 QA evidence](tests/s3-t11-qa.md).
 
 See [frontend direction](ui-design/frontend-direction.md) for the Notebook Focus patterns and
 [implemented frontend behavior](ui-design/implemented-behavior.md) for interaction, loading,
