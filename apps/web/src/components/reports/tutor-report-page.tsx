@@ -38,6 +38,8 @@ export function TutorReportPanel({
   const { language } = useLanguage();
   const copy = reportCopy[language];
   const Heading = embedded ? 'h3' : 'h1';
+  const reportViewModel =
+    state.status === 'success' ? createTutorReportViewModel(state.report, copy, language) : null;
 
   return (
     <section
@@ -113,16 +115,13 @@ export function TutorReportPanel({
         </PaperCard>
       )}
 
-      {state.status === 'success' && (
+      {reportViewModel && (
         <div data-report-success>
-          <ReportSummaryCards
-            copy={copy}
-            report={createTutorReportViewModel(state.report, copy, language)}
-          />
+          <ReportSummaryCards copy={copy} report={reportViewModel} />
           <BookingStatusBreakdown
             copy={copy}
             headingLevel={embedded ? 'h4' : 'h2'}
-            report={createTutorReportViewModel(state.report, copy, language)}
+            report={reportViewModel}
           />
         </div>
       )}
