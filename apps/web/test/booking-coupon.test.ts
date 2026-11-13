@@ -9,12 +9,31 @@ import {
   isFullCouponSettlement,
   normalizeBookingCouponCode,
 } from '@/components/bookings/booking-coupon-model';
+import { getBookingErrorMessage } from '@/components/bookings/booking-ui';
 import { updateCheckoutSubmission } from '@/components/bookings/use-booking-checkout';
 import { ApiError } from '@/lib/api/error';
+import { translations } from '@/lib/i18n';
 
 import type { PromptPayPayment } from '@/lib/api/types';
 
 describe('student coupon checkout', () => {
+  it.each(['en', 'th'] as const)(
+    'explains server deadline rejection for payments and coupons in %s',
+    (language) => {
+      const error = new ApiError('closed', 409, { code: 'BOOKING_PAYMENT_DEADLINE_PASSED' });
+      const copy = bookingCouponCopy[language];
+      expect(getBookingErrorMessage(error, translations[language].dashboard.booking)).toBe(
+        translations[language].dashboard.booking.deadlinePassed,
+      );
+      expect(getBookingPaymentFailure(error, copy, 'uncertain', false)).toBe(copy.deadlinePassed);
+      expect(getBookingPaymentFailure(error, copy, 'uncertain', true)).toBe(copy.deadlinePassed);
+      expect(getBookingCouponFailure(error, copy)).toEqual({
+        message: copy.deadlinePassed,
+        requiresRefresh: true,
+      });
+    },
+  );
+
   it('releases an unmounted submission without allowing its late completion to unlock a new request', () => {
     const previous = Symbol('old checkout');
     const next = Symbol('new checkout');

@@ -23,9 +23,11 @@ export function notificationReminderKind(eventType: string): 'class' | 'payment'
   switch (eventType) {
     case 'CLASS_REMINDER_24H':
     case 'CLASS_REMINDER_1H':
+    case 'CLASS_REMINDER_5H':
       return 'class';
     case 'PAYMENT_REMINDER_24H':
     case 'PAYMENT_REMINDER_1H':
+    case 'PAYMENT_REMINDER_5H':
     case 'PAYMENT_QR_READY':
       return 'payment';
     default:
@@ -68,11 +70,16 @@ export function refreshNotificationPage(
   if (!current || !fresh.items.some((item) => current.items.some(({ id }) => id === item.id))) {
     return fresh;
   }
-  // A new 1H reminder can retire an older loaded 24H row outside this first page. Re-fetch older
-  // history through the server's cursor rather than guessing which rescheduled occurrence it was.
+  // A 1H or historical 5H reminder can retire a loaded 24H row outside this first page. Re-fetch
+  // older history through the server cursor rather than guessing the rescheduled occurrence.
   const urgentReplacement = fresh.items.some(
     (item) =>
-      (item.eventType === 'CLASS_REMINDER_1H' || item.eventType === 'PAYMENT_REMINDER_1H') &&
+      [
+        'CLASS_REMINDER_1H',
+        'PAYMENT_REMINDER_1H',
+        'CLASS_REMINDER_5H',
+        'PAYMENT_REMINDER_5H',
+      ].includes(item.eventType) &&
       item.bookingId !== null &&
       (!current.items.some(({ id }) => id === item.id) ||
         fresh.unreadCount < current.unreadCount) &&
