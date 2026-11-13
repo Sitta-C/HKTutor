@@ -17,6 +17,7 @@ import {
   notifyNotificationsChanged,
   subscribeNotificationsChanged,
 } from '@/lib/notification-events';
+import { rememberNotificationOpen } from '@/lib/notification-navigation';
 
 import type { NotificationPage } from '@/lib/api/types';
 
@@ -35,6 +36,7 @@ export interface NotificationInboxState {
   reload: (cursor?: string) => void;
   refresh: () => void;
   markRead: (notificationId: string | null) => Promise<void>;
+  openBooking: (notificationId: string) => void;
 }
 
 export function useNotificationInbox(userId: string): NotificationInboxState {
@@ -188,7 +190,12 @@ export function useNotificationInbox(userId: string): NotificationInboxState {
     const timer = setInterval(refresh, NOTIFICATION_POLL_INTERVAL_MS);
     window.addEventListener('focus', resume);
     document.addEventListener('visibilitychange', resume);
-    const unsubscribe = subscribeNotificationsChanged(userId, refresh);
+    const unsubscribe = subscribeNotificationsChanged(userId, refresh, () => {
+      // A peer can read a row beyond the first page (or mark all read). Reconcile the loaded window
+      // as well as the badge, including signals received while this tab is hidden or busy.
+      reconcileRequired.current = true;
+      refresh();
+    });
     return () => {
       active.current = false;
       sequence.current += 1;
@@ -234,6 +241,11 @@ export function useNotificationInbox(userId: string): NotificationInboxState {
     const pending = writeQueue.current.then(() => saveRead(notificationId));
     writeQueue.current = pending;
     return pending;
+  }
+
+  function openBooking(notificationId: string): void {
+    rememberNotificationOpen(userId, notificationId);
+    void markRead(notificationId);
   }
 
   async function saveRead(notificationId: string | null): Promise<void> {
@@ -320,5 +332,6 @@ export function useNotificationInbox(userId: string): NotificationInboxState {
     reload,
     refresh,
     markRead,
+    openBooking,
   };
 }

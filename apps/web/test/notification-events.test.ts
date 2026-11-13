@@ -67,6 +67,24 @@ describe('notification invalidation signals', () => {
     expect(refresh).toHaveBeenCalledTimes(1);
   });
 
+  it('reconciles peer receipts separately from local invalidation', async () => {
+    const refresh = vi.fn();
+    const reconcile = vi.fn();
+    const unsubscribe = subscribeNotificationsChanged('student', refresh, reconcile);
+    notifyNotificationsChanged('student');
+    await Promise.resolve();
+    expect(refresh).toHaveBeenCalledTimes(1);
+    expect(reconcile).not.toHaveBeenCalled();
+    new TestChannel(notificationChannelName('student')).postMessage({
+      type: 'changed',
+      sourceId: 'another-tab',
+    });
+    await Promise.resolve();
+    expect(reconcile).toHaveBeenCalledTimes(1);
+    expect(refresh).toHaveBeenCalledTimes(1);
+    unsubscribe();
+  });
+
   it.each([null, 'changed', {}, { type: 'changed' }, { type: 'other', sourceId: 'peer' }])(
     'ignores malformed channel data %j',
     async (data) => {

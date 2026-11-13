@@ -35,6 +35,7 @@ export function NotificationInbox({
     reload,
     refresh,
     markRead,
+    openBooking,
   } = inbox;
   const container = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
@@ -165,7 +166,7 @@ export function NotificationInbox({
                       }}
                       onOpen={() => {
                         // Keep the Link mounted until navigation; only the dropdown will reset.
-                        void markRead(item.id);
+                        openBooking(item.id);
                       }}
                     />
                   ))}

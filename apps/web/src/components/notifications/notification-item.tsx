@@ -32,8 +32,8 @@ export function NotificationItem({
   const summary = useRef<HTMLElement>(null);
   const metadataId = useId();
   const title = notificationTitle(item, language);
-  const href = notificationBookingHref(item.bookingId);
   const unread = item.readAt === null;
+  const href = notificationBookingHref(item.bookingId, unread ? item.id : undefined);
   const reminderKind = notificationReminderKind(item.eventType);
   return (
     <li className={`${styles.item} ${unread ? styles.unread : ''}`}>
@@ -74,7 +74,11 @@ export function NotificationItem({
                 prefetch={false}
                 className={styles.bookingLink}
                 aria-label={`${text.openBooking}: ${title}`}
-                onNavigate={onOpen}
+                onNavigate={() => {
+                  if (unread) {
+                    onOpen();
+                  }
+                }}
               >
                 {text.openBooking}
               </Link>

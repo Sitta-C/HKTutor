@@ -153,6 +153,12 @@ describe('notification presentation and optimistic state', () => {
       '/dashboard/bookings/booking%2Fone%3Fx%3D1',
     );
   });
+  it('carries only the selected notification ID in an encoded booking link', () => {
+    expect(notificationBookingHref('booking/one', 'notice&two')).toBe(
+      '/dashboard/bookings/booking%2Fone?notification=notice%26two',
+    );
+    expect(notificationBookingHref(null, 'notice')).toBeNull();
+  });
   it('translates known events and preserves titles for future event types', () => {
     expect(notificationTitle(item, 'th')).toBe('ยืนยันการจองแล้ว');
     expect(notificationTitle({ ...item, eventType: 'FUTURE_EVENT', title: 'Update' }, 'en')).toBe(

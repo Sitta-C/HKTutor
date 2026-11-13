@@ -30,7 +30,11 @@ export function notifyNotificationsChanged(userId?: string): void {
 }
 
 /** Local events handle this tab; channel messages handle only other tabs for this user. */
-export function subscribeNotificationsChanged(userId: string, refresh: () => void): () => void {
+export function subscribeNotificationsChanged(
+  userId: string,
+  refresh: () => void,
+  refreshPeer: () => void = refresh,
+): () => void {
   window.addEventListener(NOTIFICATIONS_CHANGED_EVENT, refresh);
   let channel: BroadcastChannel | null = null;
   try {
@@ -47,7 +51,7 @@ export function subscribeNotificationsChanged(userId: string, refresh: () => voi
           typeof data.sourceId === 'string' &&
           data.sourceId !== notificationSourceId()
         ) {
-          refresh();
+          refreshPeer();
         }
       };
     }

@@ -809,6 +809,15 @@ selected filter. The booking link remains usable during read writes and after re
 navigation starts immediately while the read receipt is best effort. The destination retains its
 own authorization and current booking-state checks.
 
+Unread booking links carry the selected notification ID until the destination mounts. This lets
+native new-tab actions (modifier click, middle click or the browser link menu) persist the receipt
+through the existing authenticated endpoint and synchronize both bells. Opening a context menu
+alone never marks a row read. Same-tab navigation keeps the inbox's queued write and suppresses a
+duplicate destination write through a brief, user-scoped in-memory intent. The destination removes
+the link marker from the displayed URL; receipt errors never block booking access. Already-read
+links use the ordinary booking URL. Peer-tab invalidation reconciles the loaded window too, so a
+receipt on an older page updates that row and removes it from the originating tab's unread filter.
+
 Visible tabs refresh the inbox/badge every 30 seconds and on window focus or visibility return.
 Local payment-state changes invalidate the inbox; successful read writes also invalidate peer tabs
 through a user-scoped BroadcastChannel. These signals contain no notification content and use no
@@ -817,7 +826,7 @@ Hidden tabs skip polling, and pending reads yield to receipt writes when a booki
 Background refresh merges overlapping first pages into loaded history, retaining expanded keyed
 rows. A gap in history resets to the fresh page/cursor instead of skipping unseen notifications.
 Temporary background errors retain the last successful data with a bilingual status message.
-Focus, visibility return and peer-tab signals use that same merge path. Dashboard route changes
+Focus and visibility return use that same merge path. Dashboard route changes
 reset only the dropdown within a shared shell; its data hook retains filters, loaded pages and
 queued receipts. Reopening refreshes the existing history instead of replacing it with page one.
 Receipt writes are serialized, so opening another booking during a save queues its receipt while

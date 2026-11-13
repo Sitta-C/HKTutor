@@ -100,14 +100,16 @@ async function setup(
     paymentReads: 0,
     domainWrites: [] as string[],
   };
-  await page.addInitScript((value) => localStorage.setItem('hktutor-language', value), language);
+  await page
+    .context()
+    .addInitScript((value) => localStorage.setItem('hktutor-language', value), language);
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await page
     .context()
     .addCookies([
       { name: 'hktutor_refresh', value: 'notification-preview', url: 'http://localhost:3000' },
     ]);
-  await page.route('**/api/v1/**', async (route) => {
+  await page.context().route('**/api/v1/**', async (route) => {
     const request = route.request();
     const url = new URL(request.url());
     const path = url.pathname.replace('/api/v1', '');
@@ -480,7 +482,10 @@ for (const role of ['STUDENT', 'TUTOR'] as const) {
     await bell.click();
     await inbox.getByRole('listitem').first().locator('summary').click();
     const link = inbox.getByRole('listitem').first().getByRole('link');
-    await expect(link).toHaveAttribute('href', `/dashboard/bookings/${BOOKING_ID}`);
+    await expect(link).toHaveAttribute(
+      'href',
+      `/dashboard/bookings/${BOOKING_ID}?notification=notice-one`,
+    );
     await link.click();
     await expect(page).toHaveURL(`/dashboard/bookings/${BOOKING_ID}`);
     expect(state.writes).toHaveLength(1);
@@ -489,6 +494,156 @@ for (const role of ['STUDENT', 'TUTOR'] as const) {
     expect(state.unexpected).toEqual([]);
   });
 }
+
+for (const mode of ['modifier', 'middle'] as const) {
+  test(`${mode} click opens a new tab and persists the selected unread receipt`, async ({
+    page,
+  }, testInfo) => {
+    test.skip(
+      testInfo.project.name === 'mobile-chromium',
+      'Mobile opens native new tabs through its link menu.',
+    );
+    const { state, bell, inbox, text } = await setup(page);
+    await bell.click();
+    await inbox.getByRole('listitem').first().locator('summary').click();
+    const popupReady = page.context().waitForEvent('page');
+    await inbox
+      .getByRole('listitem')
+      .first()
+      .getByRole('link')
+      .click(mode === 'middle' ? { button: 'middle' } : { modifiers: ['ControlOrMeta'] });
+    const popup = await popupReady;
+    try {
+      await expect(popup).toHaveURL(`/dashboard/bookings/${BOOKING_ID}`);
+      await expect.poll(() => state.items[0]?.readAt).toBe(READ_AT);
+      expect(state.writes).toEqual([
+        { path: '/notifications/notice-one/read', method: 'PATCH', body: null },
+      ]);
+      await page.bringToFront();
+      await expect(page).toHaveURL(/\/dashboard\/bookings$/);
+      await expect(
+        inbox.getByRole('listitem').first().getByText(text.read, { exact: true }),
+      ).toBeVisible();
+      await expect(bell).toHaveAccessibleName(
+        `${text.title}, ${text.unreadCount.replace('{count}', '2')}`,
+      );
+    } finally {
+      await popup.close();
+    }
+  });
+}
+
+for (const role of ['STUDENT', 'TUTOR'] as const) {
+  for (const language of ['en', 'th'] as const) {
+    test(`${language} ${role}: opening the link URL in a fresh tab acknowledges only that notification`, async ({
+      page,
+    }) => {
+      const { state, bell, inbox, text } = await setup(page, { role, language });
+      await bell.click();
+      await inbox.getByRole('listitem').first().locator('summary').click();
+      const link = inbox.getByRole('listitem').first().getByRole('link');
+      const href = await link.getAttribute('href');
+      if (!href) throw new Error('Missing notification booking link');
+      // A context menu itself is not an activation. Its Open-in-new-tab action loads this href
+      // without firing the originating element's click or onNavigate handlers.
+      await link.click({ button: 'right' });
+      expect(state.writes).toEqual([]);
+      expect(state.items[0]?.readAt).toBeNull();
+      await page.keyboard.press('Escape');
+      const peer = await page.context().newPage();
+      try {
+        await peer.goto(new URL(href, page.url()).href);
+        await expect(peer).toHaveURL(`/dashboard/bookings/${BOOKING_ID}`);
+        await expect.poll(() => state.items[0]?.readAt).toBe(READ_AT);
+        expect(state.items[2]?.readAt).toBeNull();
+        expect(state.writes).toEqual([
+          { path: '/notifications/notice-one/read', method: 'PATCH', body: null },
+        ]);
+        await page.bringToFront();
+        await expect(bell).toHaveAccessibleName(
+          `${text.title}, ${text.unreadCount.replace('{count}', '2')}`,
+        );
+        expect(state.domainWrites).toEqual([]);
+        expect(state.unexpected).toEqual([]);
+      } finally {
+        await peer.close();
+      }
+    });
+  }
+}
+
+test('a failed new-tab receipt keeps the notification unread without blocking the booking', async ({
+  page,
+}) => {
+  const { state, bell, inbox } = await setup(page);
+  await bell.click();
+  state.writeFailure = 500;
+  await inbox.getByRole('listitem').first().locator('summary').click();
+  const href = await inbox.getByRole('listitem').first().getByRole('link').getAttribute('href');
+  if (!href) throw new Error('Missing notification booking link');
+  const peer = await page.context().newPage();
+  try {
+    await peer.goto(new URL(href, page.url()).href);
+    await expect(peer).toHaveURL(`/dashboard/bookings/${BOOKING_ID}`);
+    await expect.poll(() => state.writes.length).toBe(1);
+    await expect(peer.getByRole('alert').first()).toBeVisible();
+    expect(state.items[0]?.readAt).toBeNull();
+  } finally {
+    await peer.close();
+  }
+});
+
+test('a new-tab receipt updates an older loaded unread row in its originating tab', async ({
+  page,
+}) => {
+  const { state, bell, inbox, text } = await setup(page);
+  await bell.click();
+  await inbox.getByRole('button', { name: text.filterUnread, exact: true }).click();
+  // Make the unread list span more than the first mock page.
+  state.items.push(notice('older-unread'));
+  await inbox.getByRole('button', { name: text.refresh }).click();
+  await inbox.getByRole('button', { name: text.loadMore }).click();
+  await expect(inbox.getByRole('listitem')).toHaveCount(4);
+  const older = inbox.getByRole('listitem').last();
+  await older.locator('summary').click();
+  const href = await older.getByRole('link').getAttribute('href');
+  if (!href) throw new Error('Missing older notification booking link');
+  const peer = await page.context().newPage();
+  try {
+    await peer.goto(new URL(href, page.url()).href);
+    await expect.poll(() => state.items.at(-1)?.readAt).toBe(READ_AT);
+    await page.bringToFront();
+    await expect(inbox.getByRole('listitem')).toHaveCount(3);
+    await expect(bell).toHaveAccessibleName(
+      `${text.title}, ${text.unreadCount.replace('{count}', '3')}`,
+    );
+    expect(state.writes).toEqual([
+      { path: '/notifications/older-unread/read', method: 'PATCH', body: null },
+    ]);
+  } finally {
+    await peer.close();
+  }
+});
+
+test('already-read notification links open in a new tab without another read write', async ({
+  page,
+}) => {
+  const { state, bell, inbox } = await setup(page);
+  await bell.click();
+  const row = inbox.getByRole('listitem').nth(1);
+  await row.locator('summary').click();
+  const href = await row.getByRole('link').getAttribute('href');
+  expect(href).toBe(`/dashboard/bookings/${BOOKING_ID}`);
+  if (!href) throw new Error('Missing notification booking link');
+  const peer = await page.context().newPage();
+  try {
+    await peer.goto(new URL(href, page.url()).href);
+    await expect(peer.getByRole('alert').first()).toBeVisible();
+    expect(state.writes).toEqual([]);
+  } finally {
+    await peer.close();
+  }
+});
 
 test('keyboard operation, Escape focus return and outside dismissal remain available', async ({
   page,
@@ -983,7 +1138,7 @@ for (const language of ['en', 'th'] as const) {
         await expect(row.getByText(text.reminderDetails[eventType], { exact: true })).toBeVisible();
         await expect(row.getByRole('link')).toHaveAttribute(
           'href',
-          `/dashboard/bookings/${BOOKING_ID}`,
+          `/dashboard/bookings/${BOOKING_ID}?notification=reminder-${index}`,
         );
         await expect(row.getByText(text.unread, { exact: true })).toBeVisible();
         expect(state.writes).toEqual([]);
@@ -1082,7 +1237,10 @@ for (const language of ['en', 'th'] as const) {
         name: `${text.openBooking}: ${text.events.PAYMENT_REMINDER_1H}`,
       });
       await expect(link).toHaveText(text.openBooking);
-      await expect(link).toHaveAttribute('href', `/dashboard/bookings/${BOOKING_ID}`);
+      await expect(link).toHaveAttribute(
+        'href',
+        `/dashboard/bookings/${BOOKING_ID}?notification=historical-payment`,
+      );
       await expect(
         inbox.getByRole('button', { name: /Create test QR|สร้าง QR ทดสอบ/ }),
       ).toHaveCount(0);

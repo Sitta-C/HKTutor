@@ -1,4 +1,5 @@
 import { notificationCopy } from '@/components/notifications/notification-copy';
+import { NOTIFICATION_LINK_PARAM } from '@/lib/notification-navigation';
 
 import type { InboxNotification, NotificationPage } from '@/lib/api/types';
 
@@ -32,8 +33,19 @@ export function notificationReminderKind(eventType: string): 'class' | 'payment'
   }
 }
 
-export function notificationBookingHref(bookingId: string | null): string | null {
-  return bookingId?.trim() ? `/dashboard/bookings/${encodeURIComponent(bookingId)}` : null;
+export function notificationBookingHref(
+  bookingId: string | null,
+  notificationId?: string,
+): string | null {
+  if (!bookingId?.trim()) {
+    return null;
+  }
+  const path = `/dashboard/bookings/${encodeURIComponent(bookingId)}`;
+  const query = new URLSearchParams();
+  if (notificationId) {
+    query.set(NOTIFICATION_LINK_PARAM, notificationId);
+  }
+  return `${path}${query.size ? `?${query}` : ''}`;
 }
 
 export function mergeNotificationPage(
