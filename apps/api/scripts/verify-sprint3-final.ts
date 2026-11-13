@@ -7,12 +7,15 @@ import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 
 import { NestFactory } from '@nestjs/core';
+import { SchedulerRegistry } from '@nestjs/schedule';
 import { Pool } from 'pg';
 
-import { configureApplication } from '@app/app.setup';
-import { buildSprint3Fixtures } from '@infrastructure/database/seed/sprint3-fixtures';
+import { disposableDatabaseUrl } from '@config/disposable-database-url';
 
 import type { AppModule as AppModuleType } from '@app/app.module';
+import type { configureApplication as ConfigureApplication } from '@app/app.setup';
+
+let checkpoint = 'database preflight';
 
 interface AppliedMigration {
   migration_name: string;
@@ -22,24 +25,76 @@ interface AppliedMigration {
 }
 
 export function disposableSprint3FinalDatabaseUrl(env: NodeJS.ProcessEnv): string {
-  assert.equal(
-    env['HKTUTOR_ALLOW_DISPOSABLE_DB_VERIFY'],
-    '1',
-    'Explicit disposable opt-in required',
-  );
-  const value = env['DATABASE_URL'];
-  assert.ok(value, 'Explicit DATABASE_URL required; this runner never loads .env');
-  const url = new URL(value);
-  assert.ok(['postgres:', 'postgresql:'].includes(url.protocol));
-  assert.ok(['localhost', '127.0.0.1', '[::1]'].includes(url.hostname));
-  assert.equal(
-    url.pathname,
-    '/hktutor_s3_db06_test',
-    'Dedicated DB06 disposable database required',
-  );
-  assert.equal(url.search, '', 'URL options are not accepted');
-  assert.equal(url.hash, '', 'URL fragments are not accepted');
-  return value;
+  return disposableDatabaseUrl(env, 'hktutor_s3_db06_test');
+}
+
+export function sprint3FinalEnvironment(
+  env: NodeJS.ProcessEnv,
+  databaseUrl: string,
+): NodeJS.ProcessEnv {
+  const isolated: NodeJS.ProcessEnv = {
+    DATABASE_URL: databaseUrl,
+    HKTUTOR_ALLOW_DISPOSABLE_DB_VERIFY: '1',
+    NODE_ENV: 'test',
+    JWT_ACCESS_SECRET: randomBytes(48).toString('hex'),
+    JWT_REFRESH_SECRET: randomBytes(48).toString('hex'),
+    RESEND_API_KEY: 're_db06_synthetic',
+    EMAIL_FROM: 'HKTutor <no-reply@example.invalid>',
+    SUPABASE_URL: 'https://storage.example.invalid',
+    SUPABASE_SECRET_KEY: 'sb_secret_db06_synthetic',
+    SUPABASE_AVATAR_BUCKET: 'db06-avatars',
+    SUPABASE_DOCUMENT_BUCKET: 'db06-documents',
+    PAYMENT_PROVIDER: 'omise',
+    OMISE_SECRET_KEY: '',
+    OMISE_WEBHOOK_SECRET: '',
+  };
+  for (const key of [
+    'PATH',
+    'Path',
+    'SystemRoot',
+    'SYSTEMROOT',
+    'WINDIR',
+    'TEMP',
+    'TMP',
+    'TMPDIR',
+  ]) {
+    if (env[key] !== undefined) {
+      isolated[key] = env[key];
+    }
+  }
+  return isolated;
+}
+
+export function sprint3FinalDiagnostic(error: unknown, stage: string): string {
+  const name =
+    error instanceof Error && /^[A-Z][A-Za-z]{0,79}$/.test(error.name) ? error.name : 'Error';
+  const code =
+    error instanceof Error &&
+    'code' in error &&
+    typeof error.code === 'string' &&
+    /^(?:E[A-Z_]{2,30}|ABORT_ERR|MODULE_NOT_FOUND|ERR_MODULE_NOT_FOUND|P\d{4}|\d{2}[A-Z0-9]{3}|XX000)$/.test(
+      error.code,
+    )
+      ? ` (${error.code})`
+      : '';
+  let detail = 'Inspect this checkpoint; raw error details are omitted.';
+  if (error instanceof Error) {
+    if (
+      /^verify-(?:sprint3-fixtures|admin-coupons)\.ts failed \((?:\d+|SIG[A-Z]+)\)$/.test(
+        error.message,
+      )
+    ) {
+      detail = error.message;
+    } else if (name === 'AbortError') {
+      detail = 'Child verifier exceeded its 180-second timeout.';
+    } else {
+      const field = /^([A-Z][A-Z0-9_]+) (?:is required|must )/.exec(error.message)?.[1];
+      if (field) {
+        detail = `${field} configuration is missing or invalid.`;
+      }
+    }
+  }
+  return `DB06 ${stage}: ${name}${code}. ${detail}\n`;
 }
 
 export function assertMigrationHistory(
@@ -58,14 +113,14 @@ export function assertMigrationHistory(
   assert.deepEqual(actual, expected, 'Completed migration names and file checksums must match');
 }
 
-async function runVerifier(filename: string): Promise<void> {
+async function runVerifier(filename: string, env: NodeJS.ProcessEnv): Promise<void> {
   process.stdout.write(`DB06 running ${filename}\n`);
   const child = spawn(
     process.execPath,
     ['-r', 'ts-node/register', '-r', 'tsconfig-paths/register', resolve(__dirname, filename)],
     {
       cwd: resolve(__dirname, '..'),
-      env: process.env,
+      env,
       stdio: ['ignore', 'inherit', 'inherit'],
       signal: AbortSignal.timeout(180_000),
     },
@@ -84,6 +139,12 @@ async function runVerifier(filename: string): Promise<void> {
 
 async function verify(): Promise<void> {
   const databaseUrl = disposableSprint3FinalDatabaseUrl(process.env);
+  const originalEnvironment = { ...process.env };
+  const isolatedEnvironment = sprint3FinalEnvironment(process.env, databaseUrl);
+  for (const key of Object.keys(process.env)) {
+    delete process.env[key];
+  }
+  Object.assign(process.env, isolatedEnvironment);
   const pool = new Pool({ connectionString: databaseUrl, connectionTimeoutMillis: 5000 });
   try {
     assert.deepEqual(
@@ -96,6 +157,7 @@ async function verify(): Promise<void> {
       0,
       'Use a new empty disposable database after migration deploy',
     );
+    checkpoint = 'migration history';
     const migrationRoot = resolve(__dirname, '../prisma/migrations');
     const committed = [];
     for (const entry of await readdir(migrationRoot, { withFileTypes: true })) {
@@ -114,11 +176,12 @@ async function verify(): Promise<void> {
     for (const { name, checksum } of committed.sort((a, b) => a.name.localeCompare(b.name))) {
       process.stdout.write(`migration ${name} sha256=${checksum}\n`);
     }
-    process.stdout.write(
-      `DB04 fixture input sha256=${createHash('sha256').update(JSON.stringify(buildSprint3Fixtures())).digest('hex')}\n`,
-    );
-    await runVerifier('verify-sprint3-fixtures.ts');
-    await runVerifier('verify-admin-coupons.ts');
+    checkpoint = 'fixture verifier';
+    await runVerifier('verify-sprint3-fixtures.ts', isolatedEnvironment);
+    checkpoint = 'admin audit verifier';
+    await runVerifier('verify-admin-coupons.ts', isolatedEnvironment);
+
+    checkpoint = 'persisted coverage';
 
     const types = (
       await pool.query<{ eventType: string }>(
@@ -145,6 +208,26 @@ async function verify(): Promise<void> {
       'PASS DB06 all four reminder types and five coupon audit actions persisted\n',
     );
 
+    async function persistenceHashes(): Promise<{ table: string; hash: string }[]> {
+      const hashes: { table: string; hash: string }[] = [];
+      for (const table of [
+        'Booking',
+        'PaymentAttempt',
+        'CouponReservation',
+        'CouponUse',
+        'Notification',
+        'AuditLog',
+      ]) {
+        const result = await pool.query<{ hash: string }>(
+          `SELECT md5(coalesce(jsonb_agg(to_jsonb(t) ORDER BY id)::text, '[]')) AS hash FROM "${table}" t`,
+        );
+        assert.ok(result.rows[0]);
+        hashes.push({ table, hash: result.rows[0].hash });
+      }
+      return hashes;
+    }
+    const beforeStartup = await persistenceHashes();
+    checkpoint = 'startup isolation';
     const originalDirectory = process.cwd();
     const temporary = await mkdtemp(resolve(tmpdir(), 'hktutor-db06-startup-'));
     const workingDirectory = resolve(temporary, 'empty', 'runtime');
@@ -158,24 +241,13 @@ async function verify(): Promise<void> {
     try {
       // AppModule reads ../../.env and .env; both paths stay inside this new empty directory tree.
       process.chdir(workingDirectory);
-      Object.assign(process.env, {
-        DATABASE_URL: databaseUrl,
-        NODE_ENV: 'development',
-        JWT_ACCESS_SECRET: randomBytes(48).toString('hex'),
-        JWT_REFRESH_SECRET: randomBytes(48).toString('hex'),
-        RESEND_API_KEY: 're_db06_synthetic',
-        EMAIL_FROM: 'HKTutor <no-reply@example.invalid>',
-        SUPABASE_URL: 'https://storage.example.invalid',
-        SUPABASE_SECRET_KEY: 'sb_secret_db06_synthetic',
-        SUPABASE_AVATAR_BUCKET: 'db06-avatars',
-        SUPABASE_DOCUMENT_BUCKET: 'db06-documents',
-        PAYMENT_PROVIDER: 'omise',
-        OMISE_SECRET_KEY: '',
-        OMISE_WEBHOOK_SECRET: '',
-      });
       // Import only after isolating environment-file paths and supplying synthetic configuration.
+      checkpoint = 'API startup';
       const { AppModule } = createRequire(__filename)('@app/app.module') as {
         AppModule: typeof AppModuleType;
+      };
+      const { configureApplication } = createRequire(__filename)('@app/app.setup') as {
+        configureApplication: typeof ConfigureApplication;
       };
       const app = await NestFactory.create(AppModule, {
         logger: false,
@@ -185,6 +257,12 @@ async function verify(): Promise<void> {
       try {
         configureApplication(app);
         await app.listen(0, '127.0.0.1');
+        assert.equal(
+          app.get(SchedulerRegistry).getCronJob('class-and-payment-reminders').isActive,
+          false,
+          'Startup reminder cron must remain disabled',
+        );
+        checkpoint = 'HTTP health';
         const response = await originalFetch(`${await app.getUrl()}/api/v1/health`, {
           signal: AbortSignal.timeout(5000),
         });
@@ -200,21 +278,28 @@ async function verify(): Promise<void> {
       process.chdir(originalDirectory);
       await rm(temporary, { recursive: true, force: true });
     }
+    checkpoint = 'startup persistence';
+    assert.deepEqual(
+      await persistenceHashes(),
+      beforeStartup,
+      'Startup must preserve seeded evidence',
+    );
+    process.stdout.write('PASS DB06 startup cron disabled and six evidence tables unchanged\n');
     process.stdout.write(
       'DB06 clean seed/startup complete; run upgrade, reminders and DB05 on separate fresh targets per runbook.\n',
     );
   } finally {
     await pool.end();
+    for (const key of Object.keys(process.env)) {
+      delete process.env[key];
+    }
+    Object.assign(process.env, originalEnvironment);
   }
 }
 
 if (require.main === module) {
   void verify().catch((error: unknown) => {
-    process.stderr.write(
-      error instanceof assert.AssertionError
-        ? `DB06 assertion: ${error.message}\n`
-        : 'DB06 verification failed; inspect the last sanitized checkpoint.\n',
-    );
+    process.stderr.write(sprint3FinalDiagnostic(error, checkpoint));
     process.exitCode = 1;
   });
 }

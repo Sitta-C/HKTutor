@@ -12,13 +12,17 @@ Verification calls actual behavior and checks persisted results. The migration f
 team's real schema history; only the databases used for this rehearsal are disposable.
 No new migration, runtime API/service, DTO, UI, dependency or fixture input is added by DB06.
 
-| File                                                         | Responsibility                                                                                                                                                                     |
-| ------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `apps/api/scripts/verify-sprint3-final.ts`                   | Dedicated target guard, Prisma history/checksum manifest, DB04 input hash, reuse of fixture/admin verifiers, stored event/action coverage and actual AppModule HTTP health         |
-| `apps/api/test/unit/database/sprint3-final-verifier.spec.ts` | 19 cases: explicit target/opt-in, loopback hosts, wrong DB/protocol/query/fragment, missing/extra/duplicate/changed/incomplete migration history; imports never execute the runner |
-| `apps/api/scripts/verify-booking-snapshot-upgrade.mjs`       | Existing upgrade harness extended from S2+PromptPay through current migrations; exact historical row comparisons before/after upgrade and existing snapshot/retry/locking checks   |
-| Root/API `package.json`                                      | Expose `pnpm db:verify:sprint3-final` through the existing API delegation pattern                                                                                                  |
-| Root/API README and this file                                | Entry point, safe runbook, exact evidence and remaining limits                                                                                                                     |
+| File                                                         | Responsibility                                                                                                                                                                              |
+| ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `apps/api/scripts/verify-sprint3-final.ts`                   | Dedicated target guard, Prisma history/checksum manifest, DB04 input hash, reuse of fixture/admin verifiers, stored event/action coverage and actual AppModule HTTP health                  |
+| `apps/api/test/unit/database/sprint3-final-verifier.spec.ts` | 26 cases: target/history rejection, exact versus encoded generic names, allowlisted synthetic environment with cron disabled and safe failure diagnostics; imports never execute the runner |
+| `apps/api/scripts/verify-booking-snapshot-upgrade.mjs`       | Existing upgrade harness extended from S2+PromptPay through current migrations; exact historical row comparisons before/after upgrade and existing snapshot/retry/locking checks            |
+| Root/API `package.json`                                      | Expose `pnpm db:verify:sprint3-final` through the existing API delegation pattern                                                                                                           |
+| Root/API README and this file                                | Entry point, safe runbook, exact evidence and remaining limits                                                                                                                              |
+
+`apps/api/src/config/disposable-database-url.ts` is a pure shared guard for the existing final,
+fixture, admin-coupon and DB05 TypeScript wrappers. It does not read process.env or register any
+runtime API behavior. The fixture verifier now prints its unchanged input hash in its isolated child.
 
 ```text
 db:migrate:deploy → Prisma → committed SQL → fresh clean/reminder/DB05 targets
@@ -26,7 +30,8 @@ db:verify:sprint3-final → verify-sprint3-final.ts
   migration disk hashes ↔ completed _prisma_migrations
   verify-sprint3-fixtures.ts → combined runSeed / actual services / PostgreSQL
   verify-admin-coupons.ts   → real JWT/HTTP / CouponsService / PostgreSQL
-  full AppModule → actual Nest HTTP GET /api/v1/health → real Prisma SELECT 1
+  test-mode AppModule / inactive cron → actual HTTP health → real Prisma SELECT 1
+  six evidence-table hashes before/after startup must match
 
 Separate empty targets:
   db:verify:booking-snapshots → existing upgrade SQL harness, now through latest migration
@@ -78,8 +83,12 @@ unset DATABASE_URL HKTUTOR_ALLOW_DISPOSABLE_DB_VERIFY DB06_BASE db06_name
 The clean migration path applies **29 committed migrations**, including the old local-auth
 destructive migration, to an empty DB. It does not authorize applying that migration to an
 existing Clerk database. The clean verifier does not itself migrate or load `.env`; it creates
-random demo credentials in its existing seed child and random JWT secrets during startup, without
-printing them. External fetches are rejected during full-app startup, while the health request
+random demo credentials in its existing seed child and random JWT secrets, without printing them.
+Only OS path/temp variables are copied from the shell; the validated DB URL and synthetic settings
+are supplied explicitly to children and startup. AppModule/app.setup are loaded after isolation.
+The actual providers boot in NODE_ENV=test with the reminder cron verified inactive; this check
+cannot write reminders on a minute boundary. The separate reminder verifier proves the live cron.
+External fetches are rejected during full-app startup, while the health request
 uses the original fetch against the ephemeral loopback listener. Email, Storage and Omise receive
 no real credentials or live requests. Runtime providers are not replaced for the health test.
 
@@ -157,7 +166,7 @@ post-verification totals, including deliberate service writes, not the initial D
 
 | Command                         | Result                                                                              |
 | ------------------------------- | ----------------------------------------------------------------------------------- |
-| Focused new verifier unit suite | 1 suite / 19 cases passed                                                           |
+| Focused new verifier unit suite | 1 suite / 26 cases passed                                                           |
 | API package lint                | Passed                                                                              |
 | `db:verify:sprint3-final`       | 29 checksums, fixture 42, admin 9, persisted coverage and actual HTTP health passed |
 | `db:verify:booking-snapshots`   | All old checks and S2+PromptPay-to-current history comparisons passed               |
@@ -166,17 +175,17 @@ post-verification totals, including deliberate service writes, not the initial D
 
 | Additional gate                                                | Result                                                                                                                                           |
 | -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `pnpm check`                                                   | Passed Prisma generation, formatting, root/package lint, API 97 suites / 1,743 tests, web 49 files / 767 tests, both builds and script typecheck |
+| `pnpm check`                                                   | Passed Prisma generation, formatting, root/package lint, API 97 suites / 1,750 tests, web 49 files / 767 tests, both builds and script typecheck |
 | `pnpm verify:workspace`                                        | 138 tests passed                                                                                                                                 |
 | API e2e notifications/payments/coupons/reviews/booking-coupons | 5 suites / 207 tests passed                                                                                                                      |
 | `git diff --check`                                             | Passed                                                                                                                                           |
 
-Development's new guard/history test initially failed because its implementation did not yet
-exist, then all 19 cases passed. Typecheck/lint caught and corrected the deferred CommonJS module
-load/type-import syntax before the successful gates. The first root reminder invocation found no
-root alias and did not run; the existing API-package command shown above passed without adding
-another alias. No migration/fixture/assertion was weakened. The owned container and all four
-databases were discarded after capturing the evidence.
+The original guard/history tests initially failed before their implementation. Seven review
+regressions were then added; the new environment/diagnostic cases failed before the fix and the
+26-case suite passed afterwards. Four Swagger cases initially needed loopback permission; all
+78 focused guard/coupon cases passed with that permission, without weakening assertions.
+The first implementation's deferred-import syntax and root reminder alias issues were corrected
+before the initial successful gates. No migration or fixture input was weakened.
 
 Evidence logs contain migration names/hashes, synthetic IDs/times and pass checkpoints only.
 Local logs are `/tmp/hktutor-db06-{final,upgrade,reminders,concurrency}.log`; reproduce with the
@@ -193,6 +202,40 @@ pnpm verify:workspace
 pnpm --filter @hktutor/api test:e2e --runInBand notifications.e2e-spec.ts payments.e2e-spec.ts coupons.e2e-spec.ts reviews.e2e-spec.ts booking-coupons.e2e-spec.ts
 git diff --check
 ```
+
+## PR #171 review revision
+
+All eight review comments are covered; no new migration, endpoint or dependency is introduced.
+
+| Comment                                       | Change and evidence                                                                                                                                                                                                                               |
+| --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Live cron during startup (4561184689)         | Startup uses test mode, checks the actual CronJob is inactive and compares hashes of Booking, PaymentAttempt, CouponReservation, CouponUse, Notification and AuditLog before/after health                                                         |
+| Hidden errors (4561184697)                    | Checkpoint/error type/safe code are printed; trusted child exit/timeout and config-field details survive, arbitrary messages/URLs/assertion payloads do not. Unit cases and a real refused-connection CLI probe cover this                        |
+| Additive-column fragility (4561184706)        | Baseline column projection in PostgreSQL; a transaction adds a nullable probe column to all three tables without invalidating evidence, detects a changed original Booking value, then rolls back                                                 |
+| Unnamed index/constraint failure (4561184712) | Diagnostics include the index/constraint name and PromptPay-to-snapshot migration range; success text matches that scope                                                                                                                          |
+| Ambient provider settings (4561184722)        | Fresh allowlist for child/startup settings; original environment is cleared during execution and restored after. Real clean run starts with ambient dummy OMISE_PUBLIC_KEY/WEB_ORIGIN and NODE_ENV=production; isolated startup remains test mode |
+| Early runtime imports (4561184726)            | Parent imports only the pure explicit-input guard; AppModule/app.setup load after isolation, fixture-builder graph loads in the isolated fixture child                                                                                            |
+| Repeated URL guards (4561184731)              | Four related TypeScript wrappers reuse one pure guard; existing exports, loopback/opt-in/query/fragment rejection and exact-name strictness remain covered                                                                                        |
+| Repeated snapshot/ID queries (4561184735)     | The same evidence helper returns columns + IDs + exact JSONB values; separate ID queries and three copies of coupon-column stripping were removed                                                                                                 |
+
+The revision was rerun on an owned `hktutor-s3-db06-review` container at loopback port 55469,
+using the same clean/DB05 names and `hktutor_db06_review_upgrade_test` /
+`hktutor_db06_review_reminders_test` as the other targets. All 29 migrations and all four
+database verification paths passed again, including the inactive-cron/hash and additive-column
+regressions. The DB04 input hash remains unchanged. The latest `pnpm check` passed 1,750 API and
+767 web tests, lint and both builds; workspace contracts passed 138 tests, and the focused HTTP
+suite passed 207 tests. Final SQL inspection found zero probe columns and idle transactions.
+The owned review container/databases were removed after verification. Logs use
+`/tmp/hktutor-db06-review-*.log`.
+
+A negative CLI run with the dedicated DB name and closed loopback port 1 intentionally exits 1:
+
+```text
+DB06 database preflight: Error (ECONNREFUSED). Inspect this checkpoint; raw error details are omitted.
+```
+
+The output contains neither the dummy password nor its connection URL. No live credentials are
+needed to reproduce this negative check.
 
 ## Recovery and limits
 

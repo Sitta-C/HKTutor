@@ -3025,16 +3025,32 @@ and null/0 reviews, reminders, zero settlement, uncertain reservations and appen
 The final runner checks persisted reminder/audit type coverage and boots the actual AppModule
 for `GET /api/v1/health`, expecting 200 and `{ database: 'connected' }`.
 
-The startup check loads AppModule only after moving into a new empty directory tree, so its two
-environment-file paths cannot read the workspace `.env`. It supplies generated JWT secrets,
-synthetic email/storage configuration and disabled Omise keys, and rejects external fetch calls.
-The full API starts with its real providers and scheduler; no provider request is stubbed as a
-successful external operation. The app and temporary directory are closed/removed in `finally`.
+The runner replaces inherited application settings with an allowlist: only OS path/temp variables,
+the validated disposable target and explicit synthetic config reach its children/startup. AppModule
+and app.setup load only after environment isolation and a move into a new empty directory tree,
+so their environment-file paths cannot read the workspace `.env`. The fixture input hash is printed
+inside the isolated fixture child. Generated JWT secrets are never printed; Omise keys are blank.
+The actual API providers start in `NODE_ENV=test`: the runner asserts the reminder cron is inactive,
+and all six booking/payment/coupon/notification/audit evidence tables retain identical hashes.
+External fetches are rejected rather than stubbed as successful. The app/temp directory are closed
+and the original process environment restored afterwards. The separate reminder verifier still
+tests the enabled cron outside test mode.
+
+Failures identify the checkpoint, error type and safe error code. Known child exit/signal and
+timeout details, or the invalid configuration field, are retained; arbitrary error messages,
+assertion values, URLs and provider payloads are not printed. The shared pure
+`config/disposable-database-url.ts` guard is reused by the four related TypeScript verifiers while
+their existing exported wrappers retain their exact/generic target rules.
 
 This command does not migrate, reset a database or aggregate every DB verifier. Complete DB06 also
 runs the existing upgrade, reminder and DB05 verifiers on separate fresh targets. The upgrade
 harness now starts with the S2 + PromptPay schema and replays through all current migration SQL,
-preserving original booking/payment fields and pre-existing audit. It directly replays SQL rather
+preserving original booking/payment fields and pre-existing audit. Each snapshot carries its
+baseline columns and row IDs; comparisons project those columns in PostgreSQL, preserving exact
+Decimal JSON text while tolerating later additive columns. An ALTER-column regression probe on
+Booking/PaymentAttempt/AuditLog passes, an actual historical value change is detected, and the
+whole probe rolls back. Missing index/constraint diagnostics name the object and migration range.
+The harness directly replays SQL rather
 than creating a Prisma migration ledger; the clean path separately proves actual Prisma deploy
 and ledger checksums. No production migration file, API, DTO, fixture input or dependency changes.
 
