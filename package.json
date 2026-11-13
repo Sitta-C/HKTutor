@@ -19,6 +19,7 @@
     "db:verify:notifications": "pnpm --filter @hktutor/api db:verify:notifications",
     "db:verify:qualifications": "pnpm --filter @hktutor/api db:verify:qualifications",
     "db:verify:sprint1": "pnpm --filter @hktutor/api db:verify:sprint1",
+    "db:verify:sprint3-security": "pnpm --filter @hktutor/api db:verify:sprint3-security",
     "test": "pnpm -r --if-present test",
     "lint": "pnpm lint:root && pnpm -r --if-present lint",
     "lint:fix": "pnpm lint:root:fix && pnpm -r --if-present lint:fix",

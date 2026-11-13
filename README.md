@@ -222,6 +222,9 @@ UI must be ported into `apps/web`; do not import or iframe the prototype HTML.
 
 Public auth endpoints are rate-limited. Access tokens are held in browser memory; they are not
 written to local storage. Refresh-token rotation detects reuse and revokes the affected session.
+`pnpm db:verify:sprint3-security` re-checks these session rules together with consent, ownership,
+socket isolation, stored-markup handling and race-sensitive writes across all features; see
+[S3-T38 evidence](tests/s3-t38-qa.md).
 
 ### Email resend behavior
 

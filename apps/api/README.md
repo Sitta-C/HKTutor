@@ -3181,6 +3181,56 @@ and ledger checksums. No production migration file, API, DTO, fixture input or d
 
 Follow the [DB06 commands, file/call map, acceptance evidence and limitations](../../tests/s3-db06-qa.md).
 
+## Final security regression (S3-T38)
+
+`pnpm db:verify:sprint3-security` re-checks the authentication, privacy and authorization rules of
+every feature together. It boots the real `AppModule` (raw body, `cookie-parser`, the global
+pipe) on a loopback port and runs over HTTP and Socket.IO against PostgreSQL. The feature
+verifiers prove each rule in depth; this runner fails if a cross-feature change drops one. That
+could be a route without a guard, a consent check missing from one module, or a socket that
+outlives logout.
+
+- **Sessions:** the refresh cookie is `HttpOnly; Path=/; SameSite=Lax` and never appears in a body.
+  PostgreSQL holds only its SHA-256. Refresh rotates the cookie. Replaying an old token revokes
+  the session, including its new cookie and access token. Of five concurrent refreshes, exactly one
+  wins. Logout clears the cookie, rejects the access token and disconnects that session's live
+  socket. Refresh tokens are refused as Bearer tokens, and access tokens are refused as cookies.
+- **Email verification:** an unverified login gets 403 and no cookie. Reused and expired
+  verification tokens get 400. Resend with a ready signed verification flow (cookie plus `flowId`)
+  returns the same 200 public fields for known and unknown emails, and only the eligible account
+  receives a working replacement token. The sixth login within a minute gets 429.
+- **Authorization matrix:** 25 protected booking, coupon, payment, review, cancel, reschedule,
+  tutor-action, chat, notification, report and admin routes. Each returns 401 anonymously, and
+  403 for a foreign owner or wrong role (`BOOKING_NOT_OWNED`, `BOOKING_NOT_PARTICIPANT` or
+  `FORBIDDEN`). A body `studentUserId` gets 400. A hash of every booking row, notification read
+  state, message count and coupon count is unchanged afterwards.
+- **Consent:** with an outdated or missing policy version, coupon, payment, chat send/read, review
+  create and tutor report return 403. The profile and reschedule routes return 400
+  `PRIVACY_CONSENT_REQUIRED`. Access returns once `/auth/consent` accepts the current version, and
+  `/auth/me` stays reachable throughout.
+- **Sockets:** expired-session, refresh-token, admin and malformed credentials are refused. A
+  non-participant cannot join. Messages reach only the other participant of their own
+  conversation.
+- **Stored markup:** `<script>`/`onerror` text in chat, the tutor display name and the bio comes
+  back as exact JSON strings (`application/json`). Public tutor and `/auth/me` payloads carry no
+  private fields. The repository contract `tests/web-html-sinks.test.mjs` fails if web source adds
+  `dangerouslySetInnerHTML`, `innerHTML`, `insertAdjacentHTML`, `document.write`, `eval`,
+  `new Function` or a `javascript:` URL.
+- **Races:** four concurrent bookings of one slot produce one 201. Three concurrent confirms
+  produce one 200 and one notice. Four concurrent reviews produce one 201 and a rating count of 1.
+
+```bash
+HKTUTOR_ALLOW_DISPOSABLE_DB_VERIFY=1 \
+  DATABASE_URL='postgresql://postgres@127.0.0.1:5432/hktutor_s3_t38_test' \
+  pnpm db:verify:sprint3-security
+```
+
+The runner requires the exact loopback database `hktutor_s3_t38_test`, migrated and empty. It
+pins every secret to synthetic values before `AppModule` loads, configures no payment provider,
+and rejects any outbound request. It prints the observed matrix plus two recorded findings:
+`GET /bookings/me/:bookingId` and `GET /bookings/tutor` do not opt into the current-consent check.
+Evidence and follow-ups are in [`tests/s3-t38-qa.md`](../../tests/s3-t38-qa.md).
+
 ## Tutor Reports (S3-T09)
 
 Implements `GET /api/v1/reports/tutor/me` (`S3-T09` / `S3-T09/API-01`) in `apps/api/src/modules/reports/`.
