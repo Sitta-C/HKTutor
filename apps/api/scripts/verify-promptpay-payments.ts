@@ -3,13 +3,17 @@ import { randomUUID } from 'node:crypto';
 
 import { ConfigService } from '@nestjs/config';
 import { Test } from '@nestjs/testing';
+import { Pool } from 'pg';
 
+import { Role } from '@generated/prisma/enums';
 import { PrismaService } from '@infrastructure/database/prisma.service';
 import { OmiseRequestRejected, OmiseService } from '@infrastructure/payments/omise.service';
+import { CURRENT_PRIVACY_POLICY_VERSION } from '@modules/auth/auth.constants';
 import { BookingExpiryService } from '@modules/bookings/booking-expiry.service';
 import { BookingsService } from '@modules/bookings/bookings.service';
 import { NotificationEventsService } from '@modules/notifications/notification-events.service';
 import { PaymentsService } from '@modules/payments/payments.service';
+import { RescheduleRequestsService } from '@modules/reschedule-requests/reschedule-requests.service';
 
 import type { OmiseCharge } from '@infrastructure/payments/omise.service';
 
@@ -27,6 +31,7 @@ async function main(): Promise<void> {
   assert.equal(url.search, '');
   assert.equal(url.hash, '');
 
+  const control = new Pool({ connectionString, max: 2 });
   const charges = new Map<string, OmiseCharge>();
   let creates = 0;
   let mode: 'normal' | 'timeout' | 'rejected' = 'normal';
@@ -85,6 +90,7 @@ async function main(): Promise<void> {
       PrismaService,
       PaymentsService,
       BookingExpiryService,
+      RescheduleRequestsService,
       BookingsService,
       NotificationEventsService,
       { provide: OmiseService, useValue: omise },
@@ -143,8 +149,20 @@ async function main(): Promise<void> {
   try {
     await prisma.user.createMany({
       data: [
-        { id: studentId, email: `${studentId}@payment.test`, role: 'STUDENT' },
-        { id: tutorId, email: `${tutorId}@payment.test`, role: 'TUTOR' },
+        {
+          id: studentId,
+          email: `${studentId}@payment.test`,
+          role: 'STUDENT',
+          policyVersion: CURRENT_PRIVACY_POLICY_VERSION,
+          consentAcceptedAt: new Date(),
+        },
+        {
+          id: tutorId,
+          email: `${tutorId}@payment.test`,
+          role: 'TUTOR',
+          policyVersion: CURRENT_PRIVACY_POLICY_VERSION,
+          consentAcceptedAt: new Date(),
+        },
       ],
     });
     await prisma.tutorProfile.create({
@@ -184,11 +202,11 @@ async function main(): Promise<void> {
       return startAtUtc;
     };
     // A last-minute QR is capped by the booking deadline, not the usual 15-minute TTL.
-    const nearStart = await closeSlot(4 * 3_600_000 + 5 * 60_000);
+    const nearStart = await closeSlot(5 * 60_000);
     await payments.create(deadlineBookingId, studentId);
     const nearCharge = currentCharge(deadlineBookingId);
-    assert.equal(nearCharge.expiresAt?.getTime(), nearStart.getTime() - 4 * 3_600_000);
-    await closeSlot(3 * 3_600_000);
+    assert.equal(nearCharge.expiresAt?.getTime(), nearStart.getTime());
+    await closeSlot(-60_000);
     await expiry.runOnce(new Date());
     assert.equal(
       (await prisma.booking.findUniqueOrThrow({ where: { id: deadlineBookingId } })).status,
@@ -212,7 +230,7 @@ async function main(): Promise<void> {
 
     const overdueId = await fixture();
     const overdue = await prisma.booking.findUniqueOrThrow({ where: { id: overdueId } });
-    const overdueStart = new Date(Date.now() + 4 * 3_600_000 - 1000);
+    const overdueStart = new Date(Date.now() - 1000);
     await prisma.availabilitySlot.update({
       where: { id: overdue.slotId },
       data: { startAtUtc: overdueStart, endAtUtc: new Date(overdueStart.getTime() + 3_600_000) },
@@ -220,7 +238,7 @@ async function main(): Promise<void> {
     const beforeClosed = creates;
     await assert.rejects(
       payments.create(overdueId, studentId),
-      (error: unknown) => error instanceof Error && error.message.includes('4 hours'),
+      (error: unknown) => error instanceof Error && error.message.includes('lesson starts'),
     );
     assert.equal(creates, beforeClosed);
     await prisma.booking.update({ where: { id: overdueId }, data: { status: 'PENDING' } });
@@ -240,6 +258,70 @@ async function main(): Promise<void> {
         endAtUtc: new Date(Date.now() + 27 * 3_600_000),
       },
     });
+
+    // Cross the deadline while a real PostgreSQL row lock blocks confirmation.
+    const blockedId = await fixture();
+    const blocked = await prisma.booking.findUniqueOrThrow({ where: { id: blockedId } });
+    const blocker = await control.connect();
+    let held = false;
+    let confirming: Promise<PromiseSettledResult<unknown>[]> | undefined;
+    try {
+      const start = new Date(Date.now() + 5000);
+      await prisma.availabilitySlot.update({
+        where: { id: blocked.slotId },
+        data: { startAtUtc: start, endAtUtc: new Date(start.getTime() + 3_600_000) },
+      });
+      await prisma.booking.update({ where: { id: blockedId }, data: { status: 'PENDING' } });
+      await blocker.query('BEGIN');
+      held = true;
+      const pid = (await blocker.query<{ pid: number }>('SELECT pg_backend_pid() AS pid')).rows[0]
+        ?.pid;
+      assert.ok(pid);
+      await blocker.query('SELECT "id" FROM "Booking" WHERE "id" = $1 FOR UPDATE', [blockedId]);
+      confirming = Promise.allSettled([
+        bookings.confirmTutorBooking({ bookingId: blockedId, tutorUserId: tutorId }),
+      ]);
+      const timeout = Date.now() + 10_000;
+      for (;;) {
+        const waiting = await control.query<{ count: number }>(
+          'SELECT count(*)::int AS count FROM pg_stat_activity WHERE $1::int = ANY(pg_blocking_pids(pid))',
+          [pid],
+        );
+        if ((waiting.rows[0]?.count ?? 0) > 0) break;
+        assert.ok(Date.now() < timeout, 'Confirmation must reach the real row lock');
+        await new Promise<void>((resolve) => setTimeout(resolve, 10));
+      }
+      await new Promise<void>((resolve) =>
+        setTimeout(resolve, Math.max(0, start.getTime() - Date.now() + 20)),
+      );
+      await blocker.query('COMMIT');
+      held = false;
+      const [outcome] = await confirming;
+      assert.equal(
+        outcome?.status,
+        'rejected',
+        'A pre-deadline request crossing the lock deadline must fail',
+      );
+      assert.equal(
+        (await prisma.booking.findUniqueOrThrow({ where: { id: blockedId } })).status,
+        'PENDING',
+      );
+      assert.equal(await prisma.notification.count({ where: { bookingId: blockedId } }), 0);
+    } finally {
+      if (held) await blocker.query('ROLLBACK');
+      await confirming;
+      blocker.release();
+    }
+    await prisma.availabilitySlot.update({
+      where: { id: blocked.slotId },
+      data: {
+        startAtUtc: new Date(Date.now() + 28 * 3_600_000),
+        endAtUtc: new Date(Date.now() + 29 * 3_600_000),
+      },
+    });
+    process.stdout.write(
+      'PASS confirmation crossing a real row-lock deadline rolls back to PENDING with zero notifications\n',
+    );
 
     // Provider failure after the cutoff releases the attempt, then expires the unpaid booking.
     const failedDeadlineId = await fixture();
@@ -265,7 +347,94 @@ async function main(): Promise<void> {
       'EXPIRED',
     );
     process.stdout.write(
-      'PASS 4h deadline, capped QR, confirm/expiry race, protected active payment, late success and terminal expiry\n',
+      'PASS lesson-start deadline, capped QR, confirm/expiry race, protected active payment, late success and terminal expiry\n',
+    );
+    await prisma.availabilitySlot.update({
+      where: { id: failedBooking.slotId },
+      data: {
+        startAtUtc: new Date(Date.now() + 30 * 3_600_000),
+        endAtUtc: new Date(Date.now() + 31 * 3_600_000),
+      },
+    });
+    const reschedules = module.get(RescheduleRequestsService);
+    const movingId = await fixture();
+    const original = await prisma.booking.findUniqueOrThrow({ where: { id: movingId } });
+    async function targetSlot(startAtUtc: Date): Promise<string> {
+      const slot = await prisma.availabilitySlot.create({
+        data: {
+          tutorProfileId: tutorId,
+          startAtUtc,
+          endAtUtc: new Date(startAtUtc.getTime() + 3_600_000),
+        },
+      });
+      slotIds.push(slot.id);
+      return slot.id;
+    }
+    const nearTarget = await targetSlot(new Date(Date.now() + 5 * 60_000));
+    const pendingMove = await reschedules.create(studentId, Role.STUDENT, movingId, {
+      targetSlotId: nearTarget,
+    });
+    await payments.create(movingId, studentId);
+    assert.deepEqual((await reschedules.getCurrent(tutorId, movingId)).allowedActions, ['REJECT']);
+    const moveSnapshot = await prisma.rescheduleRequest.findUniqueOrThrow({
+      where: { id: pendingMove.requestId },
+    });
+    await assert.rejects(
+      reschedules.approve(tutorId, pendingMove.requestId),
+      (error: unknown) => error instanceof Error && error.message.includes('current payment'),
+    );
+    assert.deepEqual(
+      await prisma.rescheduleRequest.findUniqueOrThrow({ where: { id: pendingMove.requestId } }),
+      moveSnapshot,
+    );
+    assert.equal(
+      (await prisma.booking.findUniqueOrThrow({ where: { id: movingId } })).slotId,
+      original.slotId,
+    );
+    // Simulate the requested target passing while the bank result is still unresolved.
+    await prisma.availabilitySlot.update({
+      where: { id: nearTarget },
+      data: { startAtUtc: new Date(Date.now() - 60_000) },
+    });
+    const movingCharge = currentCharge(movingId);
+    movingCharge.status = 'successful';
+    movingCharge.paid = true;
+    movingCharge.paidAt = new Date();
+    await webhook(movingCharge);
+    await assert.rejects(
+      reschedules.approve(tutorId, pendingMove.requestId),
+      (error: unknown) => error instanceof Error && error.message.includes('in the future'),
+    );
+    const retained = await prisma.booking.findUniqueOrThrow({ where: { id: movingId } });
+    assert.equal(retained.slotId, original.slotId);
+    assert.equal(retained.paymentStatus, 'PAID');
+    assert.equal(retained.paymentReference, movingCharge.id);
+    await reschedules.withdraw(studentId, pendingMove.requestId);
+    const futureTarget = await targetSlot(new Date(Date.now() + 2 * 3_600_000));
+    const newMove = await reschedules.create(studentId, Role.STUDENT, movingId, {
+      targetSlotId: futureTarget,
+    });
+    await reschedules.approve(tutorId, newMove.requestId);
+    const movedPaid = await prisma.booking.findUniqueOrThrow({ where: { id: movingId } });
+    assert.equal(movedPaid.slotId, futureTarget);
+    assert.equal(movedPaid.paymentReference, movingCharge.id);
+    process.stdout.write(
+      'PASS unresolved payment blocks approval; late success pays the original class, and a new future target preserves that receipt\n',
+    );
+    const unpaidMoveId = await fixture();
+    const unpaidStart = new Date(Date.now() + 5 * 60_000);
+    await prisma.availabilitySlot.update({
+      where: { id: nearTarget },
+      data: { startAtUtc: unpaidStart, endAtUtc: new Date(unpaidStart.getTime() + 3_600_000) },
+    });
+    const unpaidMove = await reschedules.create(studentId, Role.STUDENT, unpaidMoveId, {
+      targetSlotId: nearTarget,
+    });
+    await reschedules.approve(tutorId, unpaidMove.requestId);
+    await payments.create(unpaidMoveId, studentId);
+    assert.equal(currentCharge(unpaidMoveId).expiresAt?.getTime(), unpaidStart.getTime());
+    process.stdout.write(
+      'PASS unpaid reschedule to a near future target caps its new QR at the new lesson start\n',
     );
     creates = 0;
 
@@ -429,6 +598,7 @@ async function main(): Promise<void> {
     await prisma.$executeRawUnsafe('DROP FUNCTION IF EXISTS promptpay_probe_failure()');
     await prisma.notification.deleteMany({ where: { bookingId: { in: bookingIds } } });
     await prisma.paymentAttempt.deleteMany({ where: { bookingId: { in: bookingIds } } });
+    await prisma.rescheduleRequest.deleteMany({ where: { bookingId: { in: bookingIds } } });
     await prisma.booking.deleteMany({ where: { id: { in: bookingIds } } });
     await prisma.availabilitySlot.deleteMany({ where: { id: { in: slotIds } } });
     await prisma.teachingListing.deleteMany({ where: { id: listingId } });
@@ -436,6 +606,7 @@ async function main(): Promise<void> {
     await prisma.subject.deleteMany({ where: { id: subjectId } });
     await prisma.gradeLevel.deleteMany({ where: { id: gradeId } });
     await prisma.user.deleteMany({ where: { id: { in: [studentId, tutorId] } } });
+    await control.end();
     await module.close();
   }
 }

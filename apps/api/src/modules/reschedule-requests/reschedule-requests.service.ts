@@ -91,6 +91,12 @@ const bookingNotConfirmed = (status: BookingStatus): ConflictException =>
     statusCode: 409,
   });
 
+const paymentInProgress = (): ConflictException =>
+  new ConflictException({
+    code: 'PAYMENT_IN_PROGRESS',
+    message: 'Resolve the current payment before approving a reschedule',
+  });
+
 const rescheduleCutoffExceeded = (): ConflictException =>
   new ConflictException({
     code: 'RESCHEDULE_CUTOFF_EXCEEDED',
@@ -400,6 +406,12 @@ export class RescheduleRequestsService {
     const booking = await this.prisma.booking.findUnique({
       select: {
         id: true,
+        paymentPending: true,
+        paymentAttempts: {
+          where: { status: { in: ['CREATING', 'PENDING'] } },
+          select: { id: true },
+          take: 1,
+        },
         slot: { select: { endAtUtc: true, startAtUtc: true } },
         slotId: true,
         status: true,
@@ -446,6 +458,8 @@ export class RescheduleRequestsService {
       const isRequester = userId === pending.requestedById;
       const canApprove =
         canReschedule &&
+        !booking.paymentPending &&
+        booking.paymentAttempts.length === 0 &&
         pending.fromSlotId === booking.slotId &&
         pending.requestedSlot.deletedAt === null &&
         pending.requestedSlot.startAtUtc > now &&
@@ -504,6 +518,12 @@ export class RescheduleRequestsService {
                 id: true,
                 listingId: true,
                 netAmount: true,
+                paymentPending: true,
+                paymentAttempts: {
+                  where: { status: { in: ['CREATING', 'PENDING'] } },
+                  select: { id: true },
+                  take: 1,
+                },
                 slot: { select: { endAtUtc: true, startAtUtc: true } },
                 slotId: true,
                 status: true,
@@ -539,6 +559,9 @@ export class RescheduleRequestsService {
         }
         if (request.booking.slotId !== request.fromSlotId) {
           throw rescheduleRaceConflict();
+        }
+        if (request.booking.paymentPending || request.booking.paymentAttempts.length > 0) {
+          throw paymentInProgress();
         }
 
         // Deletion and booking writes also lock this row. Read it under that lock so a
@@ -611,6 +634,9 @@ export class RescheduleRequestsService {
 
         if (bookingUpdate.count !== 1) {
           throw rescheduleRaceConflict();
+        }
+        if (targetSlot.startAtUtc.getTime() <= Date.now()) {
+          throw rescheduleTargetPast();
         }
 
         const updatedBooking = await tx.booking.findUniqueOrThrow({
