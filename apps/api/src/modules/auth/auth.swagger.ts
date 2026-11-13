@@ -16,7 +16,7 @@ import {
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
 
-import { REFRESH_COOKIE_NAME } from '@modules/auth/auth.constants';
+import { CURRENT_PRIVACY_POLICY_VERSION, REFRESH_COOKIE_NAME } from '@modules/auth/auth.constants';
 
 import type { HeaderObject, SchemaObject } from '@nestjs/swagger';
 
@@ -360,7 +360,17 @@ export function AcceptPrivacyNoticeAuthDoc(): MethodDecorator {
         'Records consentAcceptedAt and the policy version for the signed-in user. consent must be true and policyVersion must be a supported version.',
     }),
     ApiBearerAuth(JWT_BEARER_AUTH),
-    ApiOkResponse({ description: 'Current consent version recorded for the signed-in user' }),
+    ApiOkResponse({
+      description: 'Current consent version recorded for the signed-in user',
+      schema: {
+        type: 'object',
+        required: ['consentAcceptedAt', 'policyVersion'],
+        properties: {
+          consentAcceptedAt: { type: 'string', format: 'date-time' },
+          policyVersion: { type: 'string', example: CURRENT_PRIVACY_POLICY_VERSION },
+        },
+      },
+    }),
     ApiBadRequestResponse({
       description: 'consent is false or not a boolean, or policyVersion is not a supported version',
       schema: errorSchema,

@@ -13,7 +13,7 @@ import { JWT_BEARER_AUTH } from '@modules/auth/auth.swagger';
 import { TutorReportResponseDto } from '@modules/reports/reports.dto';
 
 export function ReportsControllerDoc(): ClassDecorator {
-  return applyDecorators(ApiTags('Reports'));
+  return applyDecorators(ApiTags('reports'));
 }
 
 export function GetMyTutorReportDoc(): MethodDecorator {

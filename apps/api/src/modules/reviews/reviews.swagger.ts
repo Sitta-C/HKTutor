@@ -60,9 +60,13 @@ export class TutorReviewsResponseDto {
   nextCursor!: string | null;
 }
 
+/** One class-level tag per controller: method-level tags would add a duplicate, auto-named group. */
+export function ReviewsControllerDoc(): ClassDecorator {
+  return applyDecorators(ApiTags('reviews'));
+}
+
 export function CreateReviewDoc(): MethodDecorator {
   return applyDecorators(
-    ApiTags('Reviews'),
     ApiBearerAuth(JWT_BEARER_AUTH),
     ApiOperation({
       summary: 'Submit a review for one completed booking',
@@ -89,7 +93,6 @@ export function CreateReviewDoc(): MethodDecorator {
 
 export function GetReviewDoc(): MethodDecorator {
   return applyDecorators(
-    ApiTags('Reviews'),
     ApiBearerAuth(JWT_BEARER_AUTH),
     ApiOperation({
       summary: "Read the authenticated student's own review for one booking",
@@ -108,7 +111,6 @@ export function GetReviewDoc(): MethodDecorator {
 
 export function GetTutorReviewsDoc(): MethodDecorator {
   return applyDecorators(
-    ApiTags('Reviews'),
     ApiOperation({
       summary: "List a verified tutor's reviews",
       description:

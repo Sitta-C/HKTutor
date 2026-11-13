@@ -25,6 +25,7 @@ import {
   DeleteAvatarDoc,
   GetMyAvatarDoc,
   GetPublicTutorAvatarDoc,
+  PublicTutorAvatarsControllerDoc,
   UploadAvatarDoc,
 } from '@modules/avatars/avatars.swagger';
 
@@ -72,6 +73,7 @@ export class AvatarsController {
   }
 }
 
+@PublicTutorAvatarsControllerDoc()
 @Controller('tutors')
 export class PublicTutorAvatarsController {
   constructor(private readonly avatars: AvatarsService) {}
