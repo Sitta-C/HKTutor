@@ -855,6 +855,17 @@ require status verification and never automatically retry charge creation. Activ
 cancellation on the server and in the detail UI. Legacy mock receipts remain readable, while the
 old mock-payment endpoint is retired. No card fields, refunds, payouts or live payment are added.
 
+### Decision Slip checkout (2026-11-13)
+
+The student checkout now uses **Decision Slip** (selected 2026-11-13): coupons and stored amounts
+stay left of a compact bordered payment paper, stacking at a 600px container width. A heading tab,
+deadline metadata, status message and dashed action footer keep the payment hierarchy consistent
+through ready, pending, closed and paid states. QR creation/retry and full-coupon settlement use
+the shared student Ink Ticket with a right icon stub; refresh remains a quiet text action. Deadline
+labels sit above their timestamps without a middle-dot text separator. The test-mode notice remains
+visible below the controls. This changes presentation only; payment, coupon and deadline guards
+retain their existing behavior.
+
 ### Payment required for classroom access and completion (2026-10-20)
 
 Both participants see a paid/unpaid badge in classroom details. Meeting links and the tutor's link

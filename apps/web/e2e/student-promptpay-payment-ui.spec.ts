@@ -981,12 +981,26 @@ for (const language of ['th', 'en'] as const) {
       })
       .click();
     await expect(timer).toHaveCount(0);
-    await expect(
-      panel.getByRole('button', {
-        name: language === 'en' ? 'Create another test QR' : 'สร้าง QR ทดสอบใหม่',
+    const retry = panel.getByRole('button', {
+      name: language === 'en' ? 'Create another test QR' : 'สร้าง QR ทดสอบใหม่',
+      exact: true,
+    });
+    await expect(retry).toBeEnabled();
+    const stub = retry.locator('svg').locator('..');
+    await expect(stub).toHaveCSS('border-left-style', 'dashed');
+    await panel
+      .getByRole('button', {
+        name: language === 'en' ? 'Check payment status' : 'ตรวจสถานะชำระเงิน',
         exact: true,
-      }),
-    ).toBeEnabled();
+      })
+      .focus();
+    await page.keyboard.press('Shift+Tab');
+    await expect(retry).toBeFocused();
+    await expect(retry).toHaveCSS('outline-style', 'solid');
+    expect(await retry.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(
+      true,
+    );
+    await retry.screenshot({ path: test.info().outputPath(`retry-ticket-${language}.png`) });
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
       true,
     );
