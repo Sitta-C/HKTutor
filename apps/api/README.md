@@ -3154,6 +3154,65 @@ pnpm --filter @hktutor/api test --runInBand reports
 pnpm --filter @hktutor/api test:e2e --runInBand --runTestsByPath test/reports.e2e-spec.ts
 ```
 
+### Report contract definitions and fixture reconciliation (S3-T12)
+
+All values are all-time and belong to the authenticated tutor only.
+
+| Field                      | Definition                                                                                                                           |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `totalBookings`            | Every booking whose `tutorProfileId` is the caller, in any status, including bookings on archived or soft-deleted listings and slots |
+| `statusCounts`             | One integer per `BookingStatus`. All five keys are always present, and they add up to `totalBookings`                                |
+| `revenue.amount`           | Sum of `netAmount` for `COMPLETED` **and** `PAID` bookings, as a two-decimal THB string (`"0.00"` when none)                         |
+| `completionRate.completed` | `statusCounts.COMPLETED`                                                                                                             |
+| `completionRate.finalized` | `COMPLETED + CANCELED`: the bookings whose outcome is settled                                                                        |
+| `completionRate.percent`   | `completed / finalized × 100`, rounded `HALF_UP` to two decimals, as a JSON number; `null` when `finalized = 0`                      |
+
+**Revenue.** `netAmount` is the price snapshot stored on the booking, after any coupon discount
+(`subtotalAmount − discountAmount`, enforced by `Booking_amount_balance_check`). Later listing
+price or coupon edits never change it. The sum uses Prisma `Decimal`, never binary floating point.
+Only one combination counts:
+
+| Status \ payment     | `UNPAID`                                  | `PAID`                                     |
+| -------------------- | ----------------------------------------- | ------------------------------------------ |
+| `COMPLETED`          | excluded (class held, money not received) | **counted**                                |
+| `CONFIRMED`          | excluded                                  | excluded (class not yet held)              |
+| `PENDING`, `EXPIRED` | excluded                                  | not possible                               |
+| `CANCELED`           | excluded                                  | not possible (`Booking_paid_status_check`) |
+
+Because a paid booking can never be canceled, there is no refund case to subtract.
+
+**Finalized denominator.** `PENDING` and `CONFIRMED` are still open, so they are left out. Counting
+them would push the rate down for a tutor with many upcoming classes. `EXPIRED` requests were never
+accepted, so they say nothing about whether the tutor delivers. Every `CANCELED` booking counts,
+whether the tutor declined a pending request or the student or tutor canceled later. All of these
+persist as the same `CANCELED` status, and the backlog example (6 / (6 + 2)) treats them alike.
+
+**Rounding.** The exact Decimal quotient is rounded once, `HALF_UP` at two decimals: 6 / 8 →
+`75`, 2 / 3 → `66.67`, 1 / 3 → `33.33`, and 1 / 32 = 3.125 → `3.13` (banker's rounding would give
+3.12). A tutor with no finalized booking gets `null`, and the web report shows it as N/A or
+ไม่มีข้อมูล instead of a made-up `0%`. The web client shows the number as returned and never
+rounds it again.
+
+**Swagger examples come from fixtures.** The 200 response publishes three named examples taken from
+`TUTOR_REPORT_EXAMPLES` in `reports.swagger.ts`. Each one is the exact report for an S3-DB04
+seeded tutor: `report905`, `reportExpired` and `reportEmpty`. The schema property examples also
+add up to the `report905` report. `test/unit/reports/report-contract.spec.ts` recomputes every
+example from the fixture bookings through `ReportsService`, so an example that drifts from the
+seed fails the unit suite. The `report905` ledger reconciles as follows:
+
+| DB04 bookings                                          |  Count | Net each |   Net total | In revenue? |
+| ------------------------------------------------------ | -----: | -------: | ----------: | ----------- |
+| `report-1` completed, paid, WELCOME10 (450.00 − 45.00) |      1 |   405.00 |      405.00 | yes         |
+| `report-2` completed, paid                             |      1 |   500.00 |      500.00 | yes         |
+| `report-3`…`report-6` completed, unpaid                |      4 |   450.00 |     1800.00 | no          |
+| `report-7`, `report-8` canceled                        |      2 |   450.00 |      900.00 | no          |
+| `report-9`…`report-11` pending                         |      3 |   450.00 |     1350.00 | no          |
+| `report-12` confirmed                                  |      1 |   450.00 |      450.00 | no          |
+| **Total**                                              | **12** |          | **5405.00** | **905.00**  |
+
+The rate is 6 completed / (6 completed + 2 canceled) = 75. Evidence is in
+[`tests/s3-t12-qa.md`](../../tests/s3-t12-qa.md).
+
 The web client exposes this contract to tutors at the private, noindex
 `/dashboard/reports` route and as an independently loaded report section on `/dashboard`. It never
 derives all-time values from the paginated dashboard booking reads. The received-revenue card is
