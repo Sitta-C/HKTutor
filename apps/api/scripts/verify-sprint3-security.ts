@@ -22,6 +22,11 @@ import { PrismaService } from '@infrastructure/database/prisma.service';
 import { EmailService } from '@infrastructure/email/email.service';
 import { STORAGE_CLIENT } from '@infrastructure/storage/storage.types';
 import { CURRENT_PRIVACY_POLICY_VERSION, REFRESH_COOKIE_NAME } from '@modules/auth/auth.constants';
+import {
+  EMAIL_RESEND_WAIT_SECONDS,
+  EmailFlowService,
+  emailFlowCookieName,
+} from '@modules/auth/email-flow.service';
 import { JwtTokenService } from '@modules/auth/jwt.service';
 import { CHAT_SOCKET_PATH } from '@modules/conversations/conversations.socket-contract';
 
@@ -339,9 +344,11 @@ async function verify(): Promise<void> {
     ok(await http().post('/auth/verify-email', { token: verification.token }), 400, 'reused token');
     const pendingToken = sentEmails.find((sent) => sent.email === pendingEmail);
     assert.ok(pendingToken);
+    // Expire the token and move it outside the 60-second reissue window, so a resend may issue a
+    // replacement.
     await db.emailVerificationToken.updateMany({
       where: { user: { email: pendingEmail } },
-      data: { expiresAt: new Date(Date.now() - 60_000) },
+      data: { expiresAt: new Date(Date.now() - 60_000), createdAt: new Date(Date.now() - 120_000) },
     });
     ok(
       await http().post('/auth/verify-email', { token: pendingToken.token }),
@@ -352,17 +359,77 @@ async function verify(): Promise<void> {
       (await db.user.findFirstOrThrow({ where: { email: pendingEmail } })).emailVerifiedAt,
       null,
     );
-    const known = await http().post('/auth/resend-verification', { email: pendingEmail });
-    const unknown = await http().post('/auth/resend-verification', {
-      email: `nobody-${run}@s3-t38.invalid`,
-    });
-    assert.deepEqual([known.status, known.body], [unknown.status, unknown.body], 'no enumeration');
+    // Resend needs the signed verification-flow cookie and its flowId, as the browser sends them.
+    // The real EmailFlowService signs each flow; only its clock is moved past the resend wait, so
+    // the flow is ready instead of cooling down.
+    const emailFlows = moduleRef.get(EmailFlowService);
+    function readyVerificationFlow(email: string) {
+      const realNow = Date.now;
+      Date.now = () => realNow() - (EMAIL_RESEND_WAIT_SECONDS + 1) * 1000;
+      try {
+        return emailFlows.create(email, 'verification');
+      } finally {
+        Date.now = realNow;
+      }
+    }
+    async function resend(email: string): Promise<request.Response> {
+      const ready = readyVerificationFlow(email);
+      const cookie = `${emailFlowCookieName('verification')}=${encodeURIComponent(ready.cookie)}`;
+      return request(server)
+        .post('/api/v1/auth/resend-verification')
+        .set('Cookie', cookie)
+        .send({ flowId: ready.flow.id });
+    }
+    function publicResendFields(response: request.Response) {
+      const body = response.body as {
+        message?: unknown;
+        emailFlow?: { purpose?: unknown; retryAfterSeconds?: unknown };
+      };
+      return {
+        status: response.status,
+        keys: Object.keys(response.body as object).sort(),
+        message: body.message,
+        purpose: body.emailFlow?.purpose,
+        retryAfterSeconds: body.emailFlow?.retryAfterSeconds,
+      };
+    }
+    const unknownEmail = `nobody-${run}@s3-t38.invalid`;
+    const emailsBefore = sentEmails.length;
+    const known = await resend(pendingEmail);
+    const unknown = await resend(unknownEmail);
+    ok(known, 200, 'resend for an eligible account');
+    ok(unknown, 200, 'resend for an unknown account');
+    assert.deepEqual(publicResendFields(known), publicResendFields(unknown), 'no enumeration');
+    assert.equal(
+      publicResendFields(known).message,
+      'If the account can be verified, a verification email has been sent.',
+    );
+    const replacements = sentEmails.slice(emailsBefore);
+    assert.deepEqual(
+      replacements.map((sent) => sent.email),
+      [pendingEmail],
+      'only the eligible account receives a replacement email',
+    );
+    const [replacement] = replacements;
+    assert.ok(replacement && replacement.token !== pendingToken.token);
+    assert.equal(
+      await db.emailVerificationToken.count({
+        where: { user: { email: pendingEmail }, consumedAt: null },
+      }),
+      1,
+      'the replacement supersedes the old token',
+    );
+    ok(
+      await http().post('/auth/verify-email', { token: replacement.token }),
+      200,
+      'replacement token verifies',
+    );
     const wrong = { email: studentEmail, password: 'Wrong-password-1' };
     ok(await http().post('/auth/login', wrong), 401, 'wrong password 4');
     ok(await http().post('/auth/login', wrong), 401, 'wrong password 5');
     ok(await http().post('/auth/login', { email: studentEmail, password }), 429, '6th login');
     pass(
-      'unverified login 403 without a cookie; reused and expired verification tokens 400; resend does not enumerate; 6th login in a minute 429',
+      'unverified login 403 without a cookie; reused and expired verification tokens 400; signed-flow resend answers known and unknown alike and only the eligible account gets a working replacement; 6th login in a minute 429',
     );
 
     // ---------------------------------------------------------------------------------------

@@ -3112,8 +3112,9 @@ outlives logout.
   wins. Logout clears the cookie, rejects the access token and disconnects that session's live
   socket. Refresh tokens are refused as Bearer tokens, and access tokens are refused as cookies.
 - **Email verification:** an unverified login gets 403 and no cookie. Reused and expired
-  verification tokens get 400, and resend answers identically for known and unknown emails. The
-  sixth login within a minute gets 429.
+  verification tokens get 400. Resend with a ready signed verification flow (cookie plus `flowId`)
+  returns the same 200 public fields for known and unknown emails, and only the eligible account
+  receives a working replacement token. The sixth login within a minute gets 429.
 - **Authorization matrix:** 25 protected booking, coupon, payment, review, cancel, reschedule,
   tutor-action, chat, notification, report and admin routes. Each returns 401 anonymously, and
   403 for a foreign owner or wrong role (`BOOKING_NOT_OWNED`, `BOOKING_NOT_PARTICIPANT` or
