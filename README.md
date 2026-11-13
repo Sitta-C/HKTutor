@@ -157,6 +157,9 @@ terminal release replay/expiry revalidation, successful-payment versus coupon/ca
 the integrated coupon-to-receipt HTTP journey. Bilingual browser tests cover lost-response/503
 recovery without a second charge. See [S3-T28 QA evidence](tests/s3-t28-qa.md) for commands,
 exact persisted counts, zero settlement and the 905.00 THB report fixture check.
+The [tutor report contract](apps/api/README.md#report-contract-definitions-and-fixture-reconciliation-s3-t12)
+defines each field, the finalized denominator and HALF_UP rounding, and reconciles the 905.00 THB
+Swagger example against the seeded bookings ([S3-T12 evidence](tests/s3-t12-qa.md)).
 
 Tutors can view the authoritative all-time report at the private, noindex `/dashboard/reports`
 route and in the tutor dashboard. It shows all five booking statuses, paid completed net revenue,
