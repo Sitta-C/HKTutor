@@ -140,14 +140,14 @@ The suffixes `-unpaid` and `-paid` exist for every boundary below.
 | `start-plus-1ms`    | −1 ms            | None          |
 | `late-first-run-2h` | 2h, no prior run | 24H only      |
 
-Unpaid sends CLASS to student+tutor and PAYMENT only to student (3). Paid sends CLASS to both
+With the payment lifecycle fix, unpaid sends PAYMENT only to student (1). Paid sends CLASS to both
 (2), never PAYMENT. `skip-canceled`, `skip-pending`, `skip-completed`, `skip-expired` send none.
-`inactive-student` and `deleted-student` notify only the active tutor (1).
-`payment-pending` remains unpaid and sends 3. Running the same case twice adds zero notifications;
-advancing `24h-unpaid` to its 1H point yields 6 total across the two separate bands.
+`inactive-student` and `deleted-student` are unpaid and send none.
+`payment-pending` remains unpaid and sends 1. Running the same case twice adds zero notifications;
+advancing `24h-unpaid` to its 1H point yields 2 total across the two separate bands.
 
 `rescheduled` has an approved RescheduleRequest, an old slot and one historical old-occurrence
-CLASS notification. At its new occurrence, expect **3 new notifications +1 retained history**;
+CLASS notification. At its new occurrence, expect **1 new notification +1 retained history**;
 old keys cannot suppress the new occurrence or create duplicate old events. Notification event keys
 include booking, slot, UTC start, band and kind. `bangkok-year-midnight` begins at
 `2031-12-31T17:00:00.000Z` = 1 January 2032 00:00 Bangkok, tested at one hour before start.

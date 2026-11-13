@@ -2,12 +2,14 @@ import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/commo
 
 import { Prisma } from '@generated/prisma/client';
 import { PrismaService } from '@infrastructure/database/prisma.service';
+import { visibleNotificationPredicate } from '@modules/notifications/notification-visibility';
 import {
   decodeNotificationCursor,
   encodeNotificationCursor,
 } from '@modules/notifications/notifications.cursor';
 import { DEFAULT_NOTIFICATIONS_LIMIT } from '@modules/notifications/notifications.dto';
 
+import type { Notification as StoredNotification } from '@generated/prisma/client';
 import type {
   GetNotificationsQueryDto,
   NotificationReadResponseDto,
@@ -15,14 +17,10 @@ import type {
   NotificationsResponseDto,
 } from '@modules/notifications/notifications.dto';
 
-const INBOX_SELECT = {
-  bookingId: true,
-  createdAt: true,
-  eventType: true,
-  id: true,
-  readAt: true,
-  title: true,
-} satisfies Prisma.NotificationSelect;
+type InboxRow = Pick<
+  StoredNotification,
+  'bookingId' | 'createdAt' | 'eventType' | 'id' | 'readAt' | 'title'
+>;
 
 @Injectable()
 export class NotificationsService {
@@ -34,24 +32,24 @@ export class NotificationsService {
     // One snapshot keeps the page and inbox-wide unread count consistent during concurrent reads.
     return this.prisma.$transaction(
       async (tx) => {
-        const rows = await tx.notification.findMany({
-          where: {
-            userId,
-            ...(query.unreadOnly ? { readAt: null } : {}),
-            ...(cursor === undefined
-              ? {}
-              : {
-                  OR: [
-                    { createdAt: { lt: new Date(cursor.createdAt) } },
-                    { createdAt: new Date(cursor.createdAt), id: { lt: cursor.id } },
-                  ],
-                }),
-          },
-          select: INBOX_SELECT,
-          orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
-          take: limit + 1,
-        });
-        const unreadCount = await tx.notification.count({ where: { userId, readAt: null } });
+        const visible = visibleNotificationPredicate(userId);
+        const unread = query.unreadOnly ? Prisma.sql`AND n."readAt" IS NULL` : Prisma.empty;
+        const boundary =
+          cursor === undefined
+            ? Prisma.empty
+            : Prisma.sql`AND (n."createdAt" < ${new Date(cursor.createdAt)}
+              OR (n."createdAt" = ${new Date(cursor.createdAt)} AND n."id" < ${cursor.id}::uuid))`;
+        const rows = await tx.$queryRaw<InboxRow[]>(Prisma.sql`
+          SELECT n."bookingId", n."createdAt", n."eventType", n."id", n."readAt", n."title"
+          FROM "Notification" AS n
+          WHERE ${visible} ${unread} ${boundary}
+          ORDER BY n."createdAt" DESC, n."id" DESC
+          LIMIT ${limit + 1}
+        `);
+        const [count] = await tx.$queryRaw<{ count: number }[]>(Prisma.sql`
+          SELECT count(*)::int AS count FROM "Notification" AS n
+          WHERE ${visible} AND n."readAt" IS NULL
+        `);
         const page = rows.slice(0, limit);
         const last = page.at(-1);
         return {
@@ -64,7 +62,7 @@ export class NotificationsService {
             rows.length > limit && last
               ? encodeNotificationCursor({ createdAt: last.createdAt.toISOString(), id: last.id })
               : null,
-          unreadCount,
+          unreadCount: count?.count ?? 0,
         };
       },
       { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead },
@@ -97,9 +95,9 @@ export class NotificationsService {
       { updatedCount: number; readAt: Date | null }[]
     >(Prisma.sql`
       WITH updated AS (
-        UPDATE "Notification"
+        UPDATE "Notification" AS n
         SET "readAt" = GREATEST(statement_timestamp(), "createdAt")
-        WHERE "userId" = ${userId}::uuid AND "readAt" IS NULL
+        WHERE ${visibleNotificationPredicate(userId)} AND n."readAt" IS NULL
         RETURNING "readAt"
       )
       SELECT count(*)::int AS "updatedCount", max("readAt") AS "readAt" FROM updated

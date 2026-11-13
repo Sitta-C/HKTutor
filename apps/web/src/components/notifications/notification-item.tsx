@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { useId, useRef } from 'react';
+import { useId, useRef, useState } from 'react';
 
 import { DashboardIcon } from '@/components/dashboard/dashboard-icon';
 import { notificationCopy } from '@/components/notifications/notification-copy';
@@ -26,14 +26,15 @@ export function NotificationItem({
   language: 'en' | 'th';
   disabled: boolean;
   onRead: () => void;
-  onOpen: (href: string) => void;
+  onOpen: () => void;
 }) {
   const text = notificationCopy[language];
   const summary = useRef<HTMLElement>(null);
   const metadataId = useId();
   const title = notificationTitle(item, language);
-  const href = notificationBookingHref(item.bookingId);
   const unread = item.readAt === null;
+  const [openingHref, setOpeningHref] = useState<string | null>(null);
+  const href = openingHref ?? notificationBookingHref(item.bookingId, unread ? item.id : undefined);
   const reminderKind = notificationReminderKind(item.eventType);
   return (
     <li className={`${styles.item} ${unread ? styles.unread : ''}`}>
@@ -74,16 +75,12 @@ export function NotificationItem({
                 prefetch={false}
                 className={styles.bookingLink}
                 aria-label={`${text.openBooking}: ${title}`}
-                aria-disabled={disabled}
-                onClick={(event) => {
-                  if (disabled) {
-                    event.preventDefault();
-                  }
-                }}
-                onNavigate={(event) => {
-                  event.preventDefault();
-                  if (!disabled) {
-                    onOpen(href);
+                onNavigate={() => {
+                  // Updating readAt changes the ordinary link URL. Keep an active Next Link's href
+                  // stable until navigation commits, including during receipt rollback/refresh.
+                  setOpeningHref(href);
+                  if (unread || openingHref !== null) {
+                    onOpen();
                   }
                 }}
               >

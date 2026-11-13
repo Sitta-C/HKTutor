@@ -66,7 +66,7 @@ function isActive(recipient: ReminderRecipient): boolean {
 }
 
 /**
- * Class reminders go to both participants whether paid or not; payment reminders go only to an
+ * Class reminders go to both participants only after payment; payment reminders go only to an
  * unpaid student. Only CONFIRMED bookings qualify, and inactive or deleted recipients are skipped.
  */
 export function planReminders(booking: ReminderBooking, nowUtc: Date): PlannedReminder[] {
@@ -80,9 +80,10 @@ export function planReminders(booking: ReminderBooking, nowUtc: Date): PlannedRe
     eventKey: reminderEventKey(booking, band, kind),
   });
   const unpaid = booking.paymentStatus === PaymentStatus.UNPAID;
+  const paid = booking.paymentStatus === PaymentStatus.PAID;
   return [
-    ...(isActive(booking.student) ? [reminder(booking.student, 'CLASS')] : []),
-    ...(isActive(booking.tutor) ? [reminder(booking.tutor, 'CLASS')] : []),
+    ...(paid && isActive(booking.student) ? [reminder(booking.student, 'CLASS')] : []),
+    ...(paid && isActive(booking.tutor) ? [reminder(booking.tutor, 'CLASS')] : []),
     ...(unpaid && isActive(booking.student) ? [reminder(booking.student, 'PAYMENT')] : []),
   ];
 }

@@ -147,7 +147,7 @@ describe('Sprint 3 fixture inputs', () => {
       );
       expect(
         planned.filter((row) => row.eventType.startsWith('PAYMENT')).map((row) => row.userId),
-      ).toEqual(scenario.expectedRecipients === 3 ? [fixture.studentId] : []);
+      ).toEqual(!fixture.paid && scenario.expectedRecipients > 0 ? [fixture.studentId] : []);
     }
   });
 });

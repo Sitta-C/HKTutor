@@ -12,7 +12,7 @@ import type {
   ReminderRecipient,
 } from '@modules/notifications/reminder-policy';
 
-// S3-T05 acceptance fixtures: the approved 2026-10-26 reminder truth table. Times are stored and
+// S3-T05 time boundaries with the payment-gated class reminder contract. Times are stored and
 // compared in UTC; the Asia/Bangkok values are for display and are checked against the UTC ones.
 
 const BOOKING_ID = '11111111-1111-4111-8111-111111111111';
@@ -176,12 +176,10 @@ const key = (band: ReminderBand, kind: 'CLASS' | 'PAYMENT', slotId = SLOT_ID, st
 
 const REMINDER_RECIPIENT_CASES: ReminderRecipientCase[] = [
   {
-    name: 'confirmed and unpaid: class reminder for both, payment reminder for the student',
+    name: 'confirmed and unpaid: only a payment reminder for the student',
     nowUtc: RUN_24H,
     booking: {},
     expected: [
-      { userId: STUDENT_ID, eventType: 'CLASS_REMINDER_24H', eventKey: key('24H', 'CLASS') },
-      { userId: TUTOR_ID, eventType: 'CLASS_REMINDER_24H', eventKey: key('24H', 'CLASS') },
       { userId: STUDENT_ID, eventType: 'PAYMENT_REMINDER_24H', eventKey: key('24H', 'PAYMENT') },
     ],
   },
@@ -190,8 +188,6 @@ const REMINDER_RECIPIENT_CASES: ReminderRecipientCase[] = [
     nowUtc: RUN_1H,
     booking: {},
     expected: [
-      { userId: STUDENT_ID, eventType: 'CLASS_REMINDER_1H', eventKey: key('1H', 'CLASS') },
-      { userId: TUTOR_ID, eventType: 'CLASS_REMINDER_1H', eventKey: key('1H', 'CLASS') },
       { userId: STUDENT_ID, eventType: 'PAYMENT_REMINDER_1H', eventKey: key('1H', 'PAYMENT') },
     ],
   },
@@ -216,11 +212,30 @@ const REMINDER_RECIPIENT_CASES: ReminderRecipientCase[] = [
     expected: [],
   })),
   {
-    name: 'a suspended tutor is skipped; the student still gets both reminders',
+    name: 'paid in the 1H band: class reminders for both participants',
+    nowUtc: RUN_1H,
+    booking: { paymentStatus: PaymentStatus.PAID },
+    expected: [
+      { userId: STUDENT_ID, eventType: 'CLASS_REMINDER_1H', eventKey: key('1H', 'CLASS') },
+      { userId: TUTOR_ID, eventType: 'CLASS_REMINDER_1H', eventKey: key('1H', 'CLASS') },
+    ],
+  },
+  {
+    name: 'paid with a suspended student: only the tutor gets a class reminder',
+    nowUtc: RUN_24H,
+    booking: {
+      paymentStatus: PaymentStatus.PAID,
+      student: { accountStatus: AccountStatus.SUSPENDED },
+    },
+    expected: [
+      { userId: TUTOR_ID, eventType: 'CLASS_REMINDER_24H', eventKey: key('24H', 'CLASS') },
+    ],
+  },
+  {
+    name: 'an unpaid student gets a payment reminder even when the tutor is suspended',
     nowUtc: RUN_24H,
     booking: { tutor: { accountStatus: AccountStatus.SUSPENDED } },
     expected: [
-      { userId: STUDENT_ID, eventType: 'CLASS_REMINDER_24H', eventKey: key('24H', 'CLASS') },
       { userId: STUDENT_ID, eventType: 'PAYMENT_REMINDER_24H', eventKey: key('24H', 'PAYMENT') },
     ],
   },
@@ -233,9 +248,7 @@ const REMINDER_RECIPIENT_CASES: ReminderRecipientCase[] = [
         deletedAt: new Date('2026-11-01T00:00:00Z'),
       },
     },
-    expected: [
-      { userId: TUTOR_ID, eventType: 'CLASS_REMINDER_24H', eventKey: key('24H', 'CLASS') },
-    ],
+    expected: [],
   },
   {
     name: 'a confirmed booking outside both windows gets no reminders',
@@ -248,16 +261,6 @@ const REMINDER_RECIPIENT_CASES: ReminderRecipientCase[] = [
     nowUtc: '2026-11-11T09:00:00.000Z',
     booking: { slotId: RESCHEDULED_SLOT_ID, startAtUtc: RESCHEDULED_START },
     expected: [
-      {
-        userId: STUDENT_ID,
-        eventType: 'CLASS_REMINDER_24H',
-        eventKey: key('24H', 'CLASS', RESCHEDULED_SLOT_ID, RESCHEDULED_START),
-      },
-      {
-        userId: TUTOR_ID,
-        eventType: 'CLASS_REMINDER_24H',
-        eventKey: key('24H', 'CLASS', RESCHEDULED_SLOT_ID, RESCHEDULED_START),
-      },
       {
         userId: STUDENT_ID,
         eventType: 'PAYMENT_REMINDER_24H',

@@ -9,6 +9,7 @@ import { JwtTokenService } from '@modules/auth/jwt.service';
 import { NotificationsController } from '@modules/notifications/notifications.controller';
 import { NotificationsService } from '@modules/notifications/notifications.service';
 
+import type { Prisma } from '@generated/prisma/client';
 import type { INestApplication } from '@nestjs/common';
 import type { App } from 'supertest/types';
 
@@ -22,7 +23,7 @@ describe('Notification APIs (HTTP, real guard/validation/service, mocked persist
   let app: INestApplication<App>;
   const verifyAccessToken = jest.fn();
   const db = {
-    $queryRaw: jest.fn(),
+    $queryRaw: jest.fn<Promise<unknown[]>, [query: Prisma.Sql]>(),
     $transaction: jest.fn(),
     notification: { findMany: jest.fn(), count: jest.fn() },
     authSession: { findUnique: jest.fn() },
@@ -60,7 +61,7 @@ describe('Notification APIs (HTTP, real guard/validation/service, mocked persist
         emailVerifiedAt: CREATED,
       },
     });
-    db.notification.findMany.mockResolvedValue([]);
+    db.$queryRaw.mockResolvedValue([]);
     db.notification.count.mockResolvedValue(0);
     db.$transaction.mockImplementation((work: (tx: typeof db) => Promise<unknown>) => work(db));
   });
@@ -90,7 +91,7 @@ describe('Notification APIs (HTTP, real guard/validation/service, mocked persist
   });
 
   it('returns only public inbox fields and maps database dates to UTC', async () => {
-    db.notification.findMany.mockResolvedValue([
+    db.$queryRaw.mockResolvedValueOnce([
       {
         id: ID,
         eventType: 'BOOKING_CONFIRMED',
@@ -100,7 +101,7 @@ describe('Notification APIs (HTTP, real guard/validation/service, mocked persist
         createdAt: CREATED,
       },
     ]);
-    db.notification.count.mockResolvedValue(1);
+    db.$queryRaw.mockResolvedValueOnce([{ count: 1 }]);
     const response = await request(app.getHttpServer())
       .get('/api/v1/notifications')
       .auth('valid', { type: 'bearer' })
@@ -120,8 +121,9 @@ describe('Notification APIs (HTTP, real guard/validation/service, mocked persist
       nextCursor: null,
       unreadCount: 1,
     });
-    expect(db.notification.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { userId: USER }, take: 21 }),
+    expect(db.$queryRaw).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({ values: [USER, 21] }),
     );
   });
 
@@ -131,12 +133,16 @@ describe('Notification APIs (HTTP, real guard/validation/service, mocked persist
       .query({ unreadOnly: value, limit: '5' })
       .auth('valid', { type: 'bearer' })
       .expect(200);
-    expect(db.notification.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: { userId: USER, ...(value === 'true' ? { readAt: null } : {}) },
-        take: 6,
-      }),
-    );
+    expect(db.$queryRaw).toHaveBeenNthCalledWith(1, expect.objectContaining({ values: [USER, 6] }));
+    const statement: unknown = db.$queryRaw.mock.calls[0]?.[0];
+    const expected: unknown = expect.objectContaining({
+      sql: expect.stringContaining('AND n."readAt" IS NULL') as unknown,
+    });
+    if (value === 'true') {
+      expect(statement).toEqual(expected);
+    } else {
+      expect(statement).not.toEqual(expected);
+    }
   });
 
   it.each([
@@ -164,7 +170,7 @@ describe('Notification APIs (HTTP, real guard/validation/service, mocked persist
       .get(`/api/v1/notifications?${query}`)
       .auth('valid', { type: 'bearer' })
       .expect(400);
-    expect(db.notification.findMany).not.toHaveBeenCalled();
+    expect(db.$queryRaw).not.toHaveBeenCalled();
   });
 
   it.each([Role.STUDENT, Role.TUTOR, Role.ADMIN])(
@@ -187,7 +193,7 @@ describe('Notification APIs (HTTP, real guard/validation/service, mocked persist
         .get('/api/v1/notifications')
         .auth('valid', { type: 'bearer' })
         .expect(200);
-      expect(db.notification.count).toHaveBeenCalledWith({ where: { userId: USER, readAt: null } });
+      expect(db.$queryRaw).toHaveBeenNthCalledWith(2, expect.objectContaining({ values: [USER] }));
     },
   );
 

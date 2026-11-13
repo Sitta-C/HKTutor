@@ -44,6 +44,7 @@
     "db:verify:search-ratings": "ts-node -r tsconfig-paths/register scripts/verify-tutor-search-ratings.ts",
     "db:verify:notification-events": "ts-node -r tsconfig-paths/register scripts/verify-notification-events.ts",
     "db:verify:notification-access": "ts-node -r tsconfig-paths/register scripts/verify-notification-access.ts",
+    "db:verify:notification-visibility": "ts-node -r tsconfig-paths/register scripts/verify-notification-visibility.ts",
     "db:verify:meeting-links": "ts-node -r tsconfig-paths/register scripts/verify-meeting-link-access.ts",
     "db:verify:attendance": "ts-node -r tsconfig-paths/register scripts/verify-attendance-rules.ts",
     "db:verify:sprint2-flow": "ts-node -r tsconfig-paths/register scripts/verify-sprint2-integration.ts",

@@ -1,5 +1,10 @@
 # S3-T08 reminder QA
 
+Historical evidence below predates the payment lifecycle fix. Its unpaid class-reminder counts
+describe the old contract; current policy sends unpaid students payment reminders only and enables
+class reminders after payment. The runnable verifiers follow the updated
+[recipient and QR prompt contract](../apps/api/README.md#class-and-payment-reminders-s3-t05).
+
 Executed on 2026-11-03 (Asia/Bangkok), from `2027e95` on `test/s3-t08-reminder-qa`.
 Source: [Sprint 3 Backlog, row 9](https://docs.google.com/spreadsheets/d/17RMTjXa26ho7blv-TK5pbJFbHxVHJEBRPKCXk9x5AE0/edit?gid=504754817#gid=504754817).
 The baseline includes S3-T05, S3-T06 and S3-T07. This change extends tests and the existing verifier;

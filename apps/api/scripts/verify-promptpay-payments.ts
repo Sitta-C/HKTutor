@@ -84,7 +84,7 @@ async function main(): Promise<void> {
       PrismaService,
       PaymentsService,
       BookingsService,
-      { provide: NotificationEventsService, useValue: { write: () => Promise.resolve() } },
+      NotificationEventsService,
       { provide: OmiseService, useValue: omise },
     ],
   }).compile();
@@ -188,6 +188,23 @@ async function main(): Promise<void> {
     createGate = null;
     notifyStarted = null;
     assert.equal(creates, 1);
+    const ready = currentCharge(bookingId);
+    const notice = await prisma.notification.findUniqueOrThrow({
+      where: {
+        userId_eventKey: {
+          userId: studentId,
+          eventKey: `PAYMENT_QR_READY:${ready.attemptId}`,
+        },
+      },
+    });
+    await prisma.notification.update({ where: { id: notice.id }, data: { readAt: new Date() } });
+    const readNotice = await prisma.notification.findUniqueOrThrow({ where: { id: notice.id } });
+    await Promise.all([payments.getStatus(bookingId, studentId), webhook(ready)]);
+    assert.deepEqual(
+      await prisma.notification.findMany({ where: { bookingId } }),
+      [readNotice],
+      'Reconciliation and webhook replay must preserve the original notification and read receipt',
+    );
     await assert.rejects(
       prisma.paymentAttempt.create({ data: { bookingId, amount: '450.00', currency: 'THB' } }),
     );
@@ -234,6 +251,22 @@ async function main(): Promise<void> {
     );
     await payments.create(unknownId, studentId);
     assert.equal(creates, beforeRecovery + 1);
+
+    const expiredId = await fixture();
+    await payments.create(expiredId, studentId);
+    const expiredCharge = currentCharge(expiredId);
+    expiredCharge.status = 'expired';
+    await payments.getStatus(expiredId, studentId);
+    assert.equal(await prisma.notification.count({ where: { bookingId: expiredId } }), 1);
+    await payments.create(expiredId, studentId);
+    const renewed = currentCharge(expiredId);
+    assert.notEqual(renewed.attemptId, expiredCharge.attemptId);
+    const qrPrompts = await prisma.notification.findMany({ where: { bookingId: expiredId } });
+    assert.deepEqual(
+      qrPrompts.map((row) => row.eventKey).sort(),
+      [expiredCharge, renewed].map((item) => `PAYMENT_QR_READY:${item.attemptId}`).sort(),
+    );
+    assert.ok(qrPrompts.every((row) => row.userId === studentId));
 
     const rejectedId = await fixture();
     mode = 'rejected';
@@ -293,6 +326,7 @@ async function main(): Promise<void> {
   } finally {
     await prisma.$executeRawUnsafe('DROP TRIGGER IF EXISTS promptpay_probe_failure ON "Booking"');
     await prisma.$executeRawUnsafe('DROP FUNCTION IF EXISTS promptpay_probe_failure()');
+    await prisma.notification.deleteMany({ where: { bookingId: { in: bookingIds } } });
     await prisma.paymentAttempt.deleteMany({ where: { bookingId: { in: bookingIds } } });
     await prisma.booking.deleteMany({ where: { id: { in: bookingIds } } });
     await prisma.availabilitySlot.deleteMany({ where: { id: { in: slotIds } } });

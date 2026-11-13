@@ -60,6 +60,12 @@ jobs:
       - name: Run workspace checks
         run: pnpm check
 
+      - name: Verify reminder key compatibility and inbox visibility
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/hktutor_ci
+        # Synthetic CTE fixtures only: this read-only check needs no schema or seeded data.
+        run: pnpm --filter @hktutor/api db:verify:notification-visibility
+
       - name: Verify concurrent booking requests against PostgreSQL
         env:
           DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/hktutor_ci?schema=public

@@ -799,6 +799,49 @@ address starts a new registration and does not change the original account. Reco
 start-new-request action. Resends submit the current flow ID; the signed HttpOnly cookie determines
 the email, and a changed flow from another tab cannot silently change the resend destination.
 
+## Notification inbox usability (2026-11-13)
+
+The Minimal Notes bell offers All/Unread filters through the existing `unreadOnly` query.
+Payment reminder headings distinguish 24-hour and 1-hour windows; booking and reschedule events
+have Thai/English explanations based on their existing event types. Expanding a row does not mark
+it read. Marking a row read removes it from the unread view and leaves keyboard focus on the
+selected filter. The booking link remains usable during read writes and after read-write errors;
+navigation starts immediately while the read receipt is best effort. The destination retains its
+own authorization and current booking-state checks.
+
+Unread booking links carry the selected notification ID until the destination mounts. This lets
+native new-tab actions (modifier click, middle click or the browser link menu) persist the receipt
+through the existing authenticated endpoint and synchronize both bells. Opening a context menu
+alone never marks a row read. Same-tab navigation keeps the inbox's queued write and suppresses a
+duplicate destination write through a brief, user-scoped in-memory intent. The destination removes
+the link marker from the displayed URL; receipt errors never block booking access. Already-read
+links use the ordinary booking URL. Peer-tab invalidation reconciles the loaded window too, so a
+receipt on an older page updates that row and removes it from the originating tab's unread filter.
+
+Visible tabs refresh the inbox/badge every 30 seconds and on window focus or visibility return.
+Local payment-state changes invalidate the inbox; successful read writes also invalidate peer tabs
+through a user-scoped BroadcastChannel. These signals contain no notification content and use no
+browser storage. A per-tab source ID prevents the sender from processing its own channel echo.
+Hidden tabs skip polling, and pending reads yield to receipt writes when a booking link is opened.
+Background refresh merges overlapping first pages into loaded history, retaining expanded keyed
+rows. A gap in history resets to the fresh page/cursor instead of skipping unseen notifications.
+Temporary background errors retain the last successful data with a bilingual status message.
+Focus and visibility return use that same merge path. Dashboard route changes
+reset only the dropdown within a shared shell; its data hook retains filters, loaded pages and
+queued receipts. Reopening refreshes the existing history instead of replacing it with page one.
+Receipt writes are serialized, so opening another booking during a save queues its receipt while
+navigation proceeds immediately. Transient write failures roll back the optimistic state and let
+the next background GET reconcile the loaded window without replaying the write. A 403 still
+requires an explicit refresh before synchronization or writes resume.
+
+When a stored 1H reminder replaces 24H reminders for the same recipient and scheduled occurrence,
+the inbox and unread badge show only the 1H reminder. A newly received 1H reminder resets cached
+older pages through the server's cursor so superseded rows cannot be merged back into the list.
+Reading the 1H reminder does not restore the 24H reminder. Original database history is retained.
+
+This UI work uses the existing API fields and events. Notification eligibility, payment deadlines,
+QR/time-band deduplication rules and additional business events are unchanged.
+
 ## PromptPay Test Mode (2026-10-19)
 
 The student booking detail uses a PromptPay test QR panel in the existing payment column. The

@@ -292,17 +292,12 @@ async function verify(): Promise<void> {
       });
       const expected: { userId: string; eventType: string }[] = [];
       if (scenario.expectedRecipients > 0) {
-        expected.push({
-          userId: row.tutorId,
-          eventType: `CLASS_REMINDER_${scenario.expectedBand}`,
-        });
-        if (scenario.expectedRecipients > 1) {
-          expected.push({
-            userId: row.studentId,
-            eventType: `CLASS_REMINDER_${scenario.expectedBand}`,
-          });
-        }
-        if (scenario.expectedRecipients === 3) {
+        if (row.paid) {
+          expected.push(
+            { userId: row.tutorId, eventType: `CLASS_REMINDER_${scenario.expectedBand}` },
+            { userId: row.studentId, eventType: `CLASS_REMINDER_${scenario.expectedBand}` },
+          );
+        } else {
           expected.push({
             userId: row.studentId,
             eventType: `PAYMENT_REMINDER_${scenario.expectedBand}`,
@@ -328,7 +323,7 @@ async function verify(): Promise<void> {
     }
     const twoBands = fixture('24h-unpaid');
     await job.runOnce(new Date(twoBands.startAtUtc.getTime() - HOUR));
-    assert.equal(await prisma.notification.count({ where: { bookingId: twoBands.id } }), 6);
+    assert.equal(await prisma.notification.count({ where: { bookingId: twoBands.id } }), 2);
     const rescheduled = fixture('rescheduled');
     const change = await prisma.rescheduleRequest.findFirstOrThrow({
       where: { bookingId: rescheduled.id },
@@ -336,7 +331,7 @@ async function verify(): Promise<void> {
     assert.equal(change.status, 'APPROVED');
     assert.equal(change.requestedSlotId, rescheduled.slotId);
     assert.notEqual(change.fromSlotId, rescheduled.slotId);
-    assert.equal(await prisma.notification.count({ where: { bookingId: rescheduled.id } }), 4);
+    assert.equal(await prisma.notification.count({ where: { bookingId: rescheduled.id } }), 2);
     assert.equal(
       await prisma.notification.count({
         where: { bookingId: rescheduled.id, eventKey: { contains: `:${change.fromSlotId}:` } },

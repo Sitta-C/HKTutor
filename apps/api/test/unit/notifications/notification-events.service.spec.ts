@@ -45,6 +45,32 @@ describe('NotificationEventsService', () => {
     createMany.mockReset().mockResolvedValue({ count: 1 });
   });
 
+  it('keys QR prompts per payment attempt and preserves existing rows on replay', async () => {
+    const payment = {
+      bookingId: booking.id,
+      studentUserId: booking.studentUserId,
+      attemptId: 'attempt-1',
+    };
+    await service.writePaymentQrReady(tx, payment);
+    createMany.mockResolvedValueOnce({ count: 0 });
+    await expect(service.writePaymentQrReady(tx, payment)).resolves.toBeUndefined();
+    await service.writePaymentQrReady(tx, { ...payment, attemptId: 'attempt-2' });
+    for (const [index, attemptId] of ['attempt-1', 'attempt-1', 'attempt-2'].entries()) {
+      expect(createMany).toHaveBeenNthCalledWith(
+        index + 1,
+        expect.objectContaining({
+          data: expect.objectContaining({
+            userId: booking.studentUserId,
+            bookingId: booking.id,
+            eventType: 'PAYMENT_QR_READY',
+            eventKey: `PAYMENT_QR_READY:${attemptId}`,
+          }) as unknown,
+          skipDuplicates: true,
+        }),
+      );
+    }
+  });
+
   it.each(cases)(
     '$eventType notifies only the persisted counterparty of $actorUserId',
     async (event) => {

@@ -73,7 +73,7 @@ export class NotificationsResponseDto {
   nextCursor!: string | null;
 
   @ApiProperty({
-    description: 'All unread notifications in the caller inbox, across pages',
+    description: 'All visible unread notifications across pages; superseded 24H reminders excluded',
     minimum: 0,
   })
   unreadCount!: number;

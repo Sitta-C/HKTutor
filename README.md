@@ -164,12 +164,22 @@ responsive layout, and accessibility details.
 
 The Student/Tutor notification bell uses a compact **Minimal Notes** inbox: expand one row to read
 its explanation, mark it read or open the linked booking. Expansion alone never marks it read.
+All/Unread filters use the existing server query. The bell refreshes every 30 seconds while visible,
+on focus/visibility return and after local payment changes; same-account tabs also reconcile read
+changes. Background refresh preserves loaded history when the first page overlaps it and retains
+the last successful data on a temporary error. Opening a booking starts a best-effort read receipt
+without waiting for it; a failed read write never blocks booking navigation.
 See [S3-T08 reminder QA evidence](tests/s3-t08-qa.md) for boundary, concurrency, retry and inbox checks.
 
 Class and payment reminders support the 24-hour/1-hour event types in Thai and English; their
 explanations describe the state when sent and link to the booking for current details. The API
-selects recipients, so paid bookings retain class reminders and stored payment reminders remain
-readable. Existing unread counts, pagination and read-error recovery are preserved.
+selects recipients: unpaid bookings send payment reminders only, and paid bookings send class
+reminders to both participants. Each new usable PromptPay QR also sends the student one payment
+prompt, deduplicated per attempt across refreshes and webhook retries. QR expiry sends no event.
+Stored notifications remain readable. Existing unread counts, pagination and read-error recovery
+are preserved. See the [payment QR prompt contract](apps/api/README.md#payment-qr-prompts).
+When a 1-hour reminder arrives, it replaces 24-hour reminders for that same lesson occurrence in
+the inbox and unread badge. Older rows remain stored; rescheduled occurrences stay independent.
 
 Students and tutors can optionally upload, replace, or remove a profile photo during onboarding or
 from `/dashboard/profile`. JPEG, PNG, and static WebP inputs up to 2 MiB are normalized server-side.

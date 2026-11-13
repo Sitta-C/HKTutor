@@ -9,7 +9,10 @@ import type {
   NotificationsReadAllResult,
 } from '@/lib/api/types';
 
-export function getNotifications(query: NotificationsQuery = {}): Promise<NotificationPage> {
+export function getNotifications(
+  query: NotificationsQuery = {},
+  signal?: AbortSignal,
+): Promise<NotificationPage> {
   const params = new URLSearchParams();
   if (query.cursor !== undefined) {
     params.set('cursor', query.cursor);
@@ -20,7 +23,9 @@ export function getNotifications(query: NotificationsQuery = {}): Promise<Notifi
   if (query.unreadOnly !== undefined) {
     params.set('unreadOnly', String(query.unreadOnly));
   }
-  return authenticatedFetch<NotificationPage>(`/notifications${params.size ? `?${params}` : ''}`);
+  return authenticatedFetch<NotificationPage>(`/notifications${params.size ? `?${params}` : ''}`, {
+    ...(signal ? { signal } : {}),
+  });
 }
 
 export function markNotificationRead(notificationId: string): Promise<NotificationReadReceipt> {

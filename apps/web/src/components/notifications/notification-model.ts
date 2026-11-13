@@ -1,4 +1,5 @@
 import { notificationCopy } from '@/components/notifications/notification-copy';
+import { NOTIFICATION_LINK_PARAM } from '@/lib/notification-navigation';
 
 import type { InboxNotification, NotificationPage } from '@/lib/api/types';
 
@@ -13,7 +14,9 @@ export function notificationDescription(item: InboxNotification, language: 'en' 
   const text = notificationCopy[language];
   return Object.hasOwn(text.reminderDetails, item.eventType)
     ? text.reminderDetails[item.eventType as keyof typeof text.reminderDetails]
-    : text.detailsHint;
+    : Object.hasOwn(text.eventDetails, item.eventType)
+      ? text.eventDetails[item.eventType as keyof typeof text.eventDetails]
+      : text.detailsHint;
 }
 
 export function notificationReminderKind(eventType: string): 'class' | 'payment' | null {
@@ -23,14 +26,26 @@ export function notificationReminderKind(eventType: string): 'class' | 'payment'
       return 'class';
     case 'PAYMENT_REMINDER_24H':
     case 'PAYMENT_REMINDER_1H':
+    case 'PAYMENT_QR_READY':
       return 'payment';
     default:
       return null;
   }
 }
 
-export function notificationBookingHref(bookingId: string | null): string | null {
-  return bookingId?.trim() ? `/dashboard/bookings/${encodeURIComponent(bookingId)}` : null;
+export function notificationBookingHref(
+  bookingId: string | null,
+  notificationId?: string,
+): string | null {
+  if (!bookingId?.trim()) {
+    return null;
+  }
+  const path = `/dashboard/bookings/${encodeURIComponent(bookingId)}`;
+  const query = new URLSearchParams();
+  if (notificationId) {
+    query.set(NOTIFICATION_LINK_PARAM, notificationId);
+  }
+  return `${path}${query.size ? `?${query}` : ''}`;
 }
 
 export function mergeNotificationPage(
@@ -42,6 +57,44 @@ export function mergeNotificationPage(
     items.set(item.id, item);
   }
   return { ...next, items: [...items.values()] };
+}
+
+/** Preserve older loaded pages only when the fresh page overlaps their known history. */
+export function refreshNotificationPage(
+  current: NotificationPage | null,
+  fresh: NotificationPage,
+  unreadOnly: boolean,
+): NotificationPage {
+  if (!current || !fresh.items.some((item) => current.items.some(({ id }) => id === item.id))) {
+    return fresh;
+  }
+  // A new 1H reminder can retire an older loaded 24H row outside this first page. Re-fetch older
+  // history through the server's cursor rather than guessing which rescheduled occurrence it was.
+  const urgentReplacement = fresh.items.some(
+    (item) =>
+      (item.eventType === 'CLASS_REMINDER_1H' || item.eventType === 'PAYMENT_REMINDER_1H') &&
+      item.bookingId !== null &&
+      (!current.items.some(({ id }) => id === item.id) ||
+        fresh.unreadCount < current.unreadCount) &&
+      current.items.some(
+        (older) =>
+          older.bookingId === item.bookingId &&
+          (older.eventType === 'CLASS_REMINDER_24H' || older.eventType === 'PAYMENT_REMINDER_24H'),
+      ),
+  );
+  if (urgentReplacement) {
+    return fresh;
+  }
+  const merged = mergeNotificationPage(current, fresh);
+  const freshIds = new Set(fresh.items.map(({ id }) => id));
+  return {
+    ...merged,
+    nextCursor: fresh.nextCursor === null ? null : current.nextCursor,
+    items: [
+      ...fresh.items,
+      ...(fresh.nextCursor === null ? [] : merged.items.filter(({ id }) => !freshIds.has(id))),
+    ].filter((item) => !unreadOnly || item.readAt === null),
+  };
 }
 
 export function optimisticNotificationRead(

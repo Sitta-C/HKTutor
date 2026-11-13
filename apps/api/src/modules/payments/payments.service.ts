@@ -17,6 +17,7 @@ import {
   OmiseService,
 } from '@infrastructure/payments/omise.service';
 import { couponSnapshot, couponSnapshotSelect } from '@modules/coupons/coupon-snapshot';
+import { NotificationEventsService } from '@modules/notifications/notification-events.service';
 
 import type { PaymentAttempt } from '@generated/prisma/client';
 import type { OmiseCharge } from '@infrastructure/payments/omise.service';
@@ -57,6 +58,7 @@ export class PaymentsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly omise: OmiseService,
+    private readonly notificationEvents: NotificationEventsService,
   ) {}
 
   async create(bookingId: string, studentUserId: string): Promise<PaymentResponseDto> {
@@ -271,6 +273,19 @@ export class PaymentsService {
         },
       });
       if (status === 'PENDING') {
+        if (
+          booking.status === 'CONFIRMED' &&
+          booking.paymentStatus === 'UNPAID' &&
+          charge.qrCodeUrl &&
+          charge.expiresAt &&
+          charge.expiresAt.getTime() > Date.now()
+        ) {
+          await this.notificationEvents.writePaymentQrReady(tx, {
+            bookingId: booking.id,
+            studentUserId: booking.studentUserId,
+            attemptId: attempt.id,
+          });
+        }
         return;
       }
       await this.finishReservation(tx, attempt, status === 'SUCCESSFUL');

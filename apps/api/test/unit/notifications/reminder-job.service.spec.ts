@@ -224,12 +224,12 @@ describe('ReminderJobService (S3-T06)', () => {
     expect(db.$transaction).not.toHaveBeenCalled();
   });
 
-  it('locks the booking, re-reads it, then writes both class reminders and the payment reminder', async () => {
+  it('locks the booking, re-reads it, then writes only the unpaid student payment reminder', async () => {
     const row = bookingRow();
 
     await expect(service.runOnce(NOW_24H)).resolves.toEqual({
       scanned: 1,
-      created: 3,
+      created: 1,
       duplicates: 0,
       failed: 0,
     });
@@ -242,11 +242,7 @@ describe('ReminderJobService (S3-T06)', () => {
     expect(tx.booking.findUnique).toHaveBeenCalledWith(
       expect.objectContaining({ where: { id: BOOKING_ID } }),
     );
-    expect(writtenPairs()).toEqual([
-      [STUDENT_ID, keyOf(row, '24H', 'CLASS')],
-      [TUTOR_ID, keyOf(row, '24H', 'CLASS')],
-      [STUDENT_ID, keyOf(row, '24H', 'PAYMENT')],
-    ]);
+    expect(writtenPairs()).toEqual([[STUDENT_ID, keyOf(row, '24H', 'PAYMENT')]]);
     expect(written().every(({ bookingId }) => bookingId === BOOKING_ID)).toBe(true);
   });
 
@@ -255,11 +251,7 @@ describe('ReminderJobService (S3-T06)', () => {
 
     await service.runOnce(NOW_LATE);
 
-    expect(writtenPairs()).toEqual([
-      [STUDENT_ID, keyOf(row, '1H', 'CLASS')],
-      [TUTOR_ID, keyOf(row, '1H', 'CLASS')],
-      [STUDENT_ID, keyOf(row, '1H', 'PAYMENT')],
-    ]);
+    expect(writtenPairs()).toEqual([[STUDENT_ID, keyOf(row, '1H', 'PAYMENT')]]);
   });
 
   it.each([
@@ -277,13 +269,7 @@ describe('ReminderJobService (S3-T06)', () => {
     // A stale scan must still pass the policy after locking, including the start boundary.
     await service.runOnce(new Date(START.getTime() - delta));
     expect(writtenPairs()).toEqual(
-      band
-        ? [
-            [STUDENT_ID, keyOf(bookingRow(), band, 'CLASS')],
-            [TUTOR_ID, keyOf(bookingRow(), band, 'CLASS')],
-            [STUDENT_ID, keyOf(bookingRow(), band, 'PAYMENT')],
-          ]
-        : [],
+      band ? [[STUDENT_ID, keyOf(bookingRow(), band, 'PAYMENT')]] : [],
     );
   });
 
@@ -295,6 +281,21 @@ describe('ReminderJobService (S3-T06)', () => {
     expect(written().map(({ eventType }) => eventType)).toEqual([
       'CLASS_REMINDER_24H',
       'CLASS_REMINDER_24H',
+    ]);
+  });
+
+  it('sends both class reminders after payment even when the same-band payment reminder exists', async () => {
+    const paid = bookingRow({ paymentStatus: PaymentStatus.PAID });
+    db.booking.findMany.mockResolvedValue([paid]);
+    tx.booking.findUnique.mockResolvedValue(paid);
+    db.notification.findMany.mockResolvedValue([
+      { userId: STUDENT_ID, eventKey: keyOf(paid, '24H', 'PAYMENT') },
+    ]);
+
+    await expect(service.runOnce(NOW_24H)).resolves.toMatchObject({ created: 2 });
+    expect(writtenPairs()).toEqual([
+      [STUDENT_ID, keyOf(paid, '24H', 'CLASS')],
+      [TUTOR_ID, keyOf(paid, '24H', 'CLASS')],
     ]);
   });
 
@@ -322,11 +323,7 @@ describe('ReminderJobService (S3-T06)', () => {
 
     await service.runOnce(NOW_24H);
 
-    expect(writtenPairs()).toEqual([
-      [STUDENT_ID, keyOf(rescheduled, '1H', 'CLASS')],
-      [TUTOR_ID, keyOf(rescheduled, '1H', 'CLASS')],
-      [STUDENT_ID, keyOf(rescheduled, '1H', 'PAYMENT')],
-    ]);
+    expect(writtenPairs()).toEqual([[STUDENT_ID, keyOf(rescheduled, '1H', 'PAYMENT')]]);
   });
 
   it('writes nothing when a reschedule moved the class out of the window after the scan', async () => {
@@ -351,7 +348,7 @@ describe('ReminderJobService (S3-T06)', () => {
 
     await service.runOnce(NOW_24H);
 
-    expect(writtenPairs()).toEqual([[TUTOR_ID, keyOf(bookingRow(), '24H', 'CLASS')]]);
+    expect(writtenPairs()).toEqual([]);
   });
 
   it('skips the lock entirely when every planned reminder is already stored', async () => {
@@ -365,7 +362,7 @@ describe('ReminderJobService (S3-T06)', () => {
     await expect(service.runOnce(NOW_24H)).resolves.toEqual({
       scanned: 1,
       created: 0,
-      duplicates: 3,
+      duplicates: 1,
       failed: 0,
     });
 
@@ -377,14 +374,16 @@ describe('ReminderJobService (S3-T06)', () => {
   });
 
   it('locks and lets the unique index skip duplicates when only some reminders are stored', async () => {
+    db.booking.findMany.mockResolvedValue([bookingRow({ paymentStatus: PaymentStatus.PAID })]);
+    tx.booking.findUnique.mockResolvedValue(bookingRow({ paymentStatus: PaymentStatus.PAID }));
     db.notification.findMany.mockResolvedValue([
       { userId: STUDENT_ID, eventKey: keyOf(bookingRow(), '24H', 'CLASS') },
     ]);
-    tx.notification.createMany.mockResolvedValue({ count: 2 });
+    tx.notification.createMany.mockResolvedValue({ count: 1 });
 
     await expect(service.runOnce(NOW_24H)).resolves.toEqual({
       scanned: 1,
-      created: 2,
+      created: 1,
       duplicates: 1,
       failed: 0,
     });
@@ -409,7 +408,7 @@ describe('ReminderJobService (S3-T06)', () => {
 
     await expect(service.runOnce(NOW_24H)).resolves.toEqual({
       scanned: 2,
-      created: 3,
+      created: 1,
       duplicates: 0,
       failed: 1,
     });
@@ -418,7 +417,7 @@ describe('ReminderJobService (S3-T06)', () => {
     expect(warn).toHaveBeenCalledWith(
       'Reminder booking skipped (PrismaClientKnownRequestError/P2010); retrying next tick',
     );
-    expect(log).toHaveBeenCalledWith('Reminder run: scanned=2 created=3 duplicates=0 failed=1');
+    expect(log).toHaveBeenCalledWith('Reminder run: scanned=2 created=1 duplicates=0 failed=1');
     const logged = [...warn.mock.calls, ...log.mock.calls].flat().join(' ');
     expect(logged).not.toContain(BOOKING_ID);
     expect(logged).not.toContain(STUDENT_ID);

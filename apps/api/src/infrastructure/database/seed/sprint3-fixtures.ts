@@ -287,7 +287,7 @@ export function buildSprint3Fixtures(now: Date = SPRINT3_FIXTURE_NOW): {
         `${key}-${paid ? 'paid' : 'unpaid'}`,
         delta,
         band,
-        band === null ? 0 : paid ? 2 : 3,
+        band === null ? 0 : paid ? 2 : 1,
         { paid },
       );
     }
@@ -300,11 +300,11 @@ export function buildSprint3Fixtures(now: Date = SPRINT3_FIXTURE_NOW): {
   ]) {
     addReminder(`skip-${status.toLowerCase()}`, HOUR, null, 0, { status });
   }
-  addReminder('inactive-student', HOUR, '1H', 1, { studentId: SPRINT3_IDS.inactiveStudent });
-  addReminder('deleted-student', HOUR, '1H', 1, { studentId: SPRINT3_IDS.deletedStudent });
-  addReminder('payment-pending', HOUR, '1H', 3, { attemptStatus: PaymentAttemptStatus.PENDING });
-  addReminder('rescheduled', HOUR, '1H', 3);
-  addReminder('bangkok-year-midnight', HOUR, '1H', 3, { startAtUtc: at(365 * DAY) });
+  addReminder('inactive-student', HOUR, '1H', 0, { studentId: SPRINT3_IDS.inactiveStudent });
+  addReminder('deleted-student', HOUR, '1H', 0, { studentId: SPRINT3_IDS.deletedStudent });
+  addReminder('payment-pending', HOUR, '1H', 1, { attemptStatus: PaymentAttemptStatus.PENDING });
+  addReminder('rescheduled', HOUR, '1H', 1);
+  addReminder('bangkok-year-midnight', HOUR, '1H', 1, { startAtUtc: at(365 * DAY) });
   // Preserve midnight start for the explicit cross-year case, independent of the isolation offset.
   const midnight = reminders.at(-1);
   if (midnight) {
