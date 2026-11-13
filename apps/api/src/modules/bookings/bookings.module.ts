@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 
 import { BookingCouponsService } from '@modules/bookings/booking-coupons.service';
+import { BookingExpiryService } from '@modules/bookings/booking-expiry.service';
 import { BookingsController } from '@modules/bookings/bookings.controller';
 import { BookingsService } from '@modules/bookings/bookings.service';
 import { NotificationsModule } from '@modules/notifications/notifications.module';
@@ -9,6 +10,6 @@ import { NotificationsModule } from '@modules/notifications/notifications.module
   controllers: [BookingsController],
   exports: [BookingsService, BookingCouponsService],
   imports: [NotificationsModule],
-  providers: [BookingsService, BookingCouponsService],
+  providers: [BookingsService, BookingCouponsService, BookingExpiryService],
 })
 export class BookingsModule {}

@@ -6,8 +6,7 @@ export const bookingRequestCopy = {
     verificationUnavailable: 'Verification information unavailable',
     hour: 'hour',
     total: 'Request total',
-    notice:
-      'Wait for the tutor to confirm the lesson time. Check your bookings for the latest status.',
+    notice: 'Wait for tutor confirmation, then pay before the lesson starts.',
     send: 'Send lesson request',
     back: 'Back',
     sent: 'Lesson request sent',
@@ -32,7 +31,7 @@ export const bookingRequestCopy = {
     verificationUnavailable: 'ไม่มีข้อมูลสถานะการยืนยัน',
     hour: 'ชั่วโมง',
     total: 'ยอดคำขอเรียน',
-    notice: 'รอให้ติวเตอร์ยืนยันวันและเวลาเรียน ตรวจสอบสถานะได้ในรายการจองของคุณ',
+    notice: 'รอให้ติวเตอร์ยืนยัน แล้วชำระเงินก่อนเริ่มเรียน',
     send: 'ส่งคำขอเรียน',
     back: 'ย้อนกลับ',
     sent: 'ส่งคำขอเรียนแล้ว',

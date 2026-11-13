@@ -11,10 +11,12 @@ export function visibleNotificationPredicate(userId: string): Prisma.Sql {
         SELECT 1 FROM "Notification" AS urgent
         WHERE urgent."userId" = n."userId"
           AND urgent."bookingId" = n."bookingId"
-          AND urgent."eventType" IN ('CLASS_REMINDER_1H', 'PAYMENT_REMINDER_1H')
+          AND urgent."eventType" IN ('CLASS_REMINDER_1H', 'PAYMENT_REMINDER_1H', 'CLASS_REMINDER_5H', 'PAYMENT_REMINDER_5H')
           AND urgent."eventKey" IN (
             regexp_replace(n."eventKey", ':24H:(CLASS|PAYMENT)$', '') || ':1H:CLASS',
-            regexp_replace(n."eventKey", ':24H:(CLASS|PAYMENT)$', '') || ':1H:PAYMENT'
+            regexp_replace(n."eventKey", ':24H:(CLASS|PAYMENT)$', '') || ':1H:PAYMENT',
+            regexp_replace(n."eventKey", ':24H:(CLASS|PAYMENT)$', '') || ':5H:CLASS',
+            regexp_replace(n."eventKey", ':24H:(CLASS|PAYMENT)$', '') || ':5H:PAYMENT'
           )
       )
     )

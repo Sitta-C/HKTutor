@@ -23,8 +23,8 @@ const BOOKING: BookingDetail = {
   },
   slot: {
     id: 'preview-slot',
-    startAtUtc: '2026-10-18T11:00:00Z',
-    endAtUtc: '2026-10-18T12:30:00Z',
+    startAtUtc: '2099-10-18T11:00:00Z',
+    endAtUtc: '2099-10-18T12:30:00Z',
   },
   subtotalAmount: '735.00',
   discountAmount: '5.00',
@@ -981,14 +981,131 @@ for (const language of ['th', 'en'] as const) {
       })
       .click();
     await expect(timer).toHaveCount(0);
-    await expect(
-      panel.getByRole('button', {
-        name: language === 'en' ? 'Create another test QR' : 'สร้าง QR ทดสอบใหม่',
+    const retry = panel.getByRole('button', {
+      name: language === 'en' ? 'Create another test QR' : 'สร้าง QR ทดสอบใหม่',
+      exact: true,
+    });
+    await expect(retry).toBeEnabled();
+    const stub = retry.locator('svg').locator('..');
+    await expect(stub).toHaveCSS('border-left-style', 'dashed');
+    await panel
+      .getByRole('button', {
+        name: language === 'en' ? 'Check payment status' : 'ตรวจสถานะชำระเงิน',
         exact: true,
-      }),
-    ).toBeEnabled();
+      })
+      .focus();
+    await page.keyboard.press('Shift+Tab');
+    await expect(retry).toBeFocused();
+    await expect(retry).toHaveCSS('outline-style', 'solid');
+    expect(await retry.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(
+      true,
+    );
+    await retry.screenshot({ path: test.info().outputPath(`retry-ticket-${language}.png`) });
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
       true,
     );
+  });
+}
+
+for (const language of ['en', 'th'] as const) {
+  test(`${language}: payment closes at the lesson-start deadline without reload`, async ({
+    page,
+  }) => {
+    const now = new Date('2026-11-15T07:00:00Z');
+    await page.clock.install({ time: now });
+    const state = await mockPayments(page, {
+      language,
+      booking: {
+        ...BOOKING,
+        slot: {
+          ...BOOKING.slot,
+          startAtUtc: '2026-11-15T07:00:05Z',
+          endAtUtc: '2026-11-15T08:00:05Z',
+        },
+      },
+    });
+    await page.goto(DETAIL_PATH);
+    const pay = page.getByRole('button', {
+      name: language === 'en' ? 'Create test QR' : 'สร้าง QR ทดสอบ',
+      exact: true,
+    });
+    await expect(pay).toBeEnabled();
+    await page.clock.fastForward(5000);
+    await expect(pay).toHaveCount(0);
+    await expect(
+      page.getByText(
+        language === 'en'
+          ? 'The payment deadline has passed. New payments are closed.'
+          : 'พ้นเส้นตายชำระเงินแล้ว ไม่สามารถเริ่มชำระเงินใหม่ได้',
+        { exact: true },
+      ),
+    ).toBeVisible();
+    expect(state.posts).toBe(0);
+  });
+}
+
+for (const language of ['en', 'th'] as const) {
+  test(`${language}: server deadline rejection closes checkout despite a slow client clock`, async ({
+    page,
+  }) => {
+    const state = await mockPayments(page, { language });
+    state.failure = { status: 409, code: 'BOOKING_PAYMENT_DEADLINE_PASSED' };
+    await page.goto(DETAIL_PATH);
+    const pay = page.getByRole('button', {
+      name: language === 'en' ? 'Create test QR' : 'สร้าง QR ทดสอบ',
+      exact: true,
+    });
+    await expect(pay).toBeEnabled();
+    await pay.click();
+    await expect(
+      page.getByText(bookingCouponCopy[language].deadlinePassed, { exact: true }),
+    ).toBeVisible();
+    await expect(pay).toHaveCount(0);
+    await page
+      .getByRole('button', {
+        name: language === 'en' ? 'Check payment status' : 'ตรวจสถานะชำระเงิน',
+        exact: true,
+      })
+      .click();
+    await expect(pay).toHaveCount(0);
+    expect(state.posts).toBe(1);
+  });
+
+  test(`${language}: a pending QR explains closure at lesson start and keeps reconciling`, async ({
+    page,
+  }) => {
+    const now = new Date('2026-11-15T07:00:00Z');
+    await page.clock.install({ time: now });
+    const start = '2026-11-15T07:00:05Z';
+    const state = await mockPayments(page, {
+      language,
+      paymentExpiresAt: start,
+      booking: {
+        ...BOOKING,
+        slot: { ...BOOKING.slot, startAtUtc: start, endAtUtc: '2026-11-15T08:00:05Z' },
+      },
+    });
+    await page.goto(DETAIL_PATH);
+    await page
+      .getByRole('button', {
+        name: language === 'en' ? 'Create test QR' : 'สร้าง QR ทดสอบ',
+        exact: true,
+      })
+      .click();
+    await expect(page.getByRole('img', { name: /PromptPay QR|QR PromptPay/ })).toBeVisible();
+    await page.clock.fastForward(5000);
+    await expect(page.getByRole('img', { name: /PromptPay QR|QR PromptPay/ })).toHaveCount(0);
+    await expect(
+      page.getByText(
+        language === 'en'
+          ? 'The lesson has started and the QR is closed. Checking the existing payment result; wait and check status.'
+          : 'เริ่มเรียนแล้ว QR ปิดรับชำระเงิน ระบบกำลังตรวจผลรายการเดิม กรุณารอและตรวจสถานะ',
+        { exact: true },
+      ),
+    ).toBeVisible();
+    const reads = state.statusReads;
+    await page.clock.fastForward(5000);
+    await expect.poll(() => state.statusReads).toBeGreaterThan(reads);
+    expect(state.posts).toBe(1);
   });
 }
