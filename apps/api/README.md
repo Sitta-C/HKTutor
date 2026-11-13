@@ -1171,6 +1171,11 @@ the old 24H reminder. Other occurrences, recipients, bookings and QR prompts rem
 `unreadCount` counts the entire visible caller inbox, independent of page or filter;
 the page and count use one repeatable-read snapshot.
 
+`pnpm --filter @hktutor/api db:verify:notification-visibility` checks the real `reminderEventKey`
+builder against this SQL predicate in PostgreSQL. It uses synthetic CTE rows inside a read-only
+transaction, without migrations, seeding or changes to stored notifications. Set `DATABASE_URL`
+or use the normal local environment file. CI runs the same check against its PostgreSQL service.
+
 Items are newest first by immutable `(createdAt, id)`. Cursor timestamps must be canonical UTC
 with four-digit years 0001–9999; malformed or out-of-range boundaries fail before querying.
 Send the opaque `nextCursor` back to get the
