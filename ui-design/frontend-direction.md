@@ -523,6 +523,26 @@ uncertain results require a successful status read before another creation. Acti
 payments block cancellation. Existing mock-paid receipts remain readable; the old mock endpoint
 returns 410. No card fields, live payments or refunds are part of this flow.
 
+## Student booking coupons — Receipt Strip (S3-T27)
+
+The user selected **Receipt Strip** on 2026-11-13. Place the coupon field/applied-code strip above
+the persisted amount breakdown in the left column of the existing Payment Slip. Keep a mint
+applied-code surface with a thin dashed edge, upright code, percentage and quiet Remove coupon
+action; input and compact Apply code stay on one row. Show the server-returned subtotal, signed
+coupon discount/percentage and net THB. Keep the latest-confirmed-amount hint and coupon-use timing
+explanation. Stack the payment column below the amounts when the containing paper is at most 600px.
+
+- Only confirmed, unpaid student-owned bookings expose coupon editing. Paid/canceled history may
+  retain its stored coupon evidence without controls. Ownership remains enforced by the existing API.
+- Reuse the payment request gate for apply/remove and QR creation. Disable edits while a request is
+  pending, the payment status is unverified, or an active/uncertain attempt exists. Update amounts
+  only from successful server responses; reconcile booking/payment reads before re-enabling checkout.
+  Explicit coupon rejections keep the draft and original amounts; uncertain or booking-state errors
+  require a successful Check payment status action before retry. Keep specific bilingual errors.
+- A stored 100% coupon with net 0.00 changes the payment action to Confirm THB 0.00. It uses the
+  existing PromptPay payment endpoint, and renders the returned receipt without inventing a QR.
+  Keep nonzero PromptPay behavior, historical mock receipts, test-mode copy and booking actions.
+
 ## Profile photo editor
 
 The user selected **Ink Portrait Index**, combining Ink & Sketch and Portrait Index, on
