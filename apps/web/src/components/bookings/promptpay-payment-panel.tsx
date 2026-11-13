@@ -1,11 +1,11 @@
 'use client';
 
-import Image from 'next/image';
 import { useState } from 'react';
 
 import { bookingCouponCopy } from '@/components/bookings/booking-coupon-copy';
 import { getBookingPaymentFailure } from '@/components/bookings/booking-coupon-model';
 import { formatMoney } from '@/components/bookings/booking-ui';
+import { PromptPayQr } from '@/components/bookings/promptpay-qr';
 import { formatBangkokDateTime } from '@/lib/date-time';
 import { useLanguage } from '@/lib/i18n';
 
@@ -37,8 +37,6 @@ const COPY = {
     amount: 'ยอดชำระ',
     reference: 'เลขอ้างอิง',
     paidAt: 'ชำระเมื่อ',
-    expires: 'QR หมดอายุ',
-    qrAlt: 'QR PromptPay สำหรับการชำระเงินทดสอบ',
     noValue: 'ไม่มีข้อมูล',
     cancel: 'ระหว่างรอผลชำระเงินจะยังยกเลิกการจองไม่ได้',
     zeroTitle: 'ยืนยันสิทธิ์ส่วนลด',
@@ -68,8 +66,6 @@ const COPY = {
     amount: 'Amount',
     reference: 'Reference',
     paidAt: 'Paid at',
-    expires: 'QR expires',
-    qrAlt: 'PromptPay QR for test payment',
     noValue: 'Unavailable',
     cancel: 'Cancellation is unavailable while payment is in progress.',
     zeroTitle: 'Confirm coupon payment',
@@ -96,18 +92,8 @@ export function PromptPayPaymentPanel({
 }) {
   const { language } = useLanguage();
   const text = COPY[language];
-  const {
-    payment,
-    verification,
-    failure,
-    readFailed,
-    operation,
-    paid,
-    pending,
-    canPay,
-    checkedAt,
-    zeroNet,
-  } = checkout;
+  const { payment, verification, failure, readFailed, operation, paid, pending, canPay, zeroNet } =
+    checkout;
   const [qrError, setQrError] = useState(false);
   const busy = operation !== null;
   const errorMessage =
@@ -122,10 +108,7 @@ export function PromptPayPaymentPanel({
         ? text.error
         : null;
   const attempt = payment?.attempt;
-  const qrUrl =
-    attempt?.status === 'PENDING' && attempt.expiresAt && Date.parse(attempt.expiresAt) > checkedAt
-      ? attempt.qrCodeUrl
-      : null;
+  const qrUrl = attempt?.status === 'PENDING' && attempt.expiresAt ? attempt.qrCodeUrl : null;
 
   return (
     <section className={styles.panel} aria-labelledby="promptpay-heading" aria-busy={busy}>
@@ -167,15 +150,11 @@ export function PromptPayPaymentPanel({
           <p role="status" className={styles.notice}>
             {attempt?.status === 'CREATING' ? text.creating : text.pending}
           </p>
-          {qrUrl && (
-            <Image
-              key={qrUrl}
-              src={qrUrl}
-              alt={text.qrAlt}
-              width={240}
-              height={240}
-              unoptimized
-              className={styles.qr}
+          {qrUrl && attempt?.expiresAt && (
+            <PromptPayQr
+              key={`${attempt.id}:${attempt.expiresAt}`}
+              url={qrUrl}
+              expiresAt={attempt.expiresAt}
               onError={() => setQrError(true)}
             />
           )}
@@ -187,11 +166,6 @@ export function PromptPayPaymentPanel({
           <p>
             {text.amount}: {formatMoney(attempt?.amount ?? booking.netAmount, booking.currency)}
           </p>
-          {attempt?.expiresAt && (
-            <p className={styles.help}>
-              {text.expires}: {formatBangkokDateTime(attempt.expiresAt, language)}
-            </p>
-          )}
           <p className={styles.help}>{text.cancel}</p>
           {attempt?.status === 'CREATING' && <p className={styles.help}>{text.uncertain}</p>}
         </>

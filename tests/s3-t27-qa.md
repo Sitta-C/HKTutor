@@ -32,7 +32,7 @@ backlog's historical mock-payment wording does not reinstate the removed endpoin
 
 ## Verification
 
-- `pnpm --filter @hktutor/web test`: all 812 tests passed, including abort propagation, payment-error
+- `pnpm --filter @hktutor/web test`: all 815 tests passed, including QR deadline boundaries, abort propagation, payment-error
   fallback, contextual coupon recovery and stale submission-owner protection.
   The focused `booking-api`/`booking-coupon` run also passed all 73 tests.
 - `pnpm --filter @hktutor/web exec tsc --noEmit`: passed.
@@ -42,7 +42,8 @@ backlog's historical mock-payment wording does not reinstate the removed endpoin
 - `pnpm verify:workspace`: all 138 contracts passed. The booking-client source contract now
   recognizes the optional abort signal, covered by an API-client cancellation assertion.
 - `pnpm --filter @hktutor/web exec playwright test e2e/student-promptpay-payment-ui.spec.ts
---workers=2`: all 99 cases passed across Chromium desktop, tablet and mobile. Coverage includes
+--workers=2`: the last full run before the QR countdown follow-up passed all 99 cases across
+  Chromium desktop, tablet and mobile. Coverage includes
   original PromptPay success/failure/reload, apply/remove persistence, specific errors, invalid
   Unicode input, submit locks, lost-response recovery, a failed read after successful application,
   forbidden/missing/conflicting bookings, zero settlement, failed removal and ineligible statuses.
@@ -65,6 +66,26 @@ WELCOME10 at 10%, 45.00 THB discount and 405.00 THB net). They contain no real s
 - [Mobile — Thai](../ui-design/review-evidence/s3-t27/receipt-strip-mobile-th.png)
 - [Desktop — English](../ui-design/review-evidence/s3-t27/receipt-strip-desktop-en.png)
 - [Mobile — English](../ui-design/review-evidence/s3-t27/receipt-strip-mobile-en.png)
+
+## Minimal QR countdown follow-up
+
+- The pending QR shows a compact centered `MM:SS` line in Thai/English, based on the stored API
+  expiry. It recomputes from wall-clock time instead of subtracting ticks, resumes on visibility,
+  and cleans up its interval/listener when the attempt changes or the QR unmounts.
+- At zero the QR disappears and a short waiting-for-confirmation message is announced once. Timer
+  ticks are silent to screen readers. A local deadline never releases a coupon or permits another
+  attempt before the provider-backed status is terminal.
+- Three countdown model tests passed, covering exact/fractional boundaries, expired/invalid values
+  and a suspended-tab jump. The complete web unit suite passed all 815 tests.
+- The focused countdown/QR/failed/lost-response/zero-payment browser run passed all 21 cases across
+  desktop, tablet and mobile Chromium. The new Thai/English cases create a QR, advance its clock,
+  reload without resetting, reach zero while keeping payment locked, then accept a provider-confirmed
+  expiry. Existing successful-payment cases also verify timer removal. Web lint, types and build passed.
+- Countdown screenshots use intercepted QR fixtures and a paused clock, never a live payment QR:
+  [desktop TH](../ui-design/review-evidence/s3-t27/qr-countdown-desktop-th.png),
+  [mobile TH](../ui-design/review-evidence/s3-t27/qr-countdown-mobile-th.png),
+  [desktop EN](../ui-design/review-evidence/s3-t27/qr-countdown-desktop-en.png),
+  [mobile EN](../ui-design/review-evidence/s3-t27/qr-countdown-mobile-en.png).
 
 ## Review follow-up
 

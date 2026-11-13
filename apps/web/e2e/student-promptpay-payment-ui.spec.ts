@@ -46,6 +46,7 @@ async function mockPayments(
     paymentGate?: Promise<void>;
     couponGate?: Promise<void>;
     paymentReadGate?: Promise<void>;
+    paymentExpiresAt?: string;
     booking?: BookingDetail;
   } = {},
 ) {
@@ -234,7 +235,7 @@ async function mockPayments(
           currency: 'THB',
           chargeId: state.loseResponse ? null : `chrg_test_example${state.posts}`,
           qrCodeUrl: state.loseResponse ? null : 'https://api.omise.co/test-qr.svg',
-          expiresAt: new Date(Date.now() + 900_000).toISOString(),
+          expiresAt: options.paymentExpiresAt ?? new Date(Date.now() + 900_000).toISOString(),
           failureCode: null,
         },
       };
@@ -313,6 +314,7 @@ for (const language of ['th', 'en'] as const) {
       timeout: 12000,
     });
     await expect(page.getByRole('img', { name: /PromptPay QR|QR PromptPay/ })).toHaveCount(0);
+    await expect(page.getByRole('timer')).toHaveCount(0);
     await expect(
       classroom.getByRole('link', { name: classDetailsCopy[language].join }),
     ).toHaveAttribute('href', 'https://meet.example.test/paid-class');
@@ -826,3 +828,75 @@ test('booking reads wait for payment reconciliation to complete', async ({ page 
   await expect(page.getByText('reconciled-receipt', { exact: true })).toBeVisible();
   await expect(page.getByRole('textbox', { name: 'Discount code' })).toHaveCount(0);
 });
+
+for (const language of ['th', 'en'] as const) {
+  test(`${language}: minimal QR countdown ticks, survives reload and keeps payment locked at zero`, async ({
+    page,
+  }) => {
+    const start = new Date('2026-11-13T08:00:00Z');
+    await page.clock.install({ time: new Date(start.getTime() - 1000) });
+    await page.clock.pauseAt(start);
+    const state = await mockPayments(page, {
+      language,
+      booking: APPLIED_COUPON_BOOKING,
+      paymentExpiresAt: new Date(start.getTime() + 61_000).toISOString(),
+    });
+    await page.goto(DETAIL_PATH);
+    const panel = page.getByRole('region', {
+      name: language === 'en' ? 'Pay with PromptPay' : 'ชำระด้วย PromptPay',
+      exact: true,
+    });
+    await page
+      .getByRole('button', {
+        name: language === 'en' ? 'Create test QR' : 'สร้าง QR ทดสอบ',
+        exact: true,
+      })
+      .click();
+    const timer = page.getByRole('timer');
+    await expect(timer).toHaveText('01:01');
+    await expect(timer).toHaveAttribute('aria-live', 'off');
+    await page.clock.fastForward(1000);
+    await expect(timer).toHaveText('01:00');
+    await page.reload();
+    await expect(timer).toHaveText('01:00');
+    expect(state.posts).toBe(1);
+    await panel.screenshot({
+      path: `/tmp/hktutor-qr-countdown-${language}-${test.info().project.name}.png`,
+    });
+    await page.clock.fastForward(60_000);
+    await expect(timer).toHaveText('00:00');
+    await expect(
+      panel.getByText(language === 'en' ? 'Time is up' : 'หมดเวลาแล้ว', { exact: true }),
+    ).toBeVisible();
+    await expect(panel.getByRole('img')).toHaveCount(0);
+    await expect(
+      page.getByRole('button', { name: bookingCouponCopy[language].remove, exact: true }),
+    ).toBeDisabled();
+    await expect(panel.getByRole('button', { name: /Create.*test QR|สร้าง QR/ })).toHaveCount(0);
+    expect(state.posts).toBe(1);
+    state.booking = { ...state.booking, paymentPending: false };
+    state.current = {
+      ...state.current,
+      paymentPending: false,
+      attempt: state.current.attempt
+        ? { ...state.current.attempt, status: 'EXPIRED', qrCodeUrl: null }
+        : null,
+    };
+    await panel
+      .getByRole('button', {
+        name: language === 'en' ? 'Check payment status' : 'ตรวจสถานะชำระเงิน',
+        exact: true,
+      })
+      .click();
+    await expect(timer).toHaveCount(0);
+    await expect(
+      panel.getByRole('button', {
+        name: language === 'en' ? 'Create another test QR' : 'สร้าง QR ทดสอบใหม่',
+        exact: true,
+      }),
+    ).toBeEnabled();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+      true,
+    );
+  });
+}

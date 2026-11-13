@@ -523,6 +523,12 @@ uncertain results require a successful status read before another creation. Acti
 payments block cancellation. Existing mock-paid receipts remain readable; the old mock endpoint
 returns 410. No card fields, live payments or refunds are part of this flow.
 
+The QR uses a minimal centered **Time left / เหลือเวลา MM:SS** line directly beneath the image.
+Calculate from the API's absolute expiry on each tick and visibility resume; reload never resets
+the deadline. Keep tabular digits and silent timer updates for screen readers. At zero, hide the
+QR and show Time is up / หมดเวลาแล้ว with a short confirmation hint. Local expiry never marks a
+payment terminal or unlocks coupon edits/new attempts; wait for the existing server reconciliation.
+
 ## Student booking coupons — Receipt Strip (S3-T27)
 
 The user selected **Receipt Strip** on 2026-11-13. Place the coupon field/applied-code strip above

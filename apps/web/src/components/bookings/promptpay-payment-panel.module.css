@@ -14,6 +14,24 @@
   margin: 16px auto;
   background: white;
 }
+.countdown {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: baseline;
+  gap: 6px;
+  margin: 8px 0 16px;
+  color: var(--color-notebook-muted-deep);
+  font-size: 13px;
+}
+.countdownValue {
+  color: var(--color-notebook-ink);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.countdown[data-expired='true'] {
+  color: var(--color-amber-800);
+}
 .heading {
   display: flex;
   flex-wrap: wrap;
