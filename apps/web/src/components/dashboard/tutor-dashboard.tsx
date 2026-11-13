@@ -45,17 +45,19 @@ import type {
   TutorBookingView,
 } from '@/lib/api/types';
 import type { Language } from '@/lib/i18n';
+import type { ReactNode } from 'react';
 
 export interface TutorDashboardProps {
   user: AuthUser;
   onLogout: () => Promise<void>;
+  reportView?: ReactNode;
 }
 
 const panelClass = 'min-w-0 !rounded-2xl p-5 !shadow-none sm:p-6';
 const textLinkClass =
   'inline-flex min-h-11 items-center gap-2 rounded-sm text-sm font-semibold text-tutor-deep underline decoration-tutor-deep/30 underline-offset-4 transition-colors hover:text-blue-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tutor-deep/40 focus-visible:ring-offset-2';
 
-export function TutorDashboard({ user, onLogout }: TutorDashboardProps) {
+export function TutorDashboard({ user, onLogout, reportView }: TutorDashboardProps) {
   const { copy, language } = useLanguage();
   const displayName = getUserDisplayName(user);
   const tutorCopy = copy.dashboard.tutor;
@@ -372,7 +374,7 @@ export function TutorDashboard({ user, onLogout }: TutorDashboardProps) {
               </Link>
             </PaperCard>
           </div>
-          <TutorDashboardAnalytics listings={listings} now={mountedAt} />
+          <TutorDashboardAnalytics listings={listings} now={mountedAt} reportView={reportView} />
         </>
       )}
     </DashboardShell>

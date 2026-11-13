@@ -26,6 +26,8 @@ describe('dashboard role navigation', () => {
     expect(isDashboardNavActive('bookings', '/dashboard/bookings/booking-1')).toBe(true);
     expect(isDashboardNavActive('listings', '/dashboard/listings/new')).toBe(true);
     expect(isDashboardNavActive('availability', '/dashboard/availability')).toBe(true);
+    expect(isDashboardNavActive('reports', '/dashboard/reports')).toBe(true);
+    expect(isDashboardNavActive('reports', '/dashboard/reports-extra')).toBe(false);
     expect(isDashboardNavActive('support', '/dashboard')).toBe(false);
     expect(isDashboardNavActive('messages', '/dashboard/messages')).toBe(true);
     expect(isDashboardNavActive('messages', '/dashboard/messages-extra')).toBe(false);
@@ -50,6 +52,7 @@ describe('dashboard role navigation', () => {
       'bookings',
       'listings',
       'availability',
+      'reports',
       'messages',
       'privacy',
     ]);
