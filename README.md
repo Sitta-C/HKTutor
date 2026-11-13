@@ -419,6 +419,9 @@ This generates Prisma Client, runs formatting checks, lint, unit tests, and prod
 does not apply migrations, seed a database, or send email. The repository contract checks are kept
 as an optional maintenance command and can be run with `pnpm verify:workspace`.
 
+Sprint 3 handover: [story-to-test traceability for all nine Sprint 3 stories, resolved
+acceptance wording, the Sprint 3 verifier index and known issues](tests/s3-t39-qa.md).
+
 Docker images can be validated with `docker compose config` after required environment values are
 set. Compose publishes Next.js on port 3000; the app forwards same-origin `/api/v1` requests to the
 private NestJS service. Terminate HTTPS at an upstream VM proxy and set `COOKIE_SECURE=true` for a
