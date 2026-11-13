@@ -101,6 +101,12 @@ export function getDashboardNavItems(role: UserRole, copy: Translation): Dashboa
         label: navCopy.availability,
       },
       {
+        id: 'reports',
+        href: '/dashboard/reports',
+        icon: 'reports',
+        label: navCopy.reports,
+      },
+      {
         id: 'messages',
         href: '/dashboard/messages',
         icon: 'messages',
@@ -166,5 +172,6 @@ export function isDashboardNavActive(itemId: string, pathname: string): boolean 
   if (itemId === 'messages') return pathname === '/dashboard/messages';
   if (itemId === 'listings') return pathname.startsWith('/dashboard/listings');
   if (itemId === 'availability') return pathname.startsWith('/dashboard/availability');
+  if (itemId === 'reports') return pathname === '/dashboard/reports';
   return false;
 }
