@@ -1,5 +1,19 @@
 export type UserRole = 'STUDENT' | 'TUTOR' | 'ADMIN';
 
+export interface TutorReport {
+  totalBookings: number;
+  statusCounts: Record<BookingStatus, number>;
+  revenue: {
+    amount: string;
+    currency: 'THB';
+  };
+  completionRate: {
+    completed: number;
+    finalized: number;
+    percent: number | null;
+  };
+}
+
 export interface AdminCoupon {
   id: string;
   code: string;

@@ -24,6 +24,7 @@ import { useLanguage } from '@/lib/i18n';
 import type { TutorBookingAmount } from '@/components/dashboard/tutor-dashboard-model';
 import type { TeachingListing, TutorBookingView } from '@/lib/api/types';
 import type { Language } from '@/lib/i18n';
+import type { ReactNode } from 'react';
 
 export interface TutorDashboardInsights {
   receivedRevenue?: { month: string; amounts: TutorBookingAmount[] };
@@ -52,10 +53,12 @@ export function TutorDashboardAnalytics({
   listings,
   now,
   insights,
+  reportView,
 }: {
   listings: TeachingListing[];
   now: number;
   insights?: TutorDashboardInsights;
+  reportView?: ReactNode;
 }) {
   const { copy, language } = useLanguage();
   const text = copy.dashboard.tutor;
@@ -283,6 +286,8 @@ export function TutorDashboardAnalytics({
           </div>
         </PaperCard>
       </div>
+
+      {reportView}
 
       <PaperCard className={panelClass} aria-labelledby="tutor-course-overview">
         <div className="flex flex-wrap items-center justify-between gap-3">

@@ -6,6 +6,7 @@ import AdminDashboard from '@/components/dashboard/admin-dashboard';
 import { DashboardLoading } from '@/components/dashboard/dashboard-loading';
 import StudentDashboard from '@/components/dashboard/student-dashboard';
 import TutorDashboard from '@/components/dashboard/tutor-dashboard';
+import { TutorReportView } from '@/components/reports/tutor-report-page';
 import { useLanguage } from '@/lib/i18n';
 import { useProfileSession } from '@/lib/use-profile-session';
 
@@ -50,7 +51,13 @@ export default function DashboardPage() {
   }
 
   if (user.role === 'TUTOR') {
-    return <TutorDashboard user={dashboardUser} onLogout={handleLogout} />;
+    return (
+      <TutorDashboard
+        user={dashboardUser}
+        onLogout={handleLogout}
+        reportView={<TutorReportView embedded />}
+      />
+    );
   }
 
   // Explicit safe ADMIN state and unsupported fallback (never student or tutor)
