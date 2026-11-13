@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { useId, useRef } from 'react';
+import { useId, useRef, useState } from 'react';
 
 import { DashboardIcon } from '@/components/dashboard/dashboard-icon';
 import { notificationCopy } from '@/components/notifications/notification-copy';
@@ -33,7 +33,8 @@ export function NotificationItem({
   const metadataId = useId();
   const title = notificationTitle(item, language);
   const unread = item.readAt === null;
-  const href = notificationBookingHref(item.bookingId, unread ? item.id : undefined);
+  const [openingHref, setOpeningHref] = useState<string | null>(null);
+  const href = openingHref ?? notificationBookingHref(item.bookingId, unread ? item.id : undefined);
   const reminderKind = notificationReminderKind(item.eventType);
   return (
     <li className={`${styles.item} ${unread ? styles.unread : ''}`}>
@@ -75,7 +76,10 @@ export function NotificationItem({
                 className={styles.bookingLink}
                 aria-label={`${text.openBooking}: ${title}`}
                 onNavigate={() => {
-                  if (unread) {
+                  // Updating readAt changes the ordinary link URL. Keep an active Next Link's href
+                  // stable until navigation commits, including during receipt rollback/refresh.
+                  setOpeningHref(href);
+                  if (unread || openingHref !== null) {
                     onOpen();
                   }
                 }}

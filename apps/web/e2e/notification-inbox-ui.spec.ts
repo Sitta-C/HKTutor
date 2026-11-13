@@ -514,6 +514,7 @@ for (const mode of ['modifier', 'middle'] as const) {
       .click(mode === 'middle' ? { button: 'middle' } : { modifiers: ['ControlOrMeta'] });
     const popup = await popupReady;
     try {
+      await popup.bringToFront();
       await expect(popup).toHaveURL(`/dashboard/bookings/${BOOKING_ID}`);
       await expect.poll(() => state.items[0]?.readAt).toBe(READ_AT);
       expect(state.writes).toEqual([
@@ -714,6 +715,40 @@ for (const status of [403, 404, 409, 500]) {
     expect(state.domainWrites).toEqual([]);
   });
 }
+
+test('a slow navigation keeps its link stable while the unread receipt changes', async ({
+  page,
+}) => {
+  const { state, bell, inbox, text } = await setup(page);
+  const navigation = Promise.withResolvers<void>();
+  const receipt = Promise.withResolvers<void>();
+  state.writeGate = receipt.promise;
+  await page.route(`**/dashboard/bookings/${BOOKING_ID}*`, async (route) => {
+    await navigation.promise;
+    await route.continue();
+  });
+  await bell.click();
+  const first = inbox.getByRole('listitem').first();
+  await first.locator('summary').click();
+  const link = first.getByRole('link');
+  const href = await link.getAttribute('href');
+  if (!href) throw new Error('Missing notification link');
+  try {
+    await link.click();
+    await expect(first.getByText(text.read, { exact: true })).toBeVisible();
+    await expect(link).toHaveAttribute('href', href);
+    receipt.resolve();
+    await expect.poll(() => state.items[0]?.readAt).toBe(READ_AT);
+    await expect(link).toHaveAttribute('href', href);
+  } finally {
+    receipt.resolve();
+    navigation.resolve();
+  }
+  await expect(page).toHaveURL(`/dashboard/bookings/${BOOKING_ID}`);
+  expect(state.writes).toHaveLength(1);
+  await page.goBack();
+  await expect(page).toHaveURL(/\/dashboard\/bookings$/);
+});
 
 test('a pending read receipt never delays opening the booking', async ({ page }) => {
   const { state, bell, inbox } = await setup(page);

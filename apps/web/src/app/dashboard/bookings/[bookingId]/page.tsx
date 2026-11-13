@@ -24,7 +24,7 @@ export default async function BookingDetailRoute({
 
   return (
     <>
-      <NotificationBookingReceipt notificationId={notificationId} />
+      <NotificationBookingReceipt bookingId={bookingId} notificationId={notificationId} />
       <BookingDetailPage bookingId={bookingId} />
     </>
   );
