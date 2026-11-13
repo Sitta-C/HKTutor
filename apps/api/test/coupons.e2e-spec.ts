@@ -126,6 +126,38 @@ describe('Admin coupons HTTP contract (real guards, validation and service; mock
     expect(transaction).not.toHaveBeenCalled();
   });
 
+  it.each([Role.STUDENT, Role.TUTOR])(
+    'rejects forged admin identity from %s before body/query validation',
+    async (role) => {
+      authenticate({ role });
+      for (const method of ['post', 'get'] as const) {
+        const attempt = request(app.getHttpServer())[method](URL).auth('test', {
+          type: 'bearer',
+        });
+        const response = await (
+          method === 'post'
+            ? attempt.send({ ...BODY, actorUserId: ACTOR, role: Role.ADMIN })
+            : attempt.query({ actorUserId: ACTOR, role: Role.ADMIN })
+        ).expect(403);
+        expect(response.body as unknown).toMatchObject({ code: 'FORBIDDEN' });
+      }
+      expect(transaction).not.toHaveBeenCalled();
+    },
+  );
+
+  it('rejects an expired or invalid access token before reading the session or persistence', async () => {
+    verifyAccessToken.mockReturnValue(null);
+    for (const method of ['post', 'get'] as const) {
+      await request(app.getHttpServer())
+        [method](URL)
+        .auth('expired', { type: 'bearer' })
+        .send(BODY)
+        .expect(401);
+    }
+    expect(session).not.toHaveBeenCalled();
+    expect(transaction).not.toHaveBeenCalled();
+  });
+
   it.each([
     { revokedAt: NOW },
     { expiresAt: new Date('2000-01-01T00:00:00Z') },
@@ -330,6 +362,16 @@ describe('Admin coupons HTTP contract (real guards, validation and service; mock
       .send({ ...BODY, active: false, maxUses: 2147483647 })
       .expect(201);
     expect(response.body as unknown).toMatchObject({ active: false, maxUses: 2147483647 });
+  });
+
+  it('accepts UTC expiry one millisecond in the future without rounding it', async () => {
+    const expiresAt = new Date(NOW.getTime() + 1).toISOString();
+    const response = await request(app.getHttpServer())
+      .post(URL)
+      .auth('test', { type: 'bearer' })
+      .send({ ...BODY, expiresAt })
+      .expect(201);
+    expect(response.body as unknown).toMatchObject({ expiresAt });
   });
 
   it.each([

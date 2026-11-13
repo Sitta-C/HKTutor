@@ -374,6 +374,9 @@ S3-T23 collects the coupon rules, audit behavior, approved PromptPay coupon deci
 traceability in the
 [coupon rules reference](apps/api/README.md#coupon-rules-and-audit-reference-s3-t23). See
 [`tests/s3-t23-qa.md`](tests/s3-t23-qa.md) for verification.
+S3-T24 verifies the admin authorization, coupon boundaries, duplicate-code/audit transactions and
+bilingual form recovery. See [S3-T24 QA evidence](tests/s3-t24-qa.md) for the acceptance mapping,
+actual commands and verification limits.
 
 ## Checks
 
