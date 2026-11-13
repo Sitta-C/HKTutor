@@ -73,7 +73,7 @@ export const notificationCopy = {
       PAYMENT_REMINDER_1H:
         'When this reminder was sent, your lesson was unpaid and starting within 1 hour. Open the booking to check its current payment status.',
       PAYMENT_REMINDER_5H:
-        'When this reminder was sent, your lesson was unpaid and starting within 5 hours. Payment closes 4 hours before the lesson starts. Open the booking for its current payment status.',
+        'When this reminder was sent, your lesson was unpaid and starting within 5 hours. Open the booking to check its current payment status.',
     },
   },
   th: {
@@ -149,7 +149,7 @@ export const notificationCopy = {
       PAYMENT_REMINDER_1H:
         'ตอนส่งแจ้งเตือน บทเรียนจะเริ่มภายใน 1 ชั่วโมงและยังไม่ได้ชำระเงิน เปิดการจองเพื่อตรวจสอบสถานะการชำระเงินล่าสุด',
       PAYMENT_REMINDER_5H:
-        'ตอนส่งแจ้งเตือน บทเรียนจะเริ่มภายใน 5 ชั่วโมงและยังไม่ได้ชำระเงิน ต้องชำระก่อนเส้นตาย 4 ชั่วโมงก่อนเริ่มเรียน เปิดการจองเพื่อตรวจสอบสถานะล่าสุด',
+        'ตอนส่งแจ้งเตือน บทเรียนจะเริ่มภายใน 5 ชั่วโมงและยังไม่ได้ชำระเงิน เปิดการจองเพื่อตรวจสอบสถานะการชำระเงินล่าสุด',
     },
   },
 } as const;

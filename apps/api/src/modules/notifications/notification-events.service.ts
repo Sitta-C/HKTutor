@@ -44,17 +44,17 @@ const REMINDER_COPY: Record<ReminderEventType, { title: string; body: string }> 
     title: 'Class starts within 24 hours',
     body: 'Your lesson starts within 24 hours.',
   },
-  CLASS_REMINDER_5H: {
-    title: 'Class starts within 5 hours',
-    body: 'Your lesson starts within 5 hours.',
+  CLASS_REMINDER_1H: {
+    title: 'Class starts within 1 hour',
+    body: 'Your lesson starts within 1 hour.',
   },
   PAYMENT_REMINDER_24H: {
     title: 'Payment due for your class',
-    body: 'Your lesson starts within 24 hours and is still unpaid. Payment closes 4 hours before the lesson starts.',
+    body: 'Your lesson starts within 24 hours and is still unpaid.',
   },
-  PAYMENT_REMINDER_5H: {
+  PAYMENT_REMINDER_1H: {
     title: 'Payment due for your class',
-    body: 'Your lesson starts within 5 hours and is still unpaid. Payment closes 4 hours before the lesson starts.',
+    body: 'Your lesson starts within 1 hour and is still unpaid.',
   },
 };
 

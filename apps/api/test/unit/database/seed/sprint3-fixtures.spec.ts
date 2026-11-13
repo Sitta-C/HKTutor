@@ -113,7 +113,7 @@ describe('Sprint 3 fixture inputs', () => {
         .slice(0, 20)
         .filter((_, index) => index % 2 === 0)
         .map((row) => row.expectedBand),
-    ).toEqual([null, '24H', '24H', '24H', '5H', '5H', '5H', null, null, '24H']);
+    ).toEqual([null, '24H', '24H', '24H', '1H', '1H', '1H', null, null, '24H']);
     for (const scenario of reminders) {
       const fixture = classes.find((row) => row.id === scenario.bookingId);
       if (!fixture) {

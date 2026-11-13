@@ -1024,7 +1024,7 @@ test('hidden tabs pause notification polling and refresh immediately on return',
 });
 
 for (const language of ['en', 'th'] as const) {
-  test(`${language}: a 5H reminder replaces a loaded 24H reminder and updates the unread badge`, async ({
+  test(`${language}: a 1H reminder replaces a loaded 24H reminder and updates the unread badge`, async ({
     page,
   }) => {
     await page.clock.install();
@@ -1037,11 +1037,11 @@ for (const language of ['en', 'th'] as const) {
     await inbox.getByRole('button', { name: text.loadMore }).click();
     await expect(inbox.getByRole('listitem')).toHaveCount(4);
     await expect(inbox.getByText(text.events.PAYMENT_REMINDER_24H, { exact: true })).toBeVisible();
-    state.items.unshift(notice('new-5h', { eventType: 'PAYMENT_REMINDER_5H' }));
+    state.items.unshift(notice('new-1h', { eventType: 'PAYMENT_REMINDER_1H' }));
     state.suppressedIds.add(old.id);
     await page.clock.runFor(NOTIFICATION_POLL_INTERVAL_MS);
     await expect(inbox.getByText(text.events.PAYMENT_REMINDER_24H, { exact: true })).toHaveCount(0);
-    await expect(inbox.getByText(text.events.PAYMENT_REMINDER_5H, { exact: true })).toBeVisible();
+    await expect(inbox.getByText(text.events.PAYMENT_REMINDER_1H, { exact: true })).toBeVisible();
     await expect(bell).toHaveAccessibleName(
       `${text.title}, ${text.unreadCount.replace('{count}', '3')}`,
     );
@@ -1138,8 +1138,8 @@ for (const language of ['en', 'th'] as const) {
       // These are server-selected fixtures. The inbox never fetches payment state or filters history.
       const eventTypes = [
         ...(recipient === 'student-unpaid'
-          ? (['PAYMENT_REMINDER_24H', 'PAYMENT_REMINDER_5H', 'PAYMENT_QR_READY'] as const)
-          : (['CLASS_REMINDER_24H', 'CLASS_REMINDER_5H'] as const)),
+          ? (['PAYMENT_REMINDER_24H', 'PAYMENT_REMINDER_1H', 'PAYMENT_QR_READY'] as const)
+          : (['CLASS_REMINDER_24H', 'CLASS_REMINDER_1H'] as const)),
       ] as const;
       const { state, bell, inbox, text } = await setup(page, {
         language,

@@ -58,7 +58,7 @@ async function verify(): Promise<void> {
     max: 1,
   });
   const old = reminder('old', '24H');
-  const urgent = reminder('urgent', '5H');
+  const urgent = reminder('urgent', '1H');
   const qr = {
     ...old,
     id: 'qr',
@@ -68,21 +68,21 @@ async function verify(): Promise<void> {
   const cases = [
     { name: '24H alone', rows: [old], expected: ['old'] },
     {
-      name: 'legacy 1H still supersedes',
+      name: 'historical 5H still supersedes',
       rows: [
         old,
         {
           ...urgent,
-          eventType: 'PAYMENT_REMINDER_1H',
-          eventKey: urgent.eventKey.replace(':5H:', ':1H:'),
+          eventType: 'PAYMENT_REMINDER_5H',
+          eventKey: urgent.eventKey.replace(':1H:', ':5H:'),
         },
       ],
       expected: ['urgent'],
     },
-    { name: '5H alone', rows: [urgent], expected: ['urgent'] },
-    { name: '5H supersedes 24H', rows: [old, urgent], expected: ['urgent'] },
+    { name: '1H alone', rows: [urgent], expected: ['urgent'] },
+    { name: '1H supersedes 24H', rows: [old, urgent], expected: ['urgent'] },
     {
-      name: 'read 5H still supersedes',
+      name: 'read 1H still supersedes',
       rows: [old, { ...urgent, readAt: startAtUtc.toISOString() }],
       expected: ['urgent'],
     },
@@ -93,37 +93,37 @@ async function verify(): Promise<void> {
     },
     {
       name: 'other recipients',
-      rows: [old, reminder('peer', '5H', { userId: randomUUID() })],
+      rows: [old, reminder('peer', '1H', { userId: randomUUID() })],
       expected: ['old'],
     },
     {
       name: 'other bookings',
-      rows: [old, reminder('peer', '5H', { bookingId: randomUUID() })],
+      rows: [old, reminder('peer', '1H', { bookingId: randomUUID() })],
       expected: ['old', 'peer'],
     },
     {
       name: 'rescheduled slot',
-      rows: [old, reminder('peer', '5H', { slotId: randomUUID() })],
+      rows: [old, reminder('peer', '1H', { slotId: randomUUID() })],
       expected: ['old', 'peer'],
     },
     {
       name: 'rescheduled start',
-      rows: [old, reminder('peer', '5H', { startAtUtc: new Date('2099-01-02T12:00:00Z') })],
+      rows: [old, reminder('peer', '1H', { startAtUtc: new Date('2099-01-02T12:00:00Z') })],
       expected: ['old', 'peer'],
     },
     {
       name: 'same UTC instant',
-      rows: [old, reminder('peer', '5H', { startAtUtc: new Date('2099-01-01T19:00:00+07:00') })],
+      rows: [old, reminder('peer', '1H', { startAtUtc: new Date('2099-01-01T19:00:00+07:00') })],
       expected: ['peer'],
     },
     {
       name: 'unpaid to paid',
-      rows: [old, reminder('peer', '5H', { kind: 'CLASS' })],
+      rows: [old, reminder('peer', '1H', { kind: 'CLASS' })],
       expected: ['peer'],
     },
     {
       name: 'class urgency',
-      rows: [reminder('old', '24H', { kind: 'CLASS' }), reminder('peer', '5H', { kind: 'CLASS' })],
+      rows: [reminder('old', '24H', { kind: 'CLASS' }), reminder('peer', '1H', { kind: 'CLASS' })],
       expected: ['peer'],
     },
     { name: 'QR independence', rows: [old, urgent, qr], expected: ['qr', 'urgent'] },

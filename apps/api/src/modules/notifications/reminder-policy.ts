@@ -1,9 +1,8 @@
 import { AccountStatus, BookingStatus, PaymentStatus } from '@generated/prisma/client';
-import { PAYMENT_DEADLINE_MS } from '@modules/bookings/booking-payment-policy';
 
 const HOUR_MS = 60 * 60 * 1000;
 
-export const REMINDER_WINDOW_MS = { '24H': 24 * HOUR_MS, '5H': 5 * HOUR_MS } as const;
+export const REMINDER_WINDOW_MS = { '24H': 24 * HOUR_MS, '1H': HOUR_MS } as const;
 
 export type ReminderBand = keyof typeof REMINDER_WINDOW_MS;
 export type ReminderKind = 'CLASS' | 'PAYMENT';
@@ -40,8 +39,8 @@ function timeOf(value: Date, name: string): number {
 }
 
 /**
- * Payment deadline policy updated 2026-11-13. With delta = start - now, 5h < delta <= 24h selects 24H
- * and 0 < delta <= 5h selects 5H, so a late first run sends one catch-up band, never both.
+ * Approved 2026-10-26 policy (S3-T05). With delta = start - now, 1h < delta <= 24h selects 24H
+ * and 0 < delta <= 1h selects 1H, so a late first run sends one catch-up band, never both.
  * Delta is a duration, so the result does not depend on the Asia/Bangkok display time zone.
  */
 export function selectReminderBand(startAtUtc: Date, nowUtc: Date): ReminderBand | null {
@@ -49,7 +48,7 @@ export function selectReminderBand(startAtUtc: Date, nowUtc: Date): ReminderBand
   if (delta <= 0 || delta > REMINDER_WINDOW_MS['24H']) {
     return null;
   }
-  return delta > REMINDER_WINDOW_MS['5H'] ? '24H' : '5H';
+  return delta > REMINDER_WINDOW_MS['1H'] ? '24H' : '1H';
 }
 
 /** Unique per (userId, eventKey); slot and start time keep rescheduled occurrences apart. */
@@ -80,9 +79,7 @@ export function planReminders(booking: ReminderBooking, nowUtc: Date): PlannedRe
     eventType: `${kind}_REMINDER_${band}`,
     eventKey: reminderEventKey(booking, band, kind),
   });
-  const unpaid =
-    booking.paymentStatus === PaymentStatus.UNPAID &&
-    booking.startAtUtc.getTime() - nowUtc.getTime() > PAYMENT_DEADLINE_MS;
+  const unpaid = booking.paymentStatus === PaymentStatus.UNPAID;
   const paid = booking.paymentStatus === PaymentStatus.PAID;
   return [
     ...(paid && isActive(booking.student) ? [reminder(booking.student, 'CLASS')] : []),

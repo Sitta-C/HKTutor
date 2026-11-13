@@ -72,7 +72,7 @@ export interface Sprint3ReminderFixture {
   key: string;
   bookingId: string;
   now: Date;
-  expectedBand: '24H' | '5H' | null;
+  expectedBand: '24H' | '1H' | null;
   expectedRecipients: number;
 }
 
@@ -255,13 +255,13 @@ export function buildSprint3Fixtures(now: Date = SPRINT3_FIXTURE_NOW): {
     ['24h-plus-1ms', 24 * HOUR + 1, null],
     ['24h', 24 * HOUR, '24H'],
     ['24h-minus-1ms', 24 * HOUR - 1, '24H'],
-    ['5h-plus-1ms', 5 * HOUR + 1, '24H'],
-    ['5h', 5 * HOUR, '5H'],
-    ['5h-minus-1ms', 5 * HOUR - 1, '5H'],
-    ['start-minus-1ms', 1, '5H'],
+    ['1h-plus-1ms', HOUR + 1, '24H'],
+    ['1h', HOUR, '1H'],
+    ['1h-minus-1ms', HOUR - 1, '1H'],
+    ['start-minus-1ms', 1, '1H'],
     ['start', 0, null],
     ['start-plus-1ms', -1, null],
-    ['late-first-run-6h', 6 * HOUR, '24H'],
+    ['late-first-run-2h', 2 * HOUR, '24H'],
   ] as const;
   const addReminder = (
     key: string,
@@ -287,7 +287,7 @@ export function buildSprint3Fixtures(now: Date = SPRINT3_FIXTURE_NOW): {
         `${key}-${paid ? 'paid' : 'unpaid'}`,
         delta,
         band,
-        band === null ? 0 : paid ? 2 : delta <= 4 * HOUR ? 0 : 1,
+        band === null ? 0 : paid ? 2 : 1,
         { paid },
       );
     }
@@ -300,17 +300,15 @@ export function buildSprint3Fixtures(now: Date = SPRINT3_FIXTURE_NOW): {
   ]) {
     addReminder(`skip-${status.toLowerCase()}`, HOUR, null, 0, { status });
   }
-  addReminder('inactive-student', 5 * HOUR, '5H', 0, { studentId: SPRINT3_IDS.inactiveStudent });
-  addReminder('deleted-student', 5 * HOUR, '5H', 0, { studentId: SPRINT3_IDS.deletedStudent });
-  addReminder('payment-pending', 5 * HOUR, '5H', 1, {
-    attemptStatus: PaymentAttemptStatus.PENDING,
-  });
-  addReminder('rescheduled', 5 * HOUR, '5H', 1);
-  addReminder('bangkok-year-midnight', 5 * HOUR, '5H', 1, { startAtUtc: at(365 * DAY) });
+  addReminder('inactive-student', HOUR, '1H', 0, { studentId: SPRINT3_IDS.inactiveStudent });
+  addReminder('deleted-student', HOUR, '1H', 0, { studentId: SPRINT3_IDS.deletedStudent });
+  addReminder('payment-pending', HOUR, '1H', 1, { attemptStatus: PaymentAttemptStatus.PENDING });
+  addReminder('rescheduled', HOUR, '1H', 1);
+  addReminder('bangkok-year-midnight', HOUR, '1H', 1, { startAtUtc: at(365 * DAY) });
   // Preserve midnight start for the explicit cross-year case, independent of the isolation offset.
   const midnight = reminders.at(-1);
   if (midnight) {
-    midnight.now = at(365 * DAY - 5 * HOUR);
+    midnight.now = at(365 * DAY - HOUR);
   }
   add('coupon-unapplied', 'coupons', { studentId: SPRINT3_IDS.otherStudent });
   return { now: new Date(now), coupons, classes, reminders };

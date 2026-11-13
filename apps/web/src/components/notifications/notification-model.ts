@@ -70,7 +70,7 @@ export function refreshNotificationPage(
   if (!current || !fresh.items.some((item) => current.items.some(({ id }) => id === item.id))) {
     return fresh;
   }
-  // A 5H or legacy 1H reminder can retire a loaded 24H row outside this first page. Re-fetch
+  // A 1H or historical 5H reminder can retire a loaded 24H row outside this first page. Re-fetch
   // older history through the server cursor rather than guessing the rescheduled occurrence.
   const urgentReplacement = fresh.items.some(
     (item) =>

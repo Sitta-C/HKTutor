@@ -350,7 +350,7 @@ async function verify(): Promise<void> {
     assert.equal(cron.isActive, false);
     pass('the job registers and starts outside Jest: every minute, UTC, stopped on shutdown');
 
-    // 2. Band boundaries at exactly and 1 ms either side of 24h, 5h and the start instant.
+    // 2. Band boundaries at exactly and 1 ms either side of 24h, 1h and the start instant.
     const boundary = await booking(scenarioDay(1) + 12 * HOUR_MS);
     const start = boundary.startAtUtc.getTime();
     assert.deepEqual(await run(job, start - DAY_MS - 1), outcome(0, 0, 0));
@@ -358,26 +358,23 @@ async function verify(): Promise<void> {
     assert.deepEqual(await run(job, start - DAY_MS), outcome(1, 1, 0));
     assert.deepEqual(await stored(boundary), planned(boundary, '24H'));
     assert.deepEqual(await run(job, start - DAY_MS + 1), outcome(1, 0, 1));
-    assert.deepEqual(await run(job, start - 5 * HOUR_MS - 1), outcome(1, 0, 1));
-    assert.deepEqual(await run(job, start - 5 * HOUR_MS), outcome(1, 1, 0));
-    assert.deepEqual(await run(job, start - 5 * HOUR_MS + 1), outcome(1, 0, 1));
-    const bothBands = [...planned(boundary, '24H'), ...planned(boundary, '5H')].sort();
+    assert.deepEqual(await run(job, start - HOUR_MS - 1), outcome(1, 0, 1));
+    assert.deepEqual(await run(job, start - HOUR_MS), outcome(1, 1, 0));
+    assert.deepEqual(await run(job, start - HOUR_MS + 1), outcome(1, 0, 1));
+    const bothBands = [...planned(boundary, '24H'), ...planned(boundary, '1H')].sort();
     assert.deepEqual(await stored(boundary), bothBands);
-    assert.deepEqual(await run(job, start - 1), outcome(1, 0, 0));
+    assert.deepEqual(await run(job, start - 1), outcome(1, 0, 1));
     assert.deepEqual(await run(job, start), outcome(0, 0, 0));
     assert.deepEqual(await run(job, start + 1), outcome(0, 0, 0));
     assert.deepEqual(await stored(boundary), bothBands);
     const sample = await prisma.notification.findFirstOrThrow({
-      where: { bookingId: boundary.id, eventType: 'PAYMENT_REMINDER_5H' },
+      where: { bookingId: boundary.id, eventType: 'PAYMENT_REMINDER_1H' },
     });
     assert.equal(sample.userId, studentId);
     assert.equal(sample.readAt, null);
     assert.equal(sample.title, 'Payment due for your class');
-    assert.equal(
-      sample.body,
-      'Your lesson starts within 5 hours and is still unpaid. Payment closes 4 hours before the lesson starts.',
-    );
-    pass('24h, 5h and start boundaries ±1 ms pick the right band; the start instant is excluded');
+    assert.equal(sample.body, 'Your lesson starts within 1 hour and is still unpaid.');
+    pass('24h, 1h and start boundaries ±1 ms pick the right band; the start instant is excluded');
 
     // 3. Only CONFIRMED bookings are reminded, and only an unpaid student gets a payment reminder.
     const statusDay = scenarioDay(2);
@@ -433,9 +430,9 @@ async function verify(): Promise<void> {
 
     // 5. A late first run sends one catch-up band, then repeats are no-ops that take no lock.
     const late = await booking(scenarioDay(5) + 12 * HOUR_MS);
-    const lateNow = late.startAtUtc.getTime() - 270 * MINUTE_MS;
+    const lateNow = late.startAtUtc.getTime() - 30 * MINUTE_MS;
     assert.deepEqual(await run(job, lateNow), outcome(1, 1, 0));
-    assert.deepEqual(await stored(late), planned(late, '5H'));
+    assert.deepEqual(await stored(late), planned(late, '1H'));
     const before = await prisma.notification.findMany({
       where: { bookingId: late.id },
       orderBy: { id: 'asc' },
@@ -456,7 +453,7 @@ async function verify(): Promise<void> {
       await prisma.notification.findMany({ where: { bookingId: late.id }, orderBy: { id: 'asc' } }),
       before,
     );
-    pass('a late first run sends only 5H; repeated runs keep the original rows and skip the lock');
+    pass('a late first run sends only 1H; repeated runs keep the original rows and skip the lock');
 
     // 6. Two job processes racing on one booking store each reminder exactly once.
     const racedDay = scenarioDay(6);
@@ -524,7 +521,7 @@ async function verify(): Promise<void> {
     // 9. A reschedule committed while the job waits re-keys reminders to the new slot and band.
     const rescheduleDay = scenarioDay(9);
     const moving = await booking(rescheduleDay + 20 * HOUR_MS);
-    const newStart = rescheduleDay + 270 * MINUTE_MS;
+    const newStart = rescheduleDay + 30 * MINUTE_MS;
     const newSlotId = await slot(newStart);
     const [afterReschedule] = await whileBookingLocked(
       moving.id,
@@ -534,11 +531,11 @@ async function verify(): Promise<void> {
     );
     assert.deepEqual(afterReschedule, outcome(1, 1, 0));
     const moved = { ...moving, slotId: newSlotId, startAtUtc: new Date(newStart) };
-    await assertRows('reschedule commits after scan', moved, rescheduleDay, planned(moved, '5H'));
+    await assertRows('reschedule commits after scan', moved, rescheduleDay, planned(moved, '1H'));
     pass('reschedule committed under the booking lock: reminders use the new slot, not the old');
 
     // S3-T08: a previously notified occurrence can move to a fresh slot in the same band.
-    const nextStart = rescheduleDay + 285 * MINUTE_MS;
+    const nextStart = rescheduleDay + 45 * MINUTE_MS;
     // Keep the synthetic slots disjoint, as required by the tutor availability exclusion index.
     await prisma.availabilitySlot.update({
       where: { id: newSlotId },
@@ -548,7 +545,7 @@ async function verify(): Promise<void> {
     await prisma.booking.update({ where: { id: moving.id }, data: { slotId: nextSlotId } });
     const nextOccurrence = { ...moved, slotId: nextSlotId, startAtUtc: new Date(nextStart) };
     assert.deepEqual(await run(job, rescheduleDay), outcome(1, 1, 0));
-    const occurrences = [...planned(moved, '5H'), ...planned(nextOccurrence, '5H')].sort();
+    const occurrences = [...planned(moved, '1H'), ...planned(nextOccurrence, '1H')].sort();
     assert.deepEqual(await stored(moving), occurrences);
     assert.deepEqual(await run(otherJob, rescheduleDay), outcome(1, 0, 1));
     await assertRows(
@@ -561,17 +558,17 @@ async function verify(): Promise<void> {
 
     const catchUp = await booking(scenarioDay(12) + 12 * HOUR_MS);
     const catchUpStart = catchUp.startAtUtc.getTime();
-    assert.deepEqual(await run(job, catchUpStart - 6 * HOUR_MS), outcome(1, 1, 0));
+    assert.deepEqual(await run(job, catchUpStart - 2 * HOUR_MS), outcome(1, 1, 0));
     await assertRows(
-      'first run at 6h',
+      'first run at 2h',
       catchUp,
-      catchUpStart - 6 * HOUR_MS,
+      catchUpStart - 2 * HOUR_MS,
       planned(catchUp, '24H'),
     );
     const restarted = (await jobFor(otherPrisma)).get(ReminderJobService);
-    assert.deepEqual(await run(restarted, catchUpStart - 270 * MINUTE_MS), outcome(1, 1, 0));
-    const catchUpPairs = [...planned(catchUp, '24H'), ...planned(catchUp, '5H')].sort();
-    await assertRows('restart at 4h30m', catchUp, catchUpStart - 270 * MINUTE_MS, catchUpPairs);
+    assert.deepEqual(await run(restarted, catchUpStart - 30 * MINUTE_MS), outcome(1, 1, 0));
+    const catchUpPairs = [...planned(catchUp, '24H'), ...planned(catchUp, '1H')].sort();
+    await assertRows('restart at 30m', catchUp, catchUpStart - 30 * MINUTE_MS, catchUpPairs);
 
     // The actual inbox service reads job-written rows, including both recipients and both bands.
     const inbox = new NotificationsService(prisma);
@@ -580,7 +577,7 @@ async function verify(): Promise<void> {
     const studentReminders = studentInbox.items.filter((item) => item.bookingId === catchUp.id);
     const tutorReminders = tutorInbox.items.filter((item) => item.bookingId === catchUp.id);
     assert.deepEqual(studentReminders.map((item) => item.eventType).sort(), [
-      'PAYMENT_REMINDER_5H',
+      'PAYMENT_REMINDER_1H',
     ]);
     assert.deepEqual(tutorReminders, []);
     const unread = studentReminders[0];
@@ -592,7 +589,7 @@ async function verify(): Promise<void> {
       where: { bookingId: catchUp.id },
       orderBy: { id: 'asc' },
     });
-    assert.deepEqual(await run(restarted, catchUpStart - 269 * MINUTE_MS), outcome(1, 0, 1));
+    assert.deepEqual(await run(restarted, catchUpStart - 29 * MINUTE_MS), outcome(1, 0, 1));
     assert.deepEqual(await run(restarted, catchUpStart), outcome(0, 0, 0));
     assert.deepEqual(await run(restarted, catchUpStart + 1), outcome(0, 0, 0));
     assert.deepEqual(
@@ -607,7 +604,7 @@ async function verify(): Promise<void> {
     assert.equal(readInbox.unreadCount, studentInbox.unreadCount - 1);
     await assertRows('repeat then start + 1ms', catchUp, catchUpStart + 1, catchUpPairs);
     pass(
-      '6h catch-up then a restarted worker at 4h30m: both bands, inbox ownership and stable read receipts',
+      '2h catch-up then a restarted worker at 30m: both bands, inbox ownership and stable read receipts',
     );
 
     // 10. Keyset paging over 210 bookings with three-way start-time ties loses and repeats none.
@@ -616,8 +613,8 @@ async function verify(): Promise<void> {
       Array.from({ length: 70 }, (_, index) => ({
         id: randomUUID(),
         tutorProfileId: owner,
-        startAtUtc: new Date(pagingDay + 6 * HOUR_MS + index * 10 * MINUTE_MS),
-        endAtUtc: new Date(pagingDay + 6 * HOUR_MS + (index + 1) * 10 * MINUTE_MS),
+        startAtUtc: new Date(pagingDay + HOUR_MS + index * 10 * MINUTE_MS),
+        endAtUtc: new Date(pagingDay + HOUR_MS + (index + 1) * 10 * MINUTE_MS),
       })),
     );
     await prisma.availabilitySlot.createMany({ data: pagingSlots });
@@ -709,13 +706,10 @@ async function verify(): Promise<void> {
         ['24h + 1ms', DAY_MS + 1, null],
         ['24h', DAY_MS, '24H'],
         ['24h - 1ms', DAY_MS - 1, '24H'],
-        ['5h + 1ms', 5 * HOUR_MS + 1, '24H'],
-        ['5h', 5 * HOUR_MS, '5H'],
-        ['5h - 1ms', 5 * HOUR_MS - 1, '5H'],
-        ['4h + 1ms', 4 * HOUR_MS + 1, '5H'],
-        ['4h', 4 * HOUR_MS, '5H'],
-        ['4h - 1ms', 4 * HOUR_MS - 1, '5H'],
-        ['0 + 1ms', 1, '5H'],
+        ['1h + 1ms', HOUR_MS + 1, '24H'],
+        ['1h', HOUR_MS, '1H'],
+        ['1h - 1ms', HOUR_MS - 1, '1H'],
+        ['0 + 1ms', 1, '1H'],
         ['0', 0, null],
         ['0 - 1ms', -1, null],
       ] as const) {
@@ -725,8 +719,7 @@ async function verify(): Promise<void> {
           paid,
         );
         const now = item.startAtUtc.getTime() - delta;
-        const expected =
-          band && (paid || delta > 4 * HOUR_MS) ? planned(item, band, { payment: !paid }) : [];
+        const expected = band ? planned(item, band, { payment: !paid }) : [];
         assert.deepEqual(await run(job, now), outcome(band ? 1 : 0, expected.length, 0));
         await assertRows(`${paid ? 'paid' : 'unpaid'} ${label}`, item, now, expected);
       }
@@ -741,7 +734,7 @@ async function verify(): Promise<void> {
       BookingStatus.CANCELED,
       BookingStatus.EXPIRED,
     ]) {
-      for (const delta of [6 * HOUR_MS, 270 * MINUTE_MS]) {
+      for (const delta of [2 * HOUR_MS, 30 * MINUTE_MS]) {
         const item = await booking(scenarioDay(scenario++) + 12 * HOUR_MS, status);
         const now = item.startAtUtc.getTime() - delta;
         assert.deepEqual(await run(job, now), outcome(0, 0, 0));
@@ -749,13 +742,13 @@ async function verify(): Promise<void> {
       }
     }
     const lateOnly = await booking(scenarioDay(scenario++) + 12 * HOUR_MS);
-    const lateOnlyNow = lateOnly.startAtUtc.getTime() - 270 * MINUTE_MS;
+    const lateOnlyNow = lateOnly.startAtUtc.getTime() - 30 * MINUTE_MS;
     assert.deepEqual(await run(restarted, lateOnlyNow), outcome(1, 1, 0));
     await assertRows(
-      'restart first sees booking at 4h30m: 5H only',
+      'restart first sees booking at 30m: 1H only',
       lateOnly,
       lateOnlyNow,
-      planned(lateOnly, '5H'),
+      planned(lateOnly, '1H'),
     );
     pass('every excluded status in both bands and a restarted worker with no 24H history');
 
