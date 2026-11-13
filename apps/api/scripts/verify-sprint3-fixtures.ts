@@ -1,10 +1,11 @@
 import assert from 'node:assert/strict';
-import { randomBytes } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import { readdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
 
 import { ConfigService } from '@nestjs/config';
 
+import { disposableDatabaseUrl } from '@config/disposable-database-url';
 import {
   BookingStatus,
   CouponReservationStatus,
@@ -32,20 +33,7 @@ import type { Sprint3ClassFixture } from '@infrastructure/database/seed/sprint3-
 const HOUR = 3_600_000;
 
 export function disposableSprint3FixtureDatabaseUrl(env: NodeJS.ProcessEnv): string {
-  assert.equal(
-    env['HKTUTOR_ALLOW_DISPOSABLE_DB_VERIFY'],
-    '1',
-    'Explicit disposable opt-in required',
-  );
-  const value = env['DATABASE_URL'];
-  assert.ok(value, 'Explicit DATABASE_URL required; this runner never loads .env');
-  const url = new URL(value);
-  assert.ok(['postgres:', 'postgresql:'].includes(url.protocol));
-  assert.ok(['localhost', '127.0.0.1', '[::1]'].includes(url.hostname));
-  assert.match(decodeURIComponent(url.pathname.slice(1)), /^hktutor[_-].*[_-]test$/);
-  assert.equal(url.search, '', 'URL options are not accepted');
-  assert.equal(url.hash, '', 'URL fragments are not accepted');
-  return value;
+  return disposableDatabaseUrl(env);
 }
 
 async function verify(): Promise<void> {
@@ -80,6 +68,9 @@ async function verify(): Promise<void> {
       SEED_STUDENT_PASSWORD: password,
     });
     const fixtures = buildSprint3Fixtures();
+    process.stdout.write(
+      `DB04 fixture input sha256=${createHash('sha256').update(JSON.stringify(fixtures)).digest('hex')}\n`,
+    );
     const fixture = (key: string): Sprint3ClassFixture => {
       const row = fixtures.classes.find((item) => item.key === key);
       assert.ok(row, `Missing fixture ${key}`);
