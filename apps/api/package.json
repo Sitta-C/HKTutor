@@ -22,6 +22,7 @@
     "db:verify:sprint3-security": "ts-node -r tsconfig-paths/register scripts/verify-sprint3-security.ts",
     "db:verify:cancellation": "ts-node -r tsconfig-paths/register scripts/verify-booking-cancellation.ts",
     "db:verify:reschedule-rules": "ts-node -r tsconfig-paths/register scripts/verify-reschedule-rules.ts",
+    "db:verify:sprint3-demo": "ts-node -r tsconfig-paths/register scripts/verify-sprint3-demo.ts",
     "db:verify:qualifications": "ts-node -r tsconfig-paths/register scripts/verify-qualification-document-concurrency.ts",
     "format": "prettier --write \"src/**/*.ts\" \"scripts/**/*.ts\" \"docs/examples/**/*.ts\" \"test/**/*.ts\"",
     "start": "nest start",
