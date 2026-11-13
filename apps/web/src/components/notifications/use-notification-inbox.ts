@@ -14,9 +14,8 @@ import {
   markNotificationRead,
 } from '@/lib/api/notifications';
 import {
-  notificationChannelName,
-  NOTIFICATIONS_CHANGED_EVENT,
   notifyNotificationsChanged,
+  subscribeNotificationsChanged,
 } from '@/lib/notification-events';
 
 import type { NotificationPage } from '@/lib/api/types';
@@ -25,7 +24,7 @@ export const NOTIFICATION_POLL_INTERVAL_MS = 30_000;
 type InboxError = 'loadFailed' | 'saveFailed' | 'forbidden' | 'missing';
 type InboxBusy = 'load' | 'more' | 'write' | null;
 
-interface NotificationInboxState {
+export interface NotificationInboxState {
   page: NotificationPage | null;
   busy: InboxBusy;
   error: InboxError | null;
@@ -34,6 +33,7 @@ interface NotificationInboxState {
   unreadOnly: boolean;
   changeFilter: (unreadOnly: boolean) => void;
   reload: (cursor?: string) => void;
+  refresh: () => void;
   markRead: (notificationId: string | null) => Promise<void>;
 }
 
@@ -52,17 +52,24 @@ export function useNotificationInbox(userId: string): NotificationInboxState {
   const controller = useRef<AbortController | null>(null);
   const pendingRefresh = useRef(false);
   const reconcileRequired = useRef(false);
+  const forbidden = useRef(false);
+  const writeQueue = useRef<Promise<void>>(Promise.resolve());
 
   const commitPage = useCallback((next: NotificationPage | null): void => {
     snapshot.current = next;
     setPage(next);
   }, []);
 
-  const cancelBackgroundRead = useCallback((): void => {
-    if (gate.current === 'refresh') {
+  const cancelRead = useCallback((includeForeground = false): void => {
+    if (
+      gate.current === 'refresh' ||
+      (includeForeground && (gate.current === 'load' || gate.current === 'more'))
+    ) {
       sequence.current += 1;
       controller.current?.abort();
+      controller.current = null;
       gate.current = null;
+      setBusy(null);
     }
   }, []);
 
@@ -70,13 +77,12 @@ export function useNotificationInbox(userId: string): NotificationInboxState {
     async function load({
       cursor,
       background = false,
-      replace = false,
-    }: { cursor?: string; background?: boolean; replace?: boolean } = {}): Promise<void> {
+    }: { cursor?: string; background?: boolean } = {}): Promise<void> {
       if (!active.current || (background && document.hidden)) {
         return;
       }
       if (!background) {
-        cancelBackgroundRead();
+        cancelRead();
       }
       if (gate.current) {
         if (background) {
@@ -84,7 +90,7 @@ export function useNotificationInbox(userId: string): NotificationInboxState {
         }
         return;
       }
-      if (background && reconcileRequired.current) {
+      if (background && forbidden.current) {
         return;
       }
       gate.current = background ? 'refresh' : cursor ? 'more' : 'load';
@@ -92,7 +98,7 @@ export function useNotificationInbox(userId: string): NotificationInboxState {
       const abort = new AbortController();
       controller.current = abort;
       try {
-        const next = await getNotifications(
+        let next = await getNotifications(
           { limit: 20, unreadOnly: filter.current, ...(cursor ? { cursor } : {}) },
           abort.signal,
         );
@@ -100,10 +106,34 @@ export function useNotificationInbox(userId: string): NotificationInboxState {
           return;
         }
         const current = snapshot.current;
+        // A failed response may hide a persisted receipt on an older loaded page. Reconcile that
+        // loaded window before allowing another write, without replaying the failed PATCH/POST.
+        const reconcile = reconcileRequired.current;
+        if (background && reconcile && current) {
+          const oldestId = current.items.at(-1)?.id;
+          const maxPages = Math.ceil(current.items.length / 20) + 1;
+          const cursors = new Set<string>();
+          while (
+            next.nextCursor &&
+            !next.items.some(({ id }) => id === oldestId) &&
+            cursors.size < maxPages &&
+            !cursors.has(next.nextCursor)
+          ) {
+            cursors.add(next.nextCursor);
+            const older = await getNotifications(
+              { limit: 20, unreadOnly: filter.current, cursor: next.nextCursor },
+              abort.signal,
+            );
+            if (!active.current || request !== sequence.current) {
+              return;
+            }
+            next = mergeNotificationPage(next, older);
+          }
+        }
         commitPage(
           cursor && current
             ? mergeNotificationPage(current, next)
-            : background && !replace
+            : background && !reconcile
               ? refreshNotificationPage(current, next, filter.current)
               : next,
         );
@@ -111,6 +141,7 @@ export function useNotificationInbox(userId: string): NotificationInboxState {
         setSyncFailed(false);
         setNeedsRefresh(false);
         reconcileRequired.current = false;
+        forbidden.current = false;
       } catch (caught: unknown) {
         if (!active.current || request !== sequence.current || abort.signal.aborted) {
           return;
@@ -120,6 +151,7 @@ export function useNotificationInbox(userId: string): NotificationInboxState {
           setError('forbidden');
           setNeedsRefresh(true);
           reconcileRequired.current = true;
+          forbidden.current = true;
         } else if (background) {
           setSyncFailed(true);
         } else {
@@ -139,7 +171,7 @@ export function useNotificationInbox(userId: string): NotificationInboxState {
         }
       }
     },
-    [cancelBackgroundRead, commitPage],
+    [cancelRead, commitPage],
   );
 
   useEffect(() => {
@@ -148,43 +180,29 @@ export function useNotificationInbox(userId: string): NotificationInboxState {
     const refresh = () => void load({ background: true });
     const resume = () => {
       if (document.hidden) {
-        cancelBackgroundRead();
+        cancelRead();
       } else {
-        void load({ background: true, replace: true });
+        refresh();
       }
     };
     const timer = setInterval(refresh, NOTIFICATION_POLL_INTERVAL_MS);
     window.addEventListener('focus', resume);
     document.addEventListener('visibilitychange', resume);
-    window.addEventListener(NOTIFICATIONS_CHANGED_EVENT, refresh);
-    let channel: BroadcastChannel | null = null;
-    try {
-      if (typeof BroadcastChannel !== 'undefined') {
-        channel = new BroadcastChannel(notificationChannelName(userId));
-        channel.onmessage = (event: MessageEvent<unknown>) => {
-          if (event.data === 'changed') {
-            void load({ background: true, replace: true });
-          }
-        };
-      }
-    } catch {
-      // Polling and focus refresh also work when the browser disables BroadcastChannel.
-    }
+    const unsubscribe = subscribeNotificationsChanged(userId, refresh);
     return () => {
       active.current = false;
       sequence.current += 1;
       controller.current?.abort();
       gate.current = null;
       clearInterval(timer);
-      channel?.close();
+      unsubscribe();
       window.removeEventListener('focus', resume);
       document.removeEventListener('visibilitychange', resume);
-      window.removeEventListener(NOTIFICATIONS_CHANGED_EVENT, refresh);
     };
-  }, [cancelBackgroundRead, load, userId]);
+  }, [cancelRead, load, userId]);
 
   function changeFilter(next: boolean): void {
-    cancelBackgroundRead();
+    cancelRead();
     if (gate.current || next === filter.current) {
       return;
     }
@@ -197,7 +215,7 @@ export function useNotificationInbox(userId: string): NotificationInboxState {
   }
 
   function reload(cursor?: string): void {
-    cancelBackgroundRead();
+    cancelRead();
     if (gate.current) {
       return;
     }
@@ -206,10 +224,28 @@ export function useNotificationInbox(userId: string): NotificationInboxState {
     void load(cursor === undefined ? {} : { cursor });
   }
 
-  async function markRead(notificationId: string | null): Promise<void> {
-    cancelBackgroundRead();
+  function refresh(): void {
+    void load({ background: true });
+  }
+
+  function markRead(notificationId: string | null): Promise<void> {
+    // Booking links remain usable while another receipt is saving. Serialize their writes instead
+    // of dropping them; the data hook survives dashboard navigation and owns the pending queue.
+    const pending = writeQueue.current.then(() => saveRead(notificationId));
+    writeQueue.current = pending;
+    return pending;
+  }
+
+  async function saveRead(notificationId: string | null): Promise<void> {
+    if (!active.current || forbidden.current) {
+      return;
+    }
+    cancelRead(true);
+    if (reconcileRequired.current) {
+      await load({ background: true });
+    }
     const previous = snapshot.current;
-    if (gate.current || !previous || reconcileRequired.current) {
+    if (!active.current || gate.current || !previous || reconcileRequired.current) {
       return;
     }
     if (notificationId !== null && previous.items.find(({ id }) => id === notificationId)?.readAt) {
@@ -230,7 +266,7 @@ export function useNotificationInbox(userId: string): NotificationInboxState {
         notificationId === null
           ? await markAllNotificationsRead()
           : await markNotificationRead(notificationId);
-      // A navigation may unmount this inbox while the successful write still needs to notify peers.
+      // Account changes may unmount this hook while a successful write still needs to notify peers.
       notifyNotificationsChanged(userId);
       if (!active.current || request !== sequence.current) {
         return;
@@ -252,6 +288,7 @@ export function useNotificationInbox(userId: string): NotificationInboxState {
         commitPage(previous);
         setNeedsRefresh(true);
         reconcileRequired.current = true;
+        forbidden.current = caught instanceof ApiError && caught.status === 403;
         setError(
           caught instanceof ApiError && caught.status === 403
             ? 'forbidden'
@@ -281,6 +318,7 @@ export function useNotificationInbox(userId: string): NotificationInboxState {
     unreadOnly,
     changeFilter,
     reload,
+    refresh,
     markRead,
   };
 }

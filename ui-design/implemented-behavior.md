@@ -812,10 +812,18 @@ own authorization and current booking-state checks.
 Visible tabs refresh the inbox/badge every 30 seconds and on window focus or visibility return.
 Local payment-state changes invalidate the inbox; successful read writes also invalidate peer tabs
 through a user-scoped BroadcastChannel. These signals contain no notification content and use no
-browser storage. Hidden tabs skip polling, and pending background reads yield to explicit actions.
+browser storage. A per-tab source ID prevents the sender from processing its own channel echo.
+Hidden tabs skip polling, and pending reads yield to receipt writes when a booking link is opened.
 Background refresh merges overlapping first pages into loaded history, retaining expanded keyed
 rows. A gap in history resets to the fresh page/cursor instead of skipping unseen notifications.
 Temporary background errors retain the last successful data with a bilingual status message.
+Focus, visibility return and peer-tab signals use that same merge path. Dashboard route changes
+reset only the dropdown within a shared shell; its data hook retains filters, loaded pages and
+queued receipts. Reopening refreshes the existing history instead of replacing it with page one.
+Receipt writes are serialized, so opening another booking during a save queues its receipt while
+navigation proceeds immediately. Transient write failures roll back the optimistic state and let
+the next background GET reconcile the loaded window without replaying the write. A 403 still
+requires an explicit refresh before synchronization or writes resume.
 
 When a stored 1H reminder replaces 24H reminders for the same recipient and scheduled occurrence,
 the inbox and unread badge show only the 1H reminder. A newly received 1H reminder resets cached

@@ -111,7 +111,7 @@ export const notificationCopy = {
       CLASS_REMINDER_1H: 'บทเรียนเริ่มภายใน 1 ชั่วโมง',
       PAYMENT_REMINDER_24H: 'กรุณาชำระเงินสำหรับบทเรียนที่จะเริ่มภายใน 24 ชั่วโมง',
       PAYMENT_REMINDER_1H: 'กรุณาชำระเงินสำหรับบทเรียนที่จะเริ่มภายใน 1 ชั่วโมง',
-      PAYMENT_QR_READY: 'เตือนชำระเงินสำหรับ QR ใหม่',
+      PAYMENT_QR_READY: 'QR ชำระเงินพร้อมแล้ว',
     },
     eventDetails: {
       BOOKING_CREATED: 'คุณได้รับคำขอจองบทเรียน เปิดการจองเพื่อตรวจสอบรายละเอียดคำขอ',

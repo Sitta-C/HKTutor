@@ -7,13 +7,20 @@ import { MarkAllReadButton } from '@/components/notifications/mark-all-read-butt
 import { notificationCopy } from '@/components/notifications/notification-copy';
 import { NotificationItem } from '@/components/notifications/notification-item';
 import { UnreadBadge } from '@/components/notifications/unread-badge';
-import { useNotificationInbox } from '@/components/notifications/use-notification-inbox';
 import { NotebookLoadingRegion } from '@/components/ui/notebook-loading';
 import { useLanguage } from '@/lib/i18n';
 
 import styles from './notification.module.css';
 
-export function NotificationInbox({ role, userId }: { role: 'STUDENT' | 'TUTOR'; userId: string }) {
+import type { NotificationInboxState } from '@/components/notifications/use-notification-inbox';
+
+export function NotificationInbox({
+  role,
+  inbox,
+}: {
+  role: 'STUDENT' | 'TUTOR';
+  inbox: NotificationInboxState;
+}) {
   const { language } = useLanguage();
   const text = notificationCopy[language];
   const [open, setOpen] = useState(false);
@@ -26,8 +33,9 @@ export function NotificationInbox({ role, userId }: { role: 'STUDENT' | 'TUTOR';
     unreadOnly,
     changeFilter,
     reload,
+    refresh,
     markRead,
-  } = useNotificationInbox(userId);
+  } = inbox;
   const container = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
   const close = useRef<HTMLButtonElement>(null);
@@ -77,7 +85,7 @@ export function NotificationInbox({ role, userId }: { role: 'STUDENT' | 'TUTOR';
         onClick={() => {
           setOpen(!open);
           if (!open) {
-            reload();
+            refresh();
           }
         }}
       >
@@ -156,7 +164,7 @@ export function NotificationInbox({ role, userId }: { role: 'STUDENT' | 'TUTOR';
                         void markRead(item.id);
                       }}
                       onOpen={() => {
-                        // The route key dismisses the panel after navigation; keep the Link mounted.
+                        // Keep the Link mounted until navigation; only the dropdown will reset.
                         void markRead(item.id);
                       }}
                     />

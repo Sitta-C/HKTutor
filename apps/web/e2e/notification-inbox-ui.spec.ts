@@ -90,6 +90,7 @@ async function setup(
     moreFailure: 0,
     suppressedIds: new Set<string>(),
     readGate: undefined as Promise<void> | undefined,
+    moreGate: undefined as Promise<void> | undefined,
     writeGate: undefined as Promise<void> | undefined,
     loseResponse: false,
     reads: [] as URL[],
@@ -156,6 +157,7 @@ async function setup(
       state.reads.push(url);
       await (state.readGate ?? options.listGate);
       const more = url.searchParams.has('cursor');
+      if (more) await state.moreGate;
       const filtered = state.items.filter(
         (item) =>
           !state.suppressedIds.has(item.id) &&
@@ -343,8 +345,15 @@ test('load failure and forbidden list do not become empty success; refresh recov
   page,
 }) => {
   const { state, bell, inbox, text } = await setup(page);
+  await expect(bell).toHaveAccessibleName(
+    `${text.title}, ${text.unreadCount.replace('{count}', '3')}`,
+  );
   state.listFailure = 500;
   await bell.click();
+  // Reopening keeps cached rows on a background error; an explicit refresh reports load failure.
+  await expect(inbox.getByText(text.syncFailed, { exact: true })).toBeVisible();
+  await expect(inbox.getByRole('listitem')).toHaveCount(3);
+  await inbox.getByRole('button', { name: text.refresh }).click();
   await expect(inbox.getByRole('alert')).toHaveText(text.loadFailed);
   await expect(inbox.getByText(text.empty, { exact: true })).toHaveCount(0);
   state.listFailure = 403;
@@ -566,6 +575,201 @@ test('a pending read receipt never delays opening the booking', async ({ page })
   }
 });
 
+test('own read invalidation refreshes once and preserves loaded history', async ({ page }) => {
+  await page.clock.install();
+  const { state, bell, inbox, text } = await setup(page);
+  await bell.click();
+  await inbox.getByRole('button', { name: text.loadMore }).click();
+  await expect(inbox.getByRole('listitem')).toHaveCount(4);
+  const before = state.reads.length;
+  const first = inbox.getByRole('listitem').first();
+  await first.locator('summary').click();
+  await first.getByRole('button', { name: text.markRead, exact: true }).click();
+  await expect(first.getByText(text.read, { exact: true })).toBeVisible();
+  await expect.poll(() => state.reads.length).toBe(before + 1);
+  await expect(inbox.getByRole('listitem')).toHaveCount(4);
+  expect(state.writes).toHaveLength(1);
+});
+
+for (const signal of ['focus', 'visibilitychange'] as const) {
+  test(`${signal} refresh preserves expanded loaded history`, async ({ page }) => {
+    await page.clock.install();
+    const { state, bell, inbox, text } = await setup(page);
+    await bell.click();
+    await inbox.getByRole('button', { name: text.loadMore }).click();
+    await expect(inbox.getByRole('listitem')).toHaveCount(4);
+    const last = inbox.getByRole('listitem').last();
+    await last.locator('summary').click();
+    state.items.unshift(notice('new-on-resume'));
+    await page.evaluate((event) => {
+      (event === 'focus' ? window : document).dispatchEvent(new Event(event));
+    }, signal);
+    await expect(inbox.getByRole('listitem')).toHaveCount(5);
+    await expect(last.locator('details')).toHaveAttribute('open', '');
+    expect(state.writes).toEqual([]);
+  });
+}
+
+for (const status of [404, 409, 500]) {
+  test(`a ${status} read failure recovers the closed bell on the next poll`, async ({ page }) => {
+    await page.clock.install();
+    const { state, bell, inbox, text } = await setup(page);
+    await bell.click();
+    await inbox.getByRole('button', { name: text.loadMore }).click();
+    await expect(inbox.getByRole('listitem')).toHaveCount(4);
+    state.writeFailure = status;
+    const last = inbox.getByRole('listitem').last();
+    await last.locator('summary').click();
+    await last.getByRole('button', { name: text.markRead, exact: true }).click();
+    await expect(inbox.getByRole('alert')).toHaveText(
+      status === 404 ? text.missing : text.saveFailed,
+    );
+    await bell.click();
+    state.writeFailure = 0;
+    state.items.unshift(notice('after-save-error'));
+    await page.clock.runFor(NOTIFICATION_POLL_INTERVAL_MS);
+    await expect(bell).toHaveAccessibleName(
+      `${text.title}, ${text.unreadCount.replace('{count}', '4')}`,
+    );
+    await bell.click();
+    await expect(inbox.getByRole('listitem')).toHaveCount(5);
+    await expect(inbox.getByRole('alert')).toHaveCount(0);
+    expect(state.writes).toHaveLength(1);
+    await inbox.getByRole('listitem').last().locator('summary').click();
+    await expect(
+      inbox.getByRole('listitem').last().getByRole('button', { name: text.markRead, exact: true }),
+    ).toBeEnabled();
+  });
+}
+
+test('a lost older receipt response reconciles automatically without repeating its write', async ({
+  page,
+}) => {
+  await page.clock.install();
+  const { state, bell, inbox, text } = await setup(page);
+  await bell.click();
+  await inbox.getByRole('button', { name: text.loadMore }).click();
+  await expect(inbox.getByRole('listitem')).toHaveCount(4);
+  state.loseResponse = true;
+  const last = inbox.getByRole('listitem').last();
+  await last.locator('summary').click();
+  await last.getByRole('button', { name: text.markRead, exact: true }).click();
+  await expect(inbox.getByRole('alert')).toHaveText(text.saveFailed);
+  expect(state.items.at(-1)?.readAt).toBe(READ_AT);
+  await page.clock.runFor(NOTIFICATION_POLL_INTERVAL_MS);
+  await expect(inbox.getByRole('alert')).toHaveCount(0);
+  await expect(inbox.getByRole('listitem')).toHaveCount(4);
+  await expect(last.getByText(text.read, { exact: true })).toBeVisible();
+  expect(state.writes).toHaveLength(1);
+});
+
+test('a forbidden receipt waits for explicit refresh instead of retrying in the background', async ({
+  page,
+}) => {
+  await page.clock.install();
+  const { state, bell, inbox, text } = await setup(page);
+  await bell.click();
+  state.writeFailure = 403;
+  await inbox.getByRole('listitem').first().locator('summary').click();
+  await inbox
+    .getByRole('listitem')
+    .first()
+    .getByRole('button', { name: text.markRead, exact: true })
+    .click();
+  await expect(inbox.getByRole('alert')).toHaveText(text.forbidden);
+  const before = state.reads.length;
+  await page.clock.runFor(2 * NOTIFICATION_POLL_INTERVAL_MS);
+  await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+  expect(state.reads).toHaveLength(before);
+  state.writeFailure = 0;
+  await inbox.getByRole('button', { name: text.refresh }).click();
+  await expect(inbox.getByRole('alert')).toHaveCount(0);
+});
+
+test('navigation preserves the unread filter and loaded pages without an extra mount GET', async ({
+  page,
+}) => {
+  const { state, bell, inbox, text } = await setup(page, {
+    items: Array.from({ length: 6 }, (_, index) => notice(`history-${index}`)),
+  });
+  await bell.click();
+  await inbox.getByRole('button', { name: text.filterUnread, exact: true }).click();
+  await inbox.getByRole('button', { name: text.loadMore }).click();
+  await expect(inbox.getByRole('listitem')).toHaveCount(6);
+  const before = state.reads.length;
+  const receipt = Promise.withResolvers<void>();
+  state.writeGate = receipt.promise;
+  try {
+    await inbox.getByRole('listitem').first().locator('summary').click();
+    await inbox.getByRole('listitem').first().getByRole('link').click();
+    await expect(page).toHaveURL(`/dashboard/bookings/${BOOKING_ID}`);
+    await expect(inbox).toHaveCount(0);
+    expect(state.reads).toHaveLength(before);
+    await bell.click();
+    await expect(
+      inbox.getByRole('button', { name: text.filterUnread, exact: true }),
+    ).toHaveAttribute('aria-pressed', 'true');
+    await expect(inbox.getByRole('listitem')).toHaveCount(5);
+  } finally {
+    receipt.resolve();
+  }
+  await expect.poll(() => state.items[0]?.readAt).toBe(READ_AT);
+  await expect(inbox.getByRole('listitem')).toHaveCount(5);
+});
+
+test('opening a booking cancels an older-page load and still saves the receipt', async ({
+  page,
+}) => {
+  const { state, bell, inbox, text } = await setup(page);
+  await bell.click();
+  await inbox.getByRole('listitem').first().locator('summary').click();
+  const older = Promise.withResolvers<void>();
+  state.moreGate = older.promise;
+  try {
+    await inbox.getByRole('button', { name: text.loadMore }).click();
+    await expect(inbox.getByRole('button', { name: text.loading, exact: true })).toBeDisabled();
+    await inbox.getByRole('listitem').first().getByRole('link').click();
+    await expect(page).toHaveURL(`/dashboard/bookings/${BOOKING_ID}`);
+    await expect.poll(() => state.items[0]?.readAt).toBe(READ_AT);
+    expect(state.writes).toHaveLength(1);
+  } finally {
+    state.moreGate = undefined;
+    older.resolve();
+  }
+});
+
+test('opening another booking queues its receipt behind a pending write across navigation', async ({
+  page,
+}) => {
+  const { state, bell, inbox, text } = await setup(page, {
+    items: [notice('first'), notice('second')],
+  });
+  await bell.click();
+  const receipt = Promise.withResolvers<void>();
+  state.writeGate = receipt.promise;
+  try {
+    await inbox.getByRole('listitem').first().locator('summary').click();
+    await inbox
+      .getByRole('listitem')
+      .first()
+      .getByRole('button', { name: text.markRead, exact: true })
+      .click();
+    const other = inbox.getByRole('listitem').nth(1);
+    await other.locator('summary').click();
+    await other.getByRole('link').click();
+    await expect(page).toHaveURL(`/dashboard/bookings/${BOOKING_ID}`);
+    expect(state.writes).toHaveLength(1);
+  } finally {
+    receipt.resolve();
+  }
+  await expect.poll(() => state.writes.length).toBe(2);
+  await expect.poll(() => state.items.every((item) => item.readAt === READ_AT)).toBe(true);
+  expect(state.writes.map(({ path }) => path)).toEqual([
+    '/notifications/first/read',
+    '/notifications/second/read',
+  ]);
+});
+
 test('visible polling updates the closed bell and preserves expanded loaded history', async ({
   page,
 }) => {
@@ -692,13 +896,14 @@ test('same-account tab invalidation reconciles receipts without another write', 
 }) => {
   const { state, bell, inbox, text } = await setup(page);
   await bell.click();
-  await expect(inbox.getByRole('listitem')).toHaveCount(3);
+  await inbox.getByRole('button', { name: text.loadMore }).click();
+  await expect(inbox.getByRole('listitem')).toHaveCount(4);
   const first = state.items[0];
   if (!first) throw new Error('Missing notification fixture');
   first.readAt = READ_AT;
   await page.evaluate((name) => {
     const peer = new BroadcastChannel(name);
-    peer.postMessage('changed');
+    peer.postMessage({ type: 'changed', sourceId: 'synthetic-peer-tab' });
     peer.close();
   }, notificationChannelName('notification-user'));
   await expect(
@@ -708,6 +913,7 @@ test('same-account tab invalidation reconciles receipts without another write', 
     `${text.title}, ${text.unreadCount.replace('{count}', '2')}`,
   );
   expect(state.writes).toEqual([]);
+  await expect(inbox.getByRole('listitem')).toHaveCount(4);
 });
 
 test('marking read takes priority over a pending background request', async ({ page }) => {
