@@ -748,28 +748,36 @@ fixtures). Evidence and findings are in `tests/s2-t34-qa.md`.
 
 ## Booking payment deadline
 
-The payment deadline is **4 hours before `slot.startAtUtc`**. A single UTC comparison applies
-in every timezone: `now < startAtUtc - 4h`. At equality the window is closed. For a lesson at
-18:00 Asia/Bangkok, payment closes at 14:00 and the final scheduled reminder starts at 13:00.
+Booking creation, tutor confirmation and new payments close at **`slot.startAtUtc`**.
+The strict UTC condition is `now < startAtUtc`; equality is closed. A lesson at 18:00 Bangkok
+can be confirmed/paid before 18:00, and its final scheduled reminder starts at 17:00.
 
-- Booking creation/quotes, tutor confirmation, coupon quote/apply/remove, and new payment creation
-  require an open payment window. This includes 100% coupon settlement. Closed windows return
-  `409 BOOKING_PAYMENT_DEADLINE_PASSED`; existing state/ownership errors still apply first.
-- The API enforces the deadline even if the browser is stale or the expiry job is offline. The
-  tutor inbox disables confirmation and checkout closes without a page reload at the deadline.
-- New PromptPay QR expiry is `min(now + 15 minutes, payment deadline)`, using Omise's
-  [per-charge expiry](https://docs.omise.co/promptpay). The browser hides QRs at the deadline.
-- `booking-payment-expiry` runs every minute (UTC, disabled in tests). Its conditional database
-  update expires `PENDING` and `CONFIRMED` / `UNPAID` bookings at or after the deadline only when
-  there is no active/uncertain payment or reserved coupon capacity. `EXPIRED` releases the slot.
-  Previously overdue bookings are included on the first run. No historical paid receipt is changed.
-- Active or uncertain attempts stay locked until a provider-confirmed terminal result. Status reads
-  and webhooks continue after the deadline. A verified successful payment is always recorded,
-  including delayed callbacks and legacy QRs issued before this policy. Confirmed failure/expiry
-  releases capacity; the next expiry tick closes the unpaid booking. Never infer failure from time.
-- Class/payment reminder bands are **24H and 5H**. Payment reminders stop at the 4h deadline;
-  paid class reminders remain eligible until the lesson starts. Old `1H` notification rows keep
-  their original meaning and translations; new jobs never create `1H` events.
+- Booking quotes/creation, confirmation, coupon quote/apply/remove and new payments (including
+  100% coupons) reject a closed window with `409 BOOKING_PAYMENT_DEADLINE_PASSED`. Confirmation
+  rechecks the clock after acquiring database write locks; crossing the deadline rolls back the
+  transition and its notification. Booking creation checks again after selection validation.
+- The browser closes checkout at start without reload and remembers a server-confirmed deadline
+  rejection even if the client clock is slow. Active QR panels explain that the window is closed
+  while status reads continue to reconcile the existing payment.
+- New QR expiry is `min(now + 15 minutes, lesson start)`, using Omise's
+  [per-charge expiry](https://docs.omise.co/promptpay). An uncertain provider result remains locked;
+  it never authorizes another charge or a clock-only expiry. Verified success is always recorded,
+  including delayed callbacks and historical charges, rather than silently losing payment evidence.
+- The UTC `booking-payment-expiry` job runs each minute, disabled in tests. It expires due
+  `PENDING` / `CONFIRMED`, `UNPAID` bookings only without active/uncertain attempts or reserved
+  coupon capacity. Paid/completed bookings are preserved. Endpoint guards enforce the deadline
+  independently of cron timing. Existing overdue eligible requests close on the first tick.
+- Pending requests and confirmed unpaid bookings continue to reserve their original slot until
+  expiry. This can prevent another student booking that time even if the first student never pays;
+  this is an accepted product limitation. There is no additional short reservation timer or queue.
+- Reschedule requests do not reserve their target. Approval waits until an existing payment has
+  a verified terminal result (`409 PAYMENT_IN_PROGRESS` while unresolved); rejection/withdrawal
+  remain available. The original booking and QR deadline remain unchanged while approval waits.
+  A target that has started cannot be approved after payment settles; choose a different future
+  target through a new request. The existing 24-hour cutoff for the original class still applies.
+- Scheduled reminders remain **24H and 1H**, with one catch-up band on a late first run and none
+  after start. Historical 5H event labels remain readable. Completion still requires payment;
+  this change does not rewrite old completed/unpaid records or review evidence.
 
 ## PromptPay test payments
 
@@ -1188,7 +1196,7 @@ The existing S2-DB05 table and indexes are used without a schema migration. UI w
 Each list item contains exactly `id`, `eventType`, `title`, nullable `bookingId`, nullable `readAt`
 and `createdAt`. `bookingId` is link metadata; it does not grant access to the booking. Notification
 body, event key, recipient ID and related profile data are not returned. All times are UTC ISO 8601.
-The GET is read-only. A stored 5H reminder (or historical 1H reminder) supersedes 24H reminders for the same recipient and
+The GET is read-only. A stored 1H reminder (or historical 5H reminder) supersedes 24H reminders for the same recipient and
 scheduled occurrence (booking, slot and UTC start), including a prior unpaid reminder followed by
 a paid class reminder. Superseded rows remain stored with their original read receipts but are
 excluded before pagination, unread counts and bulk read. Reading the urgent reminder never restores
@@ -1247,22 +1255,31 @@ class reminders now require payment. The backlog sheet is not edited by this tas
 
 With `delta = startAtUtc - nowUtc` (the slot start and the job's clock):
 
-| `delta`                 | Band  | Unpaid payment reminder     |
-| ----------------------- | ----- | --------------------------- |
-| More than 24h           | None  | No                          |
-| More than 5h, up to 24h | `24H` | Yes                         |
-| More than 4h, up to 5h  | `5H`  | Yes                         |
-| More than 0, up to 4h   | `5H`  | No: payment deadline passed |
-| 0 or less (started)     | None  | No                          |
+| `delta`                 | Band  |
+| ----------------------- | ----- |
+| More than 24h           | None  |
+| More than 1h, up to 24h | `24H` |
+| More than 0, up to 1h   | `1H`  |
+| 0 or less (started)     | None  |
 
-Exactly 24h selects 24H; exactly 5h selects 5H. A late first run sends only its current
-band, never both. At exactly 4h, unpaid payment reminders stop, even if the expiry job has not
-updated the booking yet. Paid participants can still receive the 5H class reminder until start.
-A 5H reminder supersedes the same occurrence's 24H inbox entry and badge count; all rows are retained.
-Legacy 1H reminders retain the same supersession behavior and historical text.
+Exactly 24h selects 24H and exactly 1h selects only 1H. A run never selects both bands: a job that
+first sees a class 2h ahead sends the 24H reminder now and the 1H reminder later. The 1H reminder
+then replaces the old 24H reminder in the inbox and badge, while both records remain stored.
+A first run 30 minutes ahead sends only 1H. For a class at 2026-11-10 18:00 Asia/Bangkok
+(`2026-11-10T11:00:00.000Z`):
+
+| Job run (UTC)              | Job run (Asia/Bangkok)  | Band           |
+| -------------------------- | ----------------------- | -------------- |
+| `2026-11-09T10:59:59.999Z` | 2026-11-09 17:59:59.999 | None           |
+| `2026-11-09T11:00:00.000Z` | 2026-11-09 18:00:00.000 | `24H`          |
+| `2026-11-10T09:00:00.000Z` | 2026-11-10 16:00:00.000 | `24H` catch-up |
+| `2026-11-10T09:59:59.999Z` | 2026-11-10 16:59:59.999 | `24H`          |
+| `2026-11-10T10:00:00.000Z` | 2026-11-10 17:00:00.000 | `1H`           |
+| `2026-11-10T10:59:59.999Z` | 2026-11-10 17:59:59.999 | `1H`           |
+| `2026-11-10T11:00:00.000Z` | 2026-11-10 18:00:00.000 | None           |
 
 Calendar days do not matter: a class at 2026-11-11 00:00 Bangkok gets its 24H reminder from
-2026-11-10 00:00 Bangkok and its 5H reminder from 19:00.
+2026-11-10 00:00 Bangkok and its 1H reminder from 23:00.
 
 | Booking                                       | Student                   | Tutor                   |
 | --------------------------------------------- | ------------------------- | ----------------------- |
@@ -1273,13 +1290,13 @@ Calendar days do not matter: a class at 2026-11-11 00:00 Bangkok gets its 24H re
 Class reminders require `PAID` for both participants, matching classroom access. Payment suppresses
 future payment reminders and enables class reminders for the current band on the next job tick;
 an earlier payment reminder does not suppress the class reminders. This also includes zero-net
-coupon settlement. Before the payment deadline, a booking with a PromptPay charge in progress is still `UNPAID`
-and keeps its scheduled payment reminder; a reminder never creates a charge.
+coupon settlement. A booking with a PromptPay charge in progress is still `UNPAID` and keeps its
+scheduled payment reminder; a reminder never creates a charge.
 A recipient whose account is not `ACTIVE` or has `deletedAt` set is skipped, and the other
 participant is still notified.
 
 ```text
-reminder:<bookingId>:<slotId>:<startAtUtcISO>:<24H|5H>:<CLASS|PAYMENT>
+reminder:<bookingId>:<slotId>:<startAtUtcISO>:<24H|1H>:<CLASS|PAYMENT>
 ```
 
 The key has no recipient: the existing unique `(userId, eventKey)` index keeps the student's and
@@ -1293,18 +1310,18 @@ migration.
 
 `PaymentsService` also writes `PAYMENT_QR_READY` through `NotificationEventsService` in the same
 transaction that persists a verified provider charge. It goes only to the booking's student when
-the booking is `CONFIRMED`, `UNPAID`, the payment deadline is still open, and the charge is `PENDING` with a QR URL and future expiry.
+the booking is `CONFIRMED`, `UNPAID`, and the charge is `PENDING` with a QR URL and future expiry.
 Its key is `PAYMENT_QR_READY:<paymentAttemptId>`, using the existing `(userId, eventKey)` unique
 index. No schema migration or HTTP response change is needed.
 
 Each new usable QR, including a retry after verified expiry/failure, gets one payment prompt,
-independent of the 24H/5H windows. Resuming the same QR, polling and replayed webhooks preserve
+independent of the 24H/1H windows. Resuming the same QR, polling and replayed webhooks preserve
 the original notification and read receipt. A lost create response can recover the prompt through
 the existing status-read or webhook reconciliation. Notification persistence failure rolls back
 the local charge update so reconciliation can retry; it never retries the provider charge POST.
 No prompt is written for CREATING, unusable/already elapsed QRs, terminal charges or zero-net
-coupon settlement. Provider-confirmed expiry alone sends no notification. Once the payment deadline is passed,
-the independent booking-expiry job closes an unpaid booking after its attempt is terminal. Existing notifications remain historical records.
+coupon settlement. Provider-confirmed expiry alone sends no notification and does not expire the
+booking. Existing notifications remain historical records.
 
 These QR prompts and the scheduled time-band payment reminders are distinct events; both can
 appear when a new QR becomes available near a reminder tick. Titles and details distinguish them
@@ -1316,10 +1333,10 @@ and rescheduling cannot race a stale scan, reminder titles/bodies, and the sched
 Invalid dates make the policy throw rather than pick a band.
 
 Focused check: `pnpm --filter @hktutor/api test test/unit/notifications/reminder-policy`. The spec
-holds the acceptance truth table: 24h ± 1 ms, the 6h catch-up, 5h ± 1 ms, a delayed 4h30m run,
+holds the acceptance truth table: 24h ± 1 ms, the 2h catch-up, 1h ± 1 ms, a delayed 30-minute run,
 start ± 1 ms, Bangkok midnight, paid and unpaid, every excluded status, inactive recipients and a
 rescheduled slot. Each case's Bangkok time is checked against the `Asia/Bangkok` zone, and a
-minute-by-minute sweep confirms the band changes exactly at 24h, 5h and the start. It does not
+minute-by-minute sweep confirms the band changes exactly at 24h, 1h and the start. It does not
 exercise PostgreSQL or the job; those belong to S3-T06 and S3-T08.
 
 ### Scheduled reminder job (S3-T06)
@@ -1362,12 +1379,12 @@ Each run captures one UTC clock and then:
 Runs are sequential, so the job uses at most one of the API's three pooled connections at a time.
 If the API is down, the next run sends only the band that is current then (see the S3-T05 table).
 
-| `eventType`            | `title`                      | `body`                                                                                                   |
-| ---------------------- | ---------------------------- | -------------------------------------------------------------------------------------------------------- |
-| `CLASS_REMINDER_24H`   | Class starts within 24 hours | Your lesson starts within 24 hours.                                                                      |
-| `CLASS_REMINDER_5H`    | Class starts within 5 hours  | Your lesson starts within 5 hours.                                                                       |
-| `PAYMENT_REMINDER_24H` | Payment due for your class   | Your lesson starts within 24 hours and is still unpaid. Payment closes 4 hours before the lesson starts. |
-| `PAYMENT_REMINDER_5H`  | Payment due for your class   | Your lesson starts within 5 hours and is still unpaid. Payment closes 4 hours before the lesson starts.  |
+| `eventType`            | `title`                      | `body`                                                  |
+| ---------------------- | ---------------------------- | ------------------------------------------------------- |
+| `CLASS_REMINDER_24H`   | Class starts within 24 hours | Your lesson starts within 24 hours.                     |
+| `CLASS_REMINDER_1H`    | Class starts within 1 hour   | Your lesson starts within 1 hour.                       |
+| `PAYMENT_REMINDER_24H` | Payment due for your class   | Your lesson starts within 24 hours and is still unpaid. |
+| `PAYMENT_REMINDER_1H`  | Payment due for your class   | Your lesson starts within 1 hour and is still unpaid.   |
 
 The text is a fallback with no names, amounts or links (S2-T28); S3-T07 localises by `eventType`.
 `NotificationEventsService.writeReminders` writes a booking's reminders in one insert and refuses
@@ -1422,7 +1439,7 @@ Each scenario uses its own day in 2099, so one 24-hour scan never sees another s
 checks cover:
 
 - The cron registered outside Jest: every minute, UTC, running, and stopped on shutdown.
-- The 24h, 5h, 4h payment deadline and start boundaries, exactly and ± 1 ms.
+- The 24h, 1h and start boundaries, exactly and ± 1 ms.
 - Excluded statuses, paid bookings, and a suspended student or deleted tutor.
 - A late first run, and repeats that keep the original rows and take no lock.
 - Two clients, standing in for two API processes, waiting on the same booking lock.
@@ -1430,8 +1447,8 @@ checks cover:
 - 210 bookings with three-way start-time ties across page boundaries.
 - An insert failure after the payment recipient row is inserted, forced by a temporary trigger on
   `Notification` for one booking, that rolls back every recipient, logs no IDs and retries successfully.
-- Fresh paid/unpaid bookings at 24h, 5h and zero, each with +/-1ms checks, plus more than 24h.
-- A first run at 6h followed by a new worker at 4h30m, and a restart first seeing a booking at 4h30m.
+- Fresh paid/unpaid bookings at 24h, 1h and zero, each with +/-1ms checks, plus more than 24h.
+- A first run at 2h followed by a new worker at 30m, and a restart first seeing a booking at 30m.
 - Separate keys for two rescheduled occurrences in the same band; inbox reads for both participants
   and read receipts preserved across repeated ticks and the start boundary.
 

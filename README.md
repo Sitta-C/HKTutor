@@ -131,7 +131,7 @@ rendered only from the status the API returns, and a 403, 404, or 409 answer loc
 refresh so the inbox never shows an optimistic status the server did not persist.
 
 Students and tutors see paid/unpaid status on booking rows. Classroom links and attendance
-recording require payment first, even when a booking is confirmed or already completed. Payment closes 4 hours before the lesson starts; new requests and tutor confirmation must also precede that deadline. Unpaid requests without active payments expire automatically. Confirmed, unpaid bookings within this window support Omise
+recording require payment first, even when a booking is confirmed or already completed. Payment closes when the lesson starts; new requests and tutor confirmation must also precede that deadline. Unpaid requests without active payments expire automatically. Confirmed, unpaid bookings within this window support Omise
 PromptPay **Test Mode**: create or resume a QR, receive a signed webhook, and reconcile status
 through the API. No real money is collected. An active or uncertain attempt blocks duplicate
 charges and cancellation until Omise confirms a terminal result. The previous mock-payment
@@ -171,14 +171,14 @@ the last successful data on a temporary error. Opening a booking starts a best-e
 without waiting for it; a failed read write never blocks booking navigation.
 See [S3-T08 reminder QA evidence](tests/s3-t08-qa.md) for boundary, concurrency, retry and inbox checks.
 
-Class and payment reminders support the 24-hour/5-hour event types in Thai and English; their
+Class and payment reminders support the 24-hour/1-hour event types in Thai and English; their
 explanations describe the state when sent and link to the booking for current details. The API
 selects recipients: unpaid bookings send payment reminders only, and paid bookings send class
 reminders to both participants. Each new usable PromptPay QR also sends the student one payment
 prompt, deduplicated per attempt across refreshes and webhook retries. QR expiry sends no event.
 Stored notifications remain readable. Existing unread counts, pagination and read-error recovery
 are preserved. See the [payment QR prompt contract](apps/api/README.md#payment-qr-prompts).
-When a 5-hour reminder arrives, it replaces 24-hour reminders for that same lesson occurrence in
+When a 1-hour reminder arrives, it replaces 24-hour reminders for that same lesson occurrence in
 the inbox and unread badge. Older rows remain stored; rescheduled occurrences stay independent.
 
 Students and tutors can optionally upload, replace, or remove a profile photo during onboarding or

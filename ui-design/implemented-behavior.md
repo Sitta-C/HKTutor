@@ -802,7 +802,7 @@ the email, and a changed flow from another tab cannot silently change the resend
 ## Notification inbox usability (2026-11-13)
 
 The Minimal Notes bell offers All/Unread filters through the existing `unreadOnly` query.
-Payment reminder headings distinguish 24-hour and 5-hour windows; booking and reschedule events
+Payment reminder headings distinguish 24-hour and 1-hour windows; booking and reschedule events
 have Thai/English explanations based on their existing event types. Expanding a row does not mark
 it read. Marking a row read removes it from the unread view and leaves keyboard focus on the
 selected filter. The booking link remains usable during read writes and after read-write errors;
@@ -834,15 +834,15 @@ navigation proceeds immediately. Transient write failures roll back the optimist
 the next background GET reconcile the loaded window without replaying the write. A 403 still
 requires an explicit refresh before synchronization or writes resume.
 
-When a stored 5H reminder (or a legacy 1H reminder) replaces 24H reminders for the same recipient and scheduled occurrence,
-the inbox and unread badge show only the urgent reminder. A newly received 5H reminder resets cached
+When a stored 1H reminder (or a historical 5H reminder) replaces 24H reminders for the same recipient and scheduled occurrence,
+the inbox and unread badge show only the urgent reminder. A newly received 1H reminder resets cached
 older pages through the server's cursor so superseded rows cannot be merged back into the list.
 Reading the urgent reminder does not restore the 24H reminder. Original database history is retained.
 
 The 2026-11-13 payment policy closes new requests, tutor confirmation and new payments at exactly
-4 hours before lesson start. Checkout shows the deadline in Bangkok time and closes without reload;
-new QRs expire no later than that deadline. The final scheduled reminder moves to 5H, and unpaid
-payment reminders stop at the 4H cutoff. Legacy 1H history keeps its original labels. Active or
+at lesson start. Checkout shows the deadline in Bangkok time and closes without reload;
+new QRs expire no later than that deadline. The final scheduled reminder remains 1H, and unpaid
+payment reminders stop at the lesson-start cutoff. Historical 5H history keeps its original labels. Active or
 uncertain payments remain locked and can still be reconciled after the deadline.
 
 ## PromptPay Test Mode (2026-10-19)
