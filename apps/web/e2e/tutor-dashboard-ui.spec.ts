@@ -140,6 +140,14 @@ async function mockDashboard(
     if (path === '/auth/refresh')
       return json(route, { accessToken: 'ui-test-token', user: tutorUser });
     if (path === '/profiles/me') return json(route, profile);
+    if (path === '/reports/tutor/me') {
+      return json(route, {
+        totalBookings: 0,
+        statusCounts: { PENDING: 0, CONFIRMED: 0, COMPLETED: 0, CANCELED: 0, EXPIRED: 0 },
+        revenue: { amount: '0.00', currency: 'THB' },
+        completionRate: { completed: 0, finalized: 0, percent: null },
+      });
+    }
     if (path === '/bookings/tutor') {
       const params = new URL(request.url()).searchParams;
       if (params.has('to')) await options.analyticsGate;
