@@ -25,7 +25,9 @@ export class TutorReportStatusCountsDto {
 export class TutorReportRevenueDto {
   @ApiProperty({
     description:
-      'Total netAmount in THB across PAID and COMPLETED bookings owned by the tutor, formatted as a fixed-decimal string.',
+      'Total netAmount in THB across PAID and COMPLETED bookings owned by the tutor, formatted as ' +
+      'a fixed-decimal string. netAmount is the stored price snapshot after any coupon discount ' +
+      '(subtotalAmount - discountAmount), summed with Prisma Decimal.',
     example: '905.00',
   })
   amount!: string;

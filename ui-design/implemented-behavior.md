@@ -834,13 +834,16 @@ navigation proceeds immediately. Transient write failures roll back the optimist
 the next background GET reconcile the loaded window without replaying the write. A 403 still
 requires an explicit refresh before synchronization or writes resume.
 
-When a stored 1H reminder replaces 24H reminders for the same recipient and scheduled occurrence,
-the inbox and unread badge show only the 1H reminder. A newly received 1H reminder resets cached
+When a stored 1H reminder (or a historical 5H reminder) replaces 24H reminders for the same recipient and scheduled occurrence,
+the inbox and unread badge show only the urgent reminder. A newly received 1H reminder resets cached
 older pages through the server's cursor so superseded rows cannot be merged back into the list.
-Reading the 1H reminder does not restore the 24H reminder. Original database history is retained.
+Reading the urgent reminder does not restore the 24H reminder. Original database history is retained.
 
-This UI work uses the existing API fields and events. Notification eligibility, payment deadlines,
-QR/time-band deduplication rules and additional business events are unchanged.
+The 2026-11-13 payment policy closes new requests, tutor confirmation and new payments at exactly
+at lesson start. Checkout shows the deadline in Bangkok time and closes without reload;
+new QRs expire no later than that deadline. The final scheduled reminder remains 1H, and unpaid
+payment reminders stop at the lesson-start cutoff. Historical 5H history keeps its original labels. Active or
+uncertain payments remain locked and can still be reconciled after the deadline.
 
 ## PromptPay Test Mode (2026-10-19)
 
@@ -851,6 +854,17 @@ mode is labeled in Thai and English. Failed/expired attempts permit a new QR; un
 require status verification and never automatically retry charge creation. Active attempts block
 cancellation on the server and in the detail UI. Legacy mock receipts remain readable, while the
 old mock-payment endpoint is retired. No card fields, refunds, payouts or live payment are added.
+
+### Decision Slip checkout (2026-11-13)
+
+The student checkout now uses **Decision Slip** (selected 2026-11-13): coupons and stored amounts
+stay left of a compact bordered payment paper, stacking at a 600px container width. A heading tab,
+deadline metadata, status message and dashed action footer keep the payment hierarchy consistent
+through ready, pending, closed and paid states. QR creation/retry and full-coupon settlement use
+the shared student Ink Ticket with a right icon stub; refresh remains a quiet text action. Deadline
+labels sit above their timestamps without a middle-dot text separator. The test-mode notice remains
+visible below the controls. This changes presentation only; payment, coupon and deadline guards
+retain their existing behavior.
 
 ### Payment required for classroom access and completion (2026-10-20)
 

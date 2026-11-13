@@ -182,6 +182,9 @@ export function resolveTutorBookingDecisionError(
     return { kind: 'MISSING', message: copy.missingError, requiresRefresh: true };
   }
   if (error.status === 409) {
+    if (getApiErrorCode(error) === 'BOOKING_PAYMENT_DEADLINE_PASSED') {
+      return { kind: 'STALE', message: copy.deadlinePassedHint, requiresRefresh: true };
+    }
     const raced = getApiErrorCode(error) === 'BOOKING_TRANSITION_CONFLICT';
     return {
       kind: 'STALE',

@@ -32,6 +32,7 @@ async function setup(
     errorStatus?: number | 'network';
     errorCode?: string;
     gate?: Promise<void>;
+    paymentGate?: Promise<void>;
     cutoff?: boolean;
     readStatus?: number;
     open?: boolean;
@@ -150,6 +151,30 @@ async function setup(
     }
     if (path === '/profiles/me/avatar') {
       return route.fulfill({ json: { avatar: null } });
+    }
+    if (
+      path === '/bookings/me/reschedule-preview/payments/current' ||
+      path === '/bookings/me/reschedule-preview/payments/promptpay'
+    ) {
+      if (route.request().method() === 'POST') {
+        await options.paymentGate;
+        booking = {
+          ...booking,
+          paymentStatus: 'PAID',
+          paidAt: new Date().toISOString(),
+          paymentReference: 'chrg_test_reschedule',
+        };
+      }
+      return route.fulfill({
+        json: {
+          bookingId: booking.id,
+          paymentStatus: booking.paymentStatus,
+          paymentPending: false,
+          paidAt: booking.paidAt,
+          reference: booking.paymentReference ?? null,
+          attempt: null,
+        },
+      });
     }
     if (path === '/bookings/me/reschedule-preview') {
       return route.fulfill({ json: booking });
@@ -613,7 +638,7 @@ test('cutoff suppresses create and approve while retaining reject/withdraw', asy
   await expect(
     ui.panel.getByRole('button', { name: 'Approve reschedule', exact: true }),
   ).toHaveCount(0);
-  await expect(ui.panel).toContainText('cutoff has passed');
+  await expect(ui.panel).toContainText(rescheduleCopy.en.approvalUnavailable);
   expect(ui.getSlotReads()).toBe(0);
 });
 
@@ -701,6 +726,20 @@ test('server cutoff validation overrides a previously eligible form', async ({ p
   expect(ui.writes).toHaveLength(1);
 });
 
+test('an unresolved payment rejects approval without moving the original class', async ({
+  page,
+}) => {
+  const ui = await setup(page, 'STUDENT', {
+    requester: 'other',
+    errorStatus: 409,
+    errorCode: 'PAYMENT_IN_PROGRESS',
+  });
+  await ui.panel.getByRole('button', { name: 'Approve reschedule', exact: true }).click();
+  await expect(ui.panel.getByRole('alert')).toHaveText(rescheduleCopy.en.paymentInProgress);
+  expect(ui.getBooking().slot).toEqual(original);
+  expect(ui.writes).toHaveLength(1);
+});
+
 test('a payment refresh started before approval cannot restore the original slot', async ({
   page,
 }) => {
@@ -709,52 +748,45 @@ test('a payment refresh started before approval cannot restore the original slot
   const snapshot = ui.getBooking();
   let release = () => {};
   let started = () => {};
+  let finished = () => {};
+  let heldFirstRead = false;
   const gate = new Promise<void>((resolve) => {
     release = resolve;
   });
   const reading = new Promise<void>((resolve) => {
     started = resolve;
   });
+  const staleReadCompleted = new Promise<void>((resolve) => {
+    finished = resolve;
+  });
   await page.route('**/api/v1/bookings/me/reschedule-preview', async (route) => {
+    // Only the in-flight read is stale; the remounted checkout must read the new slot.
+    if (heldFirstRead) return route.fallback();
+    heldFirstRead = true;
     started();
     await gate;
     await route.fulfill({ json: snapshot });
+    finished();
   });
-  await page.getByRole('button', { name: 'Load latest status', exact: true }).click();
+  await page.getByRole('button', { name: 'Check payment status', exact: true }).click();
   await reading;
   await ui.panel.getByRole('button', { name: 'Approve reschedule', exact: true }).click();
   await expect(ui.panel.getByRole('status')).toHaveText('Reschedule approved');
   await ui.open();
-  const response = page.waitForResponse(
-    (result) => new URL(result.url()).pathname === '/api/v1/bookings/me/reschedule-preview',
-  );
   release();
-  await response;
+  await staleReadCompleted;
   await expect(ui.panel).toContainText('Current class time: 18 Oct 2099 23:00');
   await expect(ui.panel.getByRole('status')).toHaveText('Reschedule approved');
 });
 
 test('a payment write finishes before a reschedule can start', async ({ page }) => {
-  const ui = await setup(page, 'STUDENT', { requester: 'other' });
   let release = () => {};
   const gate = new Promise<void>((resolve) => {
     release = resolve;
   });
-  await page.route('**/api/v1/bookings/me/reschedule-preview/mock-payment', async (route) => {
-    await gate;
-    await route.fulfill({
-      json: {
-        bookingId: 'reschedule-preview',
-        paymentStatus: 'PAID',
-        amount: '500.00',
-        reference: 'DEMO-RESCHEDULE',
-        paidAt: '2026-10-16T03:00:00Z',
-      },
-    });
-  });
-  const payment = page.getByRole('region', { name: 'Mock payment', exact: true });
-  await payment.getByRole('textbox').fill('DEMO-RESCHEDULE');
-  await payment.getByRole('button', { name: 'Record mock payment', exact: true }).click();
+  const ui = await setup(page, 'STUDENT', { requester: 'other', paymentGate: gate });
+  const payment = page.getByRole('region', { name: 'Pay with PromptPay', exact: true });
+  await payment.getByRole('button', { name: 'Create test QR', exact: true }).click();
   await expect(
     ui.panel.getByRole('button', { name: 'Approve reschedule', exact: true }),
   ).toBeDisabled();
@@ -922,7 +954,7 @@ test('student payment precedes reschedule and cancellation, and disclosure prese
 }) => {
   const ui = await setup(page, 'STUDENT', { open: false });
   await expect(ui.panel.getByRole('radio')).toHaveCount(0);
-  const payment = page.getByRole('region', { name: 'Mock payment', exact: true });
+  const payment = page.getByRole('region', { name: 'Pay with PromptPay', exact: true });
   await expect(payment).toBeVisible();
   expect(
     await payment.evaluate((element) => {
