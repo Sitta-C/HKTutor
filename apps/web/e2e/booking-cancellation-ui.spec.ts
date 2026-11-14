@@ -114,6 +114,18 @@ async function setup(
     if (path === '/bookings/me/cancel-preview') {
       return route.fulfill({ json: { ...booking, status } });
     }
+    if (path === '/bookings/me/cancel-preview/payments/current') {
+      return route.fulfill({
+        json: {
+          bookingId: booking.id,
+          paymentStatus: booking.paymentStatus,
+          paymentPending: false,
+          paidAt: booking.paidAt,
+          reference: booking.mockReference,
+          attempt: null,
+        },
+      });
+    }
     if (path === '/bookings/cancel-preview/class-details') {
       return route.fulfill({
         json: {
@@ -152,7 +164,7 @@ test('a known-paid student booking explains why cancellation is unavailable', as
     status: 'CONFIRMED',
     paymentStatus: 'PAID',
   });
-  await expect(page.getByRole('region', { name: 'Mock payment', exact: true })).toContainText(
+  await expect(page.getByRole('region', { name: 'Pay with PromptPay', exact: true })).toContainText(
     'Paid',
   );
   await expect(page.getByRole('button', { name: 'Cancel class', exact: true })).toBeDisabled();
@@ -162,22 +174,24 @@ test('a known-paid student booking explains why cancellation is unavailable', as
   expect(requests).toHaveLength(0);
 });
 
-test('recording a mock payment immediately disables cancellation', async ({ page }) => {
+test('a refreshed paid booking immediately disables cancellation', async ({ page }) => {
+  const initialRead = page.waitForResponse(
+    (response) => new URL(response.url()).pathname === '/api/v1/bookings/me/cancel-preview',
+  );
   const requests = await setup(page, 'STUDENT', 200, undefined, 'en', { status: 'CONFIRMED' });
-  await page.route('**/api/v1/bookings/me/cancel-preview/mock-payment', (route) =>
+  const snapshot: BookingDetail = await (await initialRead).json();
+  await expect(page.getByRole('button', { name: 'Create test QR', exact: true })).toBeEnabled();
+  await page.route('**/api/v1/bookings/me/cancel-preview', (route) =>
     route.fulfill({
       json: {
-        bookingId: 'cancel-preview',
+        ...snapshot,
         paymentStatus: 'PAID',
-        amount: '500.00',
-        reference: 'DEMO-NEW',
         paidAt: '2026-10-15T03:00:00Z',
       },
     }),
   );
-  const payment = page.getByRole('region', { name: 'Mock payment', exact: true });
-  await payment.getByRole('textbox').fill('DEMO-NEW');
-  await payment.getByRole('button', { name: 'Record mock payment', exact: true }).click();
+  await page.getByRole('button', { name: 'Check payment status', exact: true }).click();
+  const payment = page.getByRole('region', { name: 'Pay with PromptPay', exact: true });
   await expect(payment.getByText('Paid', { exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Cancel class', exact: true })).toBeDisabled();
   expect(requests).toHaveLength(0);
@@ -189,7 +203,9 @@ test('a stale payment refresh cannot overwrite successful cancellation', async (
   );
   const requests = await setup(page, 'STUDENT', 200, undefined, 'en', { status: 'CONFIRMED' });
   const snapshot: BookingDetail = await (await initialRead).json();
+  await expect(page.getByRole('button', { name: 'Create test QR', exact: true })).toBeEnabled();
   const readPath = '**/api/v1/bookings/me/cancel-preview';
+  let heldFirstRead = false;
   let release = () => {};
   let readStarted = () => {};
   const gate = new Promise<void>((resolve) => {
@@ -199,11 +215,16 @@ test('a stale payment refresh cannot overwrite successful cancellation', async (
     readStarted = resolve;
   });
   await page.route(readPath, async (route) => {
+    if (heldFirstRead) {
+      await route.fallback();
+      return;
+    }
+    heldFirstRead = true;
     readStarted();
     await gate;
     await route.fulfill({ json: snapshot });
   });
-  const refresh = page.getByRole('button', { name: 'Load latest status', exact: true });
+  const refresh = page.getByRole('button', { name: 'Check payment status', exact: true });
   await refresh.click();
   await started;
   await page.getByRole('button', { name: 'Cancel class', exact: true }).click();
@@ -217,9 +238,7 @@ test('a stale payment refresh cannot overwrite successful cancellation', async (
   await expect(refresh).toBeEnabled();
   await expect(action).toHaveAccessibleDescription('This class has already been canceled.');
   await expect(page.getByRole('button', { name: 'Cancel class', exact: true })).toBeDisabled();
-  await expect(page.getByRole('button', { name: 'Record mock payment', exact: true })).toHaveCount(
-    0,
-  );
+  await expect(page.getByRole('button', { name: 'Create test QR', exact: true })).toHaveCount(0);
   expect(requests).toEqual([{ reason: 'Schedule conflict' }]);
 
   // A read started after cancellation must still be accepted, rather than locking out all reads.
@@ -245,7 +264,12 @@ test('Thai cancellation remains usable at 320px', async ({ page }, testInfo) => 
   const dialog = page.getByRole('dialog');
   await expect(dialog.getByLabel('เหตุผลในการยกเลิก')).toBeVisible();
   await dialog.getByRole('button', { name: 'ยืนยันยกเลิกคลาส', exact: true }).click();
-  await expect(dialog.getByRole('alert')).toHaveText('กรุณาระบุเหตุผลในการยกเลิก');
+  await expect(dialog.locator('[role="alert"]:not([data-notebook-toast])')).toHaveText(
+    'กรุณาระบุเหตุผลในการยกเลิก',
+  );
+  await expect(dialog.locator('[data-notebook-toast="error"]')).toHaveText(
+    'กรุณาระบุเหตุผลในการยกเลิก',
+  );
   expect(requests).toHaveLength(0);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
     true,
@@ -321,7 +345,9 @@ for (const role of ['STUDENT', 'TUTOR'] as const) {
     await expect(dialog.getByRole('button', { name: 'Keep class' })).toBeFocused();
     await dialog.getByLabel('Reason for cancellation').fill('   ');
     await dialog.getByRole('button', { name: 'Confirm cancellation' }).click();
-    await expect(dialog.getByRole('alert')).toHaveText('Enter a reason for cancellation.');
+    await expect(dialog.locator('[role="alert"]:not([data-notebook-toast])')).toHaveText(
+      'Enter a reason for cancellation.',
+    );
     expect(requests).toHaveLength(0);
     await dialog.getByLabel('Reason for cancellation').fill('  Schedule conflict  ');
     await dialog.getByRole('button', { name: 'Confirm cancellation' }).click();
@@ -346,7 +372,7 @@ for (const role of ['STUDENT', 'TUTOR'] as const) {
     const dialog = page.getByRole('dialog');
     await dialog.getByLabel('Reason for cancellation').fill('Schedule conflict');
     await dialog.getByRole('button', { name: 'Confirm cancellation' }).click();
-    await expect(dialog.getByRole('alert')).toHaveText(
+    await expect(dialog.locator('[role="alert"]:not([data-notebook-toast])')).toHaveText(
       'This booking has already been paid and cannot be canceled.',
     );
     await expect(dialog.getByRole('button', { name: 'Confirm cancellation' })).toHaveCount(0);

@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 import DashboardShell from '@/components/dashboard/dashboard-shell';
 import {
@@ -26,6 +26,7 @@ import {
 } from '@/components/tutors/tutor-verification-badge';
 import { PaperCard, StickyNote, WashiTape } from '@/components/ui/notebook';
 import { NotebookAction } from '@/components/ui/notebook-action';
+import { NotebookConfirmDialog } from '@/components/ui/notebook-confirm-dialog';
 import { NotebookSelect } from '@/components/ui/notebook-select';
 import { useNotebookToast } from '@/components/ui/notebook-toast';
 import {
@@ -91,6 +92,8 @@ export default function TutorListingEditor({
   const [catalogError, setCatalogError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [submitAction, setSubmitAction] = useState<'save' | 'publish' | 'restore' | null>(null);
+  const [confirmation, setConfirmation] = useState<'publish' | 'discard' | null>(null);
+  const saving = useRef(false);
 
   const profile = sessionProfile ? getTutorProfile(sessionProfile) : null;
   const isEditing = Boolean(listingId);
@@ -211,7 +214,8 @@ export default function TutorListingEditor({
     void saveListing('save');
   };
 
-  const saveListing = async (action: 'save' | 'publish') => {
+  const saveListing = async (action: 'save' | 'publish', confirmed = false) => {
+    if (saving.current) return;
     if (action === 'publish' && !isVerified) {
       toast.error(copy.verificationError);
       return;
@@ -220,7 +224,12 @@ export default function TutorListingEditor({
     setErrors(nextErrors);
     setPageError(null);
     if (Object.keys(nextErrors).length > 0) {
+      setConfirmation(null);
       toast.error(copy.reviewFields);
+      return;
+    }
+    if (action === 'publish' && !confirmed) {
+      setConfirmation('publish');
       return;
     }
 
@@ -231,6 +240,7 @@ export default function TutorListingEditor({
       description: form.description.trim(),
     };
 
+    saving.current = true;
     setSubmitAction(action);
     let savedListingId = listingId;
     try {
@@ -247,7 +257,7 @@ export default function TutorListingEditor({
       }
 
       setInitialForm({ ...form, description: payload.description });
-      toast.success(copy.savedSuccess);
+      toast.success(action === 'publish' ? copy.publishedSuccess : copy.savedSuccess);
       if (!listingId || action === 'publish') {
         router.push('/dashboard/listings');
       } else {
@@ -259,12 +269,15 @@ export default function TutorListingEditor({
       }
       toast.error(readListingEditorError(caught, copy.saveError, copy.notFound));
     } finally {
+      saving.current = false;
       setSubmitAction(null);
+      setConfirmation(null);
     }
   };
 
   const restoreDraft = async () => {
-    if (!listingId) return;
+    if (!listingId || saving.current) return;
+    saving.current = true;
     setSubmitAction('restore');
     setPageError(null);
     try {
@@ -274,12 +287,15 @@ export default function TutorListingEditor({
     } catch (caught: unknown) {
       toast.error(readListingEditorError(caught, copy.saveError, copy.notFound));
     } finally {
+      saving.current = false;
       setSubmitAction(null);
     }
   };
 
   const handleCancel = () => {
-    if (!isDirty || window.confirm(copy.discardConfirm)) router.push('/dashboard/listings');
+    if (saving.current) return;
+    if (isDirty) setConfirmation('discard');
+    else router.push('/dashboard/listings');
   };
 
   const handleLogout = async () => {
@@ -318,6 +334,12 @@ export default function TutorListingEditor({
       <div className="min-w-0 pb-12">
         <Link
           href="/dashboard/listings"
+          onClick={(event) => {
+            if (isDirty || saving.current) {
+              event.preventDefault();
+              handleCancel();
+            }
+          }}
           className="mt-1 inline-flex min-h-11 items-center gap-2 text-sm font-bold text-notebook-muted underline decoration-margin-guide decoration-2 underline-offset-4 transition hover:text-notebook-ink"
         >
           <span aria-hidden="true">←</span> {copy.back}
@@ -535,6 +557,7 @@ export default function TutorListingEditor({
                   <NotebookAction
                     type="button"
                     onClick={handleCancel}
+                    disabled={submitAction !== null}
                     tone="secondary"
                     className="w-full sm:w-auto"
                   >
@@ -721,6 +744,37 @@ export default function TutorListingEditor({
             </StickyNote>
           </aside>
         </div>
+        <NotebookConfirmDialog
+          open={confirmation !== null}
+          title={confirmation === 'discard' ? copy.discardConfirm : copy.publishConfirm}
+          description={confirmation === 'discard' ? copy.discardHelp : copy.publishHelp}
+          confirmLabel={confirmation === 'discard' ? copy.discard : copy.publish}
+          tone={confirmation === 'discard' ? 'danger' : 'primary'}
+          busy={submitAction !== null}
+          onCancel={() => setConfirmation(null)}
+          onConfirm={() => {
+            if (confirmation === 'discard') {
+              setConfirmation(null);
+              router.push('/dashboard/listings');
+              return;
+            }
+            return saveListing('publish', true);
+          }}
+        >
+          {confirmation === 'publish' && (
+            <>
+              <p>
+                <strong>
+                  {selectedSubject?.name} · {selectedGrade?.name}
+                </strong>
+              </p>
+              <p>
+                {form.pricePerHour} {copy.currency}
+              </p>
+              <blockquote>{form.description.trim()}</blockquote>
+            </>
+          )}
+        </NotebookConfirmDialog>
       </div>
     </DashboardShell>
   );
@@ -849,9 +903,16 @@ const englishCopy = {
   unsaved: 'Unsaved changes',
   upToDate: 'All changes saved',
   savedSuccess: 'Your listing changes have been saved.',
+  publishedSuccess: 'Listing published.',
   reviewFields: 'Please check the highlighted fields.',
   verificationError: 'Your tutor profile must be verified before publishing.',
   discardConfirm: 'Discard your unsaved changes?',
+  discardHelp:
+    'Changes on this page will be lost. Stay here to continue editing or save them first.',
+  discard: 'Discard changes',
+  publishConfirm: 'Publish this listing?',
+  publishHelp:
+    'Students will be able to see this offer. Check the course, price and description before confirming.',
   qualityTitle: 'A strong listing is easy to scan',
   qualityOne: 'State the learning outcome in the first sentence.',
   qualityTwo: 'Describe your teaching approach with a concrete example.',
@@ -924,9 +985,14 @@ const thaiCopy: typeof englishCopy = {
   unsaved: 'มีการเปลี่ยนแปลงที่ยังไม่ได้บันทึก',
   upToDate: 'บันทึกข้อมูลล่าสุดแล้ว',
   savedSuccess: 'บันทึกการแก้ไขประกาศแล้ว',
+  publishedSuccess: 'เผยแพร่ประกาศแล้ว',
   reviewFields: 'โปรดตรวจสอบช่องข้อมูลที่ระบุข้อผิดพลาด',
   verificationError: 'โปรไฟล์ติวเตอร์ต้องผ่านการยืนยันก่อนจึงจะเผยแพร่ได้',
   discardConfirm: 'ยกเลิกการเปลี่ยนแปลงที่ยังไม่ได้บันทึกหรือไม่?',
+  discardHelp: 'การแก้ไขในหน้านี้จะหายไป หากต้องการเก็บไว้ ให้กลับไปแก้ไขต่อหรือบันทึกก่อน',
+  discard: 'ทิ้งการแก้ไข',
+  publishConfirm: 'เผยแพร่ประกาศนี้?',
+  publishHelp: 'นักเรียนจะเห็นประกาศนี้ ตรวจสอบคอร์ส ราคา และรายละเอียดก่อนยืนยันการเผยแพร่',
   qualityTitle: 'ประกาศที่ดีควรอ่านเข้าใจได้เร็ว',
   qualityOne: 'บอกผลลัพธ์การเรียนรู้ตั้งแต่ประโยคแรก',
   qualityTwo: 'อธิบายแนวทางการสอนพร้อมตัวอย่างที่ชัดเจน',

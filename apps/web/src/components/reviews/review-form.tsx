@@ -1,6 +1,6 @@
 'use client';
 
-import { useId, useState } from 'react';
+import { useId, useRef, useState } from 'react';
 
 import { DashboardIcon } from '@/components/dashboard/dashboard-icon';
 import { reviewCopy } from '@/components/reviews/review-copy';
@@ -10,7 +10,9 @@ import {
   reviewFeedbackLength,
   reviewSubmitOutcome,
 } from '@/components/reviews/review-model';
+import { ReviewDimensions } from '@/components/reviews/review-summary';
 import { NotebookAction } from '@/components/ui/notebook-action';
+import { NotebookConfirmDialog } from '@/components/ui/notebook-confirm-dialog';
 import { useNotebookToast } from '@/components/ui/notebook-toast';
 import { submitBookingReview } from '@/lib/api/bookings';
 import { useLanguage } from '@/lib/i18n';
@@ -47,6 +49,8 @@ export function ReviewForm({
   const [submitAttempted, setSubmitAttempted] = useState(false);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [confirming, setConfirming] = useState(false);
+  const gate = useRef(false);
   const length = reviewFeedbackLength(feedback);
   const overLimit = length > REVIEW_FEEDBACK_MAX_LENGTH;
   const locked = disabled || Boolean(disabledMessage) || pending;
@@ -56,13 +60,25 @@ export function ReviewForm({
 
   async function submit(): Promise<void> {
     setSubmitAttempted(true);
-    if (locked) {
+    if (locked || gate.current) {
       return;
     }
     const fields = { clarity, punctuality, preparation, feedback };
     if (!canSubmitReview(fields)) {
+      toast.error(
+        clarity === null || punctuality === null || preparation === null
+          ? text.ratingsRequired
+          : length === 0
+            ? text.feedbackBlank
+            : text.feedbackTooLong,
+      );
       return;
     }
+    if (!confirming) {
+      setConfirming(true);
+      return;
+    }
+    gate.current = true;
     setPending(true);
     setError(null);
     try {
@@ -73,6 +89,7 @@ export function ReviewForm({
         feedback: fields.feedback.trim(),
       });
       toast.success(text.submitted);
+      setConfirming(false);
       onSaved(review);
     } catch (caught: unknown) {
       const outcome = reviewSubmitOutcome(caught);
@@ -91,6 +108,7 @@ export function ReviewForm({
                     ? text.uncertain
                     : text.failed;
       toast.error(message);
+      setConfirming(false);
       // The parent takes over messaging for outcomes it reconciles or locks on; avoid a stale
       // duplicate once it sets its own disabledMessage/note.
       const parentHandles =
@@ -100,6 +118,7 @@ export function ReviewForm({
       }
       onOutcome(outcome);
     } finally {
+      gate.current = false;
       setPending(false);
     }
   }
@@ -138,9 +157,6 @@ export function ReviewForm({
           {error}
         </p>
       )}
-      <p className={styles.scaleGuidance} id="review-rating-scale">
-        {text.ratingScale}
-      </p>
       <fieldset
         className={styles.ratingGroups}
         disabled={locked}
@@ -150,6 +166,10 @@ export function ReviewForm({
             : 'review-rating-scale review-help'
         }
       >
+        <legend className={styles.ratingHeading}>{text.ratingsTitle}</legend>
+        <p className={styles.scaleGuidance} id="review-rating-scale">
+          {text.ratingScale}
+        </p>
         {ratingGroups.map((group) => {
           const labelId = `${group.name}-label`;
           return (
@@ -169,12 +189,13 @@ export function ReviewForm({
                       type="radio"
                       name={group.name}
                       value={value}
+                      aria-label={`${group.legend} ${value} ${text.ratingOption}`}
                       checked={group.value === value}
                       onChange={() => group.setValue(value)}
                     />
-                    <span className="sr-only">{group.legend} </span>
-                    {value}
-                    <span className="sr-only"> {text.ratingOption}</span>
+                    <span className={styles.ratingNumber} aria-hidden="true">
+                      {value}
+                    </span>
                   </label>
                 ))}
               </div>
@@ -222,9 +243,24 @@ export function ReviewForm({
           </span>
         </div>
       </div>
+      <NotebookConfirmDialog
+        open={confirming}
+        role="student"
+        title={text.confirmTitle}
+        description={text.finality}
+        confirmLabel={text.submit}
+        busy={pending}
+        disabled={disabled || Boolean(disabledMessage)}
+        error={error}
+        onCancel={() => setConfirming(false)}
+        onConfirm={submit}
+      >
+        <ReviewDimensions ratings={{ clarity, punctuality, preparation }} language={language} />
+        <blockquote>{feedback.trim()}</blockquote>
+      </NotebookConfirmDialog>
       {!disabledMessage && (
         <p className={styles.note} id="review-finality">
-          {text.finality}
+          {text.publicHelp} {text.finality}
         </p>
       )}
       <div className={styles.formActions}>

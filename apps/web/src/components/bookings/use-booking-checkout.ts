@@ -5,11 +5,13 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { bookingCouponCopy } from '@/components/bookings/booking-coupon-copy';
 import {
   getBookingCouponFailure,
+  getBookingPaymentFailure,
   hasActiveBookingPayment,
   isBookingDeadlineRejection,
   isCouponPaymentRejection,
   isFullCouponSettlement,
 } from '@/components/bookings/booking-coupon-model';
+import { useNotebookToast } from '@/components/ui/notebook-toast';
 import {
   applyBookingCoupon,
   createPromptPayPayment,
@@ -79,6 +81,8 @@ export function useBookingCheckout({
   onSubmittingChange: CheckoutSubmissionChange;
 }): BookingCheckout {
   const { language } = useLanguage();
+  const toast = useNotebookToast();
+  const copy = bookingCouponCopy[language];
   const [payment, setPayment] = useState<PromptPayPayment | null>(null);
   const [verification, setVerification] = useState<BookingCheckout['verification']>('checking');
   const [readFailed, setReadFailed] = useState(false);
@@ -252,16 +256,23 @@ export function useBookingCheckout({
         if (hasActiveBookingPayment(snapshot.booking, snapshot.payment)) {
           setReload((value) => value + 1);
         }
+        toast.success(
+          result.coupon
+            ? copy.applied.replace('{percent}', String(result.coupon.percent))
+            : copy.removed,
+        );
         return true;
       } catch {
         if (mounted.current) {
           setReadFailed(true);
           setVerification('failed');
+          toast.error(copy.uncertain);
         }
         return false;
       }
     } catch (error) {
       if (mounted.current) {
+        toast.error(getBookingCouponFailure(error, copy).message);
         setFailure({ error, scope: 'coupon', couponCode: booking.coupon?.code ?? null });
         if (isBookingDeadlineRejection(error)) setServerClosedWindow(windowKey);
         if (getBookingCouponFailure(error, bookingCouponCopy[language]).requiresRefresh) {
@@ -286,11 +297,16 @@ export function useBookingCheckout({
         return;
       }
       commitSnapshot({ payment: result, booking: nextBooking });
+      if (result.paymentStatus === 'PAID') toast.success(copy.paymentPaid);
+      else if (result.attempt?.status === 'CREATING' || result.attempt?.status === 'PENDING')
+        toast.success(copy.paymentReady);
+      else toast.error(copy.paymentFailed);
       if (hasActiveBookingPayment(nextBooking, result)) {
         setReload((value) => value + 1);
       }
     } catch (error) {
       if (mounted.current) {
+        toast.error(getBookingPaymentFailure(error, copy, copy.uncertain, Boolean(booking.coupon)));
         setFailure({ error, scope: 'payment', couponCode: booking.coupon?.code ?? null });
         if (isBookingDeadlineRejection(error)) setServerClosedWindow(windowKey);
         setVerification('failed');

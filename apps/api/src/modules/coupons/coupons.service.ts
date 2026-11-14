@@ -185,4 +185,58 @@ export class CouponsService {
       { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead },
     );
   }
+
+  async increaseCapacity(
+    actorUserId: string,
+    couponId: string,
+    maxUses: number,
+  ): Promise<CouponDto> {
+    return this.prisma.$transaction(async (tx) => {
+      // Share the coupon lock with activation and payment claims; never read a stale limit.
+      await tx.$queryRaw`SELECT "id" FROM "Coupon" WHERE "id" = ${couponId}::uuid FOR UPDATE`;
+      const before = await tx.coupon.findUnique({ where: { id: couponId }, select: couponSelect });
+      if (!before) {
+        throw new NotFoundException('Coupon not found');
+      }
+      if (!before.active) {
+        throw new ConflictException({ code: 'COUPON_INACTIVE', message: 'Coupon is inactive' });
+      }
+      if (before.expiresAt.getTime() <= Date.now()) {
+        throw new ConflictException({ code: 'COUPON_EXPIRED', message: 'Coupon has expired' });
+      }
+      if (maxUses < before.maxUses) {
+        throw new ConflictException({
+          code: 'COUPON_CAPACITY_DECREASE_NOT_ALLOWED',
+          message: 'Coupon capacity cannot be decreased. Refresh the current limit.',
+        });
+      }
+      // A desired total makes response-loss retries safe without applying an increment twice.
+      if (maxUses === before.maxUses) {
+        return toCouponDto(before);
+      }
+      const coupon = await tx.coupon.update({
+        where: { id: couponId },
+        data: { maxUses },
+        select: couponSelect,
+      });
+      const auditId = randomUUID();
+      await tx.auditLog.create({
+        data: {
+          id: auditId,
+          actorUserId,
+          action: 'coupon.capacity_increase',
+          entityType: 'Coupon',
+          entityId: couponId,
+          beforeData: { maxUses: before.maxUses },
+          afterData: { maxUses },
+          operationKey: `coupon.capacity_increase:${auditId}`,
+        },
+        select: { id: true },
+      });
+      if (coupon.expiresAt.getTime() <= Date.now()) {
+        throw new ConflictException({ code: 'COUPON_EXPIRED', message: 'Coupon has expired' });
+      }
+      return toCouponDto(coupon);
+    });
+  }
 }

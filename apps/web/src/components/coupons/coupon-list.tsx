@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 
-import { getCouponStatuses } from '@/components/coupons/coupon-model';
+import { canIncreaseCouponCapacity, getCouponStatuses } from '@/components/coupons/coupon-model';
 import { DashboardIcon } from '@/components/dashboard/dashboard-icon';
 import { NotebookLoadingRegion } from '@/components/ui/notebook-loading';
 import { formatBangkokDateTime } from '@/lib/date-time';
@@ -23,8 +23,10 @@ export function CouponList({
   onRefresh,
   onRetry,
   changingId,
-  uncertainIds,
+  changeErrors,
+  changingAction,
   onActivationChange,
+  onCapacityChange,
 }: {
   items: AdminCoupon[];
   copy: CouponCopy;
@@ -37,8 +39,10 @@ export function CouponList({
   onRefresh: () => void;
   onRetry: () => void;
   changingId: string | null;
-  uncertainIds: string[];
+  changeErrors: Record<string, string>;
+  changingAction: 'activation' | 'capacity' | null;
   onActivationChange: (coupon: AdminCoupon) => void;
+  onCapacityChange: (coupon: AdminCoupon) => void;
 }) {
   const [now, setNow] = useState(() => Date.now());
   const statusClasses = {
@@ -77,6 +81,9 @@ export function CouponList({
           </p>
           <p className="mt-2 max-w-[65ch] text-xs leading-[1.7] text-notebook-muted-deep">
             {copy.activationHint}
+          </p>
+          <p className="mt-2 max-w-[65ch] text-xs leading-[1.7] text-notebook-muted-deep">
+            {copy.capacityHint}
           </p>
         </div>
         <button
@@ -146,22 +153,41 @@ export function CouponList({
               <button
                 type="button"
                 aria-label={`${coupon.active ? copy.deactivate : copy.activate} ${coupon.code}`}
-                aria-busy={changingId === coupon.id}
+                aria-busy={changingId === coupon.id && changingAction === 'activation'}
                 disabled={
-                  loading || loadingMore || changingId !== null || uncertainIds.includes(coupon.id)
+                  loading || loadingMore || changingId !== null || Boolean(changeErrors[coupon.id])
                 }
                 onClick={() => onActivationChange(coupon)}
                 className="inline-flex min-h-11 items-center justify-center rounded-md border border-paper-edge bg-paper px-4 py-2 text-sm font-bold text-notebook-ink transition-colors hover:bg-paper-deep focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-admin-deep disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {changingId === coupon.id
+                {changingId === coupon.id && changingAction === 'activation'
                   ? copy.changingActivation
                   : coupon.active
                     ? copy.deactivate
                     : copy.activate}
               </button>
-              {uncertainIds.includes(coupon.id) && (
+              {canIncreaseCouponCapacity(coupon, now) && (
+                <button
+                  type="button"
+                  aria-label={`${copy.increaseCapacity} ${coupon.code}`}
+                  aria-busy={changingId === coupon.id && changingAction === 'capacity'}
+                  disabled={
+                    loading ||
+                    loadingMore ||
+                    changingId !== null ||
+                    Boolean(changeErrors[coupon.id])
+                  }
+                  onClick={() => onCapacityChange(coupon)}
+                  className="inline-flex min-h-11 items-center justify-center rounded-md border border-paper-edge bg-paper px-4 py-2 text-sm font-bold text-notebook-ink transition-colors hover:bg-paper-deep focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-admin-deep disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {changingId === coupon.id && changingAction === 'capacity'
+                    ? copy.savingCapacity
+                    : copy.increaseCapacity}
+                </button>
+              )}
+              {changeErrors[coupon.id] && (
                 <p role="alert" className="text-sm leading-[1.7] text-red-800">
-                  {copy.activationUncertain}
+                  {changeErrors[coupon.id]}
                 </p>
               )}
             </div>

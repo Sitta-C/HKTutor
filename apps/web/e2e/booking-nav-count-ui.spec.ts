@@ -4,7 +4,14 @@ import type { Page } from '@playwright/test';
 
 // Isolated preview responses only; no real profile or booking is changed.
 async function mockCount(page: Page, role: 'STUDENT' | 'TUTOR' | 'GUEST' = 'STUDENT') {
-  const state = { total: 137, failure: false, requests: 0, signedIn: role !== 'GUEST' };
+  const state = {
+    total: 137,
+    pendingTotal: 3,
+    failure: false,
+    requests: 0,
+    tutorRequests: 0,
+    signedIn: role !== 'GUEST',
+  };
   await page.addInitScript(() => localStorage.setItem('hktutor-language', 'en'));
   if (state.signedIn)
     await page
@@ -62,13 +69,19 @@ async function mockCount(page: Page, role: 'STUDENT' | 'TUTOR' | 'GUEST' = 'STUD
         },
       });
     if (path === '/profiles/me/avatar') return route.fulfill({ json: { avatar: null } });
-    if (path === '/bookings/me') {
+    if (path === '/bookings/tutor' || path === '/bookings/me') {
       if (url.searchParams.get('pageSize') === '1') {
-        state.requests += 1;
-        expect(Array.from(url.searchParams.keys()).sort()).toEqual(['page', 'pageSize']);
+        if (path === '/bookings/tutor') state.tutorRequests += 1;
+        else state.requests += 1;
+        expect(Array.from(url.searchParams.keys()).sort()).toEqual(
+          path === '/bookings/tutor' ? ['page', 'pageSize', 'status'] : ['page', 'pageSize'],
+        );
+        if (path === '/bookings/tutor') expect(url.searchParams.get('status')).toBe('PENDING');
         return route.fulfill({
           status: state.failure ? 500 : 200,
-          json: state.failure ? { message: 'Unavailable' } : { items: [], total: state.total },
+          json: state.failure
+            ? { message: 'Unavailable' }
+            : { items: [], total: path === '/bookings/tutor' ? state.pendingTotal : state.total },
         });
       }
       return route.fulfill({
@@ -132,6 +145,35 @@ async function mockCount(page: Page, role: 'STUDENT' | 'TUTOR' | 'GUEST' = 'STUD
 }
 
 const badge = (page: Page) => page.locator('[data-booking-nav-count]');
+
+test('tutor navigation shows only pending requests and refreshes without student reads', async ({
+  page,
+}) => {
+  const state = await mockCount(page, 'TUTOR');
+  await page.goto('/dashboard/profile');
+  await openMobileSidebar(page);
+  await expect(badge(page)).toHaveText('3');
+  await page.locator('#dashboard-sidebar a[href="/dashboard/bookings"]').click();
+  await expect(page).toHaveURL(/\/dashboard\/bookings$/);
+  await page
+    .getByRole('group', { name: 'Filter bookings by status' })
+    .getByRole('button', { name: 'All', exact: true })
+    .click();
+  await openMobileSidebar(page);
+  await expect(badge(page)).toHaveText('3');
+  state.pendingTotal = 2;
+  await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+  await expect(badge(page)).toHaveText('2');
+  state.failure = true;
+  await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+  await expect(badge(page)).toHaveText('—');
+  state.failure = false;
+  state.pendingTotal = 0;
+  await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+  await expect(badge(page)).toHaveText('0');
+  expect(state.requests).toBe(0);
+  expect(state.tutorRequests).toBeGreaterThanOrEqual(4);
+});
 
 async function openMobileSidebar(page: Page): Promise<void> {
   if ((page.viewportSize()?.width ?? 1440) < 1024) {

@@ -18,6 +18,7 @@ import { Roles } from '@modules/auth/roles.decorator';
 import { RolesGuard } from '@modules/auth/roles.guard';
 import {
   CreateCouponDto,
+  IncreaseCouponCapacityDto,
   ListCouponsQueryDto,
   SetCouponActivationDto,
 } from '@modules/coupons/coupons.dto';
@@ -27,6 +28,7 @@ import {
   CouponListDto,
   CouponsControllerDoc,
   CreateCouponDoc,
+  IncreaseCouponCapacityDoc,
   ListCouponsDoc,
   SetCouponActivationDoc,
 } from '@modules/coupons/coupons.swagger';
@@ -63,5 +65,16 @@ export class CouponsController {
   @ListCouponsDoc()
   list(@Query() query: ListCouponsQueryDto): Promise<CouponListDto> {
     return this.coupons.list(query);
+  }
+
+  @Patch(':couponId/capacity')
+  @Header('Cache-Control', 'no-store')
+  @IncreaseCouponCapacityDoc()
+  increaseCapacity(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('couponId', UuidParamPipe) couponId: string,
+    @Body() dto: IncreaseCouponCapacityDto,
+  ): Promise<CouponDto> {
+    return this.coupons.increaseCapacity(user.id, couponId, dto.maxUses);
   }
 }

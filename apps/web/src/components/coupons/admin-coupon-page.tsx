@@ -3,16 +3,27 @@
 import Link from 'next/link';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+import { CouponCapacityDialog } from '@/components/coupons/coupon-capacity-dialog';
 import { couponCopy } from '@/components/coupons/coupon-copy';
 import { CouponCreateForm } from '@/components/coupons/coupon-create-form';
 import { CouponList } from '@/components/coupons/coupon-list';
-import { getCouponRequestError, mergeCouponPages } from '@/components/coupons/coupon-model';
+import {
+  getCouponCapacityError,
+  getCouponRequestError,
+  mergeCouponPages,
+} from '@/components/coupons/coupon-model';
 import { DashboardLoading } from '@/components/dashboard/dashboard-loading';
 import DashboardShell from '@/components/dashboard/dashboard-shell';
 import { NotebookPage } from '@/components/ui/notebook';
+import { NotebookConfirmDialog } from '@/components/ui/notebook-confirm-dialog';
 import { useNotebookToast } from '@/components/ui/notebook-toast';
-import { listAdminCoupons, setAdminCouponActivation } from '@/lib/api/coupons';
+import {
+  increaseAdminCouponCapacity,
+  listAdminCoupons,
+  setAdminCouponActivation,
+} from '@/lib/api/coupons';
 import { useAuth } from '@/lib/auth-context';
+import { formatBangkokDateTime } from '@/lib/date-time';
 import { useLanguage } from '@/lib/i18n';
 import { withReturnTo } from '@/lib/return-to';
 
@@ -46,14 +57,17 @@ function CouponWorkspace() {
   const request = useRef<AbortController | null>(null);
   const retryCursor = useRef<string | undefined>(undefined);
   const mounted = useRef(false);
-  const activationRequest = useRef<AbortController | null>(null);
-  const refreshAfterActivation = useRef(false);
+  const mutationRequest = useRef<AbortController | null>(null);
+  const refreshAfterMutation = useRef(false);
   const [changingId, setChangingId] = useState<string | null>(null);
-  const [uncertainIds, setUncertainIds] = useState<string[]>([]);
+  const [changeErrors, setChangeErrors] = useState<Record<string, string>>({});
+  const [changingAction, setChangingAction] = useState<'activation' | 'capacity' | null>(null);
+  const [activationTarget, setActivationTarget] = useState<AdminCoupon | null>(null);
+  const [capacityTarget, setCapacityTarget] = useState<AdminCoupon | null>(null);
   const toast = useNotebookToast();
 
   const readPage = useCallback((cursor?: string) => {
-    if (activationRequest.current) {
+    if (mutationRequest.current) {
       return Promise.resolve();
     }
     retryCursor.current = cursor;
@@ -67,8 +81,10 @@ function CouponWorkspace() {
         }
         setItems((current) => (cursor ? mergeCouponPages(current, result.items) : result.items));
         setNextCursor(result.nextCursor);
-        setUncertainIds((current) =>
-          current.filter((id) => !result.items.some((item) => item.id === id)),
+        setChangeErrors((current) =>
+          Object.fromEntries(
+            Object.entries(current).filter(([id]) => !result.items.some((item) => item.id === id)),
+          ),
         );
       })
       .catch((error: unknown) => {
@@ -92,10 +108,10 @@ function CouponWorkspace() {
   }, []);
 
   function load(cursor?: string): void {
-    if (activationRequest.current) {
+    if (mutationRequest.current) {
       // Creation/reconciliation can finish while PATCH owns the register. Refresh afterward.
       if (!cursor) {
-        refreshAfterActivation.current = true;
+        refreshAfterMutation.current = true;
       }
       return;
     }
@@ -111,56 +127,94 @@ function CouponWorkspace() {
     return () => {
       mounted.current = false;
       request.current?.abort();
-      activationRequest.current?.abort();
-      refreshAfterActivation.current = false;
+      mutationRequest.current?.abort();
+      refreshAfterMutation.current = false;
     };
   }, [readPage]);
 
-  async function changeActivation(coupon: AdminCoupon): Promise<void> {
-    if (activationRequest.current || uncertainIds.includes(coupon.id)) {
-      return;
+  async function changeCoupon(
+    coupon: AdminCoupon,
+    action: { type: 'activation' } | { type: 'capacity'; maxUses: number },
+  ): Promise<string | null> {
+    if (mutationRequest.current || changeErrors[coupon.id]) {
+      return null;
     }
     // Stop older list results from overwriting the authoritative PATCH response.
     request.current?.abort();
     setLoading(false);
     setLoadingMore(false);
     const controller = new AbortController();
-    activationRequest.current = controller;
+    mutationRequest.current = controller;
     setChangingId(coupon.id);
+    setChangingAction(action.type);
+    let keepDialog = false;
     try {
-      const updated = await setAdminCouponActivation(
-        coupon.id,
-        { active: !coupon.active },
-        controller.signal,
-      );
+      const updated =
+        action.type === 'activation'
+          ? await setAdminCouponActivation(coupon.id, { active: !coupon.active }, controller.signal)
+          : await increaseAdminCouponCapacity(
+              coupon.id,
+              { maxUses: action.maxUses },
+              controller.signal,
+            );
       if (controller.signal.aborted || !mounted.current) {
-        return;
+        return null;
       }
       setItems((current) => current.map((item) => (item.id === updated.id ? updated : item)));
-      toast.success(updated.active ? copy.activated : copy.deactivated);
+      toast.success(
+        action.type === 'activation'
+          ? updated.active
+            ? copy.activated
+            : copy.deactivated
+          : copy.capacitySaved.replace(
+              '{count}',
+              updated.maxUses.toLocaleString(language === 'th' ? 'th-TH' : 'en-US'),
+            ),
+      );
     } catch (error) {
       if (controller.signal.aborted || !mounted.current) {
-        return;
+        return null;
       }
       const kind = getCouponRequestError(error);
       if (kind === 'unauthorized' || kind === 'forbidden') {
-        refreshAfterActivation.current = false;
+        refreshAfterMutation.current = false;
+        toast.error(kind === 'unauthorized' ? copy.session : copy.denied);
         setDenied(kind);
         setItems([]);
+      } else if (action.type === 'capacity') {
+        const failure = getCouponCapacityError(error);
+        const message = {
+          inactive: copy.capacityInactive,
+          expired: copy.capacityExpired,
+          decrease: copy.capacityStale,
+          missing: copy.capacityMissing,
+          validation: copy.capacityInvalid,
+          uncertain: copy.capacityUncertain,
+        }[failure];
+        toast.error(message);
+        if (failure === 'validation') {
+          keepDialog = true;
+          return message;
+        }
+        setChangeErrors((current) => ({ ...current, [coupon.id]: message }));
       } else {
-        setUncertainIds((current) => [...current.filter((id) => id !== coupon.id), coupon.id]);
+        setChangeErrors((current) => ({ ...current, [coupon.id]: copy.activationUncertain }));
         toast.error(copy.activationUncertain);
       }
     } finally {
-      activationRequest.current = null;
+      mutationRequest.current = null;
       if (!controller.signal.aborted && mounted.current) {
+        setActivationTarget(null);
+        if (!keepDialog) setCapacityTarget(null);
         setChangingId(null);
-        if (refreshAfterActivation.current) {
-          refreshAfterActivation.current = false;
+        setChangingAction(null);
+        if (refreshAfterMutation.current) {
+          refreshAfterMutation.current = false;
           load();
         }
       }
     }
+    return null;
   }
 
   function created(coupon: AdminCoupon): void {
@@ -198,8 +252,10 @@ function CouponWorkspace() {
           loading={loading}
           loadingMore={loadingMore}
           changingId={changingId}
-          uncertainIds={uncertainIds}
-          onActivationChange={(coupon) => void changeActivation(coupon)}
+          changingAction={changingAction}
+          changeErrors={changeErrors}
+          onActivationChange={setActivationTarget}
+          onCapacityChange={setCapacityTarget}
           failed={failed}
           nextCursor={nextCursor}
           onMore={() => {
@@ -211,6 +267,53 @@ function CouponWorkspace() {
           onRetry={() => void load(retryCursor.current)}
         />
       </div>
+      <NotebookConfirmDialog
+        open={activationTarget !== null}
+        title={activationTarget?.active ? copy.confirmDeactivate : copy.confirmActivate}
+        description={copy.activationHint}
+        confirmLabel={activationTarget?.active ? copy.deactivate : copy.activate}
+        role="admin"
+        tone={activationTarget?.active ? 'danger' : 'primary'}
+        busy={changingId !== null}
+        onCancel={() => setActivationTarget(null)}
+        onConfirm={async () => {
+          if (activationTarget) {
+            await changeCoupon(activationTarget, { type: 'activation' });
+          }
+        }}
+      >
+        {activationTarget && (
+          <dl>
+            <div>
+              <dt>{copy.code}</dt>
+              <dd>
+                {activationTarget.code} · {activationTarget.percent}%
+              </dd>
+            </div>
+            <div>
+              <dt>{copy.available}</dt>
+              <dd>
+                {activationTarget.availableUses} / {activationTarget.maxUses}
+              </dd>
+            </div>
+            <div>
+              <dt>{copy.expiry}</dt>
+              <dd>{formatBangkokDateTime(activationTarget.expiresAt, language)}</dd>
+            </div>
+          </dl>
+        )}
+      </NotebookConfirmDialog>
+      {capacityTarget && (
+        <CouponCapacityDialog
+          key={capacityTarget.id}
+          coupon={capacityTarget}
+          copy={copy}
+          language={language}
+          busy={changingId !== null}
+          onCancel={() => setCapacityTarget(null)}
+          onConfirm={(maxUses) => changeCoupon(capacityTarget, { type: 'capacity', maxUses })}
+        />
+      )}
     </div>
   );
 }

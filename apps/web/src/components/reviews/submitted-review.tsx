@@ -1,5 +1,5 @@
 import { reviewCopy } from '@/components/reviews/review-copy';
-import { formatBangkokDateTime } from '@/lib/date-time';
+import { ReviewEntry } from '@/components/reviews/review-entry';
 
 import styles from './review.module.css';
 
@@ -16,37 +16,10 @@ export function SubmittedReview({
   const text = reviewCopy[language];
   return (
     <section className={styles.saved} aria-label={text.savedTitle}>
-      <div className={styles.savedLead}>
-        <h2 className={styles.savedHeading}>{text.savedTitle}</h2>
-        <p className={styles.savedOverall}>
-          {text.savedOverall}:{' '}
-          <strong className={styles.savedOverallValue}>
-            {review.overallRating.toFixed(2)} / 5
-          </strong>
-        </p>
+      <h2 className={styles.savedHeading}>{text.savedTitle}</h2>
+      <div className={styles.savedSheet}>
+        <ReviewEntry review={review} language={language} />
       </div>
-      <dl className={styles.savedRatings}>
-        {(
-          [
-            [text.clarityLegend, review.clarity],
-            [text.punctualityLegend, review.punctuality],
-            [text.preparationLegend, review.preparation],
-          ] as const
-        ).map(([label, value]) => (
-          <div key={label}>
-            <dt>{label}</dt>
-            <dd>{value} / 5</dd>
-          </div>
-        ))}
-      </dl>
-      <div className={styles.savedFeedbackBlock}>
-        <p className={styles.savedFeedbackLabel}>{text.savedFeedback}</p>
-        <p className={styles.savedFeedback}>{review.feedback}</p>
-      </div>
-      <p className={styles.savedTimestamp}>
-        {text.savedAt}:{' '}
-        <time dateTime={review.createdAt}>{formatBangkokDateTime(review.createdAt, language)}</time>
-      </p>
     </section>
   );
 }

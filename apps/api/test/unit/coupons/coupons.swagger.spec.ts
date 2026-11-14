@@ -65,7 +65,7 @@ describe('admin coupon Swagger contract', () => {
     return found;
   }
 
-  it('exposes only create, list and activation routes, with no edit or delete', () => {
+  it('exposes explicit activation and capacity changes with no generic edit or delete', () => {
     const coupons = Object.entries(document.paths).filter(([path]) => path.startsWith(BASE));
     expect(
       coupons.flatMap(([path, item]) =>
@@ -73,7 +73,12 @@ describe('admin coupon Swagger contract', () => {
           .filter((method) => item[method])
           .map((method) => `${method.toUpperCase()} ${path}`),
       ),
-    ).toEqual([`GET ${BASE}`, `POST ${BASE}`, `PATCH ${BASE}/{couponId}/activation`]);
+    ).toEqual([
+      `GET ${BASE}`,
+      `POST ${BASE}`,
+      `PATCH ${BASE}/{couponId}/activation`,
+      `PATCH ${BASE}/{couponId}/capacity`,
+    ]);
   });
 
   it('documents the create body exactly as validation enforces it', () => {
@@ -113,6 +118,24 @@ describe('admin coupon Swagger contract', () => {
     });
     expect(expiresAt.description).toContain('now < expiresAt');
     expect(expiresAt.description).toContain('Date-only');
+  });
+
+  it('documents a bounded desired total and active, unexpired, monotonic capacity contract', () => {
+    expect(Object.keys(schema('IncreaseCouponCapacityDto').properties ?? {})).toEqual(['maxUses']);
+    expect(schema('IncreaseCouponCapacityDto').required).toEqual(['maxUses']);
+    expect(property('IncreaseCouponCapacityDto', 'maxUses')).toMatchObject({
+      type: 'integer',
+      minimum: 1,
+      maximum: MAX_COUPON_USES,
+    });
+    expect(operation('patch', `${BASE}/{couponId}/capacity`).responses).toMatchObject({
+      '200': expect.anything() as unknown,
+      '400': expect.anything() as unknown,
+      '401': expect.anything() as unknown,
+      '403': expect.anything() as unknown,
+      '404': expect.anything() as unknown,
+      '409': expect.anything() as unknown,
+    });
   });
 
   it('documents a safe coupon response with capacity counts and no audit fields', () => {

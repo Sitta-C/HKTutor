@@ -374,7 +374,8 @@ export function TutorDashboard({ user, onLogout, reportView }: TutorDashboardPro
               </Link>
             </PaperCard>
           </div>
-          <TutorDashboardAnalytics listings={listings} now={mountedAt} reportView={reportView} />
+          {reportView && <div className="mt-8 sm:mt-10">{reportView}</div>}
+          <TutorDashboardAnalytics listings={listings} now={mountedAt} />
         </>
       )}
     </DashboardShell>

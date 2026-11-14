@@ -8,46 +8,55 @@ import { DashboardLoading } from '@/components/dashboard/dashboard-loading';
 import DashboardShell from '@/components/dashboard/dashboard-shell';
 import { BookingStatusBreakdown } from '@/components/reports/booking-status-breakdown';
 import { reportCopy } from '@/components/reports/report-copy';
+import { createTutorReportCsv } from '@/components/reports/report-export';
 import { createTutorReportViewModel, getReportFailure } from '@/components/reports/report-model';
-import { ReportSummaryCards } from '@/components/reports/report-summary-cards';
+import { ReportOutcomes } from '@/components/reports/report-outcomes';
 import { PaperCard, notebookButtonClass } from '@/components/ui/notebook';
 import { NotebookLoadingRegion } from '@/components/ui/notebook-loading';
 import { getMyTutorReport } from '@/lib/api/reports';
+import { getUserDisplayName } from '@/lib/dashboard-navigation';
+import { formatBangkokShortDate, formatBangkokTime, getBangkokToday } from '@/lib/date-time';
 import { useLanguage } from '@/lib/i18n';
 import { ONBOARDING_PROFILE_PATH } from '@/lib/profile-navigation';
 import { withReturnTo } from '@/lib/return-to';
 import { useProfileSession } from '@/lib/use-profile-session';
+
+import './report-print.css';
+import styles from './tutor-report.module.css';
 
 import type { ReportFailure } from '@/components/reports/report-model';
 import type { TutorReport } from '@/lib/api/types';
 
 export type TutorReportPanelState =
   | { status: 'loading' }
-  | { status: 'success'; report: TutorReport }
+  | { status: 'success'; report: TutorReport; fetchedAt?: string }
   | { status: 'error'; failure: ReportFailure };
 
 export function TutorReportPanel({
   embedded = false,
+  ownerName,
   onRetry,
   state,
 }: {
   embedded?: boolean;
+  ownerName?: string;
   onRetry: () => void;
   state: TutorReportPanelState;
 }) {
   const { language } = useLanguage();
   const copy = reportCopy[language];
-  const Heading = embedded ? 'h3' : 'h1';
+  const Heading = embedded ? 'h2' : 'h1';
   const reportViewModel =
     state.status === 'success' ? createTutorReportViewModel(state.report, copy, language) : null;
 
   return (
     <section
-      className={embedded ? '' : 'pb-12 pt-7 sm:pt-9'}
+      className={`${styles.panel} ${embedded ? '' : styles.page}`}
       aria-labelledby={embedded ? 'dashboard-report-title' : 'report-page-title'}
       data-tutor-report
+      data-report-page={embedded ? undefined : ''}
     >
-      <header className="mb-6">
+      <header className={styles.heading}>
         {!embedded && (
           <p className="text-xs font-bold uppercase tracking-[0.16em] text-tutor-deep">
             {copy.eyebrow}
@@ -57,7 +66,7 @@ export function TutorReportPanel({
           id={embedded ? 'dashboard-report-title' : 'report-page-title'}
           className={
             embedded
-              ? 'text-base font-bold text-notebook-ink'
+              ? 'text-xl font-bold text-notebook-ink'
               : 'mt-3 text-2xl font-bold leading-tight tracking-tight text-notebook-ink sm:text-3xl'
           }
           tabIndex={-1}
@@ -73,6 +82,16 @@ export function TutorReportPanel({
         >
           {copy.description}
         </p>
+        {!embedded && ownerName && (
+          <p className="mt-2 break-words text-sm font-semibold text-notebook-ink">{ownerName}</p>
+        )}
+        {!embedded && state.status === 'success' && state.fetchedAt && (
+          <p className={styles.help}>
+            {copy.loadedAt
+              .replace('{date}', formatBangkokShortDate(state.fetchedAt, language))
+              .replace('{time}', formatBangkokTime(state.fetchedAt, language))}
+          </p>
+        )}
       </header>
 
       {state.status === 'loading' && <NotebookLoadingRegion label={copy.loading} />}
@@ -117,19 +136,98 @@ export function TutorReportPanel({
 
       {reportViewModel && (
         <div data-report-success>
-          <ReportSummaryCards copy={copy} report={reportViewModel} />
-          <BookingStatusBreakdown
-            copy={copy}
-            headingLevel={embedded ? 'h4' : 'h2'}
-            report={reportViewModel}
-          />
+          {!embedded && state.status === 'success' && (
+            <div className={styles.actions}>
+              <button type="button" className={styles.action} onClick={() => window.print()}>
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  aria-hidden="true"
+                >
+                  <path d="M7 8V3h10v5M7 17H4V9h16v8h-3M7 14h10v7H7zM16 11h1" />
+                </svg>
+                {copy.print}
+              </button>
+              <button
+                type="button"
+                className={styles.action}
+                onClick={() => {
+                  const url = URL.createObjectURL(
+                    new Blob([createTutorReportCsv(state.report, copy)], {
+                      type: 'text/csv;charset=utf-8',
+                    }),
+                  );
+                  const link = document.createElement('a');
+                  link.href = url;
+                  link.download = `hktutor-teaching-report-${getBangkokToday()}.csv`;
+                  link.click();
+                  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+                }}
+              >
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  aria-hidden="true"
+                >
+                  <path d="M12 3v12m-4-4 4 4 4-4M4 16v5h16v-5" />
+                </svg>
+                {copy.downloadCsv}
+              </button>
+            </div>
+          )}
+          <div className={styles.sheet}>
+            <ReportOutcomes copy={copy} report={reportViewModel} />
+            <BookingStatusBreakdown
+              copy={copy}
+              headingLevel={embedded ? 'h3' : 'h2'}
+              report={reportViewModel}
+            />
+          </div>
+          {reportViewModel.isEmpty && <p className={styles.emptyRecord}>{copy.emptyRecord}</p>}
+          {embedded ? (
+            <div className={styles.footer}>
+              <p className={styles.scope}>{copy.allTimeScope}</p>
+              <Link href="/dashboard/reports" className={styles.reportLink}>
+                {copy.fullReport} <span aria-hidden="true">&nbsp;↗</span>
+              </Link>
+            </div>
+          ) : (
+            <>
+              <p className={`${styles.help} ${styles.exportHint}`}>{copy.exportHint}</p>
+              <section className={styles.definitions} aria-labelledby="report-definitions-title">
+                <h2 id="report-definitions-title">{copy.definitionsTitle}</h2>
+                <dl>
+                  {[
+                    [copy.totalBookings, copy.bookingsDefinition],
+                    [copy.revenue, copy.revenueDefinition],
+                    [copy.completionRate, copy.completionDefinition],
+                  ].map(([label, definition]) => (
+                    <div key={label}>
+                      <dt>{label}</dt>
+                      <dd>{definition}</dd>
+                    </div>
+                  ))}
+                </dl>
+              </section>
+            </>
+          )}
         </div>
       )}
     </section>
   );
 }
 
-export function TutorReportView({ embedded = false }: { embedded?: boolean }) {
+export function TutorReportView({
+  embedded = false,
+  ownerName,
+}: {
+  embedded?: boolean;
+  ownerName?: string;
+}) {
   const [state, setState] = useState<TutorReportPanelState>({ status: 'loading' });
   const requestId = useRef(0);
   const controller = useRef<AbortController | null>(null);
@@ -145,7 +243,7 @@ export function TutorReportView({ embedded = false }: { embedded?: boolean }) {
     void getMyTutorReport(request.signal)
       .then((report) => {
         if (!request.signal.aborted && requestId.current === id) {
-          setState({ status: 'success', report });
+          setState({ status: 'success', report, fetchedAt: new Date().toISOString() });
         }
       })
       .catch((error: unknown) => {
@@ -178,6 +276,7 @@ export function TutorReportView({ embedded = false }: { embedded?: boolean }) {
     <div ref={container}>
       <TutorReportPanel
         embedded={embedded}
+        {...(ownerName ? { ownerName } : {})}
         state={state}
         onRetry={() => {
           focusAfterRetry.current = true;
@@ -209,7 +308,7 @@ export default function TutorReportPage() {
         router.replace('/');
       }}
     >
-      <TutorReportView />
+      <TutorReportView ownerName={getUserDisplayName(dashboardUser)} />
     </DashboardShell>
   );
 }

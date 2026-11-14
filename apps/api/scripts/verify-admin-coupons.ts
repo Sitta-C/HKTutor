@@ -352,7 +352,10 @@ async function verify(): Promise<void> {
       where: { couponId: coupon.id },
       orderBy: { id: 'asc' },
     });
-    const usesBefore = await prisma.couponUse.findMany({ where: { couponId: coupon.id } });
+    const usesBefore = await prisma.couponUse.findMany({
+      where: { couponId: coupon.id },
+      orderBy: { id: 'asc' },
+    });
     const firstChanges = await Promise.all([
       request(server).patch(activationUrl).auth(token, { type: 'bearer' }).send({ active: false }),
       request(server).patch(activationUrl).auth(token, { type: 'bearer' }).send({ active: false }),
@@ -406,7 +409,7 @@ async function verify(): Promise<void> {
       claimsBefore,
     );
     assert.deepEqual(
-      await prisma.couponUse.findMany({ where: { couponId: coupon.id } }),
+      await prisma.couponUse.findMany({ where: { couponId: coupon.id }, orderBy: { id: 'asc' } }),
       usesBefore,
     );
     const afterActivation = await prisma.coupon.findUniqueOrThrow({ where: { id: coupon.id } });
@@ -459,6 +462,115 @@ async function verify(): Promise<void> {
     );
     pass('activation audit JSON stays allow-listed and evidence remains append-only');
 
+    await service.setActivation(actor, coupon.id, true);
+    const capacityUrl = `${URL}/${coupon.id}/capacity`;
+    const capacityRequest = (maxUses: number) =>
+      request(server).patch(capacityUrl).auth(token, { type: 'bearer' }).send({ maxUses });
+    const sameTotal = await Promise.all([capacityRequest(25), capacityRequest(25)]);
+    assert.deepEqual(
+      sameTotal.map((result) => result.status),
+      [200, 200],
+    );
+    for (const result of sameTotal) {
+      assert.equal((result.body as { maxUses: number }).maxUses, 25);
+    }
+    const increased = await prisma.coupon.findUniqueOrThrow({ where: { id: coupon.id } });
+    assert.equal(increased.maxUses, 25);
+    const capacityAudits = await prisma.auditLog.findMany({
+      where: { entityId: coupon.id, action: 'coupon.capacity_increase' },
+    });
+    assert.equal(capacityAudits.length, 1);
+    assert.deepEqual(capacityAudits[0]?.beforeData, { maxUses: 10 });
+    assert.deepEqual(capacityAudits[0]?.afterData, { maxUses: 25 });
+    assert.equal(capacityAudits[0]?.actorUserId, actor);
+    await capacityRequest(24).expect(409);
+    await capacityRequest(25).expect(200);
+    assert.deepEqual(
+      await prisma.coupon.findUniqueOrThrow({ where: { id: coupon.id } }),
+      increased,
+    );
+    pass(
+      'concurrent desired totals and retries increase capacity once; decreases never overwrite it',
+    );
+
+    await assert.rejects(service.increaseCapacity(randomUUID(), coupon.id, 40));
+    assert.deepEqual(
+      await prisma.coupon.findUniqueOrThrow({ where: { id: coupon.id } }),
+      increased,
+    );
+    const competing = await Promise.all([capacityRequest(30), capacityRequest(35)]);
+    assert.ok(competing.every((result) => [200, 409].includes(result.status)));
+    assert.equal((await prisma.coupon.findUniqueOrThrow({ where: { id: coupon.id } })).maxUses, 35);
+    assert.deepEqual(
+      await prisma.couponUse.findMany({ where: { couponId: coupon.id }, orderBy: { id: 'asc' } }),
+      usesBefore,
+    );
+    assert.deepEqual(
+      await prisma.couponReservation.findMany({
+        where: { couponId: coupon.id },
+        orderBy: { id: 'asc' },
+      }),
+      claimsBefore,
+    );
+    const afterCapacity = await prisma.coupon.findUniqueOrThrow({ where: { id: coupon.id } });
+    assert.deepEqual(
+      [afterCapacity.id, afterCapacity.code, afterCapacity.percent, afterCapacity.expiresAt],
+      [coupon.id, coupon.code, coupon.percent, coupon.expiresAt],
+    );
+    pass(
+      'audit failure rolls back capacity; competing totals serialize and preserve original coupon identities and claims',
+    );
+
+    await service.setActivation(actor, coupon.id, false);
+    await capacityRequest(40).expect(409);
+    const expiredCoupon = await prisma.coupon.create({
+      data: {
+        code: `${prefix}_EXPIRED`,
+        percent: 10,
+        maxUses: 1,
+        active: true,
+        expiresAt: new Date(Date.now() - 1000),
+      },
+    });
+    await request(server)
+      .patch(`${URL}/${expiredCoupon.id}/capacity`)
+      .auth(token, { type: 'bearer' })
+      .send({ maxUses: 5 })
+      .expect(409);
+    pass('inactive and expired coupons cannot receive additional capacity');
+
+    for (const [beforeData, afterData] of [
+      [{ maxUses: 35 }, { maxUses: 34 }],
+      [{ maxUses: 35 }, { maxUses: 35 }],
+      [{ maxUses: 35 }, { maxUses: 36, secret: 'disallowed' }],
+      [{ maxUses: 35 }, { maxUses: 36.5 }],
+      [{ maxUses: 35 }, { maxUses: 2147483648 }],
+      [{ maxUses: 35 }, {}],
+    ] as const) {
+      const id = randomUUID();
+      await assert.rejects(
+        prisma.auditLog.create({
+          data: {
+            id,
+            actorUserId: actor,
+            action: 'coupon.capacity_increase',
+            entityType: 'Coupon',
+            entityId: coupon.id,
+            operationKey: `coupon.capacity_increase:${id}`,
+            beforeData,
+            afterData,
+          },
+        }),
+      );
+    }
+    await assert.rejects(
+      prisma.auditLog.update({
+        where: { id: capacityAudits[0]?.id ?? '' },
+        data: { actorUserId: actor },
+      }),
+    );
+    pass('capacity audit accepts only strict integer increases and remains append-only');
+
     await prisma.authSession.update({ where: { id: session.id }, data: { revokedAt: new Date() } });
     await request(server).get(URL).auth(token, { type: 'bearer' }).expect(401);
     await request(server)
@@ -466,6 +578,7 @@ async function verify(): Promise<void> {
       .auth(token, { type: 'bearer' })
       .send({ active: true })
       .expect(401);
+    await capacityRequest(40).expect(401);
     pass('revoked persisted session is rejected by the actual JWT guard');
     process.stdout.write(`${passed} admin coupon database checks passed.\n`);
   } finally {

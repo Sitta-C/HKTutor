@@ -533,6 +533,27 @@ new API endpoint or booking payload change is introduced. Browser checks cover c
 status-filter independence, counts above 100, focus refresh, booking success, errors/zero and
 mobile sidebar operation; unit checks cover deduplication and account/mutation response races.
 
+The tutor booking-request bubble now uses the same in-memory store, keyed by user ID and role,
+with `getTutorBookings({ status: 'PENDING', page: 1, pageSize: 1 }).total`. It counts pending
+requests across all pages independently of the inbox's selected filter. Confirmation, rejection
+and cancellation refresh it immediately, invalidating any earlier count read. Route/focus refresh
+and unknown/zero behavior match the student shell. Session changes clear both roles' cached state.
+
+## Tutor reporting
+
+The **Teaching Ledger** sits before monthly insights on the dashboard. One paper groups the
+all-time booking total with five ruled status rows, net paid completed revenue, and the completion
+rate with its API-provided completed/finalized counts. Mobile stacks outcomes before the ledger;
+container queries keep tablet and expanded-sidebar compositions balanced. Monthly insights have
+three continuous metrics, a compact weekly chart and short unavailable-review/earnings notes.
+
+`/dashboard/reports` adds the account name, Bangkok response-load time and metric definitions.
+Download CSV exports the displayed successful report as UTF-8 with BOM, preserving exact decimal
+revenue and the server-rounded percent; null rates remain blank. This is an aggregate summary,
+not a booking-level export. Print / save PDF opens native browser printing with the report and
+definitions only. The dedicated page stays private/noindex and preserves existing role, consent,
+session, error, retry-focus and unavailable-data handling.
+
 ## Profile photos
 
 Student and tutor onboarding/edit pages include an optional photo section with local preview,

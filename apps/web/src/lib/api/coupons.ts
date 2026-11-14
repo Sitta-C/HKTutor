@@ -6,6 +6,7 @@ import type {
   AdminCoupon,
   AdminCouponList,
   CreateAdminCouponPayload,
+  IncreaseCouponCapacityPayload,
   SetCouponActivationPayload,
 } from '@/lib/api/types';
 
@@ -40,6 +41,20 @@ export function setAdminCouponActivation(
   signal?: AbortSignal,
 ): Promise<AdminCoupon> {
   return authenticatedFetch(`/admin/coupons/${encodeURIComponent(couponId)}/activation`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+    signal: signal
+      ? AbortSignal.any([signal, AbortSignal.timeout(12_000)])
+      : AbortSignal.timeout(12_000),
+  });
+}
+
+export function increaseAdminCouponCapacity(
+  couponId: string,
+  payload: IncreaseCouponCapacityPayload,
+  signal?: AbortSignal,
+): Promise<AdminCoupon> {
+  return authenticatedFetch(`/admin/coupons/${encodeURIComponent(couponId)}/capacity`, {
     method: 'PATCH',
     body: JSON.stringify(payload),
     signal: signal

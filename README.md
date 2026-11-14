@@ -165,6 +165,14 @@ Tutors can view the authoritative all-time report at the private, noindex `/dash
 route and in the tutor dashboard. It shows all five booking statuses, paid completed net revenue,
 and the completed ÷ (completed + canceled) rate; these values come from the report endpoint rather
 than a paginated booking page.
+The dashboard uses a continuous **Teaching Ledger** before the monthly insights, with the revenue,
+completion numerator/denominator and five compact status rows on one paper. The dedicated report
+adds the account name, Bangkok load timestamp, metric definitions, summary CSV download and a
+print view suitable for saving as PDF. CSV preserves the API's decimal revenue and rounded rate;
+it does not contain individual booking records. Monthly booked value remains separate from
+all-time paid completed revenue. The tutor sidebar's booking-request bubble uses the server's PENDING total, independent of
+the booking inbox's selected filter. It refreshes after confirmation, rejection or cancellation,
+and on navigation and visible focus/visibility changes.
 S3-T11 checks the report against real PostgreSQL rows, covering arithmetic, discounted revenue,
 HALF_UP rounding, empty ledgers and role/ownership access; see
 [S3-T11 QA evidence](tests/s3-t11-qa.md).
@@ -393,6 +401,11 @@ adding edit/delete routes or changing booking/payment behavior. A later change a
 `PATCH /api/v1/admin/coupons/:couponId/activation` and Activate/Deactivate controls; activation is
 the only change allowed after creation. See
 [`tests/s3-t22-qa.md`](tests/s3-t22-qa.md) for coverage, commands and screenshot evidence.
+
+Active, unexpired coupons can also receive additional quota through
+`PATCH /api/v1/admin/coupons/:couponId/capacity`. Admins set a higher total in a confirmation dialog;
+used/reserved counts and once-per-student history remain intact. This requires the additive
+`20261114120000_add_coupon_capacity_audit` migration before API deployment.
 
 S3-T23 collects the coupon rules, audit behavior, approved PromptPay coupon decisions and US9-1
 traceability in the

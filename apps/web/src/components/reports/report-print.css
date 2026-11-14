@@ -1,0 +1,29 @@
+/* The document shell must be removed as well as the local report controls when printing. */
+@media print {
+  body:has([data-report-page]),
+  body:has([data-report-page]) [data-dashboard-shell] {
+    min-height: 0;
+    color: #292524;
+    background: white;
+  }
+  body:has([data-report-page]) [data-dashboard-shell]::before,
+  body:has([data-report-page]) #dashboard-sidebar,
+  body:has([data-report-page]) [aria-controls='dashboard-sidebar'],
+  body:has([data-report-page]) header.sticky,
+  body:has([data-report-page]) footer,
+  body:has([data-report-page]) .pointer-events-none,
+  body:has([data-report-page]) nextjs-portal {
+    display: none !important;
+  }
+  body:has([data-report-page]) [data-dashboard-layout] {
+    display: block !important;
+    min-height: 0;
+  }
+  body:has([data-report-page]) main {
+    width: 100% !important;
+    max-width: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    background: white;
+  }
+}

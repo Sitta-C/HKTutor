@@ -13,13 +13,14 @@ import { DashboardIcon } from '@/components/dashboard/dashboard-icon';
 import { LocalizedDatePicker } from '@/components/date-time/localized-date-picker';
 import { TimeWheelPicker } from '@/components/date-time/time-wheel-picker';
 import { notebookInputClass } from '@/components/ui/notebook';
+import { NotebookConfirmDialog } from '@/components/ui/notebook-confirm-dialog';
 import { useNotebookToast } from '@/components/ui/notebook-toast';
 import { createAdminCoupon, listAdminCoupons } from '@/lib/api/coupons';
 import { formatBangkokDateTime, getBangkokToday } from '@/lib/date-time';
 
 import type { CouponCopy } from '@/components/coupons/coupon-copy';
 import type { CouponDraft, CouponErrors, CouponField } from '@/components/coupons/coupon-model';
-import type { AdminCoupon } from '@/lib/api/types';
+import type { AdminCoupon, CreateAdminCouponPayload } from '@/lib/api/types';
 import type { Language } from '@/lib/i18n';
 import type { FormEvent } from 'react';
 
@@ -44,6 +45,7 @@ export function CouponCreateForm({
   const [phase, setPhase] = useState<Phase>('idle');
   const [notice, setNotice] = useState<Notice>(null);
   const [recoveredCoupon, setRecoveredCoupon] = useState<AdminCoupon | null>(null);
+  const [confirmation, setConfirmation] = useState<CreateAdminCouponPayload | null>(null);
   const formRef = useRef<HTMLFormElement>(null);
   const statusRef = useRef<HTMLParagraphElement>(null);
   const lifetime = useRef<AbortController | null>(null);
@@ -77,18 +79,23 @@ export function CouponCreateForm({
     setNotice(null);
   }
 
-  async function submit(event: FormEvent<HTMLFormElement>): Promise<void> {
-    event.preventDefault();
+  async function submit(event?: FormEvent<HTMLFormElement>, confirmed = false): Promise<void> {
+    event?.preventDefault();
     if (busy.current || phase !== 'idle') {
       return;
     }
     setRecoveredCoupon(null);
     const result = validateCouponDraft(draft, Date.now());
     if (result.errors) {
+      setConfirmation(null);
       setErrors(result.errors);
       setNotice('invalid');
       focusError(result.errors);
       toast.error(copy.invalid);
+      return;
+    }
+    if (!confirmed) {
+      setConfirmation(result.payload);
       return;
     }
     const controller = lifetime.current;
@@ -108,6 +115,7 @@ export function CouponCreateForm({
       setPhase('idle');
       setNotice('success');
       toast.success(copy.success);
+      setConfirmation(null);
       onCreated(coupon);
       requestAnimationFrame(() => statusRef.current?.focus());
     } catch (error) {
@@ -115,7 +123,9 @@ export function CouponCreateForm({
         return;
       }
       const kind = getCouponRequestError(error);
+      setConfirmation(null);
       if (kind === 'unauthorized' || kind === 'forbidden') {
+        toast.error(kind === 'unauthorized' ? copy.session : copy.denied);
         onDenied(kind);
       } else if (kind === 'duplicate' || kind === 'validation') {
         const nextErrors: CouponErrors =
@@ -167,10 +177,12 @@ export function CouponCreateForm({
       }
       const kind = getCouponRequestError(error);
       if (kind === 'unauthorized' || kind === 'forbidden') {
+        toast.error(kind === 'unauthorized' ? copy.session : copy.denied);
         onDenied(kind);
       } else {
         setPhase('uncertain');
         setNotice('checkFailed');
+        toast.error(copy.checkFailed);
       }
     } finally {
       busy.current = false;
@@ -418,6 +430,42 @@ export function CouponCreateForm({
           {phase === 'checking' ? copy.checking : copy.check}
         </button>
       )}
+      <NotebookConfirmDialog
+        open={confirmation !== null}
+        title={copy.confirmCreate}
+        description={copy.confirmCreateHelp}
+        confirmLabel={copy.create}
+        role="admin"
+        busy={phase === 'saving'}
+        disabled={phase !== 'idle' && phase !== 'saving'}
+        onCancel={() => setConfirmation(null)}
+        onConfirm={() => submit(undefined, true)}
+      >
+        {confirmation && (
+          <dl>
+            <div>
+              <dt>{copy.code}</dt>
+              <dd>{confirmation.code}</dd>
+            </div>
+            <div>
+              <dt>{copy.percent}</dt>
+              <dd>{confirmation.percent}%</dd>
+            </div>
+            <div>
+              <dt>{copy.maxUses}</dt>
+              <dd>{confirmation.maxUses}</dd>
+            </div>
+            <div>
+              <dt>{copy.expiry}</dt>
+              <dd>{formatBangkokDateTime(confirmation.expiresAt, language)}</dd>
+            </div>
+            <div>
+              <dt>{copy.activation}</dt>
+              <dd>{confirmation.active ? copy.enabled : copy.statuses.inactive}</dd>
+            </div>
+          </dl>
+        )}
+      </NotebookConfirmDialog>
     </section>
   );
 }

@@ -2628,7 +2628,7 @@ See [S3-DB03 evidence](../../tests/s3-db03-qa.md) for actual commands/results.
 
 All admin coupon routes require a Bearer access JWT backed by an active session, a verified active account
 and the database-backed ADMIN role. Administrators do not require privacy consent to use admin
-coupon tools; missing or outdated consent does not block creation, listing or activation. No consent checkbox
+coupon tools; missing or outdated consent does not block creation, listing, activation or capacity increases. No consent checkbox
 or consent record backfill is needed. This follows the existing admin qualification-review access
 policy. `JwtAuthGuard` runs before `RolesGuard`; Student/Tutor consent rules remain unchanged.
 Responses use `Cache-Control: no-store`; failures follow the existing
@@ -2742,7 +2742,9 @@ Focused unit/HTTP checks are in `test/unit/coupons` and `test/coupons.e2e-spec.t
 The HTTP suite runs real guards, validation and service code with mocked persistence. The separate
 `pnpm db:verify:admin-coupons` runner uses real PostgreSQL, real signed JWTs and the HTTP routes for
 the duplicate-code race, safe listing and persisted session revocation; it also verifies audit
-rollback, equal-time keyset pagination and real reservation/release/consumption counts.
+rollback, equal-time keyset pagination and real reservation/release/consumption counts. Capacity
+checks cover concurrent desired totals, retry/no-op semantics, rejected decreases, inactive/expired
+coupons, audit rollback and unchanged coupon identities/claims.
 
 The runner requires explicit opt-in, a loopback-only URL, a `hktutor_*_test`/`hktutor-*-test`
 database name, no URL options/fragments and all committed migrations. It does not load `.env`,
@@ -2856,20 +2858,20 @@ checks that it matches the DTO validation and response.
 
 ### Coupon rules
 
-| Rule          | Contract                                                                                                  |
-| ------------- | --------------------------------------------------------------------------------------------------------- |
-| Type          | Percentage only. There are no fixed-amount or other coupon types.                                         |
-| `code`        | Trimmed and ASCII a–z uppercased, then 3–32 of `A-Z`, `0-9`, `_`, `-`. Non-ASCII is rejected.             |
-| Uniqueness    | CITEXT unique index; `welcome10` and `WELCOME10` collide, returning 409 `COUPON_CODE_EXISTS`.             |
-| `percent`     | JSON integer 1–100 inclusive. 0, -10, 120, fractions and strings return 400.                              |
-| `maxUses`     | JSON integer 1–2147483647. 0 returns 400.                                                                 |
-| `active`      | Optional JSON boolean, default true. Only the activation route changes it later.                          |
-| `expiresAt`   | Full UTC instant ending in `Z`, at most millisecond precision, strictly future when created.              |
-| Expiry        | Exclusive: usable only while `now < expiresAt`; `now >= expiresAt` is expired.                            |
-| Bangkok input | The admin UI needs a Bangkok date and HH:mm time and sends UTC. A date alone is never read as end of day. |
-| Capacity      | `availableUses = maxUses - consumedUses - reservedUses`.                                                  |
-| Eligibility   | `active && now < expiresAt && availableUses > 0`, plus T25/T26 booking and student checks.                |
-| Changes       | No edit or delete route. Code, percent, expiry and maxUses are fixed once created.                        |
+| Rule          | Contract                                                                                                                                        |
+| ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| Type          | Percentage only. There are no fixed-amount or other coupon types.                                                                               |
+| `code`        | Trimmed and ASCII a–z uppercased, then 3–32 of `A-Z`, `0-9`, `_`, `-`. Non-ASCII is rejected.                                                   |
+| Uniqueness    | CITEXT unique index; `welcome10` and `WELCOME10` collide, returning 409 `COUPON_CODE_EXISTS`.                                                   |
+| `percent`     | JSON integer 1–100 inclusive. 0, -10, 120, fractions and strings return 400.                                                                    |
+| `maxUses`     | JSON integer 1–2147483647. 0 returns 400.                                                                                                       |
+| `active`      | Optional JSON boolean, default true. Only the activation route changes it later.                                                                |
+| `expiresAt`   | Full UTC instant ending in `Z`, at most millisecond precision, strictly future when created.                                                    |
+| Expiry        | Exclusive: usable only while `now < expiresAt`; `now >= expiresAt` is expired.                                                                  |
+| Bangkok input | The admin UI needs a Bangkok date and HH:mm time and sends UTC. A date alone is never read as end of day.                                       |
+| Capacity      | `availableUses = maxUses - consumedUses - reservedUses`.                                                                                        |
+| Eligibility   | `active && now < expiresAt && availableUses > 0`, plus T25/T26 booking and student checks.                                                      |
+| Changes       | No generic edit or delete route. Code, percent and expiry are fixed; active, unexpired coupons may increase maxUses through the capacity route. |
 
 `consumedUses` counts immutable `CouponUse` rows. A consumed use is never refunded or decremented,
 including after cancellation. `reservedUses` counts only `RESERVED` claims, including uncertain
@@ -2886,6 +2888,26 @@ Duplicate-code response:
 }
 ```
 
+### Increase an existing coupon limit
+
+`PATCH /api/v1/admin/coupons/:couponId/capacity` requires a live ADMIN session and accepts only
+`{ "maxUses": 150 }`. This is the **new total**, not an increment. Valid totals are JSON integers
+1–2147483647. An equal total returns 200 without changing the timestamp or writing another audit;
+a smaller total returns 409 `COUPON_CAPACITY_DECREASE_NOT_ALLOWED`. Missing coupons return 404.
+Inactive or expired coupons return 409 `COUPON_INACTIVE` or `COUPON_EXPIRED`, even on a retry.
+Exhausted coupons can be replenished while active and unexpired.
+
+The transaction locks the coupon row shared by activation and payment claims, updates only maxUses,
+and writes an actor-bound `coupon.capacity_increase` audit with exactly `{ maxUses }` before and
+after. Audit failure rolls back the update. Coupon identity, discount, expiry, reservations, consumed
+uses, booking/payment snapshots and once-per-student eligibility remain intact. No versioning or
+code reuse is introduced. Responses use the existing safe CouponDto and `Cache-Control: no-store`.
+
+Apply `20261114120000_add_coupon_capacity_audit` before deploying this endpoint. It extends audit
+constraints without rewriting existing coupon/payment evidence. The admin UI confirms the old and
+new total with the shared alert component, reports the result with toast, and requires a list
+refresh after an uncertain response before another change.
+
 ### Audit
 
 Before S3-DB02 there was no general AuditLog table. DB02 adds a minimal append-only `AuditLog`:
@@ -2897,11 +2919,13 @@ Before S3-DB02 there was no general AuditLog table. DB02 adds a minimal append-o
   write fails, the coupon insert rolls back.
 - **Activation.** Each real change writes one `coupon.active_change` row with
   `{ active }` before and after data and the authenticated actor.
+- **Capacity.** Each real increase writes one `coupon.capacity_increase` row with exactly
+  `{ maxUses }` before and after and the authenticated actor; retries do not add events.
 - **Payments (S3-T26).** `coupon.reserve`, `coupon.consume` and `coupon.release` rows use the
   reservation ID as `entityId`. `afterData` is only `{ status, discountAmount }` and `beforeData`
   is at most `{ status: "RESERVED" }`. They never store raw webhook payloads, provider tokens,
   secrets or QR URLs.
-- **Responses.** Create, list and activation responses return only coupon metadata and counts.
+- **Responses.** Create, list, activation and capacity responses return only coupon metadata and counts.
   They never include audit rows, actors, operation keys or redemption history.
 
 ### Approved PromptPay coupon decisions

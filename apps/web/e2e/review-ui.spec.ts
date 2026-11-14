@@ -13,6 +13,7 @@ const NOW = '2026-11-03T10:00:00.000Z';
 async function setup(
   page: Page,
   options: {
+    language?: 'en' | 'th';
     status?: BookingStatus;
     review?: BookingReview | null;
     getReviewStatus?: number;
@@ -36,7 +37,10 @@ async function setup(
     unexpected: [] as string[],
   };
   await page.clock.install({ time: new Date(NOW) });
-  await page.addInitScript(() => localStorage.setItem('hktutor-language', 'en'));
+  await page.addInitScript(
+    (language) => localStorage.setItem('hktutor-language', language),
+    options.language ?? 'en',
+  );
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await page
     .context()
@@ -213,15 +217,15 @@ async function setup(
     return route.fulfill({ status: 404, json: { message: 'Unexpected preview request' } });
   });
   await page.goto(PATH);
-  const text = reviewCopy.en;
-  await expect(page.getByText(text.loading, { exact: true })).toHaveCount(0);
+  const text = reviewCopy[options.language ?? 'en'];
+  await expect(page.locator('main').getByText(text.loading, { exact: true })).toHaveCount(0);
   return { state, text };
 }
 
 for (const status of ['PENDING', 'CONFIRMED', 'CANCELED', 'EXPIRED'] as const) {
   test(`keeps the review form locked for a ${status} booking`, async ({ page }) => {
     const { state, text } = await setup(page, { status });
-    await expect(page.getByText(text.locked, { exact: true })).toBeVisible();
+    await expect(page.locator('main').getByText(text.locked, { exact: true })).toBeVisible();
     await expect(page.getByRole('heading', { name: text.title })).toHaveCount(0);
     expect(state.getReviewCalls).toBe(0);
     expect(state.posts).toEqual([]);
@@ -237,8 +241,9 @@ test('shows validation errors for missing ratings and feedback on submit, then s
 
   // Clicking with nothing filled in surfaces both field-level errors rather than doing nothing.
   await submit.click();
-  await expect(page.getByText(text.ratingsRequired, { exact: true })).toBeVisible();
-  await expect(page.getByText(text.feedbackBlank, { exact: true })).toBeVisible();
+  await confirmPendingAction(page);
+  await expect(page.locator('main').getByText(text.ratingsRequired, { exact: true })).toBeVisible();
+  await expect(page.locator('main').getByText(text.feedbackBlank, { exact: true })).toBeVisible();
   expect(state.posts).toEqual([]);
 
   await page
@@ -250,17 +255,22 @@ test('shows validation errors for missing ratings and feedback on submit, then s
   await page
     .getByRole('radio', { name: `${text.preparationLegend} 5 ${text.ratingOption}`, exact: true })
     .check();
-  await expect(page.getByText(text.ratingsRequired, { exact: true })).toHaveCount(0);
+  await expect(page.locator('main').getByText(text.ratingsRequired, { exact: true })).toHaveCount(
+    0,
+  );
   expect(state.posts).toEqual([]);
 
   const feedback = page.getByLabel(text.feedbackLabel, { exact: true });
   await feedback.fill('Great class, very clear explanations.');
-  await expect(page.getByText(text.feedbackBlank, { exact: true })).toHaveCount(0);
+  await expect(page.locator('main').getByText(text.feedbackBlank, { exact: true })).toHaveCount(0);
 
   await submit.click();
-  await expect(page.getByText(text.savedTitle, { exact: true })).toBeVisible();
+  await confirmPendingAction(page);
+  await expect(page.locator('main').getByText(text.savedTitle, { exact: true })).toBeVisible();
   await expect(page.getByText('Great class, very clear explanations.')).toBeVisible();
-  await expect(page.getByText('4.67 / 5')).toBeVisible();
+  await expect(
+    page.getByRole('img', { name: 'Overall rating 4.67 out of 5', exact: true }),
+  ).toBeVisible();
   expect(state.bookingCalls).toBeGreaterThan(1);
   expect(state.getReviewCalls).toBeGreaterThan(1);
   expect(state.posts).toEqual([
@@ -273,7 +283,7 @@ test('shows validation errors for missing ratings and feedback on submit, then s
   ]);
 
   await page.reload();
-  await expect(page.getByText(text.savedTitle, { exact: true })).toBeVisible();
+  await expect(page.locator('main').getByText(text.savedTitle, { exact: true })).toBeVisible();
   await expect(page.getByText('Great class, very clear explanations.')).toBeVisible();
   expect(state.posts).toHaveLength(1);
 });
@@ -321,11 +331,16 @@ test('invalid feedback shows an inline error and blocks submission', async ({ pa
   const feedback = page.getByLabel(text.feedbackLabel, { exact: true });
   await feedback.fill('   ');
   await feedback.blur();
-  await expect(page.getByRole('alert').filter({ hasText: text.feedbackBlank })).toBeVisible();
+  await expect(
+    page.locator('main').getByRole('alert').filter({ hasText: text.feedbackBlank }),
+  ).toBeVisible();
 
   await page.getByRole('button', { name: text.submit, exact: true }).click();
+  await confirmPendingAction(page);
   expect(state.posts).toEqual([]);
-  await expect(page.getByRole('alert').filter({ hasText: text.feedbackBlank })).toBeVisible();
+  await expect(
+    page.locator('main').getByRole('alert').filter({ hasText: text.feedbackBlank }),
+  ).toBeVisible();
 });
 
 test('rejects 1001 astral code points and sends exactly 1000 after trimming', async ({ page }) => {
@@ -335,14 +350,18 @@ test('rejects 1001 astral code points and sends exactly 1000 after trimming', as
   const limit = '😀'.repeat(1000);
   await feedback.fill(limit + '😀');
   await feedback.blur();
-  await expect(page.getByRole('alert').filter({ hasText: text.feedbackTooLong })).toBeVisible();
+  await expect(
+    page.locator('main').getByRole('alert').filter({ hasText: text.feedbackTooLong }),
+  ).toBeVisible();
   const submit = page.getByRole('button', { name: text.submit, exact: true });
   await submit.click();
+  await confirmPendingAction(page);
   expect(state.posts).toEqual([]);
 
   await feedback.fill(`  ${limit}  `);
   await submit.click();
-  await expect(page.getByText(text.savedTitle, { exact: true })).toBeVisible();
+  await confirmPendingAction(page);
+  await expect(page.locator('main').getByText(text.savedTitle, { exact: true })).toBeVisible();
   expect(state.posts).toEqual([{ clarity: 5, punctuality: 4, preparation: 5, feedback: limit }]);
 });
 
@@ -350,7 +369,7 @@ test('a 403 from the review read shows the forbidden message instead of a crash'
   page,
 }) => {
   const { text } = await setup(page, { getReviewStatus: 403 });
-  await expect(page.getByText(text.forbidden, { exact: true })).toBeVisible();
+  await expect(page.locator('main').getByText(text.forbidden, { exact: true })).toBeVisible();
   await expect(page.getByRole('heading', { name: text.title })).toHaveCount(0);
 });
 
@@ -358,7 +377,7 @@ test('a 404 from the review read shows the not-found message instead of a crash'
   page,
 }) => {
   const { text } = await setup(page, { getReviewStatus: 404 });
-  await expect(page.getByText(text.notFound, { exact: true })).toBeVisible();
+  await expect(page.locator('main').getByText(text.notFound, { exact: true })).toBeVisible();
   await expect(page.getByRole('heading', { name: text.title })).toHaveCount(0);
 });
 
@@ -366,7 +385,7 @@ test('an initial load error offers retry, which recovers without resubmitting', 
   page,
 }) => {
   const { state, text } = await setup(page, { getReviewStatus: 503 });
-  await expect(page.getByText(text.loadFailed, { exact: true })).toBeVisible();
+  await expect(page.locator('main').getByText(text.loadFailed, { exact: true })).toBeVisible();
   const callsBeforeRetry = state.getReviewCalls;
   state.getReviewStatus = 200;
   await page.getByRole('button', { name: text.retry, exact: true }).click();
@@ -390,9 +409,10 @@ test('a confirmed saved review survives a failed reconciliation GET', async ({ p
   // The reconciling GET fired by onSaved sees this 503, not the 200 the mount GET already saw.
   state.getReviewStatus = 503;
   await page.getByRole('button', { name: text.submit, exact: true }).click();
-  await expect(page.getByText(text.savedTitle, { exact: true })).toBeVisible();
+  await confirmPendingAction(page);
+  await expect(page.locator('main').getByText(text.savedTitle, { exact: true })).toBeVisible();
   await expect(page.getByText('Submitted just before a 503')).toBeVisible();
-  await expect(page.getByText(text.loadFailed, { exact: true })).toHaveCount(0);
+  await expect(page.locator('main').getByText(text.loadFailed, { exact: true })).toHaveCount(0);
 });
 
 test('a wrong-owner 403 on submit shows the forbidden message and preserves the input', async ({
@@ -411,12 +431,13 @@ test('a wrong-owner 403 on submit shows the forbidden message and preserves the 
   const feedback = page.getByLabel(text.feedbackLabel, { exact: true });
   await feedback.fill('Written by the wrong student');
   await page.getByRole('button', { name: text.submit, exact: true }).click();
+  await confirmPendingAction(page);
   // Scoped to the form's own region: the same text also appears in a transient toast.
   await expect(
     page.getByRole('region', { name: text.title }).getByText(text.forbidden, { exact: true }),
   ).toBeVisible();
   await expect(feedback).toHaveValue('Written by the wrong student');
-  await expect(page.getByText(text.savedTitle, { exact: true })).toHaveCount(0);
+  await expect(page.locator('main').getByText(text.savedTitle, { exact: true })).toHaveCount(0);
   expect(state.posts).toHaveLength(1);
 });
 
@@ -433,7 +454,8 @@ test('a duplicate 409 reconciles by reading back the already-saved review', asyn
     .check();
   await page.getByLabel(text.feedbackLabel, { exact: true }).fill('Trying again');
   await page.getByRole('button', { name: text.submit, exact: true }).click();
-  await expect(page.getByText(text.savedTitle, { exact: true })).toBeVisible();
+  await confirmPendingAction(page);
+  await expect(page.locator('main').getByText(text.savedTitle, { exact: true })).toBeVisible();
   await expect(page.getByText('Already submitted earlier')).toBeVisible();
   expect(state.posts).toHaveLength(1);
 });
@@ -455,14 +477,16 @@ test('an uncertain (lost response) submission preserves input and does not auto-
   await feedback.fill('Network will drop this response');
   state.getReviewStatus = 503;
   await page.getByRole('button', { name: text.submit, exact: true }).click();
-  await expect(page.getByText(text.uncertainFailed, { exact: true })).toBeVisible();
+  await confirmPendingAction(page);
+  await expect(page.locator('main').getByText(text.uncertainFailed, { exact: true })).toBeVisible();
   await expect(feedback).toHaveValue('Network will drop this response');
   expect(state.posts).toHaveLength(1);
 
   state.loseResponse = false;
   state.getReviewStatus = 200;
   await page.getByRole('button', { name: text.submit, exact: true }).click();
-  await expect(page.getByText(text.savedTitle, { exact: true })).toBeVisible();
+  await confirmPendingAction(page);
+  await expect(page.locator('main').getByText(text.savedTitle, { exact: true })).toBeVisible();
   expect(state.posts).toHaveLength(2);
   expect(state.posts[1]).toEqual(state.posts[0]);
 });
@@ -477,16 +501,17 @@ test('a lost response after saving shows canonical feedback as inert text withou
   await page.getByLabel(text.feedbackLabel, { exact: true }).fill(markup);
   const callsBeforeSubmit = state.getReviewCalls;
   await page.getByRole('button', { name: text.submit, exact: true }).click();
+  await confirmPendingAction(page);
 
-  await expect(page.getByText(text.savedTitle, { exact: true })).toBeVisible();
+  await expect(page.locator('main').getByText(text.savedTitle, { exact: true })).toBeVisible();
   await expect(page.getByText(markup, { exact: true })).toBeVisible();
   await expect(page.locator('img[data-review-probe], body[data-review-executed]')).toHaveCount(0);
   expect(state.getReviewCalls).toBeGreaterThan(callsBeforeSubmit);
   expect(state.posts).toEqual([{ clarity: 5, punctuality: 4, preparation: 5, feedback: markup }]);
 });
 
-async function selectRatings(page: Page): Promise<void> {
-  const text = reviewCopy.en;
+async function selectRatings(page: Page, language: 'en' | 'th' = 'en'): Promise<void> {
+  const text = reviewCopy[language];
   for (const [legend, rating] of [
     [text.clarityLegend, 5],
     [text.punctualityLegend, 4],
@@ -495,5 +520,79 @@ async function selectRatings(page: Page): Promise<void> {
     await page
       .getByRole('radio', { name: `${legend} ${rating} ${text.ratingOption}`, exact: true })
       .check();
+  }
+}
+
+// Existing journey checks deliberately confirm the new review step before asserting the API result.
+async function confirmPendingAction(page: Page): Promise<void> {
+  const dialog = page.locator('dialog[data-notebook-confirmation]');
+  if (await dialog.count()) await dialog.getByRole('button').last().click();
+}
+
+for (const language of ['en', 'th'] as const) {
+  for (const width of [320, 768, 1440]) {
+    test(`review sheet preserves its draft and recorded feedback (${language}, ${width}px)`, async ({
+      page,
+    }, testInfo) => {
+      await page.setViewportSize({ width, height: 1100 });
+      const { state, text } = await setup(page, { language });
+      const form = page.getByRole('region', { name: text.title, exact: true });
+      await expect(form).toContainText(text.publicHelp);
+      for (const input of await form.getByRole('radio').all()) {
+        const box = await input.boundingBox();
+        expect(box?.width).toBeGreaterThanOrEqual(44);
+        expect(box?.height).toBeGreaterThanOrEqual(44);
+      }
+      await selectRatings(page, language);
+      await page.getByLabel(text.feedbackLabel, { exact: true }).fill('A clear, helpful class.');
+      await form.screenshot({ path: testInfo.outputPath(`review-form-${language}-${width}.png`) });
+      const trigger = page.getByRole('button', { name: text.submit, exact: true });
+      await trigger.click();
+      const dialog = page.getByRole('alertdialog');
+      await expect(dialog).toContainText(text.finality);
+      await expect(dialog).toContainText('A clear, helpful class.');
+      for (const criterion of await dialog.locator('dl dd').all())
+        await expect(criterion).toBeVisible();
+      expect(state.posts).toHaveLength(0);
+      await expect(dialog).toBeVisible();
+      expect(await dialog.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(
+        true,
+      );
+      await dialog.screenshot({
+        path: testInfo.outputPath(`review-confirmation-${language}-${width}.png`),
+      });
+      await page.screenshot({
+        path: testInfo.outputPath(`review-confirmation-${language}-${width}-context.png`),
+      });
+      await dialog
+        .getByRole('button', { name: language === 'en' ? 'Cancel' : 'ยกเลิก', exact: true })
+        .click();
+      await expect(trigger).toBeFocused();
+      await expect(page.getByLabel(text.feedbackLabel, { exact: true })).toHaveValue(
+        'A clear, helpful class.',
+      );
+      expect(state.posts).toHaveLength(0);
+      await trigger.click();
+      await confirmPendingAction(page);
+      await expect(page.locator('[data-notebook-toast="success"]')).toContainText(text.submitted);
+      expect(state.posts).toHaveLength(1);
+      const saved = page.getByRole('region', { name: text.savedTitle, exact: true });
+      await expect(saved.getByRole('img')).toHaveAccessibleName(
+        `${text.savedOverall} 4.67 ${text.ratingOption}`,
+      );
+      await expect(saved.locator('dl dd')).toHaveText(['5 / 5', '4 / 5', '5 / 5']);
+      const details = saved.locator('details');
+      await expect(details).not.toHaveAttribute('open', '');
+      await expect(saved.locator('dl')).not.toBeVisible();
+      await details.locator('summary').click();
+      await expect(saved.locator('dl')).toBeVisible();
+      await expect(saved).toContainText('A clear, helpful class.');
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+        true,
+      );
+      await saved.screenshot({
+        path: testInfo.outputPath(`review-saved-${language}-${width}.png`),
+      });
+    });
   }
 }

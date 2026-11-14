@@ -76,6 +76,7 @@ async function setup(
   await page.route('**/api/v1/**', async (route) => {
     const request = route.request();
     const path = new URL(request.url()).pathname.replace('/api/v1', '');
+    if (path === '/bookings/tutor') return route.fulfill({ json: { items: [], total: 0 } });
     if (path.endsWith('/conversations/unread-count')) {
       return route.fulfill({ json: { unreadCount: 0 } });
     }
@@ -277,6 +278,7 @@ for (const language of ['en', 'th'] as const) {
     await absent.press('Tab');
     await expect(record).toBeFocused();
     await record.press('Enter');
+    await confirmPendingAction(page);
     await expect(
       panel.getByRole('region', { name: text.attendanceTitle }).locator('time'),
     ).toHaveAttribute('datetime', NOW);
@@ -304,6 +306,7 @@ for (const language of ['en', 'th'] as const) {
         .check();
       expect(state.puts).toEqual([]);
       await panel.getByRole('button', { name: text.recordAttendance, exact: true }).click();
+      await confirmPendingAction(page);
       const summary = panel.getByRole('region', { name: text.attendanceTitle });
       await expect(summary).toContainText(attendance === 'ATTENDED' ? text.attended : text.absent);
       await expect(summary.locator('time')).toHaveAttribute('datetime', NOW);
@@ -387,6 +390,7 @@ test('an open future class becomes eligible when its end time passes', async ({ 
   await expect(panel.getByRole('radio', { name: text.attended, exact: true })).toBeEnabled();
   await panel.getByRole('radio', { name: text.attended, exact: true }).check();
   await panel.getByRole('button', { name: text.recordAttendance, exact: true }).click();
+  await confirmPendingAction(page);
   await expect(
     panel.getByRole('region', { name: text.attendanceTitle }).locator('time'),
   ).toBeVisible();
@@ -427,6 +431,7 @@ test('same-value race is a success and preserves the original UTC receipt in Ban
   state.competingAttendance = 'ATTENDED';
   await panel.getByRole('radio', { name: text.attended, exact: true }).check();
   await panel.getByRole('button', { name: text.recordAttendance, exact: true }).click();
+  await confirmPendingAction(page);
   await expect(page.getByText(text.attendanceReplay, { exact: true })).toBeVisible();
   const time = panel.getByRole('region', { name: text.attendanceTitle }).locator('time');
   await expect(time).toHaveAttribute('datetime', ORIGINAL_RECEIPT);
@@ -442,6 +447,7 @@ test('different-value race shows 409, locks stale choices, and refreshes the per
   state.competingAttendance = 'ATTENDED';
   await panel.getByRole('radio', { name: text.absent, exact: true }).check();
   await panel.getByRole('button', { name: text.recordAttendance, exact: true }).click();
+  await confirmPendingAction(page);
   await expect(panel.getByRole('alert')).toHaveText(text.attendanceConflict);
   await expect(panel.getByRole('radio', { name: text.attended, exact: true })).toBeDisabled();
   await expect(panel.getByRole('radio', { name: text.absent, exact: true })).toBeDisabled();
@@ -461,6 +467,7 @@ for (const status of [400, 403, 404, 409, 500]) {
     state.failure = status;
     await panel.getByRole('radio', { name: text.absent, exact: true }).check();
     await panel.getByRole('button', { name: text.recordAttendance, exact: true }).click();
+    await confirmPendingAction(page);
     await expect(panel.getByRole('alert')).toHaveText(
       status === 403
         ? text.attendanceOwner
@@ -494,6 +501,7 @@ for (const [status, code, message] of [
     state.failureCode = code;
     await panel.getByRole('radio', { name: text.attended, exact: true }).check();
     await panel.getByRole('button', { name: text.recordAttendance, exact: true }).click();
+    await confirmPendingAction(page);
     await expect(panel.getByRole('alert')).toHaveText(text[message]);
     await expect(panel.getByRole('radio', { name: text.attended, exact: true })).toBeDisabled();
     await expect(panel.getByRole('radio', { name: text.absent, exact: true })).toBeDisabled();
@@ -507,6 +515,7 @@ test('pending attendance locks both choices, meeting-link saving and refresh', a
   state.gate = gate.promise;
   await panel.getByRole('radio', { name: text.absent, exact: true }).check();
   await panel.getByRole('button', { name: text.recordAttendance, exact: true }).click();
+  await confirmPendingAction(page);
   await expect(
     panel.getByRole('button', { name: text.attendanceSaving, exact: true }),
   ).toBeDisabled();
@@ -541,6 +550,7 @@ test('lost attendance response is reconciled after refresh without another first
   state.loseResponse = true;
   await panel.getByRole('radio', { name: text.attended, exact: true }).check();
   await panel.getByRole('button', { name: text.recordAttendance, exact: true }).click();
+  await confirmPendingAction(page);
   await expect(panel.getByRole('alert')).toHaveText(text.attendanceFailed);
   await expect(panel.getByRole('radio', { name: text.attended, exact: true })).toBeDisabled();
   expect(state.mutations).toBe(1);
@@ -560,6 +570,7 @@ test('failed status refresh after save hides the stale form and recovers the sav
   state.readFailure = 500;
   await panel.getByRole('radio', { name: text.attended, exact: true }).check();
   await panel.getByRole('button', { name: text.recordAttendance, exact: true }).click();
+  await confirmPendingAction(page);
   await expect(panel.getByRole('alert')).toHaveText(text.failed);
   await expect(panel.getByRole('radio', { name: text.absent, exact: true })).toHaveCount(0);
   state.readFailure = 0;
@@ -587,3 +598,51 @@ test('a saved value without a timestamp remains readable without replaying a wri
   expect(state.puts).toEqual([]);
   expect(state.mutations).toBe(0);
 });
+
+// Existing journey checks deliberately confirm the new review step before asserting the API result.
+async function confirmPendingAction(page: Page): Promise<void> {
+  const dialog = page.locator('dialog[data-notebook-confirmation]');
+  if (await dialog.count()) await dialog.getByRole('button').last().click();
+}
+
+for (const width of [320, 768, 1440]) {
+  test(`attendance confirmation keeps a canceled draft and submits only once (${width}px)`, async ({
+    page,
+  }, testInfo) => {
+    await page.setViewportSize({ width, height: width === 320 ? 740 : 900 });
+    const { state, panel, text } = await setup(page, { language: 'th' });
+    await panel.getByRole('radio', { name: text.absent, exact: true }).check();
+    const trigger = panel.getByRole('button', { name: text.recordAttendance, exact: true });
+    await trigger.click();
+    const dialog = page.getByRole('alertdialog');
+    await expect(dialog).toContainText(text.attendanceFinality);
+    await expect(dialog.getByRole('button', { name: 'ยกเลิก', exact: true })).toBeFocused();
+    expect(state.puts).toHaveLength(0);
+    await expect(dialog).toBeVisible();
+    expect(await dialog.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(
+      true,
+    );
+    await dialog.screenshot({ path: testInfo.outputPath(`attendance-confirmation-${width}.png`) });
+    await page.screenshot({
+      path: testInfo.outputPath(`attendance-confirmation-${width}-context.png`),
+    });
+    await page.keyboard.press('Escape');
+    await expect(dialog).toHaveCount(0);
+    await expect(trigger).toBeFocused();
+    await expect(panel.getByRole('radio', { name: text.absent, exact: true })).toBeChecked();
+    expect(state.puts).toHaveLength(0);
+    await trigger.click();
+    await dialog
+      .getByRole('button', { name: text.recordAttendance, exact: true })
+      .evaluate((button) => {
+        if (button instanceof HTMLButtonElement) {
+          button.click();
+          button.click();
+        }
+      });
+    await expect(page.locator('[data-notebook-toast="success"]')).toContainText(
+      text.attendanceSaved,
+    );
+    expect(state.puts).toEqual([{ attendance: 'ABSENT' }]);
+  });
+}

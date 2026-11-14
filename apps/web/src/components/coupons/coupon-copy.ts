@@ -4,6 +4,11 @@ export const couponCopy = {
     eyebrow: 'Admin notebook',
     intro: 'Create percentage discounts and keep track of coupon capacity.',
     create: 'Create coupon',
+    confirmCreate: 'Create this discount coupon?',
+    confirmCreateHelp:
+      'Check the discount, usage limit and expiry. An active coupon can be used immediately after creation.',
+    confirmActivate: 'Activate this coupon?',
+    confirmDeactivate: 'Deactivate this coupon?',
     creating: 'Creating coupon…',
     formTitle: 'New coupon',
     formIntro: 'Set the code, discount and expiry before creating.',
@@ -28,6 +33,25 @@ export const couponCopy = {
     changingActivation: 'Saving activation…',
     activated: 'Coupon activated.',
     deactivated: 'Coupon deactivated.',
+    increaseCapacity: 'Increase limit',
+    capacityTitle: 'Increase coupon usage limit?',
+    capacityHelp:
+      'Set a larger total limit. Existing uses, payment reservations and per-student restrictions are kept.',
+    capacityHint:
+      'Active coupons that have not expired can have their limit increased, including exhausted coupons.',
+    capacityTotal: 'New total usage limit',
+    capacityBefore: 'Current total limit',
+    capacityPreview: '{count} additional uses',
+    capacityInvalid: 'Enter a whole number greater than the current limit, up to 2,147,483,647.',
+    capacitySaved: 'Coupon limit saved: {count} total uses.',
+    capacityUncertain:
+      'The new limit could not be confirmed. Refresh coupons before changing it again.',
+    capacityInactive: 'This coupon is inactive. Refresh coupons before increasing its limit.',
+    capacityExpired: 'This coupon has expired. Its usage limit cannot be increased.',
+    capacityStale:
+      'The latest total is higher than this value. Refresh coupons before trying again.',
+    capacityMissing: 'This coupon is no longer available. Refresh coupons.',
+    savingCapacity: 'Saving limit…',
     activationUncertain:
       'The change could not be confirmed. Refresh coupons before changing activation again.',
     activationHint:
@@ -84,6 +108,11 @@ export const couponCopy = {
     eyebrow: 'สมุดผู้ดูแลระบบ',
     intro: 'สร้างส่วนลดแบบเปอร์เซ็นต์ พร้อมติดตามจำนวนการใช้คูปอง',
     create: 'สร้างคูปอง',
+    confirmCreate: 'ยืนยันสร้างคูปองส่วนลดนี้?',
+    confirmCreateHelp:
+      'ตรวจสอบส่วนลด จำนวนใช้ และวันหมดอายุ คูปองที่เปิดใช้งานจะใช้สิทธิ์ได้ทันทีหลังสร้าง',
+    confirmActivate: 'ยืนยันเปิดใช้งานคูปองนี้?',
+    confirmDeactivate: 'ยืนยันปิดใช้งานคูปองนี้?',
     creating: 'กำลังสร้างคูปอง…',
     formTitle: 'คูปองใหม่',
     formIntro: 'กำหนดรหัส ส่วนลด และวันหมดอายุก่อนสร้าง',
@@ -108,6 +137,23 @@ export const couponCopy = {
     changingActivation: 'กำลังบันทึกสถานะ…',
     activated: 'เปิดใช้งานคูปองแล้ว',
     deactivated: 'ปิดใช้งานคูปองแล้ว',
+    increaseCapacity: 'เพิ่มโควตา',
+    capacityTitle: 'ยืนยันเพิ่มโควตาการใช้คูปอง?',
+    capacityHelp:
+      'กำหนดจำนวนสิทธิ์รวมให้มากขึ้น โดยคงประวัติการใช้ รายการชำระเงินที่จองไว้ และข้อจำกัดการใช้ต่อคน',
+    capacityHint:
+      'เพิ่มโควตาได้เมื่อคูปองเปิดใช้งานและยังไม่หมดอายุ รวมถึงคูปองที่ใช้เต็มโควตาแล้ว',
+    capacityTotal: 'จำนวนสิทธิ์รวมใหม่',
+    capacityBefore: 'จำนวนสิทธิ์รวมปัจจุบัน',
+    capacityPreview: 'เพิ่มอีก {count} สิทธิ์',
+    capacityInvalid: 'กรอกจำนวนเต็มที่มากกว่าโควตาปัจจุบัน และไม่เกิน 2,147,483,647',
+    capacitySaved: 'บันทึกโควตาคูปองรวม {count} สิทธิ์แล้ว',
+    capacityUncertain: 'ยังยืนยันโควตาใหม่ไม่ได้ กรุณาโหลดรายการคูปองใหม่ก่อนเปลี่ยนอีกครั้ง',
+    capacityInactive: 'คูปองนี้ปิดใช้งานแล้ว กรุณาโหลดรายการใหม่ก่อนเพิ่มโควตา',
+    capacityExpired: 'คูปองนี้หมดอายุแล้ว จึงไม่สามารถเพิ่มโควตาได้',
+    capacityStale: 'โควตาล่าสุดมากกว่าค่าที่กรอก กรุณาโหลดรายการคูปองใหม่ก่อนลองอีกครั้ง',
+    capacityMissing: 'ไม่พบคูปองนี้แล้ว กรุณาโหลดรายการใหม่',
+    savingCapacity: 'กำลังบันทึกโควตา…',
     activationUncertain:
       'ยังยืนยันผลการเปลี่ยนสถานะไม่ได้ กรุณาโหลดรายการคูปองใหม่ก่อนเปลี่ยนสถานะอีกครั้ง',
     activationHint:

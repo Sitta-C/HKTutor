@@ -37,6 +37,10 @@ export interface SetCouponActivationPayload {
   active: boolean;
 }
 
+export interface IncreaseCouponCapacityPayload {
+  maxUses: number;
+}
+
 export interface CreateAdminCouponPayload {
   code: string;
   percent: number;

@@ -47,7 +47,40 @@ also check one toast per outcome, retained data, expiry after navigation, reduce
 and actual hit-testing above an open confirmation dialog. Existing auth-client unit tests retain
 refresh/session-expiry coverage; no real service is mutated by these browser checks.
 
-Validation completed: 145 web unit tests and 173 browser tests passed; one existing availability
+Original audit validation: 145 web unit tests and 173 browser tests passed; one existing availability
 touch-gesture test was skipped by the desktop browser project. Web lint, production build, repository
 formatting and diff whitespace checks passed. Browser coverage includes 320px, 768px and 1440px modal
 toast checks in Thai and English. API/database checks were outside this frontend-only change.
+
+## Confirmation and feedback follow-up — 2026-11-14
+
+`NotebookConfirmDialog` reuses the implemented availability/course alert styles and `NotebookAction`.
+It uses the native modal top layer, defaults focus to Cancel, restores focus on dismissal, and keeps
+the draft intact. Confirm is guarded against repeated clicks; Escape and Cancel are disabled while
+the action is pending. Its body portal avoids nested forms in the profile editor. Thai and English
+copy describe the consequence and expose the relevant values before a write.
+
+| Action                                           | Confirmation / summary                                             | Outcome feedback                                                                            |
+| ------------------------------------------------ | ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------- |
+| Record attendance                                | Selected attendance and finality                                   | Existing saved/replayed/error toast retained                                                |
+| Submit review                                    | Three ratings, full feedback and finality                          | Existing outcome toast; custom validation now also notifies                                 |
+| Create/approve/reject/withdraw reschedule        | Original and proposed Bangkok times, reason, effect on the booking | Confirmed success or mapped failure toast; refresh locks retained                           |
+| Start/retry payment or settle a zero-net booking | Course, time, server-priced amount and coupon                      | Ready QR, confirmed paid result or mapped error; polling stays quiet                        |
+| Apply/remove booking coupon                      | Existing reversible Receipt Strip                                  | Applied/removed toast after reconciliation; validation, rejection or uncertain-result toast |
+| Review qualification evidence                    | Tutor, filename, decision and review note                          | Confirmed review success or rejection/conflict error; queue recovery retained               |
+| Create/activate/deactivate admin coupon          | Code, percentage, capacity, Bangkok expiry and activation          | Existing success/error plus missing auth and manual recovery errors                         |
+| Remove profile photo                             | Destructive confirmation                                           | Existing removal/error toast retained; cancel does not submit the surrounding profile form  |
+| Publish from course editor                       | Subject, grade, hourly rate, description and public visibility     | Existing saved/error feedback, with duplicate-submit guard                                  |
+| Discard unsaved course edits                     | Explicit data-loss warning, including the back link                | Navigation only after confirmation; no synthetic mutation toast                             |
+| Tutor booking decisions / cancellation           | Existing alerts retained                                           | Missing eligibility, reason-validation, API and unexpected-response error toasts added      |
+
+Browser coverage uses intercepted APIs, including no request on cancel, preserved drafts, returned
+keyboard focus, one write on repeated confirmation, modal busy locks, and accurate QR versus paid
+feedback. Confirmation screenshots cover 320px, 768px and 1440px. Existing failure/reconciliation
+journeys remain in the relevant feature suites; no real account, booking, coupon or payment is
+mutated by these checks.
+
+Follow-up validation: 864 web unit tests and 334 distinct Chromium browser checks verified, including
+focused reruns of two deadline checks after separating inline-error and toast assertions. Web lint,
+production build, repository formatting and diff whitespace checks passed. Browser APIs were mocked;
+API/database checks were outside this frontend-only change.

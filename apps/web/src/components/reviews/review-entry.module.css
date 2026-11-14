@@ -1,0 +1,102 @@
+.entry {
+  display: grid;
+  grid-template-columns: 88px minmax(0, 1fr);
+  min-width: 0;
+}
+.margin {
+  display: flex;
+  justify-content: center;
+  padding: 20px 8px;
+  background: color-mix(
+    in srgb,
+    var(--review-accent, var(--color-tutor-deep)) 5%,
+    var(--color-paper)
+  );
+  border-inline-end: 1px solid
+    color-mix(in srgb, var(--review-accent, var(--color-tutor-deep)) 20%, var(--color-paper));
+}
+.content {
+  min-width: 0;
+  padding: 20px 22px 8px;
+}
+.feedback {
+  max-width: 70ch;
+  margin: 0;
+  color: var(--color-notebook-ink);
+  font-size: 15px;
+  line-height: 1.75;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.attribution {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 3px 10px;
+  margin-top: 10px;
+}
+.attribution h3 {
+  min-width: 0;
+  color: var(--color-notebook-ink);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+.attribution p {
+  margin: 0;
+  color: var(--color-notebook-muted-deep);
+  font-size: 11px;
+  line-height: 1.7;
+}
+.details {
+  margin-top: 3px;
+}
+.details summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: fit-content;
+  min-height: 44px;
+  color: var(--color-notebook-muted-deep);
+  font-size: 12px;
+  list-style: none;
+  cursor: pointer;
+}
+.details summary::-webkit-details-marker {
+  display: none;
+}
+.details summary::after {
+  width: 6px;
+  height: 6px;
+  border-inline-end: 1px solid currentColor;
+  border-bottom: 1px solid currentColor;
+  transform: rotate(45deg);
+  content: '';
+}
+.details[open] summary::after {
+  transform: rotate(225deg);
+}
+.details summary:hover {
+  color: var(--color-notebook-ink);
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+.details summary:focus-visible {
+  outline: 2px solid var(--review-accent, var(--color-tutor-deep));
+  outline-offset: 2px;
+}
+.details[open] {
+  padding-bottom: 10px;
+}
+@media (max-width: 600px) {
+  .entry {
+    grid-template-columns: 62px minmax(0, 1fr);
+  }
+  .margin {
+    padding-inline: 5px;
+  }
+  .content {
+    padding-inline: 12px;
+  }
+}

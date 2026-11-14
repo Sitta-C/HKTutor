@@ -1,0 +1,64 @@
+.score {
+  display: inline-flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  color: color-mix(
+    in srgb,
+    var(--review-accent, var(--color-tutor-deep)) 86%,
+    var(--color-notebook-ink)
+  );
+  font-variant-numeric: tabular-nums;
+}
+.scoreLabel {
+  color: var(--color-notebook-muted-deep);
+  font-size: 11px;
+  line-height: 1.5;
+}
+.scoreValue {
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  line-height: 1.3;
+}
+.scoreValue strong {
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+}
+.scoreValue > span {
+  color: var(--color-notebook-muted-deep);
+  font-size: 12px;
+}
+/* Keep the same compact flow inside the confirmation dialog's default definition-list styles. */
+.dimensions.dimensions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 18px;
+  margin: 0;
+  color: var(--color-notebook-ink);
+  font-size: 12px;
+  line-height: 1.7;
+}
+.dimensions > div {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+}
+.dimensions dt {
+  color: var(--color-notebook-muted-deep);
+  overflow-wrap: anywhere;
+}
+.dimensions dd {
+  flex: 0 0 auto;
+  margin: 0;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.dimensions dd span {
+  color: var(--color-notebook-muted-deep);
+  font-weight: 400;
+}

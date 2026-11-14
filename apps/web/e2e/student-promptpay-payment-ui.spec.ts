@@ -274,6 +274,7 @@ for (const language of ['th', 'en'] as const) {
         exact: true,
       })
       .click();
+    await confirmPendingAction(page);
     await expect(
       page.getByRole('img', {
         name:
@@ -330,6 +331,7 @@ test('failed payment permits a new attempt and QR fits a 320px screen', async ({
   await page.setViewportSize({ width: 320, height: 800 });
   await page.goto(DETAIL_PATH);
   await page.getByRole('button', { name: 'Create test QR', exact: true }).click();
+  await confirmPendingAction(page);
   await expect(page.getByRole('img', { name: 'PromptPay QR for test payment' })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
     true,
@@ -351,6 +353,7 @@ test('failed payment permits a new attempt and QR fits a 320px screen', async ({
     page.getByRole('button', { name: 'Create another test QR', exact: true }),
   ).toBeEnabled();
   await page.getByRole('button', { name: 'Create another test QR', exact: true }).click();
+  await confirmPendingAction(page);
   expect(state.posts).toBe(2);
 });
 
@@ -361,6 +364,7 @@ test('a lost create response requires a status read and never creates another ch
   state.loseResponse = true;
   await page.goto(DETAIL_PATH);
   await page.getByRole('button', { name: 'Create test QR', exact: true }).click();
+  await confirmPendingAction(page);
   await expect(
     page.getByRole('alert').filter({ hasText: 'Payment status is uncertain' }),
   ).toBeVisible();
@@ -487,6 +491,7 @@ test('coupon writes and QR creation cannot overlap', async ({ page }) => {
   release?.();
   await expect(page.getByRole('button', { name: 'Remove coupon', exact: true })).toBeEnabled();
   await page.getByRole('button', { name: 'Create test QR', exact: true }).click();
+  await confirmPendingAction(page);
   await expect(page.getByRole('img', { name: 'PromptPay QR for test payment' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Remove coupon', exact: true })).toBeDisabled();
   await page.reload();
@@ -506,7 +511,7 @@ test('a lost apply response locks checkout until a read recovers the persisted c
   await input.fill('WELCOME10');
   await page.getByRole('button', { name: 'Apply code', exact: true }).click();
   await expect(
-    page.getByRole('alert').filter({ hasText: bookingCouponCopy.en.uncertain }),
+    page.getByRole('region', { name: 'Discount code' }).getByRole('alert'),
   ).toBeVisible();
   await expect(input).toBeDisabled();
   await expect(page.getByRole('button', { name: 'Create test QR', exact: true })).toBeDisabled();
@@ -527,6 +532,7 @@ test('100% coupon settles once without a QR and restores the zero-value receipt'
   await input.fill('FULL100');
   await page.getByRole('button', { name: 'Apply code', exact: true }).click();
   await page.getByRole('button', { name: 'Confirm THB 0.00', exact: true }).click();
+  await confirmPendingAction(page);
   await expect(page.getByText('coupon:zero-receipt', { exact: true })).toBeVisible();
   await expect(page.getByRole('img', { name: 'PromptPay QR for test payment' })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Remove coupon' })).toHaveCount(0);
@@ -599,7 +605,9 @@ for (const [status, code, message] of [
     await expect(input).toBeEnabled();
     await input.fill('WELCOME10');
     await page.getByRole('button', { name: 'Apply code', exact: true }).click();
-    await expect(page.getByRole('alert').filter({ hasText: message })).toBeVisible();
+    await expect(page.getByRole('region', { name: 'Discount code' }).getByRole('alert')).toHaveText(
+      message,
+    );
     await expect(input).toBeDisabled();
     await expect(page.getByRole('button', { name: 'Create test QR', exact: true })).toBeDisabled();
     expect(state.booking.netAmount).toBe('450.00');
@@ -644,6 +652,7 @@ for (const language of ['th', 'en'] as const) {
         exact: true,
       })
       .click();
+    await confirmPendingAction(page);
     const refresh = page.getByRole('button', {
       name: language === 'en' ? 'Check payment status' : 'ตรวจสถานะชำระเงิน',
       exact: true,
@@ -744,6 +753,7 @@ for (const status of [400, 409] as const) {
     };
     await page.goto(DETAIL_PATH);
     await page.getByRole('button', { name: 'Create test QR', exact: true }).click();
+    await confirmPendingAction(page);
     const payment = page.getByRole('region', { name: 'Pay with PromptPay', exact: true });
     await expect(payment.getByRole('alert')).toHaveText(
       'Payment status is uncertain. Check the status again before continuing.',
@@ -769,7 +779,12 @@ for (const language of ['th', 'en'] as const) {
     const remove = page.getByRole('button', { name: text.remove, exact: true });
     await expect(pay).toBeEnabled();
     await pay.click();
-    const rejection = page.getByRole('alert').filter({ hasText: text.expired });
+    await confirmPendingAction(page);
+    const rejection = page
+      .getByRole('region', {
+        name: language === 'en' ? 'Pay with PromptPay' : 'ชำระด้วย PromptPay',
+      })
+      .getByRole('alert');
     await expect(rejection).toHaveText(`${text.expired} ${text.paymentRecovery}`);
     await expect(remove).toBeDisabled();
     await page
@@ -944,6 +959,7 @@ for (const language of ['th', 'en'] as const) {
         exact: true,
       })
       .click();
+    await confirmPendingAction(page);
     const timer = page.getByRole('timer');
     await expect(timer).toHaveText('01:01');
     await expect(timer).toHaveAttribute('aria-live', 'off');
@@ -1057,9 +1073,17 @@ for (const language of ['en', 'th'] as const) {
     });
     await expect(pay).toBeEnabled();
     await pay.click();
+    await confirmPendingAction(page);
     await expect(
-      page.getByText(bookingCouponCopy[language].deadlinePassed, { exact: true }),
-    ).toBeVisible();
+      page
+        .getByRole('region', {
+          name: language === 'en' ? 'Pay with PromptPay' : 'ชำระด้วย PromptPay',
+        })
+        .getByRole('alert'),
+    ).toHaveText(bookingCouponCopy[language].deadlinePassed);
+    await expect(page.locator('[data-notebook-toast="error"]')).toHaveText(
+      bookingCouponCopy[language].deadlinePassed,
+    );
     await expect(pay).toHaveCount(0);
     await page
       .getByRole('button', {
@@ -1092,6 +1116,7 @@ for (const language of ['en', 'th'] as const) {
         exact: true,
       })
       .click();
+    await confirmPendingAction(page);
     await expect(page.getByRole('img', { name: /PromptPay QR|QR PromptPay/ })).toBeVisible();
     await page.clock.fastForward(5000);
     await expect(page.getByRole('img', { name: /PromptPay QR|QR PromptPay/ })).toHaveCount(0);
@@ -1107,5 +1132,48 @@ for (const language of ['en', 'th'] as const) {
     await page.clock.fastForward(5000);
     await expect.poll(() => state.statusReads).toBeGreaterThan(reads);
     expect(state.posts).toBe(1);
+  });
+}
+
+// Existing journey checks deliberately confirm the new review step before asserting the API result.
+async function confirmPendingAction(page: Page): Promise<void> {
+  const dialog = page.locator('dialog[data-notebook-confirmation]');
+  if (await dialog.count()) await dialog.getByRole('button').last().click();
+}
+
+for (const width of [320, 768, 1440]) {
+  test(`payment confirmation sends no request on cancel and does not call a QR a paid receipt (${width}px)`, async ({
+    page,
+  }, testInfo) => {
+    await page.setViewportSize({ width, height: width === 320 ? 740 : 900 });
+    const state = await mockPayments(page, { language: 'th' });
+    await page.goto(DETAIL_PATH);
+    const trigger = page.getByRole('button', { name: 'สร้าง QR ทดสอบ', exact: true });
+    await expect(trigger).toBeEnabled();
+    await trigger.click();
+    const dialog = page.getByRole('alertdialog');
+    await expect(dialog).toContainText('การสร้าง QR ยังไม่ถือว่าชำระเงินสำเร็จ');
+    expect(state.posts).toBe(0);
+    await expect(dialog).toBeVisible();
+    expect(await dialog.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(
+      true,
+    );
+    await dialog.screenshot({ path: testInfo.outputPath(`payment-confirmation-${width}.png`) });
+    await page.screenshot({
+      path: testInfo.outputPath(`payment-confirmation-${width}-context.png`),
+    });
+    await dialog.getByRole('button', { name: 'ยกเลิก', exact: true }).click();
+    expect(state.posts).toBe(0);
+    await expect(trigger).toBeFocused();
+    await trigger.click();
+    await confirmPendingAction(page);
+    await expect(page.locator('[data-notebook-toast="success"]')).toContainText(
+      bookingCouponCopy.th.paymentReady,
+    );
+    await expect(page.locator('[data-notebook-toast="success"]')).not.toContainText(
+      bookingCouponCopy.th.paymentPaid,
+    );
+    expect(state.posts).toBe(1);
+    expect(state.booking.paymentStatus).toBe('UNPAID');
   });
 }

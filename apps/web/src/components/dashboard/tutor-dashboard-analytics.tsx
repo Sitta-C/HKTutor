@@ -14,17 +14,18 @@ import {
 } from '@/components/dashboard/tutor-dashboard-model';
 import { MonthRuler } from '@/components/date-time/month-ruler';
 import { ArrowIcon } from '@/components/public/public-ui';
-import { PaperCard, StatusBadge, notebookButtonClass } from '@/components/ui/notebook';
+import { PaperCard, notebookButtonClass } from '@/components/ui/notebook';
 import { NotebookLoadingRegion } from '@/components/ui/notebook-loading';
 import { NotebookMetadata } from '@/components/ui/notebook-metadata';
 import { SubjectCourseIndex } from '@/components/ui/subject-course-index';
 import { formatCalendarMonth, getBangkokToday, getCalendarLocale } from '@/lib/date-time';
 import { useLanguage } from '@/lib/i18n';
 
+import styles from './tutor-dashboard-analytics.module.css';
+
 import type { TutorBookingAmount } from '@/components/dashboard/tutor-dashboard-model';
 import type { TeachingListing, TutorBookingView } from '@/lib/api/types';
 import type { Language } from '@/lib/i18n';
-import type { ReactNode } from 'react';
 
 export interface TutorDashboardInsights {
   receivedRevenue?: { month: string; amounts: TutorBookingAmount[] };
@@ -53,12 +54,10 @@ export function TutorDashboardAnalytics({
   listings,
   now,
   insights,
-  reportView,
 }: {
   listings: TeachingListing[];
   now: number;
   insights?: TutorDashboardInsights;
-  reportView?: ReactNode;
 }) {
   const { copy, language } = useLanguage();
   const text = copy.dashboard.tutor;
@@ -108,7 +107,7 @@ export function TutorDashboardAnalytics({
   const maximumMinutes = Math.max(...summary.weeks.map((week) => week.minutes));
 
   return (
-    <section aria-labelledby="tutor-analytics" className="mt-10 space-y-5 sm:mt-12">
+    <section aria-labelledby="tutor-analytics" className={styles.analytics}>
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h2 id="tutor-analytics" className="text-xl font-bold text-notebook-ink">
@@ -140,154 +139,123 @@ export function TutorDashboardAnalytics({
         </PaperCard>
       )}
 
-      <dl className="grid grid-cols-2 gap-3 xl:grid-cols-4" aria-busy={isLoading}>
-        {[
-          { label: text.confirmedLessons, value: number(summary.confirmedCount) },
-          { label: text.scheduledHours, value: number(summary.minutes / 60) },
-          { label: text.bookedValue, value: formatAmounts(summary.amounts, language) },
-        ].map((metric) => (
-          <div
-            key={metric.label}
-            className="rounded-xl border border-paper-edge bg-white p-4 sm:p-5"
-          >
-            <dt className="min-h-10 text-sm text-notebook-muted">{metric.label}</dt>
-            <dd className="mt-3 break-words text-2xl font-bold tabular-nums text-tutor-deep">
-              <NotebookMetadata items={hasData ? metric.value : '—'} />
-              <span className="mt-2 block text-xs font-normal text-notebook-muted">
-                {monthLabel}
-              </span>
-            </dd>
-          </div>
-        ))}
-        <div className="rounded-xl border border-dashed border-tutor-deep/25 bg-sticky-blue/20 p-4 sm:p-5">
-          <dt className="min-h-10 text-sm text-notebook-muted">{text.receivedRevenue}</dt>
-          <dd className="mt-3 break-words text-2xl font-bold tabular-nums text-notebook-ink">
-            <NotebookMetadata
-              items={receivedRevenue ? formatAmounts(receivedRevenue, language) : '—'}
-            />
-            <span className="mt-2 block text-xs font-normal leading-5 text-notebook-muted">
-              {receivedRevenue ? monthLabel : text.waitingRevenue}
-            </span>
-          </dd>
-        </div>
-      </dl>
+      <div className={styles.monthSheet}>
+        <dl className={styles.metrics} aria-busy={isLoading}>
+          {[
+            { label: text.confirmedLessons, value: number(summary.confirmedCount) },
+            { label: text.scheduledHours, value: number(summary.minutes / 60) },
+            { label: text.bookedValue, value: formatAmounts(summary.amounts, language) },
+          ].map((metric) => (
+            <div key={metric.label} className={styles.metric}>
+              <dt>{metric.label}</dt>
+              <dd>
+                <NotebookMetadata items={hasData ? metric.value : '—'} />
+              </dd>
+            </div>
+          ))}
+        </dl>
+        <p className={styles.monthCaption}>{monthLabel}</p>
 
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,1.55fr)_minmax(280px,1fr)]">
-        <PaperCard className={`${panelClass} self-stretch`} aria-labelledby="tutor-weekly-workload">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <h3 id="tutor-weekly-workload" className="text-base font-bold">
-                {text.weeklyWorkload}
-              </h3>
-              <p className="mt-1 text-xs leading-5 text-notebook-muted">
-                {text.workloadDescription}
-              </p>
-            </div>
-            <span className="rounded-md bg-sticky-blue/50 px-2 py-1 text-xs text-tutor-deep">
-              {text.hoursUnit}
-            </span>
-          </div>
-          {!hasData ? (
-            <p className="py-8 text-sm text-notebook-muted">—</p>
-          ) : maximumMinutes === 0 ? (
-            <div className="mt-6 flex min-h-48 flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-paper-edge bg-paper/70 text-center">
-              <DashboardIcon name="calendar" className="h-7 w-7 text-tutor-deep/60" />
-              <p className="px-4 text-sm text-notebook-muted">{text.noConfirmedLessons}</p>
-            </div>
-          ) : (
-            <>
-              <div
-                className="mt-6 flex h-52 items-end gap-3 border-b border-paper-edge px-1 sm:gap-6"
-                aria-hidden="true"
-              >
-                {summary.weeks.map((week) => (
-                  <div
-                    key={week.startDay}
-                    className="flex h-full min-w-0 flex-1 flex-col justify-end gap-2 text-center"
-                  >
-                    <p className="text-xs font-semibold tabular-nums text-tutor-deep">
-                      {number(week.minutes / 60)}
-                    </p>
-                    <div
-                      className="mx-auto w-full max-w-14 rounded-t-lg border border-b-0 border-tutor-deep/20 bg-sticky-blue"
-                      style={{ height: `${(week.minutes / maximumMinutes) * 75}%` }}
-                    />
-                  </div>
-                ))}
+        <div className={styles.visuals}>
+          <section className={styles.workload} aria-labelledby="tutor-weekly-workload">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h3 id="tutor-weekly-workload" className="text-base font-bold">
+                  {text.weeklyWorkload}
+                </h3>
+                <p className="mt-1 text-xs leading-5 text-notebook-muted">
+                  {text.workloadDescription}
+                </p>
               </div>
-              <div className="mt-2 flex gap-3 px-1 sm:gap-6" aria-hidden="true">
-                {summary.weeks.map((week) => (
-                  <span
-                    key={week.startDay}
-                    className="flex-1 text-center text-xs tabular-nums text-notebook-muted"
-                  >
-                    {week.startDay}–{week.endDay}
-                  </span>
-                ))}
+              <span className="text-xs text-notebook-muted">{text.hoursUnit}</span>
+            </div>
+            {!hasData ? (
+              <p className="py-8 text-sm text-notebook-muted">—</p>
+            ) : maximumMinutes === 0 ? (
+              <div className={styles.emptyWorkload}>
+                <DashboardIcon name="calendar" className="h-4 w-4 shrink-0 text-tutor-deep/60" />
+                <p>{text.noConfirmedLessons}</p>
               </div>
-              <table className="sr-only">
-                <caption>
-                  <NotebookMetadata items={[text.weeklyWorkload, monthLabel]} />
-                </caption>
-                <tbody>
+            ) : (
+              <>
+                <div
+                  className="mt-5 flex h-36 items-end gap-3 border-b border-paper-edge px-1 sm:gap-6"
+                  aria-hidden="true"
+                >
                   {summary.weeks.map((week) => (
-                    <tr key={week.startDay}>
-                      <th scope="row">
-                        {week.startDay}–{week.endDay}
-                      </th>
-                      <td>
-                        {number(week.minutes / 60)} {text.hoursUnit}
-                      </td>
-                    </tr>
+                    <div
+                      key={week.startDay}
+                      className="flex h-full min-w-0 flex-1 flex-col justify-end gap-2 text-center"
+                    >
+                      <p className="text-xs font-semibold tabular-nums text-tutor-deep">
+                        {number(week.minutes / 60)}
+                      </p>
+                      <div
+                        className="mx-auto w-full max-w-14 rounded-t-lg border border-b-0 border-tutor-deep/20 bg-sticky-blue"
+                        style={{ height: `${(week.minutes / maximumMinutes) * 75}%` }}
+                      />
+                    </div>
                   ))}
-                </tbody>
-              </table>
-            </>
-          )}
-        </PaperCard>
-        <PaperCard
-          className={`${panelClass} self-stretch`}
-          aria-labelledby="tutor-student-feedback"
-        >
-          <div className="flex items-center justify-between gap-3 border-b border-dashed border-paper-edge pb-4">
-            <h3 id="tutor-student-feedback" className="text-base font-bold">
+                </div>
+                <div className="mt-2 flex gap-3 px-1 sm:gap-6" aria-hidden="true">
+                  {summary.weeks.map((week) => (
+                    <span
+                      key={week.startDay}
+                      className="flex-1 text-center text-xs tabular-nums text-notebook-muted"
+                    >
+                      {week.startDay}–{week.endDay}
+                    </span>
+                  ))}
+                </div>
+                <table className="sr-only">
+                  <caption>
+                    <NotebookMetadata items={[text.weeklyWorkload, monthLabel]} />
+                  </caption>
+                  <tbody>
+                    {summary.weeks.map((week) => (
+                      <tr key={week.startDay}>
+                        <th scope="row">
+                          {week.startDay}–{week.endDay}
+                        </th>
+                        <td>
+                          {number(week.minutes / 60)} {text.hoursUnit}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </>
+            )}
+          </section>
+          <aside className={styles.feedback} aria-labelledby="tutor-student-feedback">
+            <h3 id="tutor-student-feedback" className="text-sm font-semibold">
               {text.reviewsTitle}
             </h3>
-            {!insights?.reviews && <StatusBadge tone="neutral">{text.awaitingData}</StatusBadge>}
-          </div>
-          <div className="flex min-h-52 flex-col items-center justify-center text-center">
-            <div className="mb-3 flex gap-1 text-tutor-deep/45" aria-hidden="true">
-              {Array.from({ length: 5 }, (_, index) => (
-                <svg
-                  key={index}
-                  viewBox="0 0 24 24"
-                  className="h-5 w-5"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.3"
-                >
-                  <path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1.1 6.2-5.6-2.9-5.6 2.9 1.1-6.2L3 9.6l6.2-.9Z" />
-                </svg>
-              ))}
-            </div>
-            <p className="text-3xl font-bold tabular-nums">
-              {insights?.reviews?.average === undefined || insights.reviews.average === null
-                ? '—'
-                : `${number(insights.reviews.average)} / 5`}
-            </p>
-            <p className="mt-2 text-sm font-semibold">
+            {insights?.reviews && (
+              <p className="mt-2 text-2xl font-bold tabular-nums">
+                {insights?.reviews?.average === undefined || insights.reviews.average === null
+                  ? '—'
+                  : `${number(insights.reviews.average)} / 5`}
+              </p>
+            )}
+            <p className="mt-2 text-xs leading-6 text-notebook-muted-deep">
               {insights?.reviews
                 ? text.reviewCount.replace('{count}', number(insights.reviews.count))
                 : text.noReviews}
             </p>
-            <p className="mt-2 max-w-60 text-xs leading-6 text-notebook-muted">
-              {text.reviewsDescription}
-            </p>
-          </div>
-        </PaperCard>
+          </aside>
+        </div>
+        <div className={styles.earnings}>
+          <span>{text.receivedRevenue}</span>
+          <NotebookMetadata
+            items={
+              receivedRevenue
+                ? formatAmounts(receivedRevenue, language)
+                : ['—', text.waitingRevenue]
+            }
+          />
+        </div>
       </div>
-
-      {reportView}
 
       <PaperCard className={panelClass} aria-labelledby="tutor-course-overview">
         <div className="flex flex-wrap items-center justify-between gap-3">

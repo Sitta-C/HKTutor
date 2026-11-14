@@ -4,10 +4,12 @@ import { useState } from 'react';
 
 import { bookingCouponCopy } from '@/components/bookings/booking-coupon-copy';
 import { getBookingPaymentFailure } from '@/components/bookings/booking-coupon-model';
+import { formatBookingDocketSlot } from '@/components/bookings/booking-docket-model';
 import { formatMoney } from '@/components/bookings/booking-ui';
 import { PromptPayQr } from '@/components/bookings/promptpay-qr';
 import { DashboardIcon } from '@/components/dashboard/dashboard-icon';
 import { NotebookAction } from '@/components/ui/notebook-action';
+import { NotebookConfirmDialog } from '@/components/ui/notebook-confirm-dialog';
 import { formatBangkokDateTime } from '@/lib/date-time';
 import { useLanguage } from '@/lib/i18n';
 
@@ -25,6 +27,8 @@ const COPY = {
     unpaid: 'ยังไม่ชำระ',
     demo: 'โหมดทดสอบ ไม่มีการเรียกเก็บเงินจริง จำลองผลสำเร็จหรือล้มเหลวใน Omise Test Dashboard',
     create: 'สร้าง QR ทดสอบ',
+    confirmTitle: 'ยืนยันเริ่มรายการชำระเงิน?',
+    confirmHelp: 'ตรวจสอบยอดสุทธิและคอร์สก่อนดำเนินการ การสร้าง QR ยังไม่ถือว่าชำระเงินสำเร็จ',
     retry: 'สร้าง QR ทดสอบใหม่',
     busy: 'กำลังดำเนินการ…',
     refresh: 'ตรวจสถานะชำระเงิน',
@@ -59,6 +63,9 @@ const COPY = {
     unpaid: 'Unpaid',
     demo: 'Test mode. No real money is collected. Simulate success or failure in the Omise Test Dashboard.',
     create: 'Create test QR',
+    confirmTitle: 'Start this payment?',
+    confirmHelp:
+      'Check the net amount and lesson before continuing. Creating a QR does not complete payment.',
     retry: 'Create another test QR',
     busy: 'Processing…',
     refresh: 'Check payment status',
@@ -110,6 +117,7 @@ export function PromptPayPaymentPanel({
   const { payment, verification, failure, readFailed, operation, paid, pending, canPay, zeroNet } =
     checkout;
   const [qrError, setQrError] = useState(false);
+  const [confirming, setConfirming] = useState(false);
   const busy = operation !== null;
   const errorMessage =
     failure?.scope === 'payment'
@@ -242,8 +250,7 @@ export function PromptPayPaymentPanel({
             iconPosition="end"
             disabled={!canPay}
             onClick={() => {
-              setQrError(false);
-              void checkout.createPayment();
+              setConfirming(true);
             }}
           >
             {busy ? text.busy : zeroNet ? text.settle : attempt ? text.retry : text.create}
@@ -262,6 +269,38 @@ export function PromptPayPaymentPanel({
         </button>
       </div>
       <p className={styles.note}>{text.demo}</p>
+      <NotebookConfirmDialog
+        open={confirming}
+        role="student"
+        title={text.confirmTitle}
+        description={zeroNet ? text.zeroNotice : text.confirmHelp}
+        confirmLabel={zeroNet ? text.settle : text.create}
+        busy={busy}
+        disabled={!canPay}
+        error={errorMessage}
+        onCancel={() => setConfirming(false)}
+        onConfirm={async () => {
+          if (!checkout.canPay) return;
+          setQrError(false);
+          await checkout.createPayment();
+          setConfirming(false);
+        }}
+      >
+        <p>
+          <strong>
+            {booking.listing.subjectName} · {booking.listing.gradeLevelName}
+          </strong>
+        </p>
+        <p>{formatBookingDocketSlot(booking.slot, language).label}</p>
+        <p>
+          {text.amount}: <strong>{formatMoney(booking.netAmount, booking.currency)}</strong>
+        </p>
+        {booking.coupon && (
+          <p>
+            {booking.coupon.code} · {booking.coupon.percent}%
+          </p>
+        )}
+      </NotebookConfirmDialog>
     </section>
   );
 }

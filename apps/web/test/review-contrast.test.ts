@@ -58,9 +58,8 @@ describe('retry link contrast', () => {
   });
 });
 
-describe('public review score contrast', () => {
-  // Public review scores are 18px/700, below WCAG's large-text threshold, so they use notebook
-  // ink rather than the student accent (~4.14:1 on paper).
+describe('review feedback contrast', () => {
+  // Feedback remains normal-size notebook ink on paper, so it needs the full text contrast ratio.
   it('meets WCAG AA (4.5:1) against the review paper background', () => {
     expect(contrast(INK, PAPER)).toBeGreaterThanOrEqual(4.5);
   });

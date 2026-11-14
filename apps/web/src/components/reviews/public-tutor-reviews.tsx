@@ -2,12 +2,12 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+import { ReviewEntry } from '@/components/reviews/review-entry';
 import { PaperCard } from '@/components/ui/notebook';
 import { NotebookAction } from '@/components/ui/notebook-action';
 import { NotebookLoadingRegion } from '@/components/ui/notebook-loading';
 import { ApiError } from '@/lib/api/error';
 import { getPublicTutorReviews } from '@/lib/api/tutors';
-import { formatBangkokDateTime } from '@/lib/date-time';
 
 import styles from './public-tutor-reviews.module.css';
 
@@ -103,11 +103,12 @@ export function PublicTutorReviews({
           <h2 id="public-tutor-reviews">{text.title}</h2>
           <p>{text.description}</p>
         </div>
-        <span>{text.public}</span>
       </div>
 
       {loading ? (
-        <NotebookLoadingRegion label={text.loading} />
+        <div className={styles.state}>
+          <NotebookLoadingRegion label={text.loading} />
+        </div>
       ) : error && items.length === 0 ? (
         <div className={styles.error} role="alert">
           <p>{text.error}</p>
@@ -122,38 +123,11 @@ export function PublicTutorReviews({
           <ol className={styles.list}>
             {items.map((review) => (
               <li key={review.id} className={styles.review}>
-                <div className={styles.reviewHeader}>
-                  <div>
-                    <h3>{review.author.displayName}</h3>
-                    <time dateTime={review.createdAt}>
-                      {formatBangkokDateTime(review.createdAt, language)}
-                    </time>
-                  </div>
-                  <strong
-                    className={styles.overall}
-                    aria-label={text.overallLabel.replace(
-                      '{score}',
-                      review.overallRating.toFixed(2),
-                    )}
-                  >
-                    {review.overallRating.toFixed(2)} / 5
-                  </strong>
-                </div>
-                <p className={styles.feedback}>{review.feedback}</p>
-                <dl className={styles.dimensions}>
-                  <div>
-                    <dt>{text.clarity}</dt>
-                    <dd>{review.clarity} / 5</dd>
-                  </div>
-                  <div>
-                    <dt>{text.punctuality}</dt>
-                    <dd>{review.punctuality} / 5</dd>
-                  </div>
-                  <div>
-                    <dt>{text.preparation}</dt>
-                    <dd>{review.preparation} / 5</dd>
-                  </div>
-                </dl>
+                <ReviewEntry
+                  review={review}
+                  language={language}
+                  author={review.author.displayName}
+                />
               </li>
             ))}
           </ol>
@@ -185,7 +159,6 @@ const copy = {
   en: {
     title: 'Student reviews',
     description: 'Feedback from completed lessons with this tutor.',
-    public: 'Public feedback',
     loading: 'Loading student reviews',
     error: 'Student reviews could not be loaded.',
     moreError: 'More reviews could not be loaded. Try again.',
@@ -193,15 +166,10 @@ const copy = {
     empty: 'No student reviews yet.',
     more: 'Load more reviews',
     loadingMore: 'Loading more reviews…',
-    clarity: 'Clarity',
-    punctuality: 'Punctuality',
-    preparation: 'Preparation',
-    overallLabel: 'Overall rating {score} out of 5',
   },
   th: {
     title: 'รีวิวจากนักเรียน',
     description: 'ความคิดเห็นจากคลาสที่เรียนจบกับติวเตอร์คนนี้',
-    public: 'ความคิดเห็นสาธารณะ',
     loading: 'กำลังโหลดรีวิวจากนักเรียน',
     error: 'ไม่สามารถโหลดรีวิวจากนักเรียนได้',
     moreError: 'ไม่สามารถโหลดรีวิวเพิ่มเติมได้ กรุณาลองอีกครั้ง',
@@ -209,9 +177,5 @@ const copy = {
     empty: 'ยังไม่มีรีวิวจากนักเรียน',
     more: 'โหลดรีวิวเพิ่มเติม',
     loadingMore: 'กำลังโหลดรีวิวเพิ่มเติม…',
-    clarity: 'ความชัดเจน',
-    punctuality: 'ตรงต่อเวลา',
-    preparation: 'การเตรียมตัว',
-    overallLabel: 'คะแนนรวม {score} จาก 5',
   },
 } as const;

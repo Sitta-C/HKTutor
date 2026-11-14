@@ -1,6 +1,6 @@
 # HKTutor frontend direction — Notebook Focus
 
-Updated 2026-11-13. This describes the implemented Notebook Focus direction and component
+Updated 2026-11-14. This describes the implemented Notebook Focus direction and component
 patterns in this repository. Maintainers review changes to shared design conventions through the
 normal PR process; this guide does not assert team approval of decisions from an individual chat.
 Read it as implementation context before UI work. The current task's explicit requirements take
@@ -71,7 +71,7 @@ See [implemented frontend behavior](implemented-behavior.md) for detailed intera
 | ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
 | Private messages             | **Margin Inbox**: continuous conversation index and ruled transcript; single pane in narrow content areas, fixed composer and per-conversation drafts/reading position | `apps/web/src/components/conversations/`                                                |
 | Tutor dashboard              | Notebook Focus; teaching overview, pending requests, analytics, and course performance                                                                                 | `apps/web/src/components/dashboard/tutor-dashboard.tsx`                                 |
-| Tutor all-time report        | Semantic summary cards plus a five-status ledger; paid completed net revenue remains separate from monthly booked-value analytics                                      | `apps/web/src/components/reports/`                                                      |
+| Tutor all-time report        | **Teaching Ledger**: continuous total/status rows, net revenue and explicit completion counts; dedicated report adds CSV and print/PDF                                 | `apps/web/src/components/reports/`                                                      |
 | Student dashboard            | **Desk Spread**: two notebook sheets joined by closely spaced wire loops; next booking and compact count strip on the left, booking-derived tutor index on the right   | `apps/web/src/components/dashboard/student-dashboard.tsx` and its stylesheet            |
 | Student course search        | **Course Index**: left filter memo, continuous ruled course rows, grade tabs, yellow rate notes, and plain verification tags; mobile filters collapse                  | `apps/web/src/components/tutors/tutor-search-page.tsx` and its stylesheet               |
 | Public tutor detail          | **Appointment Pad**: Profile Page above a course directory and mint-bound date/time pad; selected course remains visible above the ruled appointment rows              | `apps/web/src/components/tutors/public-tutor-availability.tsx` and its stylesheet       |
@@ -341,6 +341,37 @@ Verified tutor metadata uses a plain tutor-blue trust line: a small shield and m
 without a filled green badge or enclosing border. Keep it secondary to the tutor name and rating.
 The shared badge retains distinct owner-only unverified, pending and rejected states and guidance.
 
+## Student review presentation — continuous reading sheets
+
+Refined on 2026-11-14 from the public review screenshot and the user's request to fix related
+review surfaces, then reworked after feedback that hierarchy still relied too heavily on typography.
+Use one reading sheet, bounded to 52rem. Overall scores sit in a lightly tinted notebook margin;
+the main paper begins with the student's feedback, followed by author and Bangkok timestamp as
+attribution. Thin rules separate complete entries. Native "Scores by criterion" disclosures keep
+secondary ratings available without competing with the feedback. Use position, surface contrast,
+proximity and progressive disclosure alongside typography. Public reviews have no decorative
+"Public feedback" badge, equal-width metric columns, or individual review cards.
+
+`reviews/review-entry.tsx` shares this reading anatomy between public and saved private reviews.
+`reviews/review-summary.tsx` supplies `ReviewScore` and `ReviewDimensions`; confirmation keeps all
+three criteria visible before submission. Display the server-returned overall
+score to two decimals; this does not change the selected tutor-level **Margin Score** above or add
+client-side averaging. Preserve full feedback, author names, Thai/English labels, text escaping,
+cursor pagination, and distinct loading/error/empty states.
+
+The class-review form uses a compact 1–5 ruler per criterion. Native radio inputs cover the full
+44px target; retain arrow-key selection, visible keyboard focus and disabled states. The selected
+number uses notebook ink on a light mint circle. Keep a ruled writing area and put the public
+display-name/feedback disclosure beside the finality note before Submit. Preserve validation,
+the confirmation alert, cancel/draft retention, duplicate protection, outcome toast and uncertain
+submission recovery. The saved result follows the same reading anatomy as public reviews.
+Criteria disclosures have a 44px target and native keyboard operation, retain their open state
+when more reviews load, and do not send API requests. Never collapse or truncate feedback itself.
+
+Verified with live local public-review screenshots at 320/768/1440px, 69 Chromium browser checks
+and 13 touch-device checks using intercepted APIs, plus 864 web unit tests, web lint, repository
+formatting and production build. Review submission previews do not write to a live database.
+
 ## Student booking request
 
 The user selected **Appointment Docket** and requested implementation on 2026-10-07 for
@@ -589,6 +620,25 @@ The user selected **Ink Portrait Index**, combining Ink & Sketch and Portrait In
   tutor photos can appear publicly when eligible. Photo saving remains separate from profile fields.
   Styles stay local to `avatar-editor.module.css`; public avatars and profile previews are unchanged.
 
+## Tutor reports — Teaching Ledger
+
+Refined on 2026-11-14 after a screenshot review. Use one warm sheet with a punched binding margin,
+thin ruled status rows and a single paper edge. Avoid individual metric cards and colored status
+tiles. Keep the total beside its five statuses, make net revenue the primary figure, and place the
+API's completed/finalized counts beside the completion rate. For a null rate, explain that no
+finalized lessons exist; preserve a real zero percent. Empty ledgers use quiet markers.
+
+The dashboard report is a sibling before monthly insights. Its footer explains the all-time scope
+and links to `/dashboard/reports`. The month ruler controls only the monthly region, whose three
+metrics share a ledger strip; unavailable received earnings and reviews remain compact notes.
+Use content-container breakpoints so tablet/sidebar widths do not leave orphaned metric tiles.
+
+The dedicated route adds account identity, Bangkok load time, metric definitions, a UTF-8 summary
+CSV and native print/save-PDF. Export only the current successful report response; preserve exact
+decimal money, the API-rounded percent and a blank rate when unavailable. CSV does not include
+individual bookings. Print rules apply only while this route is present and remove navigation,
+controls and decorative page background. Loading/errors retain their existing auth/retry behavior.
+
 ## Global student booking count
 
 On 2026-10-08 the user requested one global state for the student sidebar booking count.
@@ -602,6 +652,14 @@ states show —; zero follows a successful empty response. Clear on login, verif
 session expiry, isolate by user ID and reject late results from older sessions or pre-create reads.
 Guests, tutors and onboarding do not request a student count. This adds a frontend read through the
 existing API, with no backend/client contract or booking payload changes.
+
+On 2026-11-14 the tutor booking-request navigation uses the same role-isolated state, read through
+`getTutorBookings({ status: 'PENDING', page: 1, pageSize: 1 })`. Its bubble shows pending requests
+across all pages, independent of the selected inbox filter. Confirmation, rejection and cancellation
+refresh the authoritative count immediately. It follows the student's route/focus refresh,
+unknown/zero, collapsed-sidebar and session-clearing rules. Tutors never request the student total,
+and students never request the tutor total. The dashboard may hide past pending requests; this
+navigation count includes every server-side pending request.
 
 ## Notification inbox — Minimal Notes (S3-T07)
 
@@ -684,9 +742,23 @@ See [NotebookToast action audit](notebook-toast-audit.md) for the completed acti
 - Existing source and this guide are the portable reference for new chats.
 - `ui-design/uidesign.md` supplies page/data mapping and historical prototypes. Use this newer guide
   and current source for the visual direction when older descriptions conflict.
-- **Global confirmation component is still a proposal**, not an approved global implementation.
-  Paper Dialog, Sticky Memo, Binder Notice, and Decision Sheet were previewed; no explicit design
-  choice has been given. The existing availability delete dialog remains its own implemented flow.
+- Important action confirmations reuse the **implemented availability/course alert** through
+  `NotebookConfirmDialog`. It composes the existing paper, binding, summary and responsive styles;
+  Paper Dialog, Sticky Memo, Binder Notice and Decision Sheet remain unselected visual proposals.
+  Use a native alert dialog with an action-specific consequence and a readable summary. Focus Cancel
+  first, preserve the draft on cancel/Escape, and restore focus to the trigger when it still exists.
+  Keep the background inert, block dismissal and repeated writes while submitting, and recheck
+  eligibility on confirmation. Body portals avoid nested forms, including photo removal within the
+  profile editor. Long summaries scroll within the viewport; actions stack on narrow phones.
+  Attendance, reviews, reschedule decisions, payment initiation/zero-net settlement, qualification
+  decisions, coupon creation/activation, photo removal, and editor publication/discard use this
+  wrapper. Existing booking decisions/cancellation and course/availability alerts remain in place.
+  Ordinary field edits, selection, navigation, chat messages and reversible saves do not need an
+  extra confirmation. The booking request route already provides its own review step.
+  Pair explicit write outcomes with the existing bilingual NotebookToast and persistent recovery
+  messages. A ready QR is not a paid receipt; only a confirmed paid response may say payment succeeded.
+  Initial reads, background polling and automatic reconciliation do not produce success toasts.
+  See [the action audit](notebook-toast-audit.md) for coverage.
 - `/dashboard/listings` uses the implemented **Course Ledger** design, selected on 2026-10-06.
   Keep the existing course-management search, publication filters, editing links, publication,
   archive confirmation, and restoration. Published badges are blue, drafts warm, and archived

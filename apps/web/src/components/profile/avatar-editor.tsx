@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from 'react';
 import { DashboardIcon } from '@/components/dashboard/dashboard-icon';
 import { ProfileAvatar } from '@/components/profile/profile-avatar';
 import { NotebookAction } from '@/components/ui/notebook-action';
+import { NotebookConfirmDialog } from '@/components/ui/notebook-confirm-dialog';
 import { NotebookMetadata } from '@/components/ui/notebook-metadata';
 import { useNotebookToast } from '@/components/ui/notebook-toast';
 import { ApiError } from '@/lib/api/error';
@@ -27,6 +28,8 @@ const copy = {
     choose: 'เลือกรูป',
     upload: 'อัปโหลดรูป',
     remove: 'ลบรูป',
+    confirmRemove: 'ยืนยันลบรูปโปรไฟล์?',
+    confirmRemoveHelp: 'รูปปัจจุบันจะถูกนำออกจากโปรไฟล์ โดยข้อมูลโปรไฟล์ส่วนอื่นยังคงอยู่',
     cancel: 'ยกเลิกการเลือกรูป',
     pending: 'กำลังบันทึกรูป…',
     saved: 'บันทึกรูปโปรไฟล์แล้ว',
@@ -49,6 +52,9 @@ const copy = {
     choose: 'Choose photo',
     upload: 'Upload photo',
     remove: 'Remove photo',
+    confirmRemove: 'Remove your profile photo?',
+    confirmRemoveHelp:
+      'Your current photo will be removed from your profile. Your other profile details stay unchanged.',
     cancel: 'Cancel photo selection',
     pending: 'Saving photo…',
     saved: 'Profile photo saved.',
@@ -86,6 +92,7 @@ export function AvatarEditor({
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [confirmRemove, setConfirmRemove] = useState(false);
 
   useEffect(() => {
     if (preview) {
@@ -118,6 +125,7 @@ export function AvatarEditor({
       reset();
       setNotice(remove ? text.deleted : text.saved);
       toast.success(remove ? text.deleted : text.saved);
+      setConfirmRemove(false);
     } catch (caught) {
       const message =
         caught instanceof ApiError && caught.status === 413
@@ -126,6 +134,7 @@ export function AvatarEditor({
             ? text.invalidError
             : text.error;
       setError(message);
+      setConfirmRemove(false);
       toast.error(message);
     } finally {
       setPending(false);
@@ -206,7 +215,7 @@ export function AvatarEditor({
                     tone="quiet"
                     icon={<DashboardIcon name="trash" />}
                     disabled={pending || disabled}
-                    onClick={() => void save(true)}
+                    onClick={() => setConfirmRemove(true)}
                   >
                     {pending ? text.pending : text.remove}
                   </NotebookAction>
@@ -257,6 +266,21 @@ export function AvatarEditor({
         )}
       </div>
       <div className={styles.ruler} aria-hidden="true" />
+      <NotebookConfirmDialog
+        open={confirmRemove}
+        role={role}
+        tone="danger"
+        title={text.confirmRemove}
+        description={text.confirmRemoveHelp}
+        confirmLabel={text.remove}
+        busy={pending}
+        disabled={disabled}
+        error={error}
+        onCancel={() => setConfirmRemove(false)}
+        onConfirm={() => save(true)}
+      >
+        <p>{name}</p>
+      </NotebookConfirmDialog>
     </section>
   );
 }

@@ -57,6 +57,9 @@ export const qualificationCopy = {
     detailsError: 'Could not load document details. Select it again or refresh the queue.',
     reviewHistory: 'Review history',
     reviewTitle: 'Review decision',
+    confirmReview: 'Confirm this verification decision?',
+    confirmReviewHelp:
+      'This decision will be saved to the review history and update the tutor’s verification status.',
     approve: 'Approve',
     reject: 'Reject',
     noteLabel: 'Review note',
@@ -127,6 +130,8 @@ export const qualificationCopy = {
     detailsError: 'โหลดรายละเอียดเอกสารไม่ได้ เลือกเอกสารอีกครั้งหรือโหลดคิวใหม่',
     reviewHistory: 'ประวัติการตรวจ',
     reviewTitle: 'ผลการตรวจ',
+    confirmReview: 'ยืนยันผลตรวจเอกสารนี้?',
+    confirmReviewHelp: 'ผลตรวจจะถูกบันทึกในประวัติ และนำไปปรับสถานะการยืนยันตัวตนของติวเตอร์',
     approve: 'อนุมัติ',
     reject: 'ไม่ผ่าน',
     noteLabel: 'หมายเหตุการตรวจ',

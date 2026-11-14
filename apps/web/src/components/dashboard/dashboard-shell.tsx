@@ -13,6 +13,7 @@ import { LanguageSwitch } from '@/components/public/public-ui';
 import { NotebookPage, WashiTape } from '@/components/ui/notebook';
 import { useNotebookToast } from '@/components/ui/notebook-toast';
 import { useAuth } from '@/lib/auth-context';
+import { useBookingCount } from '@/lib/booking-count';
 import {
   getDashboardNavItems,
   getUserDisplayName,
@@ -22,7 +23,6 @@ import {
 } from '@/lib/dashboard-navigation';
 import { formatBangkokYear } from '@/lib/date-time';
 import { useLanguage } from '@/lib/i18n';
-import { useStudentBookingCount } from '@/lib/student-booking-count';
 import { useUnreadMessageCount } from '@/lib/use-unread-message-count';
 
 import type { AuthUser } from '@/lib/api/types';
@@ -105,12 +105,18 @@ export function DashboardShell({
   const toast = useNotebookToast();
   const pathname = usePathname();
   const { user: authenticatedUser } = useAuth();
-  const bookingCount = useStudentBookingCount(
-    authenticatedUser?.role === 'STUDENT' &&
+  const countRole =
+    authenticatedUser?.role === 'STUDENT' || authenticatedUser?.role === 'TUTOR'
+      ? authenticatedUser.role
+      : null;
+  const bookingCount = useBookingCount(
+    countRole &&
+      authenticatedUser &&
       authenticatedUser.id === user.id &&
       pathname !== '/onboarding/profile'
       ? authenticatedUser.id
       : null,
+    countRole,
     pathname,
   );
   const unreadMessageCount = useUnreadMessageCount(
@@ -215,7 +221,7 @@ export function DashboardShell({
   }, [isMobileSidebar, isSidebarCollapsed]);
 
   return (
-    <NotebookPage className="relative overflow-x-clip bg-paper">
+    <NotebookPage data-dashboard-shell className="relative overflow-x-clip bg-paper">
       <div className="pointer-events-none fixed inset-0 z-0 overflow-hidden" aria-hidden="true">
         <div className="absolute -right-24 -top-20 h-64 w-64 rotate-6 rounded-[2rem] border border-blue-200/60 bg-sticky-blue/25" />
         <div
@@ -227,6 +233,7 @@ export function DashboardShell({
       </div>
 
       <div
+        data-dashboard-layout
         className={classes(
           'relative z-10 min-h-dvh transition-[grid-template-columns] duration-300 lg:grid',
           isSidebarCollapsed
@@ -356,7 +363,7 @@ export function DashboardShell({
                     : unreadMessageCount > 0
                       ? String(unreadMessageCount)
                       : undefined
-                  : user.role === 'STUDENT' && item.id === 'bookings'
+                  : (user.role === 'STUDENT' || user.role === 'TUTOR') && item.id === 'bookings'
                     ? bookingCount.total === null
                       ? '—'
                       : String(bookingCount.total)
@@ -385,7 +392,13 @@ export function DashboardShell({
                       aria-live={
                         item.id === 'bookings' || item.id === 'messages' ? 'polite' : undefined
                       }
-                      aria-label={item.id === 'messages' ? unreadMessageLabel : undefined}
+                      aria-label={
+                        item.id === 'messages'
+                          ? unreadMessageLabel
+                          : item.id === 'bookings'
+                            ? `${item.label}${user.role === 'TUTOR' ? ` (${copy.dashboard.booking.pending})` : ''}: ${badge}`
+                            : undefined
+                      }
                       data-unread-message-count={item.id === 'messages' ? '' : undefined}
                       aria-busy={item.id === 'bookings' && bookingCount.refreshing}
                       data-booking-nav-count={item.id === 'bookings' ? '' : undefined}

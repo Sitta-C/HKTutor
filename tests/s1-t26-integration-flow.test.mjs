@@ -33,7 +33,7 @@ test('gates every private flow route and connects both dashboards to live bookin
     tutorDashboard,
     studentDashboard,
     dashboardShell,
-    studentBookingCount,
+    bookingCount,
     bookingApi,
   ] = await Promise.all([
     read('apps/web/src/components/availability/manage-tutor-availability.tsx'),
@@ -43,7 +43,7 @@ test('gates every private flow route and connects both dashboards to live bookin
     read('apps/web/src/components/dashboard/tutor-dashboard.tsx'),
     read('apps/web/src/components/dashboard/student-dashboard.tsx'),
     read('apps/web/src/components/dashboard/dashboard-shell.tsx'),
-    read('apps/web/src/lib/student-booking-count.ts'),
+    read('apps/web/src/lib/booking-count.ts'),
     read('apps/web/src/lib/api/bookings.ts'),
   ]);
 
@@ -58,14 +58,18 @@ test('gates every private flow route and connects both dashboards to live bookin
   assert.match(tutorDashboard, /getTutorAvailability/);
   assert.match(tutorDashboard, /getTutorListings\(\)/);
   assert.match(studentDashboard, /getMyBookings\(\{ pageSize: 100 \}\)/);
-  assert.match(dashboardShell, /const bookingCount = useStudentBookingCount\(/);
-  assert.match(dashboardShell, /user\.role === 'STUDENT' && item\.id === 'bookings'/);
+  assert.match(dashboardShell, /const bookingCount = useBookingCount\(/);
+  assert.match(
+    dashboardShell,
+    /\(user\.role === 'STUDENT' \|\| user\.role === 'TUTOR'\) && item\.id === 'bookings'/,
+  );
   assert.match(
     dashboardShell,
     /bookingCount\.total === null\s*\? '—'\s*: String\(bookingCount\.total\)/,
   );
-  assert.match(studentBookingCount, /getMyBookings\(\{ page: 1, pageSize: 1 \}\)/);
-  assert.match(studentBookingCount, /total: response\.total/);
+  assert.match(bookingCount, /getMyBookings\(\{ page: 1, pageSize: 1 \}\)/);
+  assert.match(bookingCount, /total: response\.total/);
+  assert.match(bookingCount, /getTutorBookings\(\{ status: 'PENDING', page: 1, pageSize: 1 \}\)/);
   assert.doesNotMatch(studentDashboard, /navBadges=/);
   assert.match(bookingApi, /authenticatedFetch<TutorBookingsResponse>\(`\/bookings\/tutor/);
 });

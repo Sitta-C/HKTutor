@@ -201,6 +201,7 @@ for (const language of ['en', 'th'] as const) {
     await page.locator('#coupon-percent').fill('10');
     await page.locator('#coupon-maxUses').fill('100');
     await submit.click();
+    await confirmPendingAction(page);
     await expect(date).toBeFocused();
     await expect(date).toHaveAttribute('data-invalid', 'true');
     await expect(time).toHaveAttribute('aria-describedby', /coupon-expiry-error/);
@@ -257,6 +258,7 @@ for (const language of ['en', 'th'] as const) {
       await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
     ).toBe(true);
     await submit.click();
+    await confirmPendingAction(page);
     expect(payload).toEqual({
       code: 'NEW_10',
       percent: 10,
@@ -316,6 +318,7 @@ for (const language of ['en', 'th'] as const) {
     });
     await activate.focus();
     await activate.press('Enter');
+    await confirmPendingAction(page);
     await expect(activate).toBeDisabled();
     await expect(activate).toHaveAttribute('aria-busy', 'true');
     await expect(
@@ -335,6 +338,7 @@ for (const language of ['en', 'th'] as const) {
     ).toHaveCount(0);
     await expect(list.locator('dd')).toHaveText(['12', '3', '85', '100']);
     await deactivate.click();
+    await confirmPendingAction(page);
     await expect(activate).toBeEnabled();
     await expect(
       list.locator('li span').filter({ hasText: language === 'th' ? /^ปิดใช้งาน$/ : /^Inactive$/ }),
@@ -369,6 +373,7 @@ test('uncertain activation requires a successful refresh before another change',
   });
   const activate = page.getByRole('button', { name: `Activate ${first.code}`, exact: true });
   await activate.click();
+  await confirmPendingAction(page);
   await expect(activate).toBeDisabled();
   await expect(page.getByRole('listitem').getByRole('alert')).toContainText(
     'could not be confirmed',
@@ -408,9 +413,12 @@ for (const status of [401, 403]) {
     const initialReads = reads;
     const activate = page.getByRole('button', { name: `Activate ${first.code}`, exact: true });
     await activate.click();
+    await confirmPendingAction(page);
     await expect(activate).toHaveAttribute('aria-busy', 'true');
-    await page.getByRole('button', { name: 'Create coupon', exact: true }).click();
-    await expect(page.getByRole('heading', { name: 'NEW_10', exact: true })).toBeVisible();
+    await expect(page.getByRole('alertdialog')).toHaveAttribute('aria-busy', 'true');
+    await expect(
+      page.getByRole('alertdialog').getByRole('button', { name: 'Cancel', exact: true }),
+    ).toBeDisabled();
     release?.();
     await expect(page.getByRole('heading', { name: first.code, exact: true })).toHaveCount(0);
     await expect(
@@ -445,6 +453,7 @@ test('activation does not label an expired or exhausted coupon as usable', async
     }
   });
   await page.getByRole('button', { name: `Activate ${first.code}`, exact: true }).click();
+  await confirmPendingAction(page);
   await expect(
     page.getByRole('button', { name: `Deactivate ${first.code}`, exact: true }),
   ).toBeEnabled();
@@ -491,6 +500,7 @@ test('creates only the T21 payload with Bangkok midnight, false active, focus an
   await fillForm(page);
   await page.getByLabel('Active on creation', { exact: true }).uncheck();
   await page.getByRole('button', { name: 'Create coupon', exact: true }).click();
+  await confirmPendingAction(page);
   expect(payload).toEqual({
     code: 'NEW_10',
     percent: 10,
@@ -525,11 +535,13 @@ test('validates boundaries and associates duplicate and server field errors with
     }
   });
   await page.getByRole('button', { name: 'Create coupon', exact: true }).click();
+  await confirmPendingAction(page);
   await expect(page.getByLabel('Coupon code', { exact: true })).toBeFocused();
   expect(posts).toBe(0);
   await fillForm(page, 'WELCOME10');
   await page.getByLabel('Discount (%)', { exact: true }).fill('101');
   await page.getByRole('button', { name: 'Create coupon', exact: true }).click();
+  await confirmPendingAction(page);
   await expect(page.getByLabel('Discount (%)', { exact: true })).toHaveAttribute(
     'aria-invalid',
     'true',
@@ -537,6 +549,7 @@ test('validates boundaries and associates duplicate and server field errors with
   expect(posts).toBe(0);
   await page.getByLabel('Discount (%)', { exact: true }).fill('10');
   await page.getByRole('button', { name: 'Create coupon', exact: true }).click();
+  await confirmPendingAction(page);
   await expect(page.getByLabel('Coupon code', { exact: true })).toHaveAttribute(
     'aria-describedby',
     /coupon-code-error/,
@@ -548,6 +561,7 @@ test('validates boundaries and associates duplicate and server field errors with
   mode = 'validation';
   await page.getByLabel('Coupon code', { exact: true }).fill('OTHER10');
   await page.getByRole('button', { name: 'Create coupon', exact: true }).click();
+  await confirmPendingAction(page);
   await expect(page.locator('#coupon-date')).toBeFocused();
   await expect(page.locator('#coupon-date')).toHaveAttribute('data-invalid', 'true');
   await expect(page.getByLabel('Maximum uses', { exact: true })).toHaveValue('100');
@@ -570,6 +584,7 @@ test('locks duplicate submissions while saving', async ({ page }) => {
   });
   await fillForm(page);
   await page.getByRole('button', { name: 'Create coupon', exact: true }).click();
+  await confirmPendingAction(page);
   await expect(page.getByRole('button', { name: 'Creating coupon…', exact: true })).toBeDisabled();
   await expect(page.getByLabel('Coupon code', { exact: true })).toBeDisabled();
   expect(posts).toBe(1);
@@ -605,6 +620,7 @@ for (const language of ['en', 'th'] as const) {
     for (const percent of [1, 100]) {
       await page.locator('#coupon-percent').fill(String(percent));
       await submit.click();
+      await confirmPendingAction(page);
       await expect(page.locator('#coupon-code-error')).toBeVisible();
       await expect(page.locator('#coupon-code')).toBeFocused();
       await expect(page.locator('#coupon-code')).toHaveValue(' \tWelcome10 ');
@@ -651,6 +667,7 @@ test('preserves network-failed creation and reconciles later pages before allowi
   });
   await fillForm(page);
   await page.getByRole('button', { name: 'Create coupon', exact: true }).click();
+  await confirmPendingAction(page);
   await expect(
     page.getByRole('button', { name: 'Check creation result', exact: true }),
   ).toBeVisible();
@@ -658,9 +675,11 @@ test('preserves network-failed creation and reconciles later pages before allowi
   await expect(page.getByRole('button', { name: 'Create coupon', exact: true })).toBeDisabled();
   await page.getByRole('button', { name: 'Check creation result', exact: true }).click();
   await expect(
-    page.getByText(
-      'Could not finish checking all coupons. Keep checking before trying to create again.',
-    ),
+    page
+      .getByRole('region', { name: 'New coupon' })
+      .getByText(
+        'Could not finish checking all coupons. Keep checking before trying to create again.',
+      ),
   ).toBeVisible();
   await expect(page.getByRole('button', { name: 'Create coupon', exact: true })).toBeDisabled();
   failedCheck = false;
@@ -682,6 +701,7 @@ test('an absent code after a full recovery scan permits a manual retry', async (
   });
   await fillForm(page);
   await page.getByRole('button', { name: 'Create coupon', exact: true }).click();
+  await confirmPendingAction(page);
   await page.getByRole('button', { name: 'Check creation result', exact: true }).click();
   await expect(
     page.getByText(
@@ -740,7 +760,7 @@ for (const control of ['Create coupon', 'Activate STUDY20', 'Deactivate WELCOME1
 }
 
 for (const outcome of ['success', 'uncertain', 'refresh failure'] as const) {
-  test(`creation during activation queues register refresh and preserves pagination (${outcome})`, async ({
+  test(`creation after activation refreshes the register and preserves pagination (${outcome})`, async ({
     page,
   }) => {
     let created = false;
@@ -792,11 +812,20 @@ for (const outcome of ['success', 'uncertain', 'refresh failure'] as const) {
     initialReads = reads;
     const deactivate = list.getByRole('button', { name: 'Deactivate WELCOME10', exact: true });
     await deactivate.click();
+    await confirmPendingAction(page);
     await expect(deactivate).toHaveAttribute('aria-busy', 'true');
-    await page.getByRole('button', { name: 'Create coupon', exact: true }).click();
-    await expect(list.getByRole('heading', { name: 'NEW_10', exact: true })).toBeVisible();
+    await expect(page.getByRole('alertdialog')).toHaveAttribute('aria-busy', 'true');
     expect(reads).toBe(initialReads);
     release?.();
+    await expect(page.locator('dialog[data-notebook-confirmation]')).toHaveCount(0);
+    if (outcome !== 'uncertain') {
+      await expect(
+        list.getByRole('button', { name: 'Activate WELCOME10', exact: true }),
+      ).toBeEnabled();
+    }
+    await page.getByRole('button', { name: 'Create coupon', exact: true }).click();
+    await confirmPendingAction(page);
+    await expect(list.getByRole('heading', { name: 'NEW_10', exact: true })).toBeVisible();
     if (outcome === 'refresh failure') {
       await expect(list.getByRole('alert')).toHaveText('Could not load coupons. Please try again.');
       await expect(list.getByRole('heading', { name: 'NEW_10', exact: true })).toBeVisible();
@@ -871,6 +900,7 @@ for (const language of ['en', 'th']) {
         exact: true,
       })
       .click();
+    await confirmPendingAction(page);
     await page
       .getByRole('button', {
         name: language === 'th' ? 'ตรวจสอบผลการสร้าง' : 'Check creation result',
@@ -960,6 +990,7 @@ test('retains a confirmed creation if the subsequent list refresh fails', async 
   });
   await fillForm(page);
   await page.getByRole('button', { name: 'Create coupon', exact: true }).click();
+  await confirmPendingAction(page);
   await expect(page.getByRole('heading', { name: 'NEW_10', exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Create coupon', exact: true })).toBeEnabled();
   await expect(page.getByRole('button', { name: 'Check creation result' })).toHaveCount(0);
@@ -985,6 +1016,7 @@ test('an old initial GET cannot erase a coupon created while it was loading', as
   await expect(page.getByText('Loading coupons…', { exact: true })).toBeVisible();
   await fillForm(page);
   await page.getByRole('button', { name: 'Create coupon', exact: true }).click();
+  await confirmPendingAction(page);
   await expect(page.getByRole('heading', { name: 'NEW_10', exact: true })).toBeVisible();
   release?.();
   await expect(page.getByRole('heading', { name: 'NEW_10', exact: true })).toBeVisible();
@@ -1037,6 +1069,7 @@ test('POST 403 removes coupon data and disables creation after authorization cha
   });
   await fillForm(page);
   await page.getByRole('button', { name: 'Create coupon', exact: true }).click();
+  await confirmPendingAction(page);
   await expect(page.locator('p[role="alert"]')).toContainText('Access denied');
   await expect(page.getByRole('heading', { name: first.code, exact: true })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Create coupon', exact: true })).toHaveCount(0);
@@ -1174,5 +1207,260 @@ for (const language of ['en', 'th']) {
       fullPage: true,
     });
     expect(errors).toEqual([]);
+  });
+}
+
+// Existing journey checks deliberately confirm the new review step before asserting the API result.
+async function confirmPendingAction(page: Page): Promise<void> {
+  const dialog = page.locator('dialog[data-notebook-confirmation]');
+  if (await dialog.count()) await dialog.getByRole('button').last().click();
+}
+
+for (const width of [320, 768, 1440]) {
+  test(`coupon creation is reviewed before POST and cancel keeps the draft (${width}px)`, async ({
+    page,
+  }, testInfo) => {
+    await page.setViewportSize({ width, height: width === 320 ? 740 : 900 });
+    let posts = 0;
+    await setup(page, async (route) => {
+      if (route.request().method() === 'POST') {
+        posts += 1;
+        await route.fulfill({
+          status: 201,
+          json: { ...first, id: 'confirmed-coupon', code: 'CONFIRM10' },
+        });
+      } else await route.fulfill({ json: { items: [], nextCursor: null } });
+    });
+    await fillForm(page, 'CONFIRM10');
+    const trigger = page.getByRole('button', { name: 'Create coupon', exact: true });
+    await trigger.click();
+    const dialog = page.getByRole('alertdialog');
+    await expect(dialog).toContainText('CONFIRM10');
+    await expect(dialog).toContainText('10%');
+    expect(posts).toBe(0);
+    await expect(dialog).toBeVisible();
+    expect(await dialog.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(
+      true,
+    );
+    await dialog.screenshot({ path: testInfo.outputPath(`coupon-confirmation-${width}.png`) });
+    await page.screenshot({
+      path: testInfo.outputPath(`coupon-confirmation-${width}-context.png`),
+    });
+    await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
+    await expect(trigger).toBeFocused();
+    await expect(page.getByLabel('Coupon code', { exact: true })).toHaveValue('CONFIRM10');
+    expect(posts).toBe(0);
+    await trigger.click();
+    await confirmPendingAction(page);
+    await expect(page.locator('[data-notebook-toast="success"]')).toContainText('Coupon created.');
+    expect(posts).toBe(1);
+  });
+}
+
+for (const language of ['en', 'th'] as const) {
+  test(`capacity increases confirm a desired total and preserve original uses (${language})`, async ({
+    page,
+  }, testInfo) => {
+    if (testInfo.project.name === 'mobile-chromium') {
+      await page.setViewportSize({ width: 320, height: 850 });
+    }
+    const payloads: unknown[] = [];
+    let current = first;
+    let release: (() => void) | undefined;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    await setup(
+      page,
+      async (route, url) => {
+        if (route.request().method() === 'PATCH') {
+          expect(url.pathname).toBe(`/api/v1/admin/coupons/${first.id}/capacity`);
+          payloads.push(route.request().postDataJSON());
+          await gate;
+          current = { ...first, maxUses: 150, availableUses: 135 };
+          await route.fulfill({ json: current });
+        } else
+          await route.fulfill({
+            json: { items: [current, ...examples.slice(1)], nextCursor: null },
+          });
+      },
+      'ADMIN',
+      language,
+    );
+    const list = page.getByRole('region', {
+      name: language === 'th' ? 'ทะเบียนคูปอง' : 'Coupon register',
+      exact: true,
+    });
+    const action = page.getByRole('button', {
+      name: `${language === 'th' ? 'เพิ่มโควตา' : 'Increase limit'} WELCOME10`,
+      exact: true,
+    });
+    await action.click();
+    let dialog = page.getByRole('alertdialog');
+    const cancel = dialog.getByRole('button', {
+      name: language === 'th' ? 'ยกเลิก' : 'Cancel',
+      exact: true,
+    });
+    await expect(cancel).toBeFocused();
+    await cancel.click();
+    expect(payloads).toEqual([]);
+    await expect(action).toBeFocused();
+    await action.click();
+    dialog = page.getByRole('alertdialog');
+    const input = dialog.getByRole('spinbutton', {
+      name: language === 'th' ? 'จำนวนสิทธิ์รวมใหม่' : 'New total usage limit',
+      exact: true,
+    });
+    const confirm = dialog.getByRole('button', {
+      name: language === 'th' ? 'เพิ่มโควตา' : 'Increase limit',
+      exact: true,
+    });
+    await input.fill('99');
+    await confirm.click();
+    await expect(input).toHaveAttribute('aria-invalid', 'true');
+    await expect(input).toBeFocused();
+    expect(payloads).toEqual([]);
+    await input.fill('150');
+    await expect(
+      dialog.getByText(language === 'th' ? 'เพิ่มอีก 50 สิทธิ์' : '50 additional uses', {
+        exact: true,
+      }),
+    ).toBeVisible();
+    await expect(dialog).toHaveJSProperty(
+      'scrollWidth',
+      await dialog.evaluate((el) => el.clientWidth),
+    );
+    await page.screenshot({
+      path: testInfo.outputPath(`capacity-${language}.png`),
+      fullPage: true,
+    });
+    await confirm.dblclick({ delay: 20, noWaitAfter: true });
+    await expect(dialog).toHaveAttribute('aria-busy', 'true');
+    await expect(input).toBeDisabled();
+    await expect(
+      dialog.getByRole('button', { name: language === 'th' ? 'ยกเลิก' : 'Cancel' }),
+    ).toBeDisabled();
+    expect(payloads).toEqual([{ maxUses: 150 }]);
+    release?.();
+    await expect(dialog).toHaveCount(0);
+    await expect(
+      page.getByRole('status').filter({
+        hasText:
+          language === 'th'
+            ? 'บันทึกโควตาคูปองรวม 150 สิทธิ์แล้ว'
+            : 'Coupon limit saved: 150 total uses.',
+      }),
+    ).toBeVisible();
+    const item = list
+      .locator('li')
+      .filter({ has: page.getByRole('heading', { name: 'WELCOME10', exact: true }) });
+    await expect(item).toContainText('135');
+    await expect(item).toContainText('150');
+    await expect(item).toContainText('12');
+    await expect(item).toContainText('3');
+    await expect(
+      page.getByRole('button', {
+        name: `${language === 'th' ? 'เพิ่มโควตา' : 'Increase limit'} LASTCALL`,
+        exact: true,
+      }),
+    ).toBeVisible();
+    for (const code of ['STUDY20', 'OCT15']) {
+      await expect(
+        page.getByRole('button', {
+          name: `${language === 'th' ? 'เพิ่มโควตา' : 'Increase limit'} ${code}`,
+          exact: true,
+        }),
+      ).toHaveCount(0);
+    }
+    await expect(page.locator('body')).toHaveJSProperty(
+      'scrollWidth',
+      await page.locator('body').evaluate((el) => el.clientWidth),
+    );
+  });
+}
+
+test('uncertain capacity requires refresh and uses the authoritative total before another increase', async ({
+  page,
+}) => {
+  let current = first;
+  let writes = 0;
+  await setup(page, async (route) => {
+    if (route.request().method() === 'PATCH') {
+      writes += 1;
+      current = { ...first, maxUses: 150, availableUses: 135 };
+      await route.abort('failed');
+    } else {
+      await route.fulfill({ json: { items: [current], nextCursor: null } });
+    }
+  });
+  const action = page.getByRole('button', { name: 'Increase limit WELCOME10', exact: true });
+  await action.click();
+  await page
+    .getByRole('alertdialog')
+    .getByLabel('New total usage limit', { exact: true })
+    .fill('150');
+  await page
+    .getByRole('alertdialog')
+    .getByRole('button', { name: 'Increase limit', exact: true })
+    .click();
+  await expect(page.getByRole('alertdialog')).toHaveCount(0);
+  await expect(action).toBeDisabled();
+  await expect(
+    page.getByRole('button', { name: 'Deactivate WELCOME10', exact: true }),
+  ).toBeDisabled();
+  await page.getByRole('button', { name: 'Refresh coupons', exact: true }).click();
+  await expect(action).toBeEnabled();
+  await action.click();
+  await expect(
+    page.getByRole('alertdialog').getByLabel('New total usage limit', { exact: true }),
+  ).toHaveValue('150');
+  expect(writes).toBe(1);
+});
+
+for (const [status, code] of [
+  [409, 'COUPON_CAPACITY_DECREASE_NOT_ALLOWED'],
+  [409, 'COUPON_EXPIRED'],
+  [409, 'COUPON_INACTIVE'],
+  [404, 'NOT_FOUND'],
+  [401, 'UNAUTHENTICATED'],
+  [403, 'FORBIDDEN'],
+  [400, 'VALIDATION_FAILED'],
+] as const) {
+  test(`capacity handles ${status} ${code} without losing the draft or retrying blindly`, async ({
+    page,
+  }) => {
+    await setup(page, async (route) => {
+      if (route.request().method() === 'PATCH') {
+        await route.fulfill({ status, json: { code } });
+      } else {
+        await route.fulfill({ json: { items: [first], nextCursor: null } });
+      }
+    });
+    const action = page.getByRole('button', { name: 'Increase limit WELCOME10', exact: true });
+    await action.click();
+    await page
+      .getByRole('alertdialog')
+      .getByLabel('New total usage limit', { exact: true })
+      .fill('150');
+    await page
+      .getByRole('alertdialog')
+      .getByRole('button', { name: 'Increase limit', exact: true })
+      .click();
+    if (status === 400) {
+      await expect(
+        page.getByRole('alertdialog').getByLabel('New total usage limit', { exact: true }),
+      ).toHaveValue('150');
+      await expect(page.getByRole('alertdialog').locator('p[role="alert"]')).toBeVisible();
+      await expect(
+        page.getByRole('alertdialog').getByLabel('New total usage limit', { exact: true }),
+      ).toBeFocused();
+    } else {
+      await expect(page.getByRole('alertdialog')).toHaveCount(0);
+      if (status === 401 || status === 403) {
+        await expect(action).toHaveCount(0);
+      } else {
+        await expect(action).toBeDisabled();
+      }
+    }
   });
 }
