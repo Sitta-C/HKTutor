@@ -19,9 +19,10 @@ const review: BookingReview = {
 describe('submitted review', () => {
   it('renders ratings, overall average and feedback as literal text in English', () => {
     const markup = renderToStaticMarkup(createElement(SubmittedReview, { review, language: 'en' }));
-    expect(markup).toContain('5 / 5');
-    expect(markup).toContain('4 / 5');
-    expect(markup).toContain('4.67 / 5');
+    const text = markup.replace(/<[^>]*>/g, '');
+    expect(text).toContain('5 / 5');
+    expect(text).toContain('4 / 5');
+    expect(markup).toContain('aria-label="Overall rating 4.67 out of 5"');
     expect(markup).toContain('Great class, very clear explanations.');
     expect(markup).toContain('dateTime="2026-10-16T18:30:00.000Z"');
   });

@@ -1,5 +1,7 @@
 import { expect, test } from '@playwright/test';
 
+import { reviewCopy } from '@/components/reviews/review-copy';
+
 import type {
   PublicAvailabilitySlot,
   PublicTutorDetail,
@@ -808,4 +810,100 @@ test('a profile that becomes unavailable on reload shows no stale badge or conte
   await expect(
     page.getByText('Build a strong foundation with progressively challenging practice.'),
   ).toHaveCount(0);
+});
+
+for (const language of ['th', 'en'] as const) {
+  for (const width of [320, 768, 1440]) {
+    test(`review reading sheet groups identity and score without stretching criteria (${language}, ${width}px)`, async ({
+      page,
+    }, testInfo) => {
+      await page.setViewportSize({ width, height: 1000 });
+      const longName = 'Learner'.repeat(12);
+      const feedback =
+        'The examples made a difficult topic much clearer.\n' +
+        'I could ask questions and practise at my own pace. '.repeat(5);
+      await mockDetail(page, {
+        language,
+        reviewResponses: [
+          {
+            items: [
+              {
+                id: 'short-review',
+                author: { displayName: 'First' },
+                clarity: 4,
+                punctuality: 4,
+                preparation: 4,
+                overallRating: 4,
+                feedback: 'k',
+                createdAt: '2026-11-13T13:56:00Z',
+              },
+              {
+                id: 'long-review',
+                author: { displayName: longName },
+                clarity: 5,
+                punctuality: 4,
+                preparation: 5,
+                overallRating: 4.67,
+                feedback,
+                createdAt: '2026-11-12T13:56:00Z',
+              },
+            ],
+            nextCursor: null,
+          },
+        ],
+      });
+      await page.goto('/tutors/tutor-anna');
+      const sheet = page.getByRole('region', {
+        name: language === 'th' ? 'รีวิวจากนักเรียน' : 'Student reviews',
+        exact: true,
+      });
+      const first = sheet.getByRole('listitem').first();
+      await expect(first.getByRole('img')).toHaveAccessibleName(
+        `${reviewCopy[language].savedOverall} 4.00 ${reviewCopy[language].ratingOption}`,
+      );
+      await expect(first.locator('dl dt')).toHaveCount(3);
+      await expect(first.locator('dl dd')).toHaveText(['4 / 5', '4 / 5', '4 / 5']);
+      const geometry = await first.evaluate((el) => {
+        const author = el.querySelector('h3');
+        const score = el.querySelector('[role="img"]');
+        const dimensions = el.querySelector('dl');
+        if (!author || !score || !dimensions) throw new Error('Review anatomy missing');
+        return {
+          height: el.getBoundingClientRect().height,
+          scoreGap: score.getBoundingClientRect().left - author.getBoundingClientRect().right,
+          scoreOffset: Math.abs(
+            score.getBoundingClientRect().top - author.getBoundingClientRect().top,
+          ),
+          criteriaHeight: dimensions.getBoundingClientRect().height,
+        };
+      });
+      expect(geometry.height).toBeLessThan(210);
+      expect(geometry.scoreGap).toBeLessThan(60);
+      expect(geometry.scoreOffset).toBeLessThan(55);
+      expect(geometry.criteriaHeight).toBeLessThan(55);
+      await expect(sheet.getByRole('heading', { name: longName, exact: true })).toBeVisible();
+      await expect(sheet.getByText(feedback.trim(), { exact: true })).toBeVisible();
+      await noOverflow(page);
+      await sheet.screenshot({
+        path: testInfo.outputPath(`review-reading-sheet-${language}-${width}.png`),
+      });
+    });
+  }
+}
+
+test('review read failure remains distinct from empty feedback and retry restores the list', async ({
+  page,
+}) => {
+  const options: { reviewStatus?: number } = { reviewStatus: 503 };
+  const { reviewCalls, setReviewResponse } = await mockDetail(page, options);
+  await page.goto('/tutors/tutor-anna');
+  const sheet = page.getByRole('region', { name: 'Student reviews', exact: true });
+  await expect(sheet.getByRole('alert')).toContainText('Student reviews could not be loaded.');
+  await expect(sheet.getByText('No student reviews yet.', { exact: true })).toHaveCount(0);
+  const initialReads = reviewCalls.length;
+  delete options.reviewStatus;
+  setReviewResponse({ items: [], nextCursor: null });
+  await sheet.getByRole('button', { name: 'Try again', exact: true }).click();
+  await expect(sheet.getByText('No student reviews yet.', { exact: true })).toBeVisible();
+  expect(reviewCalls).toHaveLength(initialReads + 1);
 });

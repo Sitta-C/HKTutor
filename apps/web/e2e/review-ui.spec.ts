@@ -13,6 +13,7 @@ const NOW = '2026-11-03T10:00:00.000Z';
 async function setup(
   page: Page,
   options: {
+    language?: 'en' | 'th';
     status?: BookingStatus;
     review?: BookingReview | null;
     getReviewStatus?: number;
@@ -36,7 +37,10 @@ async function setup(
     unexpected: [] as string[],
   };
   await page.clock.install({ time: new Date(NOW) });
-  await page.addInitScript(() => localStorage.setItem('hktutor-language', 'en'));
+  await page.addInitScript(
+    (language) => localStorage.setItem('hktutor-language', language),
+    options.language ?? 'en',
+  );
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await page
     .context()
@@ -213,7 +217,7 @@ async function setup(
     return route.fulfill({ status: 404, json: { message: 'Unexpected preview request' } });
   });
   await page.goto(PATH);
-  const text = reviewCopy.en;
+  const text = reviewCopy[options.language ?? 'en'];
   await expect(page.locator('main').getByText(text.loading, { exact: true })).toHaveCount(0);
   return { state, text };
 }
@@ -264,7 +268,9 @@ test('shows validation errors for missing ratings and feedback on submit, then s
   await confirmPendingAction(page);
   await expect(page.locator('main').getByText(text.savedTitle, { exact: true })).toBeVisible();
   await expect(page.getByText('Great class, very clear explanations.')).toBeVisible();
-  await expect(page.getByText('4.67 / 5')).toBeVisible();
+  await expect(
+    page.getByRole('img', { name: 'Overall rating 4.67 out of 5', exact: true }),
+  ).toBeVisible();
   expect(state.bookingCalls).toBeGreaterThan(1);
   expect(state.getReviewCalls).toBeGreaterThan(1);
   expect(state.posts).toEqual([
@@ -504,8 +510,8 @@ test('a lost response after saving shows canonical feedback as inert text withou
   expect(state.posts).toEqual([{ clarity: 5, punctuality: 4, preparation: 5, feedback: markup }]);
 });
 
-async function selectRatings(page: Page): Promise<void> {
-  const text = reviewCopy.en;
+async function selectRatings(page: Page, language: 'en' | 'th' = 'en'): Promise<void> {
+  const text = reviewCopy[language];
   for (const [legend, rating] of [
     [text.clarityLegend, 5],
     [text.punctualityLegend, 4],
@@ -523,37 +529,63 @@ async function confirmPendingAction(page: Page): Promise<void> {
   if (await dialog.count()) await dialog.getByRole('button').last().click();
 }
 
-for (const width of [320, 768, 1440]) {
-  test(`review confirmation previews the ratings and preserves feedback after cancel (${width}px)`, async ({
-    page,
-  }, testInfo) => {
-    await page.setViewportSize({ width, height: width === 320 ? 740 : 900 });
-    const { state, text } = await setup(page);
-    await selectRatings(page);
-    await page.getByLabel(text.feedbackLabel, { exact: true }).fill('A clear, helpful class.');
-    const trigger = page.getByRole('button', { name: text.submit, exact: true });
-    await trigger.click();
-    const dialog = page.getByRole('alertdialog');
-    await expect(dialog).toContainText(text.finality);
-    await expect(dialog).toContainText('A clear, helpful class.');
-    expect(state.posts).toHaveLength(0);
-    await expect(dialog).toBeVisible();
-    expect(await dialog.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(
-      true,
-    );
-    await dialog.screenshot({ path: testInfo.outputPath(`review-confirmation-${width}.png`) });
-    await page.screenshot({
-      path: testInfo.outputPath(`review-confirmation-${width}-context.png`),
+for (const language of ['en', 'th'] as const) {
+  for (const width of [320, 768, 1440]) {
+    test(`review sheet preserves its draft and recorded feedback (${language}, ${width}px)`, async ({
+      page,
+    }, testInfo) => {
+      await page.setViewportSize({ width, height: 1100 });
+      const { state, text } = await setup(page, { language });
+      const form = page.getByRole('region', { name: text.title, exact: true });
+      await expect(form).toContainText(text.publicHelp);
+      for (const input of await form.getByRole('radio').all()) {
+        const box = await input.boundingBox();
+        expect(box?.width).toBeGreaterThanOrEqual(44);
+        expect(box?.height).toBeGreaterThanOrEqual(44);
+      }
+      await selectRatings(page, language);
+      await page.getByLabel(text.feedbackLabel, { exact: true }).fill('A clear, helpful class.');
+      await form.screenshot({ path: testInfo.outputPath(`review-form-${language}-${width}.png`) });
+      const trigger = page.getByRole('button', { name: text.submit, exact: true });
+      await trigger.click();
+      const dialog = page.getByRole('alertdialog');
+      await expect(dialog).toContainText(text.finality);
+      await expect(dialog).toContainText('A clear, helpful class.');
+      expect(state.posts).toHaveLength(0);
+      await expect(dialog).toBeVisible();
+      expect(await dialog.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(
+        true,
+      );
+      await dialog.screenshot({
+        path: testInfo.outputPath(`review-confirmation-${language}-${width}.png`),
+      });
+      await page.screenshot({
+        path: testInfo.outputPath(`review-confirmation-${language}-${width}-context.png`),
+      });
+      await dialog
+        .getByRole('button', { name: language === 'en' ? 'Cancel' : 'ยกเลิก', exact: true })
+        .click();
+      await expect(trigger).toBeFocused();
+      await expect(page.getByLabel(text.feedbackLabel, { exact: true })).toHaveValue(
+        'A clear, helpful class.',
+      );
+      expect(state.posts).toHaveLength(0);
+      await trigger.click();
+      await confirmPendingAction(page);
+      await expect(page.locator('[data-notebook-toast="success"]')).toContainText(text.submitted);
+      expect(state.posts).toHaveLength(1);
+      const saved = page.getByRole('region', { name: text.savedTitle, exact: true });
+      await expect(saved.getByRole('img')).toHaveAccessibleName(
+        `${text.savedOverall} 4.67 ${text.ratingOption}`,
+      );
+      await expect(saved.locator('dl dd')).toHaveText(['5 / 5', '4 / 5', '5 / 5']);
+      await expect(saved).toContainText('A clear, helpful class.');
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+        true,
+      );
+      await saved.screenshot({
+        path: testInfo.outputPath(`review-saved-${language}-${width}.png`),
+      });
     });
-    await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
-    await expect(trigger).toBeFocused();
-    await expect(page.getByLabel(text.feedbackLabel, { exact: true })).toHaveValue(
-      'A clear, helpful class.',
-    );
-    expect(state.posts).toHaveLength(0);
-    await trigger.click();
-    await confirmPendingAction(page);
-    await expect(page.locator('[data-notebook-toast="success"]')).toContainText(text.submitted);
-    expect(state.posts).toHaveLength(1);
-  });
+  }
 }

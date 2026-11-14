@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+import { ReviewDimensions, ReviewScore } from '@/components/reviews/review-summary';
 import { PaperCard } from '@/components/ui/notebook';
 import { NotebookAction } from '@/components/ui/notebook-action';
 import { NotebookLoadingRegion } from '@/components/ui/notebook-loading';
@@ -103,7 +104,6 @@ export function PublicTutorReviews({
           <h2 id="public-tutor-reviews">{text.title}</h2>
           <p>{text.description}</p>
         </div>
-        <span>{text.public}</span>
       </div>
 
       {loading ? (
@@ -123,37 +123,16 @@ export function PublicTutorReviews({
             {items.map((review) => (
               <li key={review.id} className={styles.review}>
                 <div className={styles.reviewHeader}>
-                  <div>
+                  <div className={styles.identity}>
                     <h3>{review.author.displayName}</h3>
                     <time dateTime={review.createdAt}>
                       {formatBangkokDateTime(review.createdAt, language)}
                     </time>
                   </div>
-                  <strong
-                    className={styles.overall}
-                    aria-label={text.overallLabel.replace(
-                      '{score}',
-                      review.overallRating.toFixed(2),
-                    )}
-                  >
-                    {review.overallRating.toFixed(2)} / 5
-                  </strong>
+                  <ReviewScore value={review.overallRating} language={language} />
                 </div>
                 <p className={styles.feedback}>{review.feedback}</p>
-                <dl className={styles.dimensions}>
-                  <div>
-                    <dt>{text.clarity}</dt>
-                    <dd>{review.clarity} / 5</dd>
-                  </div>
-                  <div>
-                    <dt>{text.punctuality}</dt>
-                    <dd>{review.punctuality} / 5</dd>
-                  </div>
-                  <div>
-                    <dt>{text.preparation}</dt>
-                    <dd>{review.preparation} / 5</dd>
-                  </div>
-                </dl>
+                <ReviewDimensions ratings={review} language={language} />
               </li>
             ))}
           </ol>
@@ -185,7 +164,6 @@ const copy = {
   en: {
     title: 'Student reviews',
     description: 'Feedback from completed lessons with this tutor.',
-    public: 'Public feedback',
     loading: 'Loading student reviews',
     error: 'Student reviews could not be loaded.',
     moreError: 'More reviews could not be loaded. Try again.',
@@ -193,15 +171,10 @@ const copy = {
     empty: 'No student reviews yet.',
     more: 'Load more reviews',
     loadingMore: 'Loading more reviews…',
-    clarity: 'Clarity',
-    punctuality: 'Punctuality',
-    preparation: 'Preparation',
-    overallLabel: 'Overall rating {score} out of 5',
   },
   th: {
     title: 'รีวิวจากนักเรียน',
     description: 'ความคิดเห็นจากคลาสที่เรียนจบกับติวเตอร์คนนี้',
-    public: 'ความคิดเห็นสาธารณะ',
     loading: 'กำลังโหลดรีวิวจากนักเรียน',
     error: 'ไม่สามารถโหลดรีวิวจากนักเรียนได้',
     moreError: 'ไม่สามารถโหลดรีวิวเพิ่มเติมได้ กรุณาลองอีกครั้ง',
@@ -209,9 +182,5 @@ const copy = {
     empty: 'ยังไม่มีรีวิวจากนักเรียน',
     more: 'โหลดรีวิวเพิ่มเติม',
     loadingMore: 'กำลังโหลดรีวิวเพิ่มเติม…',
-    clarity: 'ความชัดเจน',
-    punctuality: 'ตรงต่อเวลา',
-    preparation: 'การเตรียมตัว',
-    overallLabel: 'คะแนนรวม {score} จาก 5',
   },
 } as const;

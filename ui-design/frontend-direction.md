@@ -341,6 +341,33 @@ Verified tutor metadata uses a plain tutor-blue trust line: a small shield and m
 without a filled green badge or enclosing border. Keep it secondary to the tutor name and rating.
 The shared badge retains distinct owner-only unverified, pending and rejected states and guidance.
 
+## Student review presentation — continuous reading sheets
+
+Refined on 2026-11-14 from the public review screenshot and the user's request to fix related
+review surfaces. Use one reading sheet, bounded to 52rem, with a continuous blue margin and thin
+rules between reviews. Group the author, Bangkok timestamp and explicitly labelled review score
+close together. Feedback is the primary body content; three content-sized criteria follow it and
+wrap naturally on mobile. Do not stretch criteria across equal-width dashboard columns or stack
+three oversized metric blocks. Public reviews have no decorative "Public feedback" badge.
+
+`reviews/review-summary.tsx` shares `ReviewScore` and `ReviewDimensions` between the public list,
+the saved private review and the pre-submit confirmation. Display the server-returned overall
+score to two decimals; this does not change the selected tutor-level **Margin Score** above or add
+client-side averaging. Preserve full feedback, author names, Thai/English labels, text escaping,
+cursor pagination, and distinct loading/error/empty states.
+
+The class-review form uses a compact 1–5 ruler per criterion. Native radio inputs cover the full
+44px target; retain arrow-key selection, visible keyboard focus and disabled states. The selected
+number uses notebook ink on a light mint circle. Keep a ruled writing area and put the public
+display-name/feedback disclosure beside the finality note before Submit. Preserve validation,
+the confirmation alert, cancel/draft retention, duplicate protection, outcome toast and uncertain
+submission recovery. The saved result follows the same reading order as public reviews:
+identity/timestamp and score, feedback, then the compact criteria.
+
+Verified with live local public-review screenshots at 320/768/1440px, 69 Chromium browser checks
+and 12 touch-device checks using intercepted APIs, plus 864 web unit tests, web lint, repository
+formatting and production build. Review submission previews do not write to a live database.
+
 ## Student booking request
 
 The user selected **Appointment Docket** and requested implementation on 2026-10-07 for

@@ -34,6 +34,8 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
+  max-width: 48rem;
+  scroll-margin-top: 96px;
 }
 .heading {
   margin: 0;
@@ -52,7 +54,7 @@
   font-size: 12px;
 }
 .scaleGuidance {
-  margin: 0;
+  margin: 0 0 4px;
   color: var(--color-notebook-muted-deep);
   font-size: 12px;
 }
@@ -60,52 +62,88 @@
   margin: 0;
   padding: 0;
   border: 0;
-  border-top: 1px dashed var(--color-paper-edge);
+  max-width: 38rem;
+}
+.ratingHeading {
+  margin-bottom: 4px;
+  padding: 0;
+  font-size: 13px;
+  font-weight: 600;
 }
 .ratingGroup {
   display: grid;
-  grid-template-columns: minmax(140px, 1fr) auto;
+  grid-template-columns: minmax(0, 180px) max-content;
   align-items: center;
   gap: 8px 14px;
   margin: 0;
   padding: 10px 0;
   border: 0;
-  border-bottom: 1px dashed var(--color-paper-edge);
+  border-bottom: 1px solid var(--color-paper-edge);
 }
 .ratingChoices {
-  display: flex;
-  flex-wrap: nowrap;
-  gap: 6px;
+  display: grid;
+  grid-template-columns: repeat(5, 44px);
+  border-bottom: 1px solid var(--color-paper-edge);
 }
 .ratingChoice {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
+  position: relative;
+  display: grid;
+  place-items: center;
   min-width: 44px;
   min-height: 44px;
-  padding: 4px 8px;
   margin: 0;
-  border: 1px solid var(--color-paper-edge);
-  border-radius: 6px;
-  background: var(--color-paper);
+  cursor: pointer;
+}
+.ratingChoice::after {
+  position: absolute;
+  inset: auto auto 0;
+  width: 1px;
+  height: 4px;
+  background: var(--color-paper-edge);
+  content: '';
+}
+.ratingChoice input {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: inherit;
+}
+.ratingNumber {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid transparent;
+  border-radius: 50%;
+  color: var(--color-notebook-ink);
+  font-size: 14px;
   font-weight: 600;
+  pointer-events: none;
   transition:
     background-color 120ms,
     border-color 120ms;
 }
-.ratingChoice input {
-  accent-color: var(--review-accent);
+.ratingChoice:has(input:not(:checked):not(:disabled)):hover .ratingNumber {
+  border-color: var(--color-paper-edge);
+  background: var(--color-paper-deep);
 }
-.ratingChoice:has(input:checked) {
+.ratingChoice:has(input:checked) .ratingNumber {
   border-color: var(--review-accent);
   background: color-mix(in srgb, var(--review-accent) 16%, var(--color-paper));
   color: var(--color-notebook-ink);
   font-weight: 700;
 }
-.ratingChoice:has(input:focus-visible) {
+.ratingChoice:has(input:focus-visible) .ratingNumber {
   outline: 2px solid var(--review-accent);
   outline-offset: 2px;
+}
+.ratingChoice:has(input:disabled) {
+  opacity: 0.55;
+  cursor: not-allowed;
 }
 @media (max-width: 600px) {
   .ratingGroup {
@@ -171,14 +209,14 @@
   flex-direction: column;
   gap: 12px;
   min-width: 0;
-  padding-left: 14px;
-  border-left: 2px solid var(--review-accent);
+  max-width: 48rem;
+  scroll-margin-top: 96px;
 }
 .savedLead {
   display: flex;
   flex-wrap: wrap;
-  align-items: baseline;
-  gap: 6px 14px;
+  align-items: center;
+  gap: 12px 20px;
 }
 .savedHeading {
   margin: 0;
@@ -186,37 +224,10 @@
   font-size: 18px;
   font-weight: 700;
 }
-.savedRatings {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
-  gap: 10px;
-  padding-top: 10px;
-  border-top: 1px dashed var(--color-paper-edge);
-}
-.savedRatings dt {
-  color: var(--color-notebook-muted-deep);
-  font-size: 12px;
-}
-.savedRatings dd {
-  margin-top: 2px;
-  font-size: 15px;
-  font-weight: 700;
-}
-.savedOverall {
-  margin: 0;
-  font-size: 14px;
-}
-.savedOverallValue {
-  font-size: 22px;
-  font-weight: 800;
-  color: var(--review-accent);
-}
 .savedFeedbackBlock {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  padding-top: 10px;
-  border-top: 1px dashed var(--color-paper-edge);
 }
 .savedFeedbackLabel {
   margin: 0;
@@ -233,5 +244,11 @@
 .savedTimestamp {
   margin: 0;
   color: var(--color-notebook-muted-deep);
-  font-size: 13px;
+  font-size: 12px;
+  line-height: 1.7;
+}
+@media (prefers-reduced-motion: reduce) {
+  .ratingNumber {
+    transition: none;
+  }
 }

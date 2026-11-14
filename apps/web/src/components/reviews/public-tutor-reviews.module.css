@@ -1,24 +1,19 @@
 .card.card {
+  width: 100%;
+  max-width: 52rem;
   min-width: 0;
-  margin-top: 34px;
+  margin: 32px auto 0;
   border-radius: 8px;
-  padding: 20px;
+  padding: 22px;
   box-shadow: var(--shadow-paper);
+  scroll-margin-top: 96px;
 }
 .card::after {
   display: none;
 }
-.heading,
-.reviewHeader {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 10px 18px;
-}
 .heading {
-  padding-bottom: 14px;
-  border-bottom: 1px dashed var(--color-paper-edge);
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--color-paper-edge);
 }
 .heading h2 {
   font-family: var(--font-note);
@@ -26,7 +21,6 @@
   font-weight: 600;
 }
 .heading p,
-.heading > span,
 .review time,
 .empty,
 .moreError {
@@ -34,61 +28,48 @@
   font-size: 12px;
   line-height: 1.7;
 }
-.heading > span {
-  border-radius: 999px;
-  padding: 4px 9px;
-  background: var(--color-sticky-blue);
-  color: var(--color-tutor-deep);
-  font-weight: 700;
+.heading p {
+  margin-top: 4px;
 }
 .list {
   list-style: none;
+  margin-top: 4px;
+  padding-inline-start: 18px;
+  border-inline-start: 1px solid color-mix(in srgb, var(--color-tutor-deep) 22%, var(--color-paper));
 }
 .review {
-  padding: 20px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 18px 0;
 }
 .review + .review {
-  border-top: 1px dashed var(--color-paper-edge);
+  border-top: 1px solid var(--color-paper-edge);
 }
-.reviewHeader > div {
+.reviewHeader {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 20px;
+}
+.identity {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
   min-width: 0;
+  max-width: 52ch;
 }
 .review h3 {
   font-size: 15px;
   font-weight: 700;
   overflow-wrap: anywhere;
 }
-.overall {
-  color: var(--color-notebook-ink);
-  font-size: 18px;
-  font-variant-numeric: tabular-nums;
-}
 .feedback {
-  margin-top: 14px;
+  max-width: 70ch;
   font-size: 15px;
   line-height: 1.7;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
-}
-.dimensions {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
-  margin-top: 14px;
-}
-.dimensions > div {
-  min-width: 0;
-  border-left: 2px solid var(--color-sticky-blue);
-  padding-left: 8px;
-}
-.dimensions dt {
-  color: var(--color-notebook-muted-deep);
-  font-size: 11px;
-}
-.dimensions dd {
-  margin-top: 2px;
-  font-size: 14px;
-  font-weight: 700;
 }
 .empty,
 .error {
@@ -114,19 +95,16 @@
 }
 .actions {
   display: flex;
-  justify-content: center;
-  padding-top: 4px;
+  padding-top: 8px;
 }
-
 @media (max-width: 600px) {
   .card.card {
     padding: 18px 16px;
   }
-  .reviewHeader {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr);
+  .list {
+    padding-inline-start: 12px;
   }
-  .dimensions {
-    grid-template-columns: minmax(0, 1fr);
+  .reviewHeader {
+    column-gap: 14px;
   }
 }

@@ -120,6 +120,8 @@ for (const width of [320, 768, 1440]) {
           body = { tutor: { ...course, ...metadata, bio: profile.bio }, listings: [course] };
         } else if (path === '/tutors/rating-tutor/availability') {
           body = [];
+        } else if (path === '/tutors/rating-tutor/reviews') {
+          body = { items: [], nextCursor: null };
         } else if (path === '/conversations/unread-count') {
           body = { unreadCount: 0 };
         } else if (path === '/notifications/unread-count') {

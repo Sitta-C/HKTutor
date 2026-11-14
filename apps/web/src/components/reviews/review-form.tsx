@@ -10,6 +10,7 @@ import {
   reviewFeedbackLength,
   reviewSubmitOutcome,
 } from '@/components/reviews/review-model';
+import { ReviewDimensions } from '@/components/reviews/review-summary';
 import { NotebookAction } from '@/components/ui/notebook-action';
 import { NotebookConfirmDialog } from '@/components/ui/notebook-confirm-dialog';
 import { useNotebookToast } from '@/components/ui/notebook-toast';
@@ -156,9 +157,6 @@ export function ReviewForm({
           {error}
         </p>
       )}
-      <p className={styles.scaleGuidance} id="review-rating-scale">
-        {text.ratingScale}
-      </p>
       <fieldset
         className={styles.ratingGroups}
         disabled={locked}
@@ -168,6 +166,10 @@ export function ReviewForm({
             : 'review-rating-scale review-help'
         }
       >
+        <legend className={styles.ratingHeading}>{text.ratingsTitle}</legend>
+        <p className={styles.scaleGuidance} id="review-rating-scale">
+          {text.ratingScale}
+        </p>
         {ratingGroups.map((group) => {
           const labelId = `${group.name}-label`;
           return (
@@ -187,12 +189,13 @@ export function ReviewForm({
                       type="radio"
                       name={group.name}
                       value={value}
+                      aria-label={`${group.legend} ${value} ${text.ratingOption}`}
                       checked={group.value === value}
                       onChange={() => group.setValue(value)}
                     />
-                    <span className="sr-only">{group.legend} </span>
-                    {value}
-                    <span className="sr-only"> {text.ratingOption}</span>
+                    <span className={styles.ratingNumber} aria-hidden="true">
+                      {value}
+                    </span>
                   </label>
                 ))}
               </div>
@@ -252,19 +255,12 @@ export function ReviewForm({
         onCancel={() => setConfirming(false)}
         onConfirm={submit}
       >
-        <dl>
-          {ratingGroups.map(({ legend, value }) => (
-            <div key={legend}>
-              <dt>{legend}</dt>
-              <dd>{value} / 5</dd>
-            </div>
-          ))}
-        </dl>
+        <ReviewDimensions ratings={{ clarity, punctuality, preparation }} language={language} />
         <blockquote>{feedback.trim()}</blockquote>
       </NotebookConfirmDialog>
       {!disabledMessage && (
         <p className={styles.note} id="review-finality">
-          {text.finality}
+          {text.publicHelp} {text.finality}
         </p>
       )}
       <div className={styles.formActions}>
