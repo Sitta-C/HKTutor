@@ -717,7 +717,11 @@ test('public reviews render feedback as text and append the next cursor page', a
   await expect(
     page.locator('img[data-public-review-probe], body[data-review-executed]'),
   ).toHaveCount(0);
+  const firstDetails = page.locator('[data-review-entry] details').first();
+  await firstDetails.locator('summary').click();
+  await expect(firstDetails).toHaveAttribute('open', '');
   await page.getByRole('button', { name: 'Load more reviews' }).click();
+  await expect(firstDetails).toHaveAttribute('open', '');
   await expect(page.getByText('Patient and well prepared.', { exact: true })).toBeVisible();
   await noOverflow(page);
 
@@ -814,7 +818,7 @@ test('a profile that becomes unavailable on reload shows no stale badge or conte
 
 for (const language of ['th', 'en'] as const) {
   for (const width of [320, 768, 1440]) {
-    test(`review reading sheet groups identity and score without stretching criteria (${language}, ${width}px)`, async ({
+    test(`review hierarchy separates feedback, attribution and optional scores (${language}, ${width}px)`, async ({
       page,
     }, testInfo) => {
       await page.setViewportSize({ width, height: 1000 });
@@ -866,21 +870,32 @@ for (const language of ['th', 'en'] as const) {
       const geometry = await first.evaluate((el) => {
         const author = el.querySelector('h3');
         const score = el.querySelector('[role="img"]');
-        const dimensions = el.querySelector('dl');
-        if (!author || !score || !dimensions) throw new Error('Review anatomy missing');
+        const feedback = el.querySelector('blockquote');
+        const summary = el.querySelector('summary');
+        if (!author || !score || !feedback || !summary) throw new Error('Review anatomy missing');
         return {
           height: el.getBoundingClientRect().height,
-          scoreGap: score.getBoundingClientRect().left - author.getBoundingClientRect().right,
-          scoreOffset: Math.abs(
-            score.getBoundingClientRect().top - author.getBoundingClientRect().top,
-          ),
-          criteriaHeight: dimensions.getBoundingClientRect().height,
+          scoreEnd: score.getBoundingClientRect().right,
+          feedbackStart: feedback.getBoundingClientRect().left,
+          feedbackEnd: feedback.getBoundingClientRect().bottom,
+          attributionStart: author.getBoundingClientRect().top,
+          detailsTarget: summary.getBoundingClientRect().height,
         };
       });
       expect(geometry.height).toBeLessThan(210);
-      expect(geometry.scoreGap).toBeLessThan(60);
-      expect(geometry.scoreOffset).toBeLessThan(55);
-      expect(geometry.criteriaHeight).toBeLessThan(55);
+      expect(geometry.scoreEnd).toBeLessThan(geometry.feedbackStart);
+      expect(geometry.attributionStart).toBeGreaterThan(geometry.feedbackEnd);
+      expect(geometry.detailsTarget).toBeGreaterThanOrEqual(44);
+      const details = first.locator('details');
+      await expect(details).not.toHaveAttribute('open', '');
+      await expect(first.locator('dl')).not.toBeVisible();
+      await details.locator('summary').focus();
+      await page.keyboard.press('Enter');
+      await expect(details).toHaveAttribute('open', '');
+      await expect(first.locator('dl')).toBeVisible();
+      await noOverflow(page);
+      await page.keyboard.press('Enter');
+      await expect(details).not.toHaveAttribute('open', '');
       await expect(sheet.getByRole('heading', { name: longName, exact: true })).toBeVisible();
       await expect(sheet.getByText(feedback.trim(), { exact: true })).toBeVisible();
       await noOverflow(page);

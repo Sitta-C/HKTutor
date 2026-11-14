@@ -4,7 +4,8 @@
   min-width: 0;
   margin: 32px auto 0;
   border-radius: 8px;
-  padding: 22px;
+  padding: 0;
+  overflow: hidden;
   box-shadow: var(--shadow-paper);
   scroll-margin-top: 96px;
 }
@@ -12,7 +13,7 @@
   display: none;
 }
 .heading {
-  padding-bottom: 16px;
+  padding: 22px;
   border-bottom: 1px solid var(--color-paper-edge);
 }
 .heading h2 {
@@ -21,7 +22,6 @@
   font-weight: 600;
 }
 .heading p,
-.review time,
 .empty,
 .moreError {
   color: var(--color-notebook-muted-deep);
@@ -33,47 +33,14 @@
 }
 .list {
   list-style: none;
-  margin-top: 4px;
-  padding-inline-start: 18px;
-  border-inline-start: 1px solid color-mix(in srgb, var(--color-tutor-deep) 22%, var(--color-paper));
-}
-.review {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 18px 0;
 }
 .review + .review {
   border-top: 1px solid var(--color-paper-edge);
 }
-.reviewHeader {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 12px 20px;
-}
-.identity {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  min-width: 0;
-  max-width: 52ch;
-}
-.review h3 {
-  font-size: 15px;
-  font-weight: 700;
-  overflow-wrap: anywhere;
-}
-.feedback {
-  max-width: 70ch;
-  font-size: 15px;
-  line-height: 1.7;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
+.state,
 .empty,
 .error {
-  padding: 24px 0 4px;
+  padding: 22px;
 }
 .error {
   color: var(--color-red-800);
@@ -91,20 +58,20 @@
   text-underline-offset: 3px;
 }
 .moreError {
+  padding: 16px 22px 0;
   color: var(--color-red-800);
 }
 .actions {
   display: flex;
-  padding-top: 8px;
+  margin-inline-start: 88px;
+  padding: 12px 22px;
 }
 @media (max-width: 600px) {
-  .card.card {
+  .heading {
     padding: 18px 16px;
   }
-  .list {
-    padding-inline-start: 12px;
-  }
-  .reviewHeader {
-    column-gap: 14px;
+  .actions {
+    margin-inline-start: 62px;
+    padding-inline: 12px;
   }
 }

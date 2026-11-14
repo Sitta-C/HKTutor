@@ -551,6 +551,8 @@ for (const language of ['en', 'th'] as const) {
       const dialog = page.getByRole('alertdialog');
       await expect(dialog).toContainText(text.finality);
       await expect(dialog).toContainText('A clear, helpful class.');
+      for (const criterion of await dialog.locator('dl dd').all())
+        await expect(criterion).toBeVisible();
       expect(state.posts).toHaveLength(0);
       await expect(dialog).toBeVisible();
       expect(await dialog.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(
@@ -579,6 +581,11 @@ for (const language of ['en', 'th'] as const) {
         `${text.savedOverall} 4.67 ${text.ratingOption}`,
       );
       await expect(saved.locator('dl dd')).toHaveText(['5 / 5', '4 / 5', '5 / 5']);
+      const details = saved.locator('details');
+      await expect(details).not.toHaveAttribute('open', '');
+      await expect(saved.locator('dl')).not.toBeVisible();
+      await details.locator('summary').click();
+      await expect(saved.locator('dl')).toBeVisible();
       await expect(saved).toContainText('A clear, helpful class.');
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
         true,

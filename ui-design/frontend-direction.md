@@ -344,14 +344,17 @@ The shared badge retains distinct owner-only unverified, pending and rejected st
 ## Student review presentation — continuous reading sheets
 
 Refined on 2026-11-14 from the public review screenshot and the user's request to fix related
-review surfaces. Use one reading sheet, bounded to 52rem, with a continuous blue margin and thin
-rules between reviews. Group the author, Bangkok timestamp and explicitly labelled review score
-close together. Feedback is the primary body content; three content-sized criteria follow it and
-wrap naturally on mobile. Do not stretch criteria across equal-width dashboard columns or stack
-three oversized metric blocks. Public reviews have no decorative "Public feedback" badge.
+review surfaces, then reworked after feedback that hierarchy still relied too heavily on typography.
+Use one reading sheet, bounded to 52rem. Overall scores sit in a lightly tinted notebook margin;
+the main paper begins with the student's feedback, followed by author and Bangkok timestamp as
+attribution. Thin rules separate complete entries. Native "Scores by criterion" disclosures keep
+secondary ratings available without competing with the feedback. Use position, surface contrast,
+proximity and progressive disclosure alongside typography. Public reviews have no decorative
+"Public feedback" badge, equal-width metric columns, or individual review cards.
 
-`reviews/review-summary.tsx` shares `ReviewScore` and `ReviewDimensions` between the public list,
-the saved private review and the pre-submit confirmation. Display the server-returned overall
+`reviews/review-entry.tsx` shares this reading anatomy between public and saved private reviews.
+`reviews/review-summary.tsx` supplies `ReviewScore` and `ReviewDimensions`; confirmation keeps all
+three criteria visible before submission. Display the server-returned overall
 score to two decimals; this does not change the selected tutor-level **Margin Score** above or add
 client-side averaging. Preserve full feedback, author names, Thai/English labels, text escaping,
 cursor pagination, and distinct loading/error/empty states.
@@ -361,11 +364,12 @@ The class-review form uses a compact 1–5 ruler per criterion. Native radio inp
 number uses notebook ink on a light mint circle. Keep a ruled writing area and put the public
 display-name/feedback disclosure beside the finality note before Submit. Preserve validation,
 the confirmation alert, cancel/draft retention, duplicate protection, outcome toast and uncertain
-submission recovery. The saved result follows the same reading order as public reviews:
-identity/timestamp and score, feedback, then the compact criteria.
+submission recovery. The saved result follows the same reading anatomy as public reviews.
+Criteria disclosures have a 44px target and native keyboard operation, retain their open state
+when more reviews load, and do not send API requests. Never collapse or truncate feedback itself.
 
 Verified with live local public-review screenshots at 320/768/1440px, 69 Chromium browser checks
-and 12 touch-device checks using intercepted APIs, plus 864 web unit tests, web lint, repository
+and 13 touch-device checks using intercepted APIs, plus 864 web unit tests, web lint, repository
 formatting and production build. Review submission previews do not write to a live database.
 
 ## Student booking request

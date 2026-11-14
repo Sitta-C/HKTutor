@@ -2,13 +2,12 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import { ReviewDimensions, ReviewScore } from '@/components/reviews/review-summary';
+import { ReviewEntry } from '@/components/reviews/review-entry';
 import { PaperCard } from '@/components/ui/notebook';
 import { NotebookAction } from '@/components/ui/notebook-action';
 import { NotebookLoadingRegion } from '@/components/ui/notebook-loading';
 import { ApiError } from '@/lib/api/error';
 import { getPublicTutorReviews } from '@/lib/api/tutors';
-import { formatBangkokDateTime } from '@/lib/date-time';
 
 import styles from './public-tutor-reviews.module.css';
 
@@ -107,7 +106,9 @@ export function PublicTutorReviews({
       </div>
 
       {loading ? (
-        <NotebookLoadingRegion label={text.loading} />
+        <div className={styles.state}>
+          <NotebookLoadingRegion label={text.loading} />
+        </div>
       ) : error && items.length === 0 ? (
         <div className={styles.error} role="alert">
           <p>{text.error}</p>
@@ -122,17 +123,11 @@ export function PublicTutorReviews({
           <ol className={styles.list}>
             {items.map((review) => (
               <li key={review.id} className={styles.review}>
-                <div className={styles.reviewHeader}>
-                  <div className={styles.identity}>
-                    <h3>{review.author.displayName}</h3>
-                    <time dateTime={review.createdAt}>
-                      {formatBangkokDateTime(review.createdAt, language)}
-                    </time>
-                  </div>
-                  <ReviewScore value={review.overallRating} language={language} />
-                </div>
-                <p className={styles.feedback}>{review.feedback}</p>
-                <ReviewDimensions ratings={review} language={language} />
+                <ReviewEntry
+                  review={review}
+                  language={language}
+                  author={review.author.displayName}
+                />
               </li>
             ))}
           </ol>

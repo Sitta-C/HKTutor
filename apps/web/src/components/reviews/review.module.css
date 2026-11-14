@@ -212,40 +212,14 @@
   max-width: 48rem;
   scroll-margin-top: 96px;
 }
-.savedLead {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 12px 20px;
-}
 .savedHeading {
   margin: 0;
   color: var(--color-notebook-ink);
   font-size: 18px;
   font-weight: 700;
 }
-.savedFeedbackBlock {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-.savedFeedbackLabel {
-  margin: 0;
-  color: var(--color-notebook-muted-deep);
-  font-size: 12px;
-}
-.savedFeedback {
-  margin: 0;
-  font-size: 15px;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-  line-height: 1.6;
-}
-.savedTimestamp {
-  margin: 0;
-  color: var(--color-notebook-muted-deep);
-  font-size: 12px;
-  line-height: 1.7;
+.savedSheet {
+  border-block: 1px solid var(--color-paper-edge);
 }
 @media (prefers-reduced-motion: reduce) {
   .ratingNumber {
