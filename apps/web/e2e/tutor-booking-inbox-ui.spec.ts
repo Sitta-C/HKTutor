@@ -531,7 +531,7 @@ test.describe('decision API response edges', () => {
           .click();
         const dialog = page.getByRole('dialog');
         await dialog.getByRole('button', { name: `Yes, ${action} booking` }).click();
-        await expect(dialog.getByRole('alert')).toContainText(
+        await expect(dialog.locator('[role="alert"]:not([data-notebook-toast])')).toContainText(
           failure === 'validation'
             ? 'Please check the reason and try again.'
             : 'Something went wrong and nothing was changed. Please try again.',

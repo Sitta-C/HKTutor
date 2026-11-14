@@ -160,6 +160,7 @@ export default function TutorBookingInbox() {
       }
     } catch (caught: unknown) {
       const failure = resolveTutorBookingDecisionError(caught, copy);
+      toast.error(failure.message);
       if (failure.requiresRefresh) {
         // The row stays until the server is asked again, so the message and its Refresh button
         // stay on the row the tutor acted on and the counts keep matching the visible ledger.

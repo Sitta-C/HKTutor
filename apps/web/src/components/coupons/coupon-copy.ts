@@ -4,6 +4,11 @@ export const couponCopy = {
     eyebrow: 'Admin notebook',
     intro: 'Create percentage discounts and keep track of coupon capacity.',
     create: 'Create coupon',
+    confirmCreate: 'Create this discount coupon?',
+    confirmCreateHelp:
+      'Check the discount, usage limit and expiry. An active coupon can be used immediately after creation.',
+    confirmActivate: 'Activate this coupon?',
+    confirmDeactivate: 'Deactivate this coupon?',
     creating: 'Creating coupon…',
     formTitle: 'New coupon',
     formIntro: 'Set the code, discount and expiry before creating.',
@@ -84,6 +89,11 @@ export const couponCopy = {
     eyebrow: 'สมุดผู้ดูแลระบบ',
     intro: 'สร้างส่วนลดแบบเปอร์เซ็นต์ พร้อมติดตามจำนวนการใช้คูปอง',
     create: 'สร้างคูปอง',
+    confirmCreate: 'ยืนยันสร้างคูปองส่วนลดนี้?',
+    confirmCreateHelp:
+      'ตรวจสอบส่วนลด จำนวนใช้ และวันหมดอายุ คูปองที่เปิดใช้งานจะใช้สิทธิ์ได้ทันทีหลังสร้าง',
+    confirmActivate: 'ยืนยันเปิดใช้งานคูปองนี้?',
+    confirmDeactivate: 'ยืนยันปิดใช้งานคูปองนี้?',
     creating: 'กำลังสร้างคูปอง…',
     formTitle: 'คูปองใหม่',
     formIntro: 'กำหนดรหัส ส่วนลด และวันหมดอายุก่อนสร้าง',

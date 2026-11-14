@@ -10,9 +10,11 @@ import { getCouponRequestError, mergeCouponPages } from '@/components/coupons/co
 import { DashboardLoading } from '@/components/dashboard/dashboard-loading';
 import DashboardShell from '@/components/dashboard/dashboard-shell';
 import { NotebookPage } from '@/components/ui/notebook';
+import { NotebookConfirmDialog } from '@/components/ui/notebook-confirm-dialog';
 import { useNotebookToast } from '@/components/ui/notebook-toast';
 import { listAdminCoupons, setAdminCouponActivation } from '@/lib/api/coupons';
 import { useAuth } from '@/lib/auth-context';
+import { formatBangkokDateTime } from '@/lib/date-time';
 import { useLanguage } from '@/lib/i18n';
 import { withReturnTo } from '@/lib/return-to';
 
@@ -50,6 +52,7 @@ function CouponWorkspace() {
   const refreshAfterActivation = useRef(false);
   const [changingId, setChangingId] = useState<string | null>(null);
   const [uncertainIds, setUncertainIds] = useState<string[]>([]);
+  const [activationTarget, setActivationTarget] = useState<AdminCoupon | null>(null);
   const toast = useNotebookToast();
 
   const readPage = useCallback((cursor?: string) => {
@@ -145,6 +148,7 @@ function CouponWorkspace() {
       const kind = getCouponRequestError(error);
       if (kind === 'unauthorized' || kind === 'forbidden') {
         refreshAfterActivation.current = false;
+        toast.error(kind === 'unauthorized' ? copy.session : copy.denied);
         setDenied(kind);
         setItems([]);
       } else {
@@ -154,6 +158,7 @@ function CouponWorkspace() {
     } finally {
       activationRequest.current = null;
       if (!controller.signal.aborted && mounted.current) {
+        setActivationTarget(null);
         setChangingId(null);
         if (refreshAfterActivation.current) {
           refreshAfterActivation.current = false;
@@ -199,7 +204,7 @@ function CouponWorkspace() {
           loadingMore={loadingMore}
           changingId={changingId}
           uncertainIds={uncertainIds}
-          onActivationChange={(coupon) => void changeActivation(coupon)}
+          onActivationChange={setActivationTarget}
           failed={failed}
           nextCursor={nextCursor}
           onMore={() => {
@@ -211,6 +216,38 @@ function CouponWorkspace() {
           onRetry={() => void load(retryCursor.current)}
         />
       </div>
+      <NotebookConfirmDialog
+        open={activationTarget !== null}
+        title={activationTarget?.active ? copy.confirmDeactivate : copy.confirmActivate}
+        description={copy.activationHint}
+        confirmLabel={activationTarget?.active ? copy.deactivate : copy.activate}
+        role="admin"
+        tone={activationTarget?.active ? 'danger' : 'primary'}
+        busy={changingId !== null}
+        onCancel={() => setActivationTarget(null)}
+        onConfirm={() => (activationTarget ? changeActivation(activationTarget) : undefined)}
+      >
+        {activationTarget && (
+          <dl>
+            <div>
+              <dt>{copy.code}</dt>
+              <dd>
+                {activationTarget.code} · {activationTarget.percent}%
+              </dd>
+            </div>
+            <div>
+              <dt>{copy.available}</dt>
+              <dd>
+                {activationTarget.availableUses} / {activationTarget.maxUses}
+              </dd>
+            </div>
+            <div>
+              <dt>{copy.expiry}</dt>
+              <dd>{formatBangkokDateTime(activationTarget.expiresAt, language)}</dd>
+            </div>
+          </dl>
+        )}
+      </NotebookConfirmDialog>
     </div>
   );
 }

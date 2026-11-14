@@ -25,6 +25,14 @@ export const rescheduleCopy = {
     choose: 'Choose a target slot',
     empty: 'No available future slots for this tutor. Refresh to check again.',
     CREATE: 'Send reschedule request',
+    confirmTitle: 'Confirm reschedule action?',
+    confirmDescriptions: {
+      CREATE:
+        'Send this proposed time to the other participant. The original booking stays in place until approval.',
+      APPROVE: 'Move this booking to the requested time and release the original time.',
+      REJECT: 'Reject this request. The original booking and class time will stay unchanged.',
+      WITHDRAW: 'Withdraw your request. The original booking and class time will stay unchanged.',
+    },
     APPROVE: 'Approve reschedule',
     REJECT: 'Reject reschedule',
     WITHDRAW: 'Withdraw reschedule',
@@ -76,6 +84,13 @@ export const rescheduleCopy = {
     choose: 'เลือกเวลาใหม่',
     empty: 'ไม่มีเวลาว่างในอนาคตของติวเตอร์คนนี้ ลองรีเฟรชเพื่อตรวจสอบอีกครั้ง',
     CREATE: 'ส่งคำขอเลื่อนเวลา',
+    confirmTitle: 'ยืนยันทำรายการเลื่อนเวลา?',
+    confirmDescriptions: {
+      CREATE: 'ส่งเวลาใหม่ให้อีกฝ่ายพิจารณา การจองเดิมยังคงอยู่จนกว่าอีกฝ่ายจะอนุมัติ',
+      APPROVE: 'การจองจะเปลี่ยนเป็นเวลาที่ขอ และเวลาคลาสเดิมจะถูกปล่อยให้ว่าง',
+      REJECT: 'ปฏิเสธคำขอนี้ โดยการจองและเวลาเรียนเดิมจะไม่เปลี่ยนแปลง',
+      WITHDRAW: 'ถอนคำขอของคุณ โดยการจองและเวลาเรียนเดิมจะไม่เปลี่ยนแปลง',
+    },
     APPROVE: 'อนุมัติการเลื่อนเวลา',
     REJECT: 'ปฏิเสธการเลื่อนเวลา',
     WITHDRAW: 'ถอนคำขอเลื่อนเวลา',

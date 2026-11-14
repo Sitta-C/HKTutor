@@ -415,6 +415,7 @@ for (const role of ['STUDENT', 'TUTOR'] as const) {
       unselectedColor,
     );
     await ui.panel.getByRole('button', { name: 'Send reschedule request', exact: true }).click();
+    await confirmPendingAction(page);
     await expect(ui.panel.getByRole('status')).toHaveText('Pending reschedule');
     await expect(ui.panel).toContainText('Only the other participant can approve or reject');
     await expect(
@@ -424,6 +425,7 @@ for (const role of ['STUDENT', 'TUTOR'] as const) {
       { action: 'create', body: { targetSlotId: target.id, reason: 'Exam conflict' } },
     ]);
     await ui.panel.getByRole('button', { name: 'Withdraw reschedule', exact: true }).click();
+    await confirmPendingAction(page);
     await expect(ui.panel.getByRole('status')).toContainText('Reschedule withdrawn');
     expect(ui.getBooking().slot).toEqual(original);
     await ui.reload();
@@ -440,6 +442,7 @@ for (const role of ['STUDENT', 'TUTOR'] as const) {
       ui.panel.getByRole('button', { name: 'Withdraw reschedule', exact: true }),
     ).toHaveCount(0);
     await ui.panel.getByRole('button', { name: 'Approve reschedule', exact: true }).click();
+    await confirmPendingAction(page);
     await expect(ui.panel.getByRole('status')).toHaveText('Reschedule approved');
     await ui.open();
     await expect(ui.panel).toContainText(
@@ -454,6 +457,7 @@ for (const role of ['STUDENT', 'TUTOR'] as const) {
   test(`${role} rejects a pending request and preserves the original booking`, async ({ page }) => {
     const ui = await setup(page, role, { requester: 'other' });
     await ui.panel.getByRole('button', { name: 'Reject reschedule', exact: true }).click();
+    await confirmPendingAction(page);
     await expect(ui.panel.getByRole('status')).toContainText('Reschedule rejected');
     expect(ui.getBooking().slot).toEqual(original);
     await expect(ui.panel.getByRole('radio')).toHaveCount(1);
@@ -468,6 +472,7 @@ for (const role of ['STUDENT', 'TUTOR'] as const) {
       errorCode: 'RESCHEDULE_TARGET_RESERVED',
     });
     await ui.panel.getByRole('button', { name: 'Approve reschedule', exact: true }).click();
+    await confirmPendingAction(page);
     await expect(ui.panel.getByRole('alert')).toContainText('target is no longer available');
     await expect(
       ui.panel.getByRole('button', { name: 'Reject reschedule', exact: true }),
@@ -520,6 +525,7 @@ for (const role of ['STUDENT', 'TUTOR'] as const) {
       await expect(ui.panel.getByRole('status')).toHaveText('Pending reschedule');
       const closeAction = requester === 'self' ? 'Withdraw reschedule' : 'Reject reschedule';
       await ui.panel.getByRole('button', { name: closeAction, exact: true }).click();
+      await confirmPendingAction(page);
       await expect(ui.panel.getByRole('status')).toContainText(
         requester === 'self' ? 'Reschedule withdrawn' : 'Reschedule rejected',
       );
@@ -537,6 +543,7 @@ for (const role of ['STUDENT', 'TUTOR'] as const) {
       errorCode: 'RESCHEDULE_TARGET_PAST',
     });
     await ui.panel.getByRole('button', { name: 'Approve reschedule', exact: true }).click();
+    await confirmPendingAction(page);
     await expect(ui.panel.getByRole('alert')).toContainText('requested time has already started');
     await expect(
       ui.panel.getByRole('button', { name: 'Approve reschedule', exact: true }),
@@ -594,6 +601,7 @@ for (const role of ['STUDENT', 'TUTOR'] as const) {
           expect(ui.writes).toHaveLength(0);
         } else {
           await approve.click();
+          await confirmPendingAction(page);
           await expect(ui.panel.getByRole('status')).toHaveText(
             language === 'th' ? 'อนุมัติการเลื่อนเวลาแล้ว' : 'Reschedule approved',
           );
@@ -621,6 +629,7 @@ test('approval does not steal focus after the user leaves while the new panel lo
     await route.fulfill({ json: { request: null, targetSlot: null, allowedActions: ['CREATE'] } });
   });
   await ui.panel.getByRole('button', { name: 'Approve reschedule', exact: true }).click();
+  await confirmPendingAction(page);
   await expect(ui.panel.getByRole('button', { name: 'Reschedule', exact: true })).toBeDisabled();
   const back = page.getByRole('link', { name: 'Back to my bookings', exact: true });
   await back.focus();
@@ -718,6 +727,7 @@ test('server cutoff validation overrides a previously eligible form', async ({ p
   });
   await ui.panel.getByRole('radio').check();
   await ui.panel.getByRole('button', { name: 'Send reschedule request', exact: true }).click();
+  await confirmPendingAction(page);
   await expect(ui.panel.getByRole('alert')).toContainText('at least 24 hours');
   await expect(
     ui.panel.getByRole('button', { name: 'Send reschedule request', exact: true }),
@@ -735,6 +745,7 @@ test('an unresolved payment rejects approval without moving the original class',
     errorCode: 'PAYMENT_IN_PROGRESS',
   });
   await ui.panel.getByRole('button', { name: 'Approve reschedule', exact: true }).click();
+  await confirmPendingAction(page);
   await expect(ui.panel.getByRole('alert')).toHaveText(rescheduleCopy.en.paymentInProgress);
   expect(ui.getBooking().slot).toEqual(original);
   expect(ui.writes).toHaveLength(1);
@@ -771,6 +782,7 @@ test('a payment refresh started before approval cannot restore the original slot
   await page.getByRole('button', { name: 'Check payment status', exact: true }).click();
   await reading;
   await ui.panel.getByRole('button', { name: 'Approve reschedule', exact: true }).click();
+  await confirmPendingAction(page);
   await expect(ui.panel.getByRole('status')).toHaveText('Reschedule approved');
   await ui.open();
   release();
@@ -787,6 +799,7 @@ test('a payment write finishes before a reschedule can start', async ({ page }) 
   const ui = await setup(page, 'STUDENT', { requester: 'other', paymentGate: gate });
   const payment = page.getByRole('region', { name: 'Pay with PromptPay', exact: true });
   await payment.getByRole('button', { name: 'Create test QR', exact: true }).click();
+  await confirmPendingAction(page);
   await expect(
     ui.panel.getByRole('button', { name: 'Approve reschedule', exact: true }),
   ).toBeDisabled();
@@ -804,6 +817,7 @@ for (const status of [403, 'network'] as const) {
   }) => {
     const ui = await setup(page, 'STUDENT', { requester: 'other', errorStatus: status });
     await ui.panel.getByRole('button', { name: 'Approve reschedule', exact: true }).click();
+    await confirmPendingAction(page);
     await expect(ui.panel.getByRole('alert')).toContainText(
       status === 403 ? 'permission' : 'could not be confirmed',
     );
@@ -830,6 +844,7 @@ test('a failed read after create locks the form without claiming pending or rese
   await ui.panel.getByRole('radio').check();
   ui.failReads();
   await ui.panel.getByRole('button', { name: 'Send reschedule request', exact: true }).click();
+  await confirmPendingAction(page);
   await expect(ui.panel.getByRole('alert')).toContainText('could not be confirmed');
   await expect(
     ui.panel.getByRole('button', { name: 'Send reschedule request', exact: true }),
@@ -846,6 +861,7 @@ test('an in-flight decision disables duplicate writes, refresh and cancellation'
   });
   const ui = await setup(page, 'STUDENT', { requester: 'other', gate });
   await ui.panel.getByRole('button', { name: 'Approve reschedule', exact: true }).click();
+  await confirmPendingAction(page);
   await expect(ui.panel.getByRole('button', { name: 'Saving…' }).first()).toBeDisabled();
   await expect(
     ui.panel.getByRole('button', { name: 'Refresh reschedule and booking' }),
@@ -935,6 +951,7 @@ test('closing and reopening a failed request preserves its error, refresh and ac
 }) => {
   const ui = await setup(page, 'TUTOR', { requester: 'other', errorStatus: 409 });
   await ui.panel.getByRole('button', { name: 'Approve reschedule', exact: true }).click();
+  await confirmPendingAction(page);
   await expect(ui.panel.getByRole('alert')).toContainText('Refresh before continuing');
   await ui.panel.getByRole('button', { expanded: true }).click();
   await expect(ui.panel.getByRole('alert')).toBeVisible();
@@ -998,3 +1015,9 @@ test('Thai target selection remains keyboard accessible at 320px', async ({ page
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await ui.panel.screenshot({ path: testInfo.outputPath('reschedule-thai-mobile.png') });
 });
+
+// Existing journey checks deliberately confirm the new review step before asserting the API result.
+async function confirmPendingAction(page: Page): Promise<void> {
+  const dialog = page.locator('dialog[data-notebook-confirmation]');
+  if (await dialog.count()) await dialog.getByRole('button').last().click();
+}

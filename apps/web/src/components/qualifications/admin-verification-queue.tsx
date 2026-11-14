@@ -8,6 +8,7 @@ import { qualificationErrorKind } from '@/components/qualifications/qualificatio
 import { ReviewDecisionForm } from '@/components/qualifications/review-decision-form';
 import { PaperCard, WashiTape } from '@/components/ui/notebook';
 import { NotebookMetadata } from '@/components/ui/notebook-metadata';
+import { useNotebookToast } from '@/components/ui/notebook-toast';
 import {
   getAdminVerification,
   getAdminVerificationSignedUrl,
@@ -35,6 +36,7 @@ const QUEUE_STATUS_STYLE = {
 export function AdminVerificationQueue() {
   const { language } = useLanguage();
   const copy = qualificationCopy[language];
+  const toast = useNotebookToast();
   const [status, setStatus] = useState<QualificationStatus>('PENDING');
   const [items, setItems] = useState<QueueItem[]>([]);
   const [cursor, setCursor] = useState<string | null>(null);
@@ -184,9 +186,10 @@ export function AdminVerificationQueue() {
       await reviewAdminVerification(reviewedDocumentId, payload);
       saved = true;
     } catch (caught) {
-      setNotice(
-        qualificationErrorKind(caught) === 'conflict' ? copy.reviewConflict : copy.reviewError,
-      );
+      const message =
+        qualificationErrorKind(caught) === 'conflict' ? copy.reviewConflict : copy.reviewError;
+      setNotice(message);
+      toast.error(message);
     }
     if (selectedIdRef.current === reviewedDocumentId) {
       setDetail(null);
@@ -195,6 +198,7 @@ export function AdminVerificationQueue() {
     setCursor(null);
     if (saved) {
       setNotice(copy.reviewSuccess);
+      toast.success(copy.reviewSuccess);
     }
     await Promise.allSettled([
       ...(selectedIdRef.current === reviewedDocumentId ? [reloadDetail(reviewedDocumentId)] : []),
@@ -390,7 +394,12 @@ export function AdminVerificationQueue() {
                   </div>
                 )}
                 {detail.document.status === 'PENDING' && (
-                  <ReviewDecisionForm copy={copy} onReview={review} disabled={reviewing} />
+                  <ReviewDecisionForm
+                    copy={copy}
+                    onReview={review}
+                    disabled={reviewing}
+                    documentLabel={`${detail.tutor.displayName} — ${detail.document.fileName}`}
+                  />
                 )}
               </div>
             ) : (

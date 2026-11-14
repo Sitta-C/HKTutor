@@ -186,6 +186,7 @@ for (const student of [true, false]) {
     );
     expect(calls.filter((call) => call.startsWith('PUT'))).toEqual([]);
     await editor.getByRole('button', { name: 'Remove photo', exact: true }).click();
+    await confirmPendingAction(page);
     await expect(editor.getByRole('status')).toHaveText('Profile photo removed.');
     await expect(
       page.locator('[data-notebook-toast="success"]').filter({ hasText: 'Profile photo removed.' }),
@@ -257,6 +258,7 @@ test('photo removal failure reports one error and preserves the saved photo and 
   const editor = page.getByRole('region', { name: 'Profile photo' });
   await page.locator('#nickname').fill('Unsaved preview');
   await editor.getByRole('button', { name: 'Remove photo', exact: true }).click();
+  await confirmPendingAction(page);
   await expect(page.locator('[data-notebook-toast="error"]')).toHaveText(
     'Could not save your photo. Please try again.',
   );
@@ -302,3 +304,9 @@ test('uses only the public tutor read endpoint for search result images', async 
   expect(calls).toContain(`GET /tutors/${TUTOR_ID}/avatar`);
   expect(calls).not.toContain('GET /profiles/me/avatar');
 });
+
+// Existing journey checks deliberately confirm the new review step before asserting the API result.
+async function confirmPendingAction(page: Page): Promise<void> {
+  const dialog = page.locator('dialog[data-notebook-confirmation]');
+  if (await dialog.count()) await dialog.getByRole('button').last().click();
+}

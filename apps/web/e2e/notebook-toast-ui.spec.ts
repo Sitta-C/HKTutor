@@ -164,12 +164,57 @@ async function mockActions(
         json: path === '/tutors/me/listings' && method === 'GET' ? [listing] : listing,
       });
     }
-    if (path === '/bookings/me' || path === '/tutors/me/bookings')
+    if (path === '/bookings/me' || path === '/tutors/me/bookings' || path === '/bookings/tutor')
       return route.fulfill({ json: { items: [], total: 0 } });
     if (path === '/tutors/me/availability') return route.fulfill({ json: [] });
     return fail(404);
   });
   return { writes, pageErrors };
+}
+
+for (const language of ['en', 'th'] as const) {
+  test(`course editor confirms publication and discarding without native browser prompts (${language})`, async ({
+    page,
+  }, testInfo) => {
+    await page.setViewportSize({ width: 320, height: 740 });
+    const calls = await mockActions(page, { role: 'TUTOR', language });
+    await page.goto('/dashboard/listings/preview-course/edit');
+    const description = page.locator('#listing-description');
+    await expect(description).toHaveValue('Review concepts and work through practice questions.');
+    const draft = 'An updated course with examples and focused practice.';
+    await description.fill(draft);
+    const publishLabel = language === 'en' ? 'Save & publish' : 'บันทึกและเผยแพร่';
+    const cancelLabel = language === 'en' ? 'Cancel' : 'ยกเลิก';
+    const publish = page.getByRole('button', { name: publishLabel, exact: true });
+    await publish.click();
+    const dialog = page.getByRole('alertdialog');
+    await expect(dialog).toContainText(draft);
+    await expect(dialog).toContainText('500');
+    expect(calls.writes).toHaveLength(0);
+    await page.screenshot({ path: testInfo.outputPath(`course-publication-${language}-320.png`) });
+    await dialog.getByRole('button', { name: cancelLabel, exact: true }).click();
+    await expect(publish).toBeFocused();
+    await expect(description).toHaveValue(draft);
+    await page.getByRole('button', { name: cancelLabel, exact: true }).click();
+    await expect(dialog).toContainText(
+      language === 'en' ? 'Changes on this page will be lost' : 'การแก้ไขในหน้านี้จะหายไป',
+    );
+    await page.keyboard.press('Escape');
+    await expect(description).toHaveValue(draft);
+    expect(calls.writes).toHaveLength(0);
+    await publish.click();
+    await dialog.getByRole('button', { name: publishLabel, exact: true }).click();
+    await expectToast(
+      page,
+      'success',
+      language === 'en' ? 'Listing published.' : 'เผยแพร่ประกาศแล้ว',
+    );
+    expect(calls.writes).toEqual([
+      'PATCH /tutors/me/listings/preview-course',
+      'POST /tutors/me/listings/preview-course/publish',
+    ]);
+    expect(calls.pageErrors).toEqual([]);
+  });
 }
 
 async function expectToast(page: Page, tone: 'success' | 'error', message: string) {
@@ -398,6 +443,12 @@ for (const action of ['save', 'publish', 'restore'] as const) {
           exact: true,
         })
         .click();
+      if (action === 'publish') {
+        await page
+          .getByRole('alertdialog')
+          .getByRole('button', { name: 'Save & publish', exact: true })
+          .click();
+      }
       await expectToast(
         page,
         failed ? 'error' : 'success',
@@ -405,7 +456,9 @@ for (const action of ['save', 'publish', 'restore'] as const) {
           ? 'Unable to save this listing. Check the details and try again.'
           : action === 'restore'
             ? 'Listing restored to draft.'
-            : 'Your listing changes have been saved.',
+            : action === 'publish'
+              ? 'Listing published.'
+              : 'Your listing changes have been saved.',
       );
       expect(calls.writes).toHaveLength(action === 'publish' && !failed ? 2 : 1);
       expect(calls.pageErrors).toEqual([]);

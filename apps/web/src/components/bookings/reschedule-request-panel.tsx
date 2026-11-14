@@ -15,6 +15,7 @@ import { TargetSlotPicker } from '@/components/bookings/target-slot-picker';
 import { DashboardIcon } from '@/components/dashboard/dashboard-icon';
 import { NotebookField, StatusBadge, notebookInputClass } from '@/components/ui/notebook';
 import { NotebookAction } from '@/components/ui/notebook-action';
+import { NotebookConfirmDialog } from '@/components/ui/notebook-confirm-dialog';
 import { NotebookLoadingRegion } from '@/components/ui/notebook-loading';
 import { useNotebookToast } from '@/components/ui/notebook-toast';
 import { getTutorAvailability } from '@/lib/api/availability';
@@ -101,6 +102,7 @@ export function RescheduleRequestPanel({
   const [reason, setReason] = useState('');
   const [loading, setLoading] = useState(true);
   const [pending, setPending] = useState(false);
+  const [confirmation, setConfirmation] = useState<RescheduleAction | null>(null);
   const [failure, setFailure] = useState<ReturnType<typeof getRescheduleFailure> | null>(null);
   const [now, setNow] = useState(() => Date.now());
 
@@ -185,6 +187,7 @@ export function RescheduleRequestPanel({
     }
     if (!getRescheduleActions(current, user.id, booking, Date.now()).includes(action)) {
       setFailure({ message: copy.conflict, requiresRefresh: true });
+      toast.error(copy.conflict);
       return;
     }
     if (
@@ -195,6 +198,7 @@ export function RescheduleRequestPanel({
         reason.trim().length > 500)
     ) {
       setFailure({ message: copy.invalid, requiresRefresh: false });
+      toast.error(copy.invalid);
       return;
     }
     gate.current = true;
@@ -238,6 +242,7 @@ export function RescheduleRequestPanel({
       }
       if (approval) {
         if (alive.current) {
+          setConfirmation(null);
           onApproved(approval);
           toast.success(copy.success);
         }
@@ -258,11 +263,14 @@ export function RescheduleRequestPanel({
         onRefresh();
       }
       toast.success(copy.success);
+      setConfirmation(null);
     } catch (error: unknown) {
       if (alive.current) {
         const nextFailure = getRescheduleFailure(error, copy);
+        toast.error(nextFailure.message);
         setFailure(nextFailure);
         if (nextFailure.requiresRefresh) {
+          setConfirmation(null);
           onRequiresRefresh();
         }
       }
@@ -277,7 +285,8 @@ export function RescheduleRequestPanel({
 
   function create(event: FormEvent<HTMLFormElement>): void {
     event.preventDefault();
-    void submit('CREATE');
+    if (!locked && candidates.some((slot) => slot.id === selectedId) && reason.trim().length <= 500)
+      setConfirmation('CREATE');
   }
 
   return (
@@ -434,7 +443,7 @@ export function RescheduleRequestPanel({
                   icon={<DashboardIcon name={action === 'APPROVE' ? 'check' : 'close'} />}
                   tone={action === 'APPROVE' ? 'primary' : 'secondary'}
                   disabled={locked}
-                  onClick={() => void submit(action)}
+                  onClick={() => setConfirmation(action)}
                 >
                   {pending ? copy.working : copy[action]}
                 </NotebookAction>
@@ -459,6 +468,46 @@ export function RescheduleRequestPanel({
           {copy.refresh}
         </NotebookAction>
       )}
+      <NotebookConfirmDialog
+        open={confirmation !== null}
+        title={copy.confirmTitle}
+        description={confirmation ? copy.confirmDescriptions[confirmation] : ''}
+        confirmLabel={confirmation ? copy[confirmation] : ''}
+        role={actionRole}
+        tone={confirmation === 'REJECT' || confirmation === 'WITHDRAW' ? 'danger' : 'primary'}
+        busy={pending}
+        disabled={disabled || failure?.requiresRefresh === true}
+        error={failure?.message ?? null}
+        onCancel={() => setConfirmation(null)}
+        onConfirm={() => (confirmation ? submit(confirmation) : undefined)}
+      >
+        <dl>
+          <div>
+            <dt>{copy.original}</dt>
+            <dd>{formatBookingDocketSlot(booking.slot, language).label}</dd>
+          </div>
+          {(confirmation === 'CREATE'
+            ? candidates.find((slot) => slot.id === selectedId)
+            : current?.targetSlot) && (
+            <div>
+              <dt>{copy.target}</dt>
+              <dd>
+                {
+                  formatBookingDocketSlot(
+                    (confirmation === 'CREATE'
+                      ? candidates.find((slot) => slot.id === selectedId)
+                      : current?.targetSlot) ?? booking.slot,
+                    language,
+                  ).label
+                }
+              </dd>
+            </div>
+          )}
+        </dl>
+        {(confirmation === 'CREATE' ? reason.trim() : request?.reason) && (
+          <blockquote>{confirmation === 'CREATE' ? reason.trim() : request?.reason}</blockquote>
+        )}
+      </NotebookConfirmDialog>
     </section>
   );
 }

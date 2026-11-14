@@ -711,9 +711,23 @@ See [NotebookToast action audit](notebook-toast-audit.md) for the completed acti
 - Existing source and this guide are the portable reference for new chats.
 - `ui-design/uidesign.md` supplies page/data mapping and historical prototypes. Use this newer guide
   and current source for the visual direction when older descriptions conflict.
-- **Global confirmation component is still a proposal**, not an approved global implementation.
-  Paper Dialog, Sticky Memo, Binder Notice, and Decision Sheet were previewed; no explicit design
-  choice has been given. The existing availability delete dialog remains its own implemented flow.
+- Important action confirmations reuse the **implemented availability/course alert** through
+  `NotebookConfirmDialog`. It composes the existing paper, binding, summary and responsive styles;
+  Paper Dialog, Sticky Memo, Binder Notice and Decision Sheet remain unselected visual proposals.
+  Use a native alert dialog with an action-specific consequence and a readable summary. Focus Cancel
+  first, preserve the draft on cancel/Escape, and restore focus to the trigger when it still exists.
+  Keep the background inert, block dismissal and repeated writes while submitting, and recheck
+  eligibility on confirmation. Body portals avoid nested forms, including photo removal within the
+  profile editor. Long summaries scroll within the viewport; actions stack on narrow phones.
+  Attendance, reviews, reschedule decisions, payment initiation/zero-net settlement, qualification
+  decisions, coupon creation/activation, photo removal, and editor publication/discard use this
+  wrapper. Existing booking decisions/cancellation and course/availability alerts remain in place.
+  Ordinary field edits, selection, navigation, chat messages and reversible saves do not need an
+  extra confirmation. The booking request route already provides its own review step.
+  Pair explicit write outcomes with the existing bilingual NotebookToast and persistent recovery
+  messages. A ready QR is not a paid receipt; only a confirmed paid response may say payment succeeded.
+  Initial reads, background polling and automatic reconciliation do not produce success toasts.
+  See [the action audit](notebook-toast-audit.md) for coverage.
 - `/dashboard/listings` uses the implemented **Course Ledger** design, selected on 2026-10-06.
   Keep the existing course-management search, publication filters, editing links, publication,
   archive confirmation, and restoration. Published badges are blue, drafts warm, and archived

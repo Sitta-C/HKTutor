@@ -725,16 +725,19 @@ test('admin retries failed detail, rejects with a note and approves another docu
   await expect(queue.getByRole('link', { name: 'Open private document' })).toBeVisible();
   await queue.getByRole('radio', { name: 'Reject' }).check();
   await queue.getByRole('button', { name: 'Reject', exact: true }).click();
+  await confirmPendingAction(page);
   await expect(queue.getByText('Enter a reason before rejecting.')).toBeVisible();
   expect(decisions).toHaveLength(0);
   await queue.getByLabel('Review note').fill('  Missing seal  ');
   await queue.getByRole('button', { name: 'Reject', exact: true }).click();
+  await confirmPendingAction(page);
   await expect(queue.getByText('Review saved.')).toBeVisible();
   await expect(queue.getByText('Review note: Missing seal')).toBeVisible();
   expect(decisions).toEqual([{ decision: 'REJECTED', reason: 'Missing seal' }]);
   await queue.getByRole('button', { name: /Tutor Two/ }).click();
   await queue.getByLabel('Review note').fill('Original certificate checked');
   await queue.getByRole('button', { name: 'Approve', exact: true }).click();
+  await confirmPendingAction(page);
   await expect(queue.getByText('Approved', { exact: true }).first()).toBeVisible();
   expect(decisions).toEqual([
     { decision: 'REJECTED', reason: 'Missing seal' },
@@ -809,7 +812,9 @@ test('admin load more waits for a queue refresh to finish', async ({ page }) => 
   expect(moreReads).toBe(0);
 });
 
-test('switching documents during a review keeps the selected detail in sync', async ({ page }) => {
+test('review confirmation locks the document until saved, then permits the next review', async ({
+  page,
+}) => {
   await session(page);
   let releaseReview: (() => void) | undefined;
   let markReviewStarted: (() => void) | undefined;
@@ -909,19 +914,26 @@ test('switching documents during a review keeps the selected detail in sync', as
   await queue.getByRole('button', { name: /Tutor One/ }).click();
   await expect(queue.getByRole('heading', { name: 'Tutor One' })).toBeVisible();
   await queue.getByRole('button', { name: 'Approve', exact: true }).click();
+  await confirmPendingAction(page);
   await reviewStarted;
-  await queue.getByRole('button', { name: /Tutor Two/ }).click();
-  await expect(queue.getByRole('heading', { name: 'Tutor Two' })).toBeVisible();
-  await expect(queue.getByRole('button', { name: 'Approve', exact: true })).toBeDisabled();
+  const confirmation = page.locator('dialog[data-notebook-confirmation]');
+  await expect(confirmation).toHaveAttribute('aria-busy', 'true');
+  await expect(confirmation.getByRole('button', { name: 'Cancel', exact: true })).toBeDisabled();
+  await page.keyboard.press('Escape');
+  await expect(confirmation).toBeVisible();
+  await expect(queue.getByRole('heading', { name: 'Tutor One' })).toBeVisible();
+  await expect(queue.getByRole('button', { name: 'Saving review', exact: true })).toBeDisabled();
   releaseReview?.();
+  await expect(confirmation).toHaveCount(0);
   await expect(queue.getByText('Review saved.')).toBeVisible();
+  await queue.getByRole('button', { name: /Tutor Two/ }).click();
   await expect(queue.getByRole('button', { name: /Tutor Two/ })).toHaveAttribute(
     'aria-current',
     'true',
   );
   await expect(queue.getByRole('heading', { name: 'Tutor Two' })).toBeVisible();
   await expect(queue.getByRole('button', { name: 'Approve', exact: true })).toBeEnabled();
-  expect(detailReads).toEqual(['doc-1', 'doc-2']);
+  expect(detailReads).toEqual(['doc-1', 'doc-1', 'doc-2']);
   expect(reviewRequests).toBe(1);
 });
 
@@ -981,6 +993,7 @@ test('review failure leaves the pending decision unchanged', async ({ page }) =>
   const queue = page.getByRole('region', { name: 'Tutor verification queue' });
   await queue.getByRole('button', { name: /Tutor One/ }).click();
   await queue.getByRole('button', { name: 'Approve', exact: true }).click();
+  await confirmPendingAction(page);
   await expect(
     queue.getByText('Could not confirm the review. Check its current status before trying again.'),
   ).toBeVisible();
@@ -1059,6 +1072,7 @@ test('ambiguous review failure reloads a decision already saved by the server', 
   const queue = page.getByRole('region', { name: 'Tutor verification queue' });
   await queue.getByRole('button', { name: /Tutor One/ }).click();
   await queue.getByRole('button', { name: 'Approve', exact: true }).click();
+  await confirmPendingAction(page);
   await expect(queue.getByRole('paragraph').filter({ hasText: /^Approved$/ })).toBeVisible();
   await expect(queue.getByRole('button', { name: 'Approve', exact: true })).toHaveCount(0);
   await expect(
@@ -1135,9 +1149,16 @@ test('review conflict reloads server state and removes the pending form', async 
   const queue = page.getByRole('region', { name: 'Tutor verification queue' });
   await queue.getByRole('button', { name: /Tutor One/ }).click();
   await queue.getByRole('button', { name: 'Approve', exact: true }).click();
+  await confirmPendingAction(page);
   await expect(
     queue.getByText('This document was reviewed elsewhere. The queue has been refreshed.'),
   ).toBeVisible();
   await expect(queue.getByText('Approved', { exact: true }).last()).toBeVisible();
   await expect(queue.getByRole('button', { name: 'Approve', exact: true })).toHaveCount(0);
 });
+
+// Existing journey checks deliberately confirm the new review step before asserting the API result.
+async function confirmPendingAction(page: Page): Promise<void> {
+  const dialog = page.locator('dialog[data-notebook-confirmation]');
+  if (await dialog.count()) await dialog.getByRole('button').last().click();
+}

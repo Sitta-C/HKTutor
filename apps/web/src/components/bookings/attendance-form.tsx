@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 
 import { classDetailsCopy } from '@/components/bookings/class-details-copy';
 import { NotebookAction } from '@/components/ui/notebook-action';
+import { NotebookConfirmDialog } from '@/components/ui/notebook-confirm-dialog';
 import { useNotebookToast } from '@/components/ui/notebook-toast';
 import { updateAttendance } from '@/lib/api/bookings';
 import { ApiError } from '@/lib/api/error';
@@ -34,6 +35,7 @@ export function AttendanceForm({
   const [pending, setPending] = useState(false);
   const [selection, setSelection] = useState<AttendanceStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [confirming, setConfirming] = useState(false);
   const gate = useRef(false);
   const active = useRef(false);
 
@@ -58,6 +60,7 @@ export function AttendanceForm({
         return;
       }
       toast.success(summary.idempotentReplay ? text.attendanceReplay : text.attendanceSaved);
+      setConfirming(false);
       await onSaved(summary);
     } catch (caught: unknown) {
       if (!active.current) {
@@ -89,6 +92,7 @@ export function AttendanceForm({
             ? text.notFound
             : text.attendanceFailed;
       setError(message);
+      setConfirming(false);
       toast.error(message);
       onUncertain?.(caught);
     } finally {
@@ -142,11 +146,28 @@ export function AttendanceForm({
           tone={selection === 'ABSENT' ? 'danger' : 'primary'}
           disabled={pending || disabled || Boolean(disabledMessage) || selection === null}
           aria-describedby={disabledMessage ? 'attendance-help' : 'attendance-finality'}
-          onClick={() => void save()}
+          onClick={() => setConfirming(true)}
         >
           {pending ? text.attendanceSaving : text.recordAttendance}
         </NotebookAction>
       </div>
+      <NotebookConfirmDialog
+        open={confirming}
+        title={text.attendanceConfirm}
+        description={text.attendanceFinality}
+        confirmLabel={text.recordAttendance}
+        busy={pending}
+        disabled={disabled || Boolean(disabledMessage) || selection === null}
+        error={error}
+        tone={selection === 'ABSENT' ? 'danger' : 'primary'}
+        onCancel={() => setConfirming(false)}
+        onConfirm={save}
+      >
+        <p>
+          {text.attendanceChoice}:{' '}
+          <strong>{selection === 'ATTENDED' ? text.attended : text.absent}</strong>
+        </p>
+      </NotebookConfirmDialog>
     </section>
   );
 }

@@ -8,6 +8,7 @@ import {
   normalizeBookingCouponCode,
 } from '@/components/bookings/booking-coupon-model';
 import { NotebookAction } from '@/components/ui/notebook-action';
+import { useNotebookToast } from '@/components/ui/notebook-toast';
 import { useLanguage } from '@/lib/i18n';
 
 import styles from './booking-coupon-strip.module.css';
@@ -38,6 +39,7 @@ export function BookingCouponStrip({
 }) {
   const { language } = useLanguage();
   const text = bookingCouponCopy[language];
+  const toast = useNotebookToast();
   const fieldId = useId();
   const [code, setCode] = useState('');
   const [invalid, setInvalid] = useState(false);
@@ -74,6 +76,7 @@ export function BookingCouponStrip({
     }
     if (!isBookingCouponCodeValid(code)) {
       setInvalid(true);
+      toast.error(text.invalid);
       input.current?.focus();
       return;
     }

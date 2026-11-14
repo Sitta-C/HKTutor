@@ -31,6 +31,7 @@ export const classDetailsCopy = {
     attendanceHelp: 'Record the student’s attendance after the class has ended.',
     attendanceChoice: 'Attendance result',
     recordAttendance: 'Record attendance',
+    attendanceConfirm: 'Confirm attendance record?',
     attendanceFinality:
       'Check your selection before recording. Saved attendance cannot be changed.',
     attended: 'Attended',
@@ -81,6 +82,7 @@ export const classDetailsCopy = {
     attendanceHelp: 'บันทึกการเข้าเรียนของนักเรียนหลังจากคลาสสิ้นสุดแล้ว',
     attendanceChoice: 'ผลการเข้าเรียน',
     recordAttendance: 'บันทึกการเข้าเรียน',
+    attendanceConfirm: 'ยืนยันบันทึกการเข้าเรียน?',
     attendanceFinality:
       'ตรวจสอบผลที่เลือกก่อนบันทึก ข้อมูลการเข้าเรียนที่บันทึกแล้วไม่สามารถแก้ไขได้',
     attended: 'เข้าเรียน',

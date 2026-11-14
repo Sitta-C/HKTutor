@@ -73,11 +73,13 @@ export function BookingCancellation({
     if (currentEligibility !== 'eligible') {
       setNow(Date.now());
       setFailure({ message: copy[currentEligibility], requiresRefresh: true });
+      toast.error(copy[currentEligibility]);
       onRequiresRefresh?.();
       return;
     }
     if (!reason.trim()) {
       setFailure({ message: copy.required, requiresRefresh: false });
+      toast.error(copy.required);
       return;
     }
     inFlight.current = true;
@@ -88,6 +90,7 @@ export function BookingCancellation({
       const result = await cancelBooking(booking.id, reason);
       if (result.bookingId !== booking.id || result.status !== 'CANCELED') {
         setFailure({ message: copy.uncertain, requiresRefresh: true });
+        toast.error(copy.uncertain);
         onRequiresRefresh?.();
         return;
       }
@@ -97,6 +100,7 @@ export function BookingCancellation({
       onCanceled(result);
     } catch (error: unknown) {
       const nextFailure = getCancellationFailure(error, copy);
+      toast.error(nextFailure.message);
       setFailure(nextFailure);
       if (nextFailure.requiresRefresh) {
         onRequiresRefresh?.();
