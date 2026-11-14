@@ -5,7 +5,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { BookingStatusBreakdown } from '@/components/reports/booking-status-breakdown';
 import { reportCopy } from '@/components/reports/report-copy';
 import { createTutorReportViewModel, getReportFailure } from '@/components/reports/report-model';
-import { ReportSummaryCards } from '@/components/reports/report-summary-cards';
+import { ReportOutcomes } from '@/components/reports/report-outcomes';
 import {
   TutorReportPanel,
   type TutorReportPanelState,
@@ -35,7 +35,7 @@ describe('tutor report presentation', () => {
       createElement(
         'main',
         null,
-        createElement(ReportSummaryCards, { copy: reportCopy.en, report: model }),
+        createElement(ReportOutcomes, { copy: reportCopy.en, report: model }),
         createElement(BookingStatusBreakdown, { copy: reportCopy.en, report: model }),
       ),
     );
@@ -46,18 +46,8 @@ describe('tutor report presentation', () => {
       completionRate: '75%',
     });
     expect(model.statuses.map(({ count }) => count)).toEqual(['3', '1', '6', '2', '0']);
-    expect(markup).toContain('All-time net amount from paid, completed bookings only.');
-    expect(markup).toContain('Completed out of finalized bookings (completed &amp; canceled).');
-    expect(markup.match(/rounded-2xl border border-paper-edge bg-white p-5/g)).toHaveLength(3);
-    expect(markup).not.toContain('bg-sticky-blue');
-    expect(markup).not.toContain('bg-sticky-green');
-    expect(markup).not.toContain('bg-sticky-yellow');
-    expect(markup).toContain('border-amber-200 bg-amber-50 text-amber-800');
-    expect(markup).toContain('border-emerald-200 bg-emerald-50 text-emerald-800');
-    expect(markup).toContain('border-stone-200 bg-stone-100 text-stone-700');
-    expect(markup.match(/border-red-200 bg-red-50 text-red-800 before:bg-red-500/g)).toHaveLength(
-      2,
-    );
+    expect(markup).toContain('From paid, completed lessons only, after discounts.');
+    expect(markup).toContain('6 completed out of 8 finalized lessons');
     expect(markup.match(/<li/g)).toHaveLength(5);
   });
 
@@ -75,7 +65,8 @@ describe('tutor report presentation', () => {
 
     expect(empty.totalBookings).toBe('0');
     expect(empty.revenue).toBe('฿0.00');
-    expect(empty.completionRate).toBe('ไม่มีข้อมูล');
+    expect(empty.completionRate).toBe('—');
+    expect(empty.completionContext).toBe(reportCopy.th.noFinalizedLessons);
     expect(empty.statuses.every(({ count }) => count === '0')).toBe(true);
   });
 
@@ -143,7 +134,7 @@ describe('tutor report presentation', () => {
     expect(consent).toContain('Review privacy notice');
   });
 
-  it('uses the analytics heading hierarchy without the report eyebrow when embedded', () => {
+  it('uses a sibling section heading for the all-time summary when embedded', () => {
     const markup = renderToStaticMarkup(
       createElement(
         LanguageProvider,
@@ -156,9 +147,9 @@ describe('tutor report presentation', () => {
       ),
     );
 
-    expect(markup).toContain('<h3 id="dashboard-report-title"');
-    expect(markup).toContain('class="text-base font-bold text-notebook-ink"');
-    expect(markup).toContain('<h4 id="report-status-title"');
+    expect(markup).toContain('<h2 id="dashboard-report-title"');
+    expect(markup).toContain('class="text-xl font-bold text-notebook-ink"');
+    expect(markup).toContain('<h3 id="report-status-title"');
     expect(markup).not.toContain('Teaching record');
   });
 

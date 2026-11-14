@@ -242,26 +242,39 @@ test('Notebook Focus uses existing data and keeps only contextual management lin
   await expect(availability.getByText('ว่าง', { exact: true })).toBeVisible();
   await expect(availability.getByText('ถูกจอง', { exact: true })).toBeVisible();
   const analytics = page.getByRole('region', { name: 'ภาพรวมการสอน', exact: true });
+  const rulerBounds = await analytics
+    .getByRole('group', { name: 'เดือนของภาพรวมการสอน' })
+    .boundingBox();
+  const analyticsBounds = await analytics.boundingBox();
+  expect(rulerBounds).not.toBeNull();
+  expect(analyticsBounds).not.toBeNull();
+  if (rulerBounds && analyticsBounds) {
+    expect(rulerBounds.x + rulerBounds.width).toBeLessThanOrEqual(
+      analyticsBounds.x + analyticsBounds.width + 1,
+    );
+  }
   await expect(analytics.locator('dl').first().locator('dd > span:first-child')).toHaveText([
     '2',
     '2',
     '฿900.00',
-    '—',
   ]);
   await expect(analytics.getByText('ยังไม่มีข้อมูลรีวิว', { exact: true })).toBeVisible();
   const courses = page.getByRole('region', { name: 'ภาพรวมรายคอร์ส', exact: true });
-  const allTimeReport = analytics.getByRole('heading', {
-    level: 3,
-    name: 'รายงานตลอดช่วงเวลา',
-  });
+  const allTimeReport = page.getByRole('region', { name: 'รายงานตลอดช่วงเวลา', exact: true });
   await expect(allTimeReport).toBeVisible();
-  await expect(analytics.getByText('บันทึกการสอน', { exact: true })).toHaveCount(0);
-  const analyticsHeadings = await analytics.getByRole('heading', { level: 3 }).allTextContents();
-  expect(analyticsHeadings.indexOf('รายงานตลอดช่วงเวลา')).toBeLessThan(
-    analyticsHeadings.indexOf('ภาพรวมรายคอร์ส'),
-  );
-  await expect(allTimeReport).toHaveCSS('font-size', '16px');
-  await expect(page.locator('#dashboard-report-title + p')).toHaveCSS('font-size', '12px');
+  expect(
+    await allTimeReport.evaluate((report) => {
+      const monthly = document.getElementById('tutor-analytics');
+      return (
+        monthly !== null &&
+        Boolean(report.compareDocumentPosition(monthly) & Node.DOCUMENT_POSITION_FOLLOWING)
+      );
+    }),
+  ).toBe(true);
+  await expect(analytics.locator('[data-tutor-report]')).toHaveCount(0);
+  await expect(
+    allTimeReport.getByRole('link', { name: 'เปิดรายงานและส่งออกข้อมูล' }),
+  ).toHaveAttribute('href', '/dashboard/reports');
   await expect(
     courses.getByRole('group', { name: 'วิชาของคอร์ส' }).getByRole('button'),
   ).toHaveCount(1);
@@ -459,10 +472,9 @@ test('dashboard scopes booking reads while keeping requests and the next lesson 
     '1',
     '1',
     '฿450.00',
-    '—',
   ]);
   const uniqueQueries = [...new Map(queries.map((query) => [query.toString(), query])).values()];
-  expect(uniqueQueries).toHaveLength(3);
+  expect(uniqueQueries).toHaveLength(4);
   expect(uniqueQueries.find((query) => query.get('status') === 'CONFIRMED')?.get('from')).toBe(
     now.toISOString(),
   );
@@ -470,7 +482,12 @@ test('dashboard scopes booking reads while keeping requests and the next lesson 
   expect(monthly?.get('from')).toBe('2026-09-30T17:00:00.000Z');
   expect(monthly?.get('to')).toBe('2026-10-31T16:59:59.999Z');
   expect(
-    uniqueQueries.every((query) => query.has('status') || (query.has('from') && query.has('to'))),
+    uniqueQueries.every(
+      (query) =>
+        query.get('pageSize') === '1' ||
+        query.has('status') ||
+        (query.has('from') && query.has('to')),
+    ),
   ).toBe(true);
 });
 
@@ -530,7 +547,6 @@ test('slow monthly analytics leave the teaching overview usable and metrics unav
       '—',
       '—',
       '—',
-      '—',
     ]);
     await expect(page.locator('[data-loading-kind]')).toHaveCount(0);
     gate.release();
@@ -538,7 +554,6 @@ test('slow monthly analytics leave the teaching overview usable and metrics unav
       '2',
       '2',
       '฿900.00',
-      '—',
     ]);
   } finally {
     gate.release();
@@ -560,7 +575,6 @@ test('monthly failures stay local and retry recovers real totals', async ({ page
     '—',
     '—',
     '—',
-    '—',
   ]);
   options.failAnalytics = false;
   await alert.getByRole('button', { name: 'ลองใหม่' }).click();
@@ -569,7 +583,6 @@ test('monthly failures stay local and retry recovers real totals', async ({ page
     '2',
     '2',
     '฿900.00',
-    '—',
   ]);
 });
 
@@ -602,20 +615,20 @@ test('an older month response cannot overwrite the newly selected analytics mont
     await page.goto('/dashboard');
     const analytics = page.getByRole('region', { name: 'ภาพรวมการสอน', exact: true });
     const metrics = analytics.locator('dl').first().locator('dd > span:first-child');
-    await expect(metrics).toHaveText(['2', '2', '฿900.00', '—']);
+    await expect(metrics).toHaveText(['2', '2', '฿900.00']);
     const ruler = page.getByRole('group', { name: 'เดือนของภาพรวมการสอน' });
     await ruler.getByRole('button', { name: 'กันยายน 2569', exact: true }).click();
     await expect(analytics.locator('[data-loading-region]')).toBeVisible();
-    await expect(metrics).toHaveText(['—', '—', '—', '—']);
+    await expect(metrics).toHaveText(['—', '—', '—']);
     await ruler.getByRole('button', { name: 'ตุลาคม 2569', exact: true }).click();
-    await expect(metrics).toHaveText(['2', '2', '฿900.00', '—']);
+    await expect(metrics).toHaveText(['2', '2', '฿900.00']);
     const response = page.waitForResponse(
       (item) => new URL(item.url()).searchParams.get('from') === '2026-08-31T17:00:00.000Z',
     );
     gate.release();
     await response;
     await expect(ruler.getByRole('status')).toHaveText('ตุลาคม 2569');
-    await expect(metrics).toHaveText(['2', '2', '฿900.00', '—']);
+    await expect(metrics).toHaveText(['2', '2', '฿900.00']);
   } finally {
     gate.release();
   }
@@ -718,7 +731,6 @@ test('switching analytics months updates real booking totals and leaves earnings
     '2',
     '2',
     '฿900.00',
-    '—',
   ]);
   await page
     .getByRole('group', { name: 'เดือนของภาพรวมการสอน' })
@@ -728,7 +740,6 @@ test('switching analytics months updates real booking totals and leaves earnings
     '0',
     '0',
     '฿0.00',
-    '—',
   ]);
   await expect(analytics.getByText('ยังไม่มีคาบที่ยืนยันในเดือนนี้')).toBeVisible();
   await expect(analytics.getByText('ยังไม่มีข้อมูลรีวิว')).toBeVisible();
@@ -740,7 +751,6 @@ test('switching analytics months updates real booking totals and leaves earnings
     '2',
     '2',
     '฿900.00',
-    '—',
   ]);
   const courses = page.getByRole('region', { name: 'ภาพรวมรายคอร์ส', exact: true });
   await courses.getByRole('listitem').first().getByRole('button').click();

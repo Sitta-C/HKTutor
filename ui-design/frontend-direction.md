@@ -1,6 +1,6 @@
 # HKTutor frontend direction — Notebook Focus
 
-Updated 2026-11-13. This describes the implemented Notebook Focus direction and component
+Updated 2026-11-14. This describes the implemented Notebook Focus direction and component
 patterns in this repository. Maintainers review changes to shared design conventions through the
 normal PR process; this guide does not assert team approval of decisions from an individual chat.
 Read it as implementation context before UI work. The current task's explicit requirements take
@@ -71,7 +71,7 @@ See [implemented frontend behavior](implemented-behavior.md) for detailed intera
 | ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
 | Private messages             | **Margin Inbox**: continuous conversation index and ruled transcript; single pane in narrow content areas, fixed composer and per-conversation drafts/reading position | `apps/web/src/components/conversations/`                                                |
 | Tutor dashboard              | Notebook Focus; teaching overview, pending requests, analytics, and course performance                                                                                 | `apps/web/src/components/dashboard/tutor-dashboard.tsx`                                 |
-| Tutor all-time report        | Semantic summary cards plus a five-status ledger; paid completed net revenue remains separate from monthly booked-value analytics                                      | `apps/web/src/components/reports/`                                                      |
+| Tutor all-time report        | **Teaching Ledger**: continuous total/status rows, net revenue and explicit completion counts; dedicated report adds CSV and print/PDF                                 | `apps/web/src/components/reports/`                                                      |
 | Student dashboard            | **Desk Spread**: two notebook sheets joined by closely spaced wire loops; next booking and compact count strip on the left, booking-derived tutor index on the right   | `apps/web/src/components/dashboard/student-dashboard.tsx` and its stylesheet            |
 | Student course search        | **Course Index**: left filter memo, continuous ruled course rows, grade tabs, yellow rate notes, and plain verification tags; mobile filters collapse                  | `apps/web/src/components/tutors/tutor-search-page.tsx` and its stylesheet               |
 | Public tutor detail          | **Appointment Pad**: Profile Page above a course directory and mint-bound date/time pad; selected course remains visible above the ruled appointment rows              | `apps/web/src/components/tutors/public-tutor-availability.tsx` and its stylesheet       |
@@ -589,6 +589,25 @@ The user selected **Ink Portrait Index**, combining Ink & Sketch and Portrait In
   tutor photos can appear publicly when eligible. Photo saving remains separate from profile fields.
   Styles stay local to `avatar-editor.module.css`; public avatars and profile previews are unchanged.
 
+## Tutor reports — Teaching Ledger
+
+Refined on 2026-11-14 after a screenshot review. Use one warm sheet with a punched binding margin,
+thin ruled status rows and a single paper edge. Avoid individual metric cards and colored status
+tiles. Keep the total beside its five statuses, make net revenue the primary figure, and place the
+API's completed/finalized counts beside the completion rate. For a null rate, explain that no
+finalized lessons exist; preserve a real zero percent. Empty ledgers use quiet markers.
+
+The dashboard report is a sibling before monthly insights. Its footer explains the all-time scope
+and links to `/dashboard/reports`. The month ruler controls only the monthly region, whose three
+metrics share a ledger strip; unavailable received earnings and reviews remain compact notes.
+Use content-container breakpoints so tablet/sidebar widths do not leave orphaned metric tiles.
+
+The dedicated route adds account identity, Bangkok load time, metric definitions, a UTF-8 summary
+CSV and native print/save-PDF. Export only the current successful report response; preserve exact
+decimal money, the API-rounded percent and a blank rate when unavailable. CSV does not include
+individual bookings. Print rules apply only while this route is present and remove navigation,
+controls and decorative page background. Loading/errors retain their existing auth/retry behavior.
+
 ## Global student booking count
 
 On 2026-10-08 the user requested one global state for the student sidebar booking count.
@@ -602,6 +621,14 @@ states show —; zero follows a successful empty response. Clear on login, verif
 session expiry, isolate by user ID and reject late results from older sessions or pre-create reads.
 Guests, tutors and onboarding do not request a student count. This adds a frontend read through the
 existing API, with no backend/client contract or booking payload changes.
+
+On 2026-11-14 the tutor booking-request navigation uses the same role-isolated state, read through
+`getTutorBookings({ status: 'PENDING', page: 1, pageSize: 1 })`. Its bubble shows pending requests
+across all pages, independent of the selected inbox filter. Confirmation, rejection and cancellation
+refresh the authoritative count immediately. It follows the student's route/focus refresh,
+unknown/zero, collapsed-sidebar and session-clearing rules. Tutors never request the student total,
+and students never request the tutor total. The dashboard may hide past pending requests; this
+navigation count includes every server-side pending request.
 
 ## Notification inbox — Minimal Notes (S3-T07)
 

@@ -1,3 +1,5 @@
+import { readFile } from 'node:fs/promises';
+
 import { expect, test } from '@playwright/test';
 
 import type { TutorReport } from '@/lib/api/types';
@@ -45,7 +47,7 @@ function json(route: Route, body: unknown, status = 200) {
 
 async function mockReport(
   page: Page,
-  options: { failOnce?: boolean; role?: 'TUTOR' | 'STUDENT' } = {},
+  options: { failOnce?: boolean; role?: 'TUTOR' | 'STUDENT'; report?: TutorReport } = {},
 ) {
   const user = options.role === 'STUDENT' ? student : tutor;
   let reportReads = 0;
@@ -79,9 +81,10 @@ async function mockReport(
       if (reportFailure) {
         return json(route, { message: 'Service unavailable' }, 503);
       }
-      return json(route, report);
+      return json(route, options.report ?? report);
     }
     if (path === '/api/v1/bookings/student') return json(route, { items: [], total: 0 });
+    if (path === '/api/v1/bookings/tutor') return json(route, { items: [], total: 12 });
     return json(route, { message: `Unexpected request: ${path}` }, 500);
   });
   return {
@@ -134,4 +137,65 @@ test('report route guard sends a student back to the dashboard without reading t
   await page.goto('/dashboard/reports');
   await expect(page).toHaveURL(/\/dashboard$/);
   expect(request.reads()).toBe(0);
+});
+
+test('dedicated report exports its authoritative summary and provides a clean printable view', async ({
+  page,
+}, testInfo) => {
+  await mockReport(page);
+  await page.goto('/dashboard/reports');
+  await expect(page.getByText('6 completed out of 8 finalized lessons')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Reading this report' })).toBeVisible();
+  const downloadEvent = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Download CSV' }).click();
+  const download = await downloadEvent;
+  expect(download.suggestedFilename()).toMatch(/^hktutor-teaching-report-\d{4}-\d{2}-\d{2}\.csv$/);
+  const exportPath = testInfo.outputPath(download.suggestedFilename());
+  await download.saveAs(exportPath);
+  const csv = await readFile(exportPath, 'utf8');
+  expect(csv).toContain('"Net teaching revenue","905.00","THB"');
+  expect(csv).toContain('"Completion rate (%)","75"');
+  await page.evaluate(() => {
+    window.print = () => {
+      document.documentElement.dataset.reportPrinted = 'true';
+    };
+  });
+  await page.getByRole('button', { name: 'Print / save PDF' }).click();
+  await expect(page.locator('html')).toHaveAttribute('data-report-printed', 'true');
+  await page.emulateMedia({ media: 'print' });
+  await expect(page.locator('#dashboard-sidebar')).toBeHidden();
+  await expect(page.locator('header.sticky')).toBeHidden();
+  await expect(page.getByRole('button', { name: 'Download CSV' })).toBeHidden();
+  await expect(page.getByText(/THB\s905\.00/, { exact: true })).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath('print-report.png'), fullPage: true });
+});
+
+test('empty reports explain the unavailable rate and keep five statuses compact at 320px', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 320, height: 740 });
+  await mockReport(page, {
+    report: {
+      totalBookings: 0,
+      statusCounts: { PENDING: 0, CONFIRMED: 0, COMPLETED: 0, CANCELED: 0, EXPIRED: 0 },
+      revenue: { amount: '0.00', currency: 'THB' },
+      completionRate: { completed: 0, finalized: 0, percent: null },
+    },
+  });
+  await page.goto('/dashboard/reports');
+  const reportRegion = page.locator('[data-tutor-report]');
+  await expect(
+    reportRegion.getByText('No finalized lessons to calculate a completion rate yet.'),
+  ).toBeVisible();
+  await expect(reportRegion.getByText('N/A', { exact: true })).toBeVisible();
+  await expect(reportRegion.getByText('0%', { exact: true })).toHaveCount(0);
+  expect((await reportRegion.locator('ul').boundingBox())?.height).toBeLessThan(230);
+  expect(
+    await page.evaluate(() => document.documentElement.scrollWidth - innerWidth),
+  ).toBeLessThanOrEqual(1);
+  await page.getByRole('button', { name: 'Switch language to Thai' }).click();
+  await expect(reportRegion.getByText('ยังไม่มีคาบที่สิ้นสุดสำหรับคำนวณอัตราสำเร็จ')).toBeVisible();
+  expect(
+    await page.evaluate(() => document.documentElement.scrollWidth - innerWidth),
+  ).toBeLessThanOrEqual(1);
 });

@@ -11,10 +11,13 @@ export interface TutorReportViewModel {
   totalBookings: string;
   revenue: string;
   completionRate: string;
+  completionContext: string;
+  hasCompletionRate: boolean;
+  isEmpty: boolean;
   statuses: { status: BookingStatus; label: string; count: string }[];
 }
 
-const REPORT_STATUSES: readonly BookingStatus[] = [
+export const REPORT_STATUSES: readonly BookingStatus[] = [
   'PENDING',
   'CONFIRMED',
   'COMPLETED',
@@ -34,6 +37,14 @@ export function createTutorReportViewModel(
       report.completionRate.percent === null
         ? copy.unavailable
         : `${formatPercent(report.completionRate.percent)}%`,
+    completionContext:
+      report.completionRate.percent === null
+        ? copy.noFinalizedLessons
+        : copy.completionSummary
+            .replace('{completed}', String(report.completionRate.completed))
+            .replace('{finalized}', String(report.completionRate.finalized)),
+    hasCompletionRate: report.completionRate.percent !== null,
+    isEmpty: report.totalBookings === 0,
     statuses: REPORT_STATUSES.map((status) => ({
       status,
       label: copy.status[status],

@@ -174,7 +174,8 @@ test('tutor confirms, rejects and recovers from missing and stale booking reques
 
   await expect(page.getByRole('heading', { name: /Booking inbox/ })).toBeVisible();
   await expectAccessiblePageShell(page);
-  expect(listRequests[0]).toBe('?status=PENDING&page=1&pageSize=10');
+  expect(listRequests).toContain('?status=PENDING&page=1&pageSize=10');
+  await expectPendingNavCount(page, '4');
 
   const maliRow = page.getByRole('article', { name: 'Mali' });
   const nidaRow = page.getByRole('article', { name: 'Nida' });
@@ -193,6 +194,7 @@ test('tutor confirms, rejects and recovers from missing and stale booking reques
   await expect(page.getByText('Booking confirmed. The lesson time stays reserved.')).toBeVisible();
   // The confirmed request leaves the pending view, and the refetched count follows it.
   await expect(page.getByText('3 bookings PENDING')).toBeVisible();
+  await expectPendingNavCount(page, '3');
   await expect(maliRow).toHaveCount(0);
   await expect(page.getByRole('dialog')).toHaveCount(0);
 
@@ -205,6 +207,7 @@ test('tutor confirms, rejects and recovers from missing and stale booking reques
 
   await expect(page.getByText('Booking rejected. The lesson time is open again.')).toBeVisible();
   await expect(page.getByText('2 bookings PENDING')).toBeVisible();
+  await expectPendingNavCount(page, '2');
   await expect(nidaRow).toHaveCount(0);
   expect(decisionRequests).toEqual([
     { path: `/bookings/tutor/${maliBookingId}/confirm`, body: {} },
@@ -809,6 +812,17 @@ async function successfulDecision(
 
 function capitalize(action: DecisionAction): string {
   return action === 'confirm' ? 'Confirm' : 'Reject';
+}
+
+async function expectPendingNavCount(page: Page, count: string): Promise<void> {
+  const mobile = (page.viewportSize()?.width ?? 1440) < 1024;
+  if (mobile) await page.getByRole('button', { name: 'Open sidebar', exact: true }).click();
+  await expect(page.locator('[data-booking-nav-count]')).toHaveText(count);
+  if (mobile)
+    await page
+      .locator('#dashboard-sidebar')
+      .getByRole('button', { name: 'Close sidebar', exact: true })
+      .click();
 }
 
 async function expectAccessiblePageShell(page: Page) {

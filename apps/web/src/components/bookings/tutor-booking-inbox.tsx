@@ -25,6 +25,7 @@ import { NotebookMetadata } from '@/components/ui/notebook-metadata';
 import { NotebookPagination } from '@/components/ui/notebook-pagination';
 import { useNotebookToast } from '@/components/ui/notebook-toast';
 import { confirmTutorBooking, getTutorBookings, rejectTutorBooking } from '@/lib/api/bookings';
+import { refreshBookingCount } from '@/lib/booking-count';
 import { useLanguage } from '@/lib/i18n';
 
 import styles from './tutor-booking-inbox.module.css';
@@ -83,6 +84,7 @@ export default function TutorBookingInbox() {
   };
 
   const reload = () => {
+    refreshBookingCount();
     prepareLoad();
     setReloadKey((value) => value + 1);
   };
@@ -139,6 +141,8 @@ export default function TutorBookingInbox() {
         decision === 'CONFIRM'
           ? await confirmTutorBooking(booking.id)
           : await rejectTutorBooking(booking.id, { reason: text });
+
+      refreshBookingCount();
 
       // Only the server-reported status is rendered, so a failed call never leaves a stale row.
       setItems((current) => applyTutorBookingDecision(current, result));
