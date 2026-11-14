@@ -1256,3 +1256,211 @@ for (const width of [320, 768, 1440]) {
     expect(posts).toBe(1);
   });
 }
+
+for (const language of ['en', 'th'] as const) {
+  test(`capacity increases confirm a desired total and preserve original uses (${language})`, async ({
+    page,
+  }, testInfo) => {
+    if (testInfo.project.name === 'mobile-chromium') {
+      await page.setViewportSize({ width: 320, height: 850 });
+    }
+    const payloads: unknown[] = [];
+    let current = first;
+    let release: (() => void) | undefined;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    await setup(
+      page,
+      async (route, url) => {
+        if (route.request().method() === 'PATCH') {
+          expect(url.pathname).toBe(`/api/v1/admin/coupons/${first.id}/capacity`);
+          payloads.push(route.request().postDataJSON());
+          await gate;
+          current = { ...first, maxUses: 150, availableUses: 135 };
+          await route.fulfill({ json: current });
+        } else
+          await route.fulfill({
+            json: { items: [current, ...examples.slice(1)], nextCursor: null },
+          });
+      },
+      'ADMIN',
+      language,
+    );
+    const list = page.getByRole('region', {
+      name: language === 'th' ? 'ทะเบียนคูปอง' : 'Coupon register',
+      exact: true,
+    });
+    const action = page.getByRole('button', {
+      name: `${language === 'th' ? 'เพิ่มโควตา' : 'Increase limit'} WELCOME10`,
+      exact: true,
+    });
+    await action.click();
+    let dialog = page.getByRole('alertdialog');
+    const cancel = dialog.getByRole('button', {
+      name: language === 'th' ? 'ยกเลิก' : 'Cancel',
+      exact: true,
+    });
+    await expect(cancel).toBeFocused();
+    await cancel.click();
+    expect(payloads).toEqual([]);
+    await expect(action).toBeFocused();
+    await action.click();
+    dialog = page.getByRole('alertdialog');
+    const input = dialog.getByRole('spinbutton', {
+      name: language === 'th' ? 'จำนวนสิทธิ์รวมใหม่' : 'New total usage limit',
+      exact: true,
+    });
+    const confirm = dialog.getByRole('button', {
+      name: language === 'th' ? 'เพิ่มโควตา' : 'Increase limit',
+      exact: true,
+    });
+    await input.fill('99');
+    await confirm.click();
+    await expect(input).toHaveAttribute('aria-invalid', 'true');
+    await expect(input).toBeFocused();
+    expect(payloads).toEqual([]);
+    await input.fill('150');
+    await expect(
+      dialog.getByText(language === 'th' ? 'เพิ่มอีก 50 สิทธิ์' : '50 additional uses', {
+        exact: true,
+      }),
+    ).toBeVisible();
+    await expect(dialog).toHaveJSProperty(
+      'scrollWidth',
+      await dialog.evaluate((el) => el.clientWidth),
+    );
+    await page.screenshot({
+      path: testInfo.outputPath(`capacity-${language}.png`),
+      fullPage: true,
+    });
+    await confirm.dblclick({ delay: 20, noWaitAfter: true });
+    await expect(dialog).toHaveAttribute('aria-busy', 'true');
+    await expect(input).toBeDisabled();
+    await expect(
+      dialog.getByRole('button', { name: language === 'th' ? 'ยกเลิก' : 'Cancel' }),
+    ).toBeDisabled();
+    expect(payloads).toEqual([{ maxUses: 150 }]);
+    release?.();
+    await expect(dialog).toHaveCount(0);
+    await expect(
+      page.getByRole('status').filter({
+        hasText:
+          language === 'th'
+            ? 'บันทึกโควตาคูปองรวม 150 สิทธิ์แล้ว'
+            : 'Coupon limit saved: 150 total uses.',
+      }),
+    ).toBeVisible();
+    const item = list
+      .locator('li')
+      .filter({ has: page.getByRole('heading', { name: 'WELCOME10', exact: true }) });
+    await expect(item).toContainText('135');
+    await expect(item).toContainText('150');
+    await expect(item).toContainText('12');
+    await expect(item).toContainText('3');
+    await expect(
+      page.getByRole('button', {
+        name: `${language === 'th' ? 'เพิ่มโควตา' : 'Increase limit'} LASTCALL`,
+        exact: true,
+      }),
+    ).toBeVisible();
+    for (const code of ['STUDY20', 'OCT15']) {
+      await expect(
+        page.getByRole('button', {
+          name: `${language === 'th' ? 'เพิ่มโควตา' : 'Increase limit'} ${code}`,
+          exact: true,
+        }),
+      ).toHaveCount(0);
+    }
+    await expect(page.locator('body')).toHaveJSProperty(
+      'scrollWidth',
+      await page.locator('body').evaluate((el) => el.clientWidth),
+    );
+  });
+}
+
+test('uncertain capacity requires refresh and uses the authoritative total before another increase', async ({
+  page,
+}) => {
+  let current = first;
+  let writes = 0;
+  await setup(page, async (route) => {
+    if (route.request().method() === 'PATCH') {
+      writes += 1;
+      current = { ...first, maxUses: 150, availableUses: 135 };
+      await route.abort('failed');
+    } else {
+      await route.fulfill({ json: { items: [current], nextCursor: null } });
+    }
+  });
+  const action = page.getByRole('button', { name: 'Increase limit WELCOME10', exact: true });
+  await action.click();
+  await page
+    .getByRole('alertdialog')
+    .getByLabel('New total usage limit', { exact: true })
+    .fill('150');
+  await page
+    .getByRole('alertdialog')
+    .getByRole('button', { name: 'Increase limit', exact: true })
+    .click();
+  await expect(page.getByRole('alertdialog')).toHaveCount(0);
+  await expect(action).toBeDisabled();
+  await expect(
+    page.getByRole('button', { name: 'Deactivate WELCOME10', exact: true }),
+  ).toBeDisabled();
+  await page.getByRole('button', { name: 'Refresh coupons', exact: true }).click();
+  await expect(action).toBeEnabled();
+  await action.click();
+  await expect(
+    page.getByRole('alertdialog').getByLabel('New total usage limit', { exact: true }),
+  ).toHaveValue('150');
+  expect(writes).toBe(1);
+});
+
+for (const [status, code] of [
+  [409, 'COUPON_CAPACITY_DECREASE_NOT_ALLOWED'],
+  [409, 'COUPON_EXPIRED'],
+  [409, 'COUPON_INACTIVE'],
+  [404, 'NOT_FOUND'],
+  [401, 'UNAUTHENTICATED'],
+  [403, 'FORBIDDEN'],
+  [400, 'VALIDATION_FAILED'],
+] as const) {
+  test(`capacity handles ${status} ${code} without losing the draft or retrying blindly`, async ({
+    page,
+  }) => {
+    await setup(page, async (route) => {
+      if (route.request().method() === 'PATCH') {
+        await route.fulfill({ status, json: { code } });
+      } else {
+        await route.fulfill({ json: { items: [first], nextCursor: null } });
+      }
+    });
+    const action = page.getByRole('button', { name: 'Increase limit WELCOME10', exact: true });
+    await action.click();
+    await page
+      .getByRole('alertdialog')
+      .getByLabel('New total usage limit', { exact: true })
+      .fill('150');
+    await page
+      .getByRole('alertdialog')
+      .getByRole('button', { name: 'Increase limit', exact: true })
+      .click();
+    if (status === 400) {
+      await expect(
+        page.getByRole('alertdialog').getByLabel('New total usage limit', { exact: true }),
+      ).toHaveValue('150');
+      await expect(page.getByRole('alertdialog').locator('p[role="alert"]')).toBeVisible();
+      await expect(
+        page.getByRole('alertdialog').getByLabel('New total usage limit', { exact: true }),
+      ).toBeFocused();
+    } else {
+      await expect(page.getByRole('alertdialog')).toHaveCount(0);
+      if (status === 401 || status === 403) {
+        await expect(action).toHaveCount(0);
+      } else {
+        await expect(action).toBeDisabled();
+      }
+    }
+  });
+}

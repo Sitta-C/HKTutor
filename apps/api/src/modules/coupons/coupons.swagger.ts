@@ -121,7 +121,7 @@ export function CreateCouponDoc(): MethodDecorator {
         'defaults to true. The coupon and exactly one actor-bound coupon.create audit event ' +
         '(afterData: percent, maxUses, active) commit or roll back together through the DB02 ' +
         'trigger. The response never includes audit data. There is no edit or delete route; ' +
-        'only activation can change afterwards.',
+        'only activation and capacity increases can change afterwards.',
     }),
     ApiCreatedResponse({ type: CouponDto }),
     ApiBadRequestResponse({
@@ -169,5 +169,26 @@ export function SetCouponActivationDoc(): MethodDecorator {
         'INVALID_UUID or VALIDATION_FAILED: required JSON boolean active; no extra fields.',
     }),
     ApiNotFoundResponse({ description: 'Coupon not found.' }),
+  );
+}
+
+export function IncreaseCouponCapacityDoc(): MethodDecorator {
+  return applyDecorators(
+    couponAuthDocs(),
+    ApiOperation({
+      summary: 'Increase coupon usage limit (ADMIN only)',
+      description:
+        'Accepts only { maxUses: integer }, a desired total up to 2147483647. Requires an active, unexpired coupon; exhausted coupons may be replenished. Locks the coupon with activation/payment claims. A larger total and one actor-bound coupon.capacity_increase audit commit atomically. Repeating the same total is a no-op; a lower total is rejected. Code, percent, expiry, uses, reservations and historical booking/payment snapshots stay unchanged. Requires the capacity-audit migration; no admin privacy consent required.',
+    }),
+    ApiOkResponse({ type: CouponDto }),
+    ApiBadRequestResponse({
+      description:
+        'Invalid UUID or body. Only an integer maxUses from 1 to 2147483647 is accepted.',
+    }),
+    ApiNotFoundResponse({ description: 'Coupon not found.' }),
+    ApiConflictResponse({
+      description:
+        'COUPON_INACTIVE, COUPON_EXPIRED, or COUPON_CAPACITY_DECREASE_NOT_ALLOWED. Refresh the coupon before another change.',
+    }),
   );
 }

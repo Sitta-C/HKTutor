@@ -186,6 +186,91 @@ describe('CouponsService', () => {
     await expect(service.setActivation(ACTOR, ID, false)).rejects.toBe(failure);
   });
 
+  it('increases only the total capacity and preserves all claimed uses with actor-bound audit', async () => {
+    db.coupon.update.mockResolvedValue({ ...row, maxUses: 25 });
+    const result = await service.increaseCapacity(ACTOR, ID, 25);
+    expect(db.coupon.update).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: ID }, data: { maxUses: 25 } }),
+    );
+    expect(result).toMatchObject({
+      id: ID,
+      maxUses: 25,
+      consumedUses: 2,
+      reservedUses: 3,
+      availableUses: 20,
+      percent: 10,
+      active: true,
+    });
+    expect(db.auditLog.create).toHaveBeenCalledWith({
+      data: {
+        id: expect.any(String) as unknown,
+        actorUserId: ACTOR,
+        action: 'coupon.capacity_increase',
+        entityType: 'Coupon',
+        entityId: ID,
+        beforeData: { maxUses: 10 },
+        afterData: { maxUses: 25 },
+        operationKey: expect.stringMatching(/^coupon\.capacity_increase:/) as unknown,
+      },
+      select: { id: true },
+    });
+    expect(db.$queryRaw.mock.invocationCallOrder[0]).toBeLessThan(
+      db.coupon.findUnique.mock.invocationCallOrder[0] ?? 0,
+    );
+  });
+
+  it('retries a desired total without another write, audit or timestamp change', async () => {
+    expect(await service.increaseCapacity(ACTOR, ID, 10)).toMatchObject({
+      maxUses: 10,
+      updatedAt: NOW.toISOString(),
+    });
+    expect(db.coupon.update).not.toHaveBeenCalled();
+    expect(db.auditLog.create).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    [null, 25, undefined, 404],
+    [{ ...row, active: false }, 25, 'COUPON_INACTIVE', 409],
+    [{ ...row, expiresAt: NOW }, 25, 'COUPON_EXPIRED', 409],
+    [row, 9, 'COUPON_CAPACITY_DECREASE_NOT_ALLOWED', 409],
+  ])(
+    'rejects ineligible capacity change %# without writes',
+    async (coupon, total, code, status) => {
+      db.coupon.findUnique.mockResolvedValue(coupon);
+      await expect(service.increaseCapacity(ACTOR, ID, total)).rejects.toMatchObject({
+        status,
+        ...(code ? { response: { code } } : {}),
+      });
+      expect(db.coupon.update).not.toHaveBeenCalled();
+      expect(db.auditLog.create).not.toHaveBeenCalled();
+    },
+  );
+
+  it('checks expiry after waiting for the coupon lock', async () => {
+    db.$queryRaw.mockImplementation(() => {
+      jest.spyOn(Date, 'now').mockReturnValue(row.expiresAt.getTime());
+      return Promise.resolve([]);
+    });
+    await expect(service.increaseCapacity(ACTOR, ID, 25)).rejects.toMatchObject({
+      response: { code: 'COUPON_EXPIRED' },
+    });
+    expect(db.coupon.update).not.toHaveBeenCalled();
+  });
+
+  it('propagates an audit failure and expiry during writes for transaction rollback', async () => {
+    db.coupon.update.mockResolvedValue({ ...row, maxUses: 25 });
+    const failure = new Error('audit unavailable');
+    db.auditLog.create.mockRejectedValueOnce(failure);
+    await expect(service.increaseCapacity(ACTOR, ID, 25)).rejects.toBe(failure);
+    db.auditLog.create.mockImplementationOnce(() => {
+      jest.spyOn(Date, 'now').mockReturnValue(row.expiresAt.getTime());
+      return Promise.resolve({ id: ID });
+    });
+    await expect(service.increaseCapacity(ACTOR, ID, 25)).rejects.toMatchObject({
+      response: { code: 'COUPON_EXPIRED' },
+    });
+  });
+
   it('returns only safe metadata and counts from a repeatable-read snapshot', async () => {
     const result = await service.list({});
     expect(result.items[0]).toEqual({

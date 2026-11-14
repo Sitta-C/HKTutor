@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import {
+  canIncreaseCouponCapacity,
+  parseCouponCapacity,
+  getCouponCapacityError,
   getCouponRequestError,
   getCouponServerErrors,
   getCouponStatuses,
@@ -113,6 +116,34 @@ describe('admin coupon form contract', () => {
 });
 
 describe('coupon capacity and recovery', () => {
+  it('permits replenishing exhausted active coupons but excludes inactive, expired and integer maximum', () => {
+    expect(canIncreaseCouponCapacity({ ...coupon, availableUses: 0 }, now)).toBe(true);
+    expect(canIncreaseCouponCapacity({ ...coupon, active: false }, now)).toBe(false);
+    expect(canIncreaseCouponCapacity(coupon, Date.parse(coupon.expiresAt))).toBe(false);
+    expect(canIncreaseCouponCapacity({ ...coupon, maxUses: 2147483647 }, now)).toBe(false);
+  });
+  it.each(['', '99', '100', '-1', '100.5', '1e3', '2147483648'])(
+    'rejects non-increasing or invalid capacity %s',
+    (raw) => {
+      expect(parseCouponCapacity(raw, 100)).toBeNull();
+    },
+  );
+  it('accepts bounded total values rather than an additive increment', () => {
+    expect(parseCouponCapacity(' 150 ', 100)).toBe(150);
+    expect(parseCouponCapacity('2147483647', 100)).toBe(2147483647);
+  });
+  it.each([
+    ['COUPON_INACTIVE', 'inactive'],
+    ['COUPON_EXPIRED', 'expired'],
+    ['COUPON_CAPACITY_DECREASE_NOT_ALLOWED', 'decrease'],
+  ])('distinguishes capacity conflict %s from duplicate-code creation', (code, kind) => {
+    expect(getCouponCapacityError(new ApiError('conflict', 409, { code }))).toBe(kind);
+  });
+  it('handles missing, invalid and uncertain capacity outcomes', () => {
+    expect(getCouponCapacityError(new ApiError('missing', 404))).toBe('missing');
+    expect(getCouponCapacityError(new ApiError('invalid', 400))).toBe('validation');
+    expect(getCouponCapacityError(new TypeError('offline'))).toBe('uncertain');
+  });
   it('shows independent inactive, expired and exhausted badges without fabricating counts', () => {
     expect(getCouponStatuses(coupon, now)).toEqual(['active']);
     expect(getCouponStatuses(coupon, Date.parse(coupon.expiresAt))).toEqual(['expired']);

@@ -12,6 +12,51 @@ export interface CouponDraft {
   active: boolean;
 }
 
+export const MAX_COUPON_USES = 2147483647;
+
+export function canIncreaseCouponCapacity(coupon: AdminCoupon, now: number): boolean {
+  return coupon.active && Date.parse(coupon.expiresAt) > now && coupon.maxUses < MAX_COUPON_USES;
+}
+
+export function parseCouponCapacity(value: string, currentLimit: number): number | null {
+  const raw = value.trim();
+  const target = Number(raw);
+  return /^\d+$/.test(raw) &&
+    Number.isInteger(target) &&
+    target > currentLimit &&
+    target <= MAX_COUPON_USES
+    ? target
+    : null;
+}
+
+export function getCouponCapacityError(
+  error: unknown,
+): 'inactive' | 'expired' | 'decrease' | 'missing' | 'validation' | 'uncertain' {
+  if (!(error instanceof ApiError)) {
+    return 'uncertain';
+  }
+  const code =
+    error.details && typeof error.details === 'object' && 'code' in error.details
+      ? error.details.code
+      : null;
+  if (code === 'COUPON_INACTIVE') {
+    return 'inactive';
+  }
+  if (code === 'COUPON_EXPIRED') {
+    return 'expired';
+  }
+  if (code === 'COUPON_CAPACITY_DECREASE_NOT_ALLOWED') {
+    return 'decrease';
+  }
+  if (error.status === 404) {
+    return 'missing';
+  }
+  if (error.status === 400) {
+    return 'validation';
+  }
+  return 'uncertain';
+}
+
 export const EMPTY_COUPON_DRAFT: CouponDraft = {
   code: '',
   percent: '',
@@ -51,7 +96,7 @@ export function validateCouponDraft(
     !/^\d+$/.test(draft.maxUses) ||
     !Number.isInteger(maxUses) ||
     maxUses < 1 ||
-    maxUses > 2147483647
+    maxUses > MAX_COUPON_USES
   ) {
     errors.maxUses = 'maxUses';
   }

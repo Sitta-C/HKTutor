@@ -402,6 +402,11 @@ adding edit/delete routes or changing booking/payment behavior. A later change a
 the only change allowed after creation. See
 [`tests/s3-t22-qa.md`](tests/s3-t22-qa.md) for coverage, commands and screenshot evidence.
 
+Active, unexpired coupons can also receive additional quota through
+`PATCH /api/v1/admin/coupons/:couponId/capacity`. Admins set a higher total in a confirmation dialog;
+used/reserved counts and once-per-student history remain intact. This requires the additive
+`20261114120000_add_coupon_capacity_audit` migration before API deployment.
+
 S3-T23 collects the coupon rules, audit behavior, approved PromptPay coupon decisions and US9-1
 traceability in the
 [coupon rules reference](apps/api/README.md#coupon-rules-and-audit-reference-s3-t23). See

@@ -18,6 +18,7 @@ import type { App } from 'supertest/types';
 
 const URL = '/api/v1/admin/coupons';
 const COUPON_ID = '60000000-0000-4000-8000-000000000001';
+const CAPACITY_URL = `${URL}/${COUPON_ID}/capacity`;
 const ACTIVATION_URL = `${URL}/${COUPON_ID}/activation`;
 const ACTOR = '10000000-0000-4000-8000-000000000001';
 const NOW = new Date('2030-01-01T00:00:00.000Z');
@@ -92,8 +93,9 @@ describe('Admin coupons HTTP contract (real guards, validation and service; mock
       _count: { uses: 0, reservations: 0 },
     };
     db.coupon.findUnique.mockResolvedValue(coupon);
-    db.coupon.update.mockImplementation(({ data }: { data: { active: boolean } }) =>
-      Promise.resolve({ ...coupon, active: data.active }),
+    db.coupon.update.mockImplementation(
+      ({ data }: { data: { active?: boolean; maxUses?: number } }) =>
+        Promise.resolve({ ...coupon, ...data }),
     );
   });
   afterEach(() => jest.restoreAllMocks());
@@ -247,6 +249,84 @@ describe('Admin coupons HTTP contract (real guards, validation and service; mock
       .send({ active: true })
       .expect(404);
     expect(db.coupon.update).not.toHaveBeenCalled();
+  });
+
+  it('protects capacity changes with authentication and the persisted admin role', async () => {
+    await request(app.getHttpServer()).patch(CAPACITY_URL).send({ maxUses: 5 }).expect(401);
+    for (const role of [Role.STUDENT, Role.TUTOR]) {
+      authenticate({ role });
+      await request(app.getHttpServer())
+        .patch(CAPACITY_URL)
+        .auth('test', { type: 'bearer' })
+        .send({ maxUses: 5, actorUserId: ACTOR })
+        .expect(403);
+    }
+    expect(transaction).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    {},
+    { maxUses: null },
+    { maxUses: '5' },
+    { maxUses: true },
+    { maxUses: 0 },
+    { maxUses: 1.5 },
+    { maxUses: 2147483648 },
+    { maxUses: 5, active: true },
+    { maxUses: 5, actorUserId: ACTOR },
+  ])('rejects invalid capacity body %p', async (body) => {
+    await request(app.getHttpServer())
+      .patch(CAPACITY_URL)
+      .auth('test', { type: 'bearer' })
+      .send(body)
+      .expect(400);
+    expect(transaction).not.toHaveBeenCalled();
+  });
+
+  it('validates capacity UUID and missing records', async () => {
+    await request(app.getHttpServer())
+      .patch(`${URL}/invalid/capacity`)
+      .auth('test', { type: 'bearer' })
+      .send({ maxUses: 5 })
+      .expect(400);
+    expect(transaction).not.toHaveBeenCalled();
+    db.coupon.findUnique.mockResolvedValue(null);
+    await request(app.getHttpServer())
+      .patch(CAPACITY_URL)
+      .auth('test', { type: 'bearer' })
+      .send({ maxUses: 5 })
+      .expect(404);
+    expect(db.coupon.update).not.toHaveBeenCalled();
+  });
+
+  it('increases the desired total as the authenticated admin and returns safe unchanged usage counters', async () => {
+    authenticate({ consentAcceptedAt: null, policyVersion: null });
+    const response = await request(app.getHttpServer())
+      .patch(CAPACITY_URL)
+      .auth('test', { type: 'bearer' })
+      .send({ maxUses: 5 })
+      .expect(200)
+      .expect('Cache-Control', 'no-store');
+    expect(Object.keys(response.body as object).sort()).toEqual(COUPON_RESPONSE_KEYS);
+    expect(response.body as unknown).toMatchObject({
+      id: COUPON_ID,
+      maxUses: 5,
+      consumedUses: 0,
+      reservedUses: 0,
+      availableUses: 5,
+      code: BODY.code,
+      percent: BODY.percent,
+    });
+    expect(db.auditLog.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          actorUserId: ACTOR,
+          action: 'coupon.capacity_increase',
+          beforeData: { maxUses: 1 },
+          afterData: { maxUses: 5 },
+        }) as unknown,
+      }),
+    );
   });
 
   it.each([true, false])('sets activation to %s using the authenticated actor', async (active) => {

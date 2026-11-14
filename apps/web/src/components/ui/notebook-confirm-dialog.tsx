@@ -82,8 +82,11 @@ export function NotebookConfirmDialog({
         event.preventDefault();
         if (!busy && !submitting.current) onCancel();
       }}
-      onClose={() => {
-        if (open && !busy && !submitting.current) onCancel();
+      onClose={(event) => {
+        // Strict Mode can close/reopen a newly mounted modal before its queued close event fires.
+        if (!event.currentTarget.open && open && !busy && !submitting.current) {
+          onCancel();
+        }
       }}
     >
       <div>

@@ -33,6 +33,25 @@ export const couponCopy = {
     changingActivation: 'Saving activation…',
     activated: 'Coupon activated.',
     deactivated: 'Coupon deactivated.',
+    increaseCapacity: 'Increase limit',
+    capacityTitle: 'Increase coupon usage limit?',
+    capacityHelp:
+      'Set a larger total limit. Existing uses, payment reservations and per-student restrictions are kept.',
+    capacityHint:
+      'Active coupons that have not expired can have their limit increased, including exhausted coupons.',
+    capacityTotal: 'New total usage limit',
+    capacityBefore: 'Current total limit',
+    capacityPreview: '{count} additional uses',
+    capacityInvalid: 'Enter a whole number greater than the current limit, up to 2,147,483,647.',
+    capacitySaved: 'Coupon limit saved: {count} total uses.',
+    capacityUncertain:
+      'The new limit could not be confirmed. Refresh coupons before changing it again.',
+    capacityInactive: 'This coupon is inactive. Refresh coupons before increasing its limit.',
+    capacityExpired: 'This coupon has expired. Its usage limit cannot be increased.',
+    capacityStale:
+      'The latest total is higher than this value. Refresh coupons before trying again.',
+    capacityMissing: 'This coupon is no longer available. Refresh coupons.',
+    savingCapacity: 'Saving limit…',
     activationUncertain:
       'The change could not be confirmed. Refresh coupons before changing activation again.',
     activationHint:
@@ -118,6 +137,23 @@ export const couponCopy = {
     changingActivation: 'กำลังบันทึกสถานะ…',
     activated: 'เปิดใช้งานคูปองแล้ว',
     deactivated: 'ปิดใช้งานคูปองแล้ว',
+    increaseCapacity: 'เพิ่มโควตา',
+    capacityTitle: 'ยืนยันเพิ่มโควตาการใช้คูปอง?',
+    capacityHelp:
+      'กำหนดจำนวนสิทธิ์รวมให้มากขึ้น โดยคงประวัติการใช้ รายการชำระเงินที่จองไว้ และข้อจำกัดการใช้ต่อคน',
+    capacityHint:
+      'เพิ่มโควตาได้เมื่อคูปองเปิดใช้งานและยังไม่หมดอายุ รวมถึงคูปองที่ใช้เต็มโควตาแล้ว',
+    capacityTotal: 'จำนวนสิทธิ์รวมใหม่',
+    capacityBefore: 'จำนวนสิทธิ์รวมปัจจุบัน',
+    capacityPreview: 'เพิ่มอีก {count} สิทธิ์',
+    capacityInvalid: 'กรอกจำนวนเต็มที่มากกว่าโควตาปัจจุบัน และไม่เกิน 2,147,483,647',
+    capacitySaved: 'บันทึกโควตาคูปองรวม {count} สิทธิ์แล้ว',
+    capacityUncertain: 'ยังยืนยันโควตาใหม่ไม่ได้ กรุณาโหลดรายการคูปองใหม่ก่อนเปลี่ยนอีกครั้ง',
+    capacityInactive: 'คูปองนี้ปิดใช้งานแล้ว กรุณาโหลดรายการใหม่ก่อนเพิ่มโควตา',
+    capacityExpired: 'คูปองนี้หมดอายุแล้ว จึงไม่สามารถเพิ่มโควตาได้',
+    capacityStale: 'โควตาล่าสุดมากกว่าค่าที่กรอก กรุณาโหลดรายการคูปองใหม่ก่อนลองอีกครั้ง',
+    capacityMissing: 'ไม่พบคูปองนี้แล้ว กรุณาโหลดรายการใหม่',
+    savingCapacity: 'กำลังบันทึกโควตา…',
     activationUncertain:
       'ยังยืนยันผลการเปลี่ยนสถานะไม่ได้ กรุณาโหลดรายการคูปองใหม่ก่อนเปลี่ยนสถานะอีกครั้ง',
     activationHint:

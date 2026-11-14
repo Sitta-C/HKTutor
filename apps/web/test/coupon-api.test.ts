@@ -1,7 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { authenticatedFetch } from '@/lib/api/client';
-import { createAdminCoupon, listAdminCoupons, setAdminCouponActivation } from '@/lib/api/coupons';
+import {
+  createAdminCoupon,
+  increaseAdminCouponCapacity,
+  listAdminCoupons,
+  setAdminCouponActivation,
+} from '@/lib/api/coupons';
 
 vi.mock('@/lib/api/client', () => ({ authenticatedFetch: vi.fn() }));
 
@@ -28,6 +33,14 @@ describe('admin coupon API', () => {
     expect(authenticatedFetch).toHaveBeenCalledWith('/admin/coupons/coupon%2Fid/activation', {
       method: 'PATCH',
       body: JSON.stringify({ active: false }),
+      signal: expect.any(AbortSignal),
+    });
+  });
+  it('sets a desired total using the same authenticated client and encoded ID', async () => {
+    await increaseAdminCouponCapacity('coupon/id', { maxUses: 150 });
+    expect(authenticatedFetch).toHaveBeenCalledWith('/admin/coupons/coupon%2Fid/capacity', {
+      method: 'PATCH',
+      body: JSON.stringify({ maxUses: 150 }),
       signal: expect.any(AbortSignal),
     });
   });

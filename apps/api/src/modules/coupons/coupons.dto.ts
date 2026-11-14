@@ -91,6 +91,21 @@ export class SetCouponActivationDto {
   active!: boolean;
 }
 
+export class IncreaseCouponCapacityDto {
+  @ApiProperty({
+    description:
+      'Desired total usage limit. Only increases are allowed on active, unexpired coupons. Repeating the current total is a no-op; existing uses and reservations remain counted.',
+    type: 'integer',
+    minimum: 1,
+    maximum: MAX_COUPON_USES,
+    example: 200,
+  })
+  @IsInt()
+  @Min(1)
+  @Max(MAX_COUPON_USES)
+  maxUses!: number;
+}
+
 export class ListCouponsQueryDto {
   @ApiPropertyOptional({ maxLength: MAX_COUPON_CURSOR_LENGTH })
   @ValidateIf((_object, value: unknown) => value !== undefined)
