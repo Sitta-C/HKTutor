@@ -10,6 +10,7 @@ import { CURRENT_PRIVACY_POLICY_VERSION } from '@modules/auth/auth.constants';
 import { JwtTokenService } from '@modules/auth/jwt.service';
 
 describe('shared access session verifier', () => {
+  const now = new Date('2026-11-16T05:00:00.000Z');
   const findUnique = jest.fn();
   let tokens: JwtTokenService;
   let prisma: PrismaService;
@@ -35,6 +36,7 @@ describe('shared access session verifier', () => {
   }
 
   beforeEach(async () => {
+    jest.useFakeTimers().setSystemTime(now);
     jest.resetAllMocks();
     const module = await Test.createTestingModule({
       providers: [
@@ -47,6 +49,42 @@ describe('shared access session verifier', () => {
     prisma = module.get(PrismaService);
     token = tokens.signAccessToken('synthetic-user', 'synthetic-session', Role.ADMIN);
     findUnique.mockResolvedValue(fixture());
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
+  it('rejects a session at its exact expiry boundary', async () => {
+    findUnique.mockResolvedValue({ ...fixture(), expiresAt: now });
+    await expect(verifyAccessSession(token, tokens, prisma)).rejects.toThrow(UnauthorizedException);
+  });
+
+  it('caps access at JWT expiry when the database session lasts longer', async () => {
+    findUnique.mockResolvedValue({
+      ...fixture(),
+      expiresAt: new Date(now.getTime() + 24 * 60 * 60 * 1000),
+    });
+    const payload = tokens.verifyAccessToken(token);
+    expect(payload).not.toBeNull();
+    expect((await verifyAccessSession(token, tokens, prisma)).expiresAt).toBe(
+      (payload?.exp ?? 0) * 1000,
+    );
+  });
+
+  it('allows an eligible tutor into chat and reads the token subject/session', async () => {
+    findUnique.mockResolvedValue({ ...fixture(), user: { ...fixture().user, role: Role.TUTOR } });
+    expect((await verifyAccessSession(token, tokens, prisma, true)).user.role).toBe(Role.TUTOR);
+    expect(findUnique).toHaveBeenCalledWith({
+      where: { id: 'synthetic-session' },
+      include: { user: true },
+    });
+  });
+
+  it('does not turn a persistence failure into an authenticated session', async () => {
+    const failure = new Error('Synthetic database failure');
+    findUnique.mockRejectedValue(failure);
+    await expect(verifyAccessSession(token, tokens, prisma)).rejects.toBe(failure);
   });
 
   it('uses the current database role rather than the token role and bounds socket lifetime', async () => {
