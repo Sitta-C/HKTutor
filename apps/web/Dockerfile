@@ -17,8 +17,8 @@ COPY apps/web/package.json apps/web/package.json
 COPY packages/eslint-config/package.json packages/eslint-config/package.json
 COPY packages/tsconfig/package.json packages/tsconfig/package.json
 
-RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
-  pnpm install --frozen-lockfile
+# Railway requires service-specific cache-mount IDs. Keep this image portable with layer caching.
+RUN pnpm install --frozen-lockfile
 
 FROM dependencies AS build
 

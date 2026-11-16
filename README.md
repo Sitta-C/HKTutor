@@ -415,6 +415,14 @@ S3-T24 verifies the admin authorization, coupon boundaries, duplicate-code/audit
 bilingual form recovery. See [S3-T24 QA evidence](tests/s3-t24-qa.md) for the acceptance mapping,
 actual commands and verification limits.
 
+## Railway deployment
+
+For a hosted demo without keeping a local computer running, follow the
+[Railway deployment guide](deploy/railway/README.md). It uses the existing API/web Dockerfiles
+and a dedicated same-origin gateway for REST, secure refresh cookies and real-time chat. Only
+the gateway receives a public HTTPS domain; Supabase and Resend remain external services.
+Database migration/seed commands are manual and require confirming the demo target first.
+
 ## Checks
 
 Project Demonstration ข้อ 2–3: `pnpm test:demo:playwright` loads the development database from
