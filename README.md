@@ -417,6 +417,11 @@ actual commands and verification limits.
 
 ## Checks
 
+Project Demonstration ข้อ 2–3: `pnpm test:demo:playwright` loads the development database from
+the root `.env`, creates temporary per-run fixtures and cleans them afterward. Jest enforces
+100% coverage for `verifyAccessSession` with `pnpm test:demo:unit`. See the
+[demonstration runbook and test-case mapping](tests/project-demonstration.md).
+
 Sprint 3 database concurrency and query-plan checks run with the disposable-only
 `pnpm db:verify:sprint3-concurrency`. See [DB05 cases, file/call map and results](tests/s3-db05-qa.md)
 for the exact database name, prerequisites, real lock/rollback evidence and query-index migration.
