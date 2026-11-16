@@ -11,5 +11,7 @@ coverage
 
 .env
 .env.*
+**/.env
+**/.env.*
 *.tsbuildinfo
 HKTutor_overview.xlsx
